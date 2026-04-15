@@ -82,11 +82,11 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
   const opts: AttendeeColumnOpts = {
     allowedDomain: "example.com",
-    phonePrefix: "44",
-    renderStatus: () => "",
-    renderActions: () => "",
-    answerTextMap: new Map(),
     answerQuestionMap: new Map(),
+    answerTextMap: new Map(),
+    phonePrefix: "44",
+    renderActions: () => "",
+    renderStatus: () => "",
   };
   const makeRow = (
     overrides: Partial<AttendeeTableRow> = {},
@@ -99,7 +99,7 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
 
   test("event cell renders link to admin event page", () => {
     const html = ATTENDEE_TABLE_COLUMNS.event!.cell(
-      makeRow({ eventName: "Gala", eventId: 42 }),
+      makeRow({ eventId: 42, eventName: "Gala" }),
       opts,
     );
     expect(html).toContain("/admin/event/42");

@@ -40,18 +40,18 @@ const createMockClient = (
   const locationsList = spy(impls.locationsList ?? noop);
 
   return {
+    checkoutCreate,
     client: {
       checkout: { paymentLinks: { create: checkoutCreate } },
+      locations: { list: locationsList },
       orders: { get: ordersGet },
       payments: { get: paymentsGet },
       refunds: { refundPayment: refundsRefundPayment },
-      locations: { list: locationsList },
     } as unknown as SquareClient,
-    checkoutCreate,
+    locationsList,
     ordersGet,
     paymentsGet,
     refundsRefundPayment,
-    locationsList,
   };
 };
 
@@ -303,21 +303,21 @@ describe("square", () => {
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
       const intent = {
-        name: "John Doe",
-        email: "john@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "john@example.com",
         items: [
           {
             eventId: 1,
-            quantity: 1,
-            unitPrice: 1000,
-            slug: "test-event",
             name: "Test Event",
+            quantity: 1,
+            slug: "test-event",
+            unitPrice: 1000,
           },
         ],
+        name: "John Doe",
+        phone: "",
+        special_instructions: "",
       };
       const result = await squareApi.createPaymentLink(
         intent,
@@ -330,21 +330,21 @@ describe("square", () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       // No location ID set
       const intent = {
-        name: "John",
-        email: "john@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "john@example.com",
         items: [
           {
             eventId: 1,
-            quantity: 1,
-            unitPrice: 1000,
-            slug: "test-event",
             name: "Test",
+            quantity: 1,
+            slug: "test-event",
+            unitPrice: 1000,
           },
         ],
+        name: "John",
+        phone: "",
+        special_instructions: "",
       };
       const result = await squareApi.createPaymentLink(
         intent,
@@ -370,21 +370,21 @@ describe("square", () => {
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
           const intent = {
-            name: "Jane Smith",
-            email: "jane@example.com",
-            phone: "555-9876",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "jane@example.com",
             items: [
               {
                 eventId: 7,
-                quantity: 3,
-                unitPrice: 2500,
-                slug: "concert-2025",
                 name: "Concert",
+                quantity: 3,
+                slug: "concert-2025",
+                unitPrice: 2500,
               },
             ],
+            name: "Jane Smith",
+            phone: "555-9876",
+            special_instructions: "",
           };
 
           const result = await squareApi.createPaymentLink(
@@ -413,7 +413,7 @@ describe("square", () => {
           expect(args.order.metadata.email).toBe("jane@example.com");
           expect(args.order.metadata.phone).toBe("555-9876");
           const items = JSON.parse(args.order.metadata.items!);
-          expect(items).toEqual([{ e: 7, q: 3, p: 7500 }]);
+          expect(items).toEqual([{ e: 7, p: 7500, q: 3 }]);
 
           // Verify checkout options
           expect(args.checkoutOptions.redirectUrl).toBe(
@@ -451,21 +451,21 @@ describe("square", () => {
         async () => {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            name: "Jane",
-            email: "jane@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "jane@example.com",
             items: [
               {
                 eventId: event.id,
-                quantity: 2,
-                unitPrice: event.unit_price,
-                slug: event.slug,
                 name: event.name,
+                quantity: 2,
+                slug: event.slug,
+                unitPrice: event.unit_price,
               },
             ],
+            name: "Jane",
+            phone: "",
+            special_instructions: "",
           };
 
           await squareApi.createPaymentLink(
@@ -501,21 +501,21 @@ describe("square", () => {
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "test-event",
                 name: "Test",
+                quantity: 1,
+                slug: "test-event",
+                unitPrice: 1000,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
 
           await squareApi.createPaymentLink(intent, "http://localhost");
@@ -543,21 +543,21 @@ describe("square", () => {
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "test-event",
                 name: "Test",
+                quantity: 1,
+                slug: "test-event",
+                unitPrice: 1000,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
 
           const result = await squareApi.createPaymentLink(
@@ -573,28 +573,28 @@ describe("square", () => {
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
       const intent = {
-        name: "John Doe",
-        email: "john@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "john@example.com",
         items: [
           {
             eventId: 1,
-            quantity: 1,
-            unitPrice: 1000,
-            slug: "event-1",
             name: "Event 1",
+            quantity: 1,
+            slug: "event-1",
+            unitPrice: 1000,
           },
           {
             eventId: 2,
-            quantity: 2,
-            unitPrice: 500,
-            slug: "event-2",
             name: "Event 2",
+            quantity: 2,
+            slug: "event-2",
+            unitPrice: 500,
           },
         ],
+        name: "John Doe",
+        phone: "",
+        special_instructions: "",
       };
       const result = await squareApi.createPaymentLink(
         intent,
@@ -606,21 +606,21 @@ describe("square", () => {
     test("returns null when location ID not configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       const intent = {
-        name: "John Doe",
-        email: "john@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "john@example.com",
         items: [
           {
             eventId: 1,
-            quantity: 1,
-            unitPrice: 1000,
-            slug: "event-1",
             name: "Event 1",
+            quantity: 1,
+            slug: "event-1",
+            unitPrice: 1000,
           },
         ],
+        name: "John Doe",
+        phone: "",
+        special_instructions: "",
       };
       const result = await squareApi.createPaymentLink(
         intent,
@@ -643,21 +643,21 @@ describe("square", () => {
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
           const intent = {
-            name: "Bob Missing",
-            email: "bob@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "bob@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "event-1",
                 name: "Event 1",
+                quantity: 1,
+                slug: "event-1",
+                unitPrice: 1000,
               },
             ],
+            name: "Bob Missing",
+            phone: "",
+            special_instructions: "",
           };
 
           const result = await squareApi.createPaymentLink(
@@ -686,28 +686,28 @@ describe("square", () => {
         () => stub(squareApi, "getSquareClient", () => client),
         async () => {
           const intent = {
-            name: "Alice Wonder",
-            email: "alice@example.com",
-            phone: "555-1111",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "alice@example.com",
             items: [
               {
                 eventId: 10,
-                quantity: 2,
-                unitPrice: 1500,
-                slug: "workshop-a",
                 name: "Workshop A",
+                quantity: 2,
+                slug: "workshop-a",
+                unitPrice: 1500,
               },
               {
                 eventId: 20,
-                quantity: 1,
-                unitPrice: 3000,
-                slug: "gala-dinner",
                 name: "Gala Dinner",
+                quantity: 1,
+                slug: "gala-dinner",
+                unitPrice: 3000,
               },
             ],
+            name: "Alice Wonder",
+            phone: "555-1111",
+            special_instructions: "",
           };
 
           const result = await squareApi.createPaymentLink(
@@ -744,8 +744,8 @@ describe("square", () => {
           expect(args.order.metadata.phone).toBe("555-1111");
           const items = JSON.parse(args.order.metadata.items!);
           expect(items).toHaveLength(2);
-          expect(items[0]).toEqual({ e: 10, q: 2, p: 3000 });
-          expect(items[1]).toEqual({ e: 20, q: 1, p: 3000 });
+          expect(items[0]).toEqual({ e: 10, p: 3000, q: 2 });
+          expect(items[1]).toEqual({ e: 20, p: 3000, q: 1 });
 
           // Verify location and checkout options
           expect(args.order.locationId).toBe("L_multi_loc");
@@ -769,20 +769,20 @@ describe("square", () => {
           // Generate enough items to exceed 255-char serialized metadata
           const items = Array.from({ length: 30 }, (_, i) => ({
             eventId: i + 1,
-            quantity: 1,
-            unitPrice: 1000,
-            slug: `event-${i + 1}`,
             name: `Event ${i + 1}`,
+            quantity: 1,
+            slug: `event-${i + 1}`,
+            unitPrice: 1000,
           }));
 
           const intent = {
-            name: "Alice",
-            email: "alice@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "alice@example.com",
             items,
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
           };
 
           await expect(
@@ -798,21 +798,21 @@ describe("square", () => {
 
   describe("createPaymentLink with validation errors", () => {
     const validationIntent = {
-      name: "John",
-      email: "john@example.com",
-      phone: "bad-phone",
       address: "",
-      special_instructions: "",
       date: null,
+      email: "john@example.com",
       items: [
         {
           eventId: 1,
-          quantity: 1,
-          unitPrice: 1000,
-          slug: "test-event",
           name: "Test Event",
+          quantity: 1,
+          slug: "test-event",
+          unitPrice: 1000,
         },
       ],
+      name: "John",
+      phone: "bad-phone",
+      special_instructions: "",
     };
 
     /** Set up Square credentials and a mock client with a failing checkout */
@@ -979,9 +979,9 @@ describe("square", () => {
             order: {
               id: "order_tenders",
               metadata: {
+                email: "john@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
                 name: "John",
-                email: "john@example.com",
               },
               state: "COMPLETED",
               tenders: [
@@ -1039,9 +1039,9 @@ describe("square", () => {
             order: {
               id: "order_with_total",
               metadata: {
+                email: "john@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
                 name: "John",
-                email: "john@example.com",
               },
               state: "COMPLETED",
               tenders: [{ id: "tender_1", paymentId: "pay_total" }],
@@ -1090,17 +1090,17 @@ describe("square", () => {
         paymentsGet: () =>
           Promise.resolve({
             payment: {
-              id: "pay_full",
-              status: "COMPLETED",
-              orderId: "order_999",
               amountMoney: {
                 amount: BigInt(5000),
                 currency: "GBP",
               },
+              id: "pay_full",
+              orderId: "order_999",
               refundedMoney: {
                 amount: BigInt(5000),
                 currency: "GBP",
               },
+              status: "COMPLETED",
             },
           }),
       });
@@ -1128,10 +1128,10 @@ describe("square", () => {
         paymentsGet: () =>
           Promise.resolve({
             payment: {
-              id: "pay_wrapper",
-              status: "COMPLETED",
-              orderId: "order_wrapper",
               amountMoney: { amount: BigInt(1000), currency: "USD" },
+              id: "pay_wrapper",
+              orderId: "order_wrapper",
+              status: "COMPLETED",
             },
           }),
       });
@@ -1172,10 +1172,10 @@ describe("square", () => {
         paymentsGet: () =>
           Promise.resolve({
             payment: {
-              id: "pay_refund_me",
-              status: "COMPLETED",
-              orderId: "order_refund",
               amountMoney: { amount: BigInt(4200), currency: "USD" },
+              id: "pay_refund_me",
+              orderId: "order_refund",
+              status: "COMPLETED",
             },
           }),
         refundsRefundPayment: () =>
@@ -1212,10 +1212,10 @@ describe("square", () => {
         paymentsGet: () =>
           Promise.resolve({
             payment: {
-              id: "pay_fail",
-              status: "COMPLETED",
-              orderId: "order_fail",
               amountMoney: { amount: BigInt(1000), currency: "GBP" },
+              id: "pay_fail",
+              orderId: "order_fail",
+              status: "COMPLETED",
             },
           }),
         refundsRefundPayment: () =>
@@ -1284,7 +1284,7 @@ describe("square", () => {
       const key = await crypto.subtle.importKey(
         "raw",
         encoder.encode(TEST_SECRET),
-        { name: "HMAC", hash: "SHA-256" },
+        { hash: "SHA-256", name: "HMAC" },
         false,
         ["sign"],
       );
@@ -1305,15 +1305,15 @@ describe("square", () => {
 
     test("verifies valid signature successfully", async () => {
       const event: WebhookEvent = {
-        id: "evt_square_123",
-        type: "payment.updated",
         data: {
           object: {
             id: "pay_123",
-            status: "COMPLETED",
             order_id: "order_456",
+            status: "COMPLETED",
           },
         },
+        id: "evt_square_123",
+        type: "payment.updated",
       };
 
       const { payload, signature } = await constructTestWebhookEvent(
@@ -1341,14 +1341,14 @@ describe("square", () => {
       const secret = "square_test_construction";
       const notificationUrl = "https://example.com/payment/webhook";
       const event: WebhookEvent = {
-        id: "evt_constructed",
-        type: "payment.updated",
         data: {
           object: {
             id: "pay_123",
             status: "COMPLETED",
           },
         },
+        id: "evt_constructed",
+        type: "payment.updated",
       };
 
       const { payload, signature } = await constructTestWebhookEvent(
@@ -1415,9 +1415,9 @@ describe("square", () => {
         Promise.resolve(
           jsonResponse({
             payment_link: {
+              long_url: "https://checkout.square.site/rest",
               order_id: "ord_rest",
               url: "https://square.link/rest",
-              long_url: "https://checkout.square.site/rest",
             },
           }),
         ),
@@ -1425,20 +1425,20 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
+        checkoutOptions: { redirectUrl: "https://example.com/success" },
         idempotencyKey: "idem-rest",
         order: {
-          locationId: "L_rest",
           lineItems: [
             {
-              name: "Ticket: Show",
-              quantity: "2",
-              note: "2 Tickets",
               basePriceMoney: { amount: BigInt(2500), currency: "GBP" },
+              name: "Ticket: Show",
+              note: "2 Tickets",
+              quantity: "2",
             },
           ],
+          locationId: "L_rest",
           metadata: { items: '[{"e":1,"q":2,"p":0}]', name: "Test" },
         },
-        checkoutOptions: { redirectUrl: "https://example.com/success" },
         prePopulatedData: {
           buyerEmail: "test@test.com",
           buyerPhoneNumber: "+44123",
@@ -1485,20 +1485,20 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
+        checkoutOptions: { redirectUrl: "https://example.com" },
         idempotencyKey: "idem-short",
         order: {
-          locationId: "L_rest",
           lineItems: [
             {
-              name: "T",
-              quantity: "1",
-              note: "T",
               basePriceMoney: { amount: BigInt(100), currency: "USD" },
+              name: "T",
+              note: "T",
+              quantity: "1",
             },
           ],
+          locationId: "L_rest",
           metadata: {},
         },
-        checkoutOptions: { redirectUrl: "https://example.com" },
         prePopulatedData: { buyerEmail: "a@b.com" },
       });
 
@@ -1517,20 +1517,20 @@ describe("square", () => {
 
       const client = await getSquareClient();
       await client!.checkout.paymentLinks.create({
+        checkoutOptions: { redirectUrl: "https://example.com" },
         idempotencyKey: "idem-2",
         order: {
-          locationId: "L_test",
           lineItems: [
             {
-              name: "T",
-              quantity: "1",
-              note: "T",
               basePriceMoney: { amount: BigInt(100), currency: "USD" },
+              name: "T",
+              note: "T",
+              quantity: "1",
             },
           ],
+          locationId: "L_test",
           metadata: {},
         },
-        checkoutOptions: { redirectUrl: "https://example.com" },
         prePopulatedData: { buyerEmail: "a@b.com" },
       });
 
@@ -1543,9 +1543,9 @@ describe("square", () => {
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
-        idempotencyKey: "idem-3",
-        order: { locationId: "L", lineItems: [], metadata: {} },
         checkoutOptions: { redirectUrl: "https://example.com" },
+        idempotencyKey: "idem-3",
+        order: { lineItems: [], locationId: "L", metadata: {} },
         prePopulatedData: { buyerEmail: "a@b.com" },
       });
 
@@ -1559,11 +1559,11 @@ describe("square", () => {
             order: {
               id: "ord_100",
               metadata: { items: '[{"e":5,"q":1,"p":0}]' },
+              state: "COMPLETED",
               tenders: [
                 { id: "t_1", payment_id: "pay_1" },
                 { id: "t_2", payment_id: null },
               ],
-              state: "COMPLETED",
               total_money: { amount: 5000, currency: "USD" },
             },
           }),
@@ -1613,11 +1613,11 @@ describe("square", () => {
         Promise.resolve(
           jsonResponse({
             payment: {
-              id: "pay_1",
-              status: "COMPLETED",
-              order_id: "ord_1",
               amount_money: { amount: 3000, currency: "GBP" },
+              id: "pay_1",
+              order_id: "ord_1",
               refunded_money: { amount: 1000, currency: "GBP" },
+              status: "COMPLETED",
             },
           }),
         ),
@@ -1641,8 +1641,8 @@ describe("square", () => {
           jsonResponse({
             payment: {
               id: "pay_no_amount",
-              status: "PENDING",
               order_id: "ord_x",
+              status: "PENDING",
             },
           }),
         ),
@@ -1659,10 +1659,10 @@ describe("square", () => {
         Promise.resolve(
           jsonResponse({
             payment: {
-              id: "pay_2",
-              status: "COMPLETED",
-              order_id: "ord_2",
               amount_money: { amount: 2000, currency: "USD" },
+              id: "pay_2",
+              order_id: "ord_2",
+              status: "COMPLETED",
             },
           }),
         ),
@@ -1689,9 +1689,9 @@ describe("square", () => {
 
       const client = await getSquareClient();
       await client!.refunds.refundPayment({
+        amountMoney: { amount: BigInt(3000), currency: "GBP" },
         idempotencyKey: "idem-ref",
         paymentId: "pay_1",
-        amountMoney: { amount: BigInt(3000), currency: "GBP" },
       });
 
       const [url, opts] = mockFetch.calls[0]!.args;
@@ -1767,13 +1767,13 @@ describe("square", () => {
             order: {
               id: "order_paid",
               metadata: {
-                name: "John Doe",
                 email: "john@example.com",
-                phone: "555-1234",
                 items: '[{"e":1,"q":2,"p":0}]',
+                name: "John Doe",
+                phone: "555-1234",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
               state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
               totalMoney: { amount: BigInt(5000), currency: "USD" },
             },
           }),
@@ -1807,9 +1807,9 @@ describe("square", () => {
             order: {
               id: "order_open",
               metadata: {
+                email: "john@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
                 name: "John",
-                email: "john@example.com",
               },
               state: "OPEN",
               totalMoney: { amount: BigInt(1000), currency: "USD" },
@@ -1894,12 +1894,12 @@ describe("square", () => {
             order: {
               id: "order_with_amount",
               metadata: {
+                email: "total@example.com",
                 items: '[{"e":5,"q":2,"p":0}]',
                 name: "Total User",
-                email: "total@example.com",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
               state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
               totalMoney: { amount: BigInt(6000), currency: "GBP" },
             },
           }),
@@ -1933,12 +1933,12 @@ describe("square", () => {
             order: {
               id: "order_multi",
               metadata: {
-                name: "John",
                 email: "john@example.com",
                 items,
+                name: "John",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
               state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
               totalMoney: { amount: BigInt(3000), currency: "USD" },
             },
           }),
@@ -1977,21 +1977,21 @@ describe("square", () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "test-event",
                 name: "Test",
+                quantity: 1,
+                slug: "test-event",
+                unitPrice: 1000,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
 
           const result = await squarePaymentProvider.createCheckoutSession(
@@ -2024,21 +2024,21 @@ describe("square", () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "event-1",
                 name: "Event 1",
+                quantity: 1,
+                slug: "event-1",
+                unitPrice: 1000,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
 
           const result = await squarePaymentProvider.createCheckoutSession(
@@ -2059,10 +2059,10 @@ describe("square", () => {
         paymentsGet: () =>
           Promise.resolve({
             payment: {
-              id: "pay_prov_ref",
-              status: "COMPLETED",
-              orderId: "order_prov_ref",
               amountMoney: { amount: BigInt(2000), currency: "GBP" },
+              id: "pay_prov_ref",
+              orderId: "order_prov_ref",
+              status: "COMPLETED",
             },
           }),
         refundsRefundPayment: () =>

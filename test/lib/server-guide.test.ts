@@ -246,9 +246,9 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("shows host email config and setup instructions when configured", async () => {
       setHostEmailConfigForTest({
-        provider: "resend",
         apiKey: "re_test_key",
         fromAddress: "tickets@example.com",
+        provider: "resend",
       });
       try {
         await assertAdminHtml(
@@ -333,9 +333,9 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("shows host wallet config and setup instructions when configured", async () => {
       settings.appleWallet.setHostConfigForTest({
         passTypeId: "pass.com.host.tickets",
-        teamId: "HOSTTEAM01",
         signingCert: "cert-data",
         signingKey: "key-data",
+        teamId: "HOSTTEAM01",
         wwdrCert: "wwdr-data",
       });
       try {
@@ -386,8 +386,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("shows subdomain suffix when Bunny DNS is configured", async () => {
       const restore = setTestEnv({
         BUNNY_API_KEY: "test-key",
-        BUNNY_DNS_ZONE_ID: "test-zone",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
+        BUNNY_DNS_ZONE_ID: "test-zone",
       });
       try {
         await assertAdminHtml("/admin/guide", ".tickets.example.com");

@@ -57,35 +57,35 @@ export const processBooking = async (
       {
         ...contact,
         date,
+        eventAnswerIds: singleEventAnswerIds(event.id, answerIds),
         items: [
           {
             eventId: event.id,
-            quantity,
-            unitPrice,
-            slug: event.slug,
             name: event.name,
+            quantity,
+            slug: event.slug,
+            unitPrice,
           },
         ],
-        eventAnswerIds: singleEventAnswerIds(event.id, answerIds),
       },
       baseUrl,
     );
     if (!result) return { type: "checkout_failed" };
     if ("error" in result)
-      return { type: "checkout_failed", error: result.error };
+      return { error: result.error, type: "checkout_failed" };
 
-    return { type: "checkout", checkoutUrl: result.checkoutUrl };
+    return { checkoutUrl: result.checkoutUrl, type: "checkout" };
   }
 
   // Free event — create attendee atomically
   const result = await createAttendeeAtomic({
     ...contact,
-    bookings: [{ eventId: event.id, quantity, date }],
+    bookings: [{ date, eventId: event.id, quantity }],
   });
 
   if (!result.success)
-    return { type: "creation_failed", reason: result.reason };
+    return { reason: result.reason, type: "creation_failed" };
 
-  await logAndNotifyRegistration([{ event, attendee: result.attendees[0]! }]);
-  return { type: "success", attendee: result.attendees[0]! };
+  await logAndNotifyRegistration([{ attendee: result.attendees[0]!, event }]);
+  return { attendee: result.attendees[0]!, type: "success" };
 };

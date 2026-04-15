@@ -39,9 +39,9 @@ export const extractViewBox = (
   svg: string,
 ): { width: number; height: number } => {
   const match = svg.match(/viewBox="([^"]+)"/);
-  if (!match) return { width: QR_SIZE, height: QR_SIZE };
+  if (!match) return { height: QR_SIZE, width: QR_SIZE };
   const parts = match[1]!.split(/\s+/).map(Number);
-  return { width: parts[2] ?? QR_SIZE, height: parts[3] ?? QR_SIZE };
+  return { height: parts[3] ?? QR_SIZE, width: parts[2] ?? QR_SIZE };
 };
 
 /** Build info lines from ticket data (non-PII event and booking details) */

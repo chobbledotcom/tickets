@@ -63,11 +63,11 @@ describe("e2e: full booking flow", () => {
     // 2. Complete setup
     await browser.submitForm(
       {
-        admin_username: "admin",
+        accept_agreement: "yes",
         admin_password: "password",
         admin_password_confirm: "password",
+        admin_username: "admin",
         country: "GB",
-        accept_agreement: "yes",
       },
       "Complete Setup",
     );
@@ -86,8 +86,8 @@ describe("e2e: full booking flow", () => {
     // 4. Log in with admin credentials
     await browser.submitForm(
       {
-        username: "admin",
         password: "password",
+        username: "admin",
       },
       "Login",
     );
@@ -105,11 +105,11 @@ describe("e2e: full booking flow", () => {
 
     await browser.submitForm(
       {
-        name: "Summer Concert",
         description: "A wonderful summer evening of music",
+        fields: ["email"],
         max_attendees: "100",
         max_quantity: "5",
-        fields: ["email"],
+        name: "Summer Concert",
       },
       "Create Event",
     );
@@ -193,8 +193,8 @@ describe("e2e: full booking flow", () => {
     //    Find the quantity field for our event
     const quantityFields = browser.currentHtml.match(/name="quantity_(\d+)"/);
     const formData: Record<string, string> = {
-      name: "Jane Doe",
       email: "jane@example.com",
+      name: "Jane Doe",
     };
     // If there's a per-event quantity field, set it
     if (quantityFields) {
@@ -224,8 +224,8 @@ describe("e2e: full booking flow", () => {
     if (browser.currentHtml.includes("Login")) {
       await browser.submitForm(
         {
-          username: "admin",
           password: "password",
+          username: "admin",
         },
         "Login",
       );
@@ -291,11 +291,11 @@ describe("e2e: full booking flow", () => {
       // 18. Complete setup again with same credentials
       await browser.submitForm(
         {
-          admin_username: "admin",
+          accept_agreement: "yes",
           admin_password: "password",
           admin_password_confirm: "password",
+          admin_username: "admin",
           country: "GB",
-          accept_agreement: "yes",
         },
         "Complete Setup",
       );
@@ -305,7 +305,7 @@ describe("e2e: full booking flow", () => {
       // 19. Log in again
       await browser.clickLink("Go to Admin Dashboard");
       await browser.submitForm(
-        { username: "admin", password: "password" },
+        { password: "password", username: "admin" },
         "Login",
       );
       if (browser.containsText("Migration complete")) {
@@ -340,7 +340,7 @@ describe("e2e: full booking flow", () => {
       await browser.visit("/admin/");
       if (browser.currentHtml.includes("Login")) {
         await browser.submitForm(
-          { username: "admin", password: "password" },
+          { password: "password", username: "admin" },
           "Login",
         );
       }

@@ -60,8 +60,8 @@ for (const [filename] of ASSET_DEFS) {
 
 // Subpath overrides: use platform-specific entry points for certain packages
 const EDGE_SUBPATHS: Record<string, string> = {
-  "@libsql/client": "/web",
   "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
+  "@libsql/client": "/web",
 };
 
 /**
@@ -126,8 +126,8 @@ const inlineAssetsPlugin: Plugin = {
   setup(build) {
     // Replace build-info module with actual build metadata
     build.onResolve({ filter: /lib\/build-info\.ts$/ }, (args) => ({
-      path: args.path,
       namespace: "inline-build-info",
+      path: args.path,
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-build-info" }, () => ({
@@ -137,8 +137,8 @@ const inlineAssetsPlugin: Plugin = {
 
     // Replace asset paths module with cache-busted version
     build.onResolve({ filter: /lib\/asset-paths\.ts$/ }, (args) => ({
-      path: args.path,
       namespace: "inline-asset-paths",
+      path: args.path,
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
@@ -148,8 +148,8 @@ const inlineAssetsPlugin: Plugin = {
 
     // Replace the assets module with inlined content
     build.onResolve({ filter: /routes\/assets\.ts$/ }, (args) => ({
-      path: args.path,
       namespace: "inline-assets",
+      path: args.path,
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
@@ -323,8 +323,8 @@ const shimBareNodeCryptoPlugin: Plugin = {
   name: "shim-bare-node-crypto",
   setup(build) {
     build.onResolve({ filter: /^crypto$/ }, () => ({
-      path: "crypto",
       namespace: "shim-bare-crypto",
+      path: "crypto",
     }));
     build.onLoad({ filter: /.*/, namespace: "shim-bare-crypto" }, () => ({
       contents: `
@@ -351,20 +351,20 @@ globalThis.global ??= globalThis;
 `;
 
 await esbuild.build({
+  banner: { js: NODEJS_GLOBALS_BANNER },
+  bundle: true,
+  define: { "process.env.NODE_ENV": '"production"' },
   entryPoints: ["./src/edge.ts"],
-  outdir: "./dist",
-  platform: "browser",
+  external: nodeExternals,
   format: "esm",
   minify: true,
-  bundle: true,
-  external: nodeExternals,
-  define: { "process.env.NODE_ENV": '"production"' },
+  outdir: "./dist",
+  platform: "browser",
   plugins: [
     shimBareNodeCryptoPlugin,
     denoNpmResolverPlugin,
     inlineAssetsPlugin,
   ],
-  banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
 // esbuild.build() throws on failure, so if we reach here the output file exists

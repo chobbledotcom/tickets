@@ -83,19 +83,19 @@ const computeVisibilityMap = (
 ): Record<string, boolean> => {
   const showActions = opts.showActions !== false;
   return {
-    status: showActions,
-    event: opts.showEvent,
-    date: opts.showDate,
-    name: true,
-    email: rows.some((r) => !!r.attendee.email),
-    phone: rows.some((r) => !!r.attendee.phone),
-    address: rows.some((r) => !!r.attendee.address),
-    special_instructions: rows.some((r) => !!r.attendee.special_instructions),
-    answers: !!opts.questionData && opts.questionData.questions.length > 0,
-    qty: true,
-    ticket: true,
-    registered: true,
     actions: showActions,
+    address: rows.some((r) => !!r.attendee.address),
+    answers: !!opts.questionData && opts.questionData.questions.length > 0,
+    date: opts.showDate,
+    email: rows.some((r) => !!r.attendee.email),
+    event: opts.showEvent,
+    name: true,
+    phone: rows.some((r) => !!r.attendee.phone),
+    qty: true,
+    registered: true,
+    special_instructions: rows.some((r) => !!r.attendee.special_instructions),
+    status: showActions,
+    ticket: true,
   };
 };
 
@@ -115,8 +115,8 @@ const getColumnLayout = (
     ATTENDEE_DEFAULT_ORDER,
   );
   return {
-    visibleColumns: columnKeys.filter((k) => visMap[k]),
     filters,
+    visibleColumns: columnKeys.filter((k) => visMap[k]),
   };
 };
 
@@ -230,8 +230,8 @@ const createStatusRenderer =
     }
     return CheckinButton({
       a: row.attendee,
-      eventId: row.eventId,
       activeFilter: opts.activeFilter ?? "all",
+      eventId: row.eventId,
       returnUrl: opts.returnUrl,
     });
   };
@@ -306,12 +306,12 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
 
   const colOpts: AttendeeColumnOpts = {
     allowedDomain: opts.allowedDomain,
-    phonePrefix: opts.phonePrefix || "44",
-    renderStatus: createStatusRenderer(opts),
-    renderActions: createActionsRenderer(opts.returnUrl),
-    answerTextMap,
     answerQuestionMap,
+    answerTextMap,
+    phonePrefix: opts.phonePrefix || "44",
     questionData: opts.questionData,
+    renderActions: createActionsRenderer(opts.returnUrl),
+    renderStatus: createStatusRenderer(opts),
   };
 
   const rows =

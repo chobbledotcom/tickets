@@ -48,11 +48,11 @@ describe("getTicketFields — field validation", () => {
   test("email field validates format and is required", () => {
     expectInvalid("Please enter a valid email address")(
       getTicketFields("email", false),
-      { name: "Jane", email: "not-an-email" },
+      { email: "not-an-email", name: "Jane" },
     );
     expectValid(getTicketFields("email", false), {
-      name: "Jane",
       email: "jane@example.com",
+      name: "Jane",
     });
   });
 
@@ -74,11 +74,11 @@ describe("getTicketFields — field validation", () => {
   test("address field is required and validates length", () => {
     expectInvalid("Your Address is required")(
       getTicketFields("address", false),
-      { name: "Jane", address: "" },
+      { address: "", name: "Jane" },
     );
     expectValid(getTicketFields("address", false), {
-      name: "Jane",
       address: "123 Main St",
+      name: "Jane",
     });
   });
 

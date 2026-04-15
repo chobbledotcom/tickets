@@ -32,11 +32,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("saves and logs 'updated' for a valid non-empty value", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
     });
 
     const res = await handler(
@@ -54,11 +54,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("saves empty string and logs 'cleared' when value is empty", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
     });
 
     const res = await handler(
@@ -77,8 +77,8 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
     // getString trims, so "   " → "" → treated as cleared, not as a provided value
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
       save: saveFn as (v: string) => Promise<void>,
     });
@@ -96,11 +96,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("calls errorPage when non-empty value fails validation", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
     });
 
     const res = await handler(
@@ -124,11 +124,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       (_v: string) => "Should not be called",
     ) as unknown as ((value: string) => string | null) & ReturnType<typeof fn>;
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: validateFn,
       save: () => Promise.resolve(),
+      validate: validateFn,
     });
 
     const res = await handler(
@@ -144,8 +144,8 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("saves without validate function", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-field",
       field: "my_field",
+      formId: "settings-field",
       label: "My field",
       save: saveFn as (v: string) => Promise<void>,
     });
@@ -162,9 +162,9 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
 
   test("redirects to /admin/settings-advanced when advanced is true", async () => {
     const handler = clearableFieldHandler({
+      advanced: true,
       field: "my_field",
       label: "My field",
-      advanced: true,
       save: () => Promise.resolve(),
     });
 

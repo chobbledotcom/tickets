@@ -46,8 +46,8 @@ export const downloadStripeMock = async (): Promise<void> => {
   // Use curl to download - avoids Deno TLS certificate issues
   const curlCmd = new Deno.Command("curl", {
     args: ["-sL", url, "-o", "-"],
-    stdout: "piped",
     stderr: "null",
+    stdout: "piped",
   });
   const curlResult = await curlCmd.output();
   assert(curlResult.success, "Failed to download stripe-mock with curl");
@@ -58,16 +58,16 @@ export const downloadStripeMock = async (): Promise<void> => {
   // Extract the binary
   const extract = new Deno.Command("tar", {
     args: ["-xzf", tarPath, "-C", BIN_DIR],
-    stdout: "null",
     stderr: "null",
+    stdout: "null",
   });
   await extract.output();
 
   // Make executable
   const chmod = new Deno.Command("chmod", {
     args: ["+x", STRIPE_MOCK_PATH],
-    stdout: "null",
     stderr: "null",
+    stdout: "null",
   });
   await chmod.output();
 
@@ -136,8 +136,8 @@ export class StripeMockManager {
     // Start stripe-mock
     const command = new Deno.Command(STRIPE_MOCK_PATH, {
       args: ["-port", String(this.port)],
-      stdout: "null",
       stderr: "null",
+      stdout: "null",
     });
     this.process = command.spawn();
 

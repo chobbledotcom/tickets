@@ -35,13 +35,13 @@ const toDisplay = (
   sites: Awaited<ReturnType<typeof getAllBuiltSites>>,
 ): BuiltSiteDisplay[] =>
   sites.map((s) => ({
-    name: s.name,
     bunnyUrl: s.bunnyUrl,
     created: new Date(s.created).toLocaleDateString("en-GB", {
-      year: "numeric",
-      month: "short",
       day: "numeric",
+      month: "short",
+      year: "numeric",
     }),
+    name: s.name,
   }));
 
 /** GET /admin/builder — show builder form and built sites list */
@@ -84,7 +84,7 @@ const handleBuilderPost = async (
 
   // Build the site
   const result = await settings.withCurrentTask("builder", () =>
-    builderApi.buildSite({ siteName, dbUrl, dbToken }),
+    builderApi.buildSite({ dbToken, dbUrl, siteName }),
   );
 
   if (!result.ok) {

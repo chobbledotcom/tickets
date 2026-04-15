@@ -281,6 +281,9 @@ export const ttlCache = <K, V>(
 ): TtlCache<K, V> => {
   const cache = new Map<K, { value: V; cachedAt: number }>();
   return {
+    clear: (): void => {
+      cache.clear();
+    },
     get: (key: K): V | undefined => {
       const entry = cache.get(key);
       if (!entry) return undefined;
@@ -291,10 +294,7 @@ export const ttlCache = <K, V>(
       return entry.value;
     },
     set: (key: K, value: V): void => {
-      cache.set(key, { value, cachedAt: now() });
-    },
-    clear: (): void => {
-      cache.clear();
+      cache.set(key, { cachedAt: now(), value });
     },
     size: (): number => cache.size,
   };

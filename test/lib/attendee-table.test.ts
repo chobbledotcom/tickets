@@ -30,10 +30,10 @@ const makeRow = (
 const makeOpts = (
   overrides: Partial<AttendeeTableOptions> = {},
 ): AttendeeTableOptions => ({
-  rows: [makeRow()],
   allowedDomain: ALLOWED_DOMAIN,
-  showEvent: false,
+  rows: [makeRow()],
   showDate: false,
+  showEvent: false,
   ...overrides,
 });
 
@@ -102,16 +102,16 @@ describe("AttendeeTable", () => {
       const rows = [
         makeRow({
           attendee: testAttendee({
+            address: "123 Main",
             email: "a@b.com",
             phone: "555",
-            address: "123 Main",
             special_instructions: "VIP",
           }),
           eventName: "Gala",
         }),
       ];
       const html = AttendeeTable(
-        makeOpts({ rows, showEvent: true, showDate: true }),
+        makeOpts({ rows, showDate: true, showEvent: true }),
       );
       const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
         (m) => m[1],
@@ -141,7 +141,7 @@ describe("AttendeeTable", () => {
     });
 
     test("shown with linked event name when showEvent is true", () => {
-      const rows = [makeRow({ eventName: "Test Gala", eventId: 42 })];
+      const rows = [makeRow({ eventId: 42, eventName: "Test Gala" })];
       const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
       expect(html).toContain("<th>Event</th>");
       expect(html).toContain("/admin/event/42");
@@ -200,7 +200,7 @@ describe("AttendeeTable", () => {
       const rows = [
         makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
       ];
-      const html = AttendeeTable(makeOpts({ rows, phonePrefix: "44" }));
+      const html = AttendeeTable(makeOpts({ phonePrefix: "44", rows }));
       expect(html).toContain('href="tel:+447700900000"');
       expect(html).toContain(">07700 900000</a>");
     });
@@ -209,7 +209,7 @@ describe("AttendeeTable", () => {
       const rows = [
         makeRow({ attendee: testAttendee({ phone: "0234 567 8900" }) }),
       ];
-      const html = AttendeeTable(makeOpts({ rows, phonePrefix: "1" }));
+      const html = AttendeeTable(makeOpts({ phonePrefix: "1", rows }));
       expect(html).toContain('href="tel:+12345678900"');
     });
 
@@ -396,21 +396,21 @@ describe("AttendeeTable", () => {
 
     test("shows custom empty message when provided", () => {
       const html = AttendeeTable(
-        makeOpts({ rows: [], emptyMessage: "Select a date" }),
+        makeOpts({ emptyMessage: "Select a date", rows: [] }),
       );
       expect(html).toContain("Select a date");
     });
 
     test("empty row has correct colspan for minimal columns", () => {
       const html = AttendeeTable(
-        makeOpts({ rows: [], showEvent: false, showDate: false }),
+        makeOpts({ rows: [], showDate: false, showEvent: false }),
       );
       expect(html).toContain('colspan="6"');
     });
 
     test("empty row colspan includes optional visible columns", () => {
       const html = AttendeeTable(
-        makeOpts({ rows: [], showEvent: true, showDate: true }),
+        makeOpts({ rows: [], showDate: true, showEvent: true }),
       );
       expect(html).toContain('colspan="8"');
     });
@@ -444,7 +444,7 @@ describe("AttendeeTable", () => {
   describe("presorted option", () => {
     test("preserves row order when presorted is true", () => {
       const html = AttendeeTable(
-        makeOpts({ rows: zaraAliceRows(), showEvent: true, presorted: true }),
+        makeOpts({ presorted: true, rows: zaraAliceRows(), showEvent: true }),
       );
       const zaraIdx = html.indexOf("Zara");
       const aliceIdx = html.indexOf("Alice");
@@ -461,15 +461,15 @@ describe("sortAttendeeRows", () => {
   test("sorts by event date ascending, null dates last", () => {
     const rows = [
       makeRow({
-        attendee: testAttendee({ id: 1, date: null }),
+        attendee: testAttendee({ date: null, id: 1 }),
         eventName: "A",
       }),
       makeRow({
-        attendee: testAttendee({ id: 2, date: "2026-03-01" }),
+        attendee: testAttendee({ date: "2026-03-01", id: 2 }),
         eventName: "A",
       }),
       makeRow({
-        attendee: testAttendee({ id: 3, date: "2026-01-15" }),
+        attendee: testAttendee({ date: "2026-01-15", id: 3 }),
         eventName: "A",
       }),
     ];
@@ -480,11 +480,11 @@ describe("sortAttendeeRows", () => {
   test("sorts by event name when dates are equal", () => {
     const rows = [
       makeRow({
-        attendee: testAttendee({ id: 1, date: "2026-03-01" }),
+        attendee: testAttendee({ date: "2026-03-01", id: 1 }),
         eventName: "Zebra",
       }),
       makeRow({
-        attendee: testAttendee({ id: 2, date: "2026-03-01" }),
+        attendee: testAttendee({ date: "2026-03-01", id: 2 }),
         eventName: "Alpha",
       }),
     ];
@@ -525,19 +525,19 @@ describe("sortAttendeeRows", () => {
   test("applies full multi-key sort order", () => {
     const rows = [
       makeRow({
-        attendee: testAttendee({ id: 1, name: "Bob", date: "2026-02-01" }),
+        attendee: testAttendee({ date: "2026-02-01", id: 1, name: "Bob" }),
         eventName: "Concert",
       }),
       makeRow({
-        attendee: testAttendee({ id: 2, name: "Alice", date: null }),
+        attendee: testAttendee({ date: null, id: 2, name: "Alice" }),
         eventName: "Gala",
       }),
       makeRow({
-        attendee: testAttendee({ id: 3, name: "Alice", date: "2026-01-15" }),
+        attendee: testAttendee({ date: "2026-01-15", id: 3, name: "Alice" }),
         eventName: "Concert",
       }),
       makeRow({
-        attendee: testAttendee({ id: 4, name: "Alice", date: "2026-02-01" }),
+        attendee: testAttendee({ date: "2026-02-01", id: 4, name: "Alice" }),
         eventName: "Concert",
       }),
     ];
@@ -597,35 +597,35 @@ describe("formatAddressInline", () => {
 
 describe("AttendeeTable with questionData", () => {
   const questionData: TableQuestionData = {
-    questions: [
-      {
-        id: 1,
-        text: "Size?",
-        answers: [
-          { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-          { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-        ],
-      },
-      {
-        id: 2,
-        text: "Color?",
-        answers: [
-          { id: 20, question_id: 2, text: "Red", sort_order: 0 },
-          { id: 21, question_id: 2, text: "Blue", sort_order: 1 },
-        ],
-      },
-    ],
     attendeeAnswerMap: new Map([
       [1, [10, 20]],
       [2, [11]],
     ]),
+    questions: [
+      {
+        answers: [
+          { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+          { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+        ],
+        id: 1,
+        text: "Size?",
+      },
+      {
+        answers: [
+          { id: 20, question_id: 2, sort_order: 0, text: "Red" },
+          { id: 21, question_id: 2, sort_order: 1, text: "Blue" },
+        ],
+        id: 2,
+        text: "Color?",
+      },
+    ],
   };
 
   test("renders Answers column header when questionData is provided", () => {
     const html = AttendeeTable(
       makeOpts({
-        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
         questionData,
+        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
       }),
     );
     expect(html).toContain("<th>Answers</th>");
@@ -634,8 +634,8 @@ describe("AttendeeTable with questionData", () => {
   test("renders answer text in cell with smaller font", () => {
     const html = AttendeeTable(
       makeOpts({
-        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
         questionData,
+        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
       }),
     );
     expect(html).toContain('class="answers-cell"');
@@ -645,8 +645,8 @@ describe("AttendeeTable with questionData", () => {
   test("renders tooltip with question: answer format", () => {
     const html = AttendeeTable(
       makeOpts({
-        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
         questionData,
+        rows: [makeRow({ attendee: testAttendee({ id: 1 }) })],
       }),
     );
     expect(html).toContain('title="Size?: Small, Color?: Red"');
@@ -655,8 +655,8 @@ describe("AttendeeTable with questionData", () => {
   test("renders empty answer for attendee with no answers", () => {
     const html = AttendeeTable(
       makeOpts({
-        rows: [makeRow({ attendee: testAttendee({ id: 999 }) })],
         questionData,
+        rows: [makeRow({ attendee: testAttendee({ id: 999 }) })],
       }),
     );
     expect(html).toContain('class="answers-cell"');
@@ -666,8 +666,8 @@ describe("AttendeeTable with questionData", () => {
   test("renders partial answers for attendee with some answers", () => {
     const html = AttendeeTable(
       makeOpts({
-        rows: [makeRow({ attendee: testAttendee({ id: 2 }) })],
         questionData,
+        rows: [makeRow({ attendee: testAttendee({ id: 2 }) })],
       }),
     );
     expect(html).toContain("Large");
@@ -683,7 +683,7 @@ describe("AttendeeTable with questionData", () => {
   test("does not render Answers column when questions are empty", () => {
     const html = AttendeeTable(
       makeOpts({
-        questionData: { questions: [], attendeeAnswerMap: new Map() },
+        questionData: { attendeeAnswerMap: new Map(), questions: [] },
       }),
     );
     expect(html).not.toContain("<th>Answers</th>");
@@ -692,8 +692,8 @@ describe("AttendeeTable with questionData", () => {
   test("includes Answers column in colspan for empty table", () => {
     const html = AttendeeTable(
       makeOpts({
-        rows: [],
         questionData,
+        rows: [],
       }),
     );
     expect(html).toContain("<th>Answers</th>");
@@ -730,8 +730,8 @@ describe("AttendeeTable columnTemplate", () => {
     const rows = [makeRow({ attendee: testAttendee({ email: "" }) })];
     const html = AttendeeTable(
       makeOpts({
-        rows,
         columnTemplate: "{{name}}, {{email}}, {{qty}}",
+        rows,
         showActions: false,
       }),
     );
@@ -746,8 +746,8 @@ describe("AttendeeTable columnTemplate", () => {
     ];
     const html = AttendeeTable(
       makeOpts({
-        rows,
         columnTemplate: "{{qty}}, {{name}}, {{email}}",
+        rows,
         showActions: false,
       }),
     );
@@ -765,8 +765,8 @@ describe("AttendeeTable columnTemplate", () => {
     ];
     const html = AttendeeTable(
       makeOpts({
-        rows,
         columnTemplate: '{{name}}, {{registered | date: "%B %d, %Y"}}',
+        rows,
         showActions: false,
       }),
     );
@@ -781,8 +781,8 @@ describe("AttendeeTable columnTemplate", () => {
     ];
     const html = AttendeeTable(
       makeOpts({
-        rows,
         columnTemplate: "{{name}}, {{registered}}",
+        rows,
         showActions: false,
       }),
     );

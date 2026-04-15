@@ -47,9 +47,9 @@ describeWithEnv(
         Promise.resolve(new Response()),
       );
       setHostEmailConfigForTest({
-        provider: "resend",
         apiKey: "re_test",
         fromAddress: "test@example.com",
+        provider: "resend",
       });
     });
 
@@ -90,8 +90,8 @@ describeWithEnv(
         await insertBuiltSite("Site B", "b.test.net", "", "", true);
 
         await assignAndNotifyBuiltSites([
-          siteEntry({ eventId: 1, eventName: "Event 1", attendeeId: 10 }),
-          siteEntry({ eventId: 2, eventName: "Event 2", attendeeId: 10 }),
+          siteEntry({ attendeeId: 10, eventId: 1, eventName: "Event 1" }),
+          siteEntry({ attendeeId: 10, eventId: 2, eventName: "Event 2" }),
         ]);
 
         const sites = await getAllBuiltSites();

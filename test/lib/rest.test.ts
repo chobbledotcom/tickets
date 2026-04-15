@@ -35,8 +35,8 @@ type TestInput = {
 
 /** Test fields for form validation */
 const testFields: Field[] = [
-  { name: "name", label: "Name", type: "text", required: true },
-  { name: "value", label: "Value", type: "number", required: true },
+  { label: "Name", name: "name", required: true, type: "text" },
+  { label: "Value", name: "value", required: true, type: "number" },
 ];
 
 /** Transform form values to input */
@@ -63,8 +63,8 @@ const createTestResource = (
 ): Resource<TestRow, TestInput> => {
   const table = createTestTable();
   const opts = withNameField
-    ? { table, fields: testFields, toInput, nameField: "name" as const }
-    : { table, fields: testFields, toInput };
+    ? { fields: testFields, nameField: "name" as const, table, toInput }
+    : { fields: testFields, table, toInput };
   return defineResource(opts);
 };
 
@@ -221,8 +221,8 @@ describe("rest/resource", () => {
     test("returns error when custom validate rejects on create", async () => {
       const table = createTestTable();
       const resource = defineResource({
-        table,
         fields: testFields,
+        table,
         toInput,
         validate: () => Promise.resolve("Name already taken"),
       });
@@ -235,8 +235,8 @@ describe("rest/resource", () => {
     test("succeeds when custom validate passes on create", async () => {
       const table = createTestTable();
       const resource = defineResource({
-        table,
         fields: testFields,
+        table,
         toInput,
         validate: () => Promise.resolve(null),
       });
@@ -360,11 +360,11 @@ describeWithEnv("rest/handlers", { db: true }, () => {
       const resource = createTestResource();
       let capturedRow: unknown = null;
       const handler = createHandler(resource, {
+        onError: errorResponse(400),
         onSuccess: (row) => {
           capturedRow = row;
           return new Response("Created", { status: 201 });
         },
-        onError: errorResponse(400),
       });
 
       const request = await createAuthRequest("/items", {
@@ -383,11 +383,11 @@ describeWithEnv("rest/handlers", { db: true }, () => {
       const resource = createTestResource();
       let errorMessage = "";
       const handler = createHandler(resource, {
-        onSuccess: successResponse(201, "Created"),
         onError: (error) => {
           errorMessage = error;
           return new Response(error, { status: 400 });
         },
+        onSuccess: successResponse(201, "Created"),
       });
 
       const request = await createAuthRequest("/items", { name: "Item" }); // missing value
@@ -399,8 +399,8 @@ describeWithEnv("rest/handlers", { db: true }, () => {
 
     test("redirects for unauthenticated request", async () => {
       const handler = createHandler(createTestResource(), {
-        onSuccess: successResponse(201, "Created"),
         onError: errorResponse(400),
+        onSuccess: successResponse(201, "Created"),
       });
       expectAdminRedirect(
         await handler(
@@ -413,8 +413,8 @@ describeWithEnv("rest/handlers", { db: true }, () => {
   describe("deleteHandler", () => {
     /** Standard delete handler options */
     const deleteOpts = () => ({
-      onSuccess: successResponse(204),
       onNotFound: successResponse(404, "Not Found"),
+      onSuccess: successResponse(204),
     });
 
     /** Delete handler options with name verification */
@@ -486,8 +486,8 @@ describeWithEnv("rest/handlers", { db: true }, () => {
         importantItemData,
       );
       return {
-        resource,
         handler: deleteHandler(resource, deleteOptsWithVerify()),
+        resource,
       };
     };
 
@@ -523,20 +523,20 @@ describeWithEnv("rest/handlers", { db: true }, () => {
       // Create a resource with a custom onDelete that always succeeds
       const table = createTestTable();
       const resource = defineResource({
-        table,
         fields: testFields,
-        toInput,
         onDelete: async (_id) => {
           // Custom delete that does nothing (row might already be gone)
         },
+        table,
+        toInput,
       });
 
       // Insert a row so findById in deleteHandler succeeds
       await table.insert({ name: "Custom Delete", value: 10 });
 
       const handler = deleteHandler(resource, {
-        onSuccess: successResponse(204),
         onNotFound: successResponse(404, "Not Found"),
+        onSuccess: successResponse(204),
       });
 
       const request = await createAuthRequest("/items/1?verify_name=false", {});
@@ -579,15 +579,15 @@ describeWithEnv("rest/resource - additional coverage", { db: true }, () => {
 
       const table = createTestTable();
       const resource = defineResource({
-        table,
         fields: testFields,
-        toInput,
         onDelete: async (id) => {
           customDeleteCalled = true;
           deletedId = id;
           // Custom delete logic (e.g., cascade delete related records)
           await table.deleteById(id);
         },
+        table,
+        toInput,
       });
 
       await table.insert({ name: "To Delete", value: 10 });

@@ -69,8 +69,8 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   test("redirects with 'unchanged' flash and skips save for sentinel value", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = secretFieldHandler({
-      formId: "settings-secret",
       field: "api_key",
+      formId: "settings-secret",
       label: "API key",
       save: saveFn as (v: string) => Promise<void>,
     });
@@ -89,8 +89,8 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   test("returns error when required field is cleared", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = secretFieldHandler({
-      formId: "settings-secret",
       field: "api_key",
+      formId: "settings-secret",
       label: "API key",
       required: true,
       save: saveFn as (v: string) => Promise<void>,
@@ -114,8 +114,8 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   test("redirects with 'cleared' flash when optional field is cleared", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = secretFieldHandler({
-      formId: "settings-secret",
       field: "api_key",
+      formId: "settings-secret",
       label: "API key",
       required: false,
       save: saveFn as (v: string) => Promise<void>,
@@ -135,8 +135,8 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   test("saves, logs, and flashes 'updated successfully' for a new value", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = secretFieldHandler({
-      formId: "settings-secret",
       field: "api_key",
+      formId: "settings-secret",
       label: "API key",
       save: saveFn as (v: string) => Promise<void>,
     });
@@ -156,12 +156,12 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   test("calls errorPage and skips save when validation fails", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = secretFieldHandler({
-      formId: "settings-secret",
       field: "api_key",
+      formId: "settings-secret",
       label: "API key",
+      save: saveFn as (v: string) => Promise<void>,
       validate: (v) =>
         !v.startsWith("sk_") ? "Key must start with sk_" : null,
-      save: saveFn as (v: string) => Promise<void>,
     });
 
     const res = await handler(
@@ -183,11 +183,11 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
     const saveFn = fn(() => Promise.resolve());
     const afterSaveFn = fn(() => Promise.resolve());
     const handler = secretFieldHandler({
-      formId: "settings-secret",
+      afterSave: afterSaveFn as (v: string) => Promise<void>,
       field: "api_key",
+      formId: "settings-secret",
       label: "API key",
       save: saveFn as (v: string) => Promise<void>,
-      afterSave: afterSaveFn as (v: string) => Promise<void>,
     });
 
     await handler(
@@ -203,10 +203,10 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   describe("advanced redirect", () => {
     test("redirects to /admin/settings-advanced when advanced is true (provided)", async () => {
       const handler = secretFieldHandler({
-        formId: "settings-secret",
-        field: "api_key",
-        label: "API key",
         advanced: true,
+        field: "api_key",
+        formId: "settings-secret",
+        label: "API key",
         save: () => Promise.resolve(),
       });
 
@@ -220,10 +220,10 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
 
     test("redirects to advanced page for 'unchanged' action when advanced is true", async () => {
       const handler = secretFieldHandler({
-        formId: "settings-secret",
-        field: "api_key",
-        label: "API key",
         advanced: true,
+        field: "api_key",
+        formId: "settings-secret",
+        label: "API key",
         save: () => Promise.resolve(),
       });
 
@@ -237,10 +237,10 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
 
     test("redirects to advanced page for 'cleared' action when advanced is true", async () => {
       const handler = secretFieldHandler({
-        formId: "settings-secret",
-        field: "api_key",
-        label: "API key",
         advanced: true,
+        field: "api_key",
+        formId: "settings-secret",
+        label: "API key",
         save: () => Promise.resolve(),
       });
 

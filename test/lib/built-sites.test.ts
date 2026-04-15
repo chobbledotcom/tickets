@@ -50,9 +50,9 @@ describeWithEnv("built-sites", { db: true }, () => {
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
     const legacyBlob = JSON.stringify({
-      v: 1,
       n: "Old Site",
       u: "old.b-cdn.net",
+      v: 1,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
@@ -115,15 +115,15 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("fromDb returns the row unchanged", async () => {
       const site = {
-        id: 1,
-        name: "Test",
-        bunnyUrl: "test.bunny.run",
-        dbUrl: "",
-        dbToken: "",
         assignable: false,
         assignedAttendeeId: null,
         assignedEventId: null,
+        bunnyUrl: "test.bunny.run",
         created: "2026-01-01",
+        dbToken: "",
+        dbUrl: "",
+        id: 1,
+        name: "Test",
       };
       const result = await builtSitesCrudTable.fromDb(site);
       expect(result).toEqual(site);
@@ -131,11 +131,11 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("toDbValues builds encrypted blob from input", async () => {
       const values = await builtSitesCrudTable.toDbValues({
-        name: "Test",
-        bunnyUrl: "test.bunny.run",
-        dbUrl: "libsql://test.turso.io",
-        dbToken: "tok123",
         assignable: false,
+        bunnyUrl: "test.bunny.run",
+        dbToken: "tok123",
+        dbUrl: "libsql://test.turso.io",
+        name: "Test",
       });
       expect(values.site_data).toBeTruthy();
       const parsed = parseSiteDataBlob(values.site_data as string);
@@ -147,11 +147,11 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("update preserves existing name when only bunnyUrl provided", async () => {
       const site = await builtSitesCrudTable.insert({
-        name: "Original",
-        bunnyUrl: "original.bunny.run",
-        dbUrl: "",
-        dbToken: "",
         assignable: false,
+        bunnyUrl: "original.bunny.run",
+        dbToken: "",
+        dbUrl: "",
+        name: "Original",
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         bunnyUrl: "new.bunny.run",
@@ -162,11 +162,11 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("update preserves existing bunnyUrl when only name provided", async () => {
       const site = await builtSitesCrudTable.insert({
-        name: "Original",
-        bunnyUrl: "original.bunny.run",
-        dbUrl: "",
-        dbToken: "",
         assignable: false,
+        bunnyUrl: "original.bunny.run",
+        dbToken: "",
+        dbUrl: "",
+        name: "Original",
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -177,11 +177,11 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("update preserves existing db credentials when not provided", async () => {
       const site = await builtSitesCrudTable.insert({
-        name: "Original",
-        bunnyUrl: "original.bunny.run",
-        dbUrl: "libsql://db.turso.io",
-        dbToken: "tok123",
         assignable: false,
+        bunnyUrl: "original.bunny.run",
+        dbToken: "tok123",
+        dbUrl: "libsql://db.turso.io",
+        name: "Original",
       });
       const updated = await builtSitesCrudTable.update(site.id, {
         name: "Updated",
@@ -206,11 +206,11 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("toDbValues sets assignable to 1 when true", async () => {
       const values = await builtSitesCrudTable.toDbValues({
-        name: "Test",
-        bunnyUrl: "test.bunny.run",
-        dbUrl: "",
-        dbToken: "",
         assignable: true,
+        bunnyUrl: "test.bunny.run",
+        dbToken: "",
+        dbUrl: "",
+        name: "Test",
       });
       expect(values.assignable).toBe(1);
     });

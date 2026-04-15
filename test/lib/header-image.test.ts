@@ -50,7 +50,7 @@ const submitHeaderJpeg = (
   csrfToken?: string,
 ): Promise<Response> =>
   submitHeaderImage(
-    { name: filename, data: JPEG_HEADER, contentType: "image/jpeg" },
+    { contentType: "image/jpeg", data: JPEG_HEADER, name: filename },
     cookie,
     csrfToken,
   );
@@ -164,9 +164,9 @@ describeWithEnv(
       test("rejects invalid image type", async () => {
         await withStorageMock(async () => {
           const response = await submitHeaderImage({
-            name: "doc.pdf",
-            data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
             contentType: "application/pdf",
+            data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+            name: "doc.pdf",
           });
           expectRedirectWithFlash(
             "/admin/settings?form=settings-header-image#settings-header-image",
@@ -184,9 +184,9 @@ describeWithEnv(
 
         await withStorageMock(async () => {
           const response = await submitHeaderImage({
-            name: "big.jpg",
-            data: oversized,
             contentType: "image/jpeg",
+            data: oversized,
+            name: "big.jpg",
           });
           expectRedirectWithFlash(
             "/admin/settings?form=settings-header-image#settings-header-image",
@@ -283,9 +283,9 @@ describeWithEnv(
       test("rejects mismatched magic bytes", async () => {
         await withStorageMock(async () => {
           const response = await submitHeaderImage({
-            name: "fake.jpg",
-            data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
             contentType: "image/jpeg",
+            data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
+            name: "fake.jpg",
           });
           expectRedirectWithFlash(
             "/admin/settings?form=settings-header-image#settings-header-image",

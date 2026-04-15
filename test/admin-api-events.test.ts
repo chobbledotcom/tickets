@@ -74,11 +74,11 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("creates event with required fields", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "New API Event",
             max_attendees: 50,
+            name: "New API Event",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -93,26 +93,26 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("creates event with all optional fields", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Full Event",
-            max_attendees: 100,
-            description: "A test event",
-            location: "Test Hall",
-            unit_price: 500,
-            max_quantity: 5,
-            max_price: 1000,
-            fields: "email,phone",
-            event_type: "standard",
-            non_transferable: true,
-            can_pay_more: true,
-            hidden: false,
-            thank_you_url: "https://example.com/thanks",
-            webhook_url: "https://example.com/webhook",
-            minimum_days_before: 2,
-            maximum_days_after: 60,
             bookable_days: ["Monday", "Tuesday"],
+            can_pay_more: true,
+            description: "A test event",
+            event_type: "standard",
+            fields: "email,phone",
+            hidden: false,
+            location: "Test Hall",
+            max_attendees: 100,
+            max_price: 1000,
+            max_quantity: 5,
+            maximum_days_after: 60,
+            minimum_days_before: 2,
+            name: "Full Event",
+            non_transferable: true,
+            thank_you_url: "https://example.com/thanks",
+            unit_price: 500,
+            webhook_url: "https://example.com/webhook",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -132,8 +132,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("returns 400 when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: { max_attendees: 50 },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -145,8 +145,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("returns 400 when max_attendees is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: { name: "No Max" },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -159,8 +159,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("returns 400 when max_attendees is zero", async () => {
       const response = await apiRequest("/api/admin/events", {
+        body: { max_attendees: 0, name: "Zero Max" },
         method: "POST",
-        body: { name: "Zero Max", max_attendees: 0 },
       });
 
       expect(response.status).toBe(400);
@@ -169,14 +169,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("validates can_pay_more requires sufficient max_price", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Pay More Event",
-            max_attendees: 10,
-            unit_price: 500,
             can_pay_more: true,
+            max_attendees: 10,
             max_price: 500,
+            name: "Pay More Event",
+            unit_price: 500,
           },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -188,12 +188,12 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("validates group exists", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Group Event",
-            max_attendees: 10,
             group_id: 99999,
+            max_attendees: 10,
+            name: "Group Event",
           },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -209,8 +209,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
           body: { name: "Updated Name" },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -222,14 +222,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("updates event with partial fields", async () => {
       const event = await createTestEvent({
-        name: "Partial Update",
         maxAttendees: 50,
+        name: "Partial Update",
       });
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
+          body: { description: "Updated desc", max_attendees: 100 },
           method: "PUT",
-          body: { max_attendees: 100, description: "Updated desc" },
         }),
         200,
         (body) => {
@@ -242,8 +242,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("returns 404 for non-existent event", async () => {
       const response = await apiRequest("/api/admin/events/99999", {
-        method: "PUT",
         body: { name: "Ghost" },
+        method: "PUT",
       });
 
       expect(response.status).toBe(404);
@@ -254,8 +254,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
           body: { name: "" },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -271,8 +271,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       // Use event1's slug for event2
       await assertJson(
         apiRequest(`/api/admin/events/${event2.id}`, {
-          method: "PUT",
           body: { slug: event1.slug },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -286,8 +286,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
+          body: { name: "Renamed", slug: event.slug },
           method: "PUT",
-          body: { slug: event.slug, name: "Renamed" },
         }),
         200,
         (body) => {
@@ -303,8 +303,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "Delete Me" },
+          method: "DELETE",
         }),
         200,
         (body) => {
@@ -323,8 +323,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "Wrong Name" },
+          method: "DELETE",
         }),
         400,
         (body) => {
@@ -337,8 +337,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event = await createTestEvent({ name: "Need Confirm" });
 
       const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "DELETE",
         body: {},
+        method: "DELETE",
       });
 
       expect(response.status).toBe(400);
@@ -348,8 +348,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event = await createTestEvent({ name: "Case Test" });
 
       const response = await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "DELETE",
         body: { confirm_identifier: "case test" },
+        method: "DELETE",
       });
 
       expect(response.status).toBe(200);
@@ -357,8 +357,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("returns 404 for non-existent event", async () => {
       const response = await apiRequest("/api/admin/events/99999", {
-        method: "DELETE",
         body: { confirm_identifier: "Ghost" },
+        method: "DELETE",
       });
 
       expect(response.status).toBe(404);
@@ -387,15 +387,15 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // Deactivate first
       await apiRequest(`/api/admin/events/${event.id}/deactivate`, {
-        method: "POST",
         apiKey,
+        method: "POST",
       });
 
       // Try to deactivate again
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}/deactivate`, {
-          method: "POST",
           apiKey,
+          method: "POST",
         }),
         400,
         (body) => {
@@ -420,15 +420,15 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // Deactivate first
       await apiRequest(`/api/admin/events/${event.id}/deactivate`, {
-        method: "POST",
         apiKey,
+        method: "POST",
       });
 
       // Now reactivate
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}/reactivate`, {
-          method: "POST",
           apiKey,
+          method: "POST",
         }),
         200,
         (body) => {
@@ -465,14 +465,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("creates event with date and closes_at", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Dated Event",
-            max_attendees: 20,
-            date: "2026-06-15T10:00:00Z",
-            closes_at: "2026-06-14T23:59:00Z",
             active: true,
+            closes_at: "2026-06-14T23:59:00Z",
+            date: "2026-06-15T10:00:00Z",
+            max_attendees: 20,
+            name: "Dated Event",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -486,8 +486,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("creates event with empty name string returns error", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
+          body: { max_attendees: 10, name: "   " },
           method: "POST",
-          body: { name: "   ", max_attendees: 10 },
         }),
         400,
         (body) => {
@@ -503,30 +503,30 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
           body: {
-            name: "Fully Updated",
+            active: true,
+            bookable_days: ["Monday", "Wednesday", "Friday"],
+            can_pay_more: true,
+            closes_at: "2026-12-24T23:59:00Z",
+            date: "2026-12-25T18:00:00Z",
+            description: "New desc",
+            event_type: "daily",
+            fields: "email,phone,address",
+            group_id: 0,
+            hidden: true,
+            location: "New Location",
             max_attendees: 200,
             max_price: 5000,
-            description: "New desc",
-            date: "2026-12-25T18:00:00Z",
-            location: "New Location",
-            group_id: 0,
-            unit_price: 1000,
             max_quantity: 10,
-            thank_you_url: "https://new.example.com/thanks",
-            webhook_url: "https://new.example.com/hook",
-            active: true,
-            fields: "email,phone,address",
-            closes_at: "2026-12-24T23:59:00Z",
-            event_type: "daily",
-            bookable_days: ["Monday", "Wednesday", "Friday"],
-            minimum_days_before: 3,
             maximum_days_after: 30,
+            minimum_days_before: 3,
+            name: "Fully Updated",
             non_transferable: true,
-            can_pay_more: true,
-            hidden: true,
+            thank_you_url: "https://new.example.com/thanks",
+            unit_price: 1000,
+            webhook_url: "https://new.example.com/hook",
           },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -556,17 +556,17 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // First set a date
       await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { date: "2026-06-15T10:00:00Z" },
         apiKey,
+        body: { date: "2026-06-15T10:00:00Z" },
+        method: "PUT",
       });
 
       // Then clear it
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
-          body: { date: null },
           apiKey,
+          body: { date: null },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -581,17 +581,17 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // First set closes_at
       await apiRequest(`/api/admin/events/${event.id}`, {
-        method: "PUT",
-        body: { closes_at: "2026-06-14T23:59:00Z" },
         apiKey,
+        body: { closes_at: "2026-06-14T23:59:00Z" },
+        method: "PUT",
       });
 
       // Then clear it
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
-          body: { closes_at: null },
           apiKey,
+          body: { closes_at: null },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -605,8 +605,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
           body: { max_attendees: 0 },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -620,12 +620,12 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
           body: {
-            unit_price: 500,
             can_pay_more: true,
             max_price: 500,
+            unit_price: 500,
           },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -640,15 +640,15 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       const event = await createTestEvent({ name: "Media Event" });
       // Set image_url and attachment_url directly
       await eventsTable.update(event.id, {
-        imageUrl: "https://cdn.example.com/image.jpg",
         attachmentUrl: "https://cdn.example.com/file.pdf",
+        imageUrl: "https://cdn.example.com/image.jpg",
       });
       invalidateEventsCache();
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "Media Event" },
+          method: "DELETE",
         }),
         200,
         (body) => {
@@ -660,7 +660,7 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
   describe("bodyToCreateInput", () => {
     test("returns error for non-string name", async () => {
-      const result = await bodyToCreateInput({ name: 123, max_attendees: 10 });
+      const result = await bodyToCreateInput({ max_attendees: 10, name: 123 });
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe("name is required");
     });
@@ -674,12 +674,12 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("handles all field types correctly", async () => {
       const result = await bodyToCreateInput({
-        name: "Test",
-        max_attendees: 10,
-        date: "2026-06-15T10:00:00Z",
-        closes_at: "2026-06-14T23:59:00Z",
         active: false,
         bookable_days: ["Monday"],
+        closes_at: "2026-06-14T23:59:00Z",
+        date: "2026-06-15T10:00:00Z",
+        max_attendees: 10,
+        name: "Test",
       });
 
       expect(result.ok).toBe(true);
@@ -697,13 +697,13 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Grouped Event",
-            max_attendees: 10,
-            group_id: group.id,
             event_type: "standard",
+            group_id: group.id,
+            max_attendees: 10,
+            name: "Grouped Event",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -717,25 +717,25 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // Create a standard event in the group
       await apiRequest("/api/admin/events", {
-        method: "POST",
         body: {
-          name: "Standard In Group",
-          max_attendees: 10,
-          group_id: group.id,
           event_type: "standard",
+          group_id: group.id,
+          max_attendees: 10,
+          name: "Standard In Group",
         },
+        method: "POST",
       });
 
       // Try to create a daily event in the same group
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Daily In Group",
-            max_attendees: 10,
-            group_id: group.id,
             event_type: "daily",
+            group_id: group.id,
+            max_attendees: 10,
+            name: "Daily In Group",
           },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -747,14 +747,14 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("can_pay_more with valid max_price passes validation", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Pay More Valid",
-            max_attendees: 10,
-            unit_price: 500,
             can_pay_more: true,
+            max_attendees: 10,
             max_price: 700,
+            name: "Pay More Valid",
+            unit_price: 500,
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -766,13 +766,13 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("can_pay_more without unit_price passes validation", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {
-          method: "POST",
           body: {
-            name: "Free Pay More",
-            max_attendees: 10,
             can_pay_more: true,
+            max_attendees: 10,
             max_price: 200,
+            name: "Free Pay More",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -788,8 +788,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
-          method: "PUT",
           body: { group_id: 99999 },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -803,13 +803,13 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       // Create a standard event in the group
       await apiRequest("/api/admin/events", {
-        method: "POST",
         body: {
-          name: "Standard First",
-          max_attendees: 10,
-          group_id: group.id,
           event_type: "standard",
+          group_id: group.id,
+          max_attendees: 10,
+          name: "Standard First",
         },
+        method: "POST",
       });
 
       // Create a separate event and try to add it as daily to same group
@@ -817,8 +817,8 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/events/${event.id}`, {
+          body: { event_type: "daily", group_id: group.id },
           method: "PUT",
-          body: { group_id: group.id, event_type: "daily" },
         }),
         400,
         (body) => {
@@ -831,20 +831,20 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
   describe("bodyToUpdateInput", () => {
     test("preserves existing values when fields not provided", async () => {
       const existing = testEventWithCount({
-        name: "Existing",
-        slug: "existing-slug",
-        description: "Existing desc",
+        bookable_days: ["Monday"],
+        closes_at: "2026-01-02T00:00:00.000Z",
         date: "2026-01-01T00:00:00.000Z",
+        description: "Existing desc",
         location: "Old Place",
         max_attendees: 50,
-        unit_price: 100,
         max_quantity: 2,
-        thank_you_url: "https://old.com/thanks",
-        webhook_url: "https://old.com/hook",
-        closes_at: "2026-01-02T00:00:00.000Z",
-        bookable_days: ["Monday"],
-        minimum_days_before: 1,
         maximum_days_after: 90,
+        minimum_days_before: 1,
+        name: "Existing",
+        slug: "existing-slug",
+        thank_you_url: "https://old.com/thanks",
+        unit_price: 100,
+        webhook_url: "https://old.com/hook",
       });
 
       const result = await bodyToUpdateInput({}, existing);
@@ -873,10 +873,10 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
 
     test("preserves existing closes_at null as empty string", async () => {
       const existing = testEventWithCount({
+        closes_at: null,
+        max_attendees: 10,
         name: "No Closes",
         slug: "no-closes",
-        max_attendees: 10,
-        closes_at: null,
       });
 
       const result = await bodyToUpdateInput({}, existing);

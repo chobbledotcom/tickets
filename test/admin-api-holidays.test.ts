@@ -83,12 +83,12 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("creates holiday with all fields", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays", {
-          method: "POST",
           body: {
+            end_date: "2026-08-31",
             name: "Summer Break",
             start_date: "2026-07-01",
-            end_date: "2026-08-31",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -103,8 +103,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("returns error when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays", {
+          body: { end_date: "2026-01-02", start_date: "2026-01-01" },
           method: "POST",
-          body: { start_date: "2026-01-01", end_date: "2026-01-02" },
         }),
         400,
         (body) => {
@@ -116,8 +116,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("returns error when start_date is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays", {
+          body: { end_date: "2026-01-02", name: "Test" },
           method: "POST",
-          body: { name: "Test", end_date: "2026-01-02" },
         }),
         400,
         (body) => {
@@ -129,8 +129,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("returns error when end_date is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays", {
-          method: "POST",
           body: { name: "Test", start_date: "2026-01-01" },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -142,12 +142,12 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("validates end_date >= start_date", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays", {
-          method: "POST",
           body: {
+            end_date: "2026-12-20",
             name: "Bad Range",
             start_date: "2026-12-25",
-            end_date: "2026-12-20",
           },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -165,8 +165,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          method: "PUT",
           body: { name: "New Name" },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -178,15 +178,15 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("updates dates only", async () => {
       const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
         name: "Keep Name",
         startDate: "2026-01-01",
-        endDate: "2026-01-02",
       });
 
       await assertJson(
         apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { end_date: "2026-06-30", start_date: "2026-06-01" },
           method: "PUT",
-          body: { start_date: "2026-06-01", end_date: "2026-06-30" },
         }),
         200,
         (body) => {
@@ -200,8 +200,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("returns 404 for non-existent holiday", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays/99999", {
-          method: "PUT",
           body: { name: "Nope" },
+          method: "PUT",
         }),
         404,
         (body) => {
@@ -215,8 +215,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          method: "PUT",
           body: { name: "" },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -227,14 +227,14 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("validates date range on update", async () => {
       const holiday = await createTestHoliday({
-        startDate: "2026-01-01",
         endDate: "2026-01-10",
+        startDate: "2026-01-01",
       });
 
       await assertJson(
         apiRequest(`/api/admin/holidays/${holiday.id}`, {
+          body: { end_date: "2026-12-20", start_date: "2026-12-25" },
           method: "PUT",
-          body: { start_date: "2026-12-25", end_date: "2026-12-20" },
         }),
         400,
         (body) => {
@@ -252,8 +252,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "To Delete" },
+          method: "DELETE",
         }),
         200,
         (body) => {
@@ -270,8 +270,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "Wrong Name" },
+          method: "DELETE",
         }),
         400,
         (body) => {
@@ -287,8 +287,8 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("returns 404 for non-existent holiday", async () => {
       await assertJson(
         apiRequest("/api/admin/holidays/99999", {
-          method: "DELETE",
           body: { confirm_identifier: "anything" },
+          method: "DELETE",
         }),
         404,
         (body) => {

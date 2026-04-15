@@ -45,9 +45,9 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
       newLineIdx >= 0 ? flash.success!.slice(newLineIdx + 1) : undefined;
     return htmlResponse(
       adminApiKeysPage(keys, session, {
-        success,
         error: flash.error,
         newKey,
+        success,
       }),
     );
   });
@@ -94,16 +94,16 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
 
 /** Confirmed-delete handlers for API keys */
 const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
-  path: "/admin/api-keys/:apiKeyId/delete",
-  load: (id, session) => getApiKeyForUser(id, session.userId).catch(() => null),
-  render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),
   identifier: (apiKey) => apiKey.name,
+  identifierLabel: "API key name",
+  load: (id, session) => getApiKeyForUser(id, session.userId).catch(() => null),
   onConfirm: async (_apiKey, id, session) => {
     await deleteApiKey(id, session.userId);
   },
-  successRedirect: "/admin/api-keys",
+  path: "/admin/api-keys/:apiKeyId/delete",
+  render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),
   successMessage: "API key deleted",
-  identifierLabel: "API key name",
+  successRedirect: "/admin/api-keys",
 });
 
 /**
@@ -122,7 +122,7 @@ export const apiKeysRoutes = {
   ...apiKeyDelete.routes,
   ...defineRoutes({
     "GET /admin/api-keys": handleApiKeysGet,
-    "POST /admin/api-keys": handleApiKeysPost,
     "GET /admin/api-keys/docs": handleApiDocsGet,
+    "POST /admin/api-keys": handleApiKeysPost,
   }),
 };

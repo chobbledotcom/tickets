@@ -124,28 +124,28 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 
 ```json
 {
+  "address": "42 Oak Lane, Bristol, BS1 1AA",
+  "business_email": "hello@example.com",
+  "currency": "GBP",
+  "email": "alice@example.com",
   "event_type": "registration.completed",
   "name": "Alice Smith",
-  "email": "alice@example.com",
-  "phone": "+44 7700 900000",
-  "address": "42 Oak Lane, Bristol, BS1 1AA",
-  "special_instructions": "Wheelchair access needed",
-  "price_paid": 3000,
-  "currency": "GBP",
   "payment_id": "pi_3abc123def456",
+  "phone": "+44 7700 900000",
+  "price_paid": 3000,
+  "special_instructions": "Wheelchair access needed",
   "ticket_url": "https://tickets.example.com/t/A1B2C3D4E5",
   "tickets": [
     {
+      "date": "2025-08-20",
       "event_name": "Summer Workshop",
       "event_slug": "summer-workshop",
-      "unit_price": 1500,
       "quantity": 2,
-      "date": "2025-08-20",
-      "ticket_token": "A1B2C3D4E5"
+      "ticket_token": "A1B2C3D4E5",
+      "unit_price": 1500
     }
   ],
-  "timestamp": "2025-08-20T14:30:00.000Z",
-  "business_email": "hello@example.com"
+  "timestamp": "2025-08-20T14:30:00.000Z"
 }
 ```
 

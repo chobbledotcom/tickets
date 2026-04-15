@@ -98,8 +98,8 @@ export const getDateFilter = (request: Request): string | null => {
 export const csvResponse = (csv: string, filename: string): Response =>
   new Response(encodeBody(csv), {
     headers: {
-      "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="${filename}"`,
+      "content-type": "text/csv; charset=utf-8",
     },
   });
 
@@ -320,5 +320,5 @@ export const loadQuestionData = async (
     getQuestionsWithEventIds(eventIds),
     getAttendeeAnswersBatch(attendeeIds),
   ]);
-  return questions.length > 0 ? { questions, attendeeAnswerMap } : undefined;
+  return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 };

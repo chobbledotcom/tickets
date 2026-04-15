@@ -138,39 +138,39 @@ export const writeEventDate = (v: string): Promise<string> =>
 const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   ...encryptedNameSchema(encrypt, decrypt),
-  description: col.encryptedText(encrypt, decrypt),
-  date: { default: () => "", write: writeEventDate, read: decryptDatetime },
-  location: col.encryptedText(encrypt, decrypt),
-  group_id: col.withDefault(() => 0),
-  created: col.withDefault(() => nowIso()),
-  max_attendees: col.simple<number>(),
-  thank_you_url: col.encryptedText(encrypt, decrypt),
-  unit_price: col.withDefault(() => 0),
-  max_quantity: col.withDefault(() => 1),
-  webhook_url: col.encryptedText(encrypt, decrypt),
   active: col.boolean(true),
-  fields: col.withDefault<EventFields>(() => "email"),
-  closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
-  event_type: col.withDefault<EventType>(() => "standard"),
+  assign_built_site: col.boolean(false),
+  attachment_name: col.encryptedText(encrypt, decrypt),
+  attachment_url: col.encryptedText(encrypt, decrypt),
   bookable_days: col.converted<string[]>({
     default: () => [...DEFAULT_BOOKABLE_DAYS],
-    write: (v) => JSON.stringify(v),
     read: (v) => {
       const parsed: unknown = JSON.parse(v as string);
       return Array.isArray(parsed) ? parsed : [];
     },
+    write: (v) => JSON.stringify(v),
   }),
-  minimum_days_before: col.withDefault(() => 1),
-  maximum_days_after: col.withDefault(() => 90),
-  image_url: col.encryptedText(encrypt, decrypt),
-  attachment_url: col.encryptedText(encrypt, decrypt),
-  attachment_name: col.encryptedText(encrypt, decrypt),
-  non_transferable: col.boolean(false),
   can_pay_more: col.boolean(false),
-  max_price: col.withDefault(() => 0),
+  closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
+  created: col.withDefault(() => nowIso()),
+  date: { default: () => "", read: decryptDatetime, write: writeEventDate },
+  description: col.encryptedText(encrypt, decrypt),
+  event_type: col.withDefault<EventType>(() => "standard"),
+  fields: col.withDefault<EventFields>(() => "email"),
+  group_id: col.withDefault(() => 0),
   hidden: col.boolean(false),
+  image_url: col.encryptedText(encrypt, decrypt),
+  location: col.encryptedText(encrypt, decrypt),
+  max_attendees: col.simple<number>(),
+  max_price: col.withDefault(() => 0),
+  max_quantity: col.withDefault(() => 1),
+  maximum_days_after: col.withDefault(() => 90),
+  minimum_days_before: col.withDefault(() => 1),
+  non_transferable: col.boolean(false),
   purchase_only: col.boolean(false),
-  assign_built_site: col.boolean(false),
+  thank_you_url: col.encryptedText(encrypt, decrypt),
+  unit_price: col.withDefault(() => 0),
+  webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
 export const eventsTable = withCacheInvalidation(rawEventsTable, () =>
@@ -206,7 +206,7 @@ export const isSlugTaken = async (
   const args = excludeEventId
     ? [slugIndex, excludeEventId, slugIndex]
     : [slugIndex, slugIndex];
-  const result = await getDb().execute({ sql, args });
+  const result = await getDb().execute({ args, sql });
   return result.rows.length > 0;
 };
 
@@ -218,22 +218,22 @@ export const isSlugTaken = async (
 export const deleteEvent = async (eventId: number): Promise<void> => {
   await executeBatch([
     // Remove event links first
-    { sql: "DELETE FROM event_attendees WHERE event_id = ?", args: [eventId] },
+    { args: [eventId], sql: "DELETE FROM event_attendees WHERE event_id = ?" },
     // Delete orphaned attendees (no remaining event links) and their dependent data
     {
+      args: [],
       sql: "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
-      args: [],
     },
     {
+      args: [],
       sql: "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
-      args: [],
     },
     {
-      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
       args: [],
+      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
-    { sql: "DELETE FROM activity_log WHERE event_id = ?", args: [eventId] },
-    { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
+    { args: [eventId], sql: "DELETE FROM activity_log WHERE event_id = ?" },
+    { args: [eventId], sql: "DELETE FROM events WHERE id = ?" },
   ]);
   invalidateEventsCache();
 };
@@ -281,7 +281,7 @@ const queryEventsWithCounts = async (
 
 const eventsCache = requestCache(() => queryEventsWithCounts());
 
-registerCache(() => ({ name: "events", entries: eventsCache.size() }));
+registerCache(() => ({ entries: eventsCache.size(), name: "events" }));
 
 /** Invalidate the events cache (for testing or after writes). */
 export const invalidateEventsCache = (): void => {
@@ -327,14 +327,14 @@ export const getEventWithAttendeesRaw = async (
   id: number,
 ): Promise<EventWithAttendees | null> => {
   const [eventResult, attendeesResult] = await queryBatch([
-    { sql: "SELECT * FROM events WHERE id = ?", args: [id] },
+    { args: [id], sql: "SELECT * FROM events WHERE id = ?" },
     {
+      args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
             FROM attendees a
             JOIN event_attendees ea ON ea.attendee_id = a.id
             WHERE ea.event_id = ?
             ORDER BY a.created DESC`,
-      args: [id],
     },
   ]);
 
@@ -342,7 +342,7 @@ export const getEventWithAttendeesRaw = async (
   return withBatchEvent(
     eventResult!,
     () => attendeesRaw.reduce((sum, a) => sum + a.quantity, 0),
-    (event) => ({ event, attendeesRaw }),
+    (event) => ({ attendeesRaw, event }),
   );
 };
 
@@ -433,17 +433,17 @@ export const getEventWithAttendeeRaw = async (
   attendeeId: number,
 ): Promise<EventWithAttendeeRaw | null> => {
   const [eventResult, attendeeResult, countResult] = await queryBatch([
-    { sql: "SELECT * FROM events WHERE id = ?", args: [eventId] },
+    { args: [eventId], sql: "SELECT * FROM events WHERE id = ?" },
     {
+      args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
             FROM attendees a
             LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
             WHERE a.id = ?`,
-      args: [attendeeId],
     },
     {
-      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
       args: [eventId],
+      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
     },
   ]);
 
@@ -451,8 +451,8 @@ export const getEventWithAttendeeRaw = async (
     eventResult!,
     () => resultRows<{ count: number }>(countResult!)[0]!.count,
     (event) => ({
-      event,
       attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
+      event,
     }),
   );
 };

@@ -41,8 +41,8 @@ const downloadStripeMock = async (): Promise<void> => {
 
   const curlCmd = new Deno.Command("curl", {
     args: ["-sL", url, "-o", "-"],
-    stdout: "piped",
     stderr: "null",
+    stdout: "piped",
   });
   const curlResult = await curlCmd.output();
   if (!curlResult.success) {
@@ -76,8 +76,8 @@ const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
   console.log("Starting stripe-mock on port", STRIPE_MOCK_PORT);
   const cmd = new Deno.Command(STRIPE_MOCK_PATH, {
     args: ["-http-port", String(STRIPE_MOCK_PORT)],
-    stdout: "null",
     stderr: "null",
+    stdout: "null",
   });
   const process = cmd.spawn();
 
@@ -118,15 +118,15 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
   const testCmd = new Deno.Command(Deno.execPath(), {
     args: buildDenoTestArgs(useCoverage),
     cwd: projectRoot,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
     env: {
       ...Deno.env.toObject(),
+      DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "15",
       STRIPE_MOCK_HOST: "localhost",
       STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
-      DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "15",
     },
+    stderr: "inherit",
+    stdin: "inherit",
+    stdout: "inherit",
   });
   const result = await testCmd.output();
   return result.code;
@@ -180,7 +180,7 @@ const findCoverageFailures = (
 ): { lineFailures: string[]; branchFailures: string[] } => {
   const records = lcov.split("end_of_record").filter((r) => r.includes("SF:"));
   if (records.length === 0)
-    return { lineFailures: ["No coverage data found"], branchFailures: [] };
+    return { branchFailures: [], lineFailures: ["No coverage data found"] };
 
   const lineFailures: string[] = [];
   const branchFailures: string[] = [];
@@ -188,7 +188,7 @@ const findCoverageFailures = (
     const file = extractRecordFile(record);
     if (file) checkRecord(record, file, lineFailures, branchFailures);
   }
-  return { lineFailures, branchFailures };
+  return { branchFailures, lineFailures };
 };
 
 /** Print a labeled list of failures */
@@ -226,17 +226,17 @@ const checkCoverage = async (): Promise<void> => {
   const tableCmd = new Deno.Command(Deno.execPath(), {
     args: ["coverage", coverageDir],
     cwd: projectRoot,
+    stderr: "inherit",
     stdin: "inherit",
     stdout: "inherit",
-    stderr: "inherit",
   });
   await tableCmd.output();
 
   const lcovCmd = new Deno.Command(Deno.execPath(), {
     args: ["coverage", coverageDir, "--lcov"],
     cwd: projectRoot,
-    stdout: "piped",
     stderr: "inherit",
+    stdout: "piped",
   });
   const lcovResult = await lcovCmd.output();
   const lcov = new TextDecoder().decode(lcovResult.stdout);

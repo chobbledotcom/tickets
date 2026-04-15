@@ -550,24 +550,24 @@ export type DemoFieldMap = Record<string, readonly string[]>;
 
 /** Attendee PII fields */
 export const ATTENDEE_DEMO_FIELDS: DemoFieldMap = {
-  name: DEMO_NAMES,
-  email: DEMO_EMAILS,
-  phone: DEMO_PHONES,
   address: DEMO_ADDRESSES,
+  email: DEMO_EMAILS,
+  name: DEMO_NAMES,
+  phone: DEMO_PHONES,
   special_instructions: DEMO_SPECIAL_INSTRUCTIONS,
 };
 
 /** Event metadata fields */
 export const EVENT_DEMO_FIELDS: DemoFieldMap = {
-  name: DEMO_EVENT_NAMES,
   description: DEMO_EVENT_DESCRIPTIONS,
   location: DEMO_EVENT_LOCATIONS,
+  name: DEMO_EVENT_NAMES,
 };
 
 /** Group name and description fields */
 export const GROUP_DEMO_FIELDS: DemoFieldMap = {
-  name: DEMO_GROUP_NAMES,
   description: DEMO_GROUP_DESCRIPTIONS,
+  name: DEMO_GROUP_NAMES,
 };
 
 /** Holiday name field */
@@ -577,8 +577,8 @@ export const HOLIDAY_DEMO_FIELDS: DemoFieldMap = {
 
 /** Site homepage fields */
 export const SITE_HOME_DEMO_FIELDS: DemoFieldMap = {
-  website_title: DEMO_WEBSITE_TITLES,
   homepage_text: DEMO_PAGE_TEXT,
+  website_title: DEMO_WEBSITE_TITLES,
 };
 
 /** Site contact page fields */

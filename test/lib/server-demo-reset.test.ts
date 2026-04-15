@@ -175,13 +175,13 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
       const event = await createTestEvent({ maxAttendees: 10 });
       await eventsTable.update(event.id, {
-        imageUrl: "reset-image.jpg",
-        attachmentUrl: "reset-attachment.pdf",
         attachmentName: "doc.pdf",
+        attachmentUrl: "reset-attachment.pdf",
+        imageUrl: "reset-image.jpg",
       });
 
       await runWithStorageConfig(
-        { zoneName: "testzone", zoneKey: "testkey" },
+        { zoneKey: "testkey", zoneName: "testzone" },
         () =>
           withFetchMock(async (originalFetch) => {
             const deletedUrls: string[] = [];

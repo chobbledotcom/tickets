@@ -23,9 +23,9 @@ import { createTestEvent, describeWithEnv } from "#test-utils";
 /** Create a test attendee directly via the DB (bypasses routes) */
 const createAttendee = async (eventId: number, name = "Alice") => {
   const result = await createAttendeeAtomic({
-    name,
-    email: `${name.toLowerCase()}@test.com`,
     bookings: [{ eventId }],
+    email: `${name.toLowerCase()}@test.com`,
+    name,
   });
   if (!result.success)
     throw new Error(`Failed to create attendee: ${result.reason}`);
@@ -54,8 +54,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "To delete" });
       const a = await answersTable.insert({
         questionId: q.id,
-        text: "Opt A",
         sortOrder: 0,
+        text: "Opt A",
       });
 
       const event = await createTestEvent();
@@ -78,13 +78,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
 
       const withAnswers = await getQuestionWithAnswers(q.id);
@@ -98,13 +98,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       const small = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
 
       await deleteAnswer(small.id);
@@ -121,13 +121,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
         questionId: q1.id,
-        text: "A1",
         sortOrder: 0,
+        text: "A1",
       });
       await answersTable.insert({
         questionId: q2.id,
-        text: "A2",
         sortOrder: 0,
+        text: "A2",
       });
 
       const event = await createTestEvent();
@@ -145,13 +145,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
         questionId: q1.id,
-        text: "A1",
         sortOrder: 0,
+        text: "A1",
       });
       await answersTable.insert({
         questionId: q2.id,
-        text: "A2",
         sortOrder: 0,
+        text: "A2",
       });
 
       const event = await createTestEvent();
@@ -174,8 +174,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const qNoAnswers = await questionsTable.insert({ text: "No answers" });
       await answersTable.insert({
         questionId: qWithAnswers.id,
-        text: "Yes",
         sortOrder: 0,
+        text: "Yes",
       });
 
       const event = await createTestEvent();
@@ -211,13 +211,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
         questionId: q1.id,
-        text: "A1",
         sortOrder: 0,
+        text: "A1",
       });
       await answersTable.insert({
         questionId: q2.id,
-        text: "A2",
         sortOrder: 0,
+        text: "A2",
       });
 
       const event1 = await createTestEvent();
@@ -239,13 +239,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
         questionId: q1.id,
-        text: "A1",
         sortOrder: 0,
+        text: "A1",
       });
       await answersTable.insert({
         questionId: q2.id,
-        text: "A2",
         sortOrder: 0,
+        text: "A2",
       });
 
       const event1 = await createTestEvent();
@@ -275,8 +275,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const qNoAnswers = await questionsTable.insert({ text: "No answers" });
       await answersTable.insert({
         questionId: qWithAnswers.id,
-        text: "Yes",
         sortOrder: 0,
+        text: "Yes",
       });
 
       const event = await createTestEvent();
@@ -293,13 +293,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
 
       const event = await createTestEvent();
@@ -315,13 +315,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
 
       const event = await createTestEvent();
@@ -355,13 +355,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Colour?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Red",
         sortOrder: 0,
+        text: "Red",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Blue",
         sortOrder: 1,
+        text: "Blue",
       });
 
       const event = await createTestEvent();
@@ -381,8 +381,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Colour?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Red",
         sortOrder: 0,
+        text: "Red",
       });
 
       const event = await createTestEvent();
@@ -402,18 +402,18 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
         questionId: q1.id,
-        text: "A1",
         sortOrder: 0,
+        text: "A1",
       });
       await answersTable.insert({
         questionId: q1.id,
-        text: "A2",
         sortOrder: 1,
+        text: "A2",
       });
       await answersTable.insert({
         questionId: q2.id,
-        text: "B1",
         sortOrder: 0,
+        text: "B1",
       });
 
       const all = await getAllQuestionsWithAnswers();
@@ -435,8 +435,8 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("returns max sort_order + 1 when answers exist", async () => {
       const q = await questionsTable.insert({ text: "Q" });
-      await answersTable.insert({ questionId: q.id, text: "A1", sortOrder: 0 });
-      await answersTable.insert({ questionId: q.id, text: "A2", sortOrder: 1 });
+      await answersTable.insert({ questionId: q.id, sortOrder: 0, text: "A1" });
+      await answersTable.insert({ questionId: q.id, sortOrder: 1, text: "A2" });
       expect(await getNextAnswerSortOrder(q.id)).toBe(2);
     });
   });
@@ -446,13 +446,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Color?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Red",
         sortOrder: 0,
+        text: "Red",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Blue",
         sortOrder: 1,
+        text: "Blue",
       });
       const counts = await getAnswerCountsForQuestion(q.id);
       expect(counts.get(a1.id)).toBe(0);
@@ -464,13 +464,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "S",
         sortOrder: 0,
+        text: "S",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "M",
         sortOrder: 1,
+        text: "M",
       });
       const att1 = await createAttendee(event.id, "Alice");
       const att2 = await createAttendee(event.id, "Bob");
@@ -487,13 +487,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Q" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "First",
         sortOrder: 0,
+        text: "First",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Second",
         sortOrder: 1,
+        text: "Second",
       });
       await swapAnswerOrder(a1.id, 0, a2.id, 1);
       const updated = await getQuestionWithAnswers(q.id);

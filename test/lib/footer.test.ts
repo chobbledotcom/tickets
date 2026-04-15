@@ -9,18 +9,18 @@ import {
 describe("debugFooterHtml", () => {
   test("renders summary with render time", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 42.7,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 42.7,
     });
     expect(html).toContain("43ms");
   });
 
   test("links to the GitHub repo", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
     expect(html).toContain("Chobble Tickets</a>");
@@ -28,9 +28,9 @@ describe("debugFooterHtml", () => {
 
   test("wraps content in a details/summary element", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).toContain("<details>");
     expect(html).toContain("<summary>");
@@ -40,9 +40,9 @@ describe("debugFooterHtml", () => {
 
   test("renders inside a footer element", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).toContain("<footer");
     expect(html).toContain("</footer>");
@@ -50,21 +50,21 @@ describe("debugFooterHtml", () => {
 
   test("uses the debug-footer CSS class", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).toContain('class="debug-footer"');
   });
 
   test("lists each query with its duration", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 20,
-      queries: [
-        { sql: "SELECT * FROM events", durationMs: 5.2 },
-        { sql: "SELECT * FROM users WHERE id = ?", durationMs: 3.1 },
-      ],
       cacheStats: [],
+      queries: [
+        { durationMs: 5.2, sql: "SELECT * FROM events" },
+        { durationMs: 3.1, sql: "SELECT * FROM users WHERE id = ?" },
+      ],
+      renderTimeMs: 20,
     });
     expect(html).toContain("SELECT * FROM events");
     expect(html).toContain("5.2ms");
@@ -74,9 +74,9 @@ describe("debugFooterHtml", () => {
 
   test("escapes HTML in SQL strings", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [{ sql: "SELECT '<script>' FROM t", durationMs: 1.0 }],
       cacheStats: [],
+      queries: [{ durationMs: 1.0, sql: "SELECT '<script>' FROM t" }],
+      renderTimeMs: 10,
     });
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
@@ -84,9 +84,9 @@ describe("debugFooterHtml", () => {
 
   test("renders empty query list gracefully", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 5,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 5,
     });
     expect(html).toContain("0 queries");
     expect(html).not.toContain("SQL queries");
@@ -94,33 +94,33 @@ describe("debugFooterHtml", () => {
 
   test("shows query count and total SQL time in summary", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 50,
-      queries: [
-        { sql: "SELECT 1", durationMs: 10 },
-        { sql: "SELECT 2", durationMs: 15 },
-      ],
       cacheStats: [],
+      queries: [
+        { durationMs: 10, sql: "SELECT 1" },
+        { durationMs: 15, sql: "SELECT 2" },
+      ],
+      renderTimeMs: 50,
     });
     expect(html).toContain("2 queries 25ms");
   });
 
   test("shows singular query for single query", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 20,
-      queries: [{ sql: "SELECT 1", durationMs: 5 }],
       cacheStats: [],
+      queries: [{ durationMs: 5, sql: "SELECT 1" }],
+      renderTimeMs: 20,
     });
     expect(html).toContain("1 query 5ms");
   });
 
   test("shows render time breakdown with sql vs other", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 100,
-      queries: [
-        { sql: "SELECT 1", durationMs: 30 },
-        { sql: "SELECT 2", durationMs: 20 },
-      ],
       cacheStats: [],
+      queries: [
+        { durationMs: 30, sql: "SELECT 1" },
+        { durationMs: 20, sql: "SELECT 2" },
+      ],
+      renderTimeMs: 100,
     });
     expect(html).toContain("sql 50.0ms");
     expect(html).toContain("other 50.0ms");
@@ -128,12 +128,12 @@ describe("debugFooterHtml", () => {
 
   test("shows cache stats section", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [
-        { name: "sessions", entries: 3 },
-        { name: "decrypt", entries: 150, capacity: 10000 },
+        { entries: 3, name: "sessions" },
+        { capacity: 10000, entries: 150, name: "decrypt" },
       ],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).toContain("Caches (2)");
     expect(html).toContain("sessions: 3");
@@ -142,30 +142,30 @@ describe("debugFooterHtml", () => {
 
   test("shows total cached entries in summary", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [
-        { name: "users", entries: 5 },
-        { name: "events", entries: 10 },
+        { entries: 5, name: "users" },
+        { entries: 10, name: "events" },
       ],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).toContain("15 cached");
   });
 
   test("omits cache section when no caches registered", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
-      queries: [],
       cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
     });
     expect(html).not.toContain("Caches");
   });
 
   test("escapes HTML in cache names", () => {
     const html = debugFooterHtml({
-      renderTimeMs: 10,
+      cacheStats: [{ entries: 1, name: "<script>" }],
       queries: [],
-      cacheStats: [{ name: "<script>", entries: 1 }],
+      renderTimeMs: 10,
     });
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");

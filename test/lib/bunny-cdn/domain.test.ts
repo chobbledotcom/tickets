@@ -54,7 +54,7 @@ describeWithEnv(
     afterEach(() => resetEffectiveDomain());
 
     const fixedPullZone = {
-      findPullZoneId: () => Promise.resolve({ ok: true as const, id: 12345 }),
+      findPullZoneId: () => Promise.resolve({ id: 12345, ok: true as const }),
     };
 
     test("returns ok when all API calls succeed", async () => {
@@ -78,16 +78,16 @@ describeWithEnv(
         {
           findPullZoneId: () =>
             Promise.resolve({
-              ok: false as const,
               error: "Edge script 99 has no linked pull zones",
+              ok: false as const,
             }),
         },
         async () => {
           const result =
             await bunnyCdnApi.validateCustomDomain("cdn.example.com");
           expect(result).toEqual({
-            ok: false,
             error: "Edge script 99 has no linked pull zones",
+            ok: false,
           });
         },
       );
@@ -106,8 +106,8 @@ describeWithEnv(
             const result =
               await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
-              ok: false,
               error: "Add hostname failed (400): Hostname already exists",
+              ok: false,
             });
           },
         );
@@ -129,9 +129,9 @@ describeWithEnv(
             const result =
               await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
-              ok: false,
               error: "Add hostname failed (400): Something went wrong.",
               errorKey: "pullzone.some_other_error",
+              ok: false,
             });
           },
         );
@@ -201,8 +201,8 @@ describeWithEnv(
             const result =
               await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
-              ok: false,
               error: "Load free certificate failed (400): Certificate error",
+              ok: false,
             });
             expect(callCount).toBe(2);
           },
@@ -228,8 +228,8 @@ describeWithEnv(
             const result =
               await bunnyCdnApi.validateCustomDomain("cdn.example.com");
             expect(result).toEqual({
-              ok: false,
               error: "Set force SSL failed (500): SSL error",
+              ok: false,
             });
           },
         );
@@ -248,9 +248,9 @@ describeWithEnv(
   () => {
     test("returns zone data on success", async () => {
       const zone = {
-        Id: 42,
         Domain: "example.com",
-        Records: [{ Id: 1, Type: 2, Name: "existing", Value: "target.com" }],
+        Id: 42,
+        Records: [{ Id: 1, Name: "existing", Type: 2, Value: "target.com" }],
       };
       await withMocks(
         () =>
@@ -273,8 +273,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.getDnsZone();
           expect(result).toEqual({
-            ok: false,
             error: "Get DNS zone failed (404): Not found",
+            ok: false,
           });
         },
       );
@@ -292,8 +292,8 @@ const mockDnsZone = (records: { Name: string }[]) => ({
     Promise.resolve({
       ok: true as const,
       zone: {
-        Id: 42,
         Domain: "example.com",
+        Id: 42,
         Records: records.map((r, i) => ({
           Id: i,
           Type: 2,
@@ -309,8 +309,8 @@ describeWithEnv(
   {
     env: {
       BUNNY_API_KEY: "test-key",
-      BUNNY_DNS_ZONE_ID: "42",
       BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      BUNNY_DNS_ZONE_ID: "42",
     },
   },
   () => {
@@ -320,9 +320,9 @@ describeWithEnv(
         async () => {
           const result = await checkSubdomainAvailable("myevent");
           expect(result).toEqual({
-            ok: true,
             available: true,
             fullDomain: "myevent.tickets.example.com",
+            ok: true,
           });
         },
       );
@@ -334,9 +334,9 @@ describeWithEnv(
         async () => {
           const result = await checkSubdomainAvailable("myevent");
           expect(result).toEqual({
-            ok: true,
             available: false,
             fullDomain: "myevent.tickets.example.com",
+            ok: true,
           });
         },
       );
@@ -346,11 +346,11 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         {
           getDnsZone: () =>
-            Promise.resolve({ ok: false as const, error: "API error" }),
+            Promise.resolve({ error: "API error", ok: false as const }),
         },
         async () => {
           const result = await checkSubdomainAvailable("myevent");
-          expect(result).toEqual({ ok: false, error: "API error" });
+          expect(result).toEqual({ error: "API error", ok: false });
         },
       );
     });
@@ -362,8 +362,8 @@ describeWithEnv(
   {
     env: {
       BUNNY_API_KEY: "test-key",
-      BUNNY_DNS_ZONE_ID: "42",
       BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
+      BUNNY_DNS_ZONE_ID: "42",
     },
   },
   () => {
@@ -371,9 +371,9 @@ describeWithEnv(
       await withMockBunnyCdnApi(mockDnsZone([]), async () => {
         const result = await checkSubdomainAvailable("myevent");
         expect(result).toEqual({
-          ok: true,
           available: true,
           fullDomain: "myevent.example.com",
+          ok: true,
         });
       });
     });
@@ -410,8 +410,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
           expect(result).toEqual({
-            ok: false,
             error: "Delete DNS record failed (404): Not found",
+            ok: false,
           });
         },
       );
@@ -428,22 +428,22 @@ describeWithEnv(
   {
     env: {
       BUNNY_API_KEY: "test-key",
-      BUNNY_DNS_ZONE_ID: "42",
       BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      BUNNY_DNS_ZONE_ID: "42",
     },
   },
   () => {
     const availableMock = {
       checkSubdomainAvailable: () =>
         Promise.resolve({
-          ok: true as const,
           available: true,
           fullDomain: "myevent.tickets.example.com",
+          ok: true as const,
         }),
       getCdnHostname: () =>
         Promise.resolve({
-          ok: true as const,
           hostname: "mysite.b-cdn.net",
+          ok: true as const,
         }),
     };
 
@@ -451,11 +451,11 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         {
           checkSubdomainAvailable: () =>
-            Promise.resolve({ ok: false as const, error: "DNS zone error" }),
+            Promise.resolve({ error: "DNS zone error", ok: false as const }),
         },
         async () => {
           const result = await registerBunnySubdomain("myevent");
-          expect(result).toEqual({ ok: false, error: "DNS zone error" });
+          expect(result).toEqual({ error: "DNS zone error", ok: false });
         },
       );
     });
@@ -465,16 +465,16 @@ describeWithEnv(
         {
           checkSubdomainAvailable: () =>
             Promise.resolve({
-              ok: true as const,
               available: false,
               fullDomain: "myevent.tickets.example.com",
+              ok: true as const,
             }),
         },
         async () => {
           const result = await registerBunnySubdomain("myevent");
           expect(result).toEqual({
-            ok: false,
             error: 'Subdomain "myevent" is already taken',
+            ok: false,
           });
         },
       );
@@ -492,18 +492,18 @@ describeWithEnv(
             async (recorder) => {
               const result = await registerBunnySubdomain("myevent");
               expect(result).toEqual({
-                ok: true,
                 fullDomain: "myevent.tickets.example.com",
+                ok: true,
               });
               expect(recorder.calls).toHaveLength(1);
               expect(recorder.calls[0]!.url).toContain("/dnszone/42/records");
               expect(
                 JSON.parse(recorder.calls[0]!.init!.body as string),
               ).toEqual({
-                Type: 2,
                 Name: "myevent.tickets",
-                Value: "mysite.b-cdn.net",
                 Ttl: 300,
+                Type: 2,
+                Value: "mysite.b-cdn.net",
               });
             },
           );
@@ -516,11 +516,11 @@ describeWithEnv(
         {
           ...availableMock,
           getCdnHostname: () =>
-            Promise.resolve({ ok: false as const, error: "No pull zones" }),
+            Promise.resolve({ error: "No pull zones", ok: false as const }),
         },
         async () => {
           const result = await registerBunnySubdomain("myevent");
-          expect(result).toEqual({ ok: false, error: "No pull zones" });
+          expect(result).toEqual({ error: "No pull zones", ok: false });
         },
       );
     });
@@ -535,8 +535,8 @@ describeWithEnv(
           async () => {
             const result = await registerBunnySubdomain("myevent");
             expect(result).toEqual({
-              ok: false,
               error: "Add DNS CNAME record failed (500): DNS error",
+              ok: false,
             });
           },
         );
@@ -548,17 +548,17 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         {
           ...availableMock,
+          delay: () => Promise.resolve(),
           validateCustomDomain: () => {
             validateCallCount++;
             if (validateCallCount < 3) {
               return Promise.resolve({
-                ok: false as const,
                 error: "Not pointing to our servers",
+                ok: false as const,
               });
             }
             return Promise.resolve({ ok: true as const });
           },
-          delay: () => Promise.resolve(),
         },
         async () => {
           await withMocks(
@@ -569,8 +569,8 @@ describeWithEnv(
             async () => {
               const result = await registerBunnySubdomain("myevent");
               expect(result).toEqual({
-                ok: true,
                 fullDomain: "myevent.tickets.example.com",
+                ok: true,
               });
               expect(validateCallCount).toBe(3);
             },
@@ -585,18 +585,18 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         {
           ...availableMock,
-          validateCustomDomain: () => {
-            validateCallCount++;
-            return Promise.resolve({
-              ok: false as const,
-              error: "SSL failed",
-            });
-          },
+          delay: () => Promise.resolve(),
           deleteDnsRecord: (_zoneId: string, recordId: number) => {
             deletedRecordId = recordId;
             return Promise.resolve({ ok: true as const });
           },
-          delay: () => Promise.resolve(),
+          validateCustomDomain: () => {
+            validateCallCount++;
+            return Promise.resolve({
+              error: "SSL failed",
+              ok: false as const,
+            });
+          },
         },
         async () => {
           await withMocks(
@@ -608,7 +608,7 @@ describeWithEnv(
               ),
             async () => {
               const result = await registerBunnySubdomain("myevent");
-              expect(result).toEqual({ ok: false, error: "SSL failed" });
+              expect(result).toEqual({ error: "SSL failed", ok: false });
               expect(validateCallCount).toBe(5);
               expect(deletedRecordId).toBe(999);
             },
@@ -622,13 +622,13 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         {
           ...availableMock,
-          validateCustomDomain: () =>
-            Promise.resolve({ ok: false as const, error: "SSL failed" }),
+          delay: () => Promise.resolve(),
           deleteDnsRecord: () => {
             deleteWasCalled = true;
             return Promise.resolve({ ok: true as const });
           },
-          delay: () => Promise.resolve(),
+          validateCustomDomain: () =>
+            Promise.resolve({ error: "SSL failed", ok: false as const }),
         },
         async () => {
           await withMocks(
@@ -651,11 +651,11 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         {
           ...availableMock,
+          delay: () => Promise.resolve(),
           validateCustomDomain: () => {
             validateCallCount++;
             return Promise.resolve({ ok: true as const });
           },
-          delay: () => Promise.resolve(),
         },
         async () => {
           await withMocks(
@@ -666,8 +666,8 @@ describeWithEnv(
             async () => {
               const result = await registerBunnySubdomain("myevent");
               expect(result).toEqual({
-                ok: true,
                 fullDomain: "myevent.tickets.example.com",
+                ok: true,
               });
               expect(validateCallCount).toBe(1);
             },

@@ -137,10 +137,10 @@ export const buildRegistrationItems = (
   });
   return selected.map(({ event }) => ({
     eventId: event.id,
-    quantity: quantities.get(event.id)!,
-    unitPrice: customPrices.get(event.id) ?? event.unit_price,
-    slug: event.slug,
     name: event.name,
+    quantity: quantities.get(event.id)!,
+    slug: event.slug,
+    unitPrice: customPrices.get(event.id) ?? event.unit_price,
   }));
 };
 
@@ -171,9 +171,9 @@ const buildBookings = (
   date: string | null,
 ): { eventId: number; quantity: number; date: string | null }[] =>
   selected.map(({ event, qty }) => ({
+    date: event.event_type === "daily" ? date : null,
     eventId: event.id,
     quantity: qty,
-    date: event.event_type === "daily" ? date : null,
   }));
 
 /**
@@ -214,8 +214,8 @@ export const processFreeReservation = async (
   const check = await ensureAllBookings(result, bookings.length);
   if (!check.ok) {
     return {
-      success: false,
       error: formatAtomicError(check.reason, selected[0]!.event.name),
+      success: false,
     };
   }
   // ensureAllBookings guarantees result.success after ok check
@@ -226,15 +226,15 @@ export const processFreeReservation = async (
 
   // Build entries: pair each attendee result with its event
   const entries: EmailEntry[] = attendees.map((attendee, i) => ({
-    event: selected[i]!.event,
     attendee,
+    event: selected[i]!.event,
   }));
 
   await logAndNotifyRegistration(entries);
   return {
+    entries,
     success: true,
     token: attendees[0]!.ticket_token,
-    entries,
   };
 };
 
@@ -284,8 +284,8 @@ export const getTicketContext = async (
     terms,
     ...questionsResult,
     ...(group && {
-      groupName: group.name,
       groupDescription: group.description,
+      groupName: group.name,
     }),
   };
 };

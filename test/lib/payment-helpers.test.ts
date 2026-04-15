@@ -20,14 +20,14 @@ describe("payment-helpers", () => {
   describe("metadata round-trip: build → validate → extract", () => {
     test("single-event metadata survives full pipeline", () => {
       const metadata = buildMetadata({
-        name: "Alice",
-        email: "alice@example.com",
-        phone: "+1234567890",
         address: "123 Main St",
-        special_instructions: "No nuts",
         date: "2026-02-10",
-        items: [{ e: 42, q: 3, p: 0 }],
+        email: "alice@example.com",
         eventAnswerIds: { "42": [10, 20] },
+        items: [{ e: 42, p: 0, q: 3 }],
+        name: "Alice",
+        phone: "+1234567890",
+        special_instructions: "No nuts",
       });
 
       expect(hasRequiredSessionMetadata(metadata)).toBe(true);
@@ -46,29 +46,29 @@ describe("payment-helpers", () => {
 
     test("cart metadata survives full pipeline", () => {
       const intent = {
-        name: "Bob",
-        email: "bob@example.com",
-        phone: "+9876543210",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "bob@example.com",
+        eventAnswerIds: { "1": [10], "2": [20, 21] },
         items: [
           {
             eventId: 1,
-            quantity: 2,
-            unitPrice: 1000,
-            slug: "evt-1",
             name: "E1",
+            quantity: 2,
+            slug: "evt-1",
+            unitPrice: 1000,
           },
           {
             eventId: 2,
-            quantity: 1,
-            unitPrice: 500,
-            slug: "evt-2",
             name: "E2",
+            quantity: 1,
+            slug: "evt-2",
+            unitPrice: 500,
           },
         ],
-        eventAnswerIds: { "1": [10], "2": [20, 21] },
+        name: "Bob",
+        phone: "+9876543210",
+        special_instructions: "",
       };
       const metadata = buildMetadata({
         ...intent,
@@ -84,8 +84,8 @@ describe("payment-helpers", () => {
       expect(extracted.phone).toBe("+9876543210");
       expect(extracted.address).toBe("");
       expect(JSON.parse(extracted.items)).toEqual([
-        { e: 1, q: 2, p: 2000 },
-        { e: 2, q: 1, p: 500 },
+        { e: 1, p: 2000, q: 2 },
+        { e: 2, p: 500, q: 1 },
       ]);
       expect(JSON.parse(extracted.answer_ids)).toEqual({
         "1": [10],
@@ -95,10 +95,10 @@ describe("payment-helpers", () => {
 
     test("extractSessionMetadata preserves present fields and defaults absent ones", () => {
       const withFields = extractSessionMetadata({
-        name: "Alice",
         email: "alice@example.com",
-        phone: "+1234567890",
         items: "[]",
+        name: "Alice",
+        phone: "+1234567890",
       } as SessionMetadata);
       expect(withFields.email).toBe("alice@example.com");
       expect(withFields.phone).toBe("+1234567890");
@@ -114,12 +114,12 @@ describe("payment-helpers", () => {
 
     test("optional fields omitted during build normalize to empty on extract", () => {
       const metadata = buildMetadata({
-        name: "Min",
-        email: "min@example.com",
         address: "",
-        special_instructions: "",
         date: null,
-        items: [{ e: 1, q: 1, p: 0 }],
+        email: "min@example.com",
+        items: [{ e: 1, p: 0, q: 1 }],
+        name: "Min",
+        special_instructions: "",
       });
 
       const extracted = extractSessionMetadata(
@@ -134,16 +134,16 @@ describe("payment-helpers", () => {
 
     test("cart with no phone, empty eventAnswerIds omits optional fields", () => {
       const intent = {
-        name: "Eve",
-        email: "eve@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
-        items: [
-          { eventId: 5, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
-        ],
+        email: "eve@example.com",
         eventAnswerIds: {},
+        items: [
+          { eventId: 5, name: "E", quantity: 1, slug: "e", unitPrice: 100 },
+        ],
+        name: "Eve",
+        phone: "",
+        special_instructions: "",
       };
       const metadata = buildMetadata({
         ...intent,
@@ -156,25 +156,25 @@ describe("payment-helpers", () => {
 
     test("single-event with date null omits date", () => {
       const metadata = buildMetadata({
-        name: "X",
-        email: "x@x.com",
         date: null,
-        items: [{ e: 1, q: 1, p: 0 }],
+        email: "x@x.com",
+        items: [{ e: 1, p: 0, q: 1 }],
+        name: "X",
       });
       expect("date" in metadata).toBe(false);
     });
 
     test("cart with date null omits date", () => {
       const intent = {
-        name: "X",
-        email: "x@x.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "x@x.com",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" },
+          { eventId: 1, name: "E", quantity: 1, slug: "e", unitPrice: 100 },
         ],
+        name: "X",
+        phone: "",
+        special_instructions: "",
       };
       const metadata = buildMetadata({
         ...intent,
@@ -185,21 +185,21 @@ describe("payment-helpers", () => {
 
     test("single-event with empty answerIds omits answer_ids", () => {
       const metadata = buildMetadata({
-        name: "X",
-        email: "x@x.com",
         date: null,
-        items: [{ e: 1, q: 1, p: 0 }],
+        email: "x@x.com",
         eventAnswerIds: {},
+        items: [{ e: 1, p: 0, q: 1 }],
+        name: "X",
       });
       expect("answer_ids" in metadata).toBe(false);
     });
 
     test("toBookingItems produces compact items with total price", () => {
       const items = [
-        { eventId: 10, quantity: 3, unitPrice: 700, slug: "b", name: "B" },
+        { eventId: 10, name: "B", quantity: 3, slug: "b", unitPrice: 700 },
       ];
       const result = toBookingItems(items);
-      expect(result).toEqual([{ e: 10, q: 3, p: 2100 }]);
+      expect(result).toEqual([{ e: 10, p: 2100, q: 3 }]);
     });
 
     test("toBookingItems handles empty array", () => {
@@ -229,34 +229,34 @@ describe("payment-helpers", () => {
       ).toBe(false);
       expect(
         hasRequiredSessionMetadata({
-          name: "",
           email: "a@b.com",
           items: "[]",
+          name: "",
         }),
       ).toBe(false);
     });
 
     test("returns false when items missing", () => {
       expect(
-        hasRequiredSessionMetadata({ name: "Alice", email: "a@b.com" }),
+        hasRequiredSessionMetadata({ email: "a@b.com", name: "Alice" }),
       ).toBe(false);
     });
 
     test("returns true for valid single-event (email optional)", () => {
-      expect(hasRequiredSessionMetadata({ name: "Alice", items: "[]" })).toBe(
+      expect(hasRequiredSessionMetadata({ items: "[]", name: "Alice" })).toBe(
         true,
       );
       expect(
-        hasRequiredSessionMetadata({ name: "Alice", email: "", items: "[]" }),
+        hasRequiredSessionMetadata({ email: "", items: "[]", name: "Alice" }),
       ).toBe(true);
     });
 
     test("returns true for valid multi-event metadata", () => {
       expect(
         hasRequiredSessionMetadata({
-          name: "Alice",
           email: "a@b.com",
           items: '[{"e":1,"q":2,"p":2000}]',
+          name: "Alice",
         }),
       ).toBe(true);
     });
@@ -358,8 +358,8 @@ describe("payment-helpers", () => {
       expect(
         toCheckoutResult("sess_1", "https://pay.example.com", "Stripe"),
       ).toEqual({
-        sessionId: "sess_1",
         checkoutUrl: "https://pay.example.com",
+        sessionId: "sess_1",
       });
     });
 
@@ -379,27 +379,27 @@ describe("payment-helpers", () => {
   describe("enforceMetadataLimits", () => {
     test("returns metadata unchanged when all values within limit", () => {
       const metadata = {
+        email: "john@example.com",
         items: '[{"e":1,"q":2,"p":0}]',
         name: "John",
-        email: "john@example.com",
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
     test("returns metadata unchanged when items exactly at limit", () => {
       const items = "X".repeat(255);
-      const metadata = { items, name: "John", email: "j@x.com" };
+      const metadata = { email: "j@x.com", items, name: "John" };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
     test("throws PaymentUserError when items JSON exceeds limit", () => {
       const longItems = JSON.stringify(
-        Array.from({ length: 30 }, (_, i) => ({ e: i, q: 1, p: 100 })),
+        Array.from({ length: 30 }, (_, i) => ({ e: i, p: 100, q: 1 })),
       );
       const metadata = {
-        name: "John",
         email: "john@example.com",
         items: longItems,
+        name: "John",
       };
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         PaymentUserError,
@@ -419,10 +419,10 @@ describe("payment-helpers", () => {
         ),
       );
       const metadata = {
-        name: "John",
+        answer_ids: longAnswerIds,
         email: "john@example.com",
         items: '[{"e":1,"q":1,"p":0}]',
-        answer_ids: longAnswerIds,
+        name: "John",
       };
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         PaymentUserError,
@@ -434,9 +434,9 @@ describe("payment-helpers", () => {
 
     test("items within Stripe limit (500) but over Square limit (255)", () => {
       const items = JSON.stringify(
-        Array.from({ length: 15 }, (_, i) => ({ e: i, q: 1, p: 100 })),
+        Array.from({ length: 15 }, (_, i) => ({ e: i, p: 100, q: 1 })),
       );
-      const metadata = { name: "John", email: "j@x.com", items };
+      const metadata = { email: "j@x.com", items, name: "John" };
       expect(enforceMetadataLimits(metadata, 500).items).toBe(items);
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         PaymentUserError,
@@ -445,9 +445,9 @@ describe("payment-helpers", () => {
 
     test("passes through when answer_ids is absent", () => {
       const metadata = {
+        email: "j@x.com",
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
-        email: "j@x.com",
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });

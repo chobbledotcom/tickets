@@ -55,10 +55,10 @@ const setupRefundTest = async (paymentId: string): Promise<RefundCtx> => {
     paymentId,
   );
   return {
-    event,
     attendee,
     cookie: await testCookie(),
     csrfToken: await testCsrfToken(),
+    event,
   };
 };
 
@@ -155,12 +155,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("returns 404 when attendee belongs to different event", async () => {
       const event1 = await createTestEvent({
-        name: "Event 1",
         maxAttendees: 100,
+        name: "Event 1",
       });
       const event2 = await createTestEvent({
-        name: "Event 2",
         maxAttendees: 100,
+        name: "Event 2",
       });
       const attendee = await createTestAttendee(
         event2.id,

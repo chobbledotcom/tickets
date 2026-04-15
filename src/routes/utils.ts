@@ -138,10 +138,10 @@ export const getAuthenticatedSession = async (
   await signCsrfToken();
 
   const result: AuthSession = {
-    token,
-    wrappedDataKey: session.wrapped_data_key,
-    userId: session.user_id,
     adminLevel,
+    token,
+    userId: session.user_id,
+    wrappedDataKey: session.wrapped_data_key,
   };
   setCachedSession(result);
   return result;
@@ -205,10 +205,10 @@ export const getAuthenticatedApiKey = async (
   touchApiKeyLastUsed(apiKeyRow.id).catch(() => {});
 
   const result: AuthSession = {
-    token,
-    wrappedDataKey,
-    userId: apiKeyRow.user_id,
     adminLevel,
+    token,
+    userId: apiKeyRow.user_id,
+    wrappedDataKey,
   };
   setCachedSession(result);
   return result;
@@ -242,8 +242,8 @@ export const getPrivateKey = async (session: {
  */
 export const htmlResponse = (html: string, status = 200): Response =>
   new Response(encodeBody(html), {
-    status,
     headers: { "content-type": "text/html; charset=utf-8" },
+    status,
   });
 
 /**
@@ -285,13 +285,13 @@ export const checkoutResponse = (checkoutUrl: string): Response =>
  */
 export const redirectResponse = (url: string, cookie?: string): Response => {
   const headers: HeadersInit = {
-    location: appendIframeParam(url),
     "content-type": "text/html; charset=utf-8",
+    location: appendIframeParam(url),
   };
   if (cookie) {
     headers["set-cookie"] = cookie;
   }
-  return new Response(null, { status: 302, headers });
+  return new Response(null, { headers, status: 302 });
 };
 
 /** Options for redirect */
@@ -400,7 +400,7 @@ export const parseRequest = (
   request: Request,
 ): { url: URL; path: string; method: string } => {
   const url = new URL(request.url);
-  return { url, path: normalizePath(url.pathname), method: request.method };
+  return { method: request.method, path: normalizePath(url.pathname), url };
 };
 
 /**
@@ -520,8 +520,8 @@ export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
 };
 export const AUTH_JSON: AuthPolicy<"json"> = { body: "json" };
 export const ADMIN_API: AuthPolicy<"json"> = {
-  body: "json",
   allowApiKey: true,
+  body: "json",
 };
 
 /**
@@ -597,7 +597,7 @@ export const requireCsrfForm = async (
   setSavedFormData(form);
 
   if (formCsrf && (await verifySignedCsrfToken(formCsrf))) {
-    return { ok: true, form };
+    return { form, ok: true };
   }
 
   await signCsrfToken();
@@ -658,38 +658,38 @@ export const ownerFormById =
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
   new Response(encodeBody(JSON.stringify(data)), {
-    status,
     headers: { "content-type": "application/json; charset=utf-8" },
+    status,
   });
 
 /** Create plain text response */
 export const plainResponse = (text: string, status = 200): Response =>
   new Response(encodeBody(text), {
-    status,
     headers: { "content-type": "text/plain; charset=utf-8" },
+    status,
   });
 
 /** Shared auth failure response factories (avoids jscpd duplication) */
 const htmlForbidden = () => htmlResponse("Forbidden", 403);
 const jsonForbidden = () =>
-  jsonResponse({ status: "error", message: "Forbidden" }, 403);
+  jsonResponse({ message: "Forbidden", status: "error" }, 403);
 
 /** Auth failure responses keyed by reason, with html and json variants side-by-side. */
 const AUTH_FAILURES = {
-  "not-authenticated": {
-    html: () => redirectResponse("/admin"),
-    json: () =>
-      jsonResponse({ status: "error", message: "Not authenticated" }, 401),
-  },
   forbidden: { html: htmlForbidden, json: jsonForbidden },
+  "invalid-api-key": {
+    html: htmlForbidden,
+    json: () =>
+      jsonResponse({ message: "Invalid API key", status: "error" }, 401),
+  },
   "invalid-csrf": {
     html: () => htmlResponse("Invalid CSRF token", 403),
     json: jsonForbidden,
   },
-  "invalid-api-key": {
-    html: htmlForbidden,
+  "not-authenticated": {
+    html: () => redirectResponse("/admin"),
     json: () =>
-      jsonResponse({ status: "error", message: "Invalid API key" }, 401),
+      jsonResponse({ message: "Not authenticated", status: "error" }, 401),
   },
 } satisfies Record<string, Record<"html" | "json", () => Response>>;
 
@@ -728,7 +728,7 @@ const parseJsonBody = async (
       detail: "Malformed JSON body",
     });
     return jsonResponse(
-      { status: "error", message: "Invalid request body" },
+      { message: "Invalid request body", status: "error" },
       400,
     );
   }
@@ -797,12 +797,12 @@ const resolveSession = async (
 ): Promise<{ session: AuthSession; authKind: AuthKind } | Response> => {
   if (allowApiKey) {
     const s = await getAuthenticatedApiKey(request);
-    if (s) return { session: s, authKind: "apiKey" };
+    if (s) return { authKind: "apiKey", session: s };
     if (getBearerToken(request)) return authFailure(channel, "invalid-api-key");
   }
   const session = await getAuthenticatedSession(request);
   if (!session) return authFailure(channel, "not-authenticated");
-  return { session, authKind: "cookie" };
+  return { authKind: "cookie", session };
 };
 
 /** Unified auth pipeline: authenticate, enforce role, validate CSRF, parse body. */

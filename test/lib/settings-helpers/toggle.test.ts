@@ -32,8 +32,8 @@ describeWithEnv("toggleHandler", { db: true }, () => {
   test("saves true and logs 'enabled' when field is 'true'", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = toggleHandler({
-      formId: "settings-toggle",
       field: "my_toggle",
+      formId: "settings-toggle",
       label: "My feature",
       save: saveFn as (v: boolean) => Promise<void>,
     });
@@ -53,8 +53,8 @@ describeWithEnv("toggleHandler", { db: true }, () => {
   test("saves false and logs 'disabled' when field is 'false'", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = toggleHandler({
-      formId: "settings-toggle",
       field: "my_toggle",
+      formId: "settings-toggle",
       label: "My feature",
       save: saveFn as (v: boolean) => Promise<void>,
     });
@@ -75,8 +75,8 @@ describeWithEnv("toggleHandler", { db: true }, () => {
     // HTML checkboxes don't submit when unchecked, so the field may be absent
     const saveFn = fn(() => Promise.resolve());
     const handler = toggleHandler({
-      formId: "settings-toggle",
       field: "my_toggle",
+      formId: "settings-toggle",
       label: "My feature",
       save: saveFn as (v: boolean) => Promise<void>,
     });
@@ -88,10 +88,10 @@ describeWithEnv("toggleHandler", { db: true }, () => {
 
   test("redirects to /admin/settings-advanced when advanced is true", async () => {
     const handler = toggleHandler({
-      formId: "settings-toggle",
-      field: "my_toggle",
-      label: "My feature",
       advanced: true,
+      field: "my_toggle",
+      formId: "settings-toggle",
+      label: "My feature",
       save: () => Promise.resolve(),
     });
 

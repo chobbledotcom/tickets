@@ -16,7 +16,7 @@ const sessionStore = new AsyncLocalStorage<SessionState>();
 
 /** Run a function within a session-memoization scope */
 export const runWithSessionContext = <T>(fn: () => T): T =>
-  sessionStore.run({ value: null, resolved: false }, fn);
+  sessionStore.run({ resolved: false, value: null }, fn);
 
 /** Return the cached session if already resolved, or undefined if not yet resolved */
 export const getCachedSession = (): AuthSession | null | undefined => {

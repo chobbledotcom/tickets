@@ -63,13 +63,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // async context wrappers, avoiding "Cannot read body as underlying
       // resource unavailable" on the Bunny Edge runtime.
       const request = new Request("http://localhost/payment/webhook/", {
-        method: "POST",
+        body: JSON.stringify({ type: "checkout.session.completed" }),
         headers: {
-          host: "localhost",
           "content-type": "application/json",
+          host: "localhost",
           "stripe-signature": "sig_test",
         },
-        body: JSON.stringify({ type: "checkout.session.completed" }),
+        method: "POST",
       });
 
       const response = await handleRequest(request);
@@ -92,8 +92,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: false,
             error: "Invalid signature",
+            valid: false,
           }),
       );
 
@@ -116,12 +116,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
+              data: { object: {} },
               id: "evt_test",
               type: "payment_intent.created",
-              data: { object: {} },
             },
+            valid: true,
           }),
       );
 
@@ -149,19 +149,19 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_test",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_test",
-                  payment_status: "paid",
                   amount_total: 0,
+                  id: "cs_test",
                   metadata: {}, // Missing required fields — not our session
+                  payment_status: "paid",
                 },
               },
+              id: "evt_test",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -195,24 +195,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_test",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_test",
-                  payment_status: "unpaid",
-                  payment_intent: "pi_test",
                   amount_total: 1000,
+                  id: "cs_test",
                   metadata: webhookMeta({
+                    email: "john@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "John",
-                    email: "john@example.com",
                   }),
+                  payment_intent: "pi_test",
+                  payment_status: "unpaid",
                 },
               },
+              id: "evt_test",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -246,24 +246,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_test",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_webhook_test",
-                  payment_status: "paid",
-                  payment_intent: "pi_webhook_test",
                   amount_total: 1000,
+                  id: "cs_webhook_test",
                   metadata: webhookMeta({
+                    email: "webhook@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Webhook User",
-                    email: "webhook@example.com",
                   }),
+                  payment_intent: "pi_webhook_test",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_test",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -300,13 +300,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Webhook Multi 1",
         maxAttendees: 50,
+        name: "Webhook Multi 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Webhook Multi 2",
         maxAttendees: 50,
+        name: "Webhook Multi 2",
         unitPrice: 1000,
       });
 
@@ -316,28 +316,28 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_webhook",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_webhook",
                   amount_total: 2000,
+                  id: "cs_multi_webhook",
                   metadata: webhookMeta({
-                    name: "Multi User",
                     email: "multi@example.com",
-                    phone: "123456",
                     items: JSON.stringify([
-                      { e: event1.id, q: 2, p: 1000 },
-                      { e: event2.id, q: 1, p: 1000 },
+                      { e: event1.id, p: 1000, q: 2 },
+                      { e: event2.id, p: 1000, q: 1 },
                     ]),
+                    name: "Multi User",
+                    phone: "123456",
                   }),
+                  payment_intent: "pi_multi_webhook",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -370,28 +370,28 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "No Price Multi",
         maxAttendees: 50,
+        name: "No Price Multi",
         unitPrice: 500,
       });
 
       // Items without p field throw — corrupt data from a verified origin is a bug
       const mockVerify = await stubWebhookVerify({
-        id: "evt_no_price",
-        type: "checkout.session.completed",
         data: {
           object: {
-            id: "cs_no_price",
-            payment_status: "paid",
-            payment_intent: "pi_no_price",
             amount_total: 500,
+            id: "cs_no_price",
             metadata: webhookMeta({
-              name: "No Price User",
               email: "noprice@example.com",
               items: JSON.stringify([{ e: event1.id, q: 1 }]),
+              name: "No Price User",
             }),
+            payment_intent: "pi_no_price",
+            payment_status: "paid",
           },
         },
+        id: "evt_no_price",
+        type: "checkout.session.completed",
       });
 
       try {
@@ -416,24 +416,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_bad_multi",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_bad_multi",
-                  payment_status: "paid",
-                  payment_intent: "pi_bad",
                   amount_total: 0,
+                  id: "cs_bad_multi",
                   metadata: webhookMeta({
-                    name: "Bad Multi",
                     email: "bad@example.com",
                     items: "not-valid-json{",
+                    name: "Bad Multi",
                   }),
+                  payment_intent: "pi_bad",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_bad_multi",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -457,10 +457,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Fill the event
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event.id }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -469,24 +469,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_soldout",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_soldout",
-                  payment_status: "paid",
-                  payment_intent: "pi_soldout",
                   amount_total: 1000,
+                  id: "cs_soldout",
                   metadata: webhookMeta({
+                    email: "late@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Late Buyer",
-                    email: "late@example.com",
                   }),
+                  payment_intent: "pi_soldout",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_soldout",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -518,13 +518,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook rejects POST with wrong content-type", async () => {
       const response = await handleRequest(
         new Request("http://localhost/payment/webhook", {
-          method: "POST",
+          body: "test=123",
           headers: {
-            host: "localhost",
             "content-type": "application/x-www-form-urlencoded",
+            host: "localhost",
             "stripe-signature": "sig_test",
           },
-          body: "test=123",
+          method: "POST",
         }),
       );
       await expectHtmlResponse(response, 400, "Invalid Content-Type");
@@ -541,15 +541,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_no_items",
-          payment_status: "paid",
-          payment_intent: "pi_no_items",
           amount_total: 1000,
+          id: "cs_no_items",
           metadata: {
-            name: "John",
             email: "john@example.com",
+            name: "John",
             // items intentionally omitted — should cause an error
           },
+          payment_intent: "pi_no_items",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -576,15 +576,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_qty_zero",
-          payment_status: "paid",
-          payment_intent: "pi_qty_zero",
           amount_total: 0,
+          id: "cs_qty_zero",
           metadata: {
+            email: "john@example.com",
             items: singleItem(event.id, 0, 0),
             name: "John",
-            email: "john@example.com",
           },
+          payment_intent: "pi_qty_zero",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -618,15 +618,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_square_order",
-          payment_status: "paid",
-          payment_intent: "pi_square_order",
           amount_total: 1000,
+          id: "cs_square_order",
           metadata: {
+            email: "square@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "Square User",
-            email: "square@example.com",
           },
+          payment_intent: "pi_square_order",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -657,13 +657,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_null_ref",
-          payment_status: "paid",
-          payment_intent: null, // No payment reference
           metadata: {
+            email: "john@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "John",
-            email: "john@example.com",
           },
+          payment_intent: null, // No payment reference
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -699,24 +699,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_pi_extract",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_pi_extract",
-                  payment_status: "paid",
-                  payment_intent: "pi_extracted_ref",
                   amount_total: 1000,
+                  id: "cs_pi_extract",
                   metadata: webhookMeta({
+                    email: "pi@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "PI User",
-                    email: "pi@example.com",
                   }),
+                  payment_intent: "pi_extracted_ref",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_pi_extract",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -750,24 +750,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_non_array",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_non_array",
-                  payment_status: "paid",
-                  payment_intent: "pi_non_array",
                   amount_total: 0,
+                  id: "cs_non_array",
                   metadata: webhookMeta({
-                    name: "Test",
                     email: "test@example.com",
                     items: '{"not":"an-array"}', // Valid JSON but not an array
+                    name: "Test",
                   }),
+                  payment_intent: "pi_non_array",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_non_array",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -790,24 +790,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_no_items",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_no_items",
-                  payment_status: "paid",
-                  payment_intent: "pi_no_items",
                   amount_total: 0,
+                  id: "cs_no_items",
                   metadata: webhookMeta({
-                    name: "Test",
                     email: "test@example.com",
                     items: "", // empty items: hasRequiredSessionMetadata rejects (no items)
+                    name: "Test",
                   }),
+                  payment_intent: "pi_no_items",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_no_items",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -831,8 +831,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Multi Concurrent",
         maxAttendees: 50,
+        name: "Multi Concurrent",
         unitPrice: 500,
       });
 
@@ -845,13 +845,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_multi_concurrent",
-          payment_status: "paid",
-          payment_intent: "pi_multi_concurrent",
           metadata: {
-            name: "Concurrent",
             email: "concurrent@example.com",
-            items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            name: "Concurrent",
           },
+          payment_intent: "pi_multi_concurrent",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -884,13 +884,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_single_concurrent",
-          payment_status: "paid",
-          payment_intent: "pi_single_concurrent",
           metadata: {
+            email: "concurrent@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "Concurrent",
-            email: "concurrent@example.com",
           },
+          payment_intent: "pi_single_concurrent",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -910,22 +910,22 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Multi Price Calc",
         maxAttendees: 50,
+        name: "Multi Price Calc",
         unitPrice: 500,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_price",
-          payment_status: "paid",
-          payment_intent: "pi_multi_price",
           amount_total: 1500,
+          id: "cs_multi_price",
           metadata: {
-            name: "Price Test",
             email: "price@example.com",
-            items: JSON.stringify([{ e: event.id, q: 3, p: 1500 }]),
+            items: JSON.stringify([{ e: event.id, p: 1500, q: 3 }]),
+            name: "Price Test",
           },
+          payment_intent: "pi_multi_price",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -956,21 +956,21 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const event = await createTestEvent({
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        unitPrice: 1000,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_single_price",
-          payment_status: "paid",
-          payment_intent: "pi_single_price",
           amount_total: 2000,
+          id: "cs_single_price",
           metadata: {
+            email: "price@example.com",
             items: singleItem(event.id, 2, 2000),
             name: "Price Single",
-            email: "price@example.com",
           },
+          payment_intent: "pi_single_price",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1003,13 +1003,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_plain_error",
-          payment_status: "unpaid",
-          payment_intent: "pi_test",
           metadata: {
+            email: "john@example.com",
             items: singleItem(1, 1, 0),
             name: "John",
-            email: "john@example.com",
           },
+          payment_intent: "pi_test",
+          payment_status: "unpaid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1048,22 +1048,22 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Multi Enc Err",
         maxAttendees: 50,
+        name: "Multi Enc Err",
         unitPrice: 500,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_enc_err",
-          payment_status: "paid",
-          payment_intent: "pi_multi_enc_err",
           amount_total: 500,
+          id: "cs_multi_enc_err",
           metadata: {
-            name: "Enc Error",
             email: "enc@example.com",
-            items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            name: "Enc Error",
           },
+          payment_intent: "pi_multi_enc_err",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1079,8 +1079,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
-          success: false,
           reason: "encryption_error",
+          success: false,
         }),
       );
 
@@ -1108,13 +1108,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_multi_empty_items",
-          payment_status: "paid",
-          payment_intent: "pi_multi_empty",
           metadata: {
-            name: "Empty Items",
             email: "empty@example.com",
             items: "[]", // Empty array
+            name: "Empty Items",
           },
+          payment_intent: "pi_multi_empty",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1148,16 +1148,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Multi Already Done",
         maxAttendees: 50,
+        name: "Multi Already Done",
         unitPrice: 500,
       });
       // Create attendee directly (not via public form which redirects to Stripe for paid events)
       const result = await createAttendeeAtomic({
-        name: "Already Done",
-        email: "already@example.com",
-        paymentId: "pi_already_done",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "already@example.com",
+        name: "Already Done",
+        paymentId: "pi_already_done",
       });
       if (!result.success) throw new Error("Failed to create test attendee");
       const attendee = result.attendees[0]!;
@@ -1177,24 +1177,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_already_done",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_already_done",
-                  payment_status: "paid",
-                  payment_intent: "pi_already_done",
                   amount_total: 500,
+                  id: "cs_multi_already_done",
                   metadata: webhookMeta({
-                    name: "Already Done",
                     email: "already@example.com",
-                    items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+                    items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+                    name: "Already Done",
                   }),
+                  payment_intent: "pi_already_done",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_already_done",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1217,13 +1217,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi WH Active",
         maxAttendees: 50,
+        name: "Multi WH Active",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi WH Inactive",
         maxAttendees: 50,
+        name: "Multi WH Inactive",
         unitPrice: 500,
       });
       await deactivateTestEvent(event2.id);
@@ -1234,27 +1234,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_inactive_wh",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_inactive_wh",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_inactive_wh",
                   amount_total: 1000,
+                  id: "cs_multi_inactive_wh",
                   metadata: webhookMeta({
-                    name: "Multi Inactive",
                     email: "inactive@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 500 },
-                      { e: event2.id, q: 1, p: 500 },
+                      { e: event1.id, p: 500, q: 1 },
+                      { e: event2.id, p: 500, q: 1 },
                     ]),
+                    name: "Multi Inactive",
                   }),
+                  payment_intent: "pi_multi_inactive_wh",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_inactive_wh",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1289,20 +1289,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi WH Avail",
         maxAttendees: 50,
+        name: "Multi WH Avail",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi WH Full",
         maxAttendees: 1,
+        name: "Multi WH Full",
         unitPrice: 500,
       });
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event2.id, quantity: 1 }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1311,27 +1311,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_soldout_wh",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_soldout_wh",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_soldout_wh",
                   amount_total: 1000,
+                  id: "cs_multi_soldout_wh",
                   metadata: webhookMeta({
-                    name: "Sold Out Multi",
                     email: "soldout@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 500 },
-                      { e: event2.id, q: 1, p: 500 },
+                      { e: event1.id, p: 500, q: 1 },
+                      { e: event2.id, p: 500, q: 1 },
                     ]),
+                    name: "Sold Out Multi",
                   }),
+                  payment_intent: "pi_multi_soldout_wh",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_soldout_wh",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1371,16 +1371,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_other_type",
-              type: "payment_intent.succeeded",
               data: {
                 object: {
                   id: "pi_test",
                 },
               },
+              id: "evt_other_type",
+              type: "payment_intent.succeeded",
             },
+            valid: true,
           }),
       );
 
@@ -1410,13 +1410,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi WH OK 1",
         maxAttendees: 50,
+        name: "Multi WH OK 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi WH OK 2",
         maxAttendees: 50,
+        name: "Multi WH OK 2",
         unitPrice: 300,
       });
 
@@ -1426,27 +1426,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_ok",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_ok",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_ok",
                   amount_total: 1100,
+                  id: "cs_multi_ok",
                   metadata: webhookMeta({
-                    name: "Multi Buyer",
                     email: "multi@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 500 },
-                      { e: event2.id, q: 2, p: 600 },
+                      { e: event1.id, p: 500, q: 1 },
+                      { e: event2.id, p: 600, q: 2 },
                     ]),
+                    name: "Multi Buyer",
                   }),
+                  payment_intent: "pi_multi_ok",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_ok",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1469,8 +1469,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Answer WH",
         maxAttendees: 50,
+        name: "Answer WH",
         unitPrice: 500,
       });
 
@@ -1484,8 +1484,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       const a = await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 0,
+        text: "Large",
       });
       await setEventQuestions(event1.id, [q.id]);
 
@@ -1495,27 +1495,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_answer",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_answer",
-                  payment_status: "paid",
-                  payment_intent: "pi_answer",
                   amount_total: 500,
+                  id: "cs_answer",
                   metadata: webhookMeta({
-                    name: "Answer Buyer",
-                    email: "answer@example.com",
-                    items: JSON.stringify([{ e: event1.id, q: 1, p: 500 }]),
                     answer_ids: JSON.stringify({
                       [String(event1.id)]: [a.id],
                     }),
+                    email: "answer@example.com",
+                    items: JSON.stringify([{ e: event1.id, p: 500, q: 1 }]),
+                    name: "Answer Buyer",
                   }),
+                  payment_intent: "pi_answer",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_answer",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1546,24 +1546,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_notfound",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_notfound",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_notfound",
                   amount_total: 1000,
+                  id: "cs_multi_notfound",
                   metadata: webhookMeta({
-                    name: "Multi NotFound",
                     email: "notfound@example.com",
-                    items: JSON.stringify([{ e: 99999, q: 1, p: 1000 }]),
+                    items: JSON.stringify([{ e: 99999, p: 1000, q: 1 }]),
+                    name: "Multi NotFound",
                   }),
+                  payment_intent: "pi_multi_notfound",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_notfound",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1591,21 +1591,21 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi WH Cap 1",
         maxAttendees: 50,
+        name: "Multi WH Cap 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi WH Cap 2",
         maxAttendees: 1,
+        name: "Multi WH Cap 2",
         unitPrice: 300,
       });
 
       // Fill event2 to capacity
       await createAttendeeAtomic({
-        name: "Existing",
-        email: "existing@example.com",
         bookings: [{ eventId: event2.id, quantity: 1 }],
+        email: "existing@example.com",
+        name: "Existing",
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1614,27 +1614,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_cap",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_cap",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_cap",
                   amount_total: 800,
+                  id: "cs_multi_cap",
                   metadata: webhookMeta({
-                    name: "Multi Cap",
                     email: "cap@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 500 },
-                      { e: event2.id, q: 1, p: 300 },
+                      { e: event1.id, p: 500, q: 1 },
+                      { e: event2.id, p: 300, q: 1 },
                     ]),
+                    name: "Multi Cap",
                   }),
+                  payment_intent: "pi_multi_cap",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_cap",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1667,15 +1667,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Create a real event and attendee to satisfy FK constraints for finalization
       const event = await createTestEvent({
-        name: "WH Del Evt",
         maxAttendees: 50,
+        name: "WH Del Evt",
         unitPrice: 500,
       });
       const attResult = await createAttendeeAtomic({
-        name: "WH Del",
-        email: "whdel@example.com",
-        paymentId: "pi_del",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "whdel@example.com",
+        name: "WH Del",
+        paymentId: "pi_del",
       });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
@@ -1694,24 +1694,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_del_event_wh",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_del_event_wh",
-                  payment_status: "paid",
-                  payment_intent: "pi_del_event_wh",
                   amount_total: 1000,
+                  id: "cs_del_event_wh",
                   metadata: webhookMeta({
-                    name: "Deleted Event",
                     email: "deleted@example.com",
                     items: singleItem(99999, 1, 1000),
+                    name: "Deleted Event",
                   }),
+                  payment_intent: "pi_del_event_wh",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_del_event_wh",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1734,8 +1734,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "WH Noref",
         maxAttendees: 50,
+        name: "WH Noref",
         unitPrice: 500,
       });
       await deactivateTestEvent(event.id);
@@ -1746,23 +1746,23 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_noref",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_noref",
-                  payment_status: "paid",
                   amount_total: 500,
+                  id: "cs_noref",
                   metadata: webhookMeta({
-                    name: "No Ref",
                     email: "noref@example.com",
                     items: singleItem(event.id, 1, 500),
+                    name: "No Ref",
                   }),
+                  payment_status: "paid",
                 },
               },
+              id: "evt_noref",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1798,17 +1798,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_no_eid",
-              type: "checkout.session.completed",
               data: {
                 object: {
                   id: "cs_no_event_id",
                   status: "COMPLETED",
                 },
               },
+              id: "evt_no_eid",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1817,15 +1817,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "retrieveSession",
         () =>
           Promise.resolve({
-            id: "cs_no_event_id",
-            paymentStatus: "paid" as const,
-            paymentReference: "pi_no_event_id",
             amountTotal: 0,
+            id: "cs_no_event_id",
             metadata: webhookMeta({
-              name: "No EventId",
               email: "noeventid@example.com",
+              name: "No EventId",
               // items missing — invalid session data
             }),
+            paymentReference: "pi_no_event_id",
+            paymentStatus: "paid" as const,
           }),
       );
 
@@ -1844,8 +1844,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "WH Tryrefund Noprov",
         maxAttendees: 50,
+        name: "WH Tryrefund Noprov",
         unitPrice: 500,
       });
       await deactivateTestEvent(event.id);
@@ -1872,24 +1872,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_tryrefund_noprov",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_tryrefund_noprov",
-                  payment_status: "paid",
-                  payment_intent: "pi_tryrefund_noprov",
                   amount_total: 500,
+                  id: "cs_tryrefund_noprov",
                   metadata: webhookMeta({
-                    name: "No Provider",
                     email: "noprov@example.com",
                     items: singleItem(event.id, 1, 500),
+                    name: "No Provider",
                   }),
+                  payment_intent: "pi_tryrefund_noprov",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_tryrefund_noprov",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1913,8 +1913,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "WH Multi Rollback 1",
         maxAttendees: 50,
+        name: "WH Multi Rollback 1",
         unitPrice: 500,
       });
       // event2 does not exist (id 99999) — validation fails before any attendees are created
@@ -1925,27 +1925,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_rollback",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_rollback_cleanup",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_rollback",
                   amount_total: 500,
+                  id: "cs_multi_rollback_cleanup",
                   metadata: webhookMeta({
-                    name: "Rollback Test",
                     email: "rollback@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 500 },
-                      { e: 99999, q: 1, p: 0 },
+                      { e: event1.id, p: 500, q: 1 },
+                      { e: 99999, p: 0, q: 1 },
                     ]),
+                    name: "Rollback Test",
                   }),
+                  payment_intent: "pi_multi_rollback",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_rollback",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -1979,21 +1979,21 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "WH Multi Free",
         maxAttendees: 50,
+        name: "WH Multi Free",
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_free",
-          payment_status: "paid",
-          payment_intent: "pi_multi_free",
           amount_total: 0,
+          id: "cs_multi_free",
           metadata: {
-            name: "Free Multi",
             email: "freemulti@example.com",
-            items: JSON.stringify([{ e: event.id, q: 2, p: 0 }]),
+            items: JSON.stringify([{ e: event.id, p: 0, q: 2 }]),
+            name: "Free Multi",
           },
+          payment_intent: "pi_multi_free",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -2023,21 +2023,21 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "WH Single Free",
         maxAttendees: 50,
+        name: "WH Single Free",
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_single_free",
-          payment_status: "paid",
-          payment_intent: "pi_single_free",
           amount_total: 0,
+          id: "cs_single_free",
           metadata: {
+            email: "freesingle@example.com",
             items: singleItem(event.id, 2, 0),
             name: "Free Single",
-            email: "freesingle@example.com",
           },
+          payment_intent: "pi_single_free",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -2075,17 +2075,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_no_extract",
-              type: "checkout.session.completed",
               data: {
                 object: {
                   // No id, no order_id, no proper metadata
                   some_field: "value",
                 },
               },
+              id: "evt_no_extract",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2114,12 +2114,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
+              data: { object: {} },
               id: "evt_skip",
               type: "checkout.session.completed",
-              data: { object: {} },
             },
+            valid: true,
           }),
       );
       const mockResolve = stub(
@@ -2154,12 +2154,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
+              data: { object: {} },
               id: "evt_null",
               type: "checkout.session.completed",
-              data: { object: {} },
             },
+            valid: true,
           }),
       );
       const mockResolve = stub(
@@ -2189,8 +2189,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "WH Multi No Att",
         maxAttendees: 50,
+        name: "WH Multi No Att",
         unitPrice: 500,
       });
 
@@ -2199,22 +2199,22 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
-          success: false,
           reason: "capacity_exceeded",
+          success: false,
         }),
       );
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_no_att",
-          payment_status: "paid",
-          payment_intent: "pi_multi_no_att",
           amount_total: 500,
+          id: "cs_multi_no_att",
           metadata: {
-            name: "No Att",
             email: "noatt@example.com",
-            items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            name: "No Att",
           },
+          payment_intent: "pi_multi_no_att",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -2242,30 +2242,30 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "WH Single Cap",
         maxAttendees: 50,
+        name: "WH Single Cap",
         unitPrice: 500,
       });
 
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
-          success: false,
           reason: "capacity_exceeded",
+          success: false,
         }),
       );
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_single_cap",
-          payment_status: "paid",
-          payment_intent: "pi_single_cap",
           amount_total: 500,
+          id: "cs_single_cap",
           metadata: {
+            email: "cap@example.com",
             items: singleItem(event.id, 1, 500),
             name: "Cap User",
-            email: "cap@example.com",
           },
+          payment_intent: "pi_single_cap",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -2303,24 +2303,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_bad_status",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_bad_status",
-                  payment_status: "completed", // invalid status, should fall back to "unpaid"
-                  payment_intent: "pi_bad_status",
                   amount_total: 1000,
+                  id: "cs_bad_status",
                   metadata: webhookMeta({
+                    email: "badstatus@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Bad Status",
-                    email: "badstatus@example.com",
                   }),
+                  payment_intent: "pi_bad_status",
+                  payment_status: "completed", // invalid status, should fall back to "unpaid"
                 },
               },
+              id: "evt_bad_status",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2356,24 +2356,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_amount_total",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_amount_total",
-                  payment_status: "paid",
-                  payment_intent: "pi_amount_total",
                   amount_total: 2500,
+                  id: "cs_amount_total",
                   metadata: webhookMeta({
+                    email: "amount@example.com",
                     items: singleItem(event.id, 1, 2500),
                     name: "Amount User",
-                    email: "amount@example.com",
                   }),
+                  payment_intent: "pi_amount_total",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_amount_total",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2415,24 +2415,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_mismatch",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_mismatch",
-                  payment_status: "paid",
-                  payment_intent: "pi_mismatch",
                   amount_total: 1200,
+                  id: "cs_mismatch",
                   metadata: webhookMeta({
+                    email: "mismatch@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Mismatch User",
-                    email: "mismatch@example.com",
                   }),
+                  payment_intent: "pi_mismatch",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_mismatch",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2472,13 +2472,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Mismatch 1",
         maxAttendees: 50,
+        name: "Multi Mismatch 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Mismatch 2",
         maxAttendees: 50,
+        name: "Multi Mismatch 2",
         unitPrice: 300,
       });
 
@@ -2490,27 +2490,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_mismatch",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_mismatch",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_mismatch",
                   amount_total: 1000,
+                  id: "cs_multi_mismatch",
                   metadata: webhookMeta({
-                    name: "Multi Mismatch",
                     email: "multimismatch@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 400 },
-                      { e: event2.id, q: 2, p: 600 },
+                      { e: event1.id, p: 400, q: 1 },
+                      { e: event2.id, p: 600, q: 2 },
                     ]),
+                    name: "Multi Mismatch",
                   }),
+                  payment_intent: "pi_multi_mismatch",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_mismatch",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2560,15 +2560,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // Price decreased after checkout was created — should refund
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_redirect_mismatch",
-          payment_status: "paid",
-          payment_intent: "pi_redirect_mismatch",
           amount_total: 800,
+          id: "cs_redirect_mismatch",
           metadata: {
+            email: "redirect@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "Redirect Mismatch",
-            email: "redirect@example.com",
           },
+          payment_intent: "pi_redirect_mismatch",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -2613,24 +2613,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_no_email_single",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_wh_no_email_single",
-                  payment_status: "paid",
-                  payment_intent: "pi_wh_no_email_single",
                   amount_total: 1000,
+                  id: "cs_wh_no_email_single",
                   metadata: webhookMeta({
+                    email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
                     items: singleItem(event.id, 1, 1000),
                     name: "No Email Single",
-                    email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
                   }),
+                  payment_intent: "pi_wh_no_email_single",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_no_email_single",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2667,24 +2667,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_no_email_multi",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_wh_no_email_multi",
-                  payment_status: "paid",
-                  payment_intent: "pi_wh_no_email_multi",
                   amount_total: 500,
+                  id: "cs_wh_no_email_multi",
                   metadata: webhookMeta({
-                    name: "No Email Multi",
                     email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+                    items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+                    name: "No Email Multi",
                   }),
+                  payment_intent: "pi_wh_no_email_multi",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_no_email_multi",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2718,21 +2718,21 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       const event = await createTestEvent({
+        closesAt: pastDate,
         maxAttendees: 50,
         unitPrice: 1000,
-        closesAt: pastDate,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_closed",
-          payment_status: "paid",
-          payment_intent: "pi_closed",
           metadata: {
+            email: "john@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "John",
-            email: "john@example.com",
           },
+          payment_intent: "pi_closed",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -2765,9 +2765,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       const event = await createTestEvent({
+        closesAt: pastDate,
         maxAttendees: 50,
         unitPrice: 1000,
-        closesAt: pastDate,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -2776,24 +2776,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_closed",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_closed_wh",
-                  payment_status: "paid",
-                  payment_intent: "pi_closed_wh",
                   amount_total: 1000,
+                  id: "cs_closed_wh",
                   metadata: webhookMeta({
+                    email: "jane@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Jane",
-                    email: "jane@example.com",
                   }),
+                  payment_intent: "pi_closed_wh",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_closed",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2829,9 +2829,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       // event2 is closed
       const event2 = await createTestEvent({
+        closesAt: pastDate,
         maxAttendees: 50,
         unitPrice: 500,
-        closesAt: pastDate,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -2840,27 +2840,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_closed",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_closed",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_closed",
                   amount_total: 1500,
+                  id: "cs_multi_closed",
                   metadata: webhookMeta({
-                    name: "Jane",
                     email: "jane@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 1000 },
-                      { e: event2.id, q: 1, p: 500 },
+                      { e: event1.id, p: 1000, q: 1 },
+                      { e: event2.id, p: 500, q: 1 },
                     ]),
+                    name: "Jane",
                   }),
+                  payment_intent: "pi_multi_closed",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_closed",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2896,10 +2896,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi WH Daily",
-        maxAttendees: 50,
-        unitPrice: 500,
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -2909,12 +2905,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
+        maxAttendees: 50,
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+        name: "Multi WH Daily",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi WH Standard",
         maxAttendees: 50,
+        name: "Multi WH Standard",
         unitPrice: 300,
       });
 
@@ -2924,28 +2924,28 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_daily",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_daily",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_daily",
                   amount_total: 800,
+                  id: "cs_multi_daily",
                   metadata: webhookMeta({
-                    name: "Multi Daily Buyer",
-                    email: "multidaily@example.com",
                     date: "2026-02-10",
+                    email: "multidaily@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 500 },
-                      { e: event2.id, q: 1, p: 300 },
+                      { e: event1.id, p: 500, q: 1 },
+                      { e: event2.id, p: 300, q: 1 },
                     ]),
+                    name: "Multi Daily Buyer",
                   }),
+                  payment_intent: "pi_multi_daily",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_daily",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -2990,24 +2990,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_foreign",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_foreign",
-                  payment_status: "paid",
-                  payment_intent: "pi_foreign",
                   amount_total: 30,
+                  id: "cs_foreign",
                   metadata: {
+                    email: "foreign@example.com",
                     items: singleItem(1, 1, 0),
                     name: "Foreign Buyer",
-                    email: "foreign@example.com",
                   },
+                  payment_intent: "pi_foreign",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_foreign",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3042,25 +3042,25 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_other_instance",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_other_instance",
-                  payment_status: "paid",
-                  payment_intent: "pi_other_instance",
                   amount_total: 500,
+                  id: "cs_other_instance",
                   metadata: {
                     _origin: "other-domain.com",
+                    email: "other@example.com",
                     items: singleItem(1, 1, 500),
                     name: "Other Instance",
-                    email: "other@example.com",
                   },
+                  payment_intent: "pi_other_instance",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_other_instance",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3093,10 +3093,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_fallback_foreign",
-              type: "checkout.session.completed",
               data: {
                 object: {
                   id: "cs_fallback_foreign",
@@ -3104,7 +3101,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // No proper metadata -> extractSessionFromEvent returns null
                 },
               },
+              id: "evt_fallback_foreign",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3113,15 +3113,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "retrieveSession",
         () =>
           Promise.resolve({
-            id: "cs_fallback_foreign",
-            paymentStatus: "paid" as const,
-            paymentReference: "pi_fallback_foreign",
             amountTotal: 100,
+            id: "cs_fallback_foreign",
             metadata: webhookMeta({
-              name: "Fallback Foreign",
-              email: "fallback@example.com",
               _origin: "", // Empty _origin -> should be rejected as unrecognized
+              email: "fallback@example.com",
+              name: "Fallback Foreign",
             }),
+            paymentReference: "pi_fallback_foreign",
+            paymentStatus: "paid" as const,
           }),
       );
 
@@ -3167,24 +3167,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_refund_log",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_refund_log",
-                  payment_status: "paid",
-                  payment_intent: "pi_refund_log",
                   amount_total: 1000,
+                  id: "cs_refund_log",
                   metadata: webhookMeta({
+                    email: "refundlog@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Refund Log",
-                    email: "refundlog@example.com",
                   }),
+                  payment_intent: "pi_refund_log",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_refund_log",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3247,24 +3247,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_refund_activity",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_refund_activity",
-                  payment_status: "paid",
-                  payment_intent: "pi_refund_activity",
                   amount_total: 500,
+                  id: "cs_refund_activity",
                   metadata: webhookMeta({
+                    email: "activity@example.com",
                     items: singleItem(event.id, 1, 1000),
                     name: "Activity Log User",
-                    email: "activity@example.com",
                   }),
+                  payment_intent: "pi_refund_activity",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_refund_activity",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3298,9 +3298,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
+        canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
-        canPayMore: true,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -3309,24 +3309,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_pay_more",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_pay_more",
-                  payment_status: "paid",
-                  payment_intent: "pi_pay_more",
                   amount_total: 2500,
+                  id: "cs_pay_more",
                   metadata: webhookMeta({
+                    email: "generous@example.com",
                     items: singleItem(event.id, 1, 2500),
                     name: "Generous User",
-                    email: "generous@example.com",
                   }),
+                  payment_intent: "pi_pay_more",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_pay_more",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3357,14 +3357,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Pay More 1",
-        maxAttendees: 50,
-        unitPrice: 500,
         canPayMore: true,
+        maxAttendees: 50,
+        name: "Multi Pay More 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Pay More 2",
         maxAttendees: 50,
+        name: "Multi Pay More 2",
         unitPrice: 1000,
       });
 
@@ -3376,27 +3376,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_multi_pay_more",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_multi_pay_more",
-                  payment_status: "paid",
-                  payment_intent: "pi_multi_pay_more",
                   amount_total: 3000,
+                  id: "cs_multi_pay_more",
                   metadata: webhookMeta({
-                    name: "Multi Generous",
                     email: "generous@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 2000 },
-                      { e: event2.id, q: 1, p: 1000 },
+                      { e: event1.id, p: 2000, q: 1 },
+                      { e: event2.id, p: 1000, q: 1 },
                     ]),
+                    name: "Multi Generous",
                   }),
+                  payment_intent: "pi_multi_pay_more",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_multi_pay_more",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3432,13 +3432,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "No Pay More",
         maxAttendees: 50,
+        name: "No Pay More",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Normal Price",
         maxAttendees: 50,
+        name: "Normal Price",
         unitPrice: 1000,
       });
 
@@ -3449,27 +3449,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_no_pay_more",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_no_pay_more",
-                  payment_status: "paid",
-                  payment_intent: "pi_no_pay_more",
                   amount_total: 3000,
+                  id: "cs_no_pay_more",
                   metadata: webhookMeta({
-                    name: "Over Payer",
                     email: "over@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, q: 1, p: 2000 },
-                      { e: event2.id, q: 1, p: 1000 },
+                      { e: event1.id, p: 2000, q: 1 },
+                      { e: event2.id, p: 1000, q: 1 },
                     ]),
+                    name: "Over Payer",
                   }),
+                  payment_intent: "pi_no_pay_more",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_no_pay_more",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3500,9 +3500,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
+        canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
-        canPayMore: true,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -3511,24 +3511,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_pay_less",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_pay_less",
-                  payment_status: "paid",
-                  payment_intent: "pi_pay_less",
                   amount_total: 500,
+                  id: "cs_pay_less",
                   metadata: webhookMeta({
+                    email: "cheap@example.com",
                     items: singleItem(event.id, 1, 500),
                     name: "Cheap User",
-                    email: "cheap@example.com",
                   }),
+                  payment_intent: "pi_pay_less",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_pay_less",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3559,9 +3559,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
+        canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
-        canPayMore: true,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -3570,24 +3570,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_pay_too_much",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_pay_too_much",
-                  payment_status: "paid",
-                  payment_intent: "pi_pay_too_much",
                   amount_total: 20000,
+                  id: "cs_pay_too_much",
                   metadata: webhookMeta({
+                    email: "overpay@example.com",
                     items: singleItem(event.id, 1, 20000),
                     name: "Overpay User",
-                    email: "overpay@example.com",
                   }),
+                  payment_intent: "pi_pay_too_much",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_pay_too_much",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3628,24 +3628,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_bad_p",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_bad_p",
-                  payment_status: "paid",
-                  payment_intent: "pi_bad_p",
                   amount_total: 1000,
+                  id: "cs_bad_p",
                   metadata: webhookMeta({
-                    name: "Bad Metadata",
                     email: "bad@example.com",
-                    items: JSON.stringify([{ e: event.id, q: 1, p: 10.5 }]),
+                    items: JSON.stringify([{ e: event.id, p: 10.5, q: 1 }]),
+                    name: "Bad Metadata",
                   }),
+                  payment_intent: "pi_bad_p",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_bad_p",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3676,24 +3676,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_bad_item",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_bad_item",
-                  payment_status: "paid",
-                  payment_intent: "pi_bad_item",
                   amount_total: 1000,
+                  id: "cs_bad_item",
                   metadata: webhookMeta({
-                    name: "Bad Item",
                     email: "bad@example.com",
-                    items: JSON.stringify([42, { e: event.id, q: 1, p: 1000 }]),
+                    items: JSON.stringify([42, { e: event.id, p: 1000, q: 1 }]),
+                    name: "Bad Item",
                   }),
+                  payment_intent: "pi_bad_item",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_bad_item",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3725,24 +3725,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_item_mismatch",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_item_mismatch",
-                  payment_status: "paid",
-                  payment_intent: "pi_item_mismatch",
                   amount_total: 500,
+                  id: "cs_item_mismatch",
                   metadata: webhookMeta({
-                    name: "Mismatch User",
                     email: "mismatch@example.com",
-                    items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+                    items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+                    name: "Mismatch User",
                   }),
+                  payment_intent: "pi_item_mismatch",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_item_mismatch",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3773,9 +3773,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
+        canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
-        canPayMore: true,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -3785,24 +3785,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_total_mismatch",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_total_mismatch",
-                  payment_status: "paid",
-                  payment_intent: "pi_total_mismatch",
                   amount_total: 1500,
+                  id: "cs_total_mismatch",
                   metadata: webhookMeta({
-                    name: "Total Mismatch",
                     email: "total@example.com",
-                    items: JSON.stringify([{ e: event.id, q: 1, p: 2000 }]),
+                    items: JSON.stringify([{ e: event.id, p: 2000, q: 1 }]),
+                    name: "Total Mismatch",
                   }),
+                  payment_intent: "pi_total_mismatch",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_total_mismatch",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3836,9 +3836,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
       // amount_total=20000 is exactly at the boundary → should be accepted
       const event = await createTestEvent({
+        canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
-        canPayMore: true,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -3847,24 +3847,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_qty2_at_max",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_qty2_at_max",
-                  payment_status: "paid",
-                  payment_intent: "pi_qty2_at_max",
                   amount_total: 20000,
+                  id: "cs_qty2_at_max",
                   metadata: webhookMeta({
+                    email: "boundary@example.com",
                     items: singleItem(event.id, 2, 20000),
                     name: "Boundary User",
-                    email: "boundary@example.com",
                   }),
+                  payment_intent: "pi_qty2_at_max",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_qty2_at_max",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3896,9 +3896,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
       // amount_total=20001 exceeds the boundary → should be refunded
       const event = await createTestEvent({
+        canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
-        canPayMore: true,
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -3907,24 +3907,24 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            valid: true,
             event: {
-              id: "evt_qty2_over_max",
-              type: "checkout.session.completed",
               data: {
                 object: {
-                  id: "cs_qty2_over_max",
-                  payment_status: "paid",
-                  payment_intent: "pi_qty2_over_max",
                   amount_total: 20001,
+                  id: "cs_qty2_over_max",
                   metadata: webhookMeta({
+                    email: "overpay-qty2@example.com",
                     items: singleItem(event.id, 2, 20001),
                     name: "Overpay Qty2 User",
-                    email: "overpay-qty2@example.com",
                   }),
+                  payment_intent: "pi_qty2_over_max",
+                  payment_status: "paid",
                 },
               },
+              id: "evt_qty2_over_max",
+              type: "checkout.session.completed",
             },
+            valid: true,
           }),
       );
 
@@ -3962,26 +3962,26 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Event with questions (paid) and event without questions (free)
       const event1 = await createTestEvent({
-        name: "Multi Q Paid",
         maxAttendees: 50,
+        name: "Multi Q Paid",
         unitPrice: 1000,
       });
       const event2 = await createTestEvent({
-        name: "Multi No Q Free",
         maxAttendees: 50,
+        name: "Multi No Q Free",
       });
 
       // Add a custom question only to event1
       const q = await questionsTable.insert({ text: "Dietary needs?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "None",
         sortOrder: 0,
+        text: "None",
       });
       await answersTable.insert({
         questionId: q.id,
-        text: "Vegetarian",
         sortOrder: 1,
+        text: "Vegetarian",
       });
       await setEventQuestions(event1.id, [q.id]);
 
@@ -3995,8 +3995,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "createCheckoutSession",
         () =>
           Promise.resolve({
-            sessionId: "cs_multi_q_stub",
             checkoutUrl: "https://checkout.stripe.com/pay/cs_multi_q_stub",
+            sessionId: "cs_multi_q_stub",
           }),
       );
 
@@ -4006,8 +4006,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const slug = `${event1.slug}+${event2.slug}`;
       try {
         const checkoutResponse = await submitMultiTicketForm(slug, {
-          name: "Q Buyer",
           email: "qbuyer@example.com",
+          name: "Q Buyer",
           [`quantity_${event1.id}`]: "1",
           [`quantity_${event2.id}`]: "1",
           [`question_${q.id}`]: String(a1.id),
@@ -4020,27 +4020,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // Now simulate the webhook callback from the payment provider.
       // The metadata includes answer_ids serialized during checkout.
       const mockVerify = await stubWebhookVerify({
-        id: "evt_multi_q",
-        type: "checkout.session.completed",
         data: {
           object: {
-            id: "cs_multi_q",
-            payment_status: "paid",
-            payment_intent: "pi_multi_q",
             amount_total: 1000,
+            id: "cs_multi_q",
             metadata: webhookMeta({
-              name: "Q Buyer",
-              email: "qbuyer@example.com",
-              items: JSON.stringify([
-                { e: event1.id, q: 1, p: 1000 },
-                { e: event2.id, q: 1, p: 0 },
-              ]),
               answer_ids: JSON.stringify({
                 [String(event1.id)]: [a1.id],
               }),
+              email: "qbuyer@example.com",
+              items: JSON.stringify([
+                { e: event1.id, p: 1000, q: 1 },
+                { e: event2.id, p: 0, q: 1 },
+              ]),
+              name: "Q Buyer",
             }),
+            payment_intent: "pi_multi_q",
+            payment_status: "paid",
           },
         },
+        id: "evt_multi_q",
+        type: "checkout.session.completed",
       });
 
       try {
@@ -4077,38 +4077,38 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Single Q Paid",
         maxAttendees: 50,
+        name: "Single Q Paid",
         unitPrice: 1000,
       });
 
       const q = await questionsTable.insert({ text: "Dietary needs?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Vegan",
         sortOrder: 1,
+        text: "Vegan",
       });
       await setEventQuestions(event.id, [q.id]);
 
       const mockVerify = await stubWebhookVerify({
-        id: "evt_single_q",
-        type: "checkout.session.completed",
         data: {
           object: {
-            id: "cs_single_q",
-            payment_status: "paid",
-            payment_intent: "pi_single_q",
             amount_total: 1000,
+            id: "cs_single_q",
             metadata: webhookMeta({
-              items: singleItem(event.id, 1, 1000),
-              name: "Q Single Buyer",
-              email: "qsingle@example.com",
               answer_ids: JSON.stringify({
                 [String(event.id)]: [a1.id],
               }),
+              email: "qsingle@example.com",
+              items: singleItem(event.id, 1, 1000),
+              name: "Q Single Buyer",
             }),
+            payment_intent: "pi_single_q",
+            payment_status: "paid",
           },
         },
+        id: "evt_single_q",
+        type: "checkout.session.completed",
       });
 
       try {

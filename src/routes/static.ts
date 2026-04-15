@@ -17,15 +17,15 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 
 /** Static routes definition */
 const staticRoutes = defineRoutes({
-  "GET /health": () => handleHealthCheck(),
-  "GET /robots.txt": () => handleRobotsTxt(),
-  "GET /favicon.ico": () => handleFavicon(),
-  "GET /mvp.css": () => handleMvpCss(),
   "GET /admin.js": () => handleAdminJs(),
-  "GET /scanner.js": () => handleScannerJs(),
   "GET /embed.js": () => handleEmbedJs(),
-  "GET /iframe-resizer-parent.js": () => handleIframeResizerParentJs(),
+  "GET /favicon.ico": () => handleFavicon(),
+  "GET /health": () => handleHealthCheck(),
   "GET /iframe-resizer-child.js": () => handleIframeResizerChildJs(),
+  "GET /iframe-resizer-parent.js": () => handleIframeResizerParentJs(),
+  "GET /mvp.css": () => handleMvpCss(),
+  "GET /robots.txt": () => handleRobotsTxt(),
+  "GET /scanner.js": () => handleScannerJs(),
 });
 
 /** Route static asset requests */

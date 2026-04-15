@@ -327,9 +327,9 @@ export class TestBrowser {
     }
 
     await this.request(action, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString(),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
     });
   }
 
@@ -402,8 +402,8 @@ export class TestBrowser {
     );
 
     await this.request(action, {
-      method: "POST",
       body: formData,
+      method: "POST",
     });
   }
 }

@@ -122,11 +122,11 @@ export const aesGcmEncryptRaw = async (
 ): Promise<{ iv: Uint8Array; ciphertext: Uint8Array }> => {
   const iv = getRandomBytes(12);
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
+    { iv: iv as BufferSource, name: "AES-GCM" },
     key,
     data,
   );
-  return { iv, ciphertext: new Uint8Array(ciphertext) };
+  return { ciphertext: new Uint8Array(ciphertext), iv };
 };
 
 /** AES-GCM decrypt raw data, returning the decrypted ArrayBuffer */
@@ -136,7 +136,7 @@ export const aesGcmDecryptRaw = (
   key: CryptoKey,
 ): Promise<ArrayBuffer> =>
   crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
+    { iv: iv as BufferSource, name: "AES-GCM" },
     key,
     ciphertext as BufferSource,
   );
@@ -189,8 +189,8 @@ export const parseEncryptedPayload = (
     throw new Error(`Invalid ${label} format: missing IV separator`);
   }
   return {
-    iv: fromBase64(withoutPrefix.slice(0, colonIndex)),
     ciphertext: fromBase64(withoutPrefix.slice(colonIndex + 1)),
+    iv: fromBase64(withoutPrefix.slice(0, colonIndex)),
   };
 };
 
@@ -300,7 +300,7 @@ const [getHmacKeyResolved, setHmacKeyResolved] = lazyRef<CryptoKey | undefined>(
 export const importHmacKey = async (): Promise<CryptoKey> => {
   const resolved = getHmacKeyResolved();
   if (resolved) return resolved;
-  const key = await importKey({ name: "HMAC", hash: "SHA-256" }, ["sign"]);
+  const key = await importKey({ hash: "SHA-256", name: "HMAC" }, ["sign"]);
   setHmacKeyResolved(key);
   return key;
 };

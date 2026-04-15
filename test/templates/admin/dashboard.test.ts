@@ -55,8 +55,8 @@ describe("adminDashboardPage", () => {
   test("renders newest attendees in an open details element", () => {
     const events = [testEventWithCount({ id: 1, name: "Gala Night" })];
     const attendees = [
-      testAttendee({ id: 1, event_id: 1, name: "Alice" }),
-      testAttendee({ id: 2, event_id: 1, name: "Bob" }),
+      testAttendee({ event_id: 1, id: 1, name: "Alice" }),
+      testAttendee({ event_id: 1, id: 2, name: "Bob" }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
     expect(html).toContain("<details open");
@@ -71,14 +71,14 @@ describe("adminDashboardPage", () => {
 
   test("newest attendees shows singular for single attendee", () => {
     const events = [testEventWithCount({ id: 1 })];
-    const attendees = [testAttendee({ id: 1, event_id: 1 })];
+    const attendees = [testAttendee({ event_id: 1, id: 1 })];
     const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
     expect(html).toContain("Newest 1 Attendee</summary>");
   });
 
   test("newest attendees shows event column", () => {
     const events = [testEventWithCount({ id: 1, name: "Workshop" })];
-    const attendees = [testAttendee({ id: 1, event_id: 1 })];
+    const attendees = [testAttendee({ event_id: 1, id: 1 })];
     const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
     expect(html).toContain("<th>Event</th>");
     expect(html).toContain("Workshop");
@@ -86,7 +86,7 @@ describe("adminDashboardPage", () => {
 
   test("newest attendees not shown when all attendees have unknown event_id", () => {
     const events = [testEventWithCount({ id: 1 })];
-    const attendees = [testAttendee({ id: 1, event_id: 999 })];
+    const attendees = [testAttendee({ event_id: 999, id: 1 })];
     const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
     expect(html).not.toContain("Newest");
     expect(html).not.toContain("<details open");
@@ -95,8 +95,8 @@ describe("adminDashboardPage", () => {
   test("newest attendees skips attendees with unknown event_id", () => {
     const events = [testEventWithCount({ id: 1, name: "Known Event" })];
     const attendees = [
-      testAttendee({ id: 1, event_id: 1, name: "Valid" }),
-      testAttendee({ id: 2, event_id: 999, name: "Orphan" }),
+      testAttendee({ event_id: 1, id: 1, name: "Valid" }),
+      testAttendee({ event_id: 999, id: 2, name: "Orphan" }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
     expect(html).toContain("Valid");
@@ -149,9 +149,9 @@ describe("adminDashboardPage with column template filters", () => {
 describe("activeEventStatsSection", () => {
   test("renders income, tickets, and attendees", () => {
     const html = activeEventStatsSection({
+      attendees: 52,
       income: 5000,
       tickets: 30,
-      attendees: 52,
     });
     expect(html).toContain("Active Event Statistics");
     expect(html).toContain("<strong>Income:</strong>");
@@ -163,9 +163,9 @@ describe("activeEventStatsSection", () => {
 
   test("renders zero values", () => {
     const html = activeEventStatsSection({
+      attendees: 0,
       income: 0,
       tickets: 0,
-      attendees: 0,
     });
     expect(html).toContain("<strong>Tickets:</strong> 0");
     expect(html).toContain("<strong>Attendees:</strong> 0");
@@ -173,9 +173,9 @@ describe("activeEventStatsSection", () => {
 
   test("renders as closed details element", () => {
     const html = activeEventStatsSection({
+      attendees: 0,
       income: 0,
       tickets: 0,
-      attendees: 0,
     });
     expect(html).toContain("<details>");
     expect(html).not.toContain("<details open");
@@ -191,9 +191,9 @@ describe("adminDashboardPage active event statistics", () => {
       [],
       undefined,
       {
+        attendees: 10,
         income: 1000,
         tickets: 5,
-        attendees: 10,
       },
     );
     expect(html).toContain("Active Event Statistics");
@@ -231,8 +231,8 @@ describe("adminDashboardPage multi-booking link", () => {
 
   test("shows multi-booking section with two active events", () => {
     const events = [
-      testEventWithCount({ id: 1, slug: "ab12c", name: "Event A" }),
-      testEventWithCount({ id: 2, slug: "cd34e", name: "Event B" }),
+      testEventWithCount({ id: 1, name: "Event A", slug: "ab12c" }),
+      testEventWithCount({ id: 2, name: "Event B", slug: "cd34e" }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION);
     expect(html).toContain("Multi-booking link");
@@ -242,8 +242,8 @@ describe("adminDashboardPage multi-booking link", () => {
 
   test("does not count inactive events toward threshold", () => {
     const events = [
-      testEventWithCount({ id: 1, slug: "ab12c", active: true }),
-      testEventWithCount({ id: 2, slug: "cd34e", active: false }),
+      testEventWithCount({ active: true, id: 1, slug: "ab12c" }),
+      testEventWithCount({ active: false, id: 2, slug: "cd34e" }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION);
     expect(html).not.toContain("Multi-booking link");
@@ -252,22 +252,22 @@ describe("adminDashboardPage multi-booking link", () => {
   test("excludes inactive events from checkboxes", () => {
     const events = [
       testEventWithCount({
+        active: true,
         id: 1,
-        slug: "ab12c",
         name: "Active One",
-        active: true,
+        slug: "ab12c",
       }),
       testEventWithCount({
-        id: 2,
-        slug: "cd34e",
-        name: "Inactive",
         active: false,
+        id: 2,
+        name: "Inactive",
+        slug: "cd34e",
       }),
       testEventWithCount({
-        id: 3,
-        slug: "ef56g",
-        name: "Active Two",
         active: true,
+        id: 3,
+        name: "Active Two",
+        slug: "ef56g",
       }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION);
@@ -311,8 +311,8 @@ describe("adminDashboardPage multi-booking link", () => {
 
   test("renders embed code inputs", () => {
     const events = [
-      testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
-      testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
+      testEventWithCount({ fields: "email", id: 1, slug: "ab12c" }),
+      testEventWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION);
     expect(html).toContain("data-multi-booking-embed-script");
@@ -325,8 +325,8 @@ describe("adminDashboardPage multi-booking link", () => {
 
   test("checkboxes include data-fields attribute for embed code generation", () => {
     const events = [
-      testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
-      testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
+      testEventWithCount({ fields: "email", id: 1, slug: "ab12c" }),
+      testEventWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
     ];
     const html = adminDashboardPage(events, TEST_SESSION);
     expect(html).toContain('data-fields="email"');
@@ -336,7 +336,7 @@ describe("adminDashboardPage multi-booking link", () => {
 
 describeWithEnv(
   "event images",
-  { env: { STORAGE_ZONE_NAME: "testzone", STORAGE_ZONE_KEY: "testkey" } },
+  { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
     describe("adminDashboardPage with images", () => {
       test("shows thumbnail when event has image_url", () => {

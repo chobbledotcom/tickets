@@ -182,9 +182,9 @@ describe("holidayFields", () => {
   const holidayForm = (
     overrides: Record<string, string> = {},
   ): Record<string, string> => ({
+    end_date: "2026-12-25",
     name: "Bank Holiday",
     start_date: "2026-12-25",
-    end_date: "2026-12-25",
     ...overrides,
   });
 
@@ -220,7 +220,7 @@ describe("holidayFields", () => {
 
     expectValid(
       holidayFields,
-      holidayForm({ start_date: "2026-12-24", end_date: "2026-12-26" }),
+      holidayForm({ end_date: "2026-12-26", start_date: "2026-12-24" }),
     );
   });
 });

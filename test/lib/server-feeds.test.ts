@@ -23,7 +23,7 @@ const fetchFeedBody = async (feedPath: string): Promise<string> => {
 /** Assert a deactivated event is excluded from a feed */
 const expectExcludesInactive = async (feedPath: string, absentTag: string) => {
   await settings.update.showPublicSite(true);
-  const event = await createTestEvent({ name: "Hidden", maxAttendees: 100 });
+  const event = await createTestEvent({ maxAttendees: 100, name: "Hidden" });
   await deactivateTestEvent(event.id);
   const body = await fetchFeedBody(feedPath);
   expect(body).not.toContain("Hidden");
@@ -38,9 +38,9 @@ const expectExcludesClosedRegistration = async (
   await settings.update.showPublicSite(true);
   const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
   await createTestEvent({
-    name: "Closed Event",
-    maxAttendees: 100,
     closesAt: pastDate,
+    maxAttendees: 100,
+    name: "Closed Event",
   });
   const body = await fetchFeedBody(feedPath);
   expect(body).not.toContain("Closed Event");
@@ -93,8 +93,8 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes VEVENT for active events", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
-        name: "Concert",
         maxAttendees: 100,
+        name: "Concert",
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -106,7 +106,7 @@ describeWithEnv("feeds", { db: true }, () => {
 
     test("includes UID and DTSTAMP", async () => {
       await settings.update.showPublicSite(true);
-      const event = await createTestEvent({ name: "Show", maxAttendees: 50 });
+      const event = await createTestEvent({ maxAttendees: 50, name: "Show" });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
       expect(body).toContain(`UID:${event.id}@`);
@@ -116,9 +116,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes DTSTART when event has a date", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Dated Event",
-        maxAttendees: 100,
         date: "2026-06-15T14:00",
+        maxAttendees: 100,
+        name: "Dated Event",
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -128,9 +128,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes DESCRIPTION when event has a description", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Described",
-        maxAttendees: 100,
         description: "A great event",
+        maxAttendees: 100,
+        name: "Described",
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -140,9 +140,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes LOCATION when event has a location", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Located",
-        maxAttendees: 100,
         location: "Town Hall",
+        maxAttendees: 100,
+        name: "Located",
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -163,9 +163,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("excludes hidden events", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Secret Event",
-        maxAttendees: 100,
         hidden: true,
+        maxAttendees: 100,
+        name: "Secret Event",
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -176,8 +176,8 @@ describeWithEnv("feeds", { db: true }, () => {
     test("excludes purchase_only events", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Raffle Tickets",
         maxAttendees: 100,
+        name: "Raffle Tickets",
         purchaseOnly: true,
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
@@ -189,10 +189,10 @@ describeWithEnv("feeds", { db: true }, () => {
     test("escapes special characters in event fields", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Rock, Paper; Scissors",
-        maxAttendees: 100,
         description: "Fun, games; and more",
         location: "Hall A, Floor 2",
+        maxAttendees: 100,
+        name: "Rock, Paper; Scissors",
       });
       const response = await handleRequest(mockRequest("/feeds/events.ics"));
       const body = await response.text();
@@ -251,8 +251,8 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes items for active events", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
-        name: "Concert",
         maxAttendees: 100,
+        name: "Concert",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -265,7 +265,7 @@ describeWithEnv("feeds", { db: true }, () => {
 
     test("includes guid as permalink", async () => {
       await settings.update.showPublicSite(true);
-      const event = await createTestEvent({ name: "Show", maxAttendees: 50 });
+      const event = await createTestEvent({ maxAttendees: 50, name: "Show" });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).toContain(`<guid isPermaLink="true">`);
@@ -275,9 +275,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes description when event has one", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Described",
-        maxAttendees: 100,
         description: "A great event",
+        maxAttendees: 100,
+        name: "Described",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -287,9 +287,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes date in description when event has a date", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Dated",
-        maxAttendees: 100,
         date: "2026-06-15T14:00",
+        maxAttendees: 100,
+        name: "Dated",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -300,9 +300,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes location in description when event has a location", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Located",
-        maxAttendees: 100,
         location: "Town Hall",
+        maxAttendees: 100,
+        name: "Located",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -312,11 +312,11 @@ describeWithEnv("feeds", { db: true }, () => {
     test("includes description, date, and location together", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Full Event",
-        maxAttendees: 100,
-        description: "A great event",
         date: "2026-06-15T14:00",
+        description: "A great event",
         location: "Town Hall",
+        maxAttendees: 100,
+        name: "Full Event",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -336,9 +336,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("excludes hidden events", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Secret Event",
-        maxAttendees: 100,
         hidden: true,
+        maxAttendees: 100,
+        name: "Secret Event",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
@@ -349,8 +349,8 @@ describeWithEnv("feeds", { db: true }, () => {
     test("excludes purchase_only events", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Raffle Tickets",
         maxAttendees: 100,
+        name: "Raffle Tickets",
         purchaseOnly: true,
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
@@ -362,9 +362,9 @@ describeWithEnv("feeds", { db: true }, () => {
     test("XML-escapes special characters", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Rock & Roll <Live>",
-        maxAttendees: 100,
         description: 'He said "hello" & goodbye',
+        maxAttendees: 100,
+        name: "Rock & Roll <Live>",
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();

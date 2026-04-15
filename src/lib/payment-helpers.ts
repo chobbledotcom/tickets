@@ -65,8 +65,8 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
   map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
       e: i.eventId,
-      q: i.quantity,
       p: i.unitPrice * i.quantity,
+      q: i.quantity,
     }),
   )(items);
 
@@ -132,9 +132,9 @@ export const buildMetadata = (
   intent: MetadataInput,
 ): Record<string, string> => ({
   _origin: getEffectiveDomain(),
-  name: intent.name,
   email: intent.email,
   items: JSON.stringify(intent.items),
+  name: intent.name,
   ...optionalFields(intent),
   ...eventAnswerIdsField(intent.eventAnswerIds),
 });
@@ -152,7 +152,7 @@ export const toCheckoutResult = (
     logDebug(label, "Checkout result missing session ID or URL");
     return null;
   }
-  return { sessionId, checkoutUrl: url };
+  return { checkoutUrl: url, sessionId };
 };
 
 /**
@@ -226,12 +226,12 @@ export const extractSessionMetadata = (
   metadata: SessionMetadata,
 ): ValidatedPaymentSession["metadata"] => ({
   _origin: metadata._origin || "",
-  name: metadata.name,
-  email: metadata.email || "",
-  phone: metadata.phone || "",
   address: metadata.address || "",
-  special_instructions: metadata.special_instructions || "",
-  date: metadata.date || "",
-  items: metadata.items || "",
   answer_ids: metadata.answer_ids || "",
+  date: metadata.date || "",
+  email: metadata.email || "",
+  items: metadata.items || "",
+  name: metadata.name,
+  phone: metadata.phone || "",
+  special_instructions: metadata.special_instructions || "",
 });

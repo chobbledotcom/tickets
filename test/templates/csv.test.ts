@@ -54,10 +54,10 @@ describe("generateAttendeesCsv", () => {
     const attendees = [
       testAttendee(),
       testAttendee({
+        created: "2024-01-16T11:00:00Z",
+        email: "jane@example.com",
         id: 2,
         name: "Jane Smith",
-        email: "jane@example.com",
-        created: "2024-01-16T11:00:00Z",
         quantity: 3,
       }),
     ];
@@ -89,8 +89,8 @@ describe("generateAttendeesCsv", () => {
     const attendees = [
       testAttendee({
         payment_id: "pi_abc123",
-        quantity: 2,
         price_paid: "2000",
+        quantity: 2,
       }),
     ];
     const csv = generateAttendeesCsv(attendees);
@@ -114,11 +114,11 @@ describe("generateAttendeesCsv", () => {
         price_paid: "1000",
       }),
       testAttendee({
-        id: 2,
         event_id: 2,
+        id: 2,
         payment_id: "pi_shared_123",
-        quantity: 2,
         price_paid: "3000",
+        quantity: 2,
       }),
     ];
     const csv = generateAttendeesCsv(attendees);

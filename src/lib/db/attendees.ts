@@ -69,14 +69,14 @@ const buildPiiBlob = (
   info: ContactInfo & { payment_id: string; ticket_token: string },
 ): string =>
   JSON.stringify({
-    v: PII_BLOB_VERSION,
-    n: info.name,
-    e: info.email,
-    p: info.phone,
     a: info.address,
-    s: info.special_instructions,
+    e: info.email,
+    n: info.name,
+    p: info.phone,
     pi: info.payment_id,
+    s: info.special_instructions,
     t: info.ticket_token,
+    v: PII_BLOB_VERSION,
   } satisfies PiiBlob);
 
 /** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
@@ -109,12 +109,12 @@ const decryptPiiBlob = async (
   const json = await decryptAttendeePII(encrypted, privateKey);
   const blob = parsePiiBlob(json);
   return {
-    name: blob.n,
-    email: blob.e,
-    phone: blob.p,
     address: blob.a,
-    special_instructions: blob.s,
+    email: blob.e,
+    name: blob.n,
     payment_id: paidEvent ? blob.pi : "",
+    phone: blob.p,
+    special_instructions: blob.s,
     ticket_token: blob.t,
   };
 };
@@ -133,9 +133,9 @@ const decryptAttendeeFields = async (
   return {
     ...row,
     ...pii,
+    checked_in: Boolean(row.checked_in),
     // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
     price_paid: String(row.price_paid),
-    checked_in: Boolean(row.checked_in),
     refunded: paidEvent ? Boolean(row.refunded) : false,
   };
 };
@@ -197,7 +197,7 @@ export const getActiveEventStats = async (
 ): Promise<ActiveEventStats> => {
   const active = filter((e: EventWithCount) => e.active)(events);
   if (active.length === 0) {
-    return { income: 0, tickets: 0, attendees: 0 };
+    return { attendees: 0, income: 0, tickets: 0 };
   }
   const activeIds = map((e: EventWithCount) => e.id)(active);
   const attendees = reduce(
@@ -214,7 +214,7 @@ export const getActiveEventStats = async (
     (sum: number, r: { price_paid: number }) => sum + r.price_paid,
     0,
   )(rows);
-  return { income, tickets: rows.length, attendees };
+  return { attendees, income, tickets: rows.length };
 };
 
 /**
@@ -250,12 +250,20 @@ const contactFields = ({
   address,
   special_instructions,
 }: ContactInfo): ContactInfo => ({
-  name,
-  email,
-  phone,
   address,
+  email,
+  name,
+  phone,
   special_instructions,
 });
+
+/** Build an INSERT statement for the attendees table from encrypted fields. */
+export const buildAttendeeInsert = (enc: EncryptedAttendeeData) =>
+  insert("attendees", {
+    created: enc.created,
+    pii_blob: enc.encryptedPiiBlob,
+    ticket_token_index: enc.ticketTokenIndex,
+  });
 
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
 export const encryptAttendeeFields = async (
@@ -278,28 +286,28 @@ export const encryptAttendeeFields = async (
 
   return {
     created: nowIso(),
+    encryptedPiiBlob,
     ticketToken,
     ticketTokenIndex,
-    encryptedPiiBlob,
   };
 };
 
 /** Build plain Attendee object from insert result */
 const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
-  id: Number(input.insertId),
   event_id: input.eventId,
+  id: Number(input.insertId),
   ...contactFields(input),
-  created: input.created,
-  payment_id: input.paymentId,
-  quantity: input.quantity,
-  price_paid: String(input.pricePaid),
+  attachment_downloads: 0,
   checked_in: false,
+  created: input.created,
+  date: input.date,
+  payment_id: input.paymentId,
+  pii_blob: "",
+  price_paid: String(input.pricePaid),
+  quantity: input.quantity,
   refunded: false,
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
-  date: input.date,
-  attachment_downloads: 0,
-  pii_blob: "",
 });
 
 /**
@@ -338,18 +346,18 @@ export const getAttendee = async (
 const purgeAttendee = (attendeeId: number): Promise<void> =>
   executeBatch([
     {
+      args: [attendeeId],
       sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
-      args: [attendeeId],
     },
     {
+      args: [attendeeId],
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-      args: [attendeeId],
     },
     {
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
       args: [attendeeId],
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
     },
-    { sql: "DELETE FROM attendees WHERE id = ?", args: [attendeeId] },
+    { args: [attendeeId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
 
 /**
@@ -370,8 +378,8 @@ export const unlinkAttendeeFromEvent = async (
   eventId: number,
 ): Promise<{ attendeeDeleted: boolean }> => {
   await getDb().execute({
-    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
     args: [attendeeId, eventId],
+    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
   });
 
   const remaining = await queryOne<{ count: number }>(
@@ -391,17 +399,17 @@ export const unlinkAttendeeFromEvent = async (
 
 /** Shared failure result for capacity-exceeded */
 const CAPACITY_EXCEEDED = {
-  success: false as const,
   reason: "capacity_exceeded" as const,
+  success: false as const,
 };
 
 /** Convert nullable date to start_at/end_at (null-safe wrapper around dateToRange) */
 const dateToStartEnd = (
   date: string | null,
 ): { startAt: string | null; endAt: string | null } => {
-  if (!date) return { startAt: null, endAt: null };
+  if (!date) return { endAt: null, startAt: null };
   const range = dateToRange(date);
-  return { startAt: range.startAt, endAt: range.endAt };
+  return { endAt: range.endAt, startAt: range.startAt };
 };
 
 /** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */
@@ -410,7 +418,7 @@ export const dateToRange = (
 ): { startAt: string; endAt: string } => {
   const ms = new Date(`${date}T00:00:00Z`).getTime();
   const nextDay = new Date(ms + 86_400_000).toISOString();
-  return { startAt: `${date}T00:00:00Z`, endAt: nextDay };
+  return { endAt: nextDay, startAt: `${date}T00:00:00Z` };
 };
 
 /** Get the total attendee quantity for a specific event + date */
@@ -507,8 +515,8 @@ const buildCapacityCondition = (
     : [date, endAt, startAt, qty, eventId];
 
   return {
-    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
     args: [...capacityArgs, qty, eventId, ...groupCapacityArgs],
+    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
   };
 };
 
@@ -534,10 +542,10 @@ const buildCapacityCheckedInsert = (
   args.push(startAt, endAt, qty, pricePaid, ...condition.args);
 
   return {
+    args,
     sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
           SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?
           WHERE ${condition.sql}`,
-    args,
   };
 };
 
@@ -599,6 +607,107 @@ export const attendeesApi = {
     }
     return true;
   },
+  /**
+   * Atomically create an attendee linked to one or more events.
+   * Single ACID batch transaction:
+   *   1. INSERT attendee (unconditional)
+   *   2..N+1. For each booking: INSERT event_attendees with capacity check
+   *   N+2. Clean up attendee if ALL capacity checks failed
+   * Returns one Attendee per successful booking.
+   */
+  createAttendeeAtomic: async (
+    input: AttendeeInput,
+  ): Promise<CreateAttendeeResult> => {
+    const {
+      name,
+      email,
+      paymentId = "",
+      phone = "",
+      address = "",
+      special_instructions = "",
+      bookings,
+    } = input;
+    if (bookings.length === 0) {
+      return { reason: "capacity_exceeded", success: false };
+    }
+
+    const contactInfo = { address, email, name, phone, special_instructions };
+    // Use first booking's pricePaid for encryption (PII blob is shared)
+    const enc = await encryptAttendeeFields({
+      ...contactInfo,
+      paymentId,
+      pricePaid: bookings[0]!.pricePaid ?? 0,
+    });
+    if (!enc) {
+      return { reason: "encryption_error", success: false };
+    }
+
+    // Use a subquery to look up the attendee ID instead of last_insert_rowid().
+    // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
+    // booking would get the event_attendees row ID instead of the attendee ID.
+    const attendeeIdExpr =
+      "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
+    const bookingStatements = bookings.map((booking) => {
+      const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
+      // Splice ticketTokenIndex after the first arg (eventId) to bind
+      // the ? in the attendeeIdExpr subquery
+      const combined: InValue[] = [
+        insert.args[0]!,
+        enc.ticketTokenIndex,
+        ...insert.args.slice(1),
+      ];
+      return { args: combined, sql: insert.sql };
+    });
+
+    // Single ACID transaction: attendee first, then capacity-checked event links.
+    // If all capacity checks fail, the attendee is cleaned up in the final step.
+    const batchResults = await executeBatchWithResults([
+      // Step 1: Create attendee record (unconditional)
+      buildAttendeeInsert(enc),
+      // Steps 2..N+1: One capacity-checked INSERT per booking
+      ...bookingStatements,
+      // Final step: Clean up attendee if no event links were created
+      {
+        args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
+        sql: `DELETE FROM attendees WHERE id = (
+                SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+              ) AND NOT EXISTS (
+                SELECT 1 FROM event_attendees WHERE attendee_id = (
+                  SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+                )
+              )`,
+      },
+    ]);
+
+    // Check which bookings succeeded (steps 2..N+1 in batchResults, offset by 1)
+    const successfulBookings: Attendee[] = [];
+    for (let i = 0; i < bookings.length; i++) {
+      if (batchResults[i + 1]!.rowsAffected > 0) {
+        const booking = bookings[i]!;
+        successfulBookings.push(
+          buildAttendeeResult({
+            eventId: booking.eventId,
+            insertId: batchResults[0]!.lastInsertRowid,
+            ...contactInfo,
+            created: enc.created,
+            date: booking.date ?? null,
+            paymentId,
+            pricePaid: booking.pricePaid ?? 0,
+            quantity: booking.quantity ?? 1,
+            ticketToken: enc.ticketToken,
+            ticketTokenIndex: enc.ticketTokenIndex,
+          }),
+        );
+      }
+    }
+
+    if (successfulBookings.length === 0) {
+      return { reason: "capacity_exceeded", success: false };
+    }
+
+    invalidateEventsCache();
+    return { attendees: successfulBookings, success: true };
+  },
   /** Check if an event has available spots for the requested quantity */
   hasAvailableSpots: async (
     eventId: number,
@@ -625,111 +734,6 @@ export const attendeesApi = {
       }
     }
     return true;
-  },
-  /**
-   * Atomically create an attendee linked to one or more events.
-   * Single ACID batch transaction:
-   *   1. INSERT attendee (unconditional)
-   *   2..N+1. For each booking: INSERT event_attendees with capacity check
-   *   N+2. Clean up attendee if ALL capacity checks failed
-   * Returns one Attendee per successful booking.
-   */
-  createAttendeeAtomic: async (
-    input: AttendeeInput,
-  ): Promise<CreateAttendeeResult> => {
-    const {
-      name,
-      email,
-      paymentId = "",
-      phone = "",
-      address = "",
-      special_instructions = "",
-      bookings,
-    } = input;
-    if (bookings.length === 0) {
-      return { success: false, reason: "capacity_exceeded" };
-    }
-
-    const contactInfo = { name, email, phone, address, special_instructions };
-    // Use first booking's pricePaid for encryption (PII blob is shared)
-    const enc = await encryptAttendeeFields({
-      ...contactInfo,
-      paymentId,
-      pricePaid: bookings[0]!.pricePaid ?? 0,
-    });
-    if (!enc) {
-      return { success: false, reason: "encryption_error" };
-    }
-
-    // Use a subquery to look up the attendee ID instead of last_insert_rowid().
-    // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
-    // booking would get the event_attendees row ID instead of the attendee ID.
-    const attendeeIdExpr =
-      "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
-    const bookingStatements = bookings.map((booking) => {
-      const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
-      // Splice ticketTokenIndex after the first arg (eventId) to bind
-      // the ? in the attendeeIdExpr subquery
-      const combined: InValue[] = [
-        insert.args[0]!,
-        enc.ticketTokenIndex,
-        ...insert.args.slice(1),
-      ];
-      return { sql: insert.sql, args: combined };
-    });
-
-    // Single ACID transaction: attendee first, then capacity-checked event links.
-    // If all capacity checks fail, the attendee is cleaned up in the final step.
-    const batchResults = await executeBatchWithResults([
-      // Step 1: Create attendee record (unconditional)
-      insert("attendees", {
-        created: enc.created,
-        ticket_token_index: enc.ticketTokenIndex,
-        pii_blob: enc.encryptedPiiBlob,
-      }),
-      // Steps 2..N+1: One capacity-checked INSERT per booking
-      ...bookingStatements,
-      // Final step: Clean up attendee if no event links were created
-      {
-        sql: `DELETE FROM attendees WHERE id = (
-                SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
-              ) AND NOT EXISTS (
-                SELECT 1 FROM event_attendees WHERE attendee_id = (
-                  SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
-                )
-              )`,
-        args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
-      },
-    ]);
-
-    // Check which bookings succeeded (steps 2..N+1 in batchResults, offset by 1)
-    const successfulBookings: Attendee[] = [];
-    for (let i = 0; i < bookings.length; i++) {
-      if (batchResults[i + 1]!.rowsAffected > 0) {
-        const booking = bookings[i]!;
-        successfulBookings.push(
-          buildAttendeeResult({
-            insertId: batchResults[0]!.lastInsertRowid,
-            eventId: booking.eventId,
-            ...contactInfo,
-            created: enc.created,
-            paymentId,
-            quantity: booking.quantity ?? 1,
-            pricePaid: booking.pricePaid ?? 0,
-            ticketToken: enc.ticketToken,
-            ticketTokenIndex: enc.ticketTokenIndex,
-            date: booking.date ?? null,
-          }),
-        );
-      }
-    }
-
-    if (successfulBookings.length === 0) {
-      return { success: false, reason: "capacity_exceeded" };
-    }
-
-    invalidateEventsCache();
-    return { success: true, attendees: successfulBookings };
   },
 };
 
@@ -801,14 +805,14 @@ export const getAttendeesByTokens = async (
   for (const row of bookingRows) {
     const list = bookingsByAttendee.get(row.attendee_id) ?? [];
     list.push({
-      event_id: row.event_id,
-      start_at: row.start_at,
-      end_at: row.end_at,
-      quantity: row.quantity,
-      checked_in: row.checked_in,
-      refunded: row.refunded,
-      price_paid: row.price_paid,
       attachment_downloads: row.attachment_downloads,
+      checked_in: row.checked_in,
+      end_at: row.end_at,
+      event_id: row.event_id,
+      price_paid: row.price_paid,
+      quantity: row.quantity,
+      refunded: row.refunded,
+      start_at: row.start_at,
     });
     bookingsByAttendee.set(row.attendee_id, list);
   }
@@ -817,12 +821,12 @@ export const getAttendeesByTokens = async (
   const byTokenIndex = new Map<string, AttendeeWithBookings>();
   for (const row of attendeeRows) {
     byTokenIndex.set(row.ticket_token_index, {
-      id: row.id,
+      bookings: bookingsByAttendee.get(row.id) ?? [],
       created: row.created,
+      id: row.id,
+      pii_blob: row.pii_blob,
       ticket_token: "", // populated after decryption by caller
       ticket_token_index: row.ticket_token_index,
-      pii_blob: row.pii_blob,
-      bookings: bookingsByAttendee.get(row.id) ?? [],
     });
   }
 
@@ -838,8 +842,8 @@ const updateEventAttendeeField =
   (field: string) =>
   async (attendeeId: number, eventId: number, value: number): Promise<void> => {
     await getDb().execute({
-      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
       args: [value, attendeeId, eventId],
+      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
     });
   };
 
@@ -874,8 +878,8 @@ export const incrementAttachmentDownloads = async (
   eventId: number,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
     args: [attendeeId, eventId],
+    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
   });
 };
 
@@ -896,8 +900,8 @@ export const updateAttendeePII = async (
     settings.publicKey,
   );
   await getDb().execute({
-    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
     args: [encryptedPiiBlob, attendeeId],
+    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
 };
 
@@ -920,9 +924,9 @@ export const updateEventLink = async (
   const condition = buildCapacityCondition(eventId, qty, date, attendeeId);
 
   const result = await getDb().execute({
+    args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
     sql: `UPDATE event_attendees SET quantity = ?, start_at = ?, end_at = ?
           WHERE attendee_id = ? AND event_id = ? AND ${condition.sql}`,
-    args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
   });
 
   return checkCapacityResult(result);

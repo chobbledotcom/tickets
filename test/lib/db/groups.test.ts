@@ -87,24 +87,24 @@ describeWithEnv("db > groups", { db: true }, () => {
       });
 
       const e1 = await createTestEvent({
-        name: "Active In Group",
-        maxAttendees: 10,
         groupId: group.id,
+        maxAttendees: 10,
+        name: "Active In Group",
       });
       const e2 = await createTestEvent({
-        name: "Inactive In Group",
-        maxAttendees: 10,
         groupId: group.id,
+        maxAttendees: 10,
+        name: "Inactive In Group",
       });
       await getDb().execute({
-        sql: "UPDATE events SET active = 0 WHERE id = ?",
         args: [e2.id],
+        sql: "UPDATE events SET active = 0 WHERE id = ?",
       });
 
       const attendee = await createAttendeeAtomic({
-        name: "A",
-        email: "a@example.com",
         bookings: [{ eventId: e1.id, quantity: 3 }],
+        email: "a@example.com",
+        name: "A",
       });
       if (!attendee.success) throw new Error("Failed to create attendee");
 
@@ -120,9 +120,9 @@ describeWithEnv("db > groups", { db: true }, () => {
         slug: "reset-group",
       });
       const event = await createTestEvent({
-        name: "Reset Event",
         groupId: group.id,
         maxAttendees: 10,
+        name: "Reset Event",
       });
       await resetGroupEvents(group.id);
       expect((await getEvent(event.id))?.group_id).toBe(0);
@@ -137,31 +137,31 @@ describeWithEnv("db > groups", { db: true }, () => {
       overrides?: { eventType?: "standard" | "daily" },
     ) => {
       const group = await createTestGroup({
+        maxAttendees: groupMax,
         name: slug,
         slug,
-        maxAttendees: groupMax,
       });
       const e1 = await createTestEvent({
-        name: `${slug}-a`,
-        maxAttendees: 10,
-        groupId: group.id,
         eventType: overrides?.eventType,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `${slug}-a`,
       });
       const e2 = await createTestEvent({
-        name: `${slug}-b`,
-        maxAttendees: 10,
-        groupId: group.id,
         eventType: overrides?.eventType,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `${slug}-b`,
       });
-      return { group, e1, e2 };
+      return { e1, e2, group };
     };
 
     /** Book attendees atomically with minimal boilerplate */
     const book = (eventId: number, quantity: number, date?: string) =>
       createAttendeeAtomic({
-        name: `attendee-${eventId}-${quantity}`,
+        bookings: [{ date, eventId, quantity }],
         email: `a${eventId}q${quantity}@example.com`,
-        bookings: [{ eventId, quantity, date }],
+        name: `attendee-${eventId}-${quantity}`,
       });
 
     test("createAttendeeAtomic enforces group max_attendees across events", async () => {
@@ -182,9 +182,9 @@ describeWithEnv("db > groups", { db: true }, () => {
         slug: "unlimited",
       });
       const event = await createTestEvent({
-        name: "unlimited-event",
-        maxAttendees: 100,
         groupId: group.id,
+        maxAttendees: 100,
+        name: "unlimited-event",
       });
 
       expect((await book(event.id, 50)).success).toBe(true);
@@ -223,13 +223,13 @@ describeWithEnv("db > groups", { db: true }, () => {
         slug: "no-limit",
       });
       const e1 = await createTestEvent({
-        name: "no-limit-a",
-        maxAttendees: 100,
         groupId: group.id,
+        maxAttendees: 100,
+        name: "no-limit-a",
       });
       const ungrouped = await createTestEvent({
-        name: "ungrouped",
         maxAttendees: 100,
+        name: "ungrouped",
       });
 
       expect(
@@ -254,14 +254,14 @@ describeWithEnv("db > groups", { db: true }, () => {
 
     test("capacity check handles deleted group gracefully", async () => {
       const group = await createTestGroup({
+        maxAttendees: 5,
         name: "delete-me",
         slug: "delete-me",
-        maxAttendees: 5,
       });
       const event = await createTestEvent({
-        name: "orphan-event",
-        maxAttendees: 10,
         groupId: group.id,
+        maxAttendees: 10,
+        name: "orphan-event",
       });
       await groupsTable.deleteById(group.id);
 
@@ -343,14 +343,14 @@ describeWithEnv("db > groups", { db: true }, () => {
 
     test("event-level cap rejects even when group has room", async () => {
       const group = await createTestGroup({
+        maxAttendees: 100,
         name: "big-group",
         slug: "big-group",
-        maxAttendees: 100,
       });
       const event = await createTestEvent({
-        name: "small-event",
-        maxAttendees: 2,
         groupId: group.id,
+        maxAttendees: 2,
+        name: "small-event",
       });
 
       expect((await book(event.id, 2)).success).toBe(true);
@@ -361,14 +361,14 @@ describeWithEnv("db > groups", { db: true }, () => {
 
     test("hasAvailableSpots respects event cap even when group has room", async () => {
       const group = await createTestGroup({
+        maxAttendees: 100,
         name: "big-group2",
         slug: "big-group2",
-        maxAttendees: 100,
       });
       const event = await createTestEvent({
-        name: "tiny-event",
-        maxAttendees: 1,
         groupId: group.id,
+        maxAttendees: 1,
+        name: "tiny-event",
       });
 
       await book(event.id, 1);

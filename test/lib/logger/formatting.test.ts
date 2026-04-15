@@ -45,8 +45,8 @@ describe("formatErrorMessage", () => {
   test("ignores eventId (metadata only for log routing)", () => {
     const context: ErrorContext = {
       code: ErrorCode.PAYMENT_SESSION,
-      eventId: 42,
       detail: "price mismatch",
+      eventId: 42,
     };
     expect(formatErrorMessage(context)).toBe(
       "Error: Payment session error (price mismatch)",

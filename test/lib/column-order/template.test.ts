@@ -184,9 +184,9 @@ describe("renderFilteredValue", () => {
 describe("renderCells", () => {
   test("renders event columns end-to-end through the full pipeline", () => {
     const event = testEventWithCount({
+      date: "2026-06-15",
       name: "Jazz Night",
       unit_price: 0,
-      date: "2026-06-15",
     });
     const { columnKeys, filters } = resolveColumnLayout(
       "{{name}}, {{price}}, {{date}}",
@@ -208,8 +208,8 @@ describe("renderCells", () => {
 
   test("applies Liquid filters when template uses them", () => {
     const event = testEventWithCount({
-      date: "2026-03-15",
       created: "2026-01-10T09:00:00Z",
+      date: "2026-03-15",
       unit_price: 2500,
     });
     const { columnKeys, filters } = resolveColumnLayout(
@@ -254,10 +254,10 @@ describe("renderCells", () => {
   test("applies CSS class from column definition", () => {
     const generators: ColumnGenerators<{ val: string }> = {
       val: {
-        label: "Val",
-        description: "test",
         cell: (r) => r.val,
         className: "custom-class",
+        description: "test",
+        label: "Val",
       },
     };
     const html = renderCells(

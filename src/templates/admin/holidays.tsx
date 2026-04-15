@@ -64,9 +64,9 @@ export const adminHolidaysPage = (
 export const holidayToFieldValues = (
   holiday?: Holiday,
 ): Record<string, string | number | null> => ({
+  end_date: holiday?.end_date ?? "",
   name: holiday?.name ?? "",
   start_date: holiday?.start_date ?? "",
-  end_date: holiday?.end_date ?? "",
 });
 
 /**

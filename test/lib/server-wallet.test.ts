@@ -26,9 +26,9 @@ const submitWalletSettingsForm = async (
 ) => {
   const defaults: Record<string, string> = {
     apple_wallet_pass_type_id: "pass.com.test",
-    apple_wallet_team_id: "TESTTEAM01",
     apple_wallet_signing_cert: testCerts.signingCert,
     apple_wallet_signing_key: testCerts.signingKey,
+    apple_wallet_team_id: "TESTTEAM01",
     apple_wallet_wwdr_cert: testCerts.wwdrCert,
     csrf_token: await testCsrfToken(),
   };
@@ -71,7 +71,7 @@ const fetchValidPkpassForNewAttendee = async () => {
   expect(response.headers.get("Content-Type")).toBe(
     "application/vnd.apple.pkpass",
   );
-  return { token, response };
+  return { response, token };
 };
 
 /** Configure all Apple Wallet settings in the database */
@@ -109,8 +109,8 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     );
     const { getDb } = await import("#lib/db/client.ts");
     await getDb().execute({
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
       args: [attendee.id],
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
     });
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(404);
@@ -385,9 +385,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
     const response = await submitWalletSettingsForm({
       apple_wallet_pass_type_id: "",
-      apple_wallet_team_id: "",
       apple_wallet_signing_cert: "",
       apple_wallet_signing_key: "",
+      apple_wallet_team_id: "",
       apple_wallet_wwdr_cert: "",
     });
 
@@ -419,9 +419,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 const setWalletEnvVars = () =>
   setTestEnv({
     APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.tickets",
-    APPLE_WALLET_TEAM_ID: "ENVTEAM001",
     APPLE_WALLET_SIGNING_CERT: testCerts.signingCert,
     APPLE_WALLET_SIGNING_KEY: testCerts.signingKey,
+    APPLE_WALLET_TEAM_ID: "ENVTEAM001",
     APPLE_WALLET_WWDR_CERT: testCerts.wwdrCert,
   });
 
@@ -430,9 +430,9 @@ describeWithEnv(
   {
     env: {
       APPLE_WALLET_PASS_TYPE_ID: undefined,
-      APPLE_WALLET_TEAM_ID: undefined,
       APPLE_WALLET_SIGNING_CERT: undefined,
       APPLE_WALLET_SIGNING_KEY: undefined,
+      APPLE_WALLET_TEAM_ID: undefined,
       APPLE_WALLET_WWDR_CERT: undefined,
     },
   },
@@ -463,14 +463,14 @@ describeWithEnv(
 describeWithEnv(
   "Apple Wallet env var fallback",
   {
+    db: true,
     env: {
       APPLE_WALLET_PASS_TYPE_ID: undefined,
-      APPLE_WALLET_TEAM_ID: undefined,
       APPLE_WALLET_SIGNING_CERT: undefined,
       APPLE_WALLET_SIGNING_KEY: undefined,
+      APPLE_WALLET_TEAM_ID: undefined,
       APPLE_WALLET_WWDR_CERT: undefined,
     },
-    db: true,
   },
   () => {
     test("hasAppleWalletConfig returns true with env vars when DB not configured", () => {

@@ -20,13 +20,13 @@ const componentRenderedCol = (
   description: string,
   cellFn: (row: AttendeeTableRow, opts: AttendeeColumnOpts) => string,
 ): AttendeeCol => ({
-  label,
-  headerText: "",
-  description,
   cell: cellFn,
-  headerClassName: "actions-col",
   className: "actions-col",
+  description,
+  headerClassName: "actions-col",
+  headerText: "",
   isHtml: true,
+  label,
 });
 
 const status = componentRenderedCol(
@@ -36,35 +36,33 @@ const status = componentRenderedCol(
 );
 
 const event: AttendeeCol = {
-  label: "Event",
-  description: "Event name with link to the event detail page",
   cell: (row) =>
     `<a href="/admin/event/${row.eventId}">${escapeHtml(row.eventName)}</a>`,
+  description: "Event name with link to the event detail page",
   isHtml: true,
+  label: "Event",
 };
 
 const date: AttendeeCol = {
-  label: "Date",
-  description: "Booking date for daily events",
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
+  description: "Booking date for daily events",
+  label: "Date",
   rawValue: (row) => row.attendee.date || "",
 };
 
 const name: AttendeeCol = {
-  label: "Name",
-  description: "Attendee name",
   cell: (row) => row.attendee.name,
+  description: "Attendee name",
+  label: "Name",
 };
 
 const email: AttendeeCol = {
-  label: "Email",
-  description: "Attendee email address",
   cell: (row) => row.attendee.email || "",
+  description: "Attendee email address",
+  label: "Email",
 };
 
 const phone: AttendeeCol = {
-  label: "Phone",
-  description: "Attendee phone number (clickable link)",
   cell: (row, opts) => {
     if (!row.attendee.phone) return "";
     const normalized = normalizePhone(
@@ -73,19 +71,21 @@ const phone: AttendeeCol = {
     );
     return `<a href="tel:${normalized}">${escapeHtml(row.attendee.phone)}</a>`;
   },
+  description: "Attendee phone number (clickable link)",
   isHtml: true,
+  label: "Phone",
 };
 
 const address: AttendeeCol = {
-  label: "Address",
-  description: "Attendee postal address (inline format)",
   cell: (row) => formatAddressInline(row.attendee.address),
+  description: "Attendee postal address (inline format)",
+  label: "Address",
 };
 
 const special_instructions: AttendeeCol = {
-  label: "Special Instructions",
-  description: "Any special instructions from the attendee",
   cell: (row) => formatInstructionsInline(row.attendee.special_instructions),
+  description: "Any special instructions from the attendee",
+  label: "Special Instructions",
 };
 
 /** Get attendee answer display */
@@ -111,8 +111,6 @@ const getAnswerDisplay = (
 };
 
 const answers: AttendeeCol = {
-  label: "Answers",
-  description: "Custom question answers",
   cell: (row, opts) => {
     const { short, tooltip } = getAnswerDisplay(
       row.attendee.id,
@@ -123,27 +121,29 @@ const answers: AttendeeCol = {
     return `<span title="${escapeHtml(tooltip)}">${escapeHtml(short)}</span>`;
   },
   className: "answers-cell",
+  description: "Custom question answers",
   isHtml: true,
+  label: "Answers",
 };
 
 const qty: AttendeeCol = {
-  label: "Qty",
-  description: "Number of tickets in this booking",
   cell: (row) => String(row.attendee.quantity),
+  description: "Number of tickets in this booking",
+  label: "Qty",
 };
 
 const ticket: AttendeeCol = {
-  label: "Ticket",
-  description: "Clickable ticket token link",
   cell: (row, opts) =>
     `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
+  description: "Clickable ticket token link",
   isHtml: true,
+  label: "Ticket",
 };
 
 const registered: AttendeeCol = {
-  label: "Registered",
-  description: "Date and time the attendee registered",
   cell: (row) => formatDatetimeShort(row.attendee.created),
+  description: "Date and time the attendee registered",
+  label: "Registered",
   rawValue: (row) => row.attendee.created,
 };
 
@@ -185,19 +185,19 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
   AttendeeTableRow,
   AttendeeColumnOpts
 > = {
-  status,
-  event,
-  date,
-  name,
-  email,
-  phone,
-  address,
-  special_instructions,
-  answers,
-  qty,
-  ticket,
-  registered,
   actions,
+  address,
+  answers,
+  date,
+  email,
+  event,
+  name,
+  phone,
+  qty,
+  registered,
+  special_instructions,
+  status,
+  ticket,
 };
 
 /** Default column order for the attendee table */

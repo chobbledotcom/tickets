@@ -19,16 +19,16 @@ export const EXAMPLE_EVENT = {
 } as const;
 
 export const EXAMPLE_ATTENDEE = {
-  name: "Alice Smith",
-  email: "alice@example.com",
-  phone: "+44 7700 900000",
   address: "42 Oak Lane, Bristol, BS1 1AA",
-  special_instructions: "Wheelchair access needed",
-  quantity: 2,
-  payment_id: "pi_3abc123def456",
-  price_paid: "3000",
-  ticket_token: "A1B2C3D4E5",
   date: "2025-08-20",
+  email: "alice@example.com",
+  name: "Alice Smith",
+  payment_id: "pi_3abc123def456",
+  phone: "+44 7700 900000",
+  price_paid: "3000",
+  quantity: 2,
+  special_instructions: "Wheelchair access needed",
+  ticket_token: "A1B2C3D4E5",
 } as const;
 
 export const EXAMPLE_CURRENCY = "GBP";
@@ -37,28 +37,28 @@ export const EXAMPLE_BUSINESS_EMAIL = "hello@example.com";
 
 /** The example payload, matching what buildWebhookPayload would produce */
 export const WEBHOOK_EXAMPLE_PAYLOAD: WebhookPayload = {
+  address: EXAMPLE_ATTENDEE.address,
+  business_email: EXAMPLE_BUSINESS_EMAIL,
+  currency: EXAMPLE_CURRENCY,
+  email: EXAMPLE_ATTENDEE.email,
   event_type: "registration.completed",
   name: EXAMPLE_ATTENDEE.name,
-  email: EXAMPLE_ATTENDEE.email,
-  phone: EXAMPLE_ATTENDEE.phone,
-  address: EXAMPLE_ATTENDEE.address,
-  special_instructions: EXAMPLE_ATTENDEE.special_instructions,
-  price_paid: Number.parseInt(EXAMPLE_ATTENDEE.price_paid, 10),
-  currency: EXAMPLE_CURRENCY,
   payment_id: EXAMPLE_ATTENDEE.payment_id,
+  phone: EXAMPLE_ATTENDEE.phone,
+  price_paid: Number.parseInt(EXAMPLE_ATTENDEE.price_paid, 10),
+  special_instructions: EXAMPLE_ATTENDEE.special_instructions,
   ticket_url: `https://${EXAMPLE_DOMAIN}/t/${EXAMPLE_ATTENDEE.ticket_token}`,
   tickets: [
     {
+      date: EXAMPLE_ATTENDEE.date,
       event_name: EXAMPLE_EVENT.name,
       event_slug: EXAMPLE_EVENT.slug,
-      unit_price: EXAMPLE_EVENT.unit_price,
       quantity: EXAMPLE_ATTENDEE.quantity,
-      date: EXAMPLE_ATTENDEE.date,
       ticket_token: EXAMPLE_ATTENDEE.ticket_token,
+      unit_price: EXAMPLE_EVENT.unit_price,
     },
   ],
   timestamp: "2025-08-20T14:30:00.000Z",
-  business_email: EXAMPLE_BUSINESS_EMAIL,
 };
 
 /** Pretty-printed JSON for embedding in documentation */

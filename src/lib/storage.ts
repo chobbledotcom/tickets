@@ -40,8 +40,8 @@ const getStorageConfig = (): StorageConfig => {
   const ctx = storageConfigStore.getStore();
   if (ctx) return ctx;
   return {
-    zoneName: getEnv("STORAGE_ZONE_NAME") ?? "",
     zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
+    zoneName: getEnv("STORAGE_ZONE_NAME") ?? "",
   };
 };
 
@@ -59,10 +59,10 @@ const getLocalStoragePath = (): string | null => {
 
 /** Supported image types — single source of truth for mime, extension, and magic bytes */
 const IMAGE_TYPES = [
-  { mime: "image/jpeg", ext: ".jpg", magic: [0xff, 0xd8, 0xff] },
-  { mime: "image/png", ext: ".png", magic: [0x89, 0x50, 0x4e, 0x47] },
-  { mime: "image/gif", ext: ".gif", magic: [0x47, 0x49, 0x46, 0x38] },
-  { mime: "image/webp", ext: ".webp", magic: [0x52, 0x49, 0x46, 0x46] },
+  { ext: ".jpg", magic: [0xff, 0xd8, 0xff], mime: "image/jpeg" },
+  { ext: ".png", magic: [0x89, 0x50, 0x4e, 0x47], mime: "image/png" },
+  { ext: ".gif", magic: [0x47, 0x49, 0x46, 0x38], mime: "image/gif" },
+  { ext: ".webp", magic: [0x52, 0x49, 0x46, 0x46], mime: "image/webp" },
 ] as const;
 
 /** Derived lookups */
@@ -132,26 +132,26 @@ export const validateImage = (
   contentType: string,
 ): ImageValidationResult => {
   if (data.byteLength > MAX_IMAGE_SIZE) {
-    return { valid: false, error: "too_large" };
+    return { error: "too_large", valid: false };
   }
 
   if (!IMAGE_TYPES.some((t) => t.mime === contentType)) {
-    return { valid: false, error: "invalid_type" };
+    return { error: "invalid_type", valid: false };
   }
 
   const detectedType = detectImageType(data);
   if (!detectedType) {
-    return { valid: false, error: "invalid_content" };
+    return { error: "invalid_content", valid: false };
   }
 
-  return { valid: true, detectedType };
+  return { detectedType, valid: true };
 };
 
 /** User-facing messages for image validation errors */
 export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
-  too_large: `Image exceeds the ${formatBytes(MAX_IMAGE_SIZE)} size limit`,
-  invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
   invalid_content: "File does not appear to be a valid image",
+  invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
+  too_large: `Image exceeds the ${formatBytes(MAX_IMAGE_SIZE)} size limit`,
 };
 
 /** Try to delete a file from storage, logging errors on failure */
@@ -382,7 +382,7 @@ export const validateAttachment = (
   data: Uint8Array,
 ): AttachmentValidationResult =>
   data.byteLength > MAX_ATTACHMENT_SIZE
-    ? { valid: false, error: "too_large" }
+    ? { error: "too_large", valid: false }
     : { valid: true };
 
 /** User-facing messages for attachment validation errors */

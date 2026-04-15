@@ -47,7 +47,7 @@ export type ParseResult<Input> =
 
 /** JSON error response for API endpoints */
 export const apiErrorResponse = (message: string, status = 400): Response =>
-  jsonResponse({ status: "error", message }, status);
+  jsonResponse({ message, status: "error" }, status);
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =
@@ -70,7 +70,7 @@ export const parseAndValidate = async <Input>(
     const error = await validate(result.input, id);
     if (error) return { ok: false, response: apiErrorResponse(error) };
   }
-  return { ok: true, input: result.input };
+  return { input: result.input, ok: true };
 };
 
 /**
@@ -98,8 +98,8 @@ export const parseUpdateName = (
 ): { ok: true; name: string } | { ok: false; error: string } => {
   const name = body.name != null ? String(body.name).trim() : existing;
   return name === ""
-    ? { ok: false, error: "name cannot be empty" }
-    : { ok: true, name };
+    ? { error: "name cannot be empty", ok: false }
+    : { name, ok: true };
 };
 
 /** Configuration for defineCrudApi */

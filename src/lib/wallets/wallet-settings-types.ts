@@ -25,8 +25,8 @@ export const createHostConfigOverride = <T>(getFromEnv: () => T | null) => {
       const o = getOverride();
       return o !== undefined ? o : getFromEnv();
     },
-    setOverride: (v: T | null) => setOverride(v),
     resetOverride: () => setOverride(undefined),
+    setOverride: (v: T | null) => setOverride(v),
   };
 };
 
@@ -42,26 +42,26 @@ export const mixinWalletConfigResolution = <T>(
   hostOverride: HostConfigOverride<T>,
 ): void => {
   Object.defineProperties(target, {
-    hostConfig: {
-      get() {
-        return hostOverride.getHostConfig();
-      },
-      enumerable: true,
-    },
     config: {
+      enumerable: true,
       get() {
         return this.dbConfig ?? this.hostConfig;
       },
-      enumerable: true,
     },
     hasConfig: {
+      enumerable: true,
       get() {
         return this.config !== null;
       },
-      enumerable: true,
     },
-    setHostConfigForTest: { value: hostOverride.setOverride, enumerable: true },
-    resetHostConfig: { value: hostOverride.resetOverride, enumerable: true },
+    hostConfig: {
+      enumerable: true,
+      get() {
+        return hostOverride.getHostConfig();
+      },
+    },
+    resetHostConfig: { enumerable: true, value: hostOverride.resetOverride },
+    setHostConfigForTest: { enumerable: true, value: hostOverride.setOverride },
   });
 };
 
@@ -103,24 +103,24 @@ export const createWalletSettingsKit = <T, K extends string>(opts: {
     const obj = {} as Record<string, unknown>;
     for (const k of keys) {
       Object.defineProperty(obj, k, {
-        get: () => snap(opts.fields[k].dbKey),
         enumerable: true,
+        get: () => snap(opts.fields[k].dbKey),
       });
     }
     Object.defineProperties(obj, {
-      hasDbConfig: {
-        get(): boolean {
-          return keys.every((k) => Boolean(this[k]));
-        },
-        enumerable: true,
-      },
       dbConfig: {
+        enumerable: true,
         get(): T | null {
           const vals = {} as Record<K, string>;
           for (const k of keys) vals[k] = this[k] as string;
           return opts.build(vals);
         },
+      },
+      hasDbConfig: {
         enumerable: true,
+        get(): boolean {
+          return keys.every((k) => Boolean(this[k]));
+        },
       },
     });
     mixinWalletConfigResolution<T>(obj, hostOverride);
@@ -136,8 +136,8 @@ export const createWalletSettingsKit = <T, K extends string>(opts: {
   };
 
   return {
-    getHostConfig: hostOverride.getHostConfig,
     createReadSettings,
     createUpdateSettings,
+    getHostConfig: hostOverride.getHostConfig,
   };
 };

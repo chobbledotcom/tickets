@@ -116,56 +116,56 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     : "Not set";
 
   return {
-    build: {
-      timestamp: BUILD_TIMESTAMP,
-      commit: BUILD_COMMIT,
-    },
     appleWallet: {
+      certValidation: validateAppleWalletCerts(settings.appleWallet.config),
       dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
       passTypeId: resolveWalletPassTypeId(),
       source: resolveWalletSource(),
-      certValidation: validateAppleWalletCerts(settings.appleWallet.config),
     },
-    googleWallet: {
-      dbConfigured: settings.googleWallet.hasDbConfig,
-      envConfigured: googleWalletEnvConfigured,
-      issuerId: resolveGoogleWalletIssuerId(),
-      source: resolveGoogleWalletSource(),
-      privateKeyValid: googleWalletPrivateKeyValid,
-    },
-    payment: {
-      provider: paymentProvider ?? "",
-      keyConfigured,
-      webhookConfigured,
-    },
-    email: {
-      provider: settings.email.provider,
-      apiKeyConfigured: settings.email.hasApiKey,
-      fromAddress: settings.email.fromAddress,
-      hostProvider: hostEmailConfig?.provider ?? "",
-    },
-    ntfy: {
-      configured: !!getEnv("NTFY_URL"),
+    build: {
+      commit: BUILD_COMMIT,
+      timestamp: BUILD_TIMESTAMP,
     },
     bunny: {
-      storageBackend: getStorageBackend(),
       cdnEnabled: bunnyCdnEnabled,
       cdnHostname: bunnyCdnCdnHostname,
       customDomain: bunnyCdnEnabled ? settings.customDomain : "",
       dnsEnabled: isBunnyDnsEnabled(),
-      subdomainSuffix: getBunnyDnsSubdomainSuffix(),
       registeredSubdomain: settings.bunnySubdomain,
+      storageBackend: getStorageBackend(),
+      subdomainSuffix: getBunnyDnsSubdomainSuffix(),
     },
     database: {
       hostConfigured: !!getEnv("DB_URL"),
     },
     domain: getEffectiveDomain(),
+    email: {
+      apiKeyConfigured: settings.email.hasApiKey,
+      fromAddress: settings.email.fromAddress,
+      hostProvider: hostEmailConfig?.provider ?? "",
+      provider: settings.email.provider,
+    },
+    googleWallet: {
+      dbConfigured: settings.googleWallet.hasDbConfig,
+      envConfigured: googleWalletEnvConfigured,
+      issuerId: resolveGoogleWalletIssuerId(),
+      privateKeyValid: googleWalletPrivateKeyValid,
+      source: resolveGoogleWalletSource(),
+    },
     limits: LIMIT_ENTRIES,
+    ntfy: {
+      configured: !!getEnv("NTFY_URL"),
+    },
+    payment: {
+      keyConfigured,
+      provider: paymentProvider ?? "",
+      webhookConfigured,
+    },
     prune: {
+      logins: formatLastPruned(settings.lastPrunedLogins),
       payments: formatLastPruned(settings.lastPrunedPayments),
       sessions: formatLastPruned(settings.lastPrunedSessions),
-      logins: formatLastPruned(settings.lastPrunedLogins),
     },
     theme: settings.theme,
   };

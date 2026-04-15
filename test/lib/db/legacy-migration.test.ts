@@ -214,15 +214,15 @@ describe("db > event_attendees migration from legacy schema", () => {
         return Promise.resolve({
           columns: [],
           columnTypes: [],
+          lastInsertRowid: 0n,
           rows: [],
           rowsAffected: 0,
-          lastInsertRowid: 0n,
           toJSON: () => ({
             columns: [],
             columnTypes: [],
+            lastInsertRowid: "0",
             rows: [],
             rowsAffected: 0,
-            lastInsertRowid: "0",
           }),
         } as ResultSet);
       }
@@ -235,30 +235,30 @@ describe("db > event_attendees migration from legacy schema", () => {
 
     await client.execute(
       insert("events", {
-        id: 1,
         created: "2024-01-01T00:00:00Z",
+        id: 1,
         max_attendees: 100,
         name: "Test Event",
       }),
     );
     await client.execute(
       insert("attendees", {
-        id: 1,
-        event_id: 1,
-        name: "Test User",
-        email: "test@example.com",
-        created: "2024-01-01T00:00:00Z",
-        quantity: 2,
-        date: "2024-06-15",
         checked_in_v2: 0,
-        refunded_v2: 0,
+        created: "2024-01-01T00:00:00Z",
+        date: "2024-06-15",
+        email: "test@example.com",
+        event_id: 1,
+        id: 1,
+        name: "Test User",
         price_paid_v2: 1000,
+        quantity: 2,
+        refunded_v2: 0,
       }),
     );
     await client.execute(
       insert("processed_payments", {
-        payment_session_id: "ps_test_123",
         attendee_id: 1,
+        payment_session_id: "ps_test_123",
         processed_at: "2024-01-01T00:00:00Z",
       }),
     );

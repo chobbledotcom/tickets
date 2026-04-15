@@ -144,8 +144,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows active events with book now links", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
-        name: "Concert",
         maxAttendees: 100,
+        name: "Concert",
       });
       await assertPublicHtml(
         "/events",
@@ -158,8 +158,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows Buy now link for purchase_only events", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Raffle",
         maxAttendees: 100,
+        name: "Raffle",
         purchaseOnly: true,
       });
       const html = await assertPublicHtml("/events", "Raffle", "Buy now");
@@ -169,8 +169,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("does not show inactive events", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
-        name: "Hidden Event",
         maxAttendees: 100,
+        name: "Hidden Event",
       });
       await deactivateTestEvent(event.id);
       const html = await assertPublicHtml("/events", "No events listed.");
@@ -179,7 +179,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("does not show hidden events in public events list", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({ name: "Secret Event", hidden: true });
+      await createTestEvent({ hidden: true, name: "Secret Event" });
       const html = await assertPublicHtml("/events", "No events listed.");
       expect(html).not.toContain("Secret Event");
     });
@@ -187,15 +187,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows non-hidden events alongside hidden ones", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({ name: "Visible Event" });
-      await createTestEvent({ name: "Secret Event", hidden: true });
+      await createTestEvent({ hidden: true, name: "Secret Event" });
       const html = await assertPublicHtml("/events", "Visible Event");
       expect(html).not.toContain("Secret Event");
     });
 
     test("hidden event is still accessible via direct ticket URL", async () => {
       const event = await createTestEvent({
-        name: "Secret Event",
         hidden: true,
+        name: "Secret Event",
       });
       await assertPublicHtml(`/ticket/${event.slug}`, "Secret Event");
     });
@@ -231,9 +231,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         slug: "summer-festival",
       });
       await createTestEvent({
-        name: "Festival Event",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Festival Event",
       });
       await assertPublicHtml(
         "/events",
@@ -246,14 +246,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows group description on events page", async () => {
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({
+        description: "A wonderful summer celebration",
         name: "Described Festival",
         slug: "described-festival",
-        description: "A wonderful summer celebration",
       });
       await createTestEvent({
-        name: "Described Festival Event",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Described Festival Event",
       });
       await assertPublicHtml(
         "/events",
@@ -265,14 +265,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("does not show hidden groups on events page", async () => {
       await settings.update.showPublicSite(true);
       const group = await createTestGroup({
+        hidden: true,
         name: "Secret Group",
         slug: "secret-group",
-        hidden: true,
       });
       await createTestEvent({
-        name: "Visible Event In Hidden Group",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Visible Event In Hidden Group",
       });
       const html = await assertPublicHtml(
         "/events",
@@ -283,14 +283,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("hidden group is still accessible via direct ticket URL", async () => {
       const group = await createTestGroup({
+        hidden: true,
         name: "Hidden Group",
         slug: "hidden-group",
-        hidden: true,
       });
       await createTestEvent({
-        name: "Hidden Group Event",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Hidden Group Event",
       });
       await assertPublicHtml(`/ticket/${group.slug}`, "Hidden Group Event");
     });
@@ -302,13 +302,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         slug: "my-group",
       });
       await createTestEvent({
-        name: "Grouped Event",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Grouped Event",
       });
       await createTestEvent({
-        name: "Ungrouped Event",
         maxAttendees: 50,
+        name: "Ungrouped Event",
       });
       await assertPublicHtml(
         "/events",
@@ -321,13 +321,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows sold out for events at capacity", async () => {
       await settings.update.showPublicSite(true);
       const event = await createTestEvent({
-        name: "Full Event",
         maxAttendees: 1,
+        name: "Full Event",
       });
       await createAttendeeAtomic({
-        name: "Attendee",
-        email: "a@test.com",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "a@test.com",
+        name: "Attendee",
       });
       const html = await assertPublicHtml("/events", "Sold Out");
       expect(html).not.toContain(`href="/ticket/${event.slug}"`);
@@ -337,9 +337,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.showPublicSite(true);
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       await createTestEvent({
-        name: "Closed Event",
-        maxAttendees: 100,
         closesAt: pastDate,
+        maxAttendees: 100,
+        name: "Closed Event",
       });
       await assertPublicHtml("/events", "Registration Closed");
     });
@@ -347,9 +347,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows event location when set", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Located Event",
-        maxAttendees: 100,
         location: "Town Hall",
+        maxAttendees: 100,
+        name: "Located Event",
       });
       await assertPublicHtml("/events", "Town Hall");
     });
@@ -357,9 +357,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows event date when set", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Dated Event",
-        maxAttendees: 100,
         date: "2026-06-15T14:00",
+        maxAttendees: 100,
+        name: "Dated Event",
       });
       await assertPublicHtml("/events", "2026");
     });
@@ -367,9 +367,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows event description when set", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({
-        name: "Described Event",
-        maxAttendees: 100,
         description: "A great event",
+        maxAttendees: 100,
+        name: "Described Event",
       });
       await assertPublicHtml("/events", "A great event");
     });
@@ -377,7 +377,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows website title on events page", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.websiteTitle("My Events Site");
-      await createTestEvent({ name: "Concert", maxAttendees: 100 });
+      await createTestEvent({ maxAttendees: 100, name: "Concert" });
       await assertPublicHtml("/events", "My Events Site");
     });
 
@@ -502,8 +502,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 for non-GET requests to /health", async () => {
       const response = await awaitTestRequest("/health", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -528,8 +528,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 for non-GET requests to /robots.txt", async () => {
       const response = await awaitTestRequest("/robots.txt", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -554,8 +554,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 for non-GET requests to /favicon.ico", async () => {
       const response = await awaitTestRequest("/favicon.ico", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -582,8 +582,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 for non-GET requests to /mvp.css", async () => {
       const response = await awaitTestRequest("/mvp.css", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -610,8 +610,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 for non-GET requests to /admin.js", async () => {
       const response = await awaitTestRequest("/admin.js", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -637,8 +637,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 for non-GET requests to /embed.js", async () => {
       const response = await awaitTestRequest("/embed.js", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -730,8 +730,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("includes OpenGraph meta tags", async () => {
       const event = await createTestEvent({
-        name: "Birthday Party",
         maxAttendees: 50,
+        name: "Birthday Party",
         thankYouUrl: "https://example.com",
       });
       await assertPublicHtml(
@@ -744,9 +744,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows description when event has one", async () => {
       const event = await createTestEvent({
+        description: "A <b>great</b> event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
-        description: "A <b>great</b> event",
       });
       await assertPublicHtml(
         `/ticket/${event.slug}`,
@@ -757,10 +757,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows date and location when event has them", async () => {
       const event = await createTestEvent({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
         date: "2026-06-15T14:00",
         location: "Village Hall",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
       });
       await assertPublicHtml(
         `/ticket/${event.slug}`,
@@ -805,9 +805,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("hides header and description in iframe mode", async () => {
       const event = await createTestEvent({
+        description: "A <b>great</b> event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
-        description: "A <b>great</b> event",
       });
       const html = await assertPublicHtml(
         `/ticket/${event.slug}?iframe=true`,
@@ -820,9 +820,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows header and description without iframe param", async () => {
       const event = await createTestEvent({
+        description: "A <b>great</b> event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
-        description: "A <b>great</b> event",
       });
       const html = await assertPublicHtml(
         `/ticket/${event.slug}`,
@@ -870,8 +870,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}?iframe=true`, {
-          name: "Test User",
           email: "test@example.com",
+          name: "Test User",
           [`quantity_${event.id}`]: "1",
           csrf_token: csrfToken!,
         }),
@@ -883,8 +883,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}?iframe=true`, {
-          name: "Test",
           csrf_token: "wrong-token",
+          name: "Test",
         }),
       );
       expect(response.status).toBe(302);
@@ -920,8 +920,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       // POST without any cookie - signed tokens are the only CSRF mechanism
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}`, {
-          name: "Test User",
           email: "test@example.com",
+          name: "Test User",
           [`quantity_${event.id}`]: "1",
           csrf_token: signedToken,
         }),
@@ -933,8 +933,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}?iframe=true`, {
-          name: "Test",
           csrf_token: "wrong-token",
+          name: "Test",
         }),
       );
       // Now redirects with flash error instead of rendering a 403 page
@@ -952,14 +952,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         slug: "public-group",
       });
       const event1 = await createTestEvent({
-        name: "Group Event 1",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Group Event 1",
       });
       const event2 = await createTestEvent({
-        name: "Group Event 2",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Group Event 2",
       });
 
       await assertPublicHtml(
@@ -977,19 +977,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows group name and description on multi-event group page", async () => {
       const group = await createTestGroup({
+        description: "A wonderful festival with multiple events",
         name: "Festival Group",
         slug: "festival-group",
-        description: "A wonderful festival with multiple events",
       });
       await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 50,
         name: "Festival Event A",
-        groupId: group.id,
-        maxAttendees: 50,
       });
       await createTestEvent({
-        name: "Festival Event B",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Festival Event B",
       });
 
       await assertPublicHtml(
@@ -1005,9 +1005,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         slug: "empty-group",
       });
       const event = await createTestEvent({
-        name: "Inactive In Group",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Inactive In Group",
       });
       await deactivateTestEvent(event.id);
 
@@ -1025,9 +1025,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         termsAndConditions: "GROUP TERMS UNIQUE",
       });
       await createTestEvent({
-        name: "Terms Event",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Terms Event",
       });
 
       const response = await handleRequest(
@@ -1046,9 +1046,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         termsAndConditions: "",
       });
       await createTestEvent({
-        name: "Fallback Event",
         groupId: group.id,
         maxAttendees: 50,
+        name: "Fallback Event",
       });
 
       const response = await handleRequest(
@@ -1064,22 +1064,22 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         slug: "daily-group",
       });
       await createTestEvent({
-        name: "Daily A",
+        bookableDays: ["Monday"],
+        eventType: "daily",
         groupId: group.id,
         maxAttendees: 10,
-        eventType: "daily",
-        bookableDays: ["Monday"],
-        minimumDaysBefore: 0,
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+        name: "Daily A",
       });
       await createTestEvent({
-        name: "Daily B",
+        bookableDays: ["Monday", "Tuesday"],
+        eventType: "daily",
         groupId: group.id,
         maxAttendees: 10,
-        eventType: "daily",
-        bookableDays: ["Monday", "Tuesday"],
-        minimumDaysBefore: 0,
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+        name: "Daily B",
       });
 
       await assertPublicHtml(
@@ -1094,8 +1094,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("returns 404 for non-existent slug", async () => {
       const response = await handleRequest(
         mockFormRequest("/ticket/non-existent", {
-          name: "John",
           email: "john@example.com",
+          name: "John",
         }),
       );
       expect(response.status).toBe(404);
@@ -1107,16 +1107,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         slug: "post-group",
       });
       const event1 = await createTestEvent({
-        name: "Post Group Event 1",
         groupId: group.id,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Post Group Event 1",
       });
       const event2 = await createTestEvent({
-        name: "Post Group Event 2",
         groupId: group.id,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Post Group Event 2",
       });
 
       const getResponse = await handleRequest(
@@ -1129,8 +1129,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           `/ticket/${group.slug}`,
           {
-            name: "Group User",
             email: "group@example.com",
+            name: "Group User",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "2",
             csrf_token: csrfToken,
@@ -1151,21 +1151,21 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("rejects group registration when group capacity exceeded", async () => {
       const group = await createTestGroup({
+        maxAttendees: 3,
         name: "Cap Group",
         slug: "cap-group",
-        maxAttendees: 3,
       });
       const event1 = await createTestEvent({
-        name: "Cap Event 1",
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 5,
+        name: "Cap Event 1",
       });
       const event2 = await createTestEvent({
-        name: "Cap Event 2",
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 5,
+        name: "Cap Event 2",
       });
 
       // First booking: 2 on event1 — should succeed (group: 2/3)
@@ -1178,8 +1178,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           `/ticket/${group.slug}`,
           {
-            name: "First User",
             email: "first@example.com",
+            name: "First User",
             [`quantity_${event1.id}`]: "2",
             [`quantity_${event2.id}`]: "0",
             csrf_token: csrfToken1,
@@ -1199,8 +1199,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           `/ticket/${group.slug}`,
           {
-            name: "Second User",
             email: "second@example.com",
+            name: "Second User",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken2,
@@ -1227,8 +1227,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await deactivateTestEvent(event.id);
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}`, {
-          name: "John",
           email: "john@example.com",
+          name: "John",
         }),
       );
       expect(response.status).toBe(404);
@@ -1241,8 +1241,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}`, {
-          name: "John",
           email: "john@example.com",
+          name: "John",
         }),
       );
       expect(response.status).toBe(302);
@@ -1260,8 +1260,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}`, {
-          name: "John Doe",
           email: "john@example.com",
+          name: "John Doe",
         }),
       );
       expect(response.status).toBe(302);
@@ -1280,8 +1280,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       // First: POST with invalid CSRF to save form data
       await handleRequest(
         mockFormRequest(`/ticket/${event.slug}`, {
-          name: "Stale Name",
           email: "stale@example.com",
+          name: "Stale Name",
         }),
       );
       // Second: GET the same page — stale values must not appear
@@ -1300,13 +1300,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       // First: POST with missing name to trigger validation error
       await submitTicketForm(event.slug, {
-        name: "",
         email: "first@example.com",
+        name: "",
       });
       // Second: POST with different data and its own validation error
       const response = await submitTicketForm(event.slug, {
-        name: "",
         email: "second@example.com",
+        name: "",
       });
       // Now redirects with flash error
       expect(response.status).toBe(302);
@@ -1323,8 +1323,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "",
         email: "",
+        name: "",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -1340,8 +1340,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "   ",
         email: "john@example.com",
+        name: "   ",
       });
       expect(response.status).toBe(302);
     });
@@ -1352,8 +1352,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "John",
         email: "   ",
+        name: "John",
       });
       expect(response.status).toBe(302);
     });
@@ -1364,8 +1364,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com/thanks",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
       expectRedirect(response, "https://example.com/thanks");
     });
@@ -1377,8 +1377,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "Jane Doe",
         email: "jane@example.com",
+        name: "Jane Doe",
       });
       expect(response.status).toBe(302);
       const location = response.headers.get("location") || "";
@@ -1396,13 +1396,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       await submitTicketForm(event.slug, {
-        name: "John",
         email: "john@example.com",
+        name: "John",
       });
 
       const response = await submitTicketForm(event.slug, {
-        name: "Jane",
         email: "jane@example.com",
+        name: "Jane",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -1434,12 +1434,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows ticket page for multiple existing events", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Event 1",
         maxAttendees: 50,
+        name: "Multi Event 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Event 2",
         maxAttendees: 100,
+        name: "Multi Event 2",
       });
       await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -1452,14 +1452,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows description beneath each event in ticket page", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Desc 1",
-        maxAttendees: 50,
         description: "First event info",
+        maxAttendees: 50,
+        name: "Multi Desc 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Desc 2",
-        maxAttendees: 100,
         description: "Second event info",
+        maxAttendees: 100,
+        name: "Multi Desc 2",
       });
       await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -1470,12 +1470,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("omits description div in ticket when description is empty", async () => {
       const event1 = await createTestEvent({
-        name: "Multi No Desc",
         maxAttendees: 50,
+        name: "Multi No Desc",
       });
       const event2 = await createTestEvent({
-        name: "Multi No Desc 2",
         maxAttendees: 100,
+        name: "Multi No Desc 2",
       });
       const html = await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -1486,18 +1486,18 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows sold-out label for full events", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Available",
         maxAttendees: 50,
+        name: "Multi Available",
       });
       const event2 = await createTestEvent({
-        name: "Multi Full",
         maxAttendees: 1,
+        name: "Multi Full",
       });
       // Fill up event2
       await createAttendeeAtomic({
-        name: "John",
-        email: "john@example.com",
         bookings: [{ eventId: event2.id, quantity: 1 }],
+        email: "john@example.com",
+        name: "John",
       });
 
       await assertPublicHtml(
@@ -1508,19 +1508,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows description for sold-out event in ticket page", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Avail Desc",
-        maxAttendees: 50,
         description: "Available desc",
+        maxAttendees: 50,
+        name: "Multi Avail Desc",
       });
       const event2 = await createTestEvent({
-        name: "Multi Full Desc",
-        maxAttendees: 1,
         description: "Sold out desc",
+        maxAttendees: 1,
+        name: "Multi Full Desc",
       });
       await createAttendeeAtomic({
-        name: "Jane",
-        email: "jane@example.com",
         bookings: [{ eventId: event2.id, quantity: 1 }],
+        email: "jane@example.com",
+        name: "Jane",
       });
 
       await assertPublicHtml(
@@ -1533,12 +1533,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("filters out inactive events", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Active",
         maxAttendees: 50,
+        name: "Multi Active",
       });
       const event2 = await createTestEvent({
-        name: "Multi Inactive",
         maxAttendees: 50,
+        name: "Multi Inactive",
       });
       await deactivateTestEvent(event2.id);
 
@@ -1553,12 +1553,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns 404 when all events are inactive", async () => {
       const event1 = await createTestEvent({
-        name: "All Inactive 1",
         maxAttendees: 50,
+        name: "All Inactive 1",
       });
       const event2 = await createTestEvent({
-        name: "All Inactive 2",
         maxAttendees: 50,
+        name: "All Inactive 2",
       });
       await deactivateTestEvent(event1.id);
       await deactivateTestEvent(event2.id);
@@ -1571,14 +1571,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("preserves slug order instead of sorting events", async () => {
       const event1 = await createTestEvent({
-        name: "Zebra Event",
-        maxAttendees: 50,
         date: "2026-12-01",
+        maxAttendees: 50,
+        name: "Zebra Event",
       });
       const event2 = await createTestEvent({
-        name: "Alpha Event",
-        maxAttendees: 50,
         date: "2026-01-01",
+        maxAttendees: 50,
+        name: "Alpha Event",
       });
       // Request with Zebra first, Alpha second — opposite of sort order
       const response = await handleRequest(
@@ -1637,8 +1637,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`${path}?iframe=true`, {
-          name: "Test User",
           email: "test@example.com",
+          name: "Test User",
           [`quantity_${event1.id}`]: "1",
           [`quantity_${event2.id}`]: "1",
           csrf_token: signedToken,
@@ -1667,8 +1667,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("returns 404 when no valid events", async () => {
       const response = await handleRequest(
         mockFormRequest("/ticket/nonexistent1+nonexistent2", {
-          name: "John",
           email: "john@example.com",
+          name: "John",
         }),
       );
       expect(response.status).toBe(404);
@@ -1676,16 +1676,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("validates name is required", async () => {
       const event1 = await createTestEvent({
-        name: "Post Multi 1",
         maxAttendees: 50,
+        name: "Post Multi 1",
       });
       const event2 = await createTestEvent({
-        name: "Post Multi 2",
         maxAttendees: 50,
+        name: "Post Multi 2",
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
-        name: "",
         email: "john@example.com",
+        name: "",
         [`quantity_${event1.id}`]: "1",
       });
       expect(response.status).toBe(302);
@@ -1694,16 +1694,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("requires at least one ticket selected", async () => {
       const event1 = await createTestEvent({
-        name: "Post Multi Empty 1",
         maxAttendees: 50,
+        name: "Post Multi Empty 1",
       });
       const event2 = await createTestEvent({
-        name: "Post Multi Empty 2",
         maxAttendees: 50,
+        name: "Post Multi Empty 2",
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "0",
         [`quantity_${event2.id}`]: "0",
       });
@@ -1717,18 +1717,18 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("creates attendees for selected free events", async () => {
       const event1 = await createTestEvent({
-        name: "Post Multi Free 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Post Multi Free 1",
       });
       const event2 = await createTestEvent({
-        name: "Post Multi Free 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Post Multi Free 2",
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "2",
         [`quantity_${event2.id}`]: "1",
       });
@@ -1746,16 +1746,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("only registers for events with quantity > 0", async () => {
       const event1 = await createTestEvent({
-        name: "Post Multi Partial 1",
         maxAttendees: 50,
+        name: "Post Multi Partial 1",
       });
       const event2 = await createTestEvent({
-        name: "Post Multi Partial 2",
         maxAttendees: 50,
+        name: "Post Multi Partial 2",
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "0",
       });
@@ -1771,18 +1771,18 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("caps quantity at max purchasable", async () => {
       const event1 = await createTestEvent({
-        name: "Post Multi Cap 1",
         maxAttendees: 3,
         maxQuantity: 2,
+        name: "Post Multi Cap 1",
       });
       const event2 = await createTestEvent({
-        name: "Post Multi Cap 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Post Multi Cap 2",
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "10", // Request more than max
         [`quantity_${event2.id}`]: "0",
       });
@@ -1835,9 +1835,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows email notice when email sending is configured", async () => {
       const restore = setTestEnv({
-        HOST_EMAIL_PROVIDER: "resend",
         HOST_EMAIL_API_KEY: "re_test123",
         HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
+        HOST_EMAIL_PROVIDER: "resend",
       });
       try {
         await assertPublicHtml(
@@ -1867,8 +1867,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
 
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
       // Should redirect to success page
       expectReservedRedirectWithTokens(response);
@@ -1888,8 +1888,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}?iframe=true`, {
-          name: "Jane Doe",
           email: "jane@example.com",
+          name: "Jane Doe",
           [`quantity_${event.id}`]: "1",
           csrf_token: csrfToken!,
         }),
@@ -1910,16 +1910,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Paid 1",
         maxAttendees: 50,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Multi Paid 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Paid 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Multi Paid 2",
+        unitPrice: 1000,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -1931,8 +1931,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "2",
             csrf_token: csrfToken,
@@ -1952,16 +1952,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Nosel 1",
         maxAttendees: 50,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Multi Nosel 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Nosel 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Multi Nosel 2",
+        unitPrice: 1000,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -1974,8 +1974,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "0",
             [`quantity_${event2.id}`]: "0",
             csrf_token: csrfToken,
@@ -1996,14 +1996,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("ticket free flow (capacity exceeded)", () => {
     test("shows error when free ticket atomic create fails capacity", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Free Cap 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Free Cap 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Free Cap 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Free Cap 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2015,8 +2015,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
-          success: false as const,
           reason: "capacity_exceeded" as const,
+          success: false as const,
         }),
       );
 
@@ -2025,8 +2025,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           mockFormRequest(
             path,
             {
-              name: "John Doe",
               email: "john@example.com",
+              name: "John Doe",
               [`quantity_${event1.id}`]: "1",
               [`quantity_${event2.id}`]: "1",
               csrf_token: csrfToken,
@@ -2048,14 +2048,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("ticket free registration succeeds for both events", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Free Ok 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Free Ok 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Free Ok 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Free Ok 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2067,8 +2067,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "Multi Free User",
             email: "multifree@example.com",
+            name: "Multi Free User",
             [`quantity_${event1.id}`]: "2",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2093,12 +2093,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("POST /ticket/:slug1+:slug2 (unsupported method)", () => {
     test("returns 404 for PUT on ticket route", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Put 1",
         maxAttendees: 50,
+        name: "Multi Put 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Put 2",
         maxAttendees: 50,
+        name: "Multi Put 2",
       });
       const response = await awaitTestRequest(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -2111,9 +2111,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("routes/public.ts (additional coverage)", () => {
     test("ticket form with phone-only fields (no email field) works", async () => {
       const event = await createTestEvent({
+        fields: "phone",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
-        fields: "phone",
       });
 
       const response = await submitTicketForm(event.slug, {
@@ -2127,14 +2127,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("ticket form with invalid quantity rejects submission", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
         maxQuantity: 5,
+        thankYouUrl: "https://example.com/thanks",
       });
 
       // Submit with non-numeric quantity — parsed as 0, rejected
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event.id}`]: "abc",
       });
       expect(response.status).toBe(302);
@@ -2147,21 +2147,21 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("skips sold-out events in quantity parsing", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Soldout Parse 1",
         maxAttendees: 1,
         maxQuantity: 1,
+        name: "Multi Soldout Parse 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Soldout Parse 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Soldout Parse 2",
       });
 
       // Fill up event1 to make it sold out
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
         bookings: [{ eventId: event1.id, quantity: 1 }],
+        email: "first@example.com",
+        name: "First",
       });
 
       // GET the ticket page (sold-out event will show Sold Out label)
@@ -2179,8 +2179,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2193,14 +2193,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("ticket with invalid quantity form value falls back to 0", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Invalid Qty 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Invalid Qty 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Invalid Qty 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Invalid Qty 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2213,8 +2213,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "abc",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2236,24 +2236,24 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Avail 1",
         maxAttendees: 1,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Multi Avail 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Avail 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Multi Avail 2",
+        unitPrice: 1000,
       });
 
       // Fill event1
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event1.id }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2266,8 +2266,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
           },
@@ -2295,19 +2295,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("routes/public.ts (ticket CSRF)", () => {
     test("ticket POST rejects invalid CSRF token", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Csrf 1",
         maxAttendees: 50,
+        name: "Multi Csrf 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Csrf 2",
         maxAttendees: 50,
+        name: "Multi Csrf 2",
       });
 
       // POST without getting CSRF token first
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event1.slug}+${event2.slug}`, {
-          name: "John",
           email: "john@example.com",
+          name: "John",
         }),
       );
       expect(response.status).toBe(302);
@@ -2324,16 +2324,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Noprov 1",
         maxAttendees: 50,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Multi Noprov 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Noprov 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Multi Noprov 2",
+        unitPrice: 1000,
       });
 
       // Now clear the provider to simulate no provider
@@ -2349,8 +2349,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2368,12 +2368,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("POST ticket capacity check via atomic create", () => {
     test("shows error for free ticket when atomic create fails", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Free Atomic 1",
         maxAttendees: 50,
+        name: "Multi Free Atomic 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Free Atomic 2",
         maxAttendees: 50,
+        name: "Multi Free Atomic 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2386,8 +2386,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const originalFn = attendeesApi.createAttendeeAtomic;
       attendeesApi.createAttendeeAtomic = () =>
         Promise.resolve({
-          success: false as const,
           reason: "capacity_exceeded" as const,
+          success: false as const,
         });
 
       try {
@@ -2395,8 +2395,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           mockFormRequest(
             path,
             {
-              name: "John Doe",
               email: "john@example.com",
+              name: "John Doe",
               [`quantity_${event1.id}`]: "1",
               [`quantity_${event2.id}`]: "1",
               csrf_token: csrfToken,
@@ -2425,13 +2425,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Paid Flow 1",
         maxAttendees: 50,
+        name: "Multi Paid Flow 1",
         unitPrice: 1000,
       });
       const event2 = await createTestEvent({
-        name: "Multi Paid Flow 2",
         maxAttendees: 50,
+        name: "Multi Paid Flow 2",
         unitPrice: 500,
       });
 
@@ -2444,8 +2444,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2463,13 +2463,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Nourl 1",
         maxAttendees: 50,
+        name: "Multi Nourl 1",
         unitPrice: 1000,
       });
       const event2 = await createTestEvent({
-        name: "Multi Nourl 2",
         maxAttendees: 50,
+        name: "Multi Nourl 2",
         unitPrice: 500,
       });
 
@@ -2491,8 +2491,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           mockFormRequest(
             path,
             {
-              name: "John Doe",
               email: "john@example.com",
+              name: "John Doe",
               [`quantity_${event1.id}`]: "1",
               [`quantity_${event2.id}`]: "1",
               csrf_token: csrfToken,
@@ -2515,13 +2515,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Valerr 1",
         maxAttendees: 50,
+        name: "Multi Valerr 1",
         unitPrice: 1000,
       });
       const event2 = await createTestEvent({
-        name: "Multi Valerr 2",
         maxAttendees: 50,
+        name: "Multi Valerr 2",
         unitPrice: 500,
       });
 
@@ -2542,8 +2542,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           mockFormRequest(
             path,
             {
-              name: "John Doe",
               email: "john@example.com",
+              name: "John Doe",
               [`quantity_${event1.id}`]: "1",
               [`quantity_${event2.id}`]: "1",
               csrf_token: csrfToken,
@@ -2564,19 +2564,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("skips sold-out events in quantity parsing", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Soldout 1",
         maxAttendees: 1,
+        name: "Multi Soldout 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Soldout 2",
         maxAttendees: 50,
+        name: "Multi Soldout 2",
       });
 
       // Fill event1 to capacity
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
         bookings: [{ eventId: event1.id, quantity: 1 }],
+        email: "first@example.com",
+        name: "First",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2589,8 +2589,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2612,15 +2612,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
-          success: false,
           reason: "encryption_error",
+          success: false,
         }),
       );
 
       try {
         const response = await submitTicketForm(event.slug, {
-          name: "John Doe",
           email: "john@example.com",
+          name: "John Doe",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -2661,14 +2661,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("routes/public.ts (ticket quantity field missing from form)", () => {
     test("defaults to 0 when quantity field is absent from ticket form", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Nofield 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Nofield 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Nofield 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Nofield 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2681,8 +2681,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
           },
@@ -2709,16 +2709,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Avail Race 1",
         maxAttendees: 50,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Multi Avail Race 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Avail Race 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Multi Avail Race 2",
+        unitPrice: 1000,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2738,8 +2738,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           mockFormRequest(
             path,
             {
-              name: "John Doe",
               email: "john@example.com",
+              name: "John Doe",
               [`quantity_${event1.id}`]: "1",
               [`quantity_${event2.id}`]: "1",
               csrf_token: csrfToken,
@@ -2768,8 +2768,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("returns popup page instead of redirect for single-ticket paid event in iframe", async () => {
       await setupStripe();
       const event = await createTestEvent({
-        name: "Iframe Paid Single",
         maxAttendees: 50,
+        name: "Iframe Paid Single",
         unitPrice: 1000,
       });
 
@@ -2782,8 +2782,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event.id}`]: "1",
             csrf_token: csrfToken,
           },
@@ -2803,14 +2803,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("returns 302 redirect for single-ticket paid event without iframe", async () => {
       await setupStripe();
       const event = await createTestEvent({
-        name: "Non-iframe Paid Single",
         maxAttendees: 50,
+        name: "Non-iframe Paid Single",
         unitPrice: 1000,
       });
 
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
 
       expect(response.status).toBe(302);
@@ -2822,16 +2822,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("returns popup page for ticket paid event in iframe", async () => {
       await setupStripe();
       const event1 = await createTestEvent({
-        name: "Iframe Multi 1",
         maxAttendees: 50,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Iframe Multi 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Iframe Multi 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Iframe Multi 2",
+        unitPrice: 1000,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}?iframe=true`;
@@ -2843,8 +2843,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -2872,16 +2872,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Noprov Miss 1",
         maxAttendees: 50,
-        unitPrice: 500,
         maxQuantity: 5,
+        name: "Multi Noprov Miss 1",
+        unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Noprov Miss 2",
         maxAttendees: 50,
-        unitPrice: 1000,
         maxQuantity: 5,
+        name: "Multi Noprov Miss 2",
+        unitPrice: 1000,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2903,8 +2903,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           mockFormRequest(
             path,
             {
-              name: "John Doe",
               email: "john@example.com",
+              name: "John Doe",
               [`quantity_${event1.id}`]: "1",
               [`quantity_${event2.id}`]: "1",
               csrf_token: csrfToken,
@@ -2980,8 +2980,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           `/ticket/${event.slug}`,
           {
-            name: "Test User",
             email: "test@example.com",
+            name: "Test User",
             [`quantity_${event.id}`]: "1",
             csrf_token: csrfToken,
           },
@@ -3046,8 +3046,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           `/ticket/${event1.slug}+${event2.slug}`,
           {
-            name: "Test User",
             email: "test@example.com",
+            name: "Test User",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -3072,7 +3072,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("GET shows date selector for daily event", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3082,8 +3081,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       await assertPublicHtml(
         `/ticket/${event.slug}`,
@@ -3096,10 +3096,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       // Create a daily event where minimum_days_before > maximum_days_after
       // so the date range is empty (start > end)
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: ["Monday"],
-        minimumDaysBefore: 30,
+        eventType: "daily",
         maximumDaysAfter: 7,
+        minimumDaysBefore: 30,
       });
       await assertPublicHtml(
         `/ticket/${event.slug}`,
@@ -3109,7 +3109,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST succeeds for free daily event with valid date", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3119,20 +3118,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const response = await submitTicketForm(event.slug, {
-        name: "Daily User",
-        email: "daily@example.com",
         date: validDate,
+        email: "daily@example.com",
+        name: "Daily User",
       });
       expectRedirect(response, "https://example.com/thanks");
     });
 
     test("POST rejects daily event with missing date", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3142,12 +3141,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const response = await submitTicketForm(event.slug, {
-        name: "Daily User",
         email: "daily@example.com",
+        name: "Daily User",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -3159,7 +3159,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST rejects daily event with invalid date", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3169,13 +3168,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const response = await submitTicketForm(event.slug, {
-        name: "Daily User",
-        email: "daily@example.com",
         date: "2099-01-01",
+        email: "daily@example.com",
+        name: "Daily User",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -3187,7 +3187,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST checks per-date capacity for daily events", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3197,23 +3196,24 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
+        eventType: "daily",
         maxAttendees: 1,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       // Fill up the date
       await submitTicketForm(event.slug, {
-        name: "First User",
-        email: "first@example.com",
         date: validDate,
+        email: "first@example.com",
+        name: "First User",
       });
 
       // Second booking for same date should fail
       const response = await submitTicketForm(event.slug, {
-        name: "Second User",
-        email: "second@example.com",
         date: validDate,
+        email: "second@example.com",
+        name: "Second User",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -3225,7 +3225,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST allows booking different dates at capacity", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3235,25 +3234,26 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
+        eventType: "daily",
         maxAttendees: 1,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       // Book first date
       const response1 = await submitTicketForm(event.slug, {
-        name: "First User",
-        email: "first@example.com",
         date: validDate,
+        email: "first@example.com",
+        name: "First User",
       });
       expect(response1.status).toBe(302);
 
       // Book different date should succeed
       const otherDate = addDays(todayInTz("UTC"), 2);
       const response2 = await submitTicketForm(event.slug, {
-        name: "Second User",
-        email: "second@example.com",
         date: otherDate,
+        email: "second@example.com",
+        name: "Second User",
       });
       expect(response2.status).toBe(302);
     });
@@ -3262,7 +3262,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3272,8 +3271,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         unitPrice: 500,
       });
 
@@ -3287,10 +3287,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           `/ticket/${event.slug}`,
           {
-            name: "Paid Daily User",
-            email: "paid@example.com",
-            date: validDate,
             csrf_token: csrfToken,
+            date: validDate,
+            email: "paid@example.com",
+            name: "Paid Daily User",
           },
           `csrf_token=${csrfToken}`,
         ),
@@ -3305,13 +3305,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("daily event excludes holiday dates", async () => {
       // Create a holiday covering tomorrow
       await createTestHoliday({
+        endDate: validDate,
         name: "Test Holiday",
         startDate: validDate,
-        endDate: validDate,
       });
 
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3321,8 +3320,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const html = await assertPublicHtml(`/ticket/${event.slug}`);
       // The holiday date should not appear as an option
@@ -3335,7 +3335,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("GET shows date selector for ticket with daily events", async () => {
       const event1 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3345,11 +3344,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const event2 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3359,8 +3358,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -3371,7 +3371,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST rejects ticket daily event without date", async () => {
       const event1 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3381,11 +3380,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const event2 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3395,8 +3394,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -3408,8 +3408,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "Test User",
             email: "test@example.com",
+            name: "Test User",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -3427,7 +3427,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST succeeds for free ticket daily events with valid date", async () => {
       const event1 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3437,11 +3436,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const event2 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3451,8 +3450,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -3464,9 +3464,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "Multi Daily User",
-            email: "multidaily@example.com",
             date: validDate,
+            email: "multidaily@example.com",
+            name: "Multi Daily User",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -3481,7 +3481,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3491,12 +3490,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3506,8 +3505,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         unitPrice: 300,
       });
 
@@ -3520,9 +3520,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "Multi Daily Paid",
-            email: "multipaid@example.com",
             date: validDate,
+            email: "multipaid@example.com",
+            name: "Multi Daily Paid",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -3539,14 +3539,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows date and location on ticket page when events have them", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Date 1",
-        maxAttendees: 50,
         date: "2026-06-15T14:00",
         location: "Village Hall",
+        maxAttendees: 50,
+        name: "Multi Date 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Date 2",
         maxAttendees: 50,
+        name: "Multi Date 2",
       });
       // Event 1 has date and location, event 2 does not
       await assertPublicHtml(
@@ -3560,13 +3560,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       // event1: only bookable on Monday, event2: bookable all days
       // Shared dates should only be Mondays
       const event1 = await createTestEvent({
-        eventType: "daily",
         bookableDays: ["Monday"],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const event2 = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3576,8 +3575,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       // Should contain Monday dates but not Tuesday dates
       const html = await assertPublicHtml(
@@ -3612,8 +3612,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -3631,9 +3631,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com/thanks",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
-        email: "john@example.com",
         agree_terms: "1",
+        email: "john@example.com",
+        name: "John Doe",
       });
       expectRedirect(response, "https://example.com/thanks");
     });
@@ -3644,8 +3644,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com/thanks",
       });
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
       expectRedirect(response, "https://example.com/thanks");
     });
@@ -3656,12 +3656,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.terms("Multi-event terms apply.");
 
       const event1 = await createTestEvent({
-        name: "TC Multi 1",
         maxAttendees: 50,
+        name: "TC Multi 1",
       });
       const event2 = await createTestEvent({
-        name: "TC Multi 2",
         maxAttendees: 50,
+        name: "TC Multi 2",
       });
       await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -3674,12 +3674,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.terms("Must agree to policy.");
 
       const event1 = await createTestEvent({
-        name: "TC Multi Rej 1",
         maxAttendees: 50,
+        name: "TC Multi Rej 1",
       });
       const event2 = await createTestEvent({
-        name: "TC Multi Rej 2",
         maxAttendees: 50,
+        name: "TC Multi Rej 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -3691,8 +3691,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             csrf_token: csrfToken,
@@ -3712,12 +3712,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.terms("Must agree to policy.");
 
       const event1 = await createTestEvent({
-        name: "TC Multi Ok 1",
         maxAttendees: 50,
+        name: "TC Multi Ok 1",
       });
       const event2 = await createTestEvent({
-        name: "TC Multi Ok 2",
         maxAttendees: 50,
+        name: "TC Multi Ok 2",
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -3729,8 +3729,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockFormRequest(
           path,
           {
-            name: "John Doe",
             email: "john@example.com",
+            name: "John Doe",
             [`quantity_${event1.id}`]: "1",
             [`quantity_${event2.id}`]: "1",
             agree_terms: "1",
@@ -3750,9 +3750,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     const payMoreEvent = (overrides: Record<string, unknown> = {}) =>
       createTestEvent({
-        unitPrice: 1000,
         canPayMore: true,
         maxAttendees: 50,
+        unitPrice: 1000,
         ...overrides,
       });
 
@@ -3771,8 +3771,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("GET does not show price input when can_pay_more is disabled", async () => {
       const event = await createTestEvent({
-        unitPrice: 1000,
         maxAttendees: 50,
+        unitPrice: 1000,
       });
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
@@ -3809,10 +3809,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await submitTicketForm(event.slug, {
-        name: "Donor",
-        email: "donor@example.com",
-        quantity: "1",
         custom_price: "5.00",
+        email: "donor@example.com",
+        name: "Donor",
+        quantity: "1",
       });
       expectCheckoutRedirect(response);
     });
@@ -3820,10 +3820,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST free can_pay_more with empty price registers for free", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await submitTicketForm(event.slug, {
-        name: "Freebie",
-        email: "free@example.com",
-        quantity: "1",
         custom_price: "",
+        email: "free@example.com",
+        name: "Freebie",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       const location = response.headers.get("location") || "";
@@ -3836,10 +3836,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST free can_pay_more with zero price registers for free", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await submitTicketForm(event.slug, {
-        name: "Freebie",
-        email: "free@example.com",
-        quantity: "1",
         custom_price: "0",
+        email: "free@example.com",
+        name: "Freebie",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       const location = response.headers.get("location") || "";
@@ -3852,10 +3852,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST rejects price below minimum", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "5.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("minimum"), false);
@@ -3865,10 +3865,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "10.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expectCheckoutRedirect(response);
     });
@@ -3877,10 +3877,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "25.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expectCheckoutRedirect(response);
     });
@@ -3888,10 +3888,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST rejects price above maximum", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "150.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("maximum"), false);
@@ -3900,10 +3900,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST preserves form values when price exceeds maximum", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Preserved Name",
-        email: "preserved@example.com",
-        quantity: "1",
         custom_price: "150.00",
+        email: "preserved@example.com",
+        name: "Preserved Name",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("maximum"), false);
@@ -3913,10 +3913,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "100.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expectCheckoutRedirect(response);
     });
@@ -3942,10 +3942,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST rejects empty custom_price for paid can_pay_more event", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("enter a price"), false);
@@ -3954,10 +3954,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST rejects invalid custom_price", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "abc",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("valid price"), false);
@@ -3966,10 +3966,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST rejects negative custom_price", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "-5.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("valid price"), false);
@@ -3981,9 +3981,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
+        maxAttendees: 50,
         name: "Normal Multi",
         unitPrice: 1000,
-        maxAttendees: 50,
       });
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
@@ -3996,20 +3996,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST ticket with can_pay_more redirects to checkout", async () => {
       await setupStripe();
       const event1 = await payMoreEvent({
+        maxQuantity: 5,
         name: "Pay More A",
         unitPrice: 500,
-        maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        name: "Normal B",
-        unitPrice: 1000,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Normal B",
+        unitPrice: 1000,
       });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "15.00",
@@ -4019,20 +4019,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST ticket rejects custom_price below minimum", async () => {
       const event1 = await payMoreEvent({
+        maxQuantity: 5,
         name: "Pay More Reject",
         unitPrice: 500,
-        maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        name: "Normal Reject",
-        unitPrice: 1000,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Normal Reject",
+        unitPrice: 1000,
       });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "2.00",
@@ -4043,20 +4043,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("POST ticket rejects custom_price above maximum", async () => {
       const event1 = await payMoreEvent({
+        maxQuantity: 5,
         name: "Pay More Max Reject",
         unitPrice: 500,
-        maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        name: "Normal Max Reject",
-        unitPrice: 1000,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Normal Max Reject",
+        unitPrice: 1000,
       });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "200.00",
@@ -4068,20 +4068,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST ticket skips price check for can_pay_more event with qty 0", async () => {
       await setupStripe();
       const event1 = await payMoreEvent({
+        maxQuantity: 5,
         name: "Pay More Skip",
         unitPrice: 500,
-        maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        name: "Normal Skip",
-        unitPrice: 1000,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Normal Skip",
+        unitPrice: 1000,
       });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "0",
         [`quantity_${event2.id}`]: "1",
       });
@@ -4091,20 +4091,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST ticket free can_pay_more with custom price redirects to checkout", async () => {
       await setupStripe();
       const event1 = await payMoreEvent({
+        maxQuantity: 5,
         name: "Free Donate",
         unitPrice: 0,
-        maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        name: "Normal Paid",
-        unitPrice: 1000,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Normal Paid",
+        unitPrice: 1000,
       });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "5.00",
@@ -4115,20 +4115,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST ticket free can_pay_more with zero price still processes paid event", async () => {
       await setupStripe();
       const event1 = await payMoreEvent({
+        maxQuantity: 5,
         name: "Free No Donate",
         unitPrice: 0,
-        maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        name: "Normal Paid 2",
-        unitPrice: 1000,
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Normal Paid 2",
+        unitPrice: 1000,
       });
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`custom_price_${event1.id}`]: "0",
@@ -4147,8 +4147,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("admin edit page shows can_pay_more unchecked for disabled event", async () => {
       const event = await createTestEvent({
-        unitPrice: 1000,
         maxAttendees: 50,
+        unitPrice: 1000,
       });
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie: await testCookie(),
@@ -4161,10 +4161,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST respects custom max_price", async () => {
       const event = await payMoreEvent({ maxPrice: 2000 });
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "25.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("maximum"), false);
@@ -4174,10 +4174,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupStripe();
       const event = await payMoreEvent({ maxPrice: 5000 });
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
-        email: "test@example.com",
-        quantity: "1",
         custom_price: "45.00",
+        email: "test@example.com",
+        name: "Test User",
+        quantity: "1",
       });
       expectCheckoutRedirect(response);
     });
@@ -4186,19 +4186,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
   describe("booking form event_id manipulation", () => {
     test("single-ticket form ignores injected event_id field", async () => {
       const target = await createTestEvent({
-        name: "Target Event",
         maxAttendees: 50,
+        name: "Target Event",
       });
       const other = await createTestEvent({
-        name: "Other Event",
         maxAttendees: 50,
+        name: "Other Event",
       });
 
       // Submit form to target event but inject other event's id
       const response = await submitTicketForm(target.slug, {
-        name: "Mallory",
         email: "mallory@example.com",
         items: singleItem(other.id, 1, 0),
+        name: "Mallory",
       });
       // Booking succeeds (302 redirect to thank-you URL)
       expect(response.status).toBe(302);
@@ -4213,19 +4213,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("ticket form ignores quantity fields for events not in URL", async () => {
       const event1 = await createTestEvent({
-        name: "Legit Event 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Legit Event 1",
       });
       const event2 = await createTestEvent({
-        name: "Legit Event 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Legit Event 2",
       });
       const secret = await createTestEvent({
-        name: "Secret Event",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Secret Event",
       });
 
       // Submit ticket form with only event1+event2 in URL
@@ -4237,8 +4237,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(path, {
-          name: "Mallory",
           email: "mallory@example.com",
+          name: "Mallory",
           [`quantity_${event1.id}`]: "1",
           [`quantity_${event2.id}`]: "0",
           [`quantity_${secret.id}`]: "3",
@@ -4259,12 +4259,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("ticket URL cannot book inactive events", async () => {
       const active = await createTestEvent({
-        name: "Active Event",
         maxAttendees: 50,
+        name: "Active Event",
       });
       const inactive = await createTestEvent({
-        name: "Inactive Event",
         maxAttendees: 50,
+        name: "Inactive Event",
       });
       await deactivateTestEvent(inactive.id);
 
@@ -4285,16 +4285,16 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "T-shirt size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
       await setEventQuestions(eventId, [q.id]);
-      return { question: q, answer1: a1, answer2: a2 };
+      return { answer1: a1, answer2: a2, question: q };
     };
 
     test("saves answers when question is answered correctly", async () => {
@@ -4305,8 +4305,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { question, answer1 } = await setupQuestionForEvent(event.id);
 
       const response = await submitTicketForm(event.slug, {
-        name: "Question User",
         email: "question@example.com",
+        name: "Question User",
         [`question_${question.id}`]: String(answer1.id),
       });
       expectReservedRedirectWithTokens(response);
@@ -4323,8 +4323,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await setupQuestionForEvent(event.id);
 
       const response = await submitTicketForm(event.slug, {
-        name: "Question User",
         email: "question@example.com",
+        name: "Question User",
         // No question answer provided
       });
       expect(response.status).toBe(302);
@@ -4336,8 +4336,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const { question } = await setupQuestionForEvent(event.id);
 
       const response = await submitTicketForm(event.slug, {
-        name: "Question User",
         email: "question@example.com",
+        name: "Question User",
         [`question_${question.id}`]: "99999",
       });
       expect(response.status).toBe(302);
@@ -4352,9 +4352,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const today = todayInTz("UTC");
       const validDate = addDays(today, 1);
       const event = await createTestEvent({
-        maxAttendees: 50,
-        thankYouUrl: "",
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -4364,15 +4361,18 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
+        maxAttendees: 50,
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+        thankYouUrl: "",
       });
       const { question, answer1 } = await setupQuestionForEvent(event.id);
 
       const response = await submitTicketForm(event.slug, {
-        name: "Daily Q User",
-        email: "dailyq@example.com",
         date: validDate,
+        email: "dailyq@example.com",
+        name: "Daily Q User",
         [`question_${question.id}`]: String(answer1.id),
       });
       expectReservedRedirectWithTokens(response);
@@ -4384,30 +4384,30 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Dietary needs?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "None",
         sortOrder: 0,
+        text: "None",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Vegetarian",
         sortOrder: 1,
+        text: "Vegetarian",
       });
       for (const eid of eventIds) {
         await setEventQuestions(eid, [q.id]);
       }
-      return { question: q, answer1: a1, answer2: a2 };
+      return { answer1: a1, answer2: a2, question: q };
     };
 
     test("saves answers for all attendees in ticket reservation", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Q1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Q1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Q2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Q2",
       });
       const { question, answer1 } = await setupQuestionForEvents([
         event1.id,
@@ -4416,8 +4416,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "Multi Q User",
         email: "multiq@example.com",
+        name: "Multi Q User",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`question_${question.id}`]: String(answer1.id),
@@ -4435,21 +4435,21 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("saves event-specific answers only for each attendee", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Evt A",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Evt A",
       });
       const event2 = await createTestEvent({
-        name: "Multi Evt B",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Evt B",
       });
       // Question 1 assigned to event1 only
       const q1 = await questionsTable.insert({ text: "Event A question?" });
       const a1 = await answersTable.insert({
         questionId: q1.id,
-        text: "A answer",
         sortOrder: 0,
+        text: "A answer",
       });
       await setEventQuestions(event1.id, [q1.id]);
 
@@ -4457,15 +4457,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const q2 = await questionsTable.insert({ text: "Event B question?" });
       const a2 = await answersTable.insert({
         questionId: q2.id,
-        text: "B answer",
         sortOrder: 0,
+        text: "B answer",
       });
       await setEventQuestions(event2.id, [q2.id]);
 
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "Per Event User",
         email: "perevent@example.com",
+        name: "Per Event User",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "1",
         [`question_${q1.id}`]: String(a1.id),
@@ -4486,21 +4486,21 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("skips non-selected events in event answer map", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Q Shared 1",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Q Shared 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Q Shared 2",
         maxAttendees: 50,
         maxQuantity: 5,
+        name: "Multi Q Shared 2",
       });
       // Question assigned to BOTH events
       const q1 = await questionsTable.insert({ text: "Shared question?" });
       const a1 = await answersTable.insert({
         questionId: q1.id,
-        text: "Shared answer",
         sortOrder: 0,
+        text: "Shared answer",
       });
       await setEventQuestions(event1.id, [q1.id]);
       await setEventQuestions(event2.id, [q1.id]);
@@ -4508,8 +4508,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const slug = `${event1.slug}+${event2.slug}`;
       // Only select event1, skip event2
       const response = await submitMultiTicketForm(slug, {
-        name: "Shared Q User",
         email: "shared@example.com",
+        name: "Shared Q User",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "0",
         [`question_${q1.id}`]: String(a1.id),
@@ -4528,27 +4528,27 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("validates question answers for selected events only", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Q Filter 1",
         maxAttendees: 50,
+        name: "Multi Q Filter 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Q Filter 2",
         maxAttendees: 50,
+        name: "Multi Q Filter 2",
       });
       // Only assign question to event1
       const q = await questionsTable.insert({ text: "Event1 question?" });
       await answersTable.insert({
         questionId: q.id,
-        text: "Yes",
         sortOrder: 0,
+        text: "Yes",
       });
       await setEventQuestions(event1.id, [q.id]);
 
       // Select only event2 (no question assigned) - should succeed without answer
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "Filter User",
         email: "filter@example.com",
+        name: "Filter User",
         [`quantity_${event1.id}`]: "0",
         [`quantity_${event2.id}`]: "1",
       });
@@ -4557,19 +4557,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("returns error when ticket question is unanswered", async () => {
       const event1 = await createTestEvent({
-        name: "Multi Q Error 1",
         maxAttendees: 50,
+        name: "Multi Q Error 1",
       });
       const event2 = await createTestEvent({
-        name: "Multi Q Error 2",
         maxAttendees: 50,
+        name: "Multi Q Error 2",
       });
       await setupQuestionForEvents([event1.id]);
 
       const slug = `${event1.slug}+${event2.slug}`;
       const response = await submitMultiTicketForm(slug, {
-        name: "Error User",
         email: "error@example.com",
+        name: "Error User",
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "0",
         // No question answer provided
@@ -4585,13 +4585,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
-          thankYouUrl: "",
           maxAttendees: 10,
+          thankYouUrl: "",
         });
         // No assignable sites created
         const response = await submitTicketForm(event.slug, {
-          name: "Test User",
           email: "test@example.com",
+          name: "Test User",
         });
         expect(response.status).toBe(302);
         expectFlash(response, "Sorry, not enough sites available", false);
@@ -4605,13 +4605,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
-          thankYouUrl: "",
           maxAttendees: 10,
+          thankYouUrl: "",
         });
         await insertBuiltSite("Available", "avail.b-cdn.net", "", "", true);
         const response = await submitTicketForm(event.slug, {
-          name: "Test User",
           email: "test@example.com",
+          name: "Test User",
         });
         expectReservedRedirectWithTokens(response);
       } finally {
@@ -4624,14 +4624,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       const event = await createTestEvent({
         assignBuiltSite: true,
-        thankYouUrl: "",
         maxAttendees: 10,
+        thankYouUrl: "",
       });
       restore();
       // Now CAN_BUILD_SITES is not set — booking should succeed despite no sites
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
         email: "test@example.com",
+        name: "Test User",
       });
       expectReservedRedirectWithTokens(response);
     });

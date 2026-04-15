@@ -79,15 +79,8 @@ export const generatePassJson = (
   creds: SigningCredentials,
 ): Record<string, unknown> => {
   const pass: Record<string, unknown> = {
-    formatVersion: 1,
-    passTypeIdentifier: creds.passTypeId,
-    serialNumber: data.serialNumber,
-    teamIdentifier: creds.teamId,
-    organizationName: data.organizationName,
-    description: data.description,
-    foregroundColor: data.foregroundColor ?? "rgb(0, 0, 0)",
+    authenticationToken: padAuthToken(data.serialNumber),
     backgroundColor: data.backgroundColor ?? "rgb(255, 255, 255)",
-    labelColor: data.labelColor ?? "rgb(100, 100, 100)",
     barcodes: [
       {
         format: "PKBarcodeFormatQR",
@@ -95,9 +88,16 @@ export const generatePassJson = (
         messageEncoding: "iso-8859-1",
       },
     ],
-    webServiceURL: data.webServiceURL,
-    authenticationToken: padAuthToken(data.serialNumber),
+    description: data.description,
     eventTicket: buildEventTicketFields(data),
+    foregroundColor: data.foregroundColor ?? "rgb(0, 0, 0)",
+    formatVersion: 1,
+    labelColor: data.labelColor ?? "rgb(100, 100, 100)",
+    organizationName: data.organizationName,
+    passTypeIdentifier: creds.passTypeId,
+    serialNumber: data.serialNumber,
+    teamIdentifier: creds.teamId,
+    webServiceURL: data.webServiceURL,
   };
 
   if (data.eventDate) {
@@ -128,19 +128,19 @@ type EventTicketFields = {
 /** Build the eventTicket field groups */
 const buildEventTicketFields = (data: PassData): EventTicketFields => {
   const fields: EventTicketFields = {
-    primaryFields: [{ key: "event", label: "EVENT", value: data.eventName }],
-    secondaryFields: [],
     auxiliaryFields: [],
     backFields: [],
+    primaryFields: [{ key: "event", label: "EVENT", value: data.eventName }],
+    secondaryFields: [],
   };
 
   if (data.eventDate) {
     fields.secondaryFields.push({
+      dateStyle: "PKDateStyleMedium",
       key: "date",
       label: "DATE",
-      value: data.eventDate,
-      dateStyle: "PKDateStyleMedium",
       timeStyle: "PKDateStyleShort",
+      value: data.eventDate,
     });
   }
 
@@ -170,10 +170,10 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
 
   if (data.pricePaid > 0) {
     fields.auxiliaryFields.push({
+      currencyCode: data.currencyCode,
       key: "price",
       label: "PRICE",
       value: data.pricePaid / 10 ** getDecimalPlaces(data.currencyCode),
-      currencyCode: data.currencyCode,
     });
   }
 
@@ -232,14 +232,14 @@ export const signManifest = (
   p7.addCertificate(cert);
   p7.addCertificate(wwdr);
   p7.addSigner({
-    key,
-    certificate: cert,
-    digestAlgorithm: forge.pki.oids.sha256,
     authenticatedAttributes: [
       { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
       { type: forge.pki.oids.messageDigest },
       { type: forge.pki.oids.signingTime, value: startOfHour(new Date()) },
     ],
+    certificate: cert,
+    digestAlgorithm: forge.pki.oids.sha256,
+    key,
   });
   p7.sign({ detached: true });
 

@@ -38,9 +38,9 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   description: col.encryptedText(encrypt, decrypt),
-  terms_and_conditions: col.encryptedText(encrypt, decrypt),
-  max_attendees: col.simple<number>(),
   hidden: col.boolean(false),
+  max_attendees: col.simple<number>(),
+  terms_and_conditions: col.encryptedText(encrypt, decrypt),
 });
 
 /** Execute a query and decrypt the resulting group rows */
@@ -52,7 +52,7 @@ const groupsCache = requestCache(() =>
   queryGroups("SELECT * FROM groups ORDER BY id ASC"),
 );
 
-registerCache(() => ({ name: "groups", entries: groupsCache.size() }));
+registerCache(() => ({ entries: groupsCache.size(), name: "groups" }));
 
 /** Invalidate the groups cache (for testing or after writes). */
 export const invalidateGroupsCache = (): void => {
@@ -91,8 +91,8 @@ export const isGroupSlugTaken = async (
   const slugIndex = await computeGroupSlugIndex(slug);
 
   const eventHit = await getDb().execute({
-    sql: "SELECT 1 FROM events WHERE slug_index = ? LIMIT 1",
     args: [slugIndex],
+    sql: "SELECT 1 FROM events WHERE slug_index = ? LIMIT 1",
   });
   if (eventHit.rows.length > 0) return true;
 
@@ -100,7 +100,7 @@ export const isGroupSlugTaken = async (
     ? "SELECT 1 FROM groups WHERE slug_index = ? AND id != ? LIMIT 1"
     : "SELECT 1 FROM groups WHERE slug_index = ? LIMIT 1";
   const args = excludeGroupId ? [slugIndex, excludeGroupId] : [slugIndex];
-  const groupHit = await getDb().execute({ sql, args });
+  const groupHit = await getDb().execute({ args, sql });
   return groupHit.rows.length > 0;
 };
 
@@ -194,8 +194,8 @@ export const assignEventsToGroup = async (
 ): Promise<void> => {
   for (const eventId of eventIds) {
     await getDb().execute({
-      sql: "UPDATE events SET group_id = ? WHERE id = ?",
       args: [groupId, eventId],
+      sql: "UPDATE events SET group_id = ? WHERE id = ?",
     });
   }
   if (eventIds.length > 0) invalidateEventsCache();
@@ -206,8 +206,8 @@ export const assignEventsToGroup = async (
  */
 export const resetGroupEvents = async (groupId: number): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE events SET group_id = 0 WHERE group_id = ?",
     args: [groupId],
+    sql: "UPDATE events SET group_id = 0 WHERE group_id = ?",
   });
   invalidateEventsCache();
 };

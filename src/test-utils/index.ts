@@ -167,14 +167,14 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
       for (const row of cachedSetupUsers) {
         await getClient().execute(
           insert("users", {
-            id: row.id as InValue,
-            username_hash: row.username_hash as InValue,
-            username_index: row.username_index as InValue,
-            password_hash: row.password_hash as InValue,
-            wrapped_data_key: row.wrapped_data_key as InValue,
             admin_level: row.admin_level as InValue,
+            id: row.id as InValue,
             invite_code_hash: row.invite_code_hash as InValue,
             invite_expiry: row.invite_expiry as InValue,
+            password_hash: row.password_hash as InValue,
+            username_hash: row.username_hash as InValue,
+            username_index: row.username_index as InValue,
+            wrapped_data_key: row.wrapped_data_key as InValue,
           }),
         );
       }
@@ -220,11 +220,11 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     cachedAdminSession = {
       cookie: session.cookie,
       sessionRow: {
-        token: row.token as string,
         csrf_token: row.csrf_token as string,
         expires: row.expires as number,
-        wrapped_data_key: row.wrapped_data_key as string | null,
+        token: row.token as string,
         user_id: row.user_id as number | null,
+        wrapped_data_key: row.wrapped_data_key as string | null,
       },
     };
   }
@@ -298,9 +298,9 @@ export const mockFormRequest = (
     headers.cookie = cookie;
   }
   return new Request(`http://localhost${path}`, {
-    method: "POST",
-    headers,
     body,
+    headers,
+    method: "POST",
   });
 };
 
@@ -342,9 +342,9 @@ export const mockMultipartRequest = (
   const headers: HeadersInit = { host: "localhost" };
   if (cookie) headers.cookie = cookie;
   return new Request(`http://localhost${path}`, {
-    method: "POST",
-    headers,
     body: formData,
+    headers,
+    method: "POST",
   });
 };
 
@@ -755,15 +755,15 @@ export const testRequest = (
   if (data) {
     headers["content-type"] = "application/x-www-form-urlencoded";
     return new Request(`http://localhost${path}`, {
-      method: method ?? "POST",
-      headers,
       body: new URLSearchParams(data).toString(),
+      headers,
+      method: method ?? "POST",
     });
   }
 
   return new Request(`http://localhost${path}`, {
-    method: method ?? "GET",
     headers,
+    method: method ?? "GET",
   });
 };
 
@@ -895,9 +895,9 @@ export const generateTestEventName = (): string => {
 export const testEventInput = (
   overrides: Partial<Omit<EventInput, "slugIndex" | "slug">> = {},
 ): Omit<EventInput, "slugIndex" | "slug"> => ({
-  name: generateTestEventName(),
   maxAttendees: 100,
   maxPrice: 10000,
+  name: generateTestEventName(),
   thankYouUrl: "https://example.com/thanks",
   ...overrides,
 });
@@ -969,7 +969,7 @@ export const loginAsAdmin = async (): Promise<{
 
   const loginResponse = await handleRequest(
     await mockAdminLoginRequest(
-      { username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD },
+      { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
       loginCsrfToken,
     ),
   );
@@ -996,7 +996,7 @@ export const setupEventAndLogin = async (
 }> => {
   const event = await createTestEvent(overrides);
   const { cookie, csrfToken } = await getTestSession();
-  return { event, cookie, csrfToken };
+  return { cookie, csrfToken, event };
 };
 
 /** Get or create an authenticated session for test helpers (cached) */
@@ -1011,11 +1011,11 @@ export const getTestSession = async (): Promise<{
     const { sessionRow } = cachedAdminSession;
     await getDb().execute(
       insert("sessions", {
-        token: sessionRow.token,
         csrf_token: sessionRow.csrf_token,
         expires: sessionRow.expires,
-        wrapped_data_key: sessionRow.wrapped_data_key,
+        token: sessionRow.token,
         user_id: sessionRow.user_id,
+        wrapped_data_key: sessionRow.wrapped_data_key,
       }),
     );
     const csrfToken = await signCsrfToken();
@@ -1122,35 +1122,35 @@ export const createTestEvent = (
   return authenticatedMultipartFormRequest(
     "/admin/event",
     {
-      name: input.name,
-      description: input.description ?? "",
+      assign_built_site: input.assignBuiltSite ? "1" : "",
+      bookable_days: input.bookableDays
+        ? formatBookableDaysForForm(input.bookableDays)
+        : "",
+      can_pay_more: input.canPayMore ? "1" : "",
+      closes_at_date: closesAtParts.date,
+      closes_at_time: closesAtParts.time,
       date_date: dateParts.date,
       date_time: dateParts.time,
-      location: input.location ?? "",
-      group_id: String(input.groupId ?? 0),
-      max_attendees: String(input.maxAttendees),
-      max_quantity: String(input.maxQuantity ?? 1),
+      description: input.description ?? "",
+      event_type: input.eventType ?? "",
       fields: input.fields ?? "email",
+      group_id: String(input.groupId ?? 0),
+      hidden: input.hidden ? "1" : "",
+      location: input.location ?? "",
+      max_attendees: String(input.maxAttendees),
+      max_price: priceFormValue(input.maxPrice),
+      max_quantity: String(input.maxQuantity ?? 1),
+      maximum_days_after:
+        input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
+      minimum_days_before:
+        input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
+      name: input.name,
+      non_transferable: input.nonTransferable ? "1" : "",
+      purchase_only: input.purchaseOnly ? "1" : "",
       thank_you_url: input.thankYouUrl ?? "",
       unit_price:
         input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
-      closes_at_date: closesAtParts.date,
-      closes_at_time: closesAtParts.time,
-      event_type: input.eventType ?? "",
-      bookable_days: input.bookableDays
-        ? formatBookableDaysForForm(input.bookableDays)
-        : "",
-      minimum_days_before:
-        input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
-      maximum_days_after:
-        input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
-      non_transferable: input.nonTransferable ? "1" : "",
-      can_pay_more: input.canPayMore ? "1" : "",
-      max_price: priceFormValue(input.maxPrice),
-      hidden: input.hidden ? "1" : "",
-      purchase_only: input.purchaseOnly ? "1" : "",
-      assign_built_site: input.assignBuiltSite ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -1219,43 +1219,43 @@ export const updateTestEvent = async (
   return authenticatedMultipartFormRequest(
     `/admin/event/${eventId}/edit`,
     {
-      name: updates.name ?? existing.name,
-      description: updates.description ?? existing.description,
+      assign_built_site:
+        (updates.assignBuiltSite ?? existing.assign_built_site) ? "1" : "",
+      bookable_days: updates.bookableDays
+        ? formatBookableDaysForForm(updates.bookableDays)
+        : formatBookableDaysForForm(existing.bookable_days),
+      can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
+      closes_at_date: closesAtParts.date,
+      closes_at_time: closesAtParts.time,
       date_date: dateParts.date,
       date_time: dateParts.time,
-      location: updates.location ?? existing.location,
-      group_id: String(updates.groupId ?? existing.group_id),
-      slug: updates.slug ?? existing.slug,
-      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
-      max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
+      description: updates.description ?? existing.description,
+      event_type: updates.eventType ?? existing.event_type,
       fields: updates.fields ?? existing.fields,
+      group_id: String(updates.groupId ?? existing.group_id),
+      hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
+      location: updates.location ?? existing.location,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
+      max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
+      maximum_days_after: String(
+        updates.maximumDaysAfter ?? existing.maximum_days_after,
+      ),
+      minimum_days_before: String(
+        updates.minimumDaysBefore ?? existing.minimum_days_before,
+      ),
+      name: updates.name ?? existing.name,
+      non_transferable:
+        (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
+      purchase_only:
+        (updates.purchaseOnly ?? existing.purchase_only) ? "1" : "",
+      slug: updates.slug ?? existing.slug,
       thank_you_url: formatOptional(
         updates.thankYouUrl,
         existing.thank_you_url,
       ),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
-      closes_at_date: closesAtParts.date,
-      closes_at_time: closesAtParts.time,
-      event_type: updates.eventType ?? existing.event_type,
-      bookable_days: updates.bookableDays
-        ? formatBookableDaysForForm(updates.bookableDays)
-        : formatBookableDaysForForm(existing.bookable_days),
-      minimum_days_before: String(
-        updates.minimumDaysBefore ?? existing.minimum_days_before,
-      ),
-      maximum_days_after: String(
-        updates.maximumDaysAfter ?? existing.maximum_days_after,
-      ),
-      non_transferable:
-        (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
-      can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
-      max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
-      hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
-      purchase_only:
-        (updates.purchaseOnly ?? existing.purchase_only) ? "1" : "",
-      assign_built_site:
-        (updates.assignBuiltSite ?? existing.assign_built_site) ? "1" : "",
     },
     async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
@@ -1321,7 +1321,7 @@ export const createTestAttendee = async (
   const response = await handleRequest(
     mockTicketFormRequest(
       eventSlug,
-      { name, email, phone, [`quantity_${eventId}`]: String(quantity) },
+      { email, name, phone, [`quantity_${eventId}`]: String(quantity) },
       csrfToken,
     ),
   );
@@ -1600,7 +1600,7 @@ export const flashCookieHeader = (
   succeeded = true,
 ): string => {
   const type = succeeded ? "s" : "e";
-  const payload = JSON.stringify({ t: type, m: message });
+  const payload = JSON.stringify({ m: message, t: type });
   return `flash_${FLASH_TEST_ID}=${encodeURIComponent(payload)}`;
 };
 
@@ -1716,13 +1716,13 @@ export const stubFetchRecorder = (responseInit?: ResponseInit) => {
     globalThis,
     "fetch",
     (input: string | URL | Request, init?: RequestInit) => {
-      calls.push({ url: String(input), init });
+      calls.push({ init, url: String(input) });
       return Promise.resolve(
         new Response(null, { status: 204, ...responseInit }),
       );
     },
   );
-  return { restore: () => fetchStub.restore(), calls };
+  return { calls, restore: () => fetchStub.restore() };
 };
 
 // ---------------------------------------------------------------------------
@@ -1733,24 +1733,10 @@ export const stubFetchRecorder = (responseInit?: ResponseInit) => {
 
 /** Create a test Event with sensible defaults. Override any field via `overrides`. */
 export const testEvent = (overrides: Partial<Event> = {}): Event => ({
-  id: 1,
-  name: "Test Event",
-  description: "",
-  date: "",
-  location: "",
-  slug: "ab12c",
-  slug_index: "test-event-index",
-  group_id: 0,
-  max_attendees: 100,
-  thank_you_url: "https://example.com/thanks",
-  created: "2024-01-01T00:00:00Z",
-  unit_price: 0,
-  max_quantity: 1,
-  webhook_url: "",
-  closes_at: null,
   active: true,
-  fields: "email",
-  event_type: "standard",
+  assign_built_site: false,
+  attachment_name: "",
+  attachment_url: "",
   bookable_days: [
     "Monday",
     "Tuesday",
@@ -1760,17 +1746,31 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
     "Saturday",
     "Sunday",
   ],
-  minimum_days_before: 0,
-  maximum_days_after: 0,
-  image_url: "",
-  attachment_url: "",
-  attachment_name: "",
-  non_transferable: false,
   can_pay_more: false,
-  max_price: 0,
+  closes_at: null,
+  created: "2024-01-01T00:00:00Z",
+  date: "",
+  description: "",
+  event_type: "standard",
+  fields: "email",
+  group_id: 0,
   hidden: false,
+  id: 1,
+  image_url: "",
+  location: "",
+  max_attendees: 100,
+  max_price: 0,
+  max_quantity: 1,
+  maximum_days_after: 0,
+  minimum_days_before: 0,
+  name: "Test Event",
+  non_transferable: false,
   purchase_only: false,
-  assign_built_site: false,
+  slug: "ab12c",
+  slug_index: "test-event-index",
+  thank_you_url: "https://example.com/thanks",
+  unit_price: 0,
+  webhook_url: "",
   ...overrides,
 });
 
@@ -1785,24 +1785,24 @@ export const testEventWithCount = (
 
 /** Create a test Attendee with sensible defaults. */
 export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
-  id: 1,
-  event_id: 1,
-  name: "John Doe",
-  email: "john@example.com",
-  phone: "",
   address: "",
-  special_instructions: "",
-  created: "2024-01-01T12:00:00Z",
-  payment_id: "",
-  quantity: 1,
-  price_paid: "0",
+  attachment_downloads: 0,
   checked_in: false,
+  created: "2024-01-01T12:00:00Z",
+  date: null,
+  email: "john@example.com",
+  event_id: 1,
+  id: 1,
+  name: "John Doe",
+  payment_id: "",
+  phone: "",
+  pii_blob: "",
+  price_paid: "0",
+  quantity: 1,
   refunded: false,
+  special_instructions: "",
   ticket_token: "test-token-1",
   ticket_token_index: "test-token-index-1",
-  date: null,
-  attachment_downloads: 0,
-  pii_blob: "",
   ...overrides,
 });
 
@@ -1893,7 +1893,7 @@ export const createTestInvite = async (
   const inviteResponse = await handleRequest(
     mockFormRequest(
       "/admin/users",
-      { username, admin_level: adminLevel, csrf_token: csrfToken },
+      { admin_level: adminLevel, csrf_token: csrfToken, username },
       cookie,
     ),
   );
@@ -1907,7 +1907,7 @@ export const createTestInvite = async (
       `Failed to create invite for ${username}: ${inviteResponse.status} ${location}`,
     );
   }
-  return { inviteCode: codeMatch[1], cookie, csrfToken };
+  return { cookie, csrfToken, inviteCode: codeMatch[1] };
 };
 
 /** Extract event ID from a ticket page's quantity field name (quantity_123 → "123") */
@@ -2003,13 +2003,13 @@ export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },
 ): SessionMetadata => ({
   _origin: "localhost",
-  email: "",
-  phone: "",
   address: "",
-  special_instructions: "",
-  items: "",
-  date: "",
   answer_ids: "",
+  date: "",
+  email: "",
+  items: "",
+  phone: "",
+  special_instructions: "",
   ...metadata,
 });
 
@@ -2018,7 +2018,7 @@ export const singleItem = (
   eventId: number,
   quantity: number,
   price: number,
-): string => JSON.stringify([{ e: eventId, q: quantity, p: price }]);
+): string => JSON.stringify([{ e: eventId, p: price, q: quantity }]);
 
 /**
  * Create a mock webhook POST request.
@@ -2028,33 +2028,33 @@ export const mockWebhookRequest = (
   headers: Record<string, string> = {},
 ): Request =>
   new Request("http://localhost/payment/webhook", {
-    method: "POST",
+    body: JSON.stringify(body),
     headers: {
-      host: "localhost",
       "content-type": "application/json",
+      host: "localhost",
       ...headers,
     },
-    body: JSON.stringify(body),
+    method: "POST",
   });
 
 /** Base event form data — merge with overrides for specific test cases. */
 export const baseEventForm: Record<string, string> = {
-  name: "My Event",
   max_attendees: "100",
   max_quantity: "1",
+  name: "My Event",
   thank_you_url: "https://example.com",
 };
 
 /** Create a test Group with sensible defaults. Override any field via `overrides`. */
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({
+  description: "",
+  hidden: false,
   id: 1,
+  max_attendees: 0,
   name: "Test Group",
   slug: "test-group",
   slug_index: "test-group-index",
-  description: "",
   terms_and_conditions: "",
-  max_attendees: 0,
-  hidden: false,
   ...overrides,
 });
 
@@ -2067,20 +2067,20 @@ export const createTestGroup = async (
   overrides: Partial<Omit<GroupInput, "slugIndex">> = {},
 ): Promise<Group> => {
   const input = {
-    name: overrides.name ?? "Test Group",
     description: overrides.description ?? "",
-    termsAndConditions: overrides.termsAndConditions ?? "",
-    maxAttendees: overrides.maxAttendees ?? 0,
     hidden: overrides.hidden ?? false,
+    maxAttendees: overrides.maxAttendees ?? 0,
+    name: overrides.name ?? "Test Group",
+    termsAndConditions: overrides.termsAndConditions ?? "",
   };
 
   const group = await authenticatedFormRequest(
     "/admin/groups",
     {
-      name: input.name,
       description: input.description,
-      terms_and_conditions: input.termsAndConditions,
       max_attendees: String(input.maxAttendees),
+      name: input.name,
+      terms_and_conditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
     },
     async () => {
@@ -2093,12 +2093,12 @@ export const createTestGroup = async (
 
   if (overrides.slug) {
     return updateTestGroup(group.id, {
+      description: group.description,
+      hidden: group.hidden,
+      maxAttendees: group.max_attendees,
       name: group.name,
       slug: overrides.slug,
-      description: group.description,
       termsAndConditions: group.terms_and_conditions,
-      maxAttendees: group.max_attendees,
-      hidden: group.hidden,
     });
   }
 
@@ -2119,12 +2119,12 @@ export const updateTestGroup = async (
   return authenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
+      description: updates.description ?? existing.description,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      description: updates.description ?? existing.description,
       terms_and_conditions:
         updates.termsAndConditions ?? existing.terms_and_conditions,
-      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       ...(hidden ? { hidden: "1" } : {}),
     },
     async () => {
@@ -2155,10 +2155,10 @@ import type { Holiday } from "#lib/types.ts";
 
 /** Create a test Holiday with sensible defaults. Override any field via `overrides`. */
 export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
+  end_date: "2026-12-25",
   id: 1,
   name: "Test Holiday",
   start_date: "2026-12-25",
-  end_date: "2026-12-25",
   ...overrides,
 });
 
@@ -2169,17 +2169,17 @@ export const createTestHoliday = (
   overrides: Partial<HolidayInput> = {},
 ): Promise<Holiday> => {
   const input: HolidayInput = {
+    endDate: overrides.endDate ?? "2026-12-25",
     name: overrides.name ?? "Test Holiday",
     startDate: overrides.startDate ?? "2026-12-25",
-    endDate: overrides.endDate ?? "2026-12-25",
   };
 
   return authenticatedFormRequest(
     "/admin/holidays",
     {
+      end_date: input.endDate,
       name: input.name,
       start_date: input.startDate,
-      end_date: input.endDate,
     },
     async () => {
       const { getAllHolidays } = await import("#lib/db/holidays.ts");
@@ -2203,9 +2203,9 @@ export const updateTestHoliday = async (
   return authenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
     {
+      end_date: updates.endDate ?? existing.end_date,
       name: updates.name ?? existing.name,
       start_date: updates.startDate ?? existing.start_date,
-      end_date: updates.endDate ?? existing.end_date,
     },
     async () => {
       const updated = await holidaysTable.findById(holidayId);
@@ -2238,15 +2238,15 @@ import type { BuiltSite, BuiltSiteFormInput } from "#lib/db/built-sites.ts";
 export const testBuiltSite = (
   overrides: Partial<BuiltSite> = {},
 ): BuiltSite => ({
-  id: 1,
-  name: "Test Site",
-  bunnyUrl: "https://test.b-cdn.net",
-  dbUrl: "",
-  dbToken: "",
   assignable: false,
   assignedAttendeeId: null,
   assignedEventId: null,
+  bunnyUrl: "https://test.b-cdn.net",
   created: "2026-01-01T00:00:00Z",
+  dbToken: "",
+  dbUrl: "",
+  id: 1,
+  name: "Test Site",
   ...overrides,
 });
 
@@ -2257,20 +2257,20 @@ export const createTestBuiltSite = (
   overrides: Partial<BuiltSiteFormInput> = {},
 ): Promise<BuiltSite> => {
   const input: BuiltSiteFormInput = {
-    name: overrides.name ?? "Test Site",
-    bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
-    dbUrl: overrides.dbUrl ?? "",
-    dbToken: overrides.dbToken ?? "",
     assignable: overrides.assignable ?? false,
+    bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
+    dbToken: overrides.dbToken ?? "",
+    dbUrl: overrides.dbUrl ?? "",
+    name: overrides.name ?? "Test Site",
   };
 
   return authenticatedFormRequest(
     "/admin/built-sites",
     {
-      name: input.name,
       bunny_url: input.bunnyUrl,
-      db_url: input.dbUrl,
       db_token: input.dbToken,
+      db_url: input.dbUrl,
+      name: input.name,
       ...(input.assignable ? { assignable: "1" } : {}),
     },
     async () => {
@@ -2296,10 +2296,10 @@ export const updateTestBuiltSite = async (
   return authenticatedFormRequest(
     `/admin/built-sites/${siteId}/edit`,
     {
-      name: updates.name ?? existing.name,
       bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
-      db_url: updates.dbUrl ?? existing.dbUrl,
       db_token: updates.dbToken ?? existing.dbToken,
+      db_url: updates.dbUrl ?? existing.dbUrl,
+      name: updates.name ?? existing.name,
       ...(assignable ? { assignable: "1" } : {}),
     },
     async () => {
@@ -2344,12 +2344,12 @@ export const createTestAttendeeDirect = async (
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
 
   const result = await createAttendeeAtomic({
-    name,
-    email,
-    phone,
     address,
-    special_instructions,
     bookings: [{ eventId, quantity }],
+    email,
+    name,
+    phone,
+    special_instructions,
   });
 
   if (!result.success) {
@@ -2382,7 +2382,7 @@ export const createTestAttendeeWithToken = async (
     quantity,
     phone,
   );
-  return { event, attendee, token };
+  return { attendee, event, token };
 };
 
 /**
@@ -2399,7 +2399,7 @@ export const adminFormPost = async (
   const response = await handleRequest(
     mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
   );
-  return { response, cookie, csrfToken };
+  return { cookie, csrfToken, response };
 };
 
 /**
@@ -2410,7 +2410,7 @@ export const adminGet = async (
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
   const response = await awaitTestRequest(path, { cookie });
-  return { response, cookie, csrfToken };
+  return { cookie, csrfToken, response };
 };
 
 const allDays: string[] = [
@@ -2430,10 +2430,10 @@ export const createDailyTestEvent = (
   overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
 ) =>
   createTestEvent({
-    eventType: "daily",
     bookableDays: allDays,
-    minimumDaysBefore: 0,
+    eventType: "daily",
     maximumDaysAfter: 14,
+    minimumDaysBefore: 0,
     ...overrides,
   });
 
@@ -2451,10 +2451,10 @@ export const createPaidTestAttendee = async (
 ): Promise<Attendee> => {
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
   const result = await createAttendeeAtomic({
-    name,
+    bookings: [{ eventId, pricePaid, quantity }],
     email,
+    name,
     paymentId,
-    bookings: [{ eventId, quantity, pricePaid }],
   });
   // success is guaranteed when event capacity is available
   return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
@@ -2499,7 +2499,7 @@ export const setupAdminTest = async (
     "john@example.com",
   );
   const { cookie, csrfToken } = await getTestSession();
-  return { event, attendee, cookie, csrfToken };
+  return { attendee, cookie, csrfToken, event };
 };
 
 /**
@@ -2588,11 +2588,11 @@ export const createTestManagerSession = async (
   );
   await getDb().execute(
     insert("users", {
+      admin_level: await enc("manager"),
+      password_hash: "",
       username_hash: await enc(username),
       username_index: managerIdx,
-      password_hash: "",
       wrapped_data_key: managerWrappedKey,
-      admin_level: await enc("manager"),
     }),
   );
   invalidateUsers();
@@ -2627,7 +2627,7 @@ export const stubWebhookVerify = async (eventData: {
 }) => {
   const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
   return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({ valid: true as const, event: eventData }),
+    Promise.resolve({ event: eventData, valid: true as const }),
   );
 };
 
@@ -2649,7 +2649,7 @@ const _testCerts: SigningCredentials = (() => {
   const caAttrs = [{ name: "commonName", value: "Test WWDR CA" }];
   caCert.setSubject(caAttrs);
   caCert.setIssuer(caAttrs);
-  caCert.setExtensions([{ name: "basicConstraints", cA: true }]);
+  caCert.setExtensions([{ cA: true, name: "basicConstraints" }]);
   caCert.sign(keys.privateKey, forge.md.sha256.create());
 
   // Create a signing cert
@@ -2668,9 +2668,9 @@ const _testCerts: SigningCredentials = (() => {
 
   return {
     passTypeId: "pass.com.test.tickets",
-    teamId: "TESTTEAM01",
     signingCert: forge.pki.certificateToPem(signingCert),
     signingKey: forge.pki.privateKeyToPem(signingKeys.privateKey),
+    teamId: "TESTTEAM01",
     wwdrCert: forge.pki.certificateToPem(caCert),
   };
 })();
@@ -2722,31 +2722,31 @@ export const createDailyTestAttendee = async (
     ...eventOverrides,
   });
   const result = await createAttendeeAtomic({
-    name,
+    bookings: [{ date, eventId: event.id }],
     email,
-    bookings: [{ eventId: event.id, date }],
+    name,
   });
   const { attendees } = result as Extract<typeof result, { success: true }>;
   const attendee = attendees[0]!;
-  return { event, attendee, token: attendee.ticket_token };
+  return { attendee, event, token: attendee.ticket_token };
 };
 
 /** Build an EmailEvent with sensible defaults */
 export const makeTestEvent = (
   overrides: Partial<EmailEvent> = {},
 ): EmailEvent => ({
-  id: 1,
-  name: "Test Event",
-  slug: "test-event",
-  webhook_url: "",
-  max_attendees: 100,
+  assign_built_site: false,
   attendee_count: 10,
-  unit_price: 0,
   can_pay_more: false,
   date: "",
+  id: 1,
   location: "",
+  max_attendees: 100,
+  name: "Test Event",
   purchase_only: false,
-  assign_built_site: false,
+  slug: "test-event",
+  unit_price: 0,
+  webhook_url: "",
   ...overrides,
 });
 
@@ -2754,17 +2754,17 @@ export const makeTestEvent = (
 export const makeTestAttendee = (
   overrides: Partial<WebhookAttendee> = {},
 ): WebhookAttendee => ({
-  id: 42,
-  quantity: 1,
-  name: "Jane Doe",
-  email: "jane@example.com",
-  phone: "555-1234",
   address: "",
-  special_instructions: "",
-  payment_id: "",
-  price_paid: "0",
-  ticket_token: "AABB001122",
   date: null,
+  email: "jane@example.com",
+  id: 42,
+  name: "Jane Doe",
+  payment_id: "",
+  phone: "555-1234",
+  price_paid: "0",
+  quantity: 1,
+  special_instructions: "",
+  ticket_token: "AABB001122",
   ...overrides,
 });
 
@@ -2773,8 +2773,8 @@ export const makeTestEntry = (
   eventOverrides?: Partial<EmailEvent>,
   attendeeOverrides?: Partial<WebhookAttendee>,
 ): EmailEntry => ({
-  event: makeTestEvent(eventOverrides),
   attendee: makeTestAttendee(attendeeOverrides),
+  event: makeTestEvent(eventOverrides),
 });
 
 // ---------------------------------------------------------------------------
@@ -2796,7 +2796,7 @@ export const cdnOkResponse = (): Response =>
 export const withStorageMock = (
   fn: (fetchCalls: string[]) => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () =>
+  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
     withFetchMock(async (originalFetch) => {
       const fetchCalls: string[] = [];
       installUrlHandler(originalFetch, (url) => {
@@ -2815,7 +2815,7 @@ export const withCdnProxy = (
   respond: () => Response,
   fn: () => Promise<void>,
 ): Promise<void> =>
-  runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () =>
+  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
     withFetchMock(async (originalFetch) => {
       installUrlHandler(originalFetch, (url) =>
         url.includes("storage.bunnycdn.com")
@@ -2831,14 +2831,14 @@ export const withCdnProxy = (
  * Uses AsyncLocalStorage so concurrent tests cannot interfere.
  */
 export const withStorageDisabled = <T>(fn: () => T): T =>
-  runWithStorageConfig({ zoneName: "", zoneKey: "", localPath: "" }, fn);
+  runWithStorageConfig({ localPath: "", zoneKey: "", zoneName: "" }, fn);
 
 /**
  * Run a callback with storage explicitly enabled (testzone/testkey via Bunny).
  * Uses AsyncLocalStorage so concurrent tests cannot interfere.
  */
 export const withStorageEnabled = <T>(fn: () => T): T =>
-  runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, fn);
+  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, fn);
 
 /**
  * Run a callback with local filesystem storage enabled at a temporary directory.
@@ -2850,7 +2850,7 @@ export const withLocalStorageEnabled = async <T>(
   const dir = await Deno.makeTempDir();
   try {
     return await runWithStorageConfig(
-      { zoneName: "", zoneKey: "", localPath: dir },
+      { localPath: dir, zoneKey: "", zoneName: "" },
       () => fn(dir),
     );
   } finally {
@@ -2896,7 +2896,7 @@ export const createTestApiKeyFull = async (
     dataKey,
     generateSecureToken,
   );
-  return { apiKey, id, dataKey };
+  return { apiKey, dataKey, id };
 };
 
 /** Create a mock request authenticated with an API key Bearer token */
@@ -2939,9 +2939,9 @@ export const apiRequest = async (
   const headers: HeadersInit =
     method !== "GET" ? { "content-type": "application/json" } : {};
   const init: RequestInit = {
-    method,
-    headers,
     body: method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
+    headers,
+    method,
   };
   return handleRequest(requestAsApiKey(path, apiKey, init));
 };
@@ -3020,14 +3020,14 @@ export const useFetchStub = () => {
     );
 
   return {
-    restubFetch,
+    allRecipients,
     callCount,
+    findCallBodyByRecipient,
     getFetchArgs,
-    getFetchJsonBody,
     getFetchFormBody,
     getFetchHeaders,
-    findCallBodyByRecipient,
-    allRecipients,
+    getFetchJsonBody,
+    restubFetch,
   };
 };
 

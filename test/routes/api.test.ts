@@ -23,7 +23,7 @@ const apiRequest = (
 ): Request => {
   const { method = "GET", body } = options;
   const headers: Record<string, string> = { host: "localhost" };
-  const init: RequestInit = { method, headers };
+  const init: RequestInit = { headers, method };
 
   if (body) {
     headers["content-type"] = "application/json";
@@ -54,7 +54,7 @@ describeWithEnv("Public API", { db: true }, () => {
   }> => {
     const response = await handleRequest(apiRequest("/api/events"));
     const body = await jsonBody(response);
-    return { response, events: body.events as Record<string, unknown>[] };
+    return { events: body.events as Record<string, unknown>[], response };
   };
 
   /** Fetch a single event by slug and return parsed event */
@@ -63,25 +63,25 @@ describeWithEnv("Public API", { db: true }, () => {
   ): Promise<{ response: Response; body: Record<string, unknown> }> => {
     const response = await handleRequest(apiRequest(`/api/events/${slug}`));
     const body = await jsonBody(response);
-    return { response, body };
+    return { body, response };
   };
 
   /** Book an event by slug with given body fields */
   const bookEvent = async (
     slug: string,
     bookingBody: Record<string, unknown> = {
-      name: "Alice",
       email: "alice@test.com",
+      name: "Alice",
     },
   ): Promise<{ response: Response; body: Record<string, unknown> }> => {
     const response = await handleRequest(
       apiRequest(`/api/events/${slug}/book`, {
-        method: "POST",
         body: bookingBody,
+        method: "POST",
       }),
     );
     const body = await jsonBody(response);
-    return { response, body };
+    return { body, response };
   };
 
   /** Fetch availability for an event by slug, with optional query string */
@@ -94,7 +94,7 @@ describeWithEnv("Public API", { db: true }, () => {
       apiRequest(`/api/events/${slug}/availability${qs}`),
     );
     const body = await jsonBody(response);
-    return { response, body };
+    return { body, response };
   };
 
   /** Create a pay-more test event with standard defaults */
@@ -104,10 +104,10 @@ describeWithEnv("Public API", { db: true }, () => {
     maxAttendees?: number;
   }) =>
     createTestEvent({
-      maxAttendees: overrides.maxAttendees ?? 10,
       canPayMore: true,
-      unitPrice: overrides.unitPrice,
+      maxAttendees: overrides.maxAttendees ?? 10,
       maxPrice: overrides.maxPrice,
+      unitPrice: overrides.unitPrice,
     });
 
   /** Create a raw POST request with custom content-type and body string */
@@ -117,9 +117,9 @@ describeWithEnv("Public API", { db: true }, () => {
     rawBody: string,
   ): Request =>
     new Request(`http://localhost/api/events/${slug}/book`, {
-      method: "POST",
-      headers: { host: "localhost", "content-type": contentType },
       body: rawBody,
+      headers: { "content-type": contentType, host: "localhost" },
+      method: "POST",
     });
 
   /** Stub a stripe checkout method and run a test, restoring after */
@@ -158,8 +158,8 @@ describeWithEnv("Public API", { db: true }, () => {
     });
 
     test("filters hidden events from listing", async () => {
-      await createTestEvent({ name: "Visible", hidden: false });
-      await createTestEvent({ name: "Hidden", hidden: true });
+      await createTestEvent({ hidden: false, name: "Visible" });
+      await createTestEvent({ hidden: true, name: "Hidden" });
       const { events } = await fetchEventsList();
       expect(events.length).toBe(1);
       expect(events[0]!.name).toBe("Visible");
@@ -200,8 +200,8 @@ describeWithEnv("Public API", { db: true }, () => {
   describe("GET /api/events/:slug", () => {
     test("returns event details by slug", async () => {
       const event = await createTestEvent({
-        name: "My Event",
         description: "Hello",
+        name: "My Event",
       });
       const { response, body } = await fetchEventBySlug(event.slug);
       expect(response.status).toBe(200);
@@ -226,8 +226,8 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("allows hidden events to be accessed by slug", async () => {
       const event = await createTestEvent({
-        name: "Hidden Event",
         hidden: true,
+        name: "Hidden Event",
       });
       const { response, body } = await fetchEventBySlug(event.slug);
       expect(response.status).toBe(200);
@@ -329,8 +329,8 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("returns 400 when required email is missing", async () => {
       const event = await createTestEvent({
-        maxAttendees: 10,
         fields: "email",
+        maxAttendees: 10,
       });
       const { response, body } = await bookEvent(event.slug, {
         name: "Alice",
@@ -343,8 +343,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 1 });
       await createTestAttendeeDirect(event.id, "First", "first@test.com");
       const { response, body } = await bookEvent(event.slug, {
-        name: "Second",
         email: "second@test.com",
+        name: "Second",
       });
       expect(response.status).toBe(409);
       expect(body.error).toMatch(/not enough spots/);
@@ -378,8 +378,8 @@ describeWithEnv("Public API", { db: true }, () => {
     test("respects quantity parameter", async () => {
       const event = await createTestEvent({ maxAttendees: 10, maxQuantity: 5 });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
         email: "alice@test.com",
+        name: "Alice",
         quantity: 3,
       });
       expect(response.status).toBe(200);
@@ -392,8 +392,8 @@ describeWithEnv("Public API", { db: true }, () => {
         maxQuantity: 2,
       });
       const { response } = await bookEvent(event.slug, {
-        name: "Alice",
         email: "alice@test.com",
+        name: "Alice",
         quantity: 99,
       });
       // Should succeed — quantity capped to 2
@@ -403,8 +403,8 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns 400 when registration is closed", async () => {
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       const event = await createTestEvent({
-        maxAttendees: 10,
         closesAt: pastDate,
+        maxAttendees: 10,
       });
       const { response, body } = await bookEvent(event.slug);
       expect(response.status).toBe(400);
@@ -431,8 +431,8 @@ describeWithEnv("Public API", { db: true }, () => {
       });
       await createTestAttendeeDirect(event.id, "First", "f@test.com");
       const { response } = await bookEvent(event.slug, {
-        name: "Second",
         email: "s@test.com",
+        name: "Second",
       });
       expect(response.status).toBe(409);
     });
@@ -458,9 +458,9 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(dates.length).toBeGreaterThan(0);
 
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         date: dates[0],
+        email: "alice@test.com",
+        name: "Alice",
       });
       expect(response.status).toBe(200);
       expect(body.ticketToken).toBeDefined();
@@ -476,9 +476,9 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns 400 for daily event with invalid date", async () => {
       const event = await createDailyTestEvent({ maxAttendees: 10 });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         date: "1999-01-01",
+        email: "alice@test.com",
+        name: "Alice",
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
@@ -486,13 +486,13 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("accepts custom price for pay-more event", async () => {
       const event = await createPayMoreEvent({
-        unitPrice: 0,
         maxPrice: 10000,
+        unitPrice: 0,
       });
       const { response } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         customPrice: 5.0,
+        email: "alice@test.com",
+        name: "Alice",
       });
       // Price is 0 base and no payment provider, so goes free path
       expect(response.status).toBe(200);
@@ -500,13 +500,13 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("returns 400 for invalid custom price", async () => {
       const event = await createPayMoreEvent({
-        unitPrice: 500,
         maxPrice: 10000,
+        unitPrice: 500,
       });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         customPrice: "abc",
+        email: "alice@test.com",
+        name: "Alice",
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/price/i);
@@ -514,13 +514,13 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("returns 400 for custom price below minimum", async () => {
       const event = await createPayMoreEvent({
-        unitPrice: 500,
         maxPrice: 10000,
+        unitPrice: 500,
       });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         customPrice: 1.0,
+        email: "alice@test.com",
+        name: "Alice",
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/minimum/i);
@@ -528,13 +528,13 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("returns 400 for custom price above maximum", async () => {
       const event = await createPayMoreEvent({
-        unitPrice: 500,
         maxPrice: 1000,
+        unitPrice: 500,
       });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         customPrice: 999.0,
+        email: "alice@test.com",
+        name: "Alice",
       });
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/maximum/i);
@@ -543,13 +543,13 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns checkout URL for pay-more event with custom price", async () => {
       await setupStripe();
       const event = await createPayMoreEvent({
-        unitPrice: 500,
         maxPrice: 10000,
+        unitPrice: 500,
       });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
-        email: "alice@test.com",
         customPrice: 10.0,
+        email: "alice@test.com",
+        name: "Alice",
       });
       expect(response.status).toBe(200);
       expect(body.checkoutUrl).toBeDefined();
@@ -557,8 +557,8 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("allows omitting price for pay-what-you-want event with zero base price", async () => {
       const event = await createPayMoreEvent({
-        unitPrice: 0,
         maxPrice: 10000,
+        unitPrice: 0,
       });
       const { response, body } = await bookEvent(event.slug);
       expect(response.status).toBe(200);
@@ -567,8 +567,8 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("requires price for pay-more event with non-zero unit price", async () => {
       const event = await createPayMoreEvent({
-        unitPrice: 500,
         maxPrice: 10000,
+        unitPrice: 500,
       });
       const { response, body } = await bookEvent(event.slug);
       expect(response.status).toBe(400);
@@ -578,8 +578,8 @@ describeWithEnv("Public API", { db: true }, () => {
     test("handles invalid quantity in booking gracefully", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const { response, body } = await bookEvent(event.slug, {
-        name: "Alice",
         email: "alice@test.com",
+        name: "Alice",
         quantity: "abc",
       });
       expect(response.status).toBe(200);
@@ -588,8 +588,8 @@ describeWithEnv("Public API", { db: true }, () => {
 
     test("handles booking when email not in event fields", async () => {
       const event = await createTestEvent({
-        maxAttendees: 10,
         fields: "phone",
+        maxAttendees: 10,
       });
       const { response, body } = await bookEvent(event.slug, {
         name: "Alice",
@@ -630,8 +630,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
-          success: false as const,
           reason: "encryption_error" as const,
+          success: false as const,
         }),
       );
       try {
@@ -698,9 +698,9 @@ describeWithEnv("Public API", { db: true }, () => {
       const other = await createTestEvent({ maxAttendees: 50 });
 
       const { response } = await bookEvent(target.slug, {
-        name: "Mallory",
         email: "mallory@example.com",
         event_id: other.id,
+        name: "Mallory",
       });
       expect(response.status).toBe(200);
 
@@ -716,9 +716,9 @@ describeWithEnv("Public API", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 50 });
 
       const { response } = await bookEvent("nonexistent", {
-        name: "Mallory",
         email: "mallory@example.com",
         event_id: event.id,
+        name: "Mallory",
       });
       expect(response.status).toBe(404);
 
@@ -733,8 +733,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const other = await createTestEvent({ maxAttendees: 50 });
 
       const { response } = await bookEvent(target.slug, {
-        name: "Mallory",
         email: "mallory@example.com",
+        name: "Mallory",
         slug: other.slug,
       });
       expect(response.status).toBe(200);

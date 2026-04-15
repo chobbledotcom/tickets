@@ -91,10 +91,10 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
     (a: { name: string }) => a.name === "bunny-script.ts",
   );
   return {
-    tagName: data.tag_name,
+    assetUrl: asset?.browser_download_url ?? null,
     name: data.name,
     publishedAt: data.published_at,
-    assetUrl: asset?.browser_download_url ?? null,
+    tagName: data.tag_name,
   };
 };
 

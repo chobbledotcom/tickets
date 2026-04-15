@@ -23,7 +23,7 @@ import { eventNames } from "#templates/email/shared.ts";
 
 /** Create a configured Liquid engine with custom filters */
 const createEngine = (): Liquid => {
-  const engine = new Liquid({ strictVariables: false, strictFilters: true });
+  const engine = new Liquid({ strictFilters: true, strictVariables: false });
 
   engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
 
@@ -80,30 +80,30 @@ export const buildTemplateData = (
 ): TemplateData => {
   const templateEntries: TemplateEntry[] = map(
     ({ event, attendee }: EmailEntry): TemplateEntry => ({
+      attendee: {
+        address: attendee.address,
+        date: attendee.date,
+        email: attendee.email,
+        name: attendee.name,
+        phone: attendee.phone,
+        price_paid: attendee.price_paid,
+        quantity: attendee.quantity,
+        special_instructions: attendee.special_instructions,
+      },
       event: {
+        is_paid: isPaidEvent(event),
         name: event.name,
         slug: event.slug,
-        is_paid: isPaidEvent(event),
-      },
-      attendee: {
-        name: attendee.name,
-        email: attendee.email,
-        phone: attendee.phone,
-        address: attendee.address,
-        special_instructions: attendee.special_instructions,
-        quantity: attendee.quantity,
-        price_paid: attendee.price_paid,
-        date: attendee.date,
       },
     }),
   )(entries);
 
   return {
+    attendee: templateEntries[0]!.attendee,
+    currency,
     entries: templateEntries,
     event_names: eventNames(entries),
-    attendee: templateEntries[0]!.attendee,
     ticket_url: ticketUrl,
-    currency,
   };
 };
 
@@ -136,7 +136,7 @@ export const renderEmailContent = async (
     safeRender(custom.text || defaults.text, data, defaults.text, type, "text"),
   ]);
 
-  return { subject, html, text };
+  return { html, subject, text };
 };
 
 /** Render a template, falling back to default on error */

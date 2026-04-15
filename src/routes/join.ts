@@ -126,8 +126,8 @@ const handleJoinComplete = (): Response => htmlResponse(joinCompletePage());
 
 /** Join routes */
 const joinRoutes = defineRoutes({
-  "GET /join/complete": handleJoinComplete,
   "GET /join/:code": handleJoinGet,
+  "GET /join/complete": handleJoinComplete,
   "POST /join/:code": handleJoinPost,
 });
 

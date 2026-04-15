@@ -97,8 +97,8 @@ const handleAttendeeRefund = verifiedAttendeeForm(
     if (!refunded) {
       logError({
         code: ErrorCode.PAYMENT_REFUND,
-        eventId,
         detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
+        eventId,
       });
       return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
     }
@@ -172,16 +172,16 @@ const processRefundAll = async (
           }
           logError({
             code: ErrorCode.PAYMENT_REFUND,
-            eventId: event.id,
             detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+            eventId: event.id,
           });
           return "failed" as const;
         } catch (err) {
           const msg = String(err);
           logError({
             code: ErrorCode.PAYMENT_REFUND,
-            eventId: event.id,
             detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
+            eventId: event.id,
           });
           return "errored" as const;
         }
@@ -245,8 +245,8 @@ const handleAdminRefundAllPost = (
 export const attendeeRefundRoutes = defineRoutes({
   "GET /admin/event/:eventId/attendee/:attendeeId/refund":
     handleAdminAttendeeRefundGet,
+  "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
   "POST /admin/event/:eventId/attendee/:attendeeId/refund":
     handleAttendeeRefund,
-  "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
   "POST /admin/event/:id/refund-all": handleAdminRefundAllPost,
 });

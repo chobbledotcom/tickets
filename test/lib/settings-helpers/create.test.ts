@@ -32,9 +32,9 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
   test("redirects with flash on success", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = createSettingsHandler({
+      extract: (form) => form.getString("value"),
       formId: "settings-test",
       label: "Test setting",
-      extract: (form) => form.getString("value"),
       save: saveFn as (v: string) => Promise<void>,
     });
 
@@ -52,11 +52,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
   test("uses custom log fn for activity log and flash message", async () => {
     const handler = createSettingsHandler({
+      extract: (form) => form.getString("value"),
       formId: "settings-test",
       label: "Test",
-      extract: (form) => form.getString("value"),
-      save: () => Promise.resolve(),
       log: (v) => `Set to ${v}`,
+      save: () => Promise.resolve(),
     });
 
     const res = await handler(
@@ -72,11 +72,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
   test("calls errorPage and skips save when validation fails", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = createSettingsHandler({
+      extract: (form) => form.getString("value"),
       formId: "settings-test",
       label: "Test",
-      extract: (form) => form.getString("value"),
-      validate: (v) => (v === "" ? "Value is required" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (v === "" ? "Value is required" : null),
     });
 
     const res = await handler(
@@ -97,11 +97,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
   test("async validator is awaited before save", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = createSettingsHandler({
+      extract: (form) => form.getString("value"),
       formId: "settings-test",
       label: "Test",
-      extract: (form) => form.getString("value"),
-      validate: (v) => Promise.resolve(v === "" ? "Async error" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => Promise.resolve(v === "" ? "Async error" : null),
     });
 
     const res = await handler(
@@ -122,9 +122,9 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
   test("proceeds without calling errorPage when no validate function provided", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = createSettingsHandler({
+      extract: (form) => form.getString("value"),
       formId: "settings-test",
       label: "Test",
-      extract: (form) => form.getString("value"),
       save: saveFn as (v: string) => Promise<void>,
     });
 
@@ -142,10 +142,10 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
   describe("redirect targets", () => {
     test("redirects to /admin/settings-advanced when advanced is true", async () => {
       const handler = createSettingsHandler({
-        formId: "settings-test",
-        label: "Test",
         advanced: true,
         extract: (form) => form.getString("value"),
+        formId: "settings-test",
+        label: "Test",
         save: () => Promise.resolve(),
       });
 
@@ -160,9 +160,9 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
     test("redirects to custom path when redirectTo is set", async () => {
       const handler = createSettingsHandler({
+        extract: (form) => form.getString("value"),
         label: "Test",
         redirectTo: "/admin/site",
-        extract: (form) => form.getString("value"),
         save: () => Promise.resolve(),
       });
 
@@ -177,9 +177,9 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
     test("omits form= param from redirect when formId is not provided", async () => {
       const handler = createSettingsHandler({
+        extract: (form) => form.getString("value"),
         label: "Test",
         redirectTo: "/admin/site",
-        extract: (form) => form.getString("value"),
         save: () => Promise.resolve(),
       });
 
@@ -195,11 +195,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
     test("passes empty formId to errorPage when formId is not set", async () => {
       const handler = createSettingsHandler({
+        extract: (form) => form.getString("value"),
         label: "Test",
         redirectTo: "/admin/site",
-        extract: (form) => form.getString("value"),
-        validate: () => "error",
         save: () => Promise.resolve(),
+        validate: () => "error",
       });
 
       await handler(formFrom({ value: "x" }), mockErrorPage, nullSession);

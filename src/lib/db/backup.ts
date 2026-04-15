@@ -53,8 +53,8 @@ const getColumns = (table: string): Promise<ColumnInfo[]> =>
 /** Check if a table exists in the database */
 const tableExists = async (table: string): Promise<boolean> => {
   const result = await getDb().execute({
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
     args: [table],
+    sql: "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
   });
   return result.rows.length > 0;
 };
@@ -140,7 +140,7 @@ export const createBackup = async (): Promise<TableBackup[]> => {
   for (const table of SCHEMA_TABLE_NAMES) {
     if (!(await tableExists(table))) continue;
     const sql = await exportTable(table);
-    backups.push({ table, sql });
+    backups.push({ sql, table });
   }
   return backups;
 };
@@ -158,15 +158,15 @@ const buildManifest = (
   tables: TableBackup[],
   timestamp: string,
 ): BackupManifest => ({
-  schemaHash: SCHEMA_HASH,
   latestUpdate: LATEST_UPDATE,
-  timestamp,
+  schemaHash: SCHEMA_HASH,
   tables: Object.fromEntries(
     tables.map(({ table, sql }) => [
       table,
       sql === "" ? 0 : sql.split("\n").length,
     ]),
   ),
+  timestamp,
 });
 
 /** Create a zip archive from table backups with manifest */
@@ -245,7 +245,7 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   const statements = splitStatements(sql);
   if (statements.length === 0) return;
 
-  await executeBatch(statements.map((s) => ({ sql: s, args: [] })));
+  await executeBatch(statements.map((s) => ({ args: [], sql: s })));
 };
 
 /**

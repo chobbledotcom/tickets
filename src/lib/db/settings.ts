@@ -47,57 +47,57 @@ import {
 // ---------------------------------------------------------------------------
 
 export const CONFIG_KEYS = {
-  COUNTRY: "country",
-  SETUP_COMPLETE: "setup_complete",
-  WRAPPED_PRIVATE_KEY: "wrapped_private_key",
-  PUBLIC_KEY: "public_key",
-  PAYMENT_PROVIDER: "payment_provider",
-  STRIPE_SECRET_KEY: "stripe_secret_key",
-  STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
-  STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
-  SQUARE_ACCESS_TOKEN: "square_access_token",
-  SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
-  SQUARE_LOCATION_ID: "square_location_id",
-  SQUARE_SANDBOX: "square_sandbox",
-  EMBED_HOSTS: "embed_hosts",
-  TERMS_AND_CONDITIONS: "terms_and_conditions",
-  BUSINESS_EMAIL: "business_email",
-  THEME: "theme",
-  SHOW_PUBLIC_SITE: "show_public_site",
-  WEBSITE_TITLE: "website_title",
-  HOMEPAGE_TEXT: "homepage_text",
-  CONTACT_PAGE_TEXT: "contact_page_text",
-  HEADER_IMAGE_URL: "header_image_url",
-  SHOW_PUBLIC_API: "show_public_api",
-  EMAIL_PROVIDER: "email_provider",
-  EMAIL_API_KEY: "email_api_key",
-  EMAIL_FROM_ADDRESS: "email_from_address",
-  EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
-  EMAIL_TPL_CONFIRMATION_HTML: "email_tpl_confirmation_html",
-  EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
-  EMAIL_TPL_ADMIN_SUBJECT: "email_tpl_admin_subject",
-  EMAIL_TPL_ADMIN_HTML: "email_tpl_admin_html",
-  EMAIL_TPL_ADMIN_TEXT: "email_tpl_admin_text",
-  CUSTOM_DOMAIN: "custom_domain",
-  CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
-  BOOKING_FEE: "booking_fee",
   APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
-  APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
   APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
   APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
+  APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
   APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
+  ATTENDEE_COLUMN_ORDER: "attendee_column_order",
+  BOOKING_FEE: "booking_fee",
+  BUNNY_SUBDOMAIN: "bunny_subdomain",
+  BUSINESS_EMAIL: "business_email",
+  CONTACT_PAGE_TEXT: "contact_page_text",
+  COUNTRY: "country",
+  CURRENT_TASK: "current_task",
+  CUSTOM_DOMAIN: "custom_domain",
+  CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
+  EMAIL_API_KEY: "email_api_key",
+  EMAIL_FROM_ADDRESS: "email_from_address",
+  EMAIL_PROVIDER: "email_provider",
+  EMAIL_TPL_ADMIN_HTML: "email_tpl_admin_html",
+  EMAIL_TPL_ADMIN_SUBJECT: "email_tpl_admin_subject",
+  EMAIL_TPL_ADMIN_TEXT: "email_tpl_admin_text",
+  EMAIL_TPL_CONFIRMATION_HTML: "email_tpl_confirmation_html",
+  EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
+  EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
+  EMBED_HOSTS: "embed_hosts",
+  EVENT_COLUMN_ORDER: "event_column_order",
   GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
-  BUNNY_SUBDOMAIN: "bunny_subdomain",
-  CURRENT_TASK: "current_task",
-  LATEST_SCRIPT_VERSION: "latest_script_version",
-  LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
-  EVENT_COLUMN_ORDER: "event_column_order",
-  ATTENDEE_COLUMN_ORDER: "attendee_column_order",
+  HEADER_IMAGE_URL: "header_image_url",
+  HOMEPAGE_TEXT: "homepage_text",
+  LAST_PRUNED_LOGINS: "last_pruned_logins",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
   LAST_PRUNED_SESSIONS: "last_pruned_sessions",
-  LAST_PRUNED_LOGINS: "last_pruned_logins",
+  LATEST_SCRIPT_VERSION: "latest_script_version",
+  LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
+  PAYMENT_PROVIDER: "payment_provider",
+  PUBLIC_KEY: "public_key",
+  SETUP_COMPLETE: "setup_complete",
+  SHOW_PUBLIC_API: "show_public_api",
+  SHOW_PUBLIC_SITE: "show_public_site",
+  SQUARE_ACCESS_TOKEN: "square_access_token",
+  SQUARE_LOCATION_ID: "square_location_id",
+  SQUARE_SANDBOX: "square_sandbox",
+  SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
+  STRIPE_SECRET_KEY: "stripe_secret_key",
+  STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
+  STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
+  TERMS_AND_CONDITIONS: "terms_and_conditions",
+  THEME: "theme",
+  WEBSITE_TITLE: "website_title",
+  WRAPPED_PRIVATE_KEY: "wrapped_private_key",
 } as const;
 
 export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
@@ -122,8 +122,8 @@ const isCacheValid = (): boolean => {
 };
 
 registerCache(() => ({
-  name: "settings",
   entries: getCacheState().entries?.size ?? 0,
+  name: "settings",
 }));
 
 // ---------------------------------------------------------------------------
@@ -139,12 +139,12 @@ export type EmailTemplateFormat = "subject" | "html" | "text";
 /** Template type:format → config key */
 type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;
 const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
-  "confirmation:subject": "email_tpl_confirmation_subject",
-  "confirmation:html": "email_tpl_confirmation_html",
-  "confirmation:text": "email_tpl_confirmation_text",
-  "admin:subject": "email_tpl_admin_subject",
   "admin:html": "email_tpl_admin_html",
+  "admin:subject": "email_tpl_admin_subject",
   "admin:text": "email_tpl_admin_text",
+  "confirmation:html": "email_tpl_confirmation_html",
+  "confirmation:subject": "email_tpl_confirmation_subject",
+  "confirmation:text": "email_tpl_confirmation_text",
 };
 
 // ---------------------------------------------------------------------------
@@ -238,16 +238,16 @@ export type SettingsData = SpecificFields & StringSettingFields;
 
 /** Mutable snapshot of all settings. Populated by loadAll(). */
 const data: SettingsData = {
-  country: DEFAULT_COUNTRY,
-  theme: "light",
-  show_public_site: false,
-  show_public_api: false,
-  payment_provider: null,
   booking_fee: "0",
-  square_sandbox: false,
+  country: DEFAULT_COUNTRY,
   currency: "GBP",
-  timezone: DEFAULT_TIMEZONE,
+  payment_provider: null,
   phone_prefix: "+44",
+  show_public_api: false,
+  show_public_site: false,
+  square_sandbox: false,
+  theme: "light",
+  timezone: DEFAULT_TIMEZONE,
   ...stringSettingDefaults,
 };
 
@@ -283,8 +283,8 @@ const getRawCached = (key: string): string | null =>
 /** Write a setting to the DB and update the raw cache in-place. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
     args: [key, value],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
   });
   const state = getCacheState();
   if (state.entries) state.entries.set(key, value);
@@ -293,8 +293,8 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
 /** Delete a setting from the DB and remove it from the raw cache. */
 const deleteRaw = async (key: string): Promise<void> => {
   await getDb().execute({
-    sql: "DELETE FROM settings WHERE key = ?",
     args: [key],
+    sql: "DELETE FROM settings WHERE key = ?",
   });
   const state = getCacheState();
   if (state.entries) state.entries.delete(key);
@@ -478,8 +478,8 @@ const updateUserPassword = async (
   const newKek = await deriveKEK(newHash);
   const newWrappedDataKey = await wrapKey(dk, newKek);
   await getDb().execute({
-    sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
     args: [encryptedNewHash, newWrappedDataKey, userId],
+    sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
   });
   invalidateUsersCache();
   await deleteAllSessions();
@@ -505,18 +505,18 @@ const withCurrentTask = async <T>(
 ): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
   // Ensure the row exists (no-op if already present)
   await getDb().execute({
-    sql: "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
     args: [CONFIG_KEYS.CURRENT_TASK],
+    sql: "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
   });
   // Atomic claim: only succeeds when no task is running
   const claim = await getDb().execute({
-    sql: "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
     args: [taskName, CONFIG_KEYS.CURRENT_TASK],
+    sql: "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
   });
   if (claim.rowsAffected === 0) {
     return {
-      ok: false,
       error: "Another task is already in progress",
+      ok: false,
     };
   }
   const state = getCacheState();
@@ -543,23 +543,19 @@ export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 // ---------------------------------------------------------------------------
 
 export const settings = {
-  // --- Core ---
-  loadAll,
-  invalidateCache,
-  withCurrentTask,
-
-  /** Read a raw (possibly encrypted) value from the cache. */
-  getCachedRaw: getRawCached,
-
-  /** Write a raw value to the DB (low-level, prefer update.*). */
-  setRaw: writeRaw,
-
-  /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
-  setForTest(overrides: Partial<SettingsData>): void {
-    const current = getTestOverrides();
-    for (const [k, v] of Object.entries(overrides)) {
-      current[k] = v;
-    }
+  // --- Apple Wallet ---
+  appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
+  get attendeeColumnOrder(): string {
+    return snap("attendee_column_order");
+  },
+  get bookingFee(): string {
+    return snap("booking_fee");
+  },
+  get bunnySubdomain(): string {
+    return snap("bunny_subdomain");
+  },
+  get businessEmail(): string {
+    return snap("business_email");
   },
 
   /** Remove specific test override keys (falls back to data). */
@@ -574,6 +570,9 @@ export const settings = {
   clearTestOverrides(): void {
     setTestOverrides(null);
   },
+  get contactPageText(): string {
+    return snap("contact_page_text");
+  },
 
   // -----------------------------------------------------------------------
   // Sync reads — all populated by loadAll()
@@ -582,23 +581,13 @@ export const settings = {
   get country(): string {
     return snap("country");
   },
-  get theme(): Theme {
-    return snap("theme");
+
+  // Derived from country
+  get currency(): string {
+    return snap("currency");
   },
-  get showPublicSite(): boolean {
-    return snap("show_public_site");
-  },
-  get showPublicApi(): boolean {
-    return snap("show_public_api");
-  },
-  get paymentProvider(): PaymentProviderType | null {
-    return snap("payment_provider");
-  },
-  get terms(): string {
-    return snap("terms_and_conditions");
-  },
-  get bookingFee(): string {
-    return snap("booking_fee");
+  get currentTask(): string {
+    return snap("current_task");
   },
   get customDomain(): string {
     return snap("custom_domain");
@@ -606,124 +595,20 @@ export const settings = {
   get customDomainLastValidated(): string {
     return snap("custom_domain_last_validated");
   },
-  get bunnySubdomain(): string {
-    return snap("bunny_subdomain");
-  },
-  get currentTask(): string {
-    return snap("current_task");
-  },
-  get publicKey(): string {
-    return snap("public_key");
-  },
-  get wrappedPrivateKey(): string {
-    return snap("wrapped_private_key");
-  },
-  get headerImageUrl(): string {
-    return snap("header_image_url");
-  },
-  get websiteTitle(): string {
-    return snap("website_title");
-  },
-  get homepageText(): string {
-    return snap("homepage_text");
-  },
-  get contactPageText(): string {
-    return snap("contact_page_text");
-  },
-  get businessEmail(): string {
-    return snap("business_email");
-  },
-  get embedHosts(): string {
-    return snap("embed_hosts");
-  },
-  get latestScriptVersion(): string {
-    return snap("latest_script_version");
-  },
-  get latestScriptVersionName(): string {
-    return snap("latest_script_version_name");
-  },
-  get eventColumnOrder(): string {
-    return snap("event_column_order");
-  },
-  get attendeeColumnOrder(): string {
-    return snap("attendee_column_order");
-  },
-  get lastPrunedPayments(): string {
-    return snap("last_pruned_payments");
-  },
-  get lastPrunedSessions(): string {
-    return snap("last_pruned_sessions");
-  },
-  get lastPrunedLogins(): string {
-    return snap("last_pruned_logins");
-  },
-
-  // Derived from country
-  get currency(): string {
-    return snap("currency");
-  },
-  get timezone(): string {
-    return snap("timezone");
-  },
-  get phonePrefix(): string {
-    return snap("phone_prefix");
-  },
-
-  // --- Stripe ---
-  stripe: {
-    get secretKey(): string {
-      return snap("stripe_secret_key");
-    },
-    get hasKey(): boolean {
-      return snap("stripe_secret_key") !== "";
-    },
-    get keyMode(): "test" | "live" | null {
-      const k = snap("stripe_secret_key");
-      if (!k) return null;
-      if (k.startsWith("sk_test_")) return "test";
-      if (k.startsWith("sk_live_")) return "live";
-      return null;
-    },
-    get webhookSecret(): string {
-      return snap("stripe_webhook_secret");
-    },
-    get webhookEndpointId(): string {
-      return snap("stripe_webhook_endpoint_id");
-    },
-  },
-
-  // --- Square ---
-  square: {
-    get accessToken(): string {
-      return snap("square_access_token");
-    },
-    get hasToken(): boolean {
-      return snap("square_access_token") !== "";
-    },
-    get webhookSignatureKey(): string {
-      return snap("square_webhook_signature_key");
-    },
-    get locationId(): string {
-      return snap("square_location_id");
-    },
-    get sandbox(): boolean {
-      return snap("square_sandbox");
-    },
-  },
 
   // --- Email ---
   email: {
-    get provider(): string {
-      return snap("email_provider");
-    },
     get apiKey(): string {
       return snap("email_api_key");
+    },
+    get fromAddress(): string {
+      return snap("email_from_address");
     },
     get hasApiKey(): boolean {
       return snap("email_api_key") !== "";
     },
-    get fromAddress(): string {
-      return snap("email_from_address");
+    get provider(): string {
+      return snap("email_provider");
     },
     template(type: EmailTemplateType, format: EmailTemplateFormat): string {
       return snap(TEMPLATE_KEYS[`${type}:${format}`]);
@@ -734,84 +619,225 @@ export const settings = {
       text: string;
     } {
       return {
-        subject: this.template(type, "subject"),
         html: this.template(type, "html"),
+        subject: this.template(type, "subject"),
         text: this.template(type, "text"),
       };
     },
   },
+  get embedHosts(): string {
+    return snap("embed_hosts");
+  },
+  get eventColumnOrder(): string {
+    return snap("event_column_order");
+  },
 
-  // --- Apple Wallet ---
-  appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
+  /** Read a raw (possibly encrypted) value from the cache. */
+  getCachedRaw: getRawCached,
 
   // --- Google Wallet ---
   googleWallet: createGoogleWalletReadSettings(snap as (k: string) => string),
+  get headerImageUrl(): string {
+    return snap("header_image_url");
+  },
+  get homepageText(): string {
+    return snap("homepage_text");
+  },
+  invalidateCache,
+  get lastPrunedLogins(): string {
+    return snap("last_pruned_logins");
+  },
+  get lastPrunedPayments(): string {
+    return snap("last_pruned_payments");
+  },
+  get lastPrunedSessions(): string {
+    return snap("last_pruned_sessions");
+  },
+  get latestScriptVersion(): string {
+    return snap("latest_script_version");
+  },
+  get latestScriptVersionName(): string {
+    return snap("latest_script_version_name");
+  },
+  // --- Core ---
+  loadAll,
+  get paymentProvider(): PaymentProviderType | null {
+    return snap("payment_provider");
+  },
+  get phonePrefix(): string {
+    return snap("phone_prefix");
+  },
+  get publicKey(): string {
+    return snap("public_key");
+  },
+
+  /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
+  setForTest(overrides: Partial<SettingsData>): void {
+    const current = getTestOverrides();
+    for (const [k, v] of Object.entries(overrides)) {
+      current[k] = v;
+    }
+  },
+
+  /** Write a raw value to the DB (low-level, prefer update.*). */
+  setRaw: writeRaw,
 
   // --- Setup & auth ---
   setup: {
-    isComplete: isSetupComplete,
-    complete: completeSetup,
     clearCache: clearSetupCompleteCache,
+    complete: completeSetup,
+    isComplete: isSetupComplete,
   },
-  updateUserPassword,
+  get showPublicApi(): boolean {
+    return snap("show_public_api");
+  },
+  get showPublicSite(): boolean {
+    return snap("show_public_site");
+  },
+
+  // --- Square ---
+  square: {
+    get accessToken(): string {
+      return snap("square_access_token");
+    },
+    get hasToken(): boolean {
+      return snap("square_access_token") !== "";
+    },
+    get locationId(): string {
+      return snap("square_location_id");
+    },
+    get sandbox(): boolean {
+      return snap("square_sandbox");
+    },
+    get webhookSignatureKey(): string {
+      return snap("square_webhook_signature_key");
+    },
+  },
+
+  // --- Stripe ---
+  stripe: {
+    get hasKey(): boolean {
+      return snap("stripe_secret_key") !== "";
+    },
+    get keyMode(): "test" | "live" | null {
+      const k = snap("stripe_secret_key");
+      if (!k) return null;
+      if (k.startsWith("sk_test_")) return "test";
+      if (k.startsWith("sk_live_")) return "live";
+      return null;
+    },
+    get secretKey(): string {
+      return snap("stripe_secret_key");
+    },
+    get webhookEndpointId(): string {
+      return snap("stripe_webhook_endpoint_id");
+    },
+    get webhookSecret(): string {
+      return snap("stripe_webhook_secret");
+    },
+  },
+  get terms(): string {
+    return snap("terms_and_conditions");
+  },
+  get theme(): Theme {
+    return snap("theme");
+  },
+  get timezone(): string {
+    return snap("timezone");
+  },
 
   // -----------------------------------------------------------------------
   // Async writes — settings.update.*
   // -----------------------------------------------------------------------
   update: {
+    // --- Apple Wallet writes ---
+    appleWallet: createAppleWalletUpdateSettings(
+      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
+    ),
+    attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
+    bookingFee: async (v: string): Promise<void> => {
+      await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
+      data.booking_fee = v || "0";
+    },
+    bunnySubdomain: plaintextUpdate(CONFIG_KEYS.BUNNY_SUBDOMAIN),
+    businessEmail: encryptedUpdate(CONFIG_KEYS.BUSINESS_EMAIL),
+    clearPaymentProvider: async (): Promise<void> => {
+      await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
+      data.payment_provider = null;
+    },
+    contactPageText: encryptedUpdate(CONFIG_KEYS.CONTACT_PAGE_TEXT),
     country: async (v: string): Promise<void> => {
       await writeRaw(CONFIG_KEYS.COUNTRY, v);
       data.country = v;
       applyCountryDerived(getCountry(v));
     },
-    theme: async (v: Theme): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.THEME, v);
-      data.theme = v;
-    },
-    showPublicSite: async (v: boolean): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_SITE, v ? "true" : "false");
-      data.show_public_site = v;
-    },
-    showPublicApi: async (v: boolean): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_API, v ? "true" : "false");
-      data.show_public_api = v;
-    },
-    paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
-      data.payment_provider = v;
-    },
-    clearPaymentProvider: async (): Promise<void> => {
-      await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
-      data.payment_provider = null;
-    },
-    terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS),
-    bookingFee: async (v: string): Promise<void> => {
-      await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
-      data.booking_fee = v || "0";
-    },
+    currentTask: plaintextUpdate(CONFIG_KEYS.CURRENT_TASK),
     customDomain: plaintextUpdate(CONFIG_KEYS.CUSTOM_DOMAIN),
     customDomainLastValidated: async (): Promise<void> => {
       const ts = new Date().toISOString();
       await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
       data.custom_domain_last_validated = ts;
     },
-    bunnySubdomain: plaintextUpdate(CONFIG_KEYS.BUNNY_SUBDOMAIN),
-    currentTask: plaintextUpdate(CONFIG_KEYS.CURRENT_TASK),
-    headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
-    websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),
-    homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
-    contactPageText: encryptedUpdate(CONFIG_KEYS.CONTACT_PAGE_TEXT),
-    businessEmail: encryptedUpdate(CONFIG_KEYS.BUSINESS_EMAIL),
+
+    // --- Email writes ---
+    email: {
+      apiKey: encryptedUpdate(CONFIG_KEYS.EMAIL_API_KEY),
+      fromAddress: encryptedUpdate(CONFIG_KEYS.EMAIL_FROM_ADDRESS),
+      provider: plaintextUpdate(CONFIG_KEYS.EMAIL_PROVIDER),
+      template: async (
+        type: EmailTemplateType,
+        format: EmailTemplateFormat,
+        content: string,
+      ): Promise<void> => {
+        const key = TEMPLATE_KEYS[`${type}:${format}`];
+        await writeEncrypted(key, content);
+        setSnapshotField(key, content);
+      },
+    },
     embedHosts: encryptedUpdate(CONFIG_KEYS.EMBED_HOSTS),
+    eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
+
+    // --- Google Wallet writes ---
+    googleWallet: createGoogleWalletUpdateSettings(
+      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
+    ),
+    headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
+    homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
+    lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
+    lastPrunedPayments: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_PAYMENTS),
+    lastPrunedSessions: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_SESSIONS),
     latestScriptVersion: plaintextUpdate(CONFIG_KEYS.LATEST_SCRIPT_VERSION),
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
-    eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
-    attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
-    lastPrunedPayments: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_PAYMENTS),
-    lastPrunedSessions: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_SESSIONS),
-    lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
+    paymentProvider: async (v: PaymentProviderType): Promise<void> => {
+      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
+      data.payment_provider = v;
+    },
+    showPublicApi: async (v: boolean): Promise<void> => {
+      await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_API, v ? "true" : "false");
+      data.show_public_api = v;
+    },
+    showPublicSite: async (v: boolean): Promise<void> => {
+      await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_SITE, v ? "true" : "false");
+      data.show_public_site = v;
+    },
+
+    // --- Square writes ---
+    square: {
+      accessToken: encryptedUpdate(CONFIG_KEYS.SQUARE_ACCESS_TOKEN),
+      locationId: async (v: string): Promise<void> => {
+        await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, v);
+        data.square_location_id = v;
+      },
+      sandbox: async (v: boolean): Promise<void> => {
+        await writeRaw(CONFIG_KEYS.SQUARE_SANDBOX, v ? "true" : "false");
+        data.square_sandbox = v;
+      },
+      webhookSignatureKey: encryptedUpdate(
+        CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+      ),
+    },
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
@@ -831,47 +857,19 @@ export const settings = {
         data.stripe_webhook_endpoint_id = config.endpointId;
       },
     },
-
-    // --- Square writes ---
-    square: {
-      accessToken: encryptedUpdate(CONFIG_KEYS.SQUARE_ACCESS_TOKEN),
-      webhookSignatureKey: encryptedUpdate(
-        CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
-      ),
-      locationId: async (v: string): Promise<void> => {
-        await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, v);
-        data.square_location_id = v;
-      },
-      sandbox: async (v: boolean): Promise<void> => {
-        await writeRaw(CONFIG_KEYS.SQUARE_SANDBOX, v ? "true" : "false");
-        data.square_sandbox = v;
-      },
+    terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS),
+    theme: async (v: Theme): Promise<void> => {
+      await writeRaw(CONFIG_KEYS.THEME, v);
+      data.theme = v;
     },
-
-    // --- Email writes ---
-    email: {
-      provider: plaintextUpdate(CONFIG_KEYS.EMAIL_PROVIDER),
-      apiKey: encryptedUpdate(CONFIG_KEYS.EMAIL_API_KEY),
-      fromAddress: encryptedUpdate(CONFIG_KEYS.EMAIL_FROM_ADDRESS),
-      template: async (
-        type: EmailTemplateType,
-        format: EmailTemplateFormat,
-        content: string,
-      ): Promise<void> => {
-        const key = TEMPLATE_KEYS[`${type}:${format}`];
-        await writeEncrypted(key, content);
-        setSnapshotField(key, content);
-      },
-    },
-
-    // --- Apple Wallet writes ---
-    appleWallet: createAppleWalletUpdateSettings(
-      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
-    ),
-
-    // --- Google Wallet writes ---
-    googleWallet: createGoogleWalletUpdateSettings(
-      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
-    ),
+    websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),
+  },
+  updateUserPassword,
+  get websiteTitle(): string {
+    return snap("website_title");
+  },
+  withCurrentTask,
+  get wrappedPrivateKey(): string {
+    return snap("wrapped_private_key");
   },
 };

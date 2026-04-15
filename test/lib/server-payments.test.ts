@@ -65,13 +65,13 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test",
-              payment_status: "unpaid",
-              payment_intent: "pi_test",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(event.id, 1, 1000),
                 name: "John",
-                email: "john@example.com",
               },
+              payment_intent: "pi_test",
+              payment_status: "unpaid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -100,9 +100,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test",
               metadata: {}, // Missing required fields
+              payment_intent: "pi_test",
+              payment_status: "paid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -136,23 +136,23 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
-              metadata: {
-                items: singleItem(event.id, 1, 1000),
-                name: "John",
-                email: "john@example.com",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
             Promise.resolve({ id: "re_test" } as unknown as Awaited<
               ReturnType<typeof stripeApi.refundPayment>
+            >),
+          ),
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(event.id, 1, 1000),
+                name: "John",
+              },
+              payment_intent: "pi_test_123",
+              payment_status: "paid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
           ),
         }),
@@ -187,32 +187,32 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event with another attendee (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event.id }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_second",
-              amount_total: 1000,
-              metadata: {
-                items: singleItem(event.id, 1, 1000),
-                name: "Second",
-                email: "second@example.com",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
             Promise.resolve({ id: "re_test" } as unknown as Awaited<
               ReturnType<typeof stripeApi.refundPayment>
+            >),
+          ),
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              amount_total: 1000,
+              id: "cs_test",
+              metadata: {
+                email: "second@example.com",
+                items: singleItem(event.id, 1, 1000),
+                name: "Second",
+              },
+              payment_intent: "pi_second",
+              payment_status: "paid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
           ),
         }),
@@ -271,8 +271,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test_cancel",
-              payment_status: "unpaid",
               metadata: {}, // Missing required fields
+              payment_status: "unpaid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -300,12 +300,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test_cancel",
-              payment_status: "unpaid",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(99999, 1, 0), // Non-existent event
                 name: "John",
-                email: "john@example.com",
               },
+              payment_status: "unpaid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -336,12 +336,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test_cancel",
-              payment_status: "unpaid",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(event.id, 1, 1000),
                 name: "John",
-                email: "john@example.com",
               },
+              payment_status: "unpaid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -378,15 +378,15 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test_cancel_multi",
-              payment_status: "unpaid",
               metadata: {
-                name: "John",
                 email: "john@example.com",
                 items: JSON.stringify([
-                  { e: event.id, q: 1, p: 1000 },
-                  { e: event2.id, q: 2, p: 4000 },
+                  { e: event.id, p: 1000, q: 1 },
+                  { e: event2.id, p: 4000, q: 2 },
                 ]),
+                name: "John",
               },
+              payment_status: "unpaid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -412,12 +412,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test_cancel_bad_multi",
-              payment_status: "unpaid",
               metadata: {
-                name: "John",
                 email: "john@example.com",
                 items: "[]", // Empty items array
+                name: "John",
               },
+              payment_status: "unpaid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -436,8 +436,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
   describe("payment routes", () => {
     test("returns 404 for unsupported method on payment routes", async () => {
       const response = await awaitTestRequest("/payment/success", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -465,8 +465,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Try to reserve a ticket - should fail because Stripe key is invalid
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
 
       // Should redirect with error because Stripe session creation fails
@@ -501,8 +501,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       try {
         const response = await submitTicketForm(event.slug, {
-          name: "John Doe",
           email: "john@example.com",
+          name: "John Doe",
         });
 
         expect(response.status).toBe(302);
@@ -529,8 +529,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
 
       // Should redirect to thank you page
@@ -548,8 +548,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
 
       // Should redirect to thank you page (no payment required)
@@ -566,8 +566,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       const response = await submitTicketForm(event.slug, {
-        name: "John Doe",
         email: "john@example.com",
+        name: "John Doe",
       });
 
       // Should redirect to Stripe checkout URL
@@ -585,21 +585,21 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await withMocks(
         () => ({
+          mockRefund: spy(stripeApi, "refundPayment"),
           mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(99999, 1, 0), // Non-existent event
                 name: "John",
-                email: "john@example.com",
               },
+              payment_intent: "pi_test",
+              payment_status: "paid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
           ),
-          mockRefund: spy(stripeApi, "refundPayment"),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -629,15 +629,15 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         () =>
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
-              id: "cs_test_paid",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
               amount_total: 1000,
+              id: "cs_test_paid",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(event.id, 1, 1000),
                 name: "John",
-                email: "john@example.com",
               },
+              payment_intent: "pi_test_123",
+              payment_status: "paid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -694,25 +694,25 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Create attendee as if payment was already processed (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        name: "John",
-        email: "john@example.com",
-        paymentId: "pi_test_123",
         bookings: [{ eventId: event.id }],
+        email: "john@example.com",
+        name: "John",
+        paymentId: "pi_test_123",
       });
 
       await withMocks(
         () =>
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
-              id: "cs_test_paid",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
               amount_total: 1000,
+              id: "cs_test_paid",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(event.id, 1, 1000),
                 name: "John",
-                email: "john@example.com",
               },
+              payment_intent: "pi_test_123",
+              payment_status: "paid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -740,24 +740,24 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       const event = await createTestEvent({
         maxAttendees: 50,
+        maxQuantity: 5,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
-        maxQuantity: 5,
       });
 
       await withMocks(
         () =>
           stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
-              id: "cs_test_paid",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
               amount_total: 3000,
+              id: "cs_test_paid",
               metadata: {
+                email: "john@example.com",
                 items: singleItem(event.id, 3, 3000),
                 name: "John",
-                email: "john@example.com",
               },
+              payment_intent: "pi_test_123",
+              payment_status: "paid",
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
             >),
@@ -795,16 +795,16 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event (using atomic to simulate production flow)
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event.id }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       // Try to register - should fail before Stripe session is created
       const response = await submitTicketForm(event.slug, {
-        name: "Second",
         email: "second@example.com",
+        name: "Second",
       });
 
       expect(response.status).toBe(302);
@@ -830,31 +830,31 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+          mockAtomic: stub(attendeesApi, "createAttendeeAtomic", () =>
             Promise.resolve({
-              id: "cs_test",
-              payment_status: "paid",
-              payment_intent: "pi_test_123",
-              amount_total: 1000,
-              metadata: {
-                items: singleItem(event.id, 1, 1000),
-                name: "John",
-                email: "john@example.com",
-              },
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
+              reason: "encryption_error",
+              success: false,
+            }),
           ),
           mockRefund: stub(stripeApi, "refundPayment", () =>
             Promise.resolve({ id: "re_test" } as unknown as Awaited<
               ReturnType<typeof stripeApi.refundPayment>
             >),
           ),
-          mockAtomic: stub(attendeesApi, "createAttendeeAtomic", () =>
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
-              success: false,
-              reason: "encryption_error",
-            }),
+              amount_total: 1000,
+              id: "cs_test",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(event.id, 1, 1000),
+                name: "John",
+              },
+              payment_intent: "pi_test_123",
+              payment_status: "paid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
           ),
         }),
         async ({ mockRefund }) => {
@@ -885,31 +885,31 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Success Multi 1",
         maxAttendees: 50,
+        name: "Success Multi 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Success Multi 2",
         maxAttendees: 50,
+        name: "Success Multi 2",
         unitPrice: 1000,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_success",
-          payment_status: "paid",
-          payment_intent: "pi_multi_success",
           amount_total: 2500,
+          id: "cs_multi_success",
           metadata: {
-            name: "Multi Payer",
             email: "multi@example.com",
 
             items: JSON.stringify([
-              { e: event1.id, q: 1, p: 500 },
-              { e: event2.id, q: 2, p: 2000 },
+              { e: event1.id, p: 500, q: 1 },
+              { e: event2.id, p: 2000, q: 2 },
             ]),
+            name: "Multi Payer",
           },
+          payment_intent: "pi_multi_success",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -948,14 +948,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_bad_multi",
-          payment_status: "paid",
-          payment_intent: "pi_bad",
           metadata: {
-            name: "Bad",
             email: "bad@example.com",
 
             items: "not-an-array",
+            name: "Bad",
           },
+          payment_intent: "pi_bad",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -977,14 +977,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_multi_notfound",
-          payment_status: "paid",
-          payment_intent: "pi_multi_notfound",
           metadata: {
-            name: "Missing Event",
             email: "missing@example.com",
 
-            items: JSON.stringify([{ e: 99999, q: 1, p: 500 }]),
+            items: JSON.stringify([{ e: 99999, p: 500, q: 1 }]),
+            name: "Missing Event",
           },
+          payment_intent: "pi_multi_notfound",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1009,8 +1009,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Multi Inactive Pay",
         maxAttendees: 50,
+        name: "Multi Inactive Pay",
         unitPrice: 500,
       });
       await deactivateTestEvent(event.id);
@@ -1018,14 +1018,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_multi_inactive",
-          payment_status: "paid",
-          payment_intent: "pi_multi_inactive",
           metadata: {
-            name: "Inactive Event",
             email: "inactive@example.com",
 
-            items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            name: "Inactive Event",
           },
+          payment_intent: "pi_multi_inactive",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1063,23 +1063,23 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Fill the event
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event.id }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_refund_fail",
-          payment_status: "paid",
-          payment_intent: "pi_refund_fail",
           amount_total: 1000,
+          id: "cs_refund_fail",
           metadata: {
+            email: "refund@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "Refund Fail",
-            email: "refund@example.com",
           },
+          payment_intent: "pi_refund_fail",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1105,39 +1105,39 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Multi Rollback 1",
         maxAttendees: 50,
+        name: "Multi Rollback 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Multi Rollback 2",
         maxAttendees: 1,
+        name: "Multi Rollback 2",
         unitPrice: 1000,
       });
 
       // Fill event2
       await createAttendeeAtomic({
-        name: "First",
-        email: "first@example.com",
-        paymentId: "pi_first",
         bookings: [{ eventId: event2.id }],
+        email: "first@example.com",
+        name: "First",
+        paymentId: "pi_first",
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_rollback",
-          payment_status: "paid",
-          payment_intent: "pi_multi_rollback",
           amount_total: 1500,
+          id: "cs_multi_rollback",
           metadata: {
-            name: "Rollback User",
             email: "rollback@example.com",
 
             items: JSON.stringify([
-              { e: event1.id, q: 1, p: 500 },
-              { e: event2.id, q: 1, p: 1000 },
+              { e: event1.id, p: 500, q: 1 },
+              { e: event2.id, p: 1000, q: 1 },
             ]),
+            name: "Rollback User",
           },
+          payment_intent: "pi_multi_rollback",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1170,21 +1170,21 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       const event = await createTestEvent({
         maxAttendees: 50,
-        unitPrice: 500,
         thankYouUrl: "https://example.com/single-thanks",
+        unitPrice: 500,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_single_thankyou",
-          payment_status: "paid",
-          payment_intent: "pi_single_thankyou",
           amount_total: 500,
+          id: "cs_single_thankyou",
           metadata: {
+            email: "single@example.com",
             items: singleItem(event.id, 1, 500),
             name: "Single",
-            email: "single@example.com",
           },
+          payment_intent: "pi_single_thankyou",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1212,21 +1212,21 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       const event = await createTestEvent({
         maxAttendees: 50,
-        unitPrice: 1000,
         thankYouUrl: "https://example.com/replay-thanks",
+        unitPrice: 1000,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_dupe_session",
-          payment_status: "paid",
-          payment_intent: "pi_dupe",
           amount_total: 1000,
+          id: "cs_dupe_session",
           metadata: {
+            email: "dupe@example.com",
             items: singleItem(event.id, 1, 1000),
             name: "Dupe",
-            email: "dupe@example.com",
           },
+          payment_intent: "pi_dupe",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1261,24 +1261,24 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        name: "Cart Single",
         maxAttendees: 50,
-        unitPrice: 800,
+        name: "Cart Single",
         thankYouUrl: "https://example.com/cart-thanks",
+        unitPrice: 800,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_cart_single",
-          payment_status: "paid",
-          payment_intent: "pi_cart_single",
           amount_total: 800,
+          id: "cs_cart_single",
           metadata: {
-            name: "Cart Single Buyer",
             email: "cartsingle@example.com",
 
-            items: JSON.stringify([{ e: event.id, q: 1, p: 800 }]),
+            items: JSON.stringify([{ e: event.id, p: 800, q: 1 }]),
+            name: "Cart Single Buyer",
           },
+          payment_intent: "pi_cart_single",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1315,31 +1315,31 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        name: "Replay Multi 1",
         maxAttendees: 50,
+        name: "Replay Multi 1",
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        name: "Replay Multi 2",
         maxAttendees: 50,
+        name: "Replay Multi 2",
         unitPrice: 1000,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_multi_dupe",
-          payment_status: "paid",
-          payment_intent: "pi_multi_dupe",
           amount_total: 1500,
+          id: "cs_multi_dupe",
           metadata: {
-            name: "Multi Replay",
             email: "multireplay@example.com",
 
             items: JSON.stringify([
-              { e: event1.id, q: 1, p: 500 },
-              { e: event2.id, q: 1, p: 1000 },
+              { e: event1.id, p: 500, q: 1 },
+              { e: event2.id, p: 1000, q: 1 },
             ]),
+            name: "Multi Replay",
           },
+          payment_intent: "pi_multi_dupe",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1400,21 +1400,21 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       const event = await createTestEvent({
         maxAttendees: 50,
-        unitPrice: 500,
         thankYouUrl: "https://example.com/verified-thanks",
+        unitPrice: 500,
       });
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          id: "cs_token_verify",
-          payment_status: "paid",
-          payment_intent: "pi_token_verify",
           amount_total: 500,
+          id: "cs_token_verify",
           metadata: {
+            email: "verify@example.com",
             items: singleItem(event.id, 1, 500),
             name: "Token Verify",
-            email: "verify@example.com",
           },
+          payment_intent: "pi_token_verify",
+          payment_status: "paid",
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
@@ -1456,17 +1456,17 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Create attendee directly (simulates post-payment state)
       const result = await createAttendeeAtomic({
-        name: "Email Test",
-        email: "buyer@example.com",
-        paymentId: "pi_email_notice",
         bookings: [{ eventId: event.id, pricePaid: 500 }],
+        email: "buyer@example.com",
+        name: "Email Test",
+        paymentId: "pi_email_notice",
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
       const restore = setTestEnv({
-        HOST_EMAIL_PROVIDER: "resend",
         HOST_EMAIL_API_KEY: "re_test123",
         HOST_EMAIL_FROM_ADDRESS: "noreply@tickets.com",
+        HOST_EMAIL_PROVIDER: "resend",
       });
 
       try {

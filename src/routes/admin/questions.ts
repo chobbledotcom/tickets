@@ -122,7 +122,7 @@ const handleAddAnswer = withValidatedText(
   "Answer text is required",
   async (id, text) => {
     const sortOrder = await getNextAnswerSortOrder(id);
-    await answersTable.insert({ questionId: id, text, sortOrder });
+    await answersTable.insert({ questionId: id, sortOrder, text });
     await logActivity(`Answer '${text}' added to question ${id}`);
     return redirect(`/admin/questions/${id}`, "Answer added", true);
   },
@@ -130,17 +130,17 @@ const handleAddAnswer = withValidatedText(
 
 /** Confirmed-delete handlers for questions */
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
-  load: (id) => getQuestionWithAnswers(id),
-  render: (q, session, error) => adminQuestionDeletePage(q, session, error),
   identifier: (q) => q.text,
+  identifierLabel: "Question text",
+  load: (id) => getQuestionWithAnswers(id),
   onConfirm: async (q) => {
     await deleteQuestion(q.id);
     await logActivity(`Question '${q.text}' deleted`);
   },
   path: "/admin/questions/:id/delete",
-  successRedirect: "/admin/questions",
+  render: (q, session, error) => adminQuestionDeletePage(q, session, error),
   successMessage: "Question deleted",
-  identifierLabel: "Question text",
+  successRedirect: "/admin/questions",
 });
 
 /** Load question + answer by IDs, returning 404 if either is missing */
@@ -282,18 +282,18 @@ const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
 export const questionsRoutes = {
   ...questionDelete.routes,
   ...defineRoutes({
+    "GET /admin/event/:id/questions": handleEventQuestionsGet,
     "GET /admin/questions": handleQuestionsGet,
-    "POST /admin/questions": handleQuestionsPost,
     "GET /admin/questions/:id": handleQuestionGet,
-    "POST /admin/questions/:id/edit": handleQuestionEdit,
-    "POST /admin/questions/:id/answers": handleAddAnswer,
     "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
+    "POST /admin/event/:id/questions": handleEventQuestionsPost,
+    "POST /admin/questions": handleQuestionsPost,
+    "POST /admin/questions/:id/answers": handleAddAnswer,
     "POST /admin/questions/:id/answers/:answerId/delete":
       handleDeleteAnswerPost,
-    "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
     "POST /admin/questions/:id/answers/:answerId/move-down":
       handleMoveAnswerDown,
-    "GET /admin/event/:id/questions": handleEventQuestionsGet,
-    "POST /admin/event/:id/questions": handleEventQuestionsPost,
+    "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
+    "POST /admin/questions/:id/edit": handleQuestionEdit,
   }),
 };

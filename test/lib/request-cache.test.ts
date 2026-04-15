@@ -23,7 +23,7 @@ describe("cache-registry", () => {
   });
 
   test("returns stats from registered caches", () => {
-    registerCache(() => ({ name: "test", entries: 5 }));
+    registerCache(() => ({ entries: 5, name: "test" }));
     const stats = getAllCacheStats();
     expect(stats).toHaveLength(1);
     expect(stats[0]!.name).toBe("test");
@@ -31,28 +31,28 @@ describe("cache-registry", () => {
   });
 
   test("supports capacity field", () => {
-    registerCache(() => ({ name: "lru", entries: 100, capacity: 10000 }));
+    registerCache(() => ({ capacity: 10000, entries: 100, name: "lru" }));
     const stats = getAllCacheStats();
     expect(stats[0]!.capacity).toBe(10000);
   });
 
   test("collects stats from multiple caches", () => {
-    registerCache(() => ({ name: "a", entries: 1 }));
-    registerCache(() => ({ name: "b", entries: 2 }));
-    registerCache(() => ({ name: "c", entries: 3 }));
+    registerCache(() => ({ entries: 1, name: "a" }));
+    registerCache(() => ({ entries: 2, name: "b" }));
+    registerCache(() => ({ entries: 3, name: "c" }));
     const stats = getAllCacheStats();
     expect(stats).toHaveLength(3);
   });
 
   test("calls providers each time to get fresh stats", () => {
     let count = 0;
-    registerCache(() => ({ name: "dynamic", entries: ++count }));
+    registerCache(() => ({ entries: ++count, name: "dynamic" }));
     expect(getAllCacheStats()[0]!.entries).toBe(1);
     expect(getAllCacheStats()[0]!.entries).toBe(2);
   });
 
   test("resetCacheRegistry clears all providers", () => {
-    registerCache(() => ({ name: "test", entries: 1 }));
+    registerCache(() => ({ entries: 1, name: "test" }));
     expect(getAllCacheStats()).toHaveLength(1);
     resetCacheRegistry();
     expect(getAllCacheStats()).toHaveLength(0);
@@ -171,9 +171,9 @@ describe("requestCache", () => {
 describeWithEnv("caching integration", { db: true }, () => {
   test("caches holidays within a request and serves fresh data across requests", async () => {
     await holidaysTable.insert({
+      endDate: "2026-07-31",
       name: "Summer Break",
       startDate: "2026-07-01",
-      endDate: "2026-07-31",
     });
 
     // Within a request, same data is returned (cached reference)
@@ -191,9 +191,9 @@ describeWithEnv("caching integration", { db: true }, () => {
     expect(first).toHaveLength(0);
 
     await holidaysTable.insert({
+      endDate: "2026-12-31",
       name: "Winter Break",
       startDate: "2026-12-20",
-      endDate: "2026-12-31",
     });
 
     const second = await runWithRequestCache(() => getAllHolidays());
@@ -203,7 +203,7 @@ describeWithEnv("caching integration", { db: true }, () => {
 
   test("cache-registry collects stats from request caches", async () => {
     const cache = requestCache(() => Promise.resolve([1, 2, 3]));
-    registerCache(() => ({ name: "test-integration", entries: cache.size() }));
+    registerCache(() => ({ entries: cache.size(), name: "test-integration" }));
 
     await runWithRequestCache(async () => {
       await cache.getAll();
