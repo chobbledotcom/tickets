@@ -3,11 +3,7 @@
  */
 
 import { formatCurrency } from "#lib/currency.ts";
-import {
-  formatDateLabel,
-  formatDateRangeLabel,
-  formatDatetimeShort,
-} from "#lib/dates.ts";
+import { formatDateRangeLabel, formatDatetimeShort } from "#lib/dates.ts";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
@@ -334,8 +330,7 @@ export const adminEditAttendeePage = (
                 </td>
                 <td>
                   {linkDate
-                    ? formatDateRangeLabel(booking.start_at, booking.end_at) ||
-                      formatDateLabel(linkDate)
+                    ? formatDateRangeLabel(booking.start_at, booking.end_at)
                     : ""}
                 </td>
                 <td>

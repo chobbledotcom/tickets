@@ -563,7 +563,9 @@ const loadForDay = async (
     "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id != ?",
     [eventId, excludeAttendeeId],
   );
-  return row?.count ?? 0;
+  // SELECT COALESCE(SUM(...), 0) always returns exactly one row, so row is
+  // never undefined here.
+  return row!.count;
 };
 
 const checkEventCapForDays = async (
@@ -611,7 +613,6 @@ const checkEventAvailability = async (
   excludeAttendeeId?: number,
   durationDays = 1,
 ): Promise<boolean> => {
-  if (quantity <= 0) return true;
   const event = await getEventWithCount(eventId);
   if (!event) return false;
 
@@ -880,8 +881,8 @@ export const attendeesApi = {
         "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
         [eventId],
       );
-      const existing = row?.count ?? 0;
-      if (existing + qty > ev.max_attendees) return false;
+      // SELECT COALESCE(SUM(...), 0) always returns one row; no nullish path.
+      if (row!.count + qty > ev.max_attendees) return false;
     }
 
     // Group capacity: per-day across the union of requested daily days,
@@ -1247,7 +1248,6 @@ export const updateEventLink = async (
   input: UpdateEventLinkInput,
 ): Promise<UpdateEventLinkResult> => {
   const { quantity: qty, date, durationDays = 1 } = input;
-  if (qty < 0) return CAPACITY_EXCEEDED;
 
   const preflight = await checkEventAvailability(
     eventId,
@@ -1297,7 +1297,6 @@ export const addEventLink = async (
   booking: EventBooking,
 ): Promise<UpdateEventLinkResult> => {
   const qty = booking.quantity ?? 1;
-  if (qty < 0) return CAPACITY_EXCEEDED;
 
   const preflight = await checkEventAvailability(
     booking.eventId,

@@ -17,7 +17,12 @@ import {
 import { getDb } from "#lib/db/client.ts";
 import { getEvent } from "#lib/db/events.ts";
 import { buildTemplateData } from "#lib/email-renderer.ts";
-import { createTestEvent, describeWithEnv, makeTestEntry } from "#test-utils";
+import {
+  createTestEvent,
+  describeWithEnv,
+  makeTestEntry,
+  updateTestEvent,
+} from "#test-utils";
 
 describeWithEnv("integration: duration_days", { db: true }, () => {
   describe("multi-day booking flow", () => {
@@ -86,6 +91,38 @@ describeWithEnv("integration: duration_days", { db: true }, () => {
           "2026-06-12",
         ),
       ).toBe(false);
+    });
+
+    test("POST /admin/event/:id/edit reconciles booking ranges when duration changes", async () => {
+      // Exercises the admin-edit HTTP path that wires a duration change into
+      // recomputeEventBookingRanges. Previously this path was only tested at
+      // the DB helper level.
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+        name: "Admin Edit Retreat",
+      });
+
+      await createAttendeeAtomic({
+        bookings: [{ date: "2026-08-10", eventId: event.id, quantity: 1 }],
+        email: "edit@example.com",
+        name: "Edit",
+      });
+
+      await updateTestEvent(event.id, { durationDays: 5 });
+
+      const row = await getDb().execute({
+        args: [event.id],
+        sql: "SELECT end_at FROM event_attendees WHERE event_id = ?",
+      });
+      // 2026-08-10 + 5 days → 2026-08-15.
+      expect(String(row.rows[0]!.end_at)).toBe("2026-08-15T00:00:00.000Z");
+
+      const fresh = await getEvent(event.id);
+      expect(fresh?.duration_days).toBe(5);
     });
 
     test("admin duration edit updates existing bookings' end_at", async () => {

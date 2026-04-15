@@ -160,6 +160,13 @@ describe("eventFields — duration_days", () => {
       eventForm({ duration_days: "91" }),
     );
   });
+
+  test("rejects fractional duration_days", () => {
+    expectInvalid("Booking Duration (days) must be a whole number")(
+      eventFields,
+      eventForm({ duration_days: "1.5" }),
+    );
+  });
 });
 
 describe("eventFields — bookable_days", () => {

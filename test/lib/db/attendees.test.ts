@@ -1739,6 +1739,138 @@ describeWithEnv("db > attendees", { db: true }, () => {
       expect(link.success).toBe(true);
     });
 
+    test("updateEventLink on a non-existent (attendee, event) pair returns capacity_exceeded", async () => {
+      // Exercises the SQL safety-net rejection in checkCapacityResult:
+      // preflight passes (event exists, capacity free), but the UPDATE's
+      // base predicate `attendee_id = ? AND event_id = ?` matches no row
+      // so rowsAffected = 0 and we get CAPACITY_EXCEEDED.
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({ maxAttendees: 5 });
+      const result = await updateEventLink(999_999, event.id, {
+        date: null,
+        quantity: 1,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("updateEventLink self-excludes when moving own booking in a group-capped event", async () => {
+      // Exercises the excludeAttendeeId branch of getGroupAttendeeCount:
+      // moving a booking within a group-capped event must not see its own
+      // existing row as contention, otherwise the move would always fail.
+      const { createTestGroup } = await import("#test-utils");
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({ maxAttendees: 2 });
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      // Occupy the full group cap of 2 on day 1 with a single booking.
+      const own = await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-07-01",
+            durationDays: 1,
+            eventId: event.id,
+            quantity: 2,
+          },
+        ],
+        email: "own@example.com",
+        name: "Own",
+      });
+      expect(own.success).toBe(true);
+      if (!own.success) return;
+
+      // Moving our own booking to a different day within the same group
+      // must succeed — self-exclusion removes it from the group-day count.
+      const moved = await updateEventLink(own.attendees[0]!.id, event.id, {
+        date: "2026-07-02",
+        durationDays: 1,
+        quantity: 2,
+      });
+      expect(moved.success).toBe(true);
+    });
+
+    test("addEventLink defaults quantity to 1 when omitted", async () => {
+      const { addEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({ maxAttendees: 3 });
+      const base = await createAttendeeAtomic({
+        bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "qdef@example.com",
+        name: "QDef",
+      });
+      expect(base.success).toBe(true);
+      if (!base.success) return;
+
+      // Need a second event so addEventLink creates a new row rather than
+      // conflicting with the base one on (event_id, attendee_id).
+      const second = await createTestEvent({ maxAttendees: 3 });
+
+      // Omit quantity — EventBooking.quantity is optional; the default of 1
+      // is part of the documented API.
+      const link = await addEventLink(base.attendees[0]!.id, {
+        eventId: second.id,
+      });
+      expect(link.success).toBe(true);
+
+      const rows = await getDb().execute({
+        args: [second.id, base.attendees[0]!.id],
+        sql: "SELECT quantity FROM event_attendees WHERE event_id = ? AND attendee_id = ?",
+      });
+      expect(Number(rows.rows[0]!.quantity)).toBe(1);
+    });
+
+    test("updateEventLink self-excludes on a standard (non-daily) event in a group-capped group", async () => {
+      // Covers getGroupAttendeeCount's excludeAttendeeId branch when date is
+      // null (standard event). Without the exclusion, updating the own row's
+      // quantity would see itself in the group count and always over-count.
+      const { createTestGroup } = await import("#test-utils");
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const group = await createTestGroup({ maxAttendees: 3 });
+      const event = await createTestEvent({
+        eventType: "standard",
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      const own = await createAttendeeAtomic({
+        bookings: [{ eventId: event.id, quantity: 2 }],
+        email: "sg@example.com",
+        name: "StandardGroup",
+      });
+      expect(own.success).toBe(true);
+      if (!own.success) return;
+
+      // Updating quantity from 2 to 3 (== group cap) must succeed thanks to
+      // self-exclusion in the group-count query.
+      const moved = await updateEventLink(own.attendees[0]!.id, event.id, {
+        date: null,
+        quantity: 3,
+      });
+      expect(moved.success).toBe(true);
+    });
+
+    test("checkBatchAvailability rejects a standard event exceeding total capacity", async () => {
+      // Covers the totalDemand-over-max branch (non-daily path): checkout
+      // carts for standard events route through total-sum, not per-day.
+      const event = await createTestEvent({
+        eventType: "standard",
+        maxAttendees: 2,
+      });
+      // Pre-fill to capacity.
+      await createAttendeeAtomic({
+        bookings: [{ eventId: event.id, quantity: 2 }],
+        email: "full@example.com",
+        name: "Full",
+      });
+      expect(
+        await checkBatchAvailability([{ eventId: event.id, quantity: 1 }]),
+      ).toBe(false);
+    });
+
     test("updateEventLink admits multi-day update whose range contains non-overlapping existing bookings", async () => {
       const { updateEventLink } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({

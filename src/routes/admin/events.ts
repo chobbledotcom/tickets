@@ -504,7 +504,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
           result.row.duration_days,
         );
         await logActivity(
-          `Event '${result.row.name}' duration changed to ${result.row.duration_days} day${result.row.duration_days === 1 ? "" : "s"}`,
+          `Event '${result.row.name}' duration changed to ${result.row.duration_days} day(s)`,
           result.row,
         );
       }

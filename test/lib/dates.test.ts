@@ -245,6 +245,14 @@ describeWithEnv("dates", { db: true }, () => {
     test("returns empty string when start is null", () => {
       expect(formatDateRangeLabel(null, null)).toBe("");
     });
+
+    test("collapses to single-day label when end is null but start is set", () => {
+      // Defensive path for rows that somehow have start_at but no end_at —
+      // callers in the admin template still render something sensible.
+      expect(formatDateRangeLabel("2026-02-09T00:00:00Z", null)).toBe(
+        "Monday 9 February 2026",
+      );
+    });
   });
 
   describe("getNextBookableDate", () => {

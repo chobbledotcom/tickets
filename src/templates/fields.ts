@@ -402,7 +402,8 @@ export const eventFields: Field[] = [
     name: "duration_days",
     type: "number",
     validate: (value: string): string | null => {
-      if (value === "") return null;
+      // validateSingleField only calls this when the value is non-empty, so
+      // the empty-string case never reaches here.
       const parsed = Number(value);
       if (!Number.isInteger(parsed)) {
         return "Booking Duration (days) must be a whole number";
