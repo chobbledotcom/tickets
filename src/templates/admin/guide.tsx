@@ -1267,6 +1267,48 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
+      <Section id="login-security" title="Login &amp; Security">
+        <Q q="What happens if I enter the wrong password?">
+          <p>
+            After <strong>5 failed login attempts</strong> from the same IP
+            address, the system locks out that IP for{" "}
+            <strong>15 minutes</strong>. During the lockout, all login attempts
+            from that IP are rejected &mdash; even with the correct password.
+            Wait for the lockout period to pass and try again.
+          </p>
+        </Q>
+
+        <Q q="Why am I locked out even though my password is correct?">
+          <p>
+            You've likely hit the rate limit from previous failed attempts. The
+            lockout applies to your IP address, not your account, so other
+            admins logging in from different locations are not affected. Wait 15
+            minutes and try again.
+          </p>
+        </Q>
+
+        <Q q="Is there a way to recover a lost password?">
+          <p>
+            No. There is <strong>no password recovery</strong> mechanism. All
+            attendee data is encrypted with keys derived from admin passwords,
+            so a reset would make existing data unreadable. If you lose your
+            password, another owner can delete your account and send a fresh
+            invite &mdash; all existing attendee data remains accessible to
+            other admins. Keep your password somewhere safe.
+          </p>
+        </Q>
+
+        <Q q="How are admin sessions secured?">
+          <p>
+            Sessions use HttpOnly cookies that cannot be read by JavaScript.
+            Each session expires after <strong>24 hours</strong>, after which
+            you must log in again. You can view all active sessions and log out
+            all other sessions from the <strong>Sessions</strong> page if you
+            suspect your account has been compromised.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Data &amp; Privacy">
         <Q q="How is attendee data protected?">
           <p>
