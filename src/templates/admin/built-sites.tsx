@@ -9,7 +9,6 @@ import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { filter, map, pipe } from "#fp";
 
 /**
  * Admin built sites list page
@@ -19,10 +18,10 @@ export const adminBuiltSitesPage = (
   session: AdminSession,
   successMessage?: string,
 ): string => {
-  const scriptIds = pipe(
-    filter((site: BuiltSite) => site.bunnyScriptId),
-    map((site: BuiltSite) => site.bunnyScriptId),
-  )(sites).join("|");
+  const scriptIds = sites
+    .filter((site) => site.bunnyScriptId)
+    .map((site) => site.bunnyScriptId)
+    .join("|");
 
   return String(
     <Layout title="Built Sites">
