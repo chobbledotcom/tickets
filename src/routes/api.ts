@@ -174,7 +174,12 @@ const handleCheckAvailability = withActiveEvent(async (request, event) => {
   const quantity = Math.max(1, Number.isNaN(parsed) ? 1 : parsed);
   const date = url.searchParams.get("date") || undefined;
   return apiResponse({
-    available: await hasAvailableSpots(event.id, quantity, date),
+    available: await hasAvailableSpots(
+      event.id,
+      quantity,
+      date,
+      event.duration_days,
+    ),
   });
 });
 
