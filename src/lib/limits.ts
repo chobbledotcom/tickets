@@ -164,8 +164,8 @@ export const formatLimitValue = (value: number, unit: string): string => {
   if (unit === "ms") return formatMs(value);
   if (unit === "seconds") return formatSeconds(value);
   if (unit === "chars") return `${value} chars`;
-  if (unit === "days") return `${value} day${value === 1 ? "" : "s"}`;
-  if (unit === "hours") return `${value} hour${value === 1 ? "" : "s"}`;
+  if (unit === "days") return `${value} days`;
+  if (unit === "hours") return `${value} hours`;
   return `${value} ${unit}`;
 };
 

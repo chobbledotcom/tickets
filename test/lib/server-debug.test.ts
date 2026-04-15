@@ -409,6 +409,19 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
   });
 
+  describe("Database pruning section", () => {
+    test("renders the most recent prune timestamp as ISO", async () => {
+      // Set a recent timestamp so the request-handler's fire-and-forget
+      // maybeRunPrunes() sees it as not-yet-due and doesn't overwrite.
+      const ts = Date.now() - 1000;
+      await settings.update.lastPrunedPayments(String(ts));
+      await settings.update.lastPrunedSessions(String(ts));
+      await settings.update.lastPrunedLogins(String(ts));
+      const expected = new Date(ts).toISOString();
+      await assertAdminHtml("/admin/debug", "Database pruning", expected);
+    });
+  });
+
   describe("Limits section", () => {
     test("shows limits table with all entries", async () => {
       const html = await assertAdminHtml("/admin/debug", "Limits");

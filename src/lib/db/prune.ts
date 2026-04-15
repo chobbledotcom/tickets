@@ -122,8 +122,7 @@ const runTask = async (task: PruneTask, now: number): Promise<void> => {
       logDebug("Prune", `${task.name}: deleted ${deleted} rows`);
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logDebug("Prune", `${task.name} failed: ${msg}`);
+    logDebug("Prune", `${task.name} failed: ${String(e)}`);
   }
 };
 

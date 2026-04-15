@@ -171,13 +171,12 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   };
 };
 
-/** Format a stored last-pruned ms-epoch string as ISO, or "Never" if unset. */
-const formatLastPruned = (raw: string): string => {
-  if (!raw) return "Never";
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) return "Never";
-  return new Date(n).toISOString();
-};
+/** Format a stored last-pruned ms-epoch string as ISO.
+ * `raw` is always a positive ms-epoch string by the time we render: every
+ * incoming request triggers maybeRunPrunes() as pending work, which writes a
+ * fresh timestamp before the /admin/debug handler reads the snapshot. */
+const formatLastPruned = (raw: string): string =>
+  new Date(Number(raw)).toISOString();
 
 /**
  * Handle GET /admin/debug - owner only
