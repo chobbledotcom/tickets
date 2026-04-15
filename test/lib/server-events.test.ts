@@ -14,6 +14,7 @@ import { formatCountdown, withCookie } from "#routes/utils.ts";
 import {
   adminFormPost,
   adminGet,
+  assertAdminHtmlWithCookie,
   awaitTestRequest,
   createTestAttendee,
   createTestEvent,
@@ -1834,10 +1835,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows log page for manager", async () => {
       const managerCookie = await createTestManagerSession();
-      const response = await awaitTestRequest("/admin/log", {
-        cookie: managerCookie,
-      });
-      await expectHtmlResponse(response, 200, "Log");
+      await assertAdminHtmlWithCookie("/admin/log", managerCookie, "Log");
     });
 
     test("shows truncation message when more than 200 entries", async () => {

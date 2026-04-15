@@ -21,6 +21,7 @@ import {
 import { handleRequest } from "#routes";
 import {
   adminFormPost,
+  assertAdminHtmlWithCookie,
   assertPublicHtml,
   awaitTestRequest,
   createTestInvite,
@@ -238,8 +239,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "mgr-dash-session",
         "dashmanager",
       );
-      const response = await awaitTestRequest("/admin/", { cookie });
-      await expectHtmlResponse(response, 200, "Events");
+      await assertAdminHtmlWithCookie("/admin/", cookie, "Events");
     });
   });
 
