@@ -139,6 +139,32 @@ describeWithEnv("db > events", { db: true }, () => {
       expect(fetched?.attendee_count).toBe(0);
     });
 
+    test("getEventWithCount reflects added attendees", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "Alice", "a@example.com");
+      await createTestAttendee(event.id, event.slug, "Bob", "b@example.com");
+
+      const fetched = await getEventWithCount(event.id);
+      expect(fetched?.attendee_count).toBe(2);
+    });
+
+    test("getAllEvents reflects added attendees per event", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+
+      await createTestAttendee(event1.id, event1.slug, "A", "a@example.com");
+      await createTestAttendee(event1.id, event1.slug, "B", "b@example.com");
+      await createTestAttendee(event2.id, event2.slug, "C", "c@example.com");
+
+      const events = await getAllEvents();
+      const byId = new Map(events.map((e) => [e.id, e.attendee_count]));
+      expect(byId.get(event1.id)).toBe(2);
+      expect(byId.get(event2.id)).toBe(1);
+    });
+
     test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
         maxAttendees: 50,
