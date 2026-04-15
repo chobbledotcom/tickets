@@ -133,6 +133,132 @@ const handleAdminRefundAllGet = (
       : htmlResponse(adminRefundAllAttendeesPage(event, count, session));
   });
 
+type RefundResult = "ok" | "failed" | "errored";
+type RefundCounts = {
+  refundedCount: number;
+  failedCount: number;
+  errorCount: number;
+};
+
+/** Refund a single attendee, returning a typed result. */
+const refundOneAttendee = async (
+  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
+  attendee: Attendee,
+  eventId: number,
+): Promise<RefundResult> => {
+  try {
+    const refunded = await provider.refundPayment(attendee.payment_id);
+    if (refunded) {
+      await markRefunded(attendee.id, eventId);
+      return "ok";
+    }
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+      eventId,
+    });
+    return "failed";
+  } catch (err) {
+    const msg = String(err);
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
+      eventId,
+    });
+    return "errored";
+  }
+};
+
+/** Process a batch of refundable attendees and tally results. */
+const processRefundBatch = async (
+  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
+  batch: Attendee[],
+  eventId: number,
+): Promise<RefundCounts> => {
+  const REFUND_CHUNK_SIZE = 5;
+  const counts: RefundCounts = {
+    errorCount: 0,
+    failedCount: 0,
+    refundedCount: 0,
+  };
+  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
+    const results = await Promise.all(
+      group.map((attendee) => refundOneAttendee(provider, attendee, eventId)),
+    );
+    for (const result of results) {
+      if (result === "ok") counts.refundedCount++;
+      else if (result === "errored") counts.errorCount++;
+      else counts.failedCount++;
+    }
+  }
+  return counts;
+};
+
+type RefundResponseCtx = {
+  event: EventWithCount;
+  refundAllUrl: string;
+  counts: RefundCounts;
+  remaining: number;
+};
+
+/** Build the error response branch of a bulk refund (some refunds failed). */
+const buildRefundProblemResponse = async (
+  ctx: RefundResponseCtx,
+): Promise<Response> => {
+  const { event, refundAllUrl, counts, remaining } = ctx;
+  const { refundedCount, failedCount, errorCount } = counts;
+  const problemCount = failedCount + errorCount;
+  const errorNote =
+    errorCount > 0
+      ? ` (${errorCount} errored — check the activity log for details)`
+      : "";
+  const msg =
+    remaining > 0
+      ? `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. ${remaining} remaining — submit again to continue.`
+      : `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
+  await logActivity(
+    `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${event.name}'`,
+    event.id,
+  );
+  return errorRedirect(refundAllUrl, msg);
+};
+
+/** Build the final response for a bulk refund based on tallied results. */
+const buildRefundAllResponse = async (
+  ctx: RefundResponseCtx & { totalRefundable: number },
+): Promise<Response> => {
+  const { counts, event, refundAllUrl, totalRefundable, remaining } = ctx;
+  const refundedCount = counts.refundedCount;
+  const hasProblems = counts.failedCount + counts.errorCount > 0;
+
+  if (hasProblems) {
+    return buildRefundProblemResponse({
+      counts,
+      event,
+      refundAllUrl,
+      remaining,
+    });
+  }
+
+  if (remaining > 0) {
+    await logActivity(
+      `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${event.name}'`,
+      event.id,
+    );
+    return redirect(
+      refundAllUrl,
+      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+      true,
+    );
+  }
+
+  await logActivity(
+    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
+    event.id,
+  );
+  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+};
+
 /** Process bulk refund for all refundable attendees */
 const processRefundAll = async (
   event: EventWithCount,
@@ -154,80 +280,16 @@ const processRefundAll = async (
     return errorRedirect(refundAllUrl, NO_PROVIDER_ERROR);
   }
 
-  const REFUND_CHUNK_SIZE = 5;
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
   const remaining = refundable.length - batch.length;
-
-  let refundedCount = 0;
-  let failedCount = 0;
-  let errorCount = 0;
-  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
-    const results = await Promise.all(
-      group.map(async (attendee) => {
-        try {
-          const refunded = await provider.refundPayment(attendee.payment_id);
-          if (refunded) {
-            await markRefunded(attendee.id, event.id);
-            return "ok" as const;
-          }
-          logError({
-            code: ErrorCode.PAYMENT_REFUND,
-            detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-            eventId: event.id,
-          });
-          return "failed" as const;
-        } catch (err) {
-          const msg = String(err);
-          logError({
-            code: ErrorCode.PAYMENT_REFUND,
-            detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
-            eventId: event.id,
-          });
-          return "errored" as const;
-        }
-      }),
-    );
-    for (const result of results) {
-      if (result === "ok") refundedCount++;
-      else if (result === "errored") errorCount++;
-      else failedCount++;
-    }
-  }
-  const problemCount = failedCount + errorCount;
-
-  if (problemCount > 0) {
-    const errorNote =
-      errorCount > 0
-        ? ` (${errorCount} errored — check the activity log for details)`
-        : "";
-    const msg =
-      remaining > 0
-        ? `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. ${remaining} remaining — submit again to continue.`
-        : `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
-    await logActivity(
-      `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${event.name}'`,
-      event.id,
-    );
-    return errorRedirect(refundAllUrl, msg);
-  }
-
-  if (remaining > 0) {
-    await logActivity(
-      `Bulk refund: ${refundedCount} of ${refundable.length} refunded for '${event.name}'`,
-      event.id,
-    );
-    return redirect(
-      refundAllUrl,
-      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
-      true,
-    );
-  }
-
-  await logActivity(
-    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
-    event.id,
-  );
-  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+  const counts = await processRefundBatch(provider, batch, event.id);
+  return buildRefundAllResponse({
+    counts,
+    event,
+    refundAllUrl,
+    remaining,
+    totalRefundable: refundable.length,
+  });
 };
 
 /** Handle POST /admin/event/:id/refund-all */

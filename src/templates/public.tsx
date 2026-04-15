@@ -441,6 +441,103 @@ export type TicketPageOptions = {
   groupDescription?: string;
 };
 
+/** Unavailability message shown when all events are sold out or closed */
+const unavailableMessage = (
+  allClosed: boolean,
+  isSingleEvent: boolean,
+): string => {
+  if (isReadOnly() || allClosed) return "Registration closed.";
+  return isSingleEvent
+    ? "Sorry, this event is full."
+    : "Sorry, all events are sold out.";
+};
+
+/** Header block shown above the form with event/group details */
+const TicketPageHeader = ({
+  headerName,
+  headerDescription,
+  singleEvent,
+  pastDays,
+}: {
+  headerName: string;
+  headerDescription: string | null | undefined;
+  singleEvent: EventWithCount | null;
+  pastDays: number | null;
+}): JSX.Element => (
+  <>
+    {singleEvent && <Raw html={renderEventImage(singleEvent)} />}
+    <div class="prose">
+      <h1>{headerName}</h1>
+      {headerDescription && (
+        <div class="description">
+          <Raw html={renderMarkdown(headerDescription)} />
+        </div>
+      )}
+      {singleEvent?.date && (
+        <p>
+          <strong>Date:</strong> {formatDatetimeLabel(singleEvent.date)}
+          {pastDays !== null && (
+            <span class="badge-alert">
+              {" "}
+              {pastDays} {pastDays === 1 ? "day" : "days"} ago
+            </span>
+          )}
+        </p>
+      )}
+      {singleEvent?.location && (
+        <p>
+          <strong>Location:</strong> {singleEvent.location}
+        </p>
+      )}
+    </div>
+  </>
+);
+
+/** Form body with fields, date selector, event rows, questions, terms, and submit */
+const TicketPageForm = ({
+  slugs,
+  fields,
+  hasDaily,
+  dates,
+  eventRows,
+  hideQuantity,
+  isSingleEvent,
+  questions,
+  questionEventMap,
+  terms,
+}: {
+  slugs: string[];
+  fields: Field[];
+  hasDaily: boolean;
+  dates: string[] | undefined;
+  eventRows: string;
+  hideQuantity: boolean;
+  isSingleEvent: boolean;
+  questions: QuestionWithAnswers[] | undefined;
+  questionEventMap: QuestionEventMap | undefined;
+  terms: string | null | undefined;
+}): JSX.Element => (
+  <CsrfForm action={`/ticket/${slugs.join("+")}`}>
+    <Raw html={renderFields(fields)} />
+    {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
+
+    {hideQuantity || isSingleEvent ? (
+      <Raw html={eventRows} />
+    ) : (
+      <fieldset class="ticket-events">
+        <legend>Select Tickets</legend>
+        <Raw html={eventRows} />
+      </fieldset>
+    )}
+
+    {questions && questions.length > 0 && (
+      <Raw html={renderQuestions(questions, questionEventMap)} />
+    )}
+    {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
+    <button type="submit">Continue</button>
+  </CsrfForm>
+);
+
 /**
  * Ticket page - register for one or more events
  * Single events show rich details (image, description, date, location).
@@ -486,7 +583,6 @@ export const ticketPage = ({
   const title = headerName || "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
-  const buttonText = "Continue";
 
   return String(
     <Layout
@@ -495,64 +591,32 @@ export const ticketPage = ({
       headExtra={headExtra}
     >
       {headerName && !inIframe && (
-        <>
-          {singleEvent && <Raw html={renderEventImage(singleEvent)} />}
-          <div class="prose">
-            <h1>{headerName}</h1>
-            {headerDescription && (
-              <div class="description">
-                <Raw html={renderMarkdown(headerDescription)} />
-              </div>
-            )}
-            {singleEvent?.date && (
-              <p>
-                <strong>Date:</strong> {formatDatetimeLabel(singleEvent.date)}
-                {pastDays !== null && (
-                  <span class="badge-alert">
-                    {" "}
-                    {pastDays} {pastDays === 1 ? "day" : "days"} ago
-                  </span>
-                )}
-              </p>
-            )}
-            {singleEvent?.location && (
-              <p>
-                <strong>Location:</strong> {singleEvent.location}
-              </p>
-            )}
-          </div>
-        </>
+        <TicketPageHeader
+          headerName={headerName}
+          headerDescription={headerDescription}
+          singleEvent={singleEvent}
+          pastDays={pastDays}
+        />
       )}
       <Flash error={error} />
 
       {allUnavailable || isReadOnly() ? (
         <div class="error" role="alert">
-          {isReadOnly() || allClosed
-            ? "Registration closed."
-            : isSingleEvent
-              ? "Sorry, this event is full."
-              : "Sorry, all events are sold out."}
+          {unavailableMessage(allClosed, isSingleEvent)}
         </div>
       ) : (
-        <CsrfForm action={`/ticket/${slugs.join("+")}`}>
-          <Raw html={renderFields(fields)} />
-          {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
-
-          {hideQuantity || isSingleEvent ? (
-            <Raw html={eventRows} />
-          ) : (
-            <fieldset class="ticket-events">
-              <legend>Select Tickets</legend>
-              <Raw html={eventRows} />
-            </fieldset>
-          )}
-
-          {questions && questions.length > 0 && (
-            <Raw html={renderQuestions(questions, questionEventMap)} />
-          )}
-          {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-          <button type="submit">{buttonText}</button>
-        </CsrfForm>
+        <TicketPageForm
+          slugs={slugs}
+          fields={fields}
+          hasDaily={hasDaily}
+          dates={dates}
+          eventRows={eventRows}
+          hideQuantity={hideQuantity}
+          isSingleEvent={isSingleEvent}
+          questions={questions}
+          questionEventMap={questionEventMap}
+          terms={terms}
+        />
       )}
     </Layout>,
   );

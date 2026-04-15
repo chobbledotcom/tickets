@@ -404,50 +404,38 @@ const priceMismatchRefund = async (
   return { detail, error: PRICE_CHANGED_MESSAGE, refunded, success: false };
 };
 
-/**
- * Core attendee creation logic shared between redirect and webhook handlers.
- * Handles all bookings uniformly — a single-item checkout is just an
- * items array with one entry.
- *
- * Uses two-phase locking to prevent duplicate attendee creation:
- * 1. Reserve session (claims the lock)
- * 2. Validate events and create attendees atomically (with rollback on failure)
- * 3. Finalize session (records attendee ID)
- */
-const processPaymentSession = async (
-  sessionId: string,
-  data: ValidatedSession,
-  options?: { storeTokens?: boolean },
-): Promise<PaymentResult> => {
-  const { session, intent } = data;
-  // Phase 1: Reserve the session (claim the lock)
-  const reservation = await reserveSession(sessionId);
+type ValidatedItem = {
+  item: BookingItem;
+  event: EventWithCount;
+  expectedPrice: number;
+};
 
-  if (!reservation.reserved) {
-    if (reservation.existing.attendee_id !== null) {
-      return alreadyProcessedResult(intent.items[0]!.e, {
-        ...reservation.existing,
-        attendee_id: reservation.existing.attendee_id,
-      });
-    }
-
-    // Session reserved but not finalized — another request is processing
-    return {
-      error: "Payment is being processed. Please wait a moment and refresh.",
-      status: 409,
-      success: false,
-    };
+/** Handle the "already reserved" branch of reserveSession */
+const handleReservationConflict = (
+  intent: BookingIntent,
+  existing: ProcessedPayment,
+): Promise<PaymentResult> | PaymentResult => {
+  if (existing.attendee_id !== null) {
+    return alreadyProcessedResult(intent.items[0]!.e, {
+      ...existing,
+      attendee_id: existing.attendee_id,
+    });
   }
+  // Session reserved but not finalized — another request is processing
+  return {
+    error: "Payment is being processed. Please wait a moment and refresh.",
+    status: 409,
+    success: false,
+  };
+};
 
-  // Phase 2: Validate events and create attendees atomically
+/** Validate all booking items and return per-item pricing info or a failure result. */
+const validateAllItems = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+): Promise<{ ok: true; items: ValidatedItem[] } | PaymentResult> => {
   const includeEventName = intent.items.length > 1;
-
-  const validatedItems: {
-    item: BookingItem;
-    event: EventWithCount;
-    expectedPrice: number;
-  }[] = [];
-
+  const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateAndPrice(
       { eventId: item.e, quantity: item.q },
@@ -460,41 +448,60 @@ const processPaymentSession = async (
       item,
     });
   }
+  return { items: validatedItems, ok: true };
+};
 
-  // Price validation — items always carry per-item prices (p field).
-  // Free events have p=0 and skip validation.
+/** Verify per-item and total prices for paid sessions. Returns null on success. */
+const verifyPaidPricing = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  validatedItems: ValidatedItem[],
+): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
-  const bookingFeePercent = getBookingFee();
+  if (!hasPaidItems) return null;
 
-  if (hasPaidItems) {
-    // Per-item prices are ticket-only (no fee), so validate without booking fee
-    for (const { item, event, expectedPrice } of validatedItems) {
-      if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
-        return priceMismatchRefund(
-          session,
-          `Per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
-          event.id,
-        );
-      }
-    }
-
-    // Total must equal sum of per-item prices + booking fee
-    const metadataTotal = validatedItems.reduce(
-      (sum, { item }) => sum + item.p,
-      0,
-    );
-    const expectedTotal =
-      metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
-    if (session.amountTotal !== expectedTotal) {
-      return priceMismatchRefund(
+  // Per-item prices are ticket-only (no fee), so validate without booking fee
+  for (const { item, event, expectedPrice } of validatedItems) {
+    if (hasPriceMismatch(item.p, expectedPrice, event, 0, item.q)) {
+      return await priceMismatchRefund(
         session,
-        `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedTotal}`,
-        validatedItems[0]!.event.id,
+        `Per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
+        event.id,
       );
     }
   }
 
-  // Create one attendee with all event bookings in a single atomic operation
+  // Total must equal sum of per-item prices + booking fee
+  const bookingFeePercent = getBookingFee();
+  const metadataTotal = validatedItems.reduce(
+    (sum, { item }) => sum + item.p,
+    0,
+  );
+  const expectedTotal =
+    metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
+  if (session.amountTotal !== expectedTotal) {
+    return await priceMismatchRefund(
+      session,
+      `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedTotal}`,
+      validatedItems[0]!.event.id,
+    );
+  }
+  return null;
+};
+
+type CreatedAttendee = Extract<
+  Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  { success: true }
+>["attendees"][number];
+
+type CreatedEntry = { attendee: CreatedAttendee; event: EventWithCount };
+
+/** Create the attendee plus per-event bookings atomically. */
+const createAttendeeForSession = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  validatedItems: ValidatedItem[],
+): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
   const bookings = validatedItems.map(({ item, event }) => ({
     date: event.event_type === "daily" ? intent.date : null,
     eventId: item.e,
@@ -526,12 +533,50 @@ const processPaymentSession = async (
     };
   }
   const created = result as Extract<typeof result, { success: true }>;
-
-  // Build entries: pair each attendee result with its event
-  const createdEntries = created.attendees.map((attendee, i) => ({
+  const entries = created.attendees.map((attendee, i) => ({
     attendee,
     event: validatedItems[i]!.event,
   }));
+  return { entries, ok: true };
+};
+
+/**
+ * Core attendee creation logic shared between redirect and webhook handlers.
+ * Handles all bookings uniformly — a single-item checkout is just an
+ * items array with one entry.
+ *
+ * Uses two-phase locking to prevent duplicate attendee creation:
+ * 1. Reserve session (claims the lock)
+ * 2. Validate events and create attendees atomically (with rollback on failure)
+ * 3. Finalize session (records attendee ID)
+ */
+const processPaymentSession = async (
+  sessionId: string,
+  data: ValidatedSession,
+  options?: { storeTokens?: boolean },
+): Promise<PaymentResult> => {
+  const { session, intent } = data;
+  // Phase 1: Reserve the session (claim the lock)
+  const reservation = await reserveSession(sessionId);
+  if (!reservation.reserved) {
+    return handleReservationConflict(intent, reservation.existing);
+  }
+
+  // Phase 2: Validate events and create attendees atomically
+  const validated = await validateAllItems(session, intent);
+  if ("success" in validated) return validated;
+  const validatedItems = validated.items;
+
+  const pricingError = await verifyPaidPricing(session, intent, validatedItems);
+  if (pricingError) return pricingError;
+
+  const created = await createAttendeeForSession(
+    session,
+    intent,
+    validatedItems,
+  );
+  if ("success" in created) return created;
+  const createdEntries = created.entries;
 
   if (intent.eventAnswerIds) {
     await saveEventAnswers(createdEntries, intent.eventAnswerIds);

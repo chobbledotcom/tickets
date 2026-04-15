@@ -294,13 +294,15 @@ export const validateAttendeeMergeDecision = (
 // applyAttendeeMerge
 // ---------------------------------------------------------------------------
 
-/** Apply a validated merge with explicit decisions */
-export const applyAttendeeMerge = async (
-  input: ApplyAttendeeMergeInput,
-): Promise<AttendeeMergeApplyResult> => {
-  const { targetId, sourceId, targetPii, sourcePii, diff, decision } = input;
+type BatchStatement = { sql: string; args: (number | string | null)[] };
 
-  // --- 1. Apply PII decisions ---
+/** Apply PII decisions — mutates mergedPii and returns fields taken from source */
+const applyPiiDecisions = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+  targetPii: Record<string, unknown>,
+  sourcePii: Record<string, unknown>,
+): { mergedPii: Record<string, unknown>; piiFieldsFromSource: string[] } => {
   const piiFieldsFromSource: string[] = [];
   const mergedPii = { ...targetPii };
   for (const field of diff.piiFields) {
@@ -311,13 +313,59 @@ export const applyAttendeeMerge = async (
       piiFieldsFromSource.push(field.field);
     }
   }
+  return { mergedPii, piiFieldsFromSource };
+};
 
-  // --- 2. Apply answer decisions ---
+/** Apply an answer decision item; returns counter deltas */
+const takeSourceAnswer = (
+  finalAnswers: Map<number, number>,
+  qid: number,
+  sourceAnswerId: number,
+): { kept: number; taken: number; cleared: number } => {
+  finalAnswers.set(qid, sourceAnswerId);
+  return { cleared: 0, kept: 0, taken: 1 };
+};
+
+const applyAnswerDecision = (
+  item: AttendeeMergeDiffAnswerItem,
+  decision: AttendeeMergeDecisionInput,
+  finalAnswers: Map<number, number>,
+): { kept: number; taken: number; cleared: number } => {
+  const qid = item.questionId;
+  const choice = decision.answers[String(qid)];
+
+  if (item.conflict) {
+    if (choice === "source" && item.sourceAnswerId !== null) {
+      return takeSourceAnswer(finalAnswers, qid, item.sourceAnswerId);
+    }
+    if (choice === "clear") {
+      finalAnswers.delete(qid);
+      return { cleared: 1, kept: 0, taken: 0 };
+    }
+    // "target" or default — keep target
+    return { cleared: 0, kept: 1, taken: 0 };
+  }
+  if (item.sourceAnswerId !== null && item.targetAnswerId === null) {
+    // Source has answer, target doesn't — adopt source answer
+    return takeSourceAnswer(finalAnswers, qid, item.sourceAnswerId);
+  }
+  // Target has an answer (diff items require at least one side non-null and
+  // the conflict/source-only branches are exhausted).
+  return { cleared: 0, kept: 1, taken: 0 };
+};
+
+/** Apply all answer decisions — returns final answer map and summary counts */
+const applyAnswerDecisions = async (
+  targetId: number,
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): Promise<{
+  finalAnswers: Map<number, number>;
+  answersKept: number;
+  answersTakenFromSource: number;
+  answersCleared: number;
+}> => {
   const targetAnswers = await getAttendeeAnswersByQuestion(targetId);
-
-  let answersKept = 0;
-  let answersTakenFromSource = 0;
-  let answersCleared = 0;
 
   // Start with target's answers as the base
   const finalAnswers = new Map<number, number>();
@@ -325,61 +373,63 @@ export const applyAttendeeMerge = async (
     finalAnswers.set(qid, answerId);
   }
 
-  // Process each answer item from the diff
-  for (const item of diff.answerItems) {
-    const qid = item.questionId;
-    const choice = decision.answers[String(qid)];
+  let answersKept = 0;
+  let answersTakenFromSource = 0;
+  let answersCleared = 0;
 
-    if (item.conflict) {
-      // Conflicting — must have an explicit decision
-      if (choice === "source" && item.sourceAnswerId !== null) {
-        finalAnswers.set(qid, item.sourceAnswerId);
-        answersTakenFromSource++;
-      } else if (choice === "clear") {
-        finalAnswers.delete(qid);
-        answersCleared++;
-      } else {
-        // "target" or default — keep target
-        answersKept++;
-      }
-    } else if (item.sourceAnswerId !== null && item.targetAnswerId === null) {
-      // Source has answer, target doesn't — adopt source answer
-      finalAnswers.set(qid, item.sourceAnswerId);
-      answersTakenFromSource++;
-    } else if (item.targetAnswerId !== null) {
-      answersKept++;
-    }
+  for (const item of diff.answerItems) {
+    const delta = applyAnswerDecision(item, decision, finalAnswers);
+    answersKept += delta.kept;
+    answersTakenFromSource += delta.taken;
+    answersCleared += delta.cleared;
   }
 
-  // --- 3. Apply booking decisions ---
+  return { answersCleared, answersKept, answersTakenFromSource, finalAnswers };
+};
+
+/** Build an INSERT statement to copy a source booking to the target */
+const bookingInsertStatement = (
+  targetId: number,
+  booking: EventAttendeeRow,
+): BatchStatement =>
+  insert("event_attendees", {
+    attachment_downloads: booking.attachment_downloads,
+    attendee_id: targetId,
+    checked_in: booking.checked_in,
+    end_at: booking.end_at,
+    event_id: booking.event_id,
+    price_paid: booking.price_paid,
+    quantity: booking.quantity,
+    refunded: booking.refunded,
+    start_at: booking.start_at,
+  }) as BatchStatement;
+
+/** Apply all booking decisions — returns pending SQL statements and counts */
+const applyBookingDecisions = (
+  targetId: number,
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): {
+  insertStatements: BatchStatement[];
+  deleteTargetBookingStatements: BatchStatement[];
+  bookingsMoved: number;
+  bookingsSkipped: number;
+  bookingsReplacedTarget: number;
+} => {
+  const insertStatements: BatchStatement[] = [];
+  const deleteTargetBookingStatements: BatchStatement[] = [];
   let bookingsMoved = 0;
   let bookingsSkipped = 0;
   let bookingsReplacedTarget = 0;
-
-  type BatchStatement = { sql: string; args: (number | string | null)[] };
-  const insertStatements: BatchStatement[] = [];
-  const deleteTargetBookingStatements: BatchStatement[] = [];
-
-  /** Build an INSERT statement to copy a source booking to the target */
-  const bookingInsert = (booking: EventAttendeeRow): BatchStatement =>
-    insert("event_attendees", {
-      attachment_downloads: booking.attachment_downloads,
-      attendee_id: targetId,
-      checked_in: booking.checked_in,
-      end_at: booking.end_at,
-      event_id: booking.event_id,
-      price_paid: booking.price_paid,
-      quantity: booking.quantity,
-      refunded: booking.refunded,
-      start_at: booking.start_at,
-    }) as BatchStatement;
 
   for (const item of diff.bookingItems) {
     const choice = decision.bookings[itemBookingKey(item)];
 
     if (item.conflictClass === "moveable") {
       // No conflict — move source booking to target
-      insertStatements.push(bookingInsert(item.sourceBooking));
+      insertStatements.push(
+        bookingInsertStatement(targetId, item.sourceBooking),
+      );
       bookingsMoved++;
     } else if (choice === "take_source" && item.targetBooking) {
       // Replace target booking with source booking
@@ -389,13 +439,51 @@ export const applyAttendeeMerge = async (
               WHERE attendee_id = ? AND event_id = ?
               AND (start_at IS ? OR start_at = ?)`,
       });
-      insertStatements.push(bookingInsert(item.sourceBooking));
+      insertStatements.push(
+        bookingInsertStatement(targetId, item.sourceBooking),
+      );
       bookingsReplacedTarget++;
     } else {
       // keep_target or skip_source — do nothing for this booking
       bookingsSkipped++;
     }
   }
+
+  return {
+    bookingsMoved,
+    bookingsReplacedTarget,
+    bookingsSkipped,
+    deleteTargetBookingStatements,
+    insertStatements,
+  };
+};
+
+/** Apply a validated merge with explicit decisions */
+export const applyAttendeeMerge = async (
+  input: ApplyAttendeeMergeInput,
+): Promise<AttendeeMergeApplyResult> => {
+  const { targetId, sourceId, targetPii, sourcePii, diff, decision } = input;
+
+  // --- 1. Apply PII decisions ---
+  const { piiFieldsFromSource } = applyPiiDecisions(
+    diff,
+    decision,
+    targetPii as Record<string, unknown>,
+    sourcePii as Record<string, unknown>,
+  );
+
+  // --- 2. Apply answer decisions ---
+  const { finalAnswers, answersKept, answersTakenFromSource, answersCleared } =
+    await applyAnswerDecisions(targetId, diff, decision);
+
+  // --- 3. Apply booking decisions ---
+  const {
+    insertStatements,
+    deleteTargetBookingStatements,
+    bookingsMoved,
+    bookingsSkipped,
+    bookingsReplacedTarget,
+  } = applyBookingDecisions(targetId, diff, decision);
 
   // --- 4. Execute all DB changes atomically ---
   await executeBatch([
