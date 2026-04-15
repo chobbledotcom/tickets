@@ -96,14 +96,12 @@ const loadAttendeeForEdit = async (
   // Resolve events for each booking in parallel
   const eventLinks = compact(
     await Promise.all(
-      map((booking: EventAttendeeRow) =>
-        getEventWithCount(booking.event_id).then(
-          (event): EventLinkData | null =>
-            event
-              ? { booking, date: booking.start_at?.slice(0, 10) ?? null, event }
-              : null,
-        ),
-      )(bookingRows),
+      map(async (booking: EventAttendeeRow): Promise<EventLinkData | null> => {
+        const event = await getEventWithCount(booking.event_id);
+        return event
+          ? { booking, date: booking.start_at?.slice(0, 10) ?? null, event }
+          : null;
+      })(bookingRows),
     ),
   );
 
