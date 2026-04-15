@@ -830,24 +830,6 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Are incoming payment webhooks verified?">
-          <p>
-            Yes. Every webhook request from Stripe and Square is checked
-            against an <strong>HMAC-SHA256 signature</strong> using the
-            signing secret for your account before the payment is accepted.
-            Requests without a valid signature &mdash; including anything
-            that tries to forge a &quot;paid&quot; notification &mdash; are
-            rejected before a ticket is ever issued.
-          </p>
-          <p>
-            This is why the signing secret must be kept private: anyone who
-            has it can fabricate payment notifications. If you suspect a
-            signing secret has leaked, rotate it in your Stripe or Square
-            dashboard and update it in{" "}
-            <a href="/admin/settings">Settings</a>.
-          </p>
-        </Q>
-
         <Q q="What is the difference between Stripe test and live keys?">
           <p>
             Stripe provides two completely separate environments, each with its

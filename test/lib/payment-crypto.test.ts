@@ -88,7 +88,8 @@ describe("payment-crypto", () => {
     });
 
     test("handles empty payload", async () => {
-      // HMAC-SHA256(key="key", data="") — independently verifiable.
+      // HMAC-SHA256(key="key", data="") — verified against openssl:
+      //   printf '' | openssl dgst -sha256 -hmac 'key' -hex
       const buf = await computeHmacSha256(encode(""), "key");
       expect(hmacToHex(buf)).toBe(
         "5d5d139563c95b5967b9bd9a8c9b233a9dedb45072794cd232dc1b74832607d0",
@@ -96,14 +97,13 @@ describe("payment-crypto", () => {
     });
 
     test("handles multi-byte UTF-8 payload", async () => {
-      // Payload with non-ASCII must be byte-compared, not string-compared
-      const data = encode("café ☕");
-      const a = await computeHmacSha256(data, "secret");
-      const b = await computeHmacSha256(data, "secret");
-      expect(hmacToHex(a)).toBe(hmacToHex(b));
-      // Different encoding of the same codepoints should match
-      const c = await computeHmacSha256(encode("café ☕"), "secret");
-      expect(hmacToHex(a)).toBe(hmacToHex(c));
+      // Real webhook payloads often contain non-ASCII (customer names, notes).
+      // Expected value produced independently by openssl:
+      //   printf 'café ☕' | openssl dgst -sha256 -hmac 'secret' -hex
+      const buf = await computeHmacSha256(encode("café ☕"), "secret");
+      expect(hmacToHex(buf)).toBe(
+        "1f82af940aec2372da8d0f760cc035b21d215708c63be7b4e8ef857ee3d48943",
+      );
     });
   });
 
@@ -149,18 +149,23 @@ describe("payment-crypto", () => {
   });
 
   describe("provider signature flows", () => {
-    // Stripe signs `${timestamp}.${payload}` with the webhook secret and
-    // compares the signature as hex. This test mirrors that flow end-to-end.
-    test("Stripe-style hex signature verifies a signed payload", async () => {
+    // These expected values were produced by openssl, independently of this
+    // codebase — matching them proves the end-to-end flow (encode → HMAC →
+    // hex/base64) agrees with the reference implementation Stripe and Square
+    // use on their end. Recompute with:
+    //   printf '<payload>' | openssl dgst -sha256 -hmac '<secret>' -hex
+    //   printf '<payload>' | openssl dgst -sha256 -hmac '<secret>' -binary | base64
+
+    test("Stripe-style hex signature matches openssl reference", async () => {
+      // Stripe signs `${timestamp}.${payload}` with the webhook secret
       const secret = "whsec_test_secret";
       const payload = '1700000000.{"id":"evt_test","type":"payment_intent"}';
       const signature = hmacToHex(
         await computeHmacSha256(encode(payload), secret),
       );
-      const recomputed = hmacToHex(
-        await computeHmacSha256(encode(payload), secret),
+      expect(signature).toBe(
+        "acbf7cbf29490215c6bafd38d3a52bf27e23c8e0ccae3672c46988686424ecfb",
       );
-      expect(secureCompare(signature, recomputed)).toBe(true);
     });
 
     test("Stripe-style signature rejects tampered payload", async () => {
@@ -176,18 +181,47 @@ describe("payment-crypto", () => {
       expect(secureCompare(sigOriginal, sigTampered)).toBe(false);
     });
 
-    // Square signs `${notificationUrl}${payload}` and sends the result base64.
-    test("Square-style base64 signature verifies a signed payload", async () => {
+    test("Stripe-style signature rejects wrong secret", async () => {
+      // Attacker without the webhook secret cannot forge a matching signature.
+      const payload = '1700000000.{"id":"evt_test","amount":1000}';
+      const sigReal = hmacToHex(
+        await computeHmacSha256(encode(payload), "whsec_real_secret"),
+      );
+      const sigGuessed = hmacToHex(
+        await computeHmacSha256(encode(payload), "whsec_wrong_secret"),
+      );
+      expect(secureCompare(sigReal, sigGuessed)).toBe(false);
+    });
+
+    test("Square-style base64 signature matches openssl reference", async () => {
+      // Square signs `${notificationUrl}${payload}` and sends the result base64
       const secret = "square_signing_key";
       const url = "https://example.com/webhook";
       const payload = '{"type":"payment.updated"}';
       const signature = hmacToBase64(
         await computeHmacSha256(encode(url + payload), secret),
       );
-      const recomputed = hmacToBase64(
-        await computeHmacSha256(encode(url + payload), secret),
+      expect(signature).toBe("Ueb2OY8fGwUjI6YeHenKIn/vGU7+BujNk3TJugwLe5I=");
+    });
+
+    test("Square-style signature rejects tampered notification URL", async () => {
+      // Square binds the URL into the signature so attackers can't replay a
+      // valid signed payload against a different endpoint.
+      const secret = "square_signing_key";
+      const payload = '{"type":"payment.updated"}';
+      const sigReal = hmacToBase64(
+        await computeHmacSha256(
+          encode("https://example.com/webhook" + payload),
+          secret,
+        ),
       );
-      expect(secureCompare(signature, recomputed)).toBe(true);
+      const sigReplayed = hmacToBase64(
+        await computeHmacSha256(
+          encode("https://evil.example.com/webhook" + payload),
+          secret,
+        ),
+      );
+      expect(secureCompare(sigReal, sigReplayed)).toBe(false);
     });
   });
 });
