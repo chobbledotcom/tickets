@@ -350,6 +350,16 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
+    test("documents the debug page including tunable limits", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "/admin/debug",
+        "tunable system limit",
+        "environment variable",
+        "Database pruning",
+      );
+    });
+
     test("contains admin API section with auth and endpoint info", async () => {
       await assertAdminHtml(
         "/admin/guide",
