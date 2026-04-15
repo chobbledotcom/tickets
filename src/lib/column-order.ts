@@ -51,7 +51,7 @@ export type ColumnGenerators<TRow, TOpts = unknown> = Record<
 // Liquid engine — single instance for rendering filtered values
 // ---------------------------------------------------------------------------
 
-const engine = new Liquid({ strictVariables: false, strictFilters: true });
+const engine = new Liquid({ strictFilters: true, strictVariables: false });
 
 // `currency` is custom; `date` is a LiquidJS built-in (strftime on Date objects).
 // ISO string → Date conversion happens in renderFilteredValue before calling Liquid.
@@ -73,8 +73,8 @@ const parseTagBody = (
   body: string,
 ): { key: string; filter: string | undefined } => {
   const pipeIdx = body.indexOf("|");
-  if (pipeIdx === -1) return { key: body.trim(), filter: undefined };
-  return { key: body.slice(0, pipeIdx).trim(), filter: body.trim() };
+  if (pipeIdx === -1) return { filter: undefined, key: body.trim() };
+  return { filter: body.trim(), key: body.slice(0, pipeIdx).trim() };
 };
 
 /**
@@ -102,8 +102,8 @@ const parseColumnTemplate = (
     const { key, filter } = parseTagBody(match[1]!);
     if (!validKeySet.has(key)) {
       return {
-        ok: false,
         error: `Unknown column "${key}". Available columns: ${validKeys.join(", ")}`,
+        ok: false,
       };
     }
     if (!seen.has(key)) {
@@ -114,10 +114,10 @@ const parseColumnTemplate = (
   }
 
   if (columns.length === 0) {
-    return { ok: false, error: "Template must include at least one column" };
+    return { error: "Template must include at least one column", ok: false };
   }
 
-  return { ok: true, columns, filters };
+  return { columns, filters, ok: true };
 };
 
 /**

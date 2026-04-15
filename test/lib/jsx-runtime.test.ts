@@ -40,8 +40,8 @@ describe("jsx-runtime", () => {
     });
 
     test("renders void element with attributes", () => {
-      const result = jsx("input", { type: "text", name: "foo" });
-      expect(result.toString()).toBe('<input type="text" name="foo">');
+      const result = jsx("input", { name: "foo", type: "text" });
+      expect(result.toString()).toBe('<input name="foo" type="text">');
     });
 
     test("renders boolean attribute as name only when true", () => {

@@ -11,13 +11,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#lib/crypto/hashing.ts";
 import { getDb, insert } from "#lib/db/client.ts";
-import { createSession, getAllSessions } from "#lib/db/sessions.ts";
 import {
   maybeRunPrunes,
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
 } from "#lib/db/prune.ts";
+import { createSession, getAllSessions } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
   PRUNE_INTERVAL_MS,
@@ -179,7 +179,9 @@ describeWithEnv("db > prune", { db: true }, () => {
       await pruneSessions();
 
       const remaining = await getAllSessions();
-      expect(remaining.map((s) => s.csrf_token)).toContain("csrf-fresh-expired");
+      expect(remaining.map((s) => s.csrf_token)).toContain(
+        "csrf-fresh-expired",
+      );
     });
   });
 
@@ -205,7 +207,11 @@ describeWithEnv("db > prune", { db: true }, () => {
     });
 
     test("keeps rows with currently-active lockouts", async () => {
-      const ipHash = await insertLoginAttempt("9.10.11.12", 5, nowMs() + 60_000);
+      const ipHash = await insertLoginAttempt(
+        "9.10.11.12",
+        5,
+        nowMs() + 60_000,
+      );
 
       await pruneLoginAttempts();
 

@@ -91,10 +91,10 @@ export const adminCalendarPage = (
   const sharedRows =
     dateFilter && attendees.length > 0
       ? buildSharedDetailRows({
-          attendees,
           attendeeCount: attendees.length,
-          maxCapacity: 0,
+          attendees,
           hasPaidEvent,
+          maxCapacity: 0,
           questionData,
         })
       : [];
@@ -138,14 +138,14 @@ export const adminCalendarPage = (
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({
-              rows: tableRows,
               allowedDomain,
-              showEvent: true,
-              showDate: false,
-              returnUrl,
               emptyMessage,
               phonePrefix,
               questionData,
+              returnUrl,
+              rows: tableRows,
+              showDate: false,
+              showEvent: true,
             })}
           />
         </div>

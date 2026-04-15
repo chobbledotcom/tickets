@@ -79,8 +79,8 @@ describe("applyDemoOverrides", () => {
 
   test("returns form unchanged when demo mode is off", () => {
     const form = new FormParams({
-      name: "Real Name",
       email: "real@example.com",
+      name: "Real Name",
     });
     const result = applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     expect(result.get("name")).toBe("Real Name");
@@ -90,8 +90,8 @@ describe("applyDemoOverrides", () => {
   test("replaces fields that exist in the form when demo mode is on", () => {
     setDemoModeForTest(true);
     const form = new FormParams({
-      name: "Real Name",
       email: "real@example.com",
+      name: "Real Name",
     });
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     expect(form.get("name")).not.toBe("Real Name");
@@ -110,7 +110,7 @@ describe("applyDemoOverrides", () => {
 
   test("skips empty-string fields", () => {
     setDemoModeForTest(true);
-    const form = new FormParams({ name: "Real Name", email: "" });
+    const form = new FormParams({ email: "", name: "Real Name" });
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     expect(form.get("email")).toBe("");
     expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
@@ -125,7 +125,7 @@ describe("applyDemoOverrides", () => {
 
   test("does not modify fields not in the mapping", () => {
     setDemoModeForTest(true);
-    const form = new FormParams({ name: "Real", csrf_token: "abc123" });
+    const form = new FormParams({ csrf_token: "abc123", name: "Real" });
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     expect(form.get("csrf_token")).toBe("abc123");
   });
@@ -133,9 +133,9 @@ describe("applyDemoOverrides", () => {
   test("works with event demo fields", () => {
     setDemoModeForTest(true);
     const form = new FormParams({
-      name: "My Event",
       description: "My description",
       location: "My location",
+      name: "My Event",
     });
     applyDemoOverrides(form, EVENT_DEMO_FIELDS);
     expect(DEMO_EVENT_NAMES as readonly string[]).toContain(form.get("name"));
@@ -157,12 +157,6 @@ describe("wrapResourceForDemo", () => {
     let lastUpdateForm: URLSearchParams | null = null;
 
     const resource = {
-      table: {} as never,
-      fields: [],
-      parseInput: (_form: URLSearchParams) =>
-        Promise.resolve({ ok: true as const, input: {} }),
-      parsePartialInput: (_form: URLSearchParams) =>
-        Promise.resolve({ ok: true as const, input: {} }),
       create: (form: URLSearchParams) => {
         lastCreateForm = form;
         return Promise.resolve({
@@ -170,6 +164,13 @@ describe("wrapResourceForDemo", () => {
           row: { id: 1, name: "" },
         });
       },
+      delete: () => Promise.resolve({ ok: true as const }),
+      fields: [],
+      parseInput: (_form: URLSearchParams) =>
+        Promise.resolve({ input: {}, ok: true as const }),
+      parsePartialInput: (_form: URLSearchParams) =>
+        Promise.resolve({ input: {}, ok: true as const }),
+      table: {} as never,
       update: (_id: unknown, form: URLSearchParams) => {
         lastUpdateForm = form;
         return Promise.resolve({
@@ -177,13 +178,12 @@ describe("wrapResourceForDemo", () => {
           row: { id: 1, name: "" },
         });
       },
-      delete: () => Promise.resolve({ ok: true as const }),
       verifyName: (_row: unknown, _name: string) => true,
     };
     return {
-      resource,
       getLastCreateForm: () => lastCreateForm,
       getLastUpdateForm: () => lastUpdateForm,
+      resource,
     };
   };
 

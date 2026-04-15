@@ -253,8 +253,8 @@ describeWithEnv("db > settings", { db: true }, () => {
 
     test("getTimezoneFromDb returns default when no country is stored", async () => {
       await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.COUNTRY],
+        sql: "DELETE FROM settings WHERE key = ?",
       });
       settings.invalidateCache();
       const value = settings.timezone;
@@ -263,8 +263,8 @@ describeWithEnv("db > settings", { db: true }, () => {
 
     test("getTimezoneCached reads default from TTL cache when no country is stored", async () => {
       await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.COUNTRY],
+        sql: "DELETE FROM settings WHERE key = ?",
       });
       settings.invalidateCache();
       settings.getCachedRaw(CONFIG_KEYS.COUNTRY);

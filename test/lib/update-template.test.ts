@@ -12,12 +12,12 @@ const SESSION: AdminSession = {
 };
 
 const baseState = (): UpdatePageState => ({
-  buildDate: "Thu, 28 Mar 2026 14:30:22 UTC",
   buildCommit: "",
+  buildDate: "Thu, 28 Mar 2026 14:30:22 UTC",
+  bunnyConfigured: false,
   latestVersion: "",
   latestVersionName: "",
   updateAvailable: false,
-  bunnyConfigured: false,
 });
 
 describe("adminUpdatePage", () => {
@@ -36,10 +36,10 @@ describe("adminUpdatePage", () => {
   test("renders update available with Bunny configured", () => {
     const state = {
       ...baseState(),
+      bunnyConfigured: true,
       latestVersion: "v2099-01-01-120000",
       latestVersionName: "2099-01-01 - Update",
       updateAvailable: true,
-      bunnyConfigured: true,
     };
     const html = adminUpdatePage(SESSION, state);
     expect(html).toContain("Update Now");
@@ -49,10 +49,10 @@ describe("adminUpdatePage", () => {
   test("renders cannot update when Bunny not configured", () => {
     const state = {
       ...baseState(),
+      bunnyConfigured: false,
       latestVersion: "v2099-01-01-120000",
       latestVersionName: "2099-01-01 - Update",
       updateAvailable: true,
-      bunnyConfigured: false,
     };
     const html = adminUpdatePage(SESSION, state);
     expect(html).toContain("Cannot update automatically");

@@ -118,7 +118,7 @@ describe("buildFlashCookie", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Saved", true);
     expect(cookie).toContain(
-      encodeURIComponent(JSON.stringify({ t: "s", m: "Saved" })),
+      encodeURIComponent(JSON.stringify({ m: "Saved", t: "s" })),
     );
   });
 
@@ -126,7 +126,7 @@ describe("buildFlashCookie", () => {
     setEffectiveDomainForTest("localhost");
     const cookie = buildFlashCookie("abc123", "Failed", false);
     expect(cookie).toContain(
-      encodeURIComponent(JSON.stringify({ t: "e", m: "Failed" })),
+      encodeURIComponent(JSON.stringify({ m: "Failed", t: "e" })),
     );
   });
 
@@ -150,40 +150,40 @@ describe("clearFlashCookie", () => {
 
 describe("parseFlashValue", () => {
   test("parses success flash value", () => {
-    const encoded = JSON.stringify({ t: "s", m: "Event created" });
+    const encoded = JSON.stringify({ m: "Event created", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
-      success: "Event created",
       error: undefined,
       result: undefined,
+      success: "Event created",
     });
   });
 
   test("parses error flash value", () => {
-    const encoded = JSON.stringify({ t: "e", m: "Something went wrong" });
+    const encoded = JSON.stringify({ m: "Something went wrong", t: "e" });
     expect(parseFlashValue(encoded)).toEqual({
-      success: undefined,
       error: "Something went wrong",
       result: undefined,
+      success: undefined,
     });
   });
 
   test("decodes URL-encoded values", () => {
     const encoded = encodeURIComponent(
-      JSON.stringify({ t: "s", m: "Hello world" }),
+      JSON.stringify({ m: "Hello world", t: "s" }),
     );
     expect(parseFlashValue(encoded)).toEqual({
-      success: "Hello world",
       error: undefined,
       result: undefined,
+      success: "Hello world",
     });
   });
 
   test("parses flash with result", () => {
-    const encoded = JSON.stringify({ t: "s", m: "Created", r: "abc123" });
+    const encoded = JSON.stringify({ m: "Created", r: "abc123", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
-      success: "Created",
       error: undefined,
       result: "abc123",
+      success: "Created",
     });
   });
 
@@ -215,7 +215,7 @@ describe("parseCookies", () => {
   });
 
   test("handles URI-encoded flash cookie values", () => {
-    const payload = encodeURIComponent(JSON.stringify({ t: "s", m: "Saved" }));
+    const payload = encodeURIComponent(JSON.stringify({ m: "Saved", t: "s" }));
     const cookies = parseCookies(reqWithCookies(`flash_abc=${payload}`));
     expect(cookies.get("flash_abc")).toBe(payload);
   });

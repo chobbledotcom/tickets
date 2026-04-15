@@ -44,9 +44,9 @@ describe("detail-rows", () => {
 
     test("sums quantity of checked-in attendees", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: true, quantity: 2 }),
-        testAttendee({ id: 2, checked_in: false, quantity: 3 }),
-        testAttendee({ id: 3, checked_in: true, quantity: 1 }),
+        testAttendee({ checked_in: true, id: 1, quantity: 2 }),
+        testAttendee({ checked_in: false, id: 2, quantity: 3 }),
+        testAttendee({ checked_in: true, id: 3, quantity: 1 }),
       ];
       expect(countCheckedIn(attendees)).toBe(3);
     });
@@ -59,9 +59,9 @@ describe("detail-rows", () => {
 
     test("counts rows regardless of quantity", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: true, quantity: 5 }),
-        testAttendee({ id: 2, checked_in: false, quantity: 1 }),
-        testAttendee({ id: 3, checked_in: true, quantity: 3 }),
+        testAttendee({ checked_in: true, id: 1, quantity: 5 }),
+        testAttendee({ checked_in: false, id: 2, quantity: 1 }),
+        testAttendee({ checked_in: true, id: 3, quantity: 3 }),
       ];
       expect(countCheckedInRows(attendees)).toBe(2);
     });
@@ -103,43 +103,43 @@ describe("detail-rows", () => {
     test("returns empty array when no questions", () => {
       expect(
         buildAnswerSummaryRows({
-          questions: [],
           attendeeAnswerMap: new Map(),
+          questions: [],
         }),
       ).toEqual([]);
     });
 
     test("returns DetailRows with answer counts", () => {
       const rows = buildAnswerSummaryRows({
-        questions: [
-          {
-            id: 1,
-            text: "Size?",
-            answers: [
-              { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-              { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-            ],
-          },
-        ],
         attendeeAnswerMap: new Map([
           [1, [10]],
           [2, [10]],
           [3, [11]],
         ]),
+        questions: [
+          {
+            answers: [
+              { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+              { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+            ],
+            id: 1,
+            text: "Size?",
+          },
+        ],
       });
       expect(rows).toEqual([{ key: "Size?", value: "Small (2), Large (1)" }]);
     });
 
     test("shows zero for answers with no selections", () => {
       const rows = buildAnswerSummaryRows({
+        attendeeAnswerMap: new Map(),
         questions: [
           {
+            answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A" }],
             id: 1,
             text: "Q?",
-            answers: [{ id: 10, question_id: 1, text: "A", sort_order: 0 }],
           },
         ],
-        attendeeAnswerMap: new Map(),
       });
       expect(rows).toEqual([{ key: "Q?", value: "A (0)" }]);
     });
@@ -148,10 +148,10 @@ describe("detail-rows", () => {
   describe("buildSharedDetailRows", () => {
     test("includes attendees row with count only when no capacity", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 5,
-        maxCapacity: 0,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 0,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
       expect(attendeeRow).toBeDefined();
@@ -160,10 +160,10 @@ describe("detail-rows", () => {
 
     test("includes attendees row with count, capacity, and remain", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 5,
-        maxCapacity: 20,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 20,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
       expect(attendeeRow!.value).toContain("5 / 20");
@@ -172,10 +172,10 @@ describe("detail-rows", () => {
 
     test("shows danger-text when near capacity", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 19,
-        maxCapacity: 20,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 20,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
       expect(attendeeRow!.value).toContain("danger-text");
@@ -183,10 +183,10 @@ describe("detail-rows", () => {
 
     test("does not show danger-text when well below capacity", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 5,
-        maxCapacity: 20,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 20,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
       expect(attendeeRow!.value).not.toContain("danger-text");
@@ -194,10 +194,10 @@ describe("detail-rows", () => {
 
     test("does not show danger-text when no capacity set", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 100,
-        maxCapacity: 0,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 0,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
       expect(attendeeRow!.value).not.toContain("danger-text");
@@ -205,10 +205,10 @@ describe("detail-rows", () => {
 
     test("skips attendees row when skipAttendees is true", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 5,
-        maxCapacity: 0,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 0,
         skipAttendees: true,
       });
       expect(rows.find((r) => r.key === "Attendees")).toBeUndefined();
@@ -216,14 +216,14 @@ describe("detail-rows", () => {
 
     test("shows single checked-in row when no multi-quantity", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: true, quantity: 1 }),
-        testAttendee({ id: 2, checked_in: false, quantity: 1 }),
+        testAttendee({ checked_in: true, id: 1, quantity: 1 }),
+        testAttendee({ checked_in: false, id: 2, quantity: 1 }),
       ];
       const rows = buildSharedDetailRows({
-        attendees,
         attendeeCount: 2,
-        maxCapacity: 0,
+        attendees,
         hasPaidEvent: false,
+        maxCapacity: 0,
       });
       const checkedIn = rows.find((r) => r.key === "Checked In");
       expect(checkedIn).toBeDefined();
@@ -233,14 +233,14 @@ describe("detail-rows", () => {
 
     test("shows split checked-in rows for multi-quantity", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: true, quantity: 3 }),
-        testAttendee({ id: 2, checked_in: false, quantity: 2 }),
+        testAttendee({ checked_in: true, id: 1, quantity: 3 }),
+        testAttendee({ checked_in: false, id: 2, quantity: 2 }),
       ];
       const rows = buildSharedDetailRows({
-        attendees,
         attendeeCount: 5,
-        maxCapacity: 0,
+        attendees,
         hasPaidEvent: false,
+        maxCapacity: 0,
       });
       expect(rows.find((r) => r.key === "Tickets Checked In")).toBeDefined();
       expect(rows.find((r) => r.key === "Attendees Checked In")).toBeDefined();
@@ -250,10 +250,10 @@ describe("detail-rows", () => {
     test("includes revenue row when hasPaidEvent is true", () => {
       const attendees = [testAttendee({ price_paid: "1000" })];
       const rows = buildSharedDetailRows({
-        attendees,
         attendeeCount: 1,
-        maxCapacity: 0,
+        attendees,
         hasPaidEvent: true,
+        maxCapacity: 0,
       });
       const revenue = rows.find((r) => r.key === "Total Revenue");
       expect(revenue).toBeDefined();
@@ -261,29 +261,29 @@ describe("detail-rows", () => {
 
     test("excludes revenue row when hasPaidEvent is false", () => {
       const rows = buildSharedDetailRows({
-        attendees: [testAttendee()],
         attendeeCount: 1,
-        maxCapacity: 0,
+        attendees: [testAttendee()],
         hasPaidEvent: false,
+        maxCapacity: 0,
       });
       expect(rows.find((r) => r.key === "Total Revenue")).toBeUndefined();
     });
 
     test("includes question summary rows", () => {
       const rows = buildSharedDetailRows({
-        attendees: [],
         attendeeCount: 0,
-        maxCapacity: 0,
+        attendees: [],
         hasPaidEvent: false,
+        maxCapacity: 0,
         questionData: {
+          attendeeAnswerMap: new Map(),
           questions: [
             {
+              answers: [{ id: 10, question_id: 1, sort_order: 0, text: "S" }],
               id: 1,
               text: "Size?",
-              answers: [{ id: 10, question_id: 1, text: "S", sort_order: 0 }],
             },
           ],
-          attendeeAnswerMap: new Map(),
         },
       });
       expect(rows.find((r) => r.key === "Size?")).toBeDefined();
@@ -291,11 +291,11 @@ describe("detail-rows", () => {
 
     test("appends labelSuffix to keys", () => {
       const rows = buildSharedDetailRows({
-        attendees: [testAttendee()],
         attendeeCount: 1,
-        maxCapacity: 0,
+        attendees: [testAttendee()],
         hasPaidEvent: false,
         labelSuffix: " (total)",
+        maxCapacity: 0,
       });
       expect(rows.find((r) => r.key === "Attendees (total)")).toBeDefined();
       expect(rows.find((r) => r.key === "Checked In (total)")).toBeDefined();

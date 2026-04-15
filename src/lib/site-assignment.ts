@@ -41,7 +41,7 @@ const assignSitesForEntries = async (
       const site = available[idx];
       if (!site) break; // edge case: ran out (paid booking race)
       await assignBuiltSite(site.id, attendee.id, event.id);
-      assignments.push({ siteUrl: site.bunnyUrl, eventName: event.name });
+      assignments.push({ eventName: event.name, siteUrl: site.bunnyUrl });
       idx++;
     }
   }
@@ -77,7 +77,7 @@ const sendSiteAssignmentEmail = async (
   const text = `Your new site${assignments.length > 1 ? "s are" : " is"} ready!\n\n${siteListText}`;
 
   const replyTo = settings.businessEmail || undefined;
-  await sendEmail(config, { to, subject, html, text, replyTo });
+  await sendEmail(config, { html, replyTo, subject, text, to });
 };
 
 /** Assign sites and send notification email. Designed to be called via addPendingWork.

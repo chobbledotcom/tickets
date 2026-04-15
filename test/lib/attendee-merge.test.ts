@@ -33,9 +33,9 @@ const createAttendee = async (
   date?: string | null,
 ) => {
   const result = await createAttendeeAtomic({
-    name,
+    bookings: [{ date, eventId }],
     email: email ?? `${name.toLowerCase()}@test.com`,
-    bookings: [{ eventId, date }],
+    name,
   });
   if (!result.success)
     throw new Error(`Failed to create attendee: ${result.reason}`);
@@ -74,13 +74,13 @@ const createQuestionWithAnswers = async (
   for (let i = 0; i < answerTexts.length; i++) {
     const a = await answersTable.insert({
       questionId: q.id,
-      text: answerTexts[i]!,
       sortOrder: i,
+      text: answerTexts[i]!,
     });
     answers.push(a);
   }
   await setEventQuestions(eventId, [q.id]);
-  return { question: q, answers };
+  return { answers, question: q };
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
@@ -97,13 +97,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   describe("nonConflictAnswerLabel", () => {
     test("returns target label when target has answer", () => {
       const item = {
+        conflict: false,
         questionId: 1,
         questionText: "Q?",
-        targetAnswerId: 10,
-        targetAnswerText: "Red",
         sourceAnswerId: null,
         sourceAnswerText: null,
-        conflict: false,
+        targetAnswerId: 10,
+        targetAnswerText: "Red",
       };
       expect(nonConflictAnswerLabel(item)).toEqual({
         answer: "Red",
@@ -113,13 +113,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("returns source label when only source has answer", () => {
       const item = {
+        conflict: false,
         questionId: 1,
         questionText: "Q?",
-        targetAnswerId: null,
-        targetAnswerText: null,
         sourceAnswerId: 20,
         sourceAnswerText: "Water",
-        conflict: false,
+        targetAnswerId: null,
+        targetAnswerText: null,
       };
       expect(nonConflictAnswerLabel(item)).toEqual({
         answer: "Water",
@@ -133,9 +133,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const item = {
         conflictClass: "duplicate" as const,
         eventId: 1,
-        startAt: null,
         sourceBooking:
           {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+        startAt: null,
         targetBooking: null,
       };
       expect(bookingConflictLabel(item)).toBe("Duplicate");
@@ -145,9 +145,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const item = {
         conflictClass: "conflicting_metadata" as const,
         eventId: 1,
-        startAt: null,
         sourceBooking:
           {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+        startAt: null,
         targetBooking: null,
       };
       expect(bookingConflictLabel(item)).toBe("Conflicting metadata");
@@ -160,9 +160,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         {
           conflictClass: "moveable" as const,
           eventId: 1,
-          startAt: null,
           sourceBooking:
             {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          startAt: null,
           targetBooking: null,
         },
       ];
@@ -174,17 +174,17 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         {
           conflictClass: "moveable" as const,
           eventId: 1,
-          startAt: null,
           sourceBooking:
             {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          startAt: null,
           targetBooking: null,
         },
         {
           conflictClass: "duplicate" as const,
           eventId: 2,
-          startAt: null,
           sourceBooking:
             {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          startAt: null,
           targetBooking: null,
         },
       ];
@@ -202,24 +202,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [],
       );
@@ -256,24 +256,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         questions,
       );
@@ -304,24 +304,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [{ ...question, answers }],
       );
@@ -334,21 +334,21 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("classifies bookings as moveable, duplicate, or conflicting", async () => {
       const event1 = await createTestEvent({
-        name: "E1",
         maxAttendees: 10,
+        name: "E1",
       });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
 
       const target = await createAttendee(event1.id, "Alice");
       const source = await createAttendee(event1.id, "Bob");
       // Add source to event2 as well
       await createAttendeeAtomic({
-        name: "Bob",
-        email: "bob@test.com",
         bookings: [{ eventId: event2.id }],
+        email: "bob@test.com",
+        name: "Bob",
       });
       // But for this test, let's use direct attendees
       // target is on event1, source is on event1 (duplicate) and event2 (moveable)
@@ -358,24 +358,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [],
       );
@@ -393,24 +393,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings: await getBookings(source.id),
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings: await getBookings(target.id),
-          sourceBookings: await getBookings(source.id),
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [],
       );
@@ -425,8 +425,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     const q = await questionsTable.insert({ text: "Hidden Q" });
     const a1 = await answersTable.insert({
       questionId: q.id,
-      text: "Yes",
       sortOrder: 0,
+      text: "Yes",
     });
     await setEventQuestions(event.id, [q.id]);
 
@@ -440,24 +440,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     // Pass empty questions array — question text won't be found
     const diff = await buildAttendeeMergeDiff(
       {
-        targetId: target.id,
+        sourceBookings,
         sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
         sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
           address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
           special_instructions: "",
         },
         targetBookings,
-        sourceBookings,
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          phone: "",
+          special_instructions: "",
+        },
       },
       [], // No questions provided
     );
@@ -469,17 +469,17 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   describe("validateAttendeeMergeDecision", () => {
     test("rejects stale version", () => {
       const diff: AttendeeMergeDiff = {
-        targetId: 1,
-        sourceId: 2,
-        piiFields: [],
         answerItems: [],
         bookingItems: [],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
         version: "v1",
       };
       const decision: AttendeeMergeDecisionInput = {
-        pii: {},
         answers: {},
         bookings: {},
+        pii: {},
         version: "v2",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
@@ -491,27 +491,27 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("rejects missing answer decision for conflict", () => {
       const diff: AttendeeMergeDiff = {
-        targetId: 1,
-        sourceId: 2,
-        piiFields: [],
         answerItems: [
           {
+            conflict: true,
             questionId: 10,
             questionText: "Colour?",
-            targetAnswerId: 1,
-            targetAnswerText: "Red",
             sourceAnswerId: 2,
             sourceAnswerText: "Blue",
-            conflict: true,
+            targetAnswerId: 1,
+            targetAnswerText: "Red",
           },
         ],
         bookingItems: [],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
         version: "v1",
       };
       const decision: AttendeeMergeDecisionInput = {
-        pii: {},
         answers: {},
         bookings: {},
+        pii: {},
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
@@ -523,43 +523,43 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("rejects missing booking decision for conflict", () => {
       const diff: AttendeeMergeDiff = {
-        targetId: 1,
-        sourceId: 2,
-        piiFields: [],
         answerItems: [],
         bookingItems: [
           {
-            eventId: 5,
-            startAt: null,
-            sourceBooking: {
-              event_id: 5,
-              start_at: null,
-              end_at: null,
-              quantity: 1,
-              checked_in: 0,
-              refunded: 0,
-              price_paid: 0,
-              attachment_downloads: 0,
-            },
-            targetBooking: {
-              event_id: 5,
-              start_at: null,
-              end_at: null,
-              quantity: 2,
-              checked_in: 0,
-              refunded: 0,
-              price_paid: 0,
-              attachment_downloads: 0,
-            },
             conflictClass: "conflicting_metadata",
+            eventId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              event_id: 5,
+              price_paid: 0,
+              quantity: 1,
+              refunded: 0,
+              start_at: null,
+            },
+            startAt: null,
+            targetBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              event_id: 5,
+              price_paid: 0,
+              quantity: 2,
+              refunded: 0,
+              start_at: null,
+            },
           },
         ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
         version: "v1",
       };
       const decision: AttendeeMergeDecisionInput = {
-        pii: {},
         answers: {},
         bookings: {},
+        pii: {},
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
@@ -571,43 +571,43 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("rejects missing booking decision for daily event conflict", () => {
       const diff: AttendeeMergeDiff = {
-        targetId: 1,
-        sourceId: 2,
-        piiFields: [],
         answerItems: [],
         bookingItems: [
           {
-            eventId: 7,
-            startAt: "2026-06-15T10:00:00Z",
-            sourceBooking: {
-              event_id: 7,
-              start_at: "2026-06-15T10:00:00Z",
-              end_at: null,
-              quantity: 1,
-              checked_in: 0,
-              refunded: 0,
-              price_paid: 0,
-              attachment_downloads: 0,
-            },
-            targetBooking: {
-              event_id: 7,
-              start_at: "2026-06-15T10:00:00Z",
-              end_at: null,
-              quantity: 2,
-              checked_in: 0,
-              refunded: 0,
-              price_paid: 0,
-              attachment_downloads: 0,
-            },
             conflictClass: "duplicate",
+            eventId: 7,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              event_id: 7,
+              price_paid: 0,
+              quantity: 1,
+              refunded: 0,
+              start_at: "2026-06-15T10:00:00Z",
+            },
+            startAt: "2026-06-15T10:00:00Z",
+            targetBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              event_id: 7,
+              price_paid: 0,
+              quantity: 2,
+              refunded: 0,
+              start_at: "2026-06-15T10:00:00Z",
+            },
           },
         ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
         version: "v1",
       };
       const decision: AttendeeMergeDecisionInput = {
-        pii: {},
         answers: {},
         bookings: {},
+        pii: {},
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
@@ -619,53 +619,53 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("accepts valid decisions", () => {
       const diff: AttendeeMergeDiff = {
-        targetId: 1,
-        sourceId: 2,
-        piiFields: [],
         answerItems: [
           {
+            conflict: true,
             questionId: 10,
             questionText: "Colour?",
-            targetAnswerId: 1,
-            targetAnswerText: "Red",
             sourceAnswerId: 2,
             sourceAnswerText: "Blue",
-            conflict: true,
+            targetAnswerId: 1,
+            targetAnswerText: "Red",
           },
         ],
         bookingItems: [
           {
-            eventId: 5,
-            startAt: null,
-            sourceBooking: {
-              event_id: 5,
-              start_at: null,
-              end_at: null,
-              quantity: 1,
-              checked_in: 0,
-              refunded: 0,
-              price_paid: 0,
-              attachment_downloads: 0,
-            },
-            targetBooking: {
-              event_id: 5,
-              start_at: null,
-              end_at: null,
-              quantity: 2,
-              checked_in: 0,
-              refunded: 0,
-              price_paid: 0,
-              attachment_downloads: 0,
-            },
             conflictClass: "duplicate",
+            eventId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              event_id: 5,
+              price_paid: 0,
+              quantity: 1,
+              refunded: 0,
+              start_at: null,
+            },
+            startAt: null,
+            targetBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              event_id: 5,
+              price_paid: 0,
+              quantity: 2,
+              refunded: 0,
+              start_at: null,
+            },
           },
         ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
         version: "v1",
       };
       const decision: AttendeeMergeDecisionInput = {
-        pii: { name: "target" },
         answers: { "10": "source" },
         bookings: { "5:null": "keep_target" },
+        pii: { name: "target" },
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
@@ -676,12 +676,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   describe("applyAttendeeMerge", () => {
     test("applies PII and answer decisions correctly", async () => {
       const event1 = await createTestEvent({
-        name: "E1",
         maxAttendees: 10,
+        name: "E1",
       });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
 
       const { question, answers } = await createQuestionWithAnswers(
@@ -701,56 +701,56 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [{ ...question, answers }],
       );
 
       const decision: AttendeeMergeDecisionInput = {
-        pii: { name: "source", email: "target" },
         answers: { [String(question.id)]: "source" },
         bookings: {},
+        pii: { email: "target", name: "source" },
         version: diff.version,
       };
 
       const result = await applyAttendeeMerge({
-        targetId: target.id,
+        decision,
+        diff,
         sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
+        sourcePii: {
           address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
           special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
           payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
           ticket_token: target.ticket_token,
         },
-        sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
-        diff,
-        decision,
       });
 
       expect(result.success).toBe(true);
@@ -782,8 +782,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("clears answers when decision is clear", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       const { question, answers } = await createQuestionWithAnswers(
         event.id,
@@ -802,53 +802,53 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [{ ...question, answers }],
       );
 
       const result = await applyAttendeeMerge({
-        targetId: target.id,
-        sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          payment_id: target.payment_id,
-          ticket_token: target.ticket_token,
-        },
-        sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
-        diff,
         decision: {
-          pii: {},
           answers: { [String(question.id)]: "clear" },
           bookings: {},
+          pii: {},
           version: diff.version,
+        },
+        diff,
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
         },
       });
 
@@ -860,8 +860,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("adopts source answers when target has none", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       const { question, answers } = await createQuestionWithAnswers(
         event.id,
@@ -880,53 +880,53 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [{ ...question, answers }],
       );
 
       const result = await applyAttendeeMerge({
-        targetId: target.id,
-        sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          payment_id: target.payment_id,
-          ticket_token: target.ticket_token,
-        },
-        sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
-        diff,
         decision: {
-          pii: {},
           answers: {},
           bookings: {},
+          pii: {},
           version: diff.version,
+        },
+        diff,
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
         },
       });
 
@@ -946,24 +946,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [],
       );
@@ -972,30 +972,30 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const key = bookingKey(event.id, null);
       const result = await applyAttendeeMerge({
-        targetId: target.id,
-        sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          payment_id: target.payment_id,
-          ticket_token: target.ticket_token,
-        },
-        sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
-        diff,
         decision: {
-          pii: {},
           answers: {},
           bookings: { [key]: "keep_target" },
+          pii: {},
           version: diff.version,
+        },
+        diff,
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
         },
       });
 
@@ -1027,24 +1027,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings,
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings,
-          sourceBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [],
       );
@@ -1053,30 +1053,30 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const key = bookingKey(event.id, null);
       const result = await applyAttendeeMerge({
-        targetId: target.id,
-        sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          payment_id: target.payment_id,
-          ticket_token: target.ticket_token,
-        },
-        sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
-        diff,
         decision: {
-          pii: {},
           answers: {},
           bookings: { [key]: "take_source" },
+          pii: {},
           version: diff.version,
+        },
+        diff,
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
         },
       });
 
@@ -1096,12 +1096,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("returns accurate summary counts", async () => {
       const event1 = await createTestEvent({
-        name: "E1",
         maxAttendees: 10,
+        name: "E1",
       });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
 
       const target = await createAttendee(event1.id, "Alice");
@@ -1109,24 +1109,24 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildAttendeeMergeDiff(
         {
-          targetId: target.id,
+          sourceBookings: await getBookings(source.id),
           sourceId: source.id,
-          targetPii: {
-            name: "Alice",
-            email: "alice@test.com",
-            phone: "",
-            address: "",
-            special_instructions: "",
-          },
           sourcePii: {
-            name: "Bob",
-            email: "bob@test.com",
-            phone: "",
             address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
             special_instructions: "",
           },
           targetBookings: await getBookings(target.id),
-          sourceBookings: await getBookings(source.id),
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
         },
         [],
       );
@@ -1136,30 +1136,30 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(diff.bookingItems[0]!.conflictClass).toBe("moveable");
 
       const result = await applyAttendeeMerge({
-        targetId: target.id,
-        sourceId: source.id,
-        targetPii: {
-          name: "Alice",
-          email: "alice@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-          payment_id: target.payment_id,
-          ticket_token: target.ticket_token,
-        },
-        sourcePii: {
-          name: "Bob",
-          email: "bob@test.com",
-          phone: "",
-          address: "",
-          special_instructions: "",
-        },
-        diff,
         decision: {
-          pii: { name: "source" },
           answers: {},
           bookings: {},
+          pii: { name: "source" },
           version: diff.version,
+        },
+        diff,
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
         },
       });
 

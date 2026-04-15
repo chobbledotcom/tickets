@@ -45,13 +45,13 @@ export const deriveKEK = async (passwordHash: string): Promise<CryptoKey> => {
 
   return crypto.subtle.deriveKey(
     {
+      hash: "SHA-256",
+      iterations: getPbkdf2Iterations(),
       name: "PBKDF2",
       salt: salt as BufferSource,
-      iterations: getPbkdf2Iterations(),
-      hash: "SHA-256",
     },
     keyMaterial,
-    { name: "AES-GCM", length: 256 },
+    { length: 256, name: "AES-GCM" },
     false,
     ["encrypt", "decrypt"],
   );
@@ -70,7 +70,7 @@ const WRAPPED_KEY_PREFIX = "wk:1:";
  * Generate a random 256-bit symmetric key for data encryption
  */
 export const generateDataKey = (): Promise<CryptoKey> => {
-  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
+  return crypto.subtle.generateKey({ length: 256, name: "AES-GCM" }, true, [
     "encrypt",
     "decrypt",
   ]);
@@ -105,7 +105,7 @@ const unwrapAndImportKey = async (
   return crypto.subtle.importKey(
     "raw",
     rawKey,
-    { name: "AES-GCM", length: 256 },
+    { length: 256, name: "AES-GCM" },
     true,
     ["encrypt", "decrypt"],
   );
@@ -149,13 +149,13 @@ const deriveTokenKey = async (
   const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
   return crypto.subtle.deriveKey(
     {
+      hash: "SHA-256",
+      iterations: 1, // Fast - token is already high entropy
       name: "PBKDF2",
       salt,
-      iterations: 1, // Fast - token is already high entropy
-      hash: "SHA-256",
     },
     tokenKey,
-    { name: "AES-GCM", length: 256 },
+    { length: 256, name: "AES-GCM" },
     false,
     [usage],
   );
@@ -209,10 +209,10 @@ export const generateKeyPair = async (): Promise<{
 }> => {
   const keyPair = await crypto.subtle.generateKey(
     {
-      name: "RSA-OAEP",
-      modulusLength: getRsaKeySize() ?? 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
       hash: "SHA-256",
+      modulusLength: getRsaKeySize() ?? 2048,
+      name: "RSA-OAEP",
+      publicExponent: new Uint8Array([1, 0, 1]),
     },
     true,
     ["encrypt", "decrypt"],
@@ -225,8 +225,8 @@ export const generateKeyPair = async (): Promise<{
   );
 
   return {
-    publicKey: JSON.stringify(publicKeyJwk),
     privateKey: JSON.stringify(privateKeyJwk),
+    publicKey: JSON.stringify(publicKeyJwk),
   };
 };
 
@@ -239,7 +239,7 @@ const importRsaKey = (
   return crypto.subtle.importKey(
     "jwk",
     jwk,
-    { name: "RSA-OAEP", hash: "SHA-256" },
+    { hash: "SHA-256", name: "RSA-OAEP" },
     false,
     [usage],
   );
@@ -295,8 +295,8 @@ const HYBRID_DECRYPT_TTL_MS = 60_000;
 const hybridDecryptCache = ttlCache<string, string>(HYBRID_DECRYPT_TTL_MS);
 
 registerCache(() => ({
-  name: "decrypt",
   entries: hybridDecryptCache.size(),
+  name: "decrypt",
 }));
 
 /**
@@ -336,7 +336,7 @@ export const hybridDecrypt = async (
   const aesKey = await crypto.subtle.importKey(
     "raw",
     rawAesKey,
-    { name: "AES-GCM", length: 256 },
+    { length: 256, name: "AES-GCM" },
     false,
     ["decrypt"],
   );
@@ -369,7 +369,7 @@ export const encryptAttendeePII = async (
  */
 const privateKeyCache = ttlCache<string, CryptoKey>(10_000);
 
-registerCache(() => ({ name: "privateKeys", entries: privateKeyCache.size() }));
+registerCache(() => ({ entries: privateKeyCache.size(), name: "privateKeys" }));
 
 /**
  * Derive the private key from session credentials

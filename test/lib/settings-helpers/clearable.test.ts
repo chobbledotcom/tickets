@@ -1,6 +1,6 @@
+import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
@@ -32,14 +32,18 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("saves and logs 'updated' for a valid non-empty value", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
     });
 
-    const res = await handler(formFrom({ email: "user@test.com" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "user@test.com" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings");
     expect(saveFn).toHaveBeenCalledWith("user@test.com");
@@ -50,14 +54,18 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("saves empty string and logs 'cleared' when value is empty", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
     });
 
-    const res = await handler(formFrom({ email: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings");
     expect(saveFn).toHaveBeenCalledWith("");
@@ -69,13 +77,17 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
     // getString trims, so "   " → "" → treated as cleared, not as a provided value
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ email: "   " }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "   " }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(saveFn).toHaveBeenCalledWith("");
     expectFlash(res, "Email cleared");
@@ -84,33 +96,46 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("calls errorPage when non-empty value fails validation", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
       save: saveFn as (v: string) => Promise<void>,
+      validate: (v) => (!v.includes("@") ? "Invalid email" : null),
     });
 
-    const res = await handler(formFrom({ email: "not-an-email" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "not-an-email" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(400);
     expect(saveFn).not.toHaveBeenCalled();
-    expect(mockErrorPage).toHaveBeenCalledWith("Invalid email", 400, "settings-email");
+    expect(mockErrorPage).toHaveBeenCalledWith(
+      "Invalid email",
+      400,
+      "settings-email",
+    );
   });
 
   test("skips validator for empty value even when validate is provided", async () => {
     // Clearing always succeeds regardless of the validator
-    const validateFn = fn((_v: string) => "Should not be called") as unknown as
-      ((value: string) => string | null) & ReturnType<typeof fn>;
+    const validateFn = fn(
+      (_v: string) => "Should not be called",
+    ) as unknown as ((value: string) => string | null) & ReturnType<typeof fn>;
     const handler = clearableFieldHandler({
-      formId: "settings-email",
       field: "email",
+      formId: "settings-email",
       label: "Email",
-      validate: validateFn,
       save: () => Promise.resolve(),
+      validate: validateFn,
     });
 
-    const res = await handler(formFrom({ email: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(302);
     expect(validateFn).not.toHaveBeenCalled();
@@ -119,13 +144,17 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
   test("saves without validate function", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = clearableFieldHandler({
-      formId: "settings-field",
       field: "my_field",
+      formId: "settings-field",
       label: "My field",
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ my_field: "some value" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_field: "some value" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(302);
     expect(saveFn).toHaveBeenCalledWith("some value");
@@ -133,13 +162,17 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
 
   test("redirects to /admin/settings-advanced when advanced is true", async () => {
     const handler = clearableFieldHandler({
+      advanced: true,
       field: "my_field",
       label: "My field",
-      advanced: true,
       save: () => Promise.resolve(),
     });
 
-    const res = await handler(formFrom({ my_field: "val" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_field: "val" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings-advanced");
   });

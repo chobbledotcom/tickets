@@ -26,8 +26,8 @@ const handleImageRequest = async (filename: string): Promise<Response> => {
 
   return new Response(data.buffer as BodyInit, {
     headers: {
-      "content-type": mimeType,
       "cache-control": IMAGE_CACHE_CONTROL,
+      "content-type": mimeType,
     },
   });
 };

@@ -24,10 +24,10 @@ const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
   name: "holidays",
   primaryKey: "id",
   schema: {
-    id: col.generated<number>(),
-    start_date: col.simple<string>(),
-    name: col.encrypted<string>(encrypt, decrypt),
     end_date: col.simple<string>(),
+    id: col.generated<number>(),
+    name: col.encrypted<string>(encrypt, decrypt),
+    start_date: col.simple<string>(),
   },
 });
 
@@ -40,7 +40,7 @@ const holidaysCache = requestCache(() =>
   queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
 );
 
-registerCache(() => ({ name: "holidays", entries: holidaysCache.size() }));
+registerCache(() => ({ entries: holidaysCache.size(), name: "holidays" }));
 
 /** Invalidate the holidays cache (for testing or after writes). */
 export const invalidateHolidaysCache = (): void => {

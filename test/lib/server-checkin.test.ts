@@ -32,8 +32,8 @@ const setupCheckinTest = async (
   );
   return {
     event,
-    token,
     session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
+    token,
   };
 };
 
@@ -46,7 +46,7 @@ const postCheckin = (
   handleRequest(
     mockFormRequest(
       `/checkin/${token}`,
-      { csrf_token: session.csrfToken, check_in: checkIn },
+      { check_in: checkIn, csrf_token: session.csrfToken },
       session.cookie,
     ),
   );
@@ -132,8 +132,8 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       );
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
-        sql: "DELETE FROM event_attendees WHERE event_id = ?",
         args: [event.id],
+        sql: "DELETE FROM event_attendees WHERE event_id = ?",
       });
       const { response } = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(404);
@@ -220,9 +220,9 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     test("renders empty email and phone for attendee without contact details", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const result = await createAttendeeAtomic({
-        name: "NoContact",
-        email: "",
         bookings: [{ eventId: event.id }],
+        email: "",
+        name: "NoContact",
       });
       if (!result.success) throw new Error("Failed to create attendee");
 

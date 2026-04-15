@@ -27,9 +27,9 @@ const buildTicketCard = async (
     ? await signAttachmentUrl(entry.event.id, entry.attendee.id)
     : undefined;
   return {
+    attachmentUrl,
     entry,
     token,
-    attachmentUrl,
   };
 };
 
@@ -68,8 +68,8 @@ const handleTicketSvg = async (token: string): Promise<Response> => {
   const svg = await generateQrSvg(buildCheckinUrl(token));
   return new Response(svg, {
     headers: {
-      "content-type": "image/svg+xml",
       "cache-control": `public, max-age=${ONE_YEAR}, immutable`,
+      "content-type": "image/svg+xml",
     },
   });
 };

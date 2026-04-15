@@ -30,36 +30,36 @@ describe("logRequest", () => {
 
   test("logs request with redacted path", () => {
     logRequest({
+      durationMs: 42,
       method: "GET",
       path: "/ticket/my-event",
       status: 200,
-      durationMs: 42,
     });
     expectLogged("[Request] GET /ticket/[redacted] 200 42ms");
   });
 
   test("logs POST request with redacted ID", () => {
     logRequest({
+      durationMs: 100,
       method: "POST",
       path: "/admin/events/123",
       status: 201,
-      durationMs: 100,
     });
     expectLogged("[Request] POST /admin/events/[id] 201 100ms");
   });
 
   test("logs error status codes", () => {
-    logRequest({ method: "GET", path: "/admin", status: 403, durationMs: 5 });
+    logRequest({ durationMs: 5, method: "GET", path: "/admin", status: 403 });
     expectLogged("[Request] GET /admin 403 5ms");
   });
 
   test("suppresses logs when override is true", () => {
     setSuppressRequestLogs(true);
     logRequest({
+      durationMs: 1,
       method: "POST",
       path: "/admin/login",
       status: 302,
-      durationMs: 1,
     });
     expect(debugSpy.calls.length).toBe(0);
   });
@@ -68,7 +68,7 @@ describe("logRequest", () => {
     setSuppressRequestLogs(null);
     Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
     try {
-      logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 1 });
+      logRequest({ durationMs: 1, method: "GET", path: "/admin", status: 200 });
       expect(debugSpy.calls.length).toBe(0);
     } finally {
       Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");

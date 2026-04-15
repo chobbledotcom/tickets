@@ -45,9 +45,9 @@ const handleScannerGet: IdRouteHandler = (request, { id }) =>
       const uncheckedIn = pipe(
         filter((a: Attendee) => !a.checked_in && !a.refunded),
         map((a: Attendee) => ({
-          token: a.ticket_token,
           name: a.name,
           quantity: a.quantity,
+          token: a.ticket_token,
         })),
       )(attendees);
       return htmlResponse(adminScannerPage(event, session, uncheckedIn));
@@ -71,7 +71,7 @@ const resolveTokenEntries = async (
 const handleScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, AUTH_JSON, async (session, body) => {
     if (typeof body.token !== "string") {
-      return jsonResponse({ status: "error", message: "Missing token" }, 400);
+      return jsonResponse({ message: "Missing token", status: "error" }, 400);
     }
 
     const token = body.token;
@@ -85,7 +85,7 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
         detail: "Scanner: private key unavailable",
       });
       return jsonResponse(
-        { status: "error", message: "Decryption unavailable" },
+        { message: "Decryption unavailable", status: "error" },
         500,
       );
     }
@@ -119,9 +119,9 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
           ? allEntries.map((e) => e.event.name).join(", ")
           : "Unknown event";
       return jsonResponse({
-        status: "wrong_event",
-        name: attendeeName,
         eventName: eventNames,
+        name: attendeeName,
+        status: "wrong_event",
       });
     }
 
@@ -134,26 +134,26 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
     // Refunded - cannot check in
     if (entry.attendee.refunded) {
       return jsonResponse({
-        status: "refunded",
         name: attendeeName,
+        status: "refunded",
       });
     }
 
     // Already checked in
     if (entry.attendee.checked_in) {
       return jsonResponse({
-        status: "already_checked_in",
         name: attendeeName,
         quantity: entry.attendee.quantity,
+        status: "already_checked_in",
       });
     }
 
     // Non-transferable event - require ID verification before check-in
     if (entry.event.non_transferable && !idVerified) {
       return jsonResponse({
-        status: "verify_id",
         name: attendeeName,
         quantity: entry.attendee.quantity,
+        status: "verify_id",
       });
     }
 
@@ -165,9 +165,9 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
     );
 
     return jsonResponse({
-      status: "checked_in",
       name: attendeeName,
       quantity: entry.attendee.quantity,
+      status: "checked_in",
     });
   });
 

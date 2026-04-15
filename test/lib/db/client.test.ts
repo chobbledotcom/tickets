@@ -8,9 +8,7 @@ describeWithEnv("db > client", { db: true }, () => {
     setDb(null);
     const restore = setTestEnv({ DB_URL: undefined });
     try {
-      expect(() => getDb()).toThrow(
-        "DB_URL environment variable is required",
-      );
+      expect(() => getDb()).toThrow("DB_URL environment variable is required");
     } finally {
       restore();
     }
@@ -32,41 +30,39 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("insert builds sql and args from record", () => {
     const stmt = insert("users", {
-      name: "Alice",
       email: "a@b.com",
+      name: "Alice",
     });
-    expect(stmt.sql).toBe(
-      "INSERT INTO users (name, email)" + " VALUES (?, ?)",
-    );
-    expect(stmt.args).toEqual(["Alice", "a@b.com"]);
+    expect(stmt.sql).toBe("INSERT INTO users (email, name)" + " VALUES (?, ?)");
+    expect(stmt.args).toEqual(["a@b.com", "Alice"]);
   });
 
   test("insert supports rawSql for expressions", () => {
     const stmt = insert("event_attendees", {
-      event_id: 1,
       attendee_id: rawSql("last_insert_rowid()"),
+      event_id: 1,
       quantity: 2,
     });
     expect(stmt.sql).toBe(
       "INSERT INTO event_attendees" +
-        " (event_id, attendee_id, quantity)" +
-        " VALUES (?, last_insert_rowid(), ?)",
+        " (attendee_id, event_id, quantity)" +
+        " VALUES (last_insert_rowid(), ?, ?)",
     );
     expect(stmt.args).toEqual([1, 2]);
   });
 
   test("insert handles null values as params", () => {
     const stmt = insert("payments", {
-      id: "p1",
       attendee_id: null,
       created: "now",
+      id: "p1",
     });
     expect(stmt.sql).toBe(
       "INSERT INTO payments" +
-        " (id, attendee_id, created)" +
+        " (attendee_id, created, id)" +
         " VALUES (?, ?, ?)",
     );
-    expect(stmt.args).toEqual(["p1", null, "now"]);
+    expect(stmt.args).toEqual([null, "now", "p1"]);
   });
 
   test("insert executes correctly against db", async () => {

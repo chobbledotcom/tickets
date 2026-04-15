@@ -49,8 +49,8 @@ const loadFeedData = async (): Promise<FeedData> => {
       e.active && !e.hidden && !e.purchase_only && !isRegistrationClosed(e),
   );
   return {
-    events,
     domain: getEffectiveDomain(),
+    events,
     title: settings.websiteTitle || "Events",
   };
 };

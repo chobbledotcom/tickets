@@ -18,8 +18,8 @@ describe("saved form data", () => {
   test("restores text values across all non-sensitive field types", () => {
     setSavedFormData(new FormParams("name=Alice&email=alice%40test.com"));
     const html = renderFields([
-      field({ name: "name", label: "Name" }),
-      field({ name: "email", label: "Email", type: "email" }),
+      field({ label: "Name", name: "name" }),
+      field({ label: "Email", name: "email", type: "email" }),
     ]);
     expect(html).toContain('value="Alice"');
     expect(html).toContain('value="alice@test.com"');
@@ -28,8 +28,8 @@ describe("saved form data", () => {
   test("does not restore password or file fields", () => {
     setSavedFormData(new FormParams("password=secret123&photo=hack.jpg"));
     const html = renderFields([
-      field({ name: "password", label: "Password", type: "password" }),
-      field({ name: "photo", label: "Photo", type: "file" }),
+      field({ label: "Password", name: "password", type: "password" }),
+      field({ label: "Photo", name: "photo", type: "file" }),
     ]);
     expect(html).not.toContain("secret123");
     expect(html).not.toContain("hack.jpg");
@@ -39,33 +39,33 @@ describe("saved form data", () => {
     setSavedFormData(new FormParams("notes=My+notes&color=blue&tags=a&tags=c"));
 
     const notesHtml = renderFields([
-      field({ name: "notes", label: "Notes", type: "textarea" }),
+      field({ label: "Notes", name: "notes", type: "textarea" }),
     ]);
     expect(notesHtml).toContain("My notes");
 
     const selectHtml = renderFields([
       field({
-        name: "color",
         label: "Color",
-        type: "select",
+        name: "color",
         options: [
-          { value: "red", label: "Red" },
-          { value: "blue", label: "Blue" },
+          { label: "Red", value: "red" },
+          { label: "Blue", value: "blue" },
         ],
+        type: "select",
       }),
     ]);
     expect(selectHtml).toContain('value="blue" selected');
 
     const checkboxHtml = renderFields([
       field({
-        name: "tags",
         label: "Tags",
-        type: "checkbox-group",
+        name: "tags",
         options: [
-          { value: "a", label: "A" },
-          { value: "b", label: "B" },
-          { value: "c", label: "C" },
+          { label: "A", value: "a" },
+          { label: "B", value: "b" },
+          { label: "C", value: "c" },
         ],
+        type: "checkbox-group",
       }),
     ]);
     expect(checkboxHtml).toContain('value="a" checked');
@@ -78,7 +78,7 @@ describe("saved form data", () => {
       new FormParams("start_date=2026-03-21&start_time=14%3A30"),
     );
     const html = renderFields([
-      field({ name: "start", label: "Start", type: "datetime" }),
+      field({ label: "Start", name: "start", type: "datetime" }),
     ]);
     expect(html).toContain('value="2026-03-21"');
     expect(html).toContain('value="14:30"');
@@ -87,7 +87,7 @@ describe("saved form data", () => {
   test("defaults datetime time to 00:00 when only date was saved", () => {
     setSavedFormData(new FormParams("start_date=2026-03-21"));
     const html = renderFields([
-      field({ name: "start", label: "Start", type: "datetime" }),
+      field({ label: "Start", name: "start", type: "datetime" }),
     ]);
     expect(html).toContain('value="2026-03-21"');
     expect(html).toContain('value="00:00"');
@@ -96,7 +96,7 @@ describe("saved form data", () => {
   test("renders no value attributes for datetime when nothing was saved", () => {
     setSavedFormData(new FormParams("other=value"));
     const html = renderFields([
-      field({ name: "start", label: "Start", type: "datetime" }),
+      field({ label: "Start", name: "start", type: "datetime" }),
     ]);
     expect(html).not.toContain('value="');
   });
@@ -105,13 +105,13 @@ describe("saved form data", () => {
     setSavedFormData(new FormParams("name=Alice"));
     clearSavedFormData();
     expect(
-      renderFields([field({ name: "name", label: "Name" })]),
+      renderFields([field({ label: "Name", name: "name" })]),
     ).not.toContain("Alice");
   });
 
   test("renders no value attributes when nothing was saved", () => {
     expect(
-      renderFields([field({ name: "name", label: "Name" })]),
+      renderFields([field({ label: "Name", name: "name" })]),
     ).not.toContain('value="');
   });
 
@@ -119,7 +119,7 @@ describe("saved form data", () => {
     setSavedFormData(
       new FormParams("name=%3Cscript%3Ealert(1)%3C%2Fscript%3E"),
     );
-    const html = renderFields([field({ name: "name", label: "Name" })]);
+    const html = renderFields([field({ label: "Name", name: "name" })]);
     expect(html).toContain("&lt;script&gt;");
     expect(html).not.toContain("<script>alert");
   });

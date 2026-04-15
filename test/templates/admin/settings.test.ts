@@ -16,22 +16,22 @@ beforeAll(async () => {
 
 describe("adminSettingsPage", () => {
   const defaultState: SettingsPageState = {
+    bookingFee: "0",
+    businessEmail: "",
+    country: "GB",
+    embedHosts: "",
+    headerImageUrl: "",
+    paymentProvider: "",
+    showPublicSite: false,
+    squareSandbox: false,
+    squareTokenConfigured: false,
+    squareWebhookConfigured: false,
+    storageEnabled: false,
     stripeKeyConfigured: false,
     stripeKeyMode: null,
-    paymentProvider: "",
-    squareTokenConfigured: false,
-    squareSandbox: false,
-    squareWebhookConfigured: false,
-    webhookUrl: "https://example.com/payment/webhook",
-    bookingFee: "0",
-    embedHosts: "",
     termsAndConditions: "",
-    businessEmail: "",
     theme: "light",
-    showPublicSite: false,
-    country: "GB",
-    headerImageUrl: "",
-    storageEnabled: false,
+    webhookUrl: "https://example.com/payment/webhook",
   };
 
   test("shows square webhook configured message when key is set", () => {
@@ -59,8 +59,8 @@ describe("adminSettingsPage", () => {
     const html = adminSettingsPage(TEST_SESSION, {
       ...defaultState,
       paymentProvider: "square",
-      squareTokenConfigured: true,
       squareSandbox: true,
+      squareTokenConfigured: true,
     });
     expect(html).toContain("Sandbox mode");
     expect(html).toContain('name="square_sandbox"');
@@ -76,41 +76,41 @@ describe("adminSettingsPage", () => {
 
 describe("adminAdvancedSettingsPage", () => {
   const advancedDefaultState: AdvancedSettingsPageState = {
-    showPublicApi: false,
-    emailProvider: "",
-    emailApiKeyConfigured: false,
-    emailFromAddress: "",
-    hostEmailLabel: "",
-    businessEmail: "",
-    confirmationTemplates: { subject: "", html: "", text: "" },
-    adminTemplates: { subject: "", html: "", text: "" },
-    bunnyCdnEnabled: false,
-    bunnyDnsEnabled: false,
-    bunnySubdomain: "",
-    bunnyDnsSubdomainSuffix: "",
-    customDomain: "",
-    customDomainLastValidated: "",
-    cdnHostname: "",
+    adminTemplates: { html: "", subject: "", text: "" },
     appleWalletConfigured: false,
     appleWalletPassTypeId: "",
     appleWalletTeamId: "",
-    hostAppleWalletLabel: "",
+    attendeeColumnOrder: "",
+    bunnyCdnEnabled: false,
+    bunnyDnsEnabled: false,
+    bunnyDnsSubdomainSuffix: "",
+    bunnySubdomain: "",
+    businessEmail: "",
+    cdnHostname: "",
+    confirmationTemplates: { html: "", subject: "", text: "" },
+    customDomain: "",
+    customDomainLastValidated: "",
+    emailApiKeyConfigured: false,
+    emailFromAddress: "",
+    emailProvider: "",
+    eventColumnOrder: "",
     googleWalletConfigured: false,
     googleWalletIssuerId: "",
     googleWalletServiceAccountEmail: "",
+    hostAppleWalletLabel: "",
+    hostEmailLabel: "",
     hostGoogleWalletLabel: "",
+    showPublicApi: false,
     subdomainPreview: "",
     subdomainPreviewFullDomain: "",
     theme: "light",
-    eventColumnOrder: "",
-    attendeeColumnOrder: "",
   };
 
   test("shows email provider selection when configured", () => {
     const html = adminAdvancedSettingsPage(TEST_SESSION, {
       ...advancedDefaultState,
-      emailProvider: "resend",
       emailFromAddress: "from@test.com",
+      emailProvider: "resend",
     });
     expect(html).toContain('value="resend"');
     expect(html).toContain("Send Test Email");

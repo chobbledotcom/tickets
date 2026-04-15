@@ -19,35 +19,35 @@ describe("adminUsersPage", () => {
   test("renders statuses and actions for different user states", () => {
     const users: DisplayUser[] = [
       {
-        id: 1,
-        username: "owner",
         adminLevel: "owner",
-        hasPassword: true,
         hasDataKey: true,
-        inviteExpired: false,
-      },
-      {
-        id: 2,
-        username: "pending",
-        adminLevel: "manager",
         hasPassword: true,
-        hasDataKey: false,
+        id: 1,
         inviteExpired: false,
+        username: "owner",
       },
       {
-        id: 3,
-        username: "invited",
         adminLevel: "manager",
-        hasPassword: false,
         hasDataKey: false,
+        hasPassword: true,
+        id: 2,
         inviteExpired: false,
+        username: "pending",
+      },
+      {
+        adminLevel: "manager",
+        hasDataKey: false,
+        hasPassword: false,
+        id: 3,
+        inviteExpired: false,
+        username: "invited",
       },
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
+      currentUserId: 1,
+      error: "",
       inviteLink: "",
       success: "",
-      error: "",
-      currentUserId: 1,
     });
     expect(html).toContain("Active");
     expect(html).toContain("Pending Activation");
@@ -61,27 +61,27 @@ describe("adminUsersPage", () => {
   test("renders Invite Expired status for expired invite", () => {
     const users: DisplayUser[] = [
       {
-        id: 1,
-        username: "owner",
         adminLevel: "owner",
-        hasPassword: true,
         hasDataKey: true,
+        hasPassword: true,
+        id: 1,
         inviteExpired: false,
+        username: "owner",
       },
       {
-        id: 2,
-        username: "expired-user",
         adminLevel: "manager",
-        hasPassword: false,
         hasDataKey: false,
+        hasPassword: false,
+        id: 2,
         inviteExpired: true,
+        username: "expired-user",
       },
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
+      currentUserId: 1,
+      error: "",
       inviteLink: "",
       success: "",
-      error: "",
-      currentUserId: 1,
     });
     expect(html).toContain("Invite Expired");
   });
@@ -89,19 +89,19 @@ describe("adminUsersPage", () => {
   test("renders invite, success, and error messages when provided", () => {
     const users: DisplayUser[] = [
       {
-        id: 1,
-        username: "owner",
         adminLevel: "owner",
-        hasPassword: true,
         hasDataKey: true,
+        hasPassword: true,
+        id: 1,
         inviteExpired: false,
+        username: "owner",
       },
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
+      currentUserId: 1,
+      error: "Something went wrong",
       inviteLink: "https://example.com/join/abc123",
       success: "Invite created",
-      error: "Something went wrong",
-      currentUserId: 1,
     });
     expect(html).toContain("Invite link (share this with the new user)");
     expect(html).toContain("https://example.com/join/abc123");
@@ -113,12 +113,12 @@ describe("adminUsersPage", () => {
 describe("adminUserDeletePage", () => {
   test("renders delete confirmation form with username", () => {
     const user: DisplayUser = {
-      id: 5,
-      username: "targetuser",
       adminLevel: "manager",
-      hasPassword: true,
       hasDataKey: true,
+      hasPassword: true,
+      id: 5,
       inviteExpired: false,
+      username: "targetuser",
     };
     const html = adminUserDeletePage(user, TEST_SESSION);
     expect(html).toContain("Delete User");
@@ -130,12 +130,12 @@ describe("adminUserDeletePage", () => {
 
   test("renders error message when provided", () => {
     const user: DisplayUser = {
-      id: 5,
-      username: "targetuser",
       adminLevel: "owner",
-      hasPassword: true,
       hasDataKey: true,
+      hasPassword: true,
+      id: 5,
       inviteExpired: false,
+      username: "targetuser",
     };
     const html = adminUserDeletePage(
       user,

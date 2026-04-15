@@ -91,8 +91,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("creates group with name only", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: { name: "New Group" },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -108,13 +108,13 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("creates group with all fields", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: {
-            name: "Full Group",
             description: "Full group description",
             max_attendees: 50,
+            name: "Full Group",
             terms_and_conditions: "Some terms",
           },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -129,8 +129,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("creates group without description defaults to empty string", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: { name: "No Desc" },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -142,8 +142,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("creates group with hidden flag", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
+          body: { hidden: true, name: "Hidden Group" },
           method: "POST",
-          body: { name: "Hidden Group", hidden: true },
         }),
         201,
         (body) => {
@@ -156,8 +156,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("creates group without hidden flag by default", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: { name: "Visible Group" },
+          method: "POST",
         }),
         201,
         (body) => {
@@ -169,8 +169,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("returns error when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: { max_attendees: 10 },
+          method: "POST",
         }),
         400,
         (body) => {
@@ -182,15 +182,15 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("auto-generates unique slug", async () => {
       const result1 = await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: { name: "Slug Test 1" },
+          method: "POST",
         }),
         201,
       );
       const result2 = await assertJson(
         apiRequest("/api/admin/groups", {
-          method: "POST",
           body: { name: "Slug Test 2" },
+          method: "POST",
         }),
         201,
       );
@@ -206,8 +206,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: { name: "New Group Name" },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -222,8 +222,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: { slug: "custom-slug" },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -234,17 +234,17 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("updates max_attendees and terms", async () => {
       const group = await createTestGroup({
-        name: "Update Fields",
         maxAttendees: 10,
+        name: "Update Fields",
       });
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: {
             max_attendees: 100,
             terms_and_conditions: "Updated terms",
           },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -260,8 +260,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: { description: "New description" },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -274,16 +274,16 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("preserves description when not provided in update", async () => {
       const created = await assertJson(
         apiRequest("/api/admin/groups", {
+          body: { description: "Keep this", name: "Keep Desc" },
           method: "POST",
-          body: { name: "Keep Desc", description: "Keep this" },
         }),
         201,
       );
 
       await assertJson(
         apiRequest(`/api/admin/groups/${created.group.id}`, {
-          method: "PUT",
           body: { name: "Renamed" },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -298,8 +298,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: { hidden: true },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -309,8 +309,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: { hidden: false },
+          method: "PUT",
         }),
         200,
         (body) => {
@@ -322,8 +322,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("returns 404 for non-existent group", async () => {
       await assertJson(
         apiRequest("/api/admin/groups/99999", {
-          method: "PUT",
           body: { name: "Nope" },
+          method: "PUT",
         }),
         404,
         (body) => {
@@ -337,8 +337,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "PUT",
           body: { name: "" },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -353,8 +353,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group2.id}`, {
-          method: "PUT",
           body: { slug: group1.slug },
+          method: "PUT",
         }),
         400,
         (body) => {
@@ -370,8 +370,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "To Delete" },
+          method: "DELETE",
         }),
         200,
         (body) => {
@@ -386,14 +386,14 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("resets events to ungrouped on delete", async () => {
       const group = await createTestGroup({ name: "Event Group" });
       const event = await createTestEvent({
-        name: "Grouped Event",
         groupId: group.id,
+        name: "Grouped Event",
       });
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "Event Group" },
+          method: "DELETE",
         }),
         200,
       );
@@ -409,8 +409,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          method: "DELETE",
           body: { confirm_identifier: "Wrong Name" },
+          method: "DELETE",
         }),
         400,
         (body) => {
@@ -425,8 +425,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("returns 404 for non-existent group", async () => {
       await assertJson(
         apiRequest("/api/admin/groups/99999", {
-          method: "DELETE",
           body: { confirm_identifier: "anything" },
+          method: "DELETE",
         }),
         404,
         (body) => {

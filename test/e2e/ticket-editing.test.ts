@@ -86,11 +86,11 @@ describe("e2e: ticket editing flow", () => {
     await browser.visit("/");
     await browser.submitForm(
       {
-        admin_username: "admin",
+        accept_agreement: "yes",
         admin_password: "password",
         admin_password_confirm: "password",
+        admin_username: "admin",
         country: "GB",
-        accept_agreement: "yes",
       },
       "Complete Setup",
     );
@@ -98,7 +98,7 @@ describe("e2e: ticket editing flow", () => {
 
     await browser.clickLink("Go to Admin Dashboard");
     await browser.submitForm(
-      { username: "admin", password: "password" },
+      { password: "password", username: "admin" },
       "Login",
     );
     if (browser.containsText("Migration complete")) {
@@ -108,7 +108,7 @@ describe("e2e: ticket editing flow", () => {
     // Create event
     await browser.clickLink("Add Event");
     await browser.submitForm(
-      { name: "Art Class", max_attendees: "50", max_quantity: "5" },
+      { max_attendees: "50", max_quantity: "5", name: "Art Class" },
       "Create Event",
     );
 
@@ -142,10 +142,10 @@ describe("e2e: ticket editing flow", () => {
 
     await browser.submitForm(
       {
-        name: "Alice Johnson",
-        email: "alice.johnson@example.com",
-        phone: "+449876543210",
         address: "42 Oak Street",
+        email: "alice.johnson@example.com",
+        name: "Alice Johnson",
+        phone: "+449876543210",
         special_instructions: "Needs wheelchair access",
       },
       "Save Contact Info",
@@ -194,10 +194,10 @@ describe("e2e: ticket editing flow", () => {
     // 7. Edit Bob's contact info
     await browser.submitForm(
       {
-        name: "Robert Jones",
-        email: "robert@example.com",
-        phone: "+441111222333",
         address: "7 Pine Avenue",
+        email: "robert@example.com",
+        name: "Robert Jones",
+        phone: "+441111222333",
         special_instructions: "Vegetarian meals",
       },
       "Save Contact Info",
@@ -240,11 +240,11 @@ describe("e2e: ticket editing flow", () => {
     // 2. Complete setup
     await browser.submitForm(
       {
-        admin_username: "admin",
+        accept_agreement: "yes",
         admin_password: "password",
         admin_password_confirm: "password",
+        admin_username: "admin",
         country: "GB",
-        accept_agreement: "yes",
       },
       "Complete Setup",
     );
@@ -256,7 +256,7 @@ describe("e2e: ticket editing flow", () => {
     // 3. Log in
     await browser.clickLink("Go to Admin Dashboard");
     await browser.submitForm(
-      { username: "admin", password: "password" },
+      { password: "password", username: "admin" },
       "Login",
     );
     if (browser.containsText("Migration complete")) {
@@ -267,7 +267,7 @@ describe("e2e: ticket editing flow", () => {
     // 4. Create Event 1: "Morning Workshop"
     await browser.clickLink("Add Event");
     await browser.submitForm(
-      { name: "Morning Workshop", max_attendees: "50", max_quantity: "5" },
+      { max_attendees: "50", max_quantity: "5", name: "Morning Workshop" },
       "Create Event",
     );
     expect(browser.containsText("Morning Workshop")).toBe(true);
@@ -275,7 +275,7 @@ describe("e2e: ticket editing flow", () => {
     // 5. Create Event 2: "Evening Seminar"
     await browser.clickLink("Add Event");
     await browser.submitForm(
-      { name: "Evening Seminar", max_attendees: "50", max_quantity: "5" },
+      { max_attendees: "50", max_quantity: "5", name: "Evening Seminar" },
       "Create Event",
     );
     expect(browser.containsText("Evening Seminar")).toBe(true);

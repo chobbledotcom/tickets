@@ -54,10 +54,10 @@ const handleGetTokens = (
     // Ignore passesUpdatedSince — always return the token as updated
     return new Response(
       JSON.stringify({
-        serialNumbers: [token],
         lastUpdated: String(Date.now()),
+        serialNumbers: [token],
       }),
-      { status: 200, headers: JSON_HEADERS },
+      { headers: JSON_HEADERS, status: 200 },
     );
   })(params.passType);
 
@@ -75,12 +75,12 @@ const handleLog = () => new Response(null, { status: 200 });
 
 export const routeWalletWebservice = createRouter(
   defineRoutes({
-    "POST /v1/devices/:_device/registrations/:_passType/:_token":
-      handleRegister,
     "DELETE /v1/devices/:_device/registrations/:_passType/:_token":
       handleUnregister,
     "GET /v1/devices/:_device/registrations/:passType": handleGetTokens,
     "GET /v1/passes/:passType/:token": handleGetPass,
+    "POST /v1/devices/:_device/registrations/:_passType/:_token":
+      handleRegister,
     "POST /v1/log": handleLog,
   }),
 );

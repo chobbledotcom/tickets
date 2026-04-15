@@ -118,7 +118,7 @@ function extractImports(
           .trim(),
       )
       .filter(Boolean);
-    imports.push({ specifier, names });
+    imports.push({ names, specifier });
   }
 
   // Dynamic imports:
@@ -139,7 +139,7 @@ function extractImports(
           .trim(),
       )
       .filter(Boolean);
-    imports.push({ specifier, names });
+    imports.push({ names, specifier });
   }
 
   return imports;

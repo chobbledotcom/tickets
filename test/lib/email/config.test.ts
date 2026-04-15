@@ -23,9 +23,9 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
 
     const config = await getEmailConfig();
     expect(config).toEqual({
-      provider: "resend",
       apiKey: "test-key",
       fromAddress: "from@test.com",
+      provider: "resend",
     });
   });
 
@@ -48,9 +48,9 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
 
     const config = await getEmailConfig();
     expect(config).toEqual({
-      provider: "resend",
       apiKey: "test-key",
       fromAddress: "biz@example.com",
+      provider: "resend",
     });
   });
 
@@ -69,9 +69,9 @@ describeWithEnv(
   "getHostEmailConfig",
   {
     env: {
-      HOST_EMAIL_PROVIDER: undefined,
       HOST_EMAIL_API_KEY: undefined,
       HOST_EMAIL_FROM_ADDRESS: undefined,
+      HOST_EMAIL_PROVIDER: undefined,
     },
   },
   () => {
@@ -102,9 +102,9 @@ describeWithEnv(
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       expect(getHostEmailConfig()).toEqual({
-        provider: "resend",
         apiKey: "key-123",
         fromAddress: "noreply@example.com",
+        provider: "resend",
       });
     });
 
@@ -113,9 +113,9 @@ describeWithEnv(
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       expect(getHostEmailConfig()).toEqual({
-        provider: "mailgun-eu",
         apiKey: "key-123",
         fromAddress: "noreply@example.com",
+        provider: "mailgun-eu",
       });
     });
 

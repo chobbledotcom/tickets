@@ -47,16 +47,16 @@ export const buildWalletPassData = (
   const { event, attendee } = entry;
   const domain = getEffectiveDomain();
   return {
-    serialNumber: token,
-    organizationName: domain,
-    eventName: event.name,
+    attendeeDate: attendee.date,
+    checkinUrl: buildCheckinUrl(token),
+    currencyCode: settings.currency,
     eventDate: event.date,
     eventLocation: event.location,
-    attendeeDate: attendee.date,
-    quantity: attendee.quantity,
+    eventName: event.name,
+    organizationName: domain,
     pricePaid: Number(attendee.price_paid),
-    currencyCode: settings.currency,
-    checkinUrl: buildCheckinUrl(token),
+    quantity: attendee.quantity,
+    serialNumber: token,
   };
 };
 
@@ -118,24 +118,24 @@ const buildAttendeeView = (
   base: AttendeeWithBookings,
   booking: EventAttendeeRow,
 ): Attendee => ({
-  id: base.id,
-  event_id: booking.event_id,
-  name: "",
-  email: "",
-  phone: "",
   address: "",
-  special_instructions: "",
-  created: base.created,
-  payment_id: "",
-  quantity: booking.quantity,
-  price_paid: String(booking.price_paid),
+  attachment_downloads: booking.attachment_downloads,
   checked_in: booking.checked_in === 1,
+  created: base.created,
+  date: booking.start_at ? booking.start_at.slice(0, 10) : null,
+  email: "",
+  event_id: booking.event_id,
+  id: base.id,
+  name: "",
+  payment_id: "",
+  phone: "",
+  pii_blob: base.pii_blob,
+  price_paid: String(booking.price_paid),
+  quantity: booking.quantity,
   refunded: booking.refunded === 1,
+  special_instructions: "",
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,
-  date: booking.start_at ? booking.start_at.slice(0, 10) : null,
-  attachment_downloads: booking.attachment_downloads,
-  pii_blob: base.pii_blob,
 });
 
 /**
@@ -199,7 +199,7 @@ export const lookupAttendees = async (
   const valid = compact(results);
   return valid.length === 0
     ? { ok: false, response: notFoundResponse() }
-    : { ok: true, attendees: valid };
+    : { attendees: valid, ok: true };
 };
 
 /**

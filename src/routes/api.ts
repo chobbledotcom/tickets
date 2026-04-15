@@ -28,9 +28,9 @@ import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 // =============================================================================
 
 const CORS_HEADERS: Record<string, string> = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
   "access-control-allow-headers": "content-type",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-origin": "*",
   "access-control-max-age": "86400",
 };
 
@@ -45,7 +45,7 @@ const apiResponse = (data: unknown, status = 200): Response => {
 
 /** CORS preflight response */
 const handleOptions = (): Response =>
-  new Response(null, { status: 204, headers: CORS_HEADERS });
+  new Response(null, { headers: CORS_HEADERS, status: 204 });
 
 // =============================================================================
 // Public event shape
@@ -83,22 +83,22 @@ export const toPublicEvent = (
     isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
 
   const result: PublicEvent = {
-    name: event.name,
-    slug: event.slug,
-    description: event.description,
-    date: event.date || null,
-    location: event.location || null,
-    imageUrl: event.image_url || null,
-    unitPrice: event.unit_price,
     canPayMore: event.can_pay_more,
+    date: event.date || null,
+    description: event.description,
+    eventType: event.event_type,
+    fields: event.fields,
+    imageUrl: event.image_url || null,
+    isClosed: closed,
+    isSoldOut,
+    location: event.location || null,
     maxPrice: event.max_price,
+    maxPurchasable,
+    name: event.name,
     nonTransferable: event.non_transferable,
     purchaseOnly: event.purchase_only,
-    fields: event.fields,
-    eventType: event.event_type,
-    isSoldOut,
-    isClosed: closed,
-    maxPurchasable,
+    slug: event.slug,
+    unitPrice: event.unit_price,
   };
 
   if (availableDates) {
@@ -287,11 +287,11 @@ export const apiRoutes = defineRoutes({
   "GET /api/events": handleListEvents,
   "GET /api/events/:slug": handleGetEvent,
   "GET /api/events/:slug/availability": handleCheckAvailability,
-  "POST /api/events/:slug/book": handleBook,
   "OPTIONS /api/events": handleOptions,
   "OPTIONS /api/events/:slug": handleOptions,
   "OPTIONS /api/events/:slug/availability": handleOptions,
   "OPTIONS /api/events/:slug/book": handleOptions,
+  "POST /api/events/:slug/book": handleBook,
 });
 
 export const routeApi = createRouter(apiRoutes);

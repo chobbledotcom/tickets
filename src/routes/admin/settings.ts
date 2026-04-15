@@ -124,22 +124,22 @@ const getWebhookUrl = (): string => {
  */
 const getSettingsPageState = () => {
   return {
+    bookingFee: settings.bookingFee,
+    businessEmail: settings.businessEmail,
+    country: settings.country,
+    embedHosts: settings.embedHosts,
+    headerImageUrl: settings.headerImageUrl,
+    paymentProvider: settings.paymentProvider ?? "",
+    showPublicSite: settings.showPublicSite,
+    squareSandbox: settings.square.sandbox,
+    squareTokenConfigured: settings.square.hasToken,
+    squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
+    storageEnabled: isStorageEnabled(),
     stripeKeyConfigured: settings.stripe.hasKey,
     stripeKeyMode: settings.stripe.keyMode,
-    paymentProvider: settings.paymentProvider ?? "",
-    squareTokenConfigured: settings.square.hasToken,
-    squareSandbox: settings.square.sandbox,
-    squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
-    webhookUrl: getWebhookUrl(),
-    bookingFee: settings.bookingFee,
-    embedHosts: settings.embedHosts,
     termsAndConditions: settings.terms,
-    businessEmail: settings.businessEmail,
     theme: settings.theme,
-    showPublicSite: settings.showPublicSite,
-    country: settings.country,
-    headerImageUrl: settings.headerImageUrl,
-    storageEnabled: isStorageEnabled(),
+    webhookUrl: getWebhookUrl(),
   };
 };
 
@@ -154,50 +154,50 @@ const getAdvancedSettingsPageState = async (
   const adminTemplates = settings.email.templateSet("admin");
   const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
   return {
-    showPublicApi: settings.showPublicApi,
-    emailProvider: settings.email.provider,
+    adminTemplates,
+    appleWalletConfigured: settings.appleWallet.hasDbConfig,
+    appleWalletPassTypeId: settings.appleWallet.passTypeId,
+    appleWalletTeamId: settings.appleWallet.teamId,
+    attendeeColumnOrder: settings.attendeeColumnOrder,
+    bunnyCdnEnabled: bunnyCdnConfigured,
+    bunnyDnsEnabled,
+    bunnyDnsSubdomainSuffix: bunnyDnsEnabled
+      ? getBunnyDnsSubdomainSuffix()
+      : "",
+    bunnySubdomain: settings.bunnySubdomain,
+    businessEmail: settings.businessEmail,
+    cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
+    confirmationTemplates,
+    customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
+    customDomainLastValidated:
+      (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
     emailApiKeyConfigured: settings.email.hasApiKey,
     emailFromAddress: settings.email.fromAddress,
+    emailProvider: settings.email.provider,
+    eventColumnOrder: settings.eventColumnOrder,
+    googleWalletConfigured: settings.googleWallet.hasDbConfig,
+    googleWalletIssuerId: settings.googleWallet.issuerId,
+    googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,
+    hostAppleWalletLabel: (() => {
+      const hostConfig = settings.appleWallet.hostConfig;
+      if (!hostConfig) return "";
+      return `Host env (${hostConfig.passTypeId})`;
+    })(),
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
-    businessEmail: settings.businessEmail,
-    confirmationTemplates,
-    adminTemplates,
-    bunnyCdnEnabled: bunnyCdnConfigured,
-    bunnyDnsEnabled,
-    bunnySubdomain: settings.bunnySubdomain,
-    bunnyDnsSubdomainSuffix: bunnyDnsEnabled
-      ? getBunnyDnsSubdomainSuffix()
-      : "",
-    subdomainPreview,
-    subdomainPreviewFullDomain,
-    customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
-    customDomainLastValidated:
-      (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
-    cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
-    appleWalletConfigured: settings.appleWallet.hasDbConfig,
-    appleWalletPassTypeId: settings.appleWallet.passTypeId,
-    appleWalletTeamId: settings.appleWallet.teamId,
-    hostAppleWalletLabel: (() => {
-      const hostConfig = settings.appleWallet.hostConfig;
-      if (!hostConfig) return "";
-      return `Host env (${hostConfig.passTypeId})`;
-    })(),
-    googleWalletConfigured: settings.googleWallet.hasDbConfig,
-    googleWalletIssuerId: settings.googleWallet.issuerId,
-    googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,
     hostGoogleWalletLabel: (() => {
       const hostConfig = settings.googleWallet.hostConfig;
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
+    showPublicApi: settings.showPublicApi,
+    subdomainPreview,
+    subdomainPreviewFullDomain,
     theme: settings.theme,
-    eventColumnOrder: settings.eventColumnOrder,
-    attendeeColumnOrder: settings.attendeeColumnOrder,
   };
 };
 
@@ -276,18 +276,18 @@ const validateChangePasswordForm = (
 
   if (new_password.length < 8) {
     return {
-      valid: false,
       error: "New password must be at least 8 characters",
+      valid: false,
     };
   }
   if (new_password !== new_password_confirm) {
-    return { valid: false, error: "New passwords do not match" };
+    return { error: "New passwords do not match", valid: false };
   }
 
   return {
-    valid: true,
     currentPassword: current_password,
     newPassword: new_password,
+    valid: true,
   };
 };
 
@@ -341,17 +341,17 @@ const isPaymentProvider = (s: string): s is PaymentProviderType =>
  * Handle POST /admin/settings/payment-provider - owner only
  */
 const handlePaymentProviderPost = settingsHandler({
+  extract: (form) => form.getString("payment_provider"),
   formId: "settings-payment-provider",
   label: "Payment provider",
-  extract: (form) => form.getString("payment_provider"),
-  validate: (v) =>
-    v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
+  log: (v) =>
+    v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
   save: (v) =>
     v === "none"
       ? settings.update.clearPaymentProvider()
       : settings.update.paymentProvider(v as PaymentProviderType),
-  log: (v) =>
-    v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
+  validate: (v) =>
+    v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
 });
 
 /**
@@ -429,21 +429,13 @@ type SquareFormData = {
 };
 
 const handleAdminSquarePost = settingsHandler<SquareFormData>({
-  formId: "settings-square",
-  label: "Square credentials",
   extract: (form) => ({
-    token: processSecretField(form, "square_access_token"),
     locationId: form.getString("square_location_id"),
     sandbox: form.get("square_sandbox") === "on",
+    token: processSecretField(form, "square_access_token"),
   }),
-  validate: ({ token, locationId }) => {
-    if (isDemoMode()) return "Cannot configure Square in demo mode";
-    if (!locationId) return "Location ID is required";
-    if (token.action === "cleared" && !settings.square.hasToken) {
-      return "Square Access Token is required";
-    }
-    return null;
-  },
+  formId: "settings-square",
+  label: "Square credentials",
   save: async ({ token, locationId, sandbox }) => {
     if (token.action === "provided") {
       await settings.update.square.accessToken(token.value);
@@ -452,14 +444,22 @@ const handleAdminSquarePost = settingsHandler<SquareFormData>({
     await settings.update.square.sandbox(sandbox);
     await settings.update.paymentProvider("square");
   },
+  validate: ({ token, locationId }) => {
+    if (isDemoMode()) return "Cannot configure Square in demo mode";
+    if (!locationId) return "Location ID is required";
+    if (token.action === "cleared" && !settings.square.hasToken) {
+      return "Square Access Token is required";
+    }
+    return null;
+  },
 });
 
 /**
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsSecret({
-  formId: "settings-square-webhook",
   field: "square_webhook_signature_key",
+  formId: "settings-square-webhook",
   label: "Square webhook signature key",
   required: true,
   save: (v) => settings.update.square.webhookSignatureKey(v),
@@ -478,106 +478,106 @@ const handleSquareTestPost = testRoute(testSquareConnection);
  * Handle POST /admin/settings/embed-hosts - owner only
  */
 const handleEmbedHostsPost = settingsHandler({
+  extract: (form) => form.getString("embed_hosts"),
   formId: "settings-embed-hosts",
   label: "Embed host restrictions",
-  extract: (form) => form.getString("embed_hosts"),
-  validate: (v) => {
-    if (v === "") return null;
-    return validateEmbedHosts(v);
-  },
-  save: (v) =>
-    settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
   log: (v) =>
     v === ""
       ? "Embed host restrictions removed"
       : "Allowed embed hosts updated",
+  save: (v) =>
+    settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
+  validate: (v) => {
+    if (v === "") return null;
+    return validateEmbedHosts(v);
+  },
 });
 
 /**
  * Handle POST /admin/settings/terms - owner only
  */
 const handleTermsPost = settingsHandler({
-  formId: "settings-terms",
-  label: "Terms and conditions",
   extract: (form) => {
     applyDemoOverrides(form, TERMS_DEMO_FIELDS);
     return form.getString("terms_and_conditions");
   },
+  formId: "settings-terms",
+  label: "Terms and conditions",
+  log: (v) =>
+    v === "" ? "Terms and conditions removed" : "Terms and conditions updated",
+  save: (v) => settings.update.terms(v),
   validate: (v) =>
     v.length > MAX_TEXTAREA_LENGTH
       ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
       : null,
-  save: (v) => settings.update.terms(v),
-  log: (v) =>
-    v === "" ? "Terms and conditions removed" : "Terms and conditions updated",
 });
 
 /** Handle POST /admin/settings/country - owner only */
 const handleCountryPost = settingsHandler({
+  extract: (form) => form.getString("country").toUpperCase(),
   formId: "settings-country",
   label: "Country",
-  extract: (form) => form.getString("country").toUpperCase(),
+  log: (v) => `Country set to ${v}`,
+  save: (v) => settings.update.country(v),
   validate: (v) =>
     v === ""
       ? "Country is required"
       : !isValidCountry(v)
         ? "Please select a valid country"
         : null,
-  save: (v) => settings.update.country(v),
-  log: (v) => `Country set to ${v}`,
 });
 
 /** Handle POST /admin/settings/business-email - owner only */
 const handleBusinessEmailPost = settingsClearable({
-  formId: "settings-business-email",
   field: "business_email",
+  formId: "settings-business-email",
   label: "Business email",
+  save: (v) => updateBusinessEmail(v),
   validate: (v) =>
     !isValidBusinessEmail(v)
       ? "Invalid email format. Please use format: name@domain.com"
       : null,
-  save: (v) => updateBusinessEmail(v),
 });
 
 /** Handle POST /admin/settings/theme - owner only */
 const handleThemePost = settingsHandler({
+  extract: (form) => form.getString("theme"),
   formId: "settings-theme",
   label: "Theme",
-  extract: (form) => form.getString("theme"),
+  log: (v) => `Theme set to ${v}`,
+  save: (v) => settings.update.theme(v as Theme),
   validate: (v) =>
     v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
-  save: (v) => settings.update.theme(v as Theme),
-  log: (v) => `Theme set to ${v}`,
 });
 
 /** Handle POST /admin/settings/show-public-site - owner only */
 const handleShowPublicSitePost = settingsToggle({
-  formId: "settings-show-public-site",
   field: "show_public_site",
+  formId: "settings-show-public-site",
   label: "Public site",
   save: (v) => settings.update.showPublicSite(v),
 });
 
 /** Handle POST /admin/settings/show-public-api - owner only */
 const handleShowPublicApiPost = settingsToggle({
-  formId: "settings-show-public-api",
-  field: "show_public_api",
-  label: "Public API",
   advanced: true,
+  field: "show_public_api",
+  formId: "settings-show-public-api",
+  label: "Public API",
   save: (v) => settings.update.showPublicApi(v),
 });
 
 /** Handle POST /admin/settings/booking-fee - owner only */
 const handleBookingFeePost = settingsHandler({
+  extract: (form) => Number.parseFloat(form.getString("booking_fee")),
   formId: "settings-booking-fee",
   label: "Booking fee",
-  extract: (form) => Number.parseFloat(form.getString("booking_fee")),
+  log: (v) => `Booking fee set to ${v}%`,
+  save: (v) => settings.update.bookingFee(String(v)),
   validate: (v) =>
     !Number.isFinite(v) || v < 0 || v > 10
       ? "Booking fee must be a number between 0 and 10"
       : null,
-  save: (v) => settings.update.bookingFee(String(v)),
-  log: (v) => `Booking fee set to ${v}%`,
 });
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
@@ -676,22 +676,16 @@ type EmailFormData = {
 };
 
 const handleEmailPost = settingsHandler<EmailFormData>({
-  formId: "settings-email",
-  label: "Email settings",
   advanced: true,
   extract: (form) => ({
-    provider: form.getString("email_provider"),
     apiKey: processSecretField(form, "email_api_key"),
     fromAddress: form.getString("email_from_address"),
+    provider: form.getString("email_provider"),
   }),
-  validate: ({ provider, fromAddress }) => {
-    if (provider === "") return null;
-    if (!isEmailProvider(provider)) return "Invalid email provider";
-    if (fromAddress && !isValidBusinessEmail(fromAddress)) {
-      return "Invalid from-address format. Please use format: name@domain.com";
-    }
-    return null;
-  },
+  formId: "settings-email",
+  label: "Email settings",
+  log: ({ provider }) =>
+    provider === "" ? "Email provider disabled" : "Email settings updated",
   save: async ({ provider, apiKey, fromAddress }) => {
     if (provider === "") {
       await settings.update.email.provider("");
@@ -705,8 +699,14 @@ const handleEmailPost = settingsHandler<EmailFormData>({
     }
     if (fromAddress) await settings.update.email.fromAddress(fromAddress);
   },
-  log: ({ provider }) =>
-    provider === "" ? "Email provider disabled" : "Email settings updated",
+  validate: ({ provider, fromAddress }) => {
+    if (provider === "") return null;
+    if (!isEmailProvider(provider)) return "Invalid email provider";
+    if (fromAddress && !isValidBusinessEmail(fromAddress)) {
+      return "Invalid from-address format. Please use format: name@domain.com";
+    }
+    return null;
+  },
 });
 
 /** Handle POST /admin/settings/email/test - send test email to business email */
@@ -775,15 +775,14 @@ const validateTemplateFields = ({
 const handleEmailTemplatePost = (type: EmailTemplateType) => {
   const label = type === "confirmation" ? "Confirmation" : "Admin notification";
   return settingsHandler<TemplateFormData>({
-    formId: `settings-email-tpl-${type}`,
-    label: `${label} email template`,
     advanced: true,
     extract: (form) => ({
-      subject: form.getString("subject"),
       html: form.getString("html"),
+      subject: form.getString("subject"),
       text: form.getString("text"),
     }),
-    validate: validateTemplateFields,
+    formId: `settings-email-tpl-${type}`,
+    label: `${label} email template`,
     save: async ({ subject, html, text }) => {
       await Promise.all([
         settings.update.email.template(type, "subject", subject.trim()),
@@ -791,67 +790,68 @@ const handleEmailTemplatePost = (type: EmailTemplateType) => {
         settings.update.email.template(type, "text", text.trim()),
       ]);
     },
+    validate: validateTemplateFields,
   });
 };
 
 /** Sample booking data used for email template previews */
 const PREVIEW_BOOKINGS = [
   {
-    event: {
-      id: 1,
-      name: "Summer Concert",
-      slug: "summer-concert",
-      webhook_url: "",
-      max_attendees: 100,
-      attendee_count: 42,
-      unit_price: 2500,
-      can_pay_more: false,
-      date: "2026-07-15T19:00:00Z",
-      location: "Town Hall",
-      purchase_only: false,
-      assign_built_site: false,
-    },
     attendee: {
+      address: "123 High Street, London",
+      date: null,
+      email: "jane@example.com",
       id: 1,
       name: "Jane Smith",
-      email: "jane@example.com",
-      phone: "+44 7700 900000",
-      address: "123 High Street, London",
-      special_instructions: "Wheelchair access please",
-      quantity: 2,
       payment_id: "pi_sample",
+      phone: "+44 7700 900000",
       price_paid: "5000",
+      quantity: 2,
+      special_instructions: "Wheelchair access please",
       ticket_token: "SAMPLE123",
-      date: null,
+    },
+    event: {
+      assign_built_site: false,
+      attendee_count: 42,
+      can_pay_more: false,
+      date: "2026-07-15T19:00:00Z",
+      id: 1,
+      location: "Town Hall",
+      max_attendees: 100,
+      name: "Summer Concert",
+      purchase_only: false,
+      slug: "summer-concert",
+      unit_price: 2500,
+      webhook_url: "",
     },
   },
   {
-    event: {
-      id: 2,
-      name: "Workshop",
-      slug: "workshop",
-      webhook_url: "",
-      max_attendees: 20,
-      attendee_count: 8,
-      unit_price: 0,
-      can_pay_more: false,
-      date: "",
-      location: "",
-      purchase_only: false,
-      assign_built_site: false,
-    },
     attendee: {
+      address: "123 High Street, London",
+      date: "2026-04-15",
+      email: "jane@example.com",
       id: 2,
       name: "Jane Smith",
-      email: "jane@example.com",
-      phone: "+44 7700 900000",
-      address: "123 High Street, London",
-      special_instructions: "Wheelchair access please",
-      quantity: 1,
       payment_id: "",
+      phone: "+44 7700 900000",
       price_paid: "0",
+      quantity: 1,
+      special_instructions: "Wheelchair access please",
       ticket_token: "SAMPLE456",
-      date: "2026-04-15",
+    },
+    event: {
+      assign_built_site: false,
+      attendee_count: 8,
+      can_pay_more: false,
+      date: "",
+      id: 2,
+      location: "",
+      max_attendees: 20,
+      name: "Workshop",
+      purchase_only: false,
+      slug: "workshop",
+      unit_price: 0,
+      webhook_url: "",
     },
   },
 ];
@@ -883,7 +883,7 @@ const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
 
     try {
       const rendered = await renderTemplate(template, sampleData);
-      return jsonResponse({ rendered, format });
+      return jsonResponse({ format, rendered });
     } catch (err) {
       return jsonResponse({ error: String(err) }, 400);
     }
@@ -1103,38 +1103,20 @@ const isAllCleared = (d: AppleWalletFormData): boolean =>
   d.wwdr.action === "cleared";
 
 const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
-  formId: "settings-apple-wallet",
-  label: "Apple Wallet configuration",
   advanced: true,
   extract: (form) => ({
-    passTypeId: form.getString("apple_wallet_pass_type_id"),
-    teamId: form.getString("apple_wallet_team_id"),
     cert: processSecretField(form, "apple_wallet_signing_cert"),
     key: processSecretField(form, "apple_wallet_signing_key"),
+    passTypeId: form.getString("apple_wallet_pass_type_id"),
+    teamId: form.getString("apple_wallet_team_id"),
     wwdr: processSecretField(form, "apple_wallet_wwdr_cert"),
   }),
-  validate: (d) => {
-    if (isAllCleared(d)) return null;
-    if (!d.passTypeId) return "Pass Type ID is required";
-    if (!d.teamId) return "Team ID is required";
-    if (!settings.appleWallet.hasDbConfig) {
-      if (d.cert.action !== "provided") {
-        return "Signing certificate is required";
-      }
-      if (d.key.action !== "provided") return "Signing private key is required";
-      if (d.wwdr.action !== "provided") return "WWDR certificate is required";
-    }
-    if (d.cert.action === "provided" && !isValidPemCertificate(d.cert.value)) {
-      return "Signing certificate is not a valid PEM certificate";
-    }
-    if (d.key.action === "provided" && !isValidPemPrivateKey(d.key.value)) {
-      return "Signing private key is not a valid PEM private key";
-    }
-    if (d.wwdr.action === "provided" && !isValidPemCertificate(d.wwdr.value)) {
-      return "WWDR certificate is not a valid PEM certificate";
-    }
-    return null;
-  },
+  formId: "settings-apple-wallet",
+  label: "Apple Wallet configuration",
+  log: (d) =>
+    isAllCleared(d)
+      ? "Apple Wallet configuration cleared"
+      : "Apple Wallet configuration updated",
   save: async (d) => {
     if (isAllCleared(d)) {
       await Promise.all([
@@ -1158,10 +1140,28 @@ const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
       await settings.update.appleWallet.wwdrCert(d.wwdr.value);
     }
   },
-  log: (d) =>
-    isAllCleared(d)
-      ? "Apple Wallet configuration cleared"
-      : "Apple Wallet configuration updated",
+  validate: (d) => {
+    if (isAllCleared(d)) return null;
+    if (!d.passTypeId) return "Pass Type ID is required";
+    if (!d.teamId) return "Team ID is required";
+    if (!settings.appleWallet.hasDbConfig) {
+      if (d.cert.action !== "provided") {
+        return "Signing certificate is required";
+      }
+      if (d.key.action !== "provided") return "Signing private key is required";
+      if (d.wwdr.action !== "provided") return "WWDR certificate is required";
+    }
+    if (d.cert.action === "provided" && !isValidPemCertificate(d.cert.value)) {
+      return "Signing certificate is not a valid PEM certificate";
+    }
+    if (d.key.action === "provided" && !isValidPemPrivateKey(d.key.value)) {
+      return "Signing private key is not a valid PEM private key";
+    }
+    if (d.wwdr.action === "provided" && !isValidPemCertificate(d.wwdr.value)) {
+      return "WWDR certificate is not a valid PEM certificate";
+    }
+    return null;
+  },
 });
 
 /**
@@ -1177,29 +1177,18 @@ const isGoogleWalletCleared = (d: GoogleWalletFormData): boolean =>
   !d.issuerId && !d.email && d.key.action === "cleared";
 
 const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
-  formId: "settings-google-wallet",
-  label: "Google Wallet configuration",
   advanced: true,
   extract: (form) => ({
-    issuerId: form.getString("google_wallet_issuer_id"),
     email: form.getString("google_wallet_service_account_email"),
+    issuerId: form.getString("google_wallet_issuer_id"),
     key: processSecretField(form, "google_wallet_service_account_key"),
   }),
-  validate: async (d) => {
-    if (isGoogleWalletCleared(d)) return null;
-    if (!d.issuerId) return "Issuer ID is required";
-    if (!d.email) return "Service account email is required";
-    if (!settings.googleWallet.hasDbConfig && d.key.action !== "provided") {
-      return "Service account private key is required";
-    }
-    if (
-      d.key.action === "provided" &&
-      !(await isValidGooglePrivateKey(d.key.value))
-    ) {
-      return "Service account private key is not a valid PEM private key";
-    }
-    return null;
-  },
+  formId: "settings-google-wallet",
+  label: "Google Wallet configuration",
+  log: (d) =>
+    isGoogleWalletCleared(d)
+      ? "Google Wallet configuration cleared"
+      : "Google Wallet configuration updated",
   save: async (d) => {
     if (isGoogleWalletCleared(d)) {
       await Promise.all([
@@ -1215,10 +1204,21 @@ const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
       await settings.update.googleWallet.serviceAccountKey(d.key.value);
     }
   },
-  log: (d) =>
-    isGoogleWalletCleared(d)
-      ? "Google Wallet configuration cleared"
-      : "Google Wallet configuration updated",
+  validate: async (d) => {
+    if (isGoogleWalletCleared(d)) return null;
+    if (!d.issuerId) return "Issuer ID is required";
+    if (!d.email) return "Service account email is required";
+    if (!settings.googleWallet.hasDbConfig && d.key.action !== "provided") {
+      return "Service account private key is required";
+    }
+    if (
+      d.key.action === "provided" &&
+      !(await isValidGooglePrivateKey(d.key.value))
+    ) {
+      return "Service account private key is not a valid PEM private key";
+    }
+    return null;
+  },
 });
 
 /**
@@ -1248,30 +1248,30 @@ const handleResetDatabasePost = advancedSettingsRoute(
  * Handle POST /admin/settings/event-column-order - owner only
  */
 const handleEventColumnOrderPost = settingsHandler({
-  formId: "settings-event-column-order",
-  label: "Event column order",
   advanced: true,
   extract: (form) => form.getString("column_order").trim(),
+  formId: "settings-event-column-order",
+  label: "Event column order",
+  save: (value) => settings.update.eventColumnOrder(value),
   validate: (value) => {
     if (!value) return null; // Empty clears to default
     return validateColumnTemplate(value, Object.keys(EVENT_TABLE_COLUMNS));
   },
-  save: (value) => settings.update.eventColumnOrder(value),
 });
 
 /**
  * Handle POST /admin/settings/attendee-column-order - owner only
  */
 const handleAttendeeColumnOrderPost = settingsHandler({
-  formId: "settings-attendee-column-order",
-  label: "Attendee column order",
   advanced: true,
   extract: (form) => form.getString("column_order").trim(),
+  formId: "settings-attendee-column-order",
+  label: "Attendee column order",
+  save: (value) => settings.update.attendeeColumnOrder(value),
   validate: (value) => {
     if (!value) return null; // Empty clears to default
     return validateColumnTemplate(value, Object.keys(ATTENDEE_TABLE_COLUMNS));
   },
-  save: (value) => settings.update.attendeeColumnOrder(value),
 });
 
 /** Settings routes */
@@ -1279,36 +1279,36 @@ export const settingsRoutes = defineRoutes({
   "GET /admin/settings": handleAdminSettingsGet,
   "GET /admin/settings-advanced": handleAdminSettingsAdvancedGet,
   "POST /admin/settings": handleAdminSettingsPost,
-  "POST /admin/settings/payment-provider": handlePaymentProviderPost,
-  "POST /admin/settings/stripe": handleAdminStripePost,
-  "POST /admin/settings/square": handleAdminSquarePost,
-  "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
-  "POST /admin/settings/stripe/test": handleStripeTestPost,
-  "POST /admin/settings/square/test": handleSquareTestPost,
-  "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
-  "POST /admin/settings/terms": handleTermsPost,
-  "POST /admin/settings/country": handleCountryPost,
-  "POST /admin/settings/business-email": handleBusinessEmailPost,
-  "POST /admin/settings/theme": handleThemePost,
-  "POST /admin/settings/show-public-site": handleShowPublicSitePost,
-  "POST /admin/settings/show-public-api": handleShowPublicApiPost,
+  "POST /admin/settings/apple-wallet": handleAppleWalletPost,
+  "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
   "POST /admin/settings/booking-fee": handleBookingFeePost,
-  "POST /admin/settings/header-image": handleHeaderImagePost,
-  "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
-  "POST /admin/settings/email": handleEmailPost,
-  "POST /admin/settings/email/test": handleEmailTestPost,
-  "POST /admin/settings/email-templates/confirmation":
-    handleEmailTemplatePost("confirmation"),
-  "POST /admin/settings/email-templates/admin":
-    handleEmailTemplatePost("admin"),
-  "POST /admin/settings/email-templates/preview":
-    handleEmailTemplatePreviewPost,
+  "POST /admin/settings/business-email": handleBusinessEmailPost,
+  "POST /admin/settings/country": handleCountryPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
-  "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
-  "POST /admin/settings/apple-wallet": handleAppleWalletPost,
-  "POST /admin/settings/google-wallet": handleGoogleWalletPost,
+  "POST /admin/settings/email": handleEmailPost,
+  "POST /admin/settings/email-templates/admin":
+    handleEmailTemplatePost("admin"),
+  "POST /admin/settings/email-templates/confirmation":
+    handleEmailTemplatePost("confirmation"),
+  "POST /admin/settings/email-templates/preview":
+    handleEmailTemplatePreviewPost,
+  "POST /admin/settings/email/test": handleEmailTestPost,
+  "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
   "POST /admin/settings/event-column-order": handleEventColumnOrderPost,
-  "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
+  "POST /admin/settings/google-wallet": handleGoogleWalletPost,
+  "POST /admin/settings/header-image": handleHeaderImagePost,
+  "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
+  "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
+  "POST /admin/settings/payment-provider": handlePaymentProviderPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
+  "POST /admin/settings/show-public-api": handleShowPublicApiPost,
+  "POST /admin/settings/show-public-site": handleShowPublicSitePost,
+  "POST /admin/settings/square": handleAdminSquarePost,
+  "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
+  "POST /admin/settings/square/test": handleSquareTestPost,
+  "POST /admin/settings/stripe": handleAdminStripePost,
+  "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/terms": handleTermsPost,
+  "POST /admin/settings/theme": handleThemePost,
 });

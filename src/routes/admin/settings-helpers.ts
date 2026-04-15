@@ -172,11 +172,11 @@ const clearableFieldHandler = (
   createSettingsHandler<string>({
     ...cfg,
     extract: (form) => form.getString(cfg.field),
+    log: (v) => (v === "" ? `${cfg.label} cleared` : `${cfg.label} updated`),
     validate: (value) => {
       if (value === "") return null;
       return cfg.validate ? cfg.validate(value) : null;
     },
-    log: (v) => (v === "" ? `${cfg.label} cleared` : `${cfg.label} updated`),
   });
 
 /** Convenience: clearableFieldHandler + route wrapping */

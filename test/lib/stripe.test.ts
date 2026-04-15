@@ -146,24 +146,9 @@ describeWithEnv(
 
         // First create a session using intent-based flow
         const event = {
-          id: 1,
-          group_id: 0,
-          slug: "test-event",
-          slug_index: "test-event-index",
-          name: "Test Event",
-          description: "Test Description",
-          date: "",
-          location: "",
-          created: new Date().toISOString(),
-          max_attendees: 50,
-          thank_you_url: "https://example.com/thanks",
-          unit_price: 1000,
-          max_quantity: 1,
-          webhook_url: "",
           active: true,
-          fields: "email" as const,
-          closes_at: null,
-          event_type: "standard" as const,
+          attachment_name: "",
+          attachment_url: "",
           bookable_days: [
             "Monday",
             "Tuesday",
@@ -173,32 +158,47 @@ describeWithEnv(
             "Saturday",
             "Sunday",
           ],
-          minimum_days_before: 1,
-          maximum_days_after: 90,
-          image_url: "",
-          attachment_url: "",
-          attachment_name: "",
-          non_transferable: false,
           can_pay_more: false,
-          max_price: 0,
+          closes_at: null,
+          created: new Date().toISOString(),
+          date: "",
+          description: "Test Description",
+          event_type: "standard" as const,
+          fields: "email" as const,
+          group_id: 0,
           hidden: false,
+          id: 1,
+          image_url: "",
+          location: "",
+          max_attendees: 50,
+          max_price: 0,
+          max_quantity: 1,
+          maximum_days_after: 90,
+          minimum_days_before: 1,
+          name: "Test Event",
+          non_transferable: false,
+          slug: "test-event",
+          slug_index: "test-event-index",
+          thank_you_url: "https://example.com/thanks",
+          unit_price: 1000,
+          webhook_url: "",
         };
         const intent = {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "john@example.com",
           items: [
             {
               eventId: 1,
-              quantity: 1,
-              unitPrice: event.unit_price,
-              slug: event.slug,
               name: event.name,
+              quantity: 1,
+              slug: event.slug,
+              unitPrice: event.unit_price,
             },
           ],
+          name: "John Doe",
+          phone: "",
+          special_instructions: "",
         };
 
         const createdSession = await createCheckoutSession(
@@ -219,24 +219,9 @@ describeWithEnv(
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const event = {
-          id: 1,
-          group_id: 0,
-          slug: "test-event",
-          slug_index: "test-event-index",
-          name: "Test Event",
-          description: "Test Description",
-          date: "",
-          location: "",
-          created: new Date().toISOString(),
-          max_attendees: 50,
-          thank_you_url: "https://example.com/thanks",
-          unit_price: 1000,
-          max_quantity: 5,
-          webhook_url: "",
           active: true,
-          fields: "email" as const,
-          closes_at: null,
-          event_type: "standard" as const,
+          attachment_name: "",
+          attachment_url: "",
           bookable_days: [
             "Monday",
             "Tuesday",
@@ -246,33 +231,48 @@ describeWithEnv(
             "Saturday",
             "Sunday",
           ],
-          minimum_days_before: 1,
-          maximum_days_after: 90,
-          image_url: "",
-          attachment_url: "",
-          attachment_name: "",
-          non_transferable: false,
           can_pay_more: false,
-          max_price: 0,
+          closes_at: null,
+          created: new Date().toISOString(),
+          date: "",
+          description: "Test Description",
+          event_type: "standard" as const,
+          fields: "email" as const,
+          group_id: 0,
           hidden: false,
+          id: 1,
+          image_url: "",
+          location: "",
+          max_attendees: 50,
+          max_price: 0,
+          max_quantity: 5,
+          maximum_days_after: 90,
+          minimum_days_before: 1,
+          name: "Test Event",
+          non_transferable: false,
+          slug: "test-event",
+          slug_index: "test-event-index",
+          thank_you_url: "https://example.com/thanks",
+          unit_price: 1000,
+          webhook_url: "",
         };
 
         const intent = {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "john@example.com",
           items: [
             {
               eventId: 1,
-              quantity: 2,
-              unitPrice: event.unit_price,
-              slug: event.slug,
               name: event.name,
+              quantity: 2,
+              slug: event.slug,
+              unitPrice: event.unit_price,
             },
           ],
+          name: "John Doe",
+          phone: "",
+          special_instructions: "",
         };
 
         const session = await createCheckoutSession(
@@ -300,21 +300,21 @@ describeWithEnv(
     describe("createCheckoutSession", () => {
       test("returns null when stripe key not set", async () => {
         const intent = {
-          name: "John",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "john@example.com",
           items: [
             {
               eventId: 1,
-              quantity: 1,
-              unitPrice: 1000,
-              slug: "test-event",
               name: "Test",
+              quantity: 1,
+              slug: "test-event",
+              unitPrice: 1000,
             },
           ],
+          name: "John",
+          phone: "",
+          special_instructions: "",
         };
         const result = await createCheckoutSession(intent, "http://localhost");
         expect(result).toBeNull();
@@ -330,29 +330,29 @@ describeWithEnv(
         const createSpy = stub(client.checkout.sessions, "create", () =>
           Promise.resolve({
             id: "cs_fee",
-            url: "https://checkout.stripe.com/fee",
             object: "checkout.session",
+            url: "https://checkout.stripe.com/fee",
           } as never),
         );
 
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            name: "Jane",
-            email: "jane@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "jane@example.com",
             items: [
               {
                 eventId: event.id,
-                quantity: 1,
-                unitPrice: event.unit_price,
-                slug: event.slug,
                 name: event.name,
+                quantity: 1,
+                slug: event.slug,
+                unitPrice: event.unit_price,
               },
             ],
+            name: "Jane",
+            phone: "",
+            special_instructions: "",
           };
 
           await createCheckoutSession(intent, "http://localhost:3000");
@@ -411,8 +411,8 @@ describeWithEnv(
       beforeEach(async () => {
         // Set webhook secret in database (encrypted)
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_test_endpoint",
+          secret: TEST_SECRET,
         });
       });
 
@@ -471,7 +471,7 @@ describeWithEnv(
         const key = await crypto.subtle.importKey(
           "raw",
           encoder.encode(TEST_SECRET),
-          { name: "HMAC", hash: "SHA-256" },
+          { hash: "SHA-256", name: "HMAC" },
           false,
           ["sign"],
         );
@@ -516,7 +516,7 @@ describeWithEnv(
         const key = await crypto.subtle.importKey(
           "raw",
           encoder.encode(TEST_SECRET),
-          { name: "HMAC", hash: "SHA-256" },
+          { hash: "SHA-256", name: "HMAC" },
           false,
           ["sign"],
         );
@@ -541,19 +541,19 @@ describeWithEnv(
 
       test("verifies valid signature successfully", async () => {
         const event: StripeWebhookEvent = {
-          id: "evt_test_123",
-          type: "checkout.session.completed",
           data: {
             object: {
               id: "cs_test_123",
-              payment_status: "paid",
               metadata: {
+                email: "john@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
                 name: "John Doe",
-                email: "john@example.com",
               },
+              payment_status: "paid",
             },
           },
+          id: "evt_test_123",
+          type: "checkout.session.completed",
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
@@ -579,7 +579,7 @@ describeWithEnv(
         const key = await crypto.subtle.importKey(
           "raw",
           encoder.encode(TEST_SECRET),
-          { name: "HMAC", hash: "SHA-256" },
+          { hash: "SHA-256", name: "HMAC" },
           false,
           ["sign"],
         );
@@ -648,10 +648,10 @@ describeWithEnv(
           () => ({
             balanceSpy: stub(client.balance, "retrieve", () =>
               Promise.resolve({
-                livemode: false,
                 available: [],
-                pending: [],
+                livemode: false,
                 object: "balance",
+                pending: [],
               } as never),
             ),
             listSpy: stub(client.webhookEndpoints, "list", (() =>
@@ -676,10 +676,10 @@ describeWithEnv(
           () => ({
             balanceSpy: stub(client.balance, "retrieve", () =>
               Promise.resolve({
-                livemode: true,
                 available: [],
-                pending: [],
+                livemode: true,
                 object: "balance",
+                pending: [],
               } as never),
             ),
             listSpy: stub(client.webhookEndpoints, "list", (() =>
@@ -702,10 +702,10 @@ describeWithEnv(
           () => ({
             balanceSpy: stub(client.balance, "retrieve", () =>
               Promise.resolve({
-                livemode: false,
                 available: [],
-                pending: [],
+                livemode: false,
                 object: "balance",
+                pending: [],
               } as never),
             ),
             listSpy: stub(client.webhookEndpoints, "list", (() =>
@@ -727,8 +727,8 @@ describeWithEnv(
       test("returns full success when API key valid and webhooks exist", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         await settings.update.stripe.webhookConfig({
-          secret: "whsec_test",
           endpointId: "we_test_valid",
+          secret: "whsec_test",
         });
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client to be defined");
@@ -737,28 +737,28 @@ describeWithEnv(
           () => ({
             balanceSpy: stub(client.balance, "retrieve", () =>
               Promise.resolve({
-                livemode: false,
                 available: [],
-                pending: [],
+                livemode: false,
                 object: "balance",
+                pending: [],
               } as never),
             ),
             listSpy: stub(client.webhookEndpoints, "list", (() =>
               Promise.resolve({
                 data: [
                   {
-                    id: "we_test_valid",
-                    url: "https://example.com/payment/webhook",
-                    status: "enabled",
                     enabled_events: ["checkout.session.completed"],
+                    id: "we_test_valid",
                     object: "webhook_endpoint",
+                    status: "enabled",
+                    url: "https://example.com/payment/webhook",
                   },
                   {
-                    id: "we_test_other",
-                    url: "https://other.com/webhook",
-                    status: "enabled",
                     enabled_events: ["payment_intent.succeeded"],
+                    id: "we_test_other",
                     object: "webhook_endpoint",
+                    status: "enabled",
+                    url: "https://other.com/webhook",
                   },
                 ],
               })) as never),
@@ -788,14 +788,14 @@ describeWithEnv(
       test("creates valid payload and signature pair", async () => {
         const secret = "whsec_test_construction";
         const event: StripeWebhookEvent = {
-          id: "evt_constructed",
-          type: "payment_intent.succeeded",
           data: {
             object: {
               amount: 1000,
               currency: "gbp",
             },
           },
+          id: "evt_constructed",
+          type: "payment_intent.succeeded",
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
@@ -813,8 +813,8 @@ describeWithEnv(
 
         // Signature should be verifiable with the same secret (stored in DB)
         await settings.update.stripe.webhookConfig({
-          secret,
           endpointId: "we_test_construction",
+          secret,
         });
         const result = await verifyWebhookSignature(payload, signature);
         expect(result.valid).toBe(true);
@@ -844,8 +844,8 @@ describeWithEnv(
       test("extracts Stripe statusCode, code, and type", () => {
         const err = new Error("Invalid API Key provided: sk_test_****1234");
         Object.assign(err, {
-          statusCode: 401,
           code: "api_key_invalid",
+          statusCode: 401,
           type: "StripeAuthenticationError",
         });
         expect(sanitizeErrorDetail(err)).toBe(
@@ -913,21 +913,21 @@ describeWithEnv(
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "+44 7700 900000",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "john@example.com",
           items: [
             {
               eventId: event.id,
-              quantity: 1,
-              unitPrice: event.unit_price,
-              slug: event.slug,
               name: event.name,
+              quantity: 1,
+              slug: event.slug,
+              unitPrice: event.unit_price,
             },
           ],
+          name: "John Doe",
+          phone: "+44 7700 900000",
+          special_instructions: "",
         };
 
         const session = await createCheckoutSession(
@@ -947,21 +947,21 @@ describeWithEnv(
 
         const event = testEvent({ unit_price: 1000 });
         const intent = {
-          name: "No Email User",
-          email: "",
-          phone: "+44 7700 900000",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "",
           items: [
             {
               eventId: event.id,
-              quantity: 1,
-              unitPrice: event.unit_price,
-              slug: event.slug,
               name: event.name,
+              quantity: 1,
+              slug: event.slug,
+              unitPrice: event.unit_price,
             },
           ],
+          name: "No Email User",
+          phone: "+44 7700 900000",
+          special_instructions: "",
         };
 
         const session = await createCheckoutSession(
@@ -980,28 +980,28 @@ describeWithEnv(
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const intent = {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "+44 7700 900001",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "jane@example.com",
           items: [
             {
               eventId: 1,
-              quantity: 2,
-              unitPrice: 1000,
-              slug: "event-a",
               name: "Event A",
+              quantity: 2,
+              slug: "event-a",
+              unitPrice: 1000,
             },
             {
               eventId: 2,
-              quantity: 1,
-              unitPrice: 2000,
-              slug: "event-b",
               name: "Event B",
+              quantity: 1,
+              slug: "event-b",
+              unitPrice: 2000,
             },
           ],
+          name: "Jane Doe",
+          phone: "+44 7700 900001",
+          special_instructions: "",
         };
 
         const session = await createCheckoutSession(
@@ -1015,21 +1015,21 @@ describeWithEnv(
 
       test("returns null when stripe key not set", async () => {
         const intent = {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "jane@example.com",
           items: [
             {
               eventId: 1,
-              quantity: 1,
-              unitPrice: 1000,
-              slug: "event-a",
               name: "Event A",
+              quantity: 1,
+              slug: "event-a",
+              unitPrice: 1000,
             },
           ],
+          name: "Jane Doe",
+          phone: "",
+          special_instructions: "",
         };
 
         const result = await createCheckoutSession(
@@ -1043,28 +1043,28 @@ describeWithEnv(
         await settings.update.stripe.secretKey("sk_test_mock");
 
         const intent = {
-          name: "No Email Multi",
-          email: "",
-          phone: "+44 7700 900002",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "",
           items: [
             {
               eventId: 1,
-              quantity: 1,
-              unitPrice: 1000,
-              slug: "event-a",
               name: "Event A",
+              quantity: 1,
+              slug: "event-a",
+              unitPrice: 1000,
             },
             {
               eventId: 2,
-              quantity: 2,
-              unitPrice: 2000,
-              slug: "event-b",
               name: "Event B",
+              quantity: 2,
+              slug: "event-b",
+              unitPrice: 2000,
             },
           ],
+          name: "No Email Multi",
+          phone: "+44 7700 900002",
+          special_instructions: "",
         };
 
         const session = await createCheckoutSession(
@@ -1125,10 +1125,10 @@ describeWithEnv(
 
         const balanceSpy = stub(client.balance, "retrieve", () =>
           Promise.resolve({
-            livemode: false,
             available: [],
-            pending: [],
+            livemode: false,
             object: "balance",
+            pending: [],
           } as never),
         );
 
@@ -1181,9 +1181,9 @@ describeWithEnv(
         const origSetup = stripeApi.setupWebhookEndpoint;
         stripeApi.setupWebhookEndpoint = (_key, _url, _existing) =>
           Promise.resolve({
-            success: true,
             endpointId: "we_mocked",
             secret: "whsec_mocked",
+            success: true,
           });
 
         try {
@@ -1205,8 +1205,8 @@ describeWithEnv(
         const origSetup = stripeApi.setupWebhookEndpoint;
         stripeApi.setupWebhookEndpoint = (_key, _url) =>
           Promise.resolve({
-            success: false as const,
             error: "API rate limited",
+            success: false as const,
           });
 
         try {
@@ -1295,8 +1295,8 @@ describeWithEnv(
               const body = await response.json();
               body.secret = "whsec_test_injected_secret";
               return new Response(JSON.stringify(body), {
-                status: response.status,
                 headers: response.headers,
+                status: response.status,
               });
             }
             return response;
@@ -1388,15 +1388,15 @@ describeWithEnv(
 
       test("handles timestamp value that needs parseInt", async () => {
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_test_ts",
+          secret: TEST_SECRET,
         });
 
         // Create event with proper signature
         const event: StripeWebhookEvent = {
+          data: { object: { id: "cs_test" } },
           id: "evt_ts_test",
           type: "checkout.session.completed",
-          data: { object: { id: "cs_test" } },
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
@@ -1410,8 +1410,8 @@ describeWithEnv(
 
       test("parses timestamp with parseInt when t key has value", async () => {
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_test_parse",
+          secret: TEST_SECRET,
         });
 
         // Use a timestamp that is a valid number string, exercising Number.parseInt
@@ -1423,7 +1423,7 @@ describeWithEnv(
         const key = await crypto.subtle.importKey(
           "raw",
           encoder.encode(TEST_SECRET),
-          { name: "HMAC", hash: "SHA-256" },
+          { hash: "SHA-256", name: "HMAC" },
           false,
           ["sign"],
         );
@@ -1445,8 +1445,8 @@ describeWithEnv(
 
       test("treats t key without equals as zero timestamp via parseInt fallback", async () => {
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_test_nullish",
+          secret: TEST_SECRET,
         });
 
         // Header "t,v1=abc123" - split("=") on "t" gives ["t"], so value is undefined
@@ -1464,8 +1464,8 @@ describeWithEnv(
 
       test("secureCompare handles strings of different lengths", async () => {
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_test_len",
+          secret: TEST_SECRET,
         });
 
         // Provide a signature that has different length than expected
@@ -1487,8 +1487,8 @@ describeWithEnv(
 
       beforeEach(async () => {
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_test_details",
+          secret: TEST_SECRET,
         });
       });
 
@@ -1541,7 +1541,7 @@ describeWithEnv(
         const key = await crypto.subtle.importKey(
           "raw",
           encoder.encode(TEST_SECRET),
-          { name: "HMAC", hash: "SHA-256" },
+          { hash: "SHA-256", name: "HMAC" },
           false,
           ["sign"],
         );
@@ -1577,7 +1577,7 @@ describeWithEnv(
         const key = await crypto.subtle.importKey(
           "raw",
           encoder.encode(TEST_SECRET),
-          { name: "HMAC", hash: "SHA-256" },
+          { hash: "SHA-256", name: "HMAC" },
           false,
           ["sign"],
         );
@@ -1632,29 +1632,29 @@ describeWithEnv(
         const createSpy = stub(client.checkout.sessions, "create", () =>
           Promise.resolve({
             id: "cs_no_url",
-            url: null,
             object: "checkout.session",
+            url: null,
           } as never),
         );
 
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: event.id,
-                quantity: 1,
-                unitPrice: event.unit_price,
-                slug: event.slug,
                 name: event.name,
+                quantity: 1,
+                slug: event.slug,
+                unitPrice: event.unit_price,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
 
           // Use stripePaymentProvider which wraps via toCheckoutResult
@@ -1681,21 +1681,21 @@ describeWithEnv(
         try {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: event.id,
-                quantity: 1,
-                unitPrice: event.unit_price,
-                slug: event.slug,
                 name: event.name,
+                quantity: 1,
+                slug: event.slug,
+                unitPrice: event.unit_price,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
 
           const result = await stripePaymentProvider.createCheckoutSession(
@@ -1719,13 +1719,13 @@ describeWithEnv(
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
             id: "cs_no_items",
-            payment_status: "paid",
-            payment_intent: "pi_test_123",
             metadata: {
-              name: "Test User",
               email: "test@example.com",
+              name: "Test User",
               // No items field
             },
+            payment_intent: "pi_test_123",
+            payment_status: "paid",
           } as never),
         );
 
@@ -1764,11 +1764,11 @@ describeWithEnv(
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
             id: "cs_no_meta",
-            payment_status: "paid",
             metadata: {
               items: '[{"e":1,"q":1,"p":0}]',
               // Missing name and email
             },
+            payment_status: "paid",
           } as never),
         );
 
@@ -1789,14 +1789,14 @@ describeWithEnv(
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
             id: "cs_multi",
-            payment_status: "paid",
-            payment_intent: "pi_multi_123",
             metadata: {
-              name: "Multi User",
               email: "multi@example.com",
-              phone: "+44 7700 900000",
               items: '[{"e":1,"q":2}]',
+              name: "Multi User",
+              phone: "+44 7700 900000",
             },
+            payment_intent: "pi_multi_123",
+            payment_status: "paid",
           } as never),
         );
 
@@ -1820,13 +1820,13 @@ describeWithEnv(
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
             id: "cs_single",
-            payment_status: "paid",
-            payment_intent: "pi_single_123",
             metadata: {
-              name: "Single User",
               email: "single@example.com",
               items: '[{"e":42,"q":2,"p":0}]',
+              name: "Single User",
             },
+            payment_intent: "pi_single_123",
+            payment_status: "paid",
           } as never),
         );
 
@@ -1850,15 +1850,15 @@ describeWithEnv(
 
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
-            id: "cs_with_amount",
-            payment_status: "paid",
-            payment_intent: "pi_amount_123",
             amount_total: 4500,
+            id: "cs_with_amount",
             metadata: {
-              name: "Amount User",
               email: "amount@example.com",
               items: '[{"e":10,"q":3,"p":0}]',
+              name: "Amount User",
             },
+            payment_intent: "pi_amount_123",
+            payment_status: "paid",
           } as never),
         );
 
@@ -1880,15 +1880,15 @@ describeWithEnv(
 
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
-            id: "cs_null_amount",
-            payment_status: "paid",
-            payment_intent: "pi_null_amount",
             amount_total: null,
+            id: "cs_null_amount",
             metadata: {
-              name: "Null Amount User",
               email: "nullamount@example.com",
               items: '[{"e":1,"q":1,"p":0}]',
+              name: "Null Amount User",
             },
+            payment_intent: "pi_null_amount",
+            payment_status: "paid",
           } as never),
         );
 
@@ -1908,15 +1908,15 @@ describeWithEnv(
 
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
-            id: "cs_bad_status",
-            payment_status: "completed",
-            payment_intent: "pi_bad_status",
             amount_total: 1000,
+            id: "cs_bad_status",
             metadata: {
-              name: "Bad Status User",
               email: "badstatus@example.com",
               items: '[{"e":1,"q":1,"p":0}]',
+              name: "Bad Status User",
             },
+            payment_intent: "pi_bad_status",
+            payment_status: "completed",
           } as never),
         );
 
@@ -1937,15 +1937,15 @@ describeWithEnv(
 
         const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
           Promise.resolve({
-            id: "cs_amount_cast",
-            payment_status: "paid",
-            payment_intent: "pi_amount_cast",
             amount_total: 7500,
+            id: "cs_amount_cast",
             metadata: {
-              name: "Cast User",
               email: "cast@example.com",
               items: '[{"e":11,"q":1,"p":0}]',
+              name: "Cast User",
             },
+            payment_intent: "pi_amount_cast",
+            payment_status: "paid",
           } as never),
         );
 
@@ -1964,14 +1964,14 @@ describeWithEnv(
       test("delegates to stripe.ts verifyWebhookSignature", async () => {
         const TEST_SECRET = "whsec_provider_verify_test";
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_provider_test",
+          secret: TEST_SECRET,
         });
 
         const event: StripeWebhookEvent = {
+          data: { object: { id: "cs_test" } },
           id: "evt_provider",
           type: "checkout.session.completed",
-          data: { object: { id: "cs_test" } },
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
@@ -1994,8 +1994,8 @@ describeWithEnv(
       test("returns error for invalid signature", async () => {
         const TEST_SECRET = "whsec_provider_invalid_test";
         await settings.update.stripe.webhookConfig({
-          secret: TEST_SECRET,
           endpointId: "we_provider_inv",
+          secret: TEST_SECRET,
         });
 
         const timestamp = Math.floor(Date.now() / 1000);
@@ -2020,9 +2020,9 @@ describeWithEnv(
         const origSetup = stripeApi.setupWebhookEndpoint;
         stripeApi.setupWebhookEndpoint = (_key, _url, _existing) =>
           Promise.resolve({
-            success: true,
             endpointId: "we_provider_created",
             secret: "whsec_provider_secret",
+            success: true,
           });
 
         try {
@@ -2213,28 +2213,28 @@ describeWithEnv(
         const createSpy = stub(client.checkout.sessions, "create", () =>
           Promise.resolve({
             id: "cs_multi_nourl",
-            url: null,
             object: "checkout.session",
+            url: null,
           } as never),
         );
 
         try {
           const intent = {
-            name: "Jane",
-            email: "jane@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "jane@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "evt",
                 name: "Evt",
+                quantity: 1,
+                slug: "evt",
+                unitPrice: 1000,
               },
             ],
+            name: "Jane",
+            phone: "",
+            special_instructions: "",
           };
           const result = await stripePaymentProvider.createCheckoutSession(
             intent,
@@ -2253,19 +2253,19 @@ describeWithEnv(
         // Generate enough items to exceed 500-char serialized metadata
         const items = Array.from({ length: 40 }, (_, i) => ({
           eventId: i + 1,
-          quantity: 1,
-          unitPrice: 1000,
-          slug: `event-${i + 1}`,
           name: `Event ${i + 1}`,
+          quantity: 1,
+          slug: `event-${i + 1}`,
+          unitPrice: 1000,
         }));
         const intent = {
-          name: "Alice",
-          email: "alice@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
           date: null,
+          email: "alice@example.com",
           items,
+          name: "Alice",
+          phone: "",
+          special_instructions: "",
         };
         const result = await stripePaymentProvider.createCheckoutSession(
           intent,
@@ -2285,21 +2285,21 @@ describeWithEnv(
           Promise.reject(new TypeError("unexpected"));
         try {
           const intent = {
-            name: "John",
-            email: "john@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
             date: null,
+            email: "john@example.com",
             items: [
               {
                 eventId: 1,
-                quantity: 1,
-                unitPrice: 1000,
-                slug: "evt",
                 name: "Evt",
+                quantity: 1,
+                slug: "evt",
+                unitPrice: 1000,
               },
             ],
+            name: "John",
+            phone: "",
+            special_instructions: "",
           };
           const result = await stripePaymentProvider.createCheckoutSession(
             intent,
@@ -2315,21 +2315,21 @@ describeWithEnv(
     describe("resolveWebhookSession", () => {
       test("extracts session directly from event with complete metadata", async () => {
         const result = await stripePaymentProvider.resolveWebhookSession({
-          id: "evt_resolve_1",
-          type: "checkout.session.completed",
           data: {
             object: {
-              id: "cs_resolve_1",
-              payment_status: "paid",
-              payment_intent: "pi_resolve_1",
               amount_total: 2000,
+              id: "cs_resolve_1",
               metadata: {
-                name: "Alice",
                 email: "alice@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
+                name: "Alice",
               },
+              payment_intent: "pi_resolve_1",
+              payment_status: "paid",
             },
           },
+          id: "evt_resolve_1",
+          type: "checkout.session.completed",
         });
         expect(result).not.toBe("skip");
         expect(result).not.toBeNull();
@@ -2348,14 +2348,14 @@ describeWithEnv(
 
         try {
           const result = await stripePaymentProvider.resolveWebhookSession({
-            id: "evt_no_meta",
-            type: "checkout.session.completed",
             data: {
               object: {
                 id: "cs_no_meta",
                 // No payment_status or metadata
               },
             },
+            id: "evt_no_meta",
+            type: "checkout.session.completed",
           });
           // retrieveSession called with event object id
           expect(mockRetrieve.calls[0]!.args[0]).toBe("cs_no_meta");
@@ -2367,13 +2367,13 @@ describeWithEnv(
 
       test("returns null when event has no id", async () => {
         const result = await stripePaymentProvider.resolveWebhookSession({
-          id: "evt_no_obj_id",
-          type: "checkout.session.completed",
           data: {
             object: {
               some_field: "value",
             },
           },
+          id: "evt_no_obj_id",
+          type: "checkout.session.completed",
         });
         expect(result).toBeNull();
       });

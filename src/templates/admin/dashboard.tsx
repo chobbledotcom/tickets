@@ -160,12 +160,12 @@ const newestAttendeesSection = (
       <div class="table-scroll">
         <Raw
           html={AttendeeTable({
-            rows: tableRows,
             allowedDomain: getEffectiveDomain(),
-            showEvent: true,
-            showDate: false,
-            showActions: false,
             presorted: true,
+            rows: tableRows,
+            showActions: false,
+            showDate: false,
+            showEvent: true,
           })}
         />
       </div>
@@ -208,7 +208,7 @@ export const adminDashboardPage = (
   const eventRows =
     events.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ e, columnKeys, filters })),
+          map((e: EventWithCount) => EventRow({ columnKeys, e, filters })),
           joinStrings,
         )(events)
       : `<tr><td colspan="${columnKeys.length}">No events yet</td></tr>`;

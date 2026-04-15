@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { logActivity } from "#lib/db/activityLog.ts";
+import {
+  getAllActivityLog,
+  getEventActivityLog,
+  logActivity,
+} from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
   decryptAttendees,
@@ -27,7 +31,6 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#lib/db/processed-payments.ts";
-import { getAllActivityLog, getEventActivityLog } from "#lib/db/activityLog.ts";
 import {
   createTestAttendee,
   createTestEvent,
@@ -39,8 +42,8 @@ describeWithEnv("db > events", { db: true }, () => {
   describe("CRUD", () => {
     test("createEvent creates event with correct properties", async () => {
       const event = await createTestEvent({
-        name: "My Test Event",
         maxAttendees: 100,
+        name: "My Test Event",
         thankYouUrl: "https://example.com/thanks",
       });
 
@@ -65,8 +68,8 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("createEvent stores and retrieves description", async () => {
       const event = await createTestEvent({
-        maxAttendees: 50,
         description: "A test description",
+        maxAttendees: 50,
       });
 
       expect(event.description).toBe("A test description");
@@ -87,13 +90,13 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("getAllEvents returns events with attendee count", async () => {
       await createTestEvent({
-        name: "Event One",
         maxAttendees: 50,
+        name: "Event One",
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        name: "Event Two",
         maxAttendees: 100,
+        name: "Event Two",
         thankYouUrl: "https://example.com",
       });
 
@@ -110,8 +113,8 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("getEvent returns event by id", async () => {
       const created = await createTestEvent({
-        name: "Fetch Test",
         maxAttendees: 50,
+        name: "Fetch Test",
         thankYouUrl: "https://example.com",
       });
       const fetched = await getEvent(created.id);
@@ -138,16 +141,16 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
-        name: "Original Event",
         maxAttendees: 50,
+        name: "Original Event",
         thankYouUrl: "https://example.com/original",
       });
 
       const updated = await eventsTable.update(created.id, {
+        maxAttendees: 100,
         name: "Updated Event",
         slug: created.slug,
         slugIndex: created.slug_index,
-        maxAttendees: 100,
         thankYouUrl: "https://example.com/updated",
         unitPrice: 1500,
       });
@@ -161,10 +164,10 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("eventsTable.update returns null for non-existent event", async () => {
       const result = await eventsTable.update(999, {
+        maxAttendees: 50,
         name: "Non Existent",
         slug: "non-existent",
         slugIndex: "non-existent",
-        maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       expect(result).toBeNull();
@@ -178,10 +181,10 @@ describeWithEnv("db > events", { db: true }, () => {
       });
 
       const updated = await eventsTable.update(created.id, {
+        maxAttendees: 50,
         name: created.name,
         slug: created.slug,
         slugIndex: created.slug_index,
-        maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 0,
       });
@@ -288,9 +291,9 @@ describeWithEnv("db > events", { db: true }, () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const result = await createAttendeeAtomic({
-        name: "Multi",
-        email: "multi@example.com",
         bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+        email: "multi@example.com",
+        name: "Multi",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
@@ -343,9 +346,9 @@ describeWithEnv("db > events", { db: true }, () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const result = await createAttendeeAtomic({
-        name: "Unlink",
-        email: "unlink@example.com",
         bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+        email: "unlink@example.com",
+        name: "Unlink",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
@@ -366,9 +369,9 @@ describeWithEnv("db > events", { db: true }, () => {
       const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 50 });
       const result = await createAttendeeAtomic({
-        name: "Orphan",
-        email: "orphan@example.com",
         bookings: [{ eventId: event.id }],
+        email: "orphan@example.com",
+        name: "Orphan",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
@@ -390,8 +393,8 @@ describeWithEnv("db > events", { db: true }, () => {
   describe("slug", () => {
     test("isSlugTaken with excludeEventId excludes that event", async () => {
       const event = await createTestEvent({
-        name: "Slug Taken Test",
         maxAttendees: 50,
+        name: "Slug Taken Test",
         thankYouUrl: "https://example.com",
       });
 
@@ -459,13 +462,13 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("getEventsBySlugsBatch returns events in slug order", async () => {
       const event1 = await createTestEvent({
-        name: "Batch A",
         maxAttendees: 10,
+        name: "Batch A",
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
-        name: "Batch B",
         maxAttendees: 20,
+        name: "Batch B",
         thankYouUrl: "https://example.com",
       });
 
@@ -477,8 +480,8 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("getEventsBySlugsBatch returns null for missing slugs", async () => {
       const event = await createTestEvent({
-        name: "Exists",
         maxAttendees: 10,
+        name: "Exists",
         thankYouUrl: "https://example.com",
       });
 
@@ -577,12 +580,12 @@ describeWithEnv("db > events", { db: true }, () => {
   describe("event date read transform", () => {
     test("returns empty string for no-date event", async () => {
       const event = await eventsTable.insert({
+        date: "",
+        maxAttendees: 100,
+        maxPrice: 10000,
         name: "test",
         slug: "test-date-read-1",
         slugIndex: await computeSlugIndex("test-date-read-1"),
-        maxAttendees: 100,
-        maxPrice: 10000,
-        date: "",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("");
@@ -590,12 +593,12 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("returns normalized ISO string for valid datetime", async () => {
       const event = await eventsTable.insert({
+        date: "2026-06-15T14:00",
+        maxAttendees: 100,
+        maxPrice: 10000,
         name: "test",
         slug: "test-date-read-2",
         slugIndex: await computeSlugIndex("test-date-read-2"),
-        maxAttendees: 100,
-        maxPrice: 10000,
-        date: "2026-06-15T14:00",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
@@ -605,12 +608,12 @@ describeWithEnv("db > events", { db: true }, () => {
   describe("closes_at read transform", () => {
     test("returns null for no-deadline event", async () => {
       const event = await eventsTable.insert({
+        closesAt: "",
+        maxAttendees: 100,
+        maxPrice: 10000,
         name: "test",
         slug: "test-read-1",
         slugIndex: await computeSlugIndex("test-read-1"),
-        maxAttendees: 100,
-        maxPrice: 10000,
-        closesAt: "",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBeNull();
@@ -618,12 +621,12 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("returns normalized ISO string for valid datetime", async () => {
       const event = await eventsTable.insert({
+        closesAt: "2099-12-31T23:59",
+        maxAttendees: 100,
+        maxPrice: 10000,
         name: "test",
         slug: "test-read-2",
         slugIndex: await computeSlugIndex("test-read-2"),
-        maxAttendees: 100,
-        maxPrice: 10000,
-        closesAt: "2099-12-31T23:59",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
@@ -633,15 +636,15 @@ describeWithEnv("db > events", { db: true }, () => {
   describe("bookable_days read transform", () => {
     test("returns empty array when DB contains non-array JSON", async () => {
       const event = await eventsTable.insert({
+        maxAttendees: 100,
+        maxPrice: 10000,
         name: "test-bd",
         slug: "test-bd-1",
         slugIndex: await computeSlugIndex("test-bd-1"),
-        maxAttendees: 100,
-        maxPrice: 10000,
       });
       await getDb().execute({
-        sql: "UPDATE events SET bookable_days = ? WHERE id = ?",
         args: ['"not-an-array"', event.id],
+        sql: "UPDATE events SET bookable_days = ? WHERE id = ?",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.bookable_days).toEqual([]);

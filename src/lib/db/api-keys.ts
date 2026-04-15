@@ -40,12 +40,12 @@ export const createApiKey = async (
 
   const result = await getDb().execute(
     insert("api_keys", {
-      user_id: userId,
-      key_index: keyIndex,
-      wrapped_data_key: wrappedDataKey,
-      name: encryptedName,
       created: nowIso(),
+      key_index: keyIndex,
       last_used: "",
+      name: encryptedName,
+      user_id: userId,
+      wrapped_data_key: wrappedDataKey,
     }),
   );
 
@@ -81,10 +81,10 @@ export const getApiKeysForUser = async (
 
   return Promise.all(
     rows.map(async (row) => ({
-      id: row.id,
-      name: await decrypt(row.name),
       created: row.created,
+      id: row.id,
       lastUsed: row.last_used,
+      name: await decrypt(row.name),
     })),
   );
 };
@@ -123,8 +123,8 @@ export const deleteApiKey = async (
   userId: number,
 ): Promise<boolean> => {
   const result = await getDb().execute({
-    sql: "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
     args: [id, userId],
+    sql: "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
   });
   return result.rowsAffected > 0;
 };
@@ -141,18 +141,18 @@ export const deleteAllApiKeysForUser = (userId: number): Promise<void> =>
  */
 export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE api_keys SET last_used = ? WHERE id = ?",
     args: [nowIso(), id],
+    sql: "UPDATE api_keys SET last_used = ? WHERE id = ?",
   });
 };
 
 export const apiKeysApi = {
-  createApiKey,
-  getApiKeyByToken,
-  getApiKeysForUser,
-  getApiKeyForUser,
   countApiKeysForUser,
-  deleteApiKey,
+  createApiKey,
   deleteAllApiKeysForUser,
+  deleteApiKey,
+  getApiKeyByToken,
+  getApiKeyForUser,
+  getApiKeysForUser,
   touchApiKeyLastUsed,
 };

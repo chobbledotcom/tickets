@@ -6,8 +6,8 @@ import { minifyCss } from "../../scripts/css-minify.ts";
 describe(
   {
     name: "build-edge",
-    sanitizeResources: false,
     sanitizeOps: false,
+    sanitizeResources: false,
   },
   () => {
     afterAll(async () => {

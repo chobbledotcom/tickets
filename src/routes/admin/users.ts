@@ -62,12 +62,12 @@ const VALID_ADMIN_LEVELS = ["owner", "manager"] as const;
 const toDisplayUser = async (user: User): Promise<DisplayUser> => {
   const userHasPassword = await hasPassword(user);
   return {
-    id: user.id,
-    username: await decryptUsername(user),
     adminLevel: await decryptAdminLevel(user),
-    hasPassword: userHasPassword,
     hasDataKey: user.wrapped_data_key !== null,
+    hasPassword: userHasPassword,
+    id: user.id,
     inviteExpired: userHasPassword ? false : await isInviteExpired(user),
+    username: await decryptUsername(user),
   };
 };
 
@@ -91,9 +91,9 @@ const usersErrorResponse = async (
 ): Promise<Response> =>
   htmlResponse(
     await renderUsersPage(session, {
-      inviteLink: "",
-      error,
       currentUserId: session.userId,
+      error,
+      inviteLink: "",
     }),
     status,
   );
@@ -107,10 +107,10 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
     const flash = getFlash();
     return htmlResponse(
       await renderUsersPage(session, {
+        currentUserId: session.userId,
+        error: flash.error,
         inviteLink: invite,
         success: flash.success,
-        error: flash.error,
-        currentUserId: session.userId,
       }),
     );
   });
@@ -231,27 +231,27 @@ const handleUserActivate: UserActionHandler = async (
 
 /** Confirmed-delete handlers for users */
 const userDelete = createConfirmedHandlers<DisplayUser>({
+  identifier: (displayUser) => displayUser.username,
+  identifierLabel: "Username",
   load: async (id) => {
     const user = await getUserById(id);
     if (!user) return null;
     return toDisplayUser(user);
   },
-  render: (displayUser, session) => adminUserDeletePage(displayUser, session),
-  identifier: (displayUser) => displayUser.username,
   onConfirm: async (displayUser) => {
     await deleteUser(displayUser.id);
     await logActivity(`User '${displayUser.username}' deleted`);
   },
+  onNotFound: (_id, session) =>
+    usersErrorResponse(session, "User not found", 404),
   path: "/admin/users/:id/delete",
-  successRedirect: "/admin/users",
-  successMessage: "User deleted successfully",
-  identifierLabel: "Username",
   preValidate: (id, session) =>
     id === session.userId
       ? usersErrorResponse(session, "Cannot delete your own account", 400)
       : null,
-  onNotFound: (_id, session) =>
-    usersErrorResponse(session, "User not found", 404),
+  render: (displayUser, session) => adminUserDeletePage(displayUser, session),
+  successMessage: "User deleted successfully",
+  successRedirect: "/admin/users",
 });
 
 /** Create a route handler that runs a user action by ID */
@@ -269,8 +269,8 @@ const handleUserActivatePost = userActionRoute(handleUserActivate);
 export const usersRoutes = {
   ...userDelete.routes,
   ...defineRoutes({
-    "GET /admin/users": handleUsersGet,
     "GET /admin/user/new": handleUserNewGet,
+    "GET /admin/users": handleUsersGet,
     "POST /admin/users": handleUsersPost,
     "POST /admin/users/:id/activate": handleUserActivatePost,
   }),

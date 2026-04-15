@@ -14,8 +14,8 @@ describe("fetchText", () => {
     fetchStub = stub(globalThis, "fetch", () =>
       Promise.resolve(
         new Response('{"id":1}', {
-          status: 200,
           headers: { "Content-Type": "application/json" },
+          status: 200,
         }),
       ),
     );
@@ -58,9 +58,9 @@ describe("fetchText", () => {
     );
 
     await fetchText("https://example.com/post", {
-      method: "POST",
-      headers: { Authorization: "Bearer token" },
       body: "payload",
+      headers: { Authorization: "Bearer token" },
+      method: "POST",
     });
 
     expect(fetchStub.calls.length).toBe(1);

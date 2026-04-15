@@ -20,11 +20,11 @@ const calendarAttendee = (
   overrides: Partial<CalendarAttendeeRow> = {},
 ): CalendarAttendeeRow => ({
   ...testAttendee(),
-  eventName: "Daily Event",
-  eventDate: "",
-  eventLocation: "",
-  eventId: 1,
   date: "2026-03-15",
+  eventDate: "",
+  eventId: 1,
+  eventLocation: "",
+  eventName: "Daily Event",
   ...overrides,
 });
 
@@ -45,14 +45,14 @@ describe("adminCalendarPage", () => {
   test("renders date selector dropdown", () => {
     const dates = [
       {
-        value: "2026-03-15",
-        label: "Sunday 15 March 2026",
         hasBookings: true,
+        label: "Sunday 15 March 2026",
+        value: "2026-03-15",
       },
       {
-        value: "2026-03-16",
-        label: "Monday 16 March 2026",
         hasBookings: false,
+        label: "Monday 16 March 2026",
+        value: "2026-03-16",
       },
     ];
     const html = adminCalendarPage(
@@ -71,9 +71,9 @@ describe("adminCalendarPage", () => {
   test("disables options for dates without bookings", () => {
     const dates = [
       {
-        value: "2026-03-15",
-        label: "Sunday 15 March 2026",
         hasBookings: false,
+        label: "Sunday 15 March 2026",
+        value: "2026-03-15",
       },
     ];
     const html = adminCalendarPage(
@@ -90,9 +90,9 @@ describe("adminCalendarPage", () => {
   test("enables options for dates with bookings", () => {
     const dates = [
       {
-        value: "2026-03-15",
-        label: "Sunday 15 March 2026",
         hasBookings: true,
+        label: "Sunday 15 March 2026",
+        value: "2026-03-15",
       },
     ];
     const html = adminCalendarPage(
@@ -248,24 +248,24 @@ describe("adminCalendarPage", () => {
   test("places Select a date between past and future dates", () => {
     const dates = [
       {
-        value: "2026-03-08",
+        hasBookings: true,
         label: "Sunday 8 March 2026",
-        hasBookings: true,
+        value: "2026-03-08",
       },
       {
-        value: "2026-03-09",
+        hasBookings: true,
         label: "Monday 9 March 2026",
-        hasBookings: true,
+        value: "2026-03-09",
       },
       {
-        value: "2026-03-15",
+        hasBookings: true,
         label: "Sunday 15 March 2026",
-        hasBookings: true,
+        value: "2026-03-15",
       },
       {
-        value: "2026-03-16",
-        label: "Monday 16 March 2026",
         hasBookings: true,
+        label: "Monday 16 March 2026",
+        value: "2026-03-16",
       },
     ];
     const html = adminCalendarPage(
@@ -292,14 +292,14 @@ describe("adminCalendarPage", () => {
   test("places Select a date at end when all dates are past", () => {
     const dates = [
       {
-        value: "2026-03-08",
-        label: "Sunday 8 March 2026",
         hasBookings: true,
+        label: "Sunday 8 March 2026",
+        value: "2026-03-08",
       },
       {
-        value: "2026-03-09",
-        label: "Monday 9 March 2026",
         hasBookings: true,
+        label: "Monday 9 March 2026",
+        value: "2026-03-09",
       },
     ];
     const html = adminCalendarPage(
@@ -324,14 +324,14 @@ describe("adminCalendarPage", () => {
   test("places Select a date at start when all dates are future", () => {
     const dates = [
       {
-        value: "2026-03-15",
-        label: "Sunday 15 March 2026",
         hasBookings: true,
+        label: "Sunday 15 March 2026",
+        value: "2026-03-15",
       },
       {
-        value: "2026-03-16",
-        label: "Monday 16 March 2026",
         hasBookings: true,
+        label: "Monday 16 March 2026",
+        value: "2026-03-16",
       },
     ];
     const html = adminCalendarPage(
@@ -404,11 +404,11 @@ describe("generateCalendarCsv", () => {
   test("includes standard attendee columns", () => {
     const attendees = [
       calendarAttendee({
-        created: "2024-01-15T10:30:00Z",
-        quantity: 2,
-        price_paid: "2000",
-        payment_id: "pi_abc",
         checked_in: true,
+        created: "2024-01-15T10:30:00Z",
+        payment_id: "pi_abc",
+        price_paid: "2000",
+        quantity: 2,
       }),
     ];
     const csv = generateCalendarCsv(attendees);
@@ -425,9 +425,9 @@ describe("generateCalendarCsv", () => {
     const attendees = [
       calendarAttendee(),
       calendarAttendee({
+        eventName: "Other Event",
         id: 2,
         name: "Jane Smith",
-        eventName: "Other Event",
       }),
     ];
     const csv = generateCalendarCsv(attendees);

@@ -1,6 +1,6 @@
+import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
@@ -32,13 +32,17 @@ describeWithEnv("toggleHandler", { db: true }, () => {
   test("saves true and logs 'enabled' when field is 'true'", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = toggleHandler({
-      formId: "settings-toggle",
       field: "my_toggle",
+      formId: "settings-toggle",
       label: "My feature",
       save: saveFn as (v: boolean) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ my_toggle: "true" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_toggle: "true" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings");
     expect(saveFn).toHaveBeenCalledWith(true);
@@ -49,13 +53,17 @@ describeWithEnv("toggleHandler", { db: true }, () => {
   test("saves false and logs 'disabled' when field is 'false'", async () => {
     const saveFn = fn(() => Promise.resolve());
     const handler = toggleHandler({
-      formId: "settings-toggle",
       field: "my_toggle",
+      formId: "settings-toggle",
       label: "My feature",
       save: saveFn as (v: boolean) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ my_toggle: "false" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_toggle: "false" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings");
     expect(saveFn).toHaveBeenCalledWith(false);
@@ -67,8 +75,8 @@ describeWithEnv("toggleHandler", { db: true }, () => {
     // HTML checkboxes don't submit when unchecked, so the field may be absent
     const saveFn = fn(() => Promise.resolve());
     const handler = toggleHandler({
-      formId: "settings-toggle",
       field: "my_toggle",
+      formId: "settings-toggle",
       label: "My feature",
       save: saveFn as (v: boolean) => Promise<void>,
     });
@@ -80,14 +88,18 @@ describeWithEnv("toggleHandler", { db: true }, () => {
 
   test("redirects to /admin/settings-advanced when advanced is true", async () => {
     const handler = toggleHandler({
-      formId: "settings-toggle",
-      field: "my_toggle",
-      label: "My feature",
       advanced: true,
+      field: "my_toggle",
+      formId: "settings-toggle",
+      label: "My feature",
       save: () => Promise.resolve(),
     });
 
-    const res = await handler(formFrom({ my_toggle: "true" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_toggle: "true" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings-advanced");
   });

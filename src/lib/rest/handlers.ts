@@ -61,7 +61,7 @@ const authHandler =
   ): IdHandler =>
   (req, id) =>
     withAuth(req, AUTH_FORM, (session, form) =>
-      handler(req, id, { ok: true, session, form }),
+      handler(req, id, { form, ok: true, session }),
     );
 
 /** Dispatch create result */
@@ -86,7 +86,7 @@ export const createHandler =
   <R, I>(resource: Resource<R, I>, opts: CreateHandlerOptions<R>) =>
   (request: Request): Promise<Response> =>
     withAuth(request, AUTH_FORM, async (session, form) => {
-      const a: AuthOk = { ok: true, session, form };
+      const a: AuthOk = { form, ok: true, session };
       return dispatchCreate(await resource.create(form), a, opts);
     });
 

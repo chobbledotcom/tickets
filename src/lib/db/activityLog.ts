@@ -35,9 +35,9 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
     name: "activity_log",
     primaryKey: "id",
     schema: {
-      id: col.generated<number>(),
       created: col.withDefault(() => nowIso()),
       event_id: col.simple<number | null>(),
+      id: col.generated<number>(),
       message: col.encrypted<string>(encrypt, decrypt),
     },
   },
@@ -58,8 +58,8 @@ export const logActivity = (
   event?: EventRef | null,
 ): Promise<ActivityLogEntry> =>
   activityLogTable.insert({
-    message,
     eventId: toEventId(event),
+    message,
   });
 
 /** Query activity log with optional event filter, decrypts messages */
@@ -106,16 +106,16 @@ export const getEventWithActivityLog = async (
 ): Promise<EventWithActivityLog | null> => {
   const results = await queryBatch([
     {
+      args: [eventId],
       sql: `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
             FROM events e
             LEFT JOIN event_attendees ea ON e.id = ea.event_id
             WHERE e.id = ?
             GROUP BY e.id`,
-      args: [eventId],
     },
     {
-      sql: "SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?",
       args: [eventId, limit],
+      sql: "SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?",
     },
   ]);
 
@@ -135,5 +135,5 @@ export const getEventWithActivityLog = async (
     logRows.map((row) => activityLogTable.fromDb(row)),
   );
 
-  return { event, entries };
+  return { entries, event };
 };

@@ -11,7 +11,7 @@ const apiRequest = (
   body?: Record<string, unknown>,
 ): Request => {
   const headers: Record<string, string> = { host: "localhost" };
-  const init: RequestInit = { method, headers };
+  const init: RequestInit = { headers, method };
   if (body) {
     headers["content-type"] = "application/json";
     init.body = JSON.stringify(body);
@@ -109,9 +109,9 @@ describeWithEnv(
     test("POST /ticket/my-event redirects to /read-only", async () => {
       const res = await handleRequest(
         mockRequest("/ticket/my-event", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "name=test",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.status).toBe(302);
@@ -121,9 +121,9 @@ describeWithEnv(
     test("POST /admin/event redirects to /read-only", async () => {
       const res = await handleRequest(
         mockRequest("/admin/event", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "name=test",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.status).toBe(302);
@@ -133,9 +133,9 @@ describeWithEnv(
     test("POST /admin/groups redirects to /read-only", async () => {
       const res = await handleRequest(
         mockRequest("/admin/groups", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "name=test",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.status).toBe(302);
@@ -145,9 +145,9 @@ describeWithEnv(
     test("POST /admin/event/42/attendee redirects to /read-only", async () => {
       const res = await handleRequest(
         mockRequest("/admin/event/42/attendee", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "name=test",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.status).toBe(302);
@@ -176,20 +176,20 @@ describeWithEnv(
       await settings.update.showPublicSite(true);
       const slugIndex = await computeGroupSlugIndex("ro-group");
       const group = await groupsTable.insert({
+        hidden: false,
+        maxAttendees: 0,
         name: "Read Only Group",
         slug: "ro-group",
         slugIndex,
         termsAndConditions: "",
-        maxAttendees: 0,
-        hidden: false,
       });
       await eventsTable.insert({
+        groupId: group.id,
+        maxAttendees: 50,
+        maxPrice: 0,
         name: "RO Event",
         slug: "ro-event",
         slugIndex: await computeSlugIndex("ro-event"),
-        maxAttendees: 50,
-        maxPrice: 0,
-        groupId: group.id,
       });
       const res = await handleRequest(mockRequest("/events"));
       const html = await res.text();
@@ -206,9 +206,9 @@ describeWithEnv(
     test("POST /admin/login is not blocked (unrelated POST)", async () => {
       const res = await handleRequest(
         mockRequest("/admin/login", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "password=test",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.headers.get("location")).not.toBe("/read-only");
@@ -217,9 +217,9 @@ describeWithEnv(
     test("POST /admin/groups/5/add-events redirects to /read-only", async () => {
       const res = await handleRequest(
         mockRequest("/admin/groups/5/add-events", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "event_ids=1",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.status).toBe(302);
@@ -229,9 +229,9 @@ describeWithEnv(
     test("POST /read-only returns 404", async () => {
       const res = await handleRequest(
         mockRequest("/read-only", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
           body: "test=1",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
         }),
       );
       expect(res.status).toBe(404);

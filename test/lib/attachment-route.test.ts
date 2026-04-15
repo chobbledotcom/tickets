@@ -50,12 +50,12 @@ describe("getMimeType", () => {
 describeWithEnv(
   "GET /attachment/:id",
   {
-    env: {
-      STORAGE_ZONE_NAME: undefined,
-      STORAGE_ZONE_KEY: undefined,
-    },
     db: true,
     encryptionKey: true,
+    env: {
+      STORAGE_ZONE_KEY: undefined,
+      STORAGE_ZONE_NAME: undefined,
+    },
   },
   () => {
     /** Create an event+attendee with an attachment configured */
@@ -65,10 +65,10 @@ describeWithEnv(
         "test@example.com",
       );
       await eventsTable.update(event.id, {
-        attachmentUrl: "file.pdf",
         attachmentName: "guide.pdf",
+        attachmentUrl: "file.pdf",
       });
-      return { eventId: event.id, attendeeId: attendee.id };
+      return { attendeeId: attendee.id, eventId: event.id };
     };
 
     /** Sign a URL and return the full path with query params */
@@ -84,7 +84,7 @@ describeWithEnv(
       data: Uint8Array,
       fn: () => Promise<void>,
     ): Promise<void> =>
-      runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, () =>
+      runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
         withFetchMock(async (originalFetch) => {
           const encrypted = await encryptBytes(data);
           installUrlHandler(originalFetch, (url) => {
@@ -109,7 +109,7 @@ describeWithEnv(
 
     /** Shorthand for running a test body with storage enabled */
     const withStorage = <T>(fn: () => T): T =>
-      runWithStorageConfig({ zoneName: "testzone", zoneKey: "testkey" }, fn);
+      runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, fn);
 
     test("returns 403 when query params are missing", async () => {
       await withStorage(async () => {

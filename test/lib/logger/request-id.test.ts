@@ -38,10 +38,10 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       runWithRequestId(() => {
         id = getRequestId();
         logRequest({
+          durationMs: 10,
           method: "GET",
           path: "/admin",
           status: 200,
-          durationMs: 10,
         });
       });
 
@@ -108,10 +108,10 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     const debugSpy = spy(console, "debug");
     try {
       logRequest({
+        durationMs: 10,
         method: "GET",
         path: "/admin",
         status: 200,
-        durationMs: 10,
       });
 
       expect(

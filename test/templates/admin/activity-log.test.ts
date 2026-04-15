@@ -19,15 +19,15 @@ describe("adminEventActivityLogPage", () => {
     const event = testEventWithCount();
     const entries = [
       {
-        id: 1,
         created: "2024-01-15T10:30:00Z",
         event_id: 1,
+        id: 1,
         message: "Ticket reserved",
       },
       {
-        id: 2,
         created: "2024-01-15T11:00:00Z",
         event_id: 1,
+        id: 2,
         message: "Payment received",
       },
     ];
@@ -48,9 +48,9 @@ describe("adminGlobalActivityLogPage", () => {
   test("renders global activity log with entries", () => {
     const entries = [
       {
-        id: 1,
         created: "2024-01-15T10:30:00Z",
         event_id: null,
+        id: 1,
         message: "System started",
       },
     ];
@@ -67,9 +67,9 @@ describe("adminGlobalActivityLogPage", () => {
   test("shows truncation message when truncated", () => {
     const entries = [
       {
-        id: 1,
         created: "2024-01-15T10:30:00Z",
         event_id: null,
+        id: 1,
         message: "Action",
       },
     ];
@@ -80,9 +80,9 @@ describe("adminGlobalActivityLogPage", () => {
   test("does not show truncation message when not truncated", () => {
     const entries = [
       {
-        id: 1,
         created: "2024-01-15T10:30:00Z",
         event_id: null,
+        id: 1,
         message: "Action",
       },
     ];

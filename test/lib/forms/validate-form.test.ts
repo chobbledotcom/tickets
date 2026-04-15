@@ -8,7 +8,7 @@ const field = (
 ): Field => ({ type: "text", ...overrides });
 
 const requiredName: Field[] = [
-  field({ name: "name", label: "Name", required: true }),
+  field({ label: "Name", name: "name", required: true }),
 ];
 
 describe("validateForm", () => {
@@ -35,7 +35,7 @@ describe("validateForm", () => {
 
   test("parses number field to a numeric value", () => {
     const fields: Field[] = [
-      field({ name: "qty", label: "Qty", type: "number", required: true }),
+      field({ label: "Qty", name: "qty", required: true, type: "number" }),
     ];
     const result = validateForm(new FormParams({ qty: "42" }), fields);
     expect(result.valid).toBe(true);
@@ -44,7 +44,7 @@ describe("validateForm", () => {
 
   test("returns null for empty optional number", () => {
     const fields: Field[] = [
-      field({ name: "price", label: "Price", type: "number" }),
+      field({ label: "Price", name: "price", type: "number" }),
     ];
     const result = validateForm(new FormParams({ price: "" }), fields);
     expect(result.valid).toBe(true);
@@ -52,7 +52,7 @@ describe("validateForm", () => {
   });
 
   test("returns empty string for empty optional text", () => {
-    const fields: Field[] = [field({ name: "note", label: "Note" })];
+    const fields: Field[] = [field({ label: "Note", name: "note" })];
     const result = validateForm(new FormParams({ note: "" }), fields);
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.note).toBe("");
@@ -61,8 +61,8 @@ describe("validateForm", () => {
   test("runs custom validate function and surfaces its error", () => {
     const fields: Field[] = [
       field({
-        name: "code",
         label: "Code",
+        name: "code",
         required: true,
         validate: (v) => (v.length !== 3 ? "Code must be 3 characters" : null),
       }),
@@ -75,8 +75,8 @@ describe("validateForm", () => {
   test("skips custom validate for empty optional field", () => {
     const fields: Field[] = [
       field({
-        name: "code",
         label: "Code",
+        name: "code",
         validate: (v) => (v.length !== 3 ? "bad" : null),
       }),
     ];
@@ -85,7 +85,7 @@ describe("validateForm", () => {
 
   test("collects checkbox-group values from multiple form entries", () => {
     const fields: Field[] = [
-      field({ name: "days", label: "Days", type: "checkbox-group" }),
+      field({ label: "Days", name: "days", type: "checkbox-group" }),
     ];
     const form = new FormParams();
     form.append("days", "Monday");
@@ -97,7 +97,7 @@ describe("validateForm", () => {
 
   test("returns empty string for empty checkbox-group", () => {
     const fields: Field[] = [
-      field({ name: "days", label: "Days", type: "checkbox-group" }),
+      field({ label: "Days", name: "days", type: "checkbox-group" }),
     ];
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);
@@ -106,7 +106,7 @@ describe("validateForm", () => {
 
   test("skips file fields and returns null", () => {
     const fields: Field[] = [
-      field({ name: "image", label: "Image", type: "file" }),
+      field({ label: "Image", name: "image", type: "file" }),
     ];
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);
@@ -115,7 +115,7 @@ describe("validateForm", () => {
 
   describe("datetime type", () => {
     const datetimeField: Field[] = [
-      field({ name: "closes_at", label: "Closes At", type: "datetime" }),
+      field({ label: "Closes At", name: "closes_at", type: "datetime" }),
     ];
 
     test("combines date and time parts into a datetime string", () => {
@@ -166,10 +166,10 @@ describe("validateForm", () => {
     test("rejects empty required datetime", () => {
       const fields: Field[] = [
         field({
-          name: "closes_at",
           label: "Closes At",
-          type: "datetime",
+          name: "closes_at",
           required: true,
+          type: "datetime",
         }),
       ];
       const result = validateForm(

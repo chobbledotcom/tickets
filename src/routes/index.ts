@@ -85,9 +85,9 @@ const loadPublicPages = once(async () => {
   } = await import("#routes/public/pages.ts");
   return {
     handleHome,
+    handlePublicContact,
     handlePublicEvents,
     handlePublicTerms,
-    handlePublicContact,
   };
 });
 
@@ -274,10 +274,10 @@ type PublicGetPageSpec = {
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
-  { prefix: "", pick: (p) => p.handleHome },
-  { prefix: "events", pick: (p) => p.handlePublicEvents },
-  { prefix: "terms", pick: (p) => p.handlePublicTerms },
-  { prefix: "contact", pick: (p) => p.handlePublicContact },
+  { pick: (p) => p.handleHome, prefix: "" },
+  { pick: (p) => p.handlePublicEvents, prefix: "events" },
+  { pick: (p) => p.handlePublicTerms, prefix: "terms" },
+  { pick: (p) => p.handlePublicContact, prefix: "contact" },
 ];
 
 const publicPageHandlers = reduce(
@@ -298,22 +298,6 @@ const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
   // Prefix-matched lazy-loaded route groups
   admin: lazyRoute(loadAdminRoutes),
-  ticket: lazyRoute(loadTicketRoutes),
-  t: lazyRoute(loadTicketViewRoutes),
-  checkin: lazyRoute(loadCheckinRoutes),
-  image: lazyRoute(loadImageRoutes),
-  attachment: lazyRoute(loadAttachmentRoutes),
-  payment: lazyRoute(loadPaymentRoutes),
-  join: lazyRoute(loadJoinRoutes),
-  feeds: lazyRoute(loadFeedRoutes),
-  wallet: lazyRoute(loadWalletRoutes),
-  gwallet: lazyRoute(loadGoogleWalletRoutes),
-  v1: lazyRoute(loadWalletWebserviceRoutes),
-  demo: lazyRoute(loadDemoResetRoutes),
-  "read-only": (_request, path, method) =>
-    path === "/read-only" && method === "GET"
-      ? Promise.resolve(htmlResponse(readOnlyPage()))
-      : Promise.resolve(null),
   api: async (request, path, method, server) => {
     // Admin API is always available (auth-protected)
     const adminResult = await (await loadAdminApiRoutes())(
@@ -328,6 +312,22 @@ const prefixHandlers: Record<string, RouterFn> = {
       ? (await loadApiRoutes())(request, path, method, server)
       : null;
   },
+  attachment: lazyRoute(loadAttachmentRoutes),
+  checkin: lazyRoute(loadCheckinRoutes),
+  demo: lazyRoute(loadDemoResetRoutes),
+  feeds: lazyRoute(loadFeedRoutes),
+  gwallet: lazyRoute(loadGoogleWalletRoutes),
+  image: lazyRoute(loadImageRoutes),
+  join: lazyRoute(loadJoinRoutes),
+  payment: lazyRoute(loadPaymentRoutes),
+  "read-only": (_request, path, method) =>
+    path === "/read-only" && method === "GET"
+      ? Promise.resolve(htmlResponse(readOnlyPage()))
+      : Promise.resolve(null),
+  t: lazyRoute(loadTicketViewRoutes),
+  ticket: lazyRoute(loadTicketRoutes),
+  v1: lazyRoute(loadWalletWebserviceRoutes),
+  wallet: lazyRoute(loadWalletRoutes),
 };
 
 /**
@@ -383,10 +383,10 @@ const logAndReturn = (
   getElapsed: () => number,
 ): Response => {
   logRequest({
+    durationMs: getElapsed(),
     method,
     path,
     status: response.status,
-    durationMs: getElapsed(),
   });
   return response;
 };
@@ -417,9 +417,9 @@ export const handleRequest = async (
     : undefined;
   const effectiveRequest = bufferedBody
     ? new Request(request.url, {
-        method: request.method,
-        headers: request.headers,
         body: bufferedBody,
+        headers: request.headers,
+        method: request.method,
       })
     : request;
 
@@ -440,8 +440,8 @@ export const handleRequest = async (
                 if (cleanUrl) {
                   return logAndReturn(
                     new Response(null, {
-                      status: 301,
                       headers: { location: cleanUrl },
+                      status: 301,
                     }),
                     method,
                     path,

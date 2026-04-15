@@ -30,21 +30,20 @@ export type UpdateHolidayBody = Partial<CreateHolidayBody>;
 export type DeleteHolidayBody = DeleteBody;
 
 export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
+  getAll: getAllHolidays,
   name: "holidays",
+  nameField: "name",
   singular: "Holiday",
   table: holidaysTable,
-  getAll: getAllHolidays,
-  nameField: "name",
-  validate: validateDateRange,
 
   toCreateInput: (body) => {
     const name = requireString(body, "name");
-    if (!name) return { ok: false, error: "name is required" };
+    if (!name) return { error: "name is required", ok: false };
     const startDate = requireString(body, "start_date");
-    if (!startDate) return { ok: false, error: "start_date is required" };
+    if (!startDate) return { error: "start_date is required", ok: false };
     const endDate = requireString(body, "end_date");
-    if (!endDate) return { ok: false, error: "end_date is required" };
-    return { ok: true, input: { name, startDate, endDate } };
+    if (!endDate) return { error: "end_date is required", ok: false };
+    return { input: { endDate, name, startDate }, ok: true };
   },
 
   toUpdateInput: (body, existing) => {
@@ -53,12 +52,13 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
     const str = (key: string, fallback: string) =>
       body[key] != null ? String(body[key]).trim() : fallback;
     return {
-      ok: true,
       input: {
+        endDate: str("end_date", existing.end_date),
         name: nameParsed.name,
         startDate: str("start_date", existing.start_date),
-        endDate: str("end_date", existing.end_date),
       },
+      ok: true,
     };
   },
+  validate: validateDateRange,
 });

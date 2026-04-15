@@ -299,6 +299,15 @@ const validateDescription = (value: string): string | null =>
 const validateDatetime = (value: string): string | null =>
   isValidDatetime(value) ? null : "Please enter a valid date and time";
 
+/** Build a "hidden" visibility checkbox field for an event or group. */
+const buildHiddenField = (kind: "Event" | "Group"): Field => ({
+  hint: `Hide from the public events page and search engines. The ${kind.toLowerCase()} is still bookable via its direct link.`,
+  label: `Hidden ${kind}`,
+  name: "hidden",
+  options: [{ label: "Hide from public events list", value: "1" }],
+  type: "checkbox-group",
+});
+
 /**
  * Event form field definitions (shared between create and edit)
  */
@@ -463,13 +472,7 @@ export const eventFields: Field[] = [
     ],
     type: "select",
   },
-  {
-    hint: "Hide from the public events page and search engines. The event is still bookable via its direct link.",
-    label: "Hidden Event",
-    name: "hidden",
-    options: [{ label: "Hide from public events list", value: "1" }],
-    type: "checkbox-group",
-  },
+  buildHiddenField("Event"),
   {
     hint: "For raffles, fundraisers, donations, or other non-attendance items. Hides QR codes, check-in, and wallet passes. Shows \u2018Buy now\u2019 instead of \u2018Reserve\u2019.",
     label: "Purchase Only",
@@ -547,6 +550,12 @@ export const builtSiteFields: Field[] = [
     type: "password",
   },
   {
+    label: "Bunny Script ID",
+    name: "bunny_script_id",
+    placeholder: "12345",
+    type: "text",
+  },
+  {
     hint: "Make this site available for automatic assignment when a ticket is purchased",
     label: "Assignable",
     name: "assignable",
@@ -607,13 +616,7 @@ const groupMaxAttendeesField: Field = {
 };
 
 /** Hidden group field (same as event hidden field) */
-const groupHiddenField: Field = {
-  hint: "Hide from the public events page and search engines. The group is still bookable via its direct link.",
-  label: "Hidden Group",
-  name: "hidden",
-  options: [{ label: "Hide from public events list", value: "1" }],
-  type: "checkbox-group",
-};
+const groupHiddenField: Field = buildHiddenField("Group");
 
 /** Group description field */
 const groupDescriptionField: Field = {

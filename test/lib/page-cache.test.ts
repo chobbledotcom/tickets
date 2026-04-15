@@ -115,8 +115,8 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Changed"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       });
       return startTime;
     };
@@ -149,8 +149,8 @@ describeWithEnv("page content cache", { db: true }, () => {
       // Write a different encrypted value directly to DB
       const newEncrypted = await encrypt("Changed Title");
       await getDb().execute({
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         args: [CONFIG_KEYS.WEBSITE_TITLE, newEncrypted],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       });
 
       // Within TTL — cache still serves decrypted "Original Title"
@@ -226,8 +226,8 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Surprise"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       });
 
       // Page cache still holds ""

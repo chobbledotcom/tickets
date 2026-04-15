@@ -35,27 +35,27 @@ async function bookDailyTicket(
 
 async function setupDailyBooking(
   date = tomorrow(),
-  opts = { name: "User A", email: "a@test.com" },
+  opts = { email: "a@test.com", name: "User A" },
 ) {
   const event = await createDailyTestEvent();
   await bookDailyTicket(event.slug, { ...opts, date });
-  return { event, date };
+  return { date, event };
 }
 
 async function setupTwoDailyBookings(date = tomorrow()) {
   const event1 = await createDailyTestEvent();
   const event2 = await createDailyTestEvent();
   await bookDailyTicket(event1.slug, {
-    name: "User A",
-    email: "a@test.com",
     date,
+    email: "a@test.com",
+    name: "User A",
   });
   await bookDailyTicket(event2.slug, {
-    name: "User B",
-    email: "b@test.com",
     date,
+    email: "b@test.com",
+    name: "User B",
   });
-  return { event1, event2, date };
+  return { date, event1, event2 };
 }
 
 async function setupMixedBookings(
@@ -65,19 +65,19 @@ async function setupMixedBookings(
 ) {
   const dailyEvent = await createDailyTestEvent();
   const standardEvent = await createTestEvent({
-    name: "Workshop",
     date: `${eventDate}T10:00`,
+    name: "Workshop",
   });
   await bookDailyTicket(dailyEvent.slug, {
-    name: dailyName,
-    email: `${dailyName.toLowerCase().replace(" ", "")}@test.com`,
     date: eventDate,
+    email: `${dailyName.toLowerCase().replace(" ", "")}@test.com`,
+    name: dailyName,
   });
   await submitTicketForm(standardEvent.slug, {
-    name: standardName,
     email: `${standardName.toLowerCase().replace(" ", "")}@test.com`,
+    name: standardName,
   });
-  return { dailyEvent, standardEvent, eventDate };
+  return { dailyEvent, eventDate, standardEvent };
 }
 
 describeWithEnv(
@@ -126,14 +126,14 @@ describeWithEnv(
         const date2 = addDays(todayInTz("UTC"), 2);
         const event = await createDailyTestEvent();
         await bookDailyTicket(event.slug, {
-          name: "User A",
-          email: "a@test.com",
           date: date1,
+          email: "a@test.com",
+          name: "User A",
         });
         await bookDailyTicket(event.slug, {
-          name: "User B",
-          email: "b@test.com",
           date: date2,
+          email: "b@test.com",
+          name: "User B",
         });
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date1}`);
@@ -195,7 +195,7 @@ describeWithEnv(
       });
 
       test("shows standard event date in dropdown", async () => {
-        await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+        await createTestEvent({ date: "2026-06-15T14:00", name: "Concert" });
         const html = await fetchCalendarHtml();
         // Standard event date appears as a formatted label in the dropdown
         expect(html).toContain("Monday 15 June 2026");
@@ -203,12 +203,12 @@ describeWithEnv(
 
       test("shows standard event attendees when date is selected", async () => {
         const event = await createTestEvent({
-          name: "Concert",
           date: "2026-06-15T14:00",
+          name: "Concert",
         });
         await submitTicketForm(event.slug, {
-          name: "Concert Fan",
           email: "fan@test.com",
+          name: "Concert Fan",
         });
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
@@ -218,12 +218,12 @@ describeWithEnv(
 
       test("does not show standard event attendees on wrong date", async () => {
         const event = await createTestEvent({
-          name: "Concert",
           date: "2026-06-15T14:00",
+          name: "Concert",
         });
         await submitTicketForm(event.slug, {
-          name: "Concert Fan",
           email: "fan@test.com",
+          name: "Concert Fan",
         });
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-16");
@@ -245,12 +245,12 @@ describeWithEnv(
 
       test("marks standard event date as having bookings when attendees exist", async () => {
         const event = await createTestEvent({
-          name: "Concert",
           date: "2026-06-15T14:00",
+          name: "Concert",
         });
         await submitTicketForm(event.slug, {
-          name: "Fan",
           email: "fan@test.com",
+          name: "Fan",
         });
 
         const html = await fetchCalendarHtml();
@@ -260,20 +260,20 @@ describeWithEnv(
 
       test("shows multiple standard events on same date", async () => {
         const event1 = await createTestEvent({
-          name: "Morning Concert",
           date: "2026-06-15T10:00",
+          name: "Morning Concert",
         });
         const event2 = await createTestEvent({
-          name: "Evening Concert",
           date: "2026-06-15T20:00",
+          name: "Evening Concert",
         });
         await submitTicketForm(event1.slug, {
-          name: "Morning Fan",
           email: "am@test.com",
+          name: "Morning Fan",
         });
         await submitTicketForm(event2.slug, {
-          name: "Evening Fan",
           email: "pm@test.com",
+          name: "Evening Fan",
         });
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
@@ -285,12 +285,12 @@ describeWithEnv(
 
       test("does not show standard attendees when no standard events match date", async () => {
         const event = await createTestEvent({
-          name: "Concert",
           date: "2026-06-15T14:00",
+          name: "Concert",
         });
         await submitTicketForm(event.slug, {
-          name: "Concert Fan",
           email: "fan@test.com",
+          name: "Concert Fan",
         });
 
         // Request a completely different date
@@ -300,8 +300,8 @@ describeWithEnv(
 
       test("standard event date without attendees shows as disabled", async () => {
         await createTestEvent({
-          name: "Empty Event",
           date: "2026-06-15T14:00",
+          name: "Empty Event",
         });
 
         const html = await fetchCalendarHtml();
@@ -390,12 +390,12 @@ describeWithEnv(
 
       test("includes standard event attendees in CSV export", async () => {
         const event = await createTestEvent({
-          name: "Concert",
           date: "2026-06-15T14:00",
+          name: "Concert",
         });
         await submitTicketForm(event.slug, {
-          name: "CSV Fan",
           email: "csvfan@test.com",
+          name: "CSV Fan",
         });
 
         const response = await fetchCalendarResponse(

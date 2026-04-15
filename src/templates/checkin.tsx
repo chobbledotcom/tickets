@@ -56,12 +56,12 @@ export const checkinAdminPage = (
       <div class="table-scroll">
         <Raw
           html={AttendeeTable({
-            rows: tableRows,
             allowedDomain,
-            showEvent: true,
-            showDate,
-            returnUrl: checkinPath,
             phonePrefix,
+            returnUrl: checkinPath,
+            rows: tableRows,
+            showDate,
+            showEvent: true,
           })}
         />
       </div>

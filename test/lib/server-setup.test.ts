@@ -36,9 +36,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
     overrides: Record<string, string> = {},
   ): Promise<Response> {
     return submitSetupForm({
-      admin_username: "testadmin",
       admin_password: "mypassword123",
       admin_password_confirm: "mypassword123",
+      admin_username: "testadmin",
       country: "GB",
       ...overrides,
     });
@@ -93,9 +93,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // POST without getting CSRF token first
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
+            admin_username: "testadmin",
             country: "US",
           }),
         );
@@ -110,9 +110,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // Send a wrong token in the form body
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
+            admin_username: "testadmin",
             country: "US",
             csrf_token: "wrong-token-in-form",
           }),
@@ -207,9 +207,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
               const response = await handleRequest(
                 mockSetupFormRequest(
                   {
-                    admin_username: "testadmin",
                     admin_password: "mypassword123",
                     admin_password_confirm: "mypassword123",
+                    admin_username: "testadmin",
                     country: "GB",
                   },
                   csrfToken as string,
@@ -236,8 +236,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // Step 1: GET the setup page
         const getResponse = await handleRequest(
           new Request("http://localhost/setup/", {
-            method: "GET",
             headers: { host: "localhost" },
+            method: "GET",
           }),
         );
         expect(getResponse.status).toBe(200);
@@ -250,9 +250,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const postResponse = await handleRequest(
           mockSetupFormRequest(
             {
-              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
+              admin_username: "testadmin",
               country: "GB",
             },
             csrfToken as string,
@@ -267,8 +267,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // GET /setup (no trailing slash)
         const getResponse = await handleRequest(
           new Request("http://localhost/setup", {
-            method: "GET",
             headers: { host: "localhost" },
+            method: "GET",
           }),
         );
         expect(getResponse.status).toBe(200);
@@ -280,9 +280,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const postResponse = await handleRequest(
           mockSetupFormRequest(
             {
-              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
+              admin_username: "testadmin",
               country: "GB",
             },
             csrfToken as string,
@@ -332,9 +332,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       await handleRequest(
         mockSetupFormRequest(
           {
-            admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
+            admin_username: "testadmin",
             country: "US",
           },
           csrfToken as string,

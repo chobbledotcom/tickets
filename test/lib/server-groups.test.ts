@@ -117,9 +117,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         mockFormRequest(
           "/admin/groups",
           {
+            csrf_token: csrfToken,
             name: "Manager Group",
             terms_and_conditions: "",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -144,8 +144,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("creates group with description", async () => {
       const group = await createTestGroup({
-        name: "Described Group",
         description: "A fun group of events",
+        name: "Described Group",
       });
       expect(group.name).toBe("Described Group");
       expect(group.description).toBe("A fun group of events");
@@ -158,8 +158,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("creates group with hidden flag", async () => {
       const group = await createTestGroup({
-        name: "Hidden Group",
         hidden: true,
+        name: "Hidden Group",
       });
       expect(group.name).toBe("Hidden Group");
       expect(group.hidden).toBe(true);
@@ -187,9 +187,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   describe("GET /admin/groups/:id/edit", () => {
     test("shows edit form with pre-filled values", async () => {
       const group = await createTestGroup({
+        description: "Editable description",
         name: "Editable",
         slug: "editable",
-        description: "Editable description",
         termsAndConditions: "Original terms",
       });
       const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
@@ -206,9 +206,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("shows hidden checkbox checked for hidden group", async () => {
       const group = await createTestGroup({
+        hidden: true,
         name: "Hidden Editable",
         slug: "hidden-editable",
-        hidden: true,
       });
       const { response } = await adminGet(`/admin/groups/${group.id}/edit`);
       const html = await expectHtmlResponse(response, 200, "Edit Group");
@@ -233,10 +233,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/edit`,
           {
+            csrf_token: csrfToken,
             name: "Changed",
             slug: "changed",
             terms_and_conditions: "",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -262,9 +262,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("updates group description", async () => {
       const group = await createTestGroup({
+        description: "Original description",
         name: "Desc Edit",
         slug: "desc-edit",
-        description: "Original description",
       });
       expect(group.description).toBe("Original description");
       const updated = await updateTestGroup(group.id, {
@@ -381,8 +381,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "to-delete",
       });
       const event = await createTestEvent({
-        name: "Grouped Event",
         groupId: group.id,
+        name: "Grouped Event",
       });
       expect(event.group_id).toBe(group.id);
 
@@ -428,7 +428,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         const response = await handleRequest(
           mockFormRequest(
             `/admin/groups/${group.id}/delete`,
-            { csrf_token: csrfToken, confirm_identifier: group.name },
+            { confirm_identifier: group.name, csrf_token: csrfToken },
             cookie,
           ),
         );
@@ -467,8 +467,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "detail-group",
       });
       const event = await createTestEvent({
-        name: "Grouped Event",
         groupId: group.id,
+        name: "Grouped Event",
       });
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
@@ -494,9 +494,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("shows hidden status on detail page when group is hidden", async () => {
       const group = await createTestGroup({
+        hidden: true,
         name: "Hidden Detail",
         slug: "hidden-detail",
-        hidden: true,
       });
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
@@ -548,7 +548,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Solo Group",
         slug: "solo-group",
       });
-      await createTestEvent({ name: "Already Grouped", groupId: group.id });
+      await createTestEvent({ groupId: group.id, name: "Already Grouped" });
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
@@ -562,9 +562,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "stats-group",
       });
       const event = await createTestEvent({
-        name: "Stats Event",
         groupId: group.id,
         maxAttendees: 20,
+        name: "Stats Event",
       });
       await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
       await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
@@ -584,10 +584,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "multi-qty-group",
       });
       const event = await createTestEvent({
-        name: "Multi Qty Event",
         groupId: group.id,
         maxAttendees: 20,
         maxQuantity: 5,
+        name: "Multi Qty Event",
       });
       await createTestAttendee(
         event.id,
@@ -614,9 +614,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "table-group",
       });
       const event = await createTestEvent({
-        name: "Table Event",
         groupId: group.id,
         maxAttendees: 10,
+        name: "Table Event",
       });
       await createTestAttendee(
         event.id,
@@ -639,9 +639,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "q-group",
       });
       const event = await createTestEvent({
-        name: "Q Event",
         groupId: group.id,
         maxAttendees: 10,
+        name: "Q Event",
       });
       await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com");
       const { questionsTable, answersTable, setEventQuestions } = await import(
@@ -650,8 +650,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Color" });
       await answersTable.insert({
         questionId: q.id,
-        text: "Red",
         sortOrder: 0,
+        text: "Red",
       });
       await setEventQuestions(event.id, [q.id]);
 
@@ -668,9 +668,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "revenue-group",
       });
       const event = await createTestEvent({
-        name: "Paid Event",
         groupId: group.id,
         maxAttendees: 10,
+        name: "Paid Event",
         unitPrice: 1000,
       });
       await createTestAttendee(event.id, event.slug, "Donor", "donor@test.com");
@@ -688,11 +688,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     ) => {
       const group = await createTestGroup({ name: groupName, slug: groupSlug });
       const event = await createTestEvent({
-        name: eventName,
         groupId: group.id,
         maxAttendees: 10,
+        name: eventName,
       });
-      return { group, event };
+      return { event, group };
     };
 
     const getGroupPageHtml = async (groupId: number): Promise<string> => {
@@ -718,9 +718,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Event Alpha",
       );
       const event2 = await createTestEvent({
-        name: "Event Beta",
         groupId: group.id,
         maxAttendees: 10,
+        name: "Event Beta",
       });
       await createTestAttendee(
         event1.id,
@@ -804,8 +804,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/add-events`,
           {
-            event_ids: String(event1.id),
             csrf_token: csrfToken,
+            event_ids: String(event1.id),
           },
           cookie,
         ),
@@ -852,13 +852,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: "type-check",
       });
       await createTestEvent({
-        name: "Standard In Group",
-        groupId: group.id,
         eventType: "standard",
+        groupId: group.id,
+        name: "Standard In Group",
       });
       const dailyEvent = await createTestEvent({
-        name: "Daily Ungrouped",
         eventType: "daily",
+        name: "Daily Ungrouped",
       });
 
       const cookie = await testCookie();
@@ -867,8 +867,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/add-events`,
           {
-            event_ids: String(dailyEvent.id),
             csrf_token: csrfToken,
+            event_ids: String(dailyEvent.id),
           },
           cookie,
         ),
@@ -894,9 +894,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         mockFormRequest(
           "/admin/groups",
           {
+            csrf_token: csrfToken,
             name: "Redirect Test",
             terms_and_conditions: "",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -918,10 +918,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/edit`,
           {
+            csrf_token: csrfToken,
             name: "Edited Redir",
             slug: "edited-redir",
             terms_and_conditions: "",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -937,9 +937,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   describe("group max_attendees", () => {
     test("creates group with max_attendees", async () => {
       const group = await createTestGroup({
+        maxAttendees: 50,
         name: "Capped",
         slug: "capped",
-        maxAttendees: 50,
       });
       expect(group.max_attendees).toBe(50);
     });
@@ -954,9 +954,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("edit form shows max_attendees field", async () => {
       const group = await createTestGroup({
+        maxAttendees: 25,
         name: "Edit Max",
         slug: "edit-max",
-        maxAttendees: 25,
       });
 
       await assertAdminHtml(
@@ -968,9 +968,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("updates max_attendees via edit", async () => {
       const group = await createTestGroup({
+        maxAttendees: 10,
         name: "Update Max",
         slug: "update-max",
-        maxAttendees: 10,
       });
 
       const updated = await updateTestGroup(group.id, { maxAttendees: 30 });
@@ -979,9 +979,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("detail page shows attendees with max when set", async () => {
       const group = await createTestGroup({
+        maxAttendees: 100,
         name: "Detail Max",
         slug: "detail-max",
-        maxAttendees: 100,
       });
 
       await assertAdminHtml(`/admin/groups/${group.id}`, "0 / 100");

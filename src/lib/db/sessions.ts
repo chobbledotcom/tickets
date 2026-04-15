@@ -23,7 +23,7 @@ const SESSION_CACHE_TTL_MS = 10_000;
 type CacheEntry = { session: Session | null; cachedAt: number };
 const sessionCache = new Map<string, CacheEntry>();
 
-registerCache(() => ({ name: "sessions", entries: sessionCache.size }));
+registerCache(() => ({ entries: sessionCache.size, name: "sessions" }));
 
 /**
  * Get cached session if still valid
@@ -50,7 +50,7 @@ const getCachedSession = (token: string): Session | null | undefined => {
  * Cache a session lookup result
  */
 const cacheSession = (token: string, session: Session | null): void => {
-  sessionCache.set(token, { session, cachedAt: Date.now() });
+  sessionCache.set(token, { cachedAt: Date.now(), session });
 };
 
 /**
@@ -88,20 +88,20 @@ export const createSession = async (
   const tokenHash = await hashSessionToken(token);
   await getDb().execute(
     insert("sessions", {
-      token: tokenHash,
       csrf_token: csrfToken,
       expires,
-      wrapped_data_key: wrappedDataKey,
+      token: tokenHash,
       user_id: userId,
+      wrapped_data_key: wrappedDataKey,
     }),
   );
   // Pre-cache the new session using token hash as key
   cacheSession(tokenHash, {
-    token: tokenHash,
     csrf_token: csrfToken,
     expires,
-    wrapped_data_key: wrappedDataKey,
+    token: tokenHash,
     user_id: userId,
+    wrapped_data_key: wrappedDataKey,
   });
 };
 
@@ -168,7 +168,7 @@ export const deleteOtherSessions = async (
   }
 
   await getDb().execute({
-    sql: "DELETE FROM sessions WHERE token != ?",
     args: [tokenHash],
+    sql: "DELETE FROM sessions WHERE token != ?",
   });
 };

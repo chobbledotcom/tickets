@@ -11,12 +11,15 @@ import {
 
 /** Build an edge script API response */
 const edgeScriptResponse = (
-  pullZones: { Id: number; PullZoneName: string; DefaultHostname: string }[] =
-    [],
+  pullZones: {
+    Id: number;
+    PullZoneName: string;
+    DefaultHostname: string;
+  }[] = [],
   defaultHostname = "mysite.b-cdn.net",
 ) => ({
-  Id: 1,
   DefaultHostname: defaultHostname,
+  Id: 1,
   LinkedPullZones: pullZones,
 });
 
@@ -26,13 +29,17 @@ describeWithEnv(
   () => {
     test("returns edge script data on success", async () => {
       const response = edgeScriptResponse([
-        { Id: 222, PullZoneName: "mysite", DefaultHostname: "mysite.b-cdn.net" },
+        {
+          DefaultHostname: "mysite.b-cdn.net",
+          Id: 222,
+          PullZoneName: "mysite",
+        },
       ]);
       await withMocks(
         () => stubFetchJson(response),
         async () => {
           const result = await bunnyCdnApi.getEdgeScript();
-          expect(result).toEqual({ ok: true, data: response });
+          expect(result).toEqual({ data: response, ok: true });
         },
       );
     });
@@ -46,8 +53,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.getEdgeScript();
           expect(result).toEqual({
-            ok: false,
             error: "Get edge script failed (401): Unauthorized",
+            ok: false,
           });
         },
       );
@@ -66,9 +73,9 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.getEdgeScript();
           expect(result).toEqual({
-            ok: false,
             error: "Get edge script failed (404): Script not found.",
             errorKey: "script.not_found",
+            ok: false,
           });
         },
       );
@@ -82,13 +89,17 @@ describeWithEnv(
   () => {
     test("returns pull zone ID from first linked pull zone", async () => {
       const response = edgeScriptResponse([
-        { Id: 222, PullZoneName: "mysite", DefaultHostname: "mysite.b-cdn.net" },
+        {
+          DefaultHostname: "mysite.b-cdn.net",
+          Id: 222,
+          PullZoneName: "mysite",
+        },
       ]);
       await withMocks(
         () => stubFetchJson(response),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
-          expect(result).toEqual({ ok: true, id: 222 });
+          expect(result).toEqual({ id: 222, ok: true });
         },
       );
     });
@@ -99,8 +110,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
-            ok: false,
             error: "Edge script 99 has no linked pull zones",
+            ok: false,
           });
         },
       );
@@ -115,8 +126,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
-            ok: false,
             error: "Get edge script failed (401): Unauthorized",
+            ok: false,
           });
         },
       );
@@ -133,7 +144,7 @@ describeWithEnv(
         () => stubFetchJson(edgeScriptResponse([], "https://mysite.bunny.run")),
         async () => {
           const result = await bunnyCdnApi.getCdnHostname();
-          expect(result).toEqual({ ok: true, hostname: "mysite.b-cdn.net" });
+          expect(result).toEqual({ hostname: "mysite.b-cdn.net", ok: true });
         },
       );
     });
@@ -143,7 +154,7 @@ describeWithEnv(
         () => stubFetchJson(edgeScriptResponse([], "mysite.b-cdn.net")),
         async () => {
           const result = await bunnyCdnApi.getCdnHostname();
-          expect(result).toEqual({ ok: true, hostname: "mysite.b-cdn.net" });
+          expect(result).toEqual({ hostname: "mysite.b-cdn.net", ok: true });
         },
       );
     });
@@ -157,8 +168,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.getCdnHostname();
           expect(result).toEqual({
-            ok: false,
             error: "Get edge script failed (404): Not found",
+            ok: false,
           });
         },
       );
@@ -174,8 +185,8 @@ describeWithEnv(
       await withMocks(
         () =>
           stubFetchJson({
-            Id: 42,
             DefaultHostname: "test-42.b-cdn.net",
+            Id: 42,
             LinkedPullZones: [{ Id: 99 }],
           }),
         async () => {
@@ -184,10 +195,10 @@ describeWithEnv(
             "console.log('test')",
           );
           expect(result).toEqual({
-            ok: true,
-            scriptId: 42,
-            pullZoneId: 99,
             defaultHostname: "test-42.b-cdn.net",
+            ok: true,
+            pullZoneId: 99,
+            scriptId: 42,
           });
         },
       );
@@ -195,15 +206,14 @@ describeWithEnv(
 
     test("defaults hostname to empty string when not in response", async () => {
       await withMocks(
-        () =>
-          stubFetchJson({ Id: 7, LinkedPullZones: [{ Id: 50 }] }),
+        () => stubFetchJson({ Id: 7, LinkedPullZones: [{ Id: 50 }] }),
         async () => {
           const result = await bunnyCdnApi.createEdgeScript("Test", "code");
           expect(result).toEqual({
-            ok: true,
-            scriptId: 7,
-            pullZoneId: 50,
             defaultHostname: "",
+            ok: true,
+            pullZoneId: 50,
+            scriptId: 7,
           });
         },
       );
@@ -259,8 +269,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.deployScriptCode("code");
           expect(result).toEqual({
-            ok: false,
             error: "Upload script code failed (500): Server Error",
+            ok: false,
           });
         },
       );
@@ -282,8 +292,8 @@ describeWithEnv(
         async () => {
           const result = await bunnyCdnApi.deployScriptCode("code");
           expect(result).toEqual({
-            ok: false,
             error: "Publish script failed (500): Publish Error",
+            ok: false,
           });
         },
       );
@@ -341,7 +351,9 @@ describeWithEnv(
             "libsql://test",
           );
           expect(result.ok).toBe(true);
-          expect(recorder.calls[0]!.url).toContain("/compute/script/42/secrets");
+          expect(recorder.calls[0]!.url).toContain(
+            "/compute/script/42/secrets",
+          );
           expect(recorder.calls[0]!.init!.method).toBe("PUT");
           const body = JSON.parse(recorder.calls[0]!.init!.body as string);
           expect(body.Name).toBe("DB_URL");

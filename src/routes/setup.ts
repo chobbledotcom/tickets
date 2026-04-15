@@ -57,30 +57,30 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
   if (acceptAgreement !== "yes") {
     logDebug("Setup", "Agreement not accepted");
     return {
-      valid: false,
       error: "You must accept the Data Controller Agreement to continue",
+      valid: false,
     };
   }
 
   if (password.length < 8) {
     logDebug("Setup", `Password too short: ${password.length}`);
-    return { valid: false, error: "Password must be at least 8 characters" };
+    return { error: "Password must be at least 8 characters", valid: false };
   }
   if (password !== passwordConfirm) {
     logDebug("Setup", "Passwords do not match");
-    return { valid: false, error: "Passwords do not match" };
+    return { error: "Passwords do not match", valid: false };
   }
   if (!isValidCountry(country)) {
     logDebug("Setup", `Invalid country code: ${country}`);
-    return { valid: false, error: "Please select a valid country" };
+    return { error: "Please select a valid country", valid: false };
   }
 
   logDebug("Setup", "Validation passed");
   return {
-    valid: true,
-    username,
-    password,
     country,
+    password,
+    username,
+    valid: true,
   };
 };
 
@@ -177,8 +177,8 @@ export const createSetupRouter = (
   isSetupComplete: () => Promise<boolean>,
 ): ReturnType<typeof createRouter> => {
   const setupRoutes = defineRoutes({
-    "GET /setup/complete": () => handleSetupComplete(isSetupComplete),
     "GET /setup": (request) => handleSetupGet(request, isSetupComplete),
+    "GET /setup/complete": () => handleSetupComplete(isSetupComplete),
     "POST /setup": (request) => handleSetupPost(request, isSetupComplete),
   });
 

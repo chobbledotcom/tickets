@@ -8,10 +8,10 @@ import {
 import type { AuthSession } from "#routes/utils.ts";
 
 const makeSession = (token = "tok"): AuthSession => ({
-  token,
-  wrappedDataKey: null,
-  userId: 1,
   adminLevel: "owner",
+  token,
+  userId: 1,
+  wrappedDataKey: null,
 });
 
 describe("session-context", () => {

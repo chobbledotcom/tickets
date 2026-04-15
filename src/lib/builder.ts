@@ -62,11 +62,11 @@ export const testDbConnection = async (
 ): Promise<{ ok: true } | { ok: false; error: string }> => {
   try {
     const { createClient } = await import("@libsql/client");
-    const client = createClient({ url: dbUrl, authToken: dbToken });
+    const client = createClient({ authToken: dbToken, url: dbUrl });
     await client.execute("SELECT 1");
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    return { error: (e as Error).message, ok: false };
   }
 };
 
@@ -96,20 +96,20 @@ export const buildSite = async (
   try {
     const release = await fetchLatestRelease();
     if (!release.assetUrl) {
-      return { ok: false, error: "No release asset found on GitHub" };
+      return { error: "No release asset found on GitHub", ok: false };
     }
     const assetResponse = await fetchText(release.assetUrl);
     if (!assetResponse.ok) {
       return {
-        ok: false,
         error: `Failed to download release: ${assetResponse.status}`,
+        ok: false,
       };
     }
     code = assetResponse.text;
   } catch (e) {
     return {
-      ok: false,
       error: `Failed to fetch release: ${(e as Error).message}`,
+      ok: false,
     };
   }
 
@@ -144,19 +144,19 @@ export const buildSite = async (
 
   const secretErrors = await setSecrets(scriptId, secrets);
   if (secretErrors.length > 0) {
-    return { ok: false, error: `Failed to set secrets: ${secretErrors[0]}` };
+    return { error: `Failed to set secrets: ${secretErrors[0]}`, ok: false };
   }
 
   // 6. Publish
   const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
   if (!publishResult.ok) return publishResult;
 
-  return { ok: true, scriptId, defaultHostname };
+  return { defaultHostname, ok: true, scriptId };
 };
 
 /** Stubbable API for testing */
 export const builderApi = {
+  buildSite,
   generateEncryptionKey,
   testDbConnection,
-  buildSite,
 };

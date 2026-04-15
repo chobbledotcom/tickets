@@ -133,8 +133,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
     test("skips backup when storage is not enabled", async () => {
       const restore = setTestEnv({
         LOCAL_STORAGE_PATH: undefined,
-        STORAGE_ZONE_NAME: undefined,
         STORAGE_ZONE_KEY: undefined,
+        STORAGE_ZONE_NAME: undefined,
       });
       try {
         await getDb().execute(
@@ -153,9 +153,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("blocks migration when backup fails", async () => {
       const restore = setTestEnv({
-        STORAGE_ZONE_NAME: "fake-zone",
-        STORAGE_ZONE_KEY: "fake-key",
         LOCAL_STORAGE_PATH: undefined,
+        STORAGE_ZONE_KEY: "fake-key",
+        STORAGE_ZONE_NAME: "fake-zone",
       });
       try {
         await getDb().execute(
@@ -168,7 +168,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
           installUrlHandler(originalFetch, (url) =>
             url.includes("bunnycdn.com") || url.includes("b-cdn.net")
               ? Promise.reject(new Error("forced upload failure"))
-              : null);
+              : null,
+          );
           await expect(initDb()).rejects.toThrow();
         });
 
@@ -188,8 +189,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
   describe("resetDatabase", () => {
     test("drops all tables", async () => {
       await createTestEvent({
-        name: "Test Event",
         maxAttendees: 50,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
       await createSession(
@@ -223,8 +224,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
       const event = await createTestEvent({
-        name: "New Event",
         maxAttendees: 25,
+        name: "New Event",
         thankYouUrl: "https://example.com",
       });
 

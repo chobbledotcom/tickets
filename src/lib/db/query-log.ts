@@ -46,7 +46,7 @@ export const getQueryLogStartTime = (): number => getState().startTime;
 /** Record a query (no-op when logging is disabled) */
 export const addQueryLogEntry = (sql: string, durationMs: number): void => {
   const state = getState();
-  if (state.enabled) state.entries.push({ sql, durationMs });
+  if (state.enabled) state.entries.push({ durationMs, sql });
 };
 
 /** Return a snapshot of all logged queries */
@@ -61,6 +61,6 @@ export const trackQuery = async <T>(
   if (!state.enabled) return fn();
   const start = performance.now();
   const result = await fn();
-  state.entries.push({ sql, durationMs: performance.now() - start });
+  state.entries.push({ durationMs: performance.now() - start, sql });
   return result;
 };

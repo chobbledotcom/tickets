@@ -742,9 +742,9 @@ export const adminMergeAttendeePage = (
                       html={MergePiiField({
                         field: f.field,
                         label: f.label,
-                        targetValue: f.targetValue,
-                        sourceValue: f.sourceValue,
                         multiline: f.multiline,
+                        sourceValue: f.sourceValue,
+                        targetValue: f.targetValue,
                       })}
                     />
                   ))}
@@ -756,8 +756,8 @@ export const adminMergeAttendeePage = (
             <Raw
               html={MergeAnswersDecisionTable({
                 diff: mergeDiff,
-                targetName: target.name,
                 sourceName: source.name,
+                targetName: target.name,
               })}
             />
 

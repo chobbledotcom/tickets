@@ -11,12 +11,12 @@ describe("renderQuestions", () => {
   test("renders radio buttons for each answer", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answers: [
+          { id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+        ],
         id: 1,
         text: "Favourite colour?",
-        answers: [
-          { id: 10, question_id: 1, text: "Red", sort_order: 0 },
-          { id: 11, question_id: 1, text: "Blue", sort_order: 1 },
-        ],
       },
     ];
 
@@ -35,14 +35,14 @@ describe("renderQuestions", () => {
   test("renders multiple questions", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
         id: 1,
         text: "Q1",
-        answers: [{ id: 10, question_id: 1, text: "A1", sort_order: 0 }],
       },
       {
+        answers: [{ id: 20, question_id: 2, sort_order: 0, text: "A2" }],
         id: 2,
         text: "Q2",
-        answers: [{ id: 20, question_id: 2, text: "A2", sort_order: 0 }],
       },
     ];
 
@@ -55,9 +55,9 @@ describe("renderQuestions", () => {
   test("escapes HTML in question and answer text", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "S&M" }],
         id: 1,
         text: "What <b>size</b>?",
-        answers: [{ id: 10, question_id: 1, text: "S&M", sort_order: 0 }],
       },
     ];
 
@@ -71,14 +71,14 @@ describe("renderQuestions", () => {
   test("adds data-event-ids when questionEventMap is provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
         id: 1,
         text: "Q1",
-        answers: [{ id: 10, question_id: 1, text: "A1", sort_order: 0 }],
       },
       {
+        answers: [{ id: 20, question_id: 2, sort_order: 0, text: "A2" }],
         id: 2,
         text: "Q2",
-        answers: [{ id: 20, question_id: 2, text: "A2", sort_order: 0 }],
       },
     ];
     const eventMap = new Map([
@@ -95,9 +95,9 @@ describe("renderQuestions", () => {
   test("omits data-event-ids when no map provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
         id: 1,
         text: "Q1",
-        answers: [{ id: 10, question_id: 1, text: "A1", sort_order: 0 }],
       },
     ];
 

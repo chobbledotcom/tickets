@@ -133,8 +133,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       await settings.update.stripe.secretKey("sk_test_fake");
       await settings.update.stripe.webhookConfig({
-        secret: "whsec_fake",
         endpointId: "we_fake",
+        secret: "whsec_fake",
       });
       await assertAdminHtml("/admin/debug", "stripe", "Configured");
     });
@@ -187,9 +187,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       const certs = generateTestCerts();
       restoreEnv = setTestEnv({
         APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.test",
-        APPLE_WALLET_TEAM_ID: "ENVTEAM01",
         APPLE_WALLET_SIGNING_CERT: certs.signingCert,
         APPLE_WALLET_SIGNING_KEY: certs.signingKey,
+        APPLE_WALLET_TEAM_ID: "ENVTEAM01",
         APPLE_WALLET_WWDR_CERT: certs.wwdrCert,
       });
       await assertAdminHtml(
@@ -207,9 +207,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows host email provider when env configured", async () => {
       restoreEnv = setTestEnv({
-        HOST_EMAIL_PROVIDER: "resend",
         HOST_EMAIL_API_KEY: "re_test_key",
         HOST_EMAIL_FROM_ADDRESS: "test@example.com",
+        HOST_EMAIL_PROVIDER: "resend",
       });
       await assertAdminHtml("/admin/debug", "resend");
     });
@@ -289,7 +289,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       });
       const original = bunnyCdnApi.getCdnHostname;
       bunnyCdnApi.getCdnHostname = () =>
-        Promise.resolve({ ok: true as const, hostname: "mysite.b-cdn.net" });
+        Promise.resolve({ hostname: "mysite.b-cdn.net", ok: true as const });
       try {
         await assertAdminHtml(
           "/admin/debug",
@@ -309,7 +309,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       });
       const original = bunnyCdnApi.getCdnHostname;
       bunnyCdnApi.getCdnHostname = () =>
-        Promise.resolve({ ok: false as const, error: "API error" });
+        Promise.resolve({ error: "API error", ok: false as const });
       try {
         const html = await assertAdminHtml("/admin/debug", "badge-ok");
         expect(html).not.toContain("mysite.b-cdn.net");
@@ -326,8 +326,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Bunny CDN badge when storage zone is configured", async () => {
       restoreEnv = setTestEnv({
-        STORAGE_ZONE_NAME: "my-zone",
         STORAGE_ZONE_KEY: "zone-key",
+        STORAGE_ZONE_NAME: "my-zone",
       });
       await assertAdminHtml("/admin/debug", "Bunny CDN");
     });
@@ -348,58 +348,58 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows DNS subdomain as configured with suffix", async () => {
       restoreEnv = setTestEnv({
         BUNNY_API_KEY: "test-key",
-        BUNNY_DNS_ZONE_ID: "12345",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+        BUNNY_DNS_ZONE_ID: "12345",
       });
       await assertAdminHtml("/admin/debug", "DNS subdomain", ".tickets");
     });
 
     test("shows registered subdomain when set", () => {
       const state: DebugPageState = {
-        build: { timestamp: "", commit: "" },
         appleWallet: {
-          dbConfigured: false,
-          envConfigured: false,
-          passTypeId: "",
-          source: "",
           certValidation: {
             signingCert: "Not set",
             signingKey: "Not set",
             wwdrCert: "Not set",
           },
+          dbConfigured: false,
+          envConfigured: false,
+          passTypeId: "",
+          source: "",
+        },
+        build: { commit: "", timestamp: "" },
+        bunny: {
+          cdnEnabled: false,
+          cdnHostname: "",
+          customDomain: "",
+          dnsEnabled: true,
+          registeredSubdomain: "myevent.example.com",
+          storageBackend: "none",
+          subdomainSuffix: ".tickets",
+        },
+        database: { hostConfigured: false },
+        domain: "localhost",
+        email: {
+          apiKeyConfigured: false,
+          fromAddress: "",
+          hostProvider: "",
+          provider: "",
         },
         googleWallet: {
           dbConfigured: false,
           envConfigured: false,
           issuerId: "",
-          source: "",
           privateKeyValid: "Not set",
+          source: "",
         },
+        limits: [],
+        ntfy: { configured: false },
         payment: {
-          provider: "",
           keyConfigured: false,
+          provider: "",
           webhookConfigured: false,
         },
-        email: {
-          provider: "",
-          apiKeyConfigured: false,
-          fromAddress: "",
-          hostProvider: "",
-        },
-        ntfy: { configured: false },
-        bunny: {
-          storageBackend: "none",
-          cdnEnabled: false,
-          cdnHostname: "",
-          customDomain: "",
-          dnsEnabled: true,
-          subdomainSuffix: ".tickets",
-          registeredSubdomain: "myevent.example.com",
-        },
-        database: { hostConfigured: false },
-        domain: "localhost",
-        limits: [],
-        prune: { payments: "Never", sessions: "Never", logins: "Never" },
+        prune: { logins: "Never", payments: "Never", sessions: "Never" },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };
@@ -433,58 +433,58 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows overridden indicator when current differs from default", () => {
       const state: DebugPageState = {
-        build: { timestamp: "", commit: "" },
         appleWallet: {
-          dbConfigured: false,
-          envConfigured: false,
-          passTypeId: "",
-          source: "",
           certValidation: {
             signingCert: "Not set",
             signingKey: "Not set",
             wwdrCert: "Not set",
           },
+          dbConfigured: false,
+          envConfigured: false,
+          passTypeId: "",
+          source: "",
+        },
+        build: { commit: "", timestamp: "" },
+        bunny: {
+          cdnEnabled: false,
+          cdnHostname: "",
+          customDomain: "",
+          dnsEnabled: false,
+          registeredSubdomain: "",
+          storageBackend: "none",
+          subdomainSuffix: "",
+        },
+        database: { hostConfigured: false },
+        domain: "localhost",
+        email: {
+          apiKeyConfigured: false,
+          fromAddress: "",
+          hostProvider: "",
+          provider: "",
         },
         googleWallet: {
           dbConfigured: false,
           envConfigured: false,
           issuerId: "",
-          source: "",
           privateKeyValid: "Not set",
+          source: "",
         },
-        payment: {
-          provider: "",
-          keyConfigured: false,
-          webhookConfigured: false,
-        },
-        email: {
-          provider: "",
-          apiKeyConfigured: false,
-          fromAddress: "",
-          hostProvider: "",
-        },
-        ntfy: { configured: false },
-        bunny: {
-          storageBackend: "none",
-          cdnEnabled: false,
-          cdnHostname: "",
-          customDomain: "",
-          dnsEnabled: false,
-          subdomainSuffix: "",
-          registeredSubdomain: "",
-        },
-        database: { hostConfigured: false },
-        domain: "localhost",
         limits: [
           {
-            label: "Test limit",
-            envKey: "TEST_LIMIT",
-            defaultValue: 100,
             current: 200,
+            defaultValue: 100,
+            envKey: "TEST_LIMIT",
+            label: "Test limit",
             unit: "bytes",
           },
         ],
-        prune: { payments: "Never", sessions: "Never", logins: "Never" },
+        ntfy: { configured: false },
+        payment: {
+          keyConfigured: false,
+          provider: "",
+          webhookConfigured: false,
+        },
+        prune: { logins: "Never", payments: "Never", sessions: "Never" },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };

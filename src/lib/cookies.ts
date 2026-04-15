@@ -36,7 +36,7 @@ export const buildFlashCookie = (
 ): string => {
   const type = succeeded ? "s" : "e";
   const payload = JSON.stringify(
-    result ? { t: type, m: message, r: result } : { t: type, m: message },
+    result ? { m: message, r: result, t: type } : { m: message, t: type },
   );
   const value = encodeURIComponent(payload);
   return `${flashCookieName(id)}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
@@ -53,8 +53,8 @@ export const parseFlashValue = (
   const decoded = decodeURIComponent(value);
   const obj = JSON.parse(decoded);
   return {
-    success: obj.t === "s" ? obj.m : undefined,
     error: obj.t === "e" ? obj.m : undefined,
     result: obj.r,
+    success: obj.t === "s" ? obj.m : undefined,
   };
 };

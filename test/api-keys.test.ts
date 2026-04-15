@@ -171,17 +171,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = extractCsrfToken(pageHtml);
 
       const body = new URLSearchParams({
-        name: "My Test Key",
         csrf_token: csrfToken!,
+        name: "My Test Key",
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -210,17 +210,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        name: "",
         csrf_token: csrfToken,
+        name: "",
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -238,12 +238,12 @@ describeWithEnv("API Keys", { db: true }, () => {
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -256,17 +256,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        name: "x".repeat(101),
         csrf_token: csrfToken,
+        name: "x".repeat(101),
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -279,17 +279,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
         confirm_identifier: "anything",
+        csrf_token: csrfToken,
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys/99999/delete", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -344,17 +344,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
         confirm_identifier: "Doomed Key",
+        csrf_token: csrfToken,
       });
       const response = await handleRequest(
         mockRequest(`/admin/api-keys/${id}/delete`, {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -369,17 +369,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
         confirm_identifier: "Wrong Name",
+        csrf_token: csrfToken,
       });
       const response = await handleRequest(
         mockRequest(`/admin/api-keys/${id}/delete`, {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -487,17 +487,17 @@ describeWithEnv("API Keys", { db: true }, () => {
       const cookie = buildSessionCookie(token);
 
       const body = new URLSearchParams({
-        name: "No Key Session",
         csrf_token: csrfToken,
+        name: "No Key Session",
       });
       const response = await handleRequest(
         mockRequest("/admin/api-keys", {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+          },
+          method: "POST",
         }),
       );
 
@@ -579,18 +579,18 @@ describeWithEnv("API Keys", { db: true }, () => {
       const keyIndex = await hmacHash(token);
 
       // Disable FK checks to insert an orphaned API key row
-      await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
+      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
       await getDb().execute(
         insert("api_keys", {
-          user_id: 9999,
-          key_index: keyIndex,
-          wrapped_data_key: "dummy",
-          name: "Ghost",
           created: new Date().toISOString(),
+          key_index: keyIndex,
           last_used: "",
+          name: "Ghost",
+          user_id: 9999,
+          wrapped_data_key: "dummy",
         }),
       );
-      await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
+      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
 
       const response = await handleRequest(
         requestAsApiKey("/api/admin/events", token),
@@ -604,8 +604,8 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       // Corrupt the wrapped_data_key in the DB
       await getDb().execute({
-        sql: "UPDATE api_keys SET wrapped_data_key = ? WHERE id = ?",
         args: ["corrupted-data", id],
+        sql: "UPDATE api_keys SET wrapped_data_key = ? WHERE id = ?",
       });
 
       const response = await handleRequest(

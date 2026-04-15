@@ -76,8 +76,8 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     const insertStale = (sessionId: string) =>
       getDb().execute(
         insert("processed_payments", {
-          payment_session_id: sessionId,
           attendee_id: null,
+          payment_session_id: sessionId,
           processed_at: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
@@ -103,8 +103,8 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     test("does not delete finalized reservations regardless of age", async () => {
       await getDb().execute(
         insert("processed_payments", {
-          payment_session_id: "cs_finalized_bulk",
           attendee_id: attendeeId,
+          payment_session_id: "cs_finalized_bulk",
           processed_at: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),

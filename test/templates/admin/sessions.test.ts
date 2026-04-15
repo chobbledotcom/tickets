@@ -15,18 +15,18 @@ describe("adminSessionsPage", () => {
   test("renders session rows", () => {
     const sessions = [
       {
-        token: "abcdefghijklmnop",
         csrf_token: "csrf1",
         expires: Date.now() + 86400000,
-        wrapped_data_key: null,
+        token: "abcdefghijklmnop",
         user_id: 1,
+        wrapped_data_key: null,
       },
       {
-        token: "qrstuvwxyz123456",
         csrf_token: "csrf2",
         expires: Date.now() + 86400000,
-        wrapped_data_key: null,
+        token: "qrstuvwxyz123456",
         user_id: 2,
+        wrapped_data_key: null,
       },
     ];
     const html = adminSessionsPage(

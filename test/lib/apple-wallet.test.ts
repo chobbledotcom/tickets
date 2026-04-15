@@ -27,17 +27,17 @@ type TicketFields = {
 };
 
 const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
-  serialNumber: "ABC123",
-  organizationName: "Test Platform",
+  attendeeDate: null,
+  checkinUrl: "https://example.com/checkin/ABC123",
+  currencyCode: "GBP",
   description: "Ticket for Summer Concert",
-  eventName: "Summer Concert",
   eventDate: "2026-06-15T19:00:00Z",
   eventLocation: "Town Hall",
-  attendeeDate: null,
-  quantity: 1,
+  eventName: "Summer Concert",
+  organizationName: "Test Platform",
   pricePaid: 0,
-  currencyCode: "GBP",
-  checkinUrl: "https://example.com/checkin/ABC123",
+  quantity: 1,
+  serialNumber: "ABC123",
   webServiceURL: "https://example.com",
   ...overrides,
 });
@@ -101,8 +101,8 @@ describe("apple-wallet", () => {
           makePassData({
             eventDate: "",
             eventLocation: "",
-            quantity: 1,
             pricePaid: 0,
+            quantity: 1,
           }),
           creds,
         ),
@@ -139,10 +139,10 @@ describe("apple-wallet", () => {
       const pass = extractPassJson(
         buildPkpass(
           makePassData({
-            quantity: 3,
-            pricePaid: 2500,
-            currencyCode: "EUR",
             attendeeDate: "2026-06-15",
+            currencyCode: "EUR",
+            pricePaid: 2500,
+            quantity: 3,
           }),
           creds,
         ),
@@ -173,8 +173,8 @@ describe("apple-wallet", () => {
       const pass = extractPassJson(
         buildPkpass(
           makePassData({
-            foregroundColor: "rgb(255, 0, 0)",
             backgroundColor: "rgb(0, 0, 255)",
+            foregroundColor: "rgb(255, 0, 0)",
             labelColor: "rgb(0, 255, 0)",
           }),
           creds,
@@ -238,7 +238,7 @@ describe("apple-wallet", () => {
     test("includes all provided files", () => {
       const a = new TextEncoder().encode("aaa");
       const b = new TextEncoder().encode("bbb");
-      const manifest = createManifest({ "pass.json": a, "icon.png": b });
+      const manifest = createManifest({ "icon.png": b, "pass.json": a });
       const parsed = JSON.parse(manifest);
       expect(Object.keys(parsed)).toHaveLength(2);
       expect(parsed["pass.json"]).toBeDefined();
@@ -370,7 +370,7 @@ describe("apple-wallet", () => {
   describe("currency-aware price formatting", () => {
     test("converts price using currency decimal places for JPY (0 decimals)", () => {
       const pass = generatePassJson(
-        makePassData({ pricePaid: 1000, currencyCode: "JPY" }),
+        makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
         creds,
       );
       const ticket = pass.eventTicket as TicketFields;
@@ -381,7 +381,7 @@ describe("apple-wallet", () => {
 
     test("converts price using currency decimal places for GBP (2 decimals)", () => {
       const pass = generatePassJson(
-        makePassData({ pricePaid: 2500, currencyCode: "GBP" }),
+        makePassData({ currencyCode: "GBP", pricePaid: 2500 }),
         creds,
       );
       const ticket = pass.eventTicket as TicketFields;
