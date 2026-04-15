@@ -10,6 +10,7 @@ import {
 import { spy, stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { getSessionCookieName } from "#lib/cookies.ts";
+import { settings } from "#lib/db/settings.ts";
 import {
   awaitTestRequest,
   createTestAttendee,
@@ -46,8 +47,11 @@ import {
   testRequest,
   updateTestEvent,
   updateTestGroup,
+  testWithSetting,
   urlFromFetchInput,
+  useSetting,
   wait,
+  withSetting,
 } from "#test-utils";
 
 describe("test-utils", () => {
@@ -72,11 +76,11 @@ describe("test-utils", () => {
       // Insert data into the first DB
       await getDb().execute(
         insert("events", {
-          slug: "old",
-          slug_index: "old",
-          max_attendees: 10,
           created: "2024-01-01",
           fields: "email",
+          max_attendees: 10,
+          slug: "old",
+          slug_index: "old",
         }),
       );
       resetDb();
@@ -104,8 +108,8 @@ describe("test-utils", () => {
   describe("mockFormRequest", () => {
     test("creates a POST request with form data", async () => {
       const request = mockFormRequest("/test", {
-        name: "John",
         email: "john@example.com",
+        name: "John",
       });
       expect(request.method).toBe("POST");
       expect(request.headers.get("content-type")).toBe(
@@ -164,7 +168,7 @@ describe("test-utils", () => {
 
     test("creates POST request with form data", async () => {
       const request = testRequest("/admin/login", null, {
-        data: { username: "admin", password: "secret" },
+        data: { password: "secret", username: "admin" },
       });
       expect(request.method).toBe("POST");
       expect(request.headers.get("content-type")).toBe(
@@ -196,8 +200,8 @@ describe("test-utils", () => {
 
     test("allows custom method with form data", async () => {
       const request = testRequest("/admin/event/1", null, {
-        method: "PUT",
         data: { name: "Updated" },
+        method: "PUT",
       });
       expect(request.method).toBe("PUT");
       const body = await request.text();
@@ -268,8 +272,8 @@ describe("test-utils", () => {
 
     test("accepts options object as second argument", async () => {
       const response = await awaitTestRequest("/health", {
-        method: "POST",
         data: {},
+        method: "POST",
       });
       expect(response.status).toBe(404);
     });
@@ -396,8 +400,8 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
       const event = await createTestEvent();
       const response = await submitTicketForm(event.slug, {
-        name: "Test User",
         email: "test@example.com",
+        name: "Test User",
       });
       expect(response.status).toBe(302);
     });
@@ -406,8 +410,8 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
       // Non-existent slug page has no form, falls back to signed token
       const response = await submitTicketForm("non-existent-slug", {
-        name: "Test",
         email: "t@t.com",
+        name: "Test",
       });
       expect(response.status).toBe(404);
     });
@@ -557,9 +561,9 @@ describe("test-utils", () => {
       const event = await createTestEvent();
       const updated = await updateTestEvent(event.id, {
         maxAttendees: 200,
+        thankYouUrl: "https://thanks.example.com",
         unitPrice: 1500,
         webhookUrl: "https://hook.example.com",
-        thankYouUrl: "https://thanks.example.com",
       });
       expect(updated.max_attendees).toBe(200);
       expect(updated.unit_price).toBe(1500);
@@ -857,6 +861,104 @@ describe("test-utils", () => {
       await expect(
         updateTestEvent(99999, { maxAttendees: 50 }),
       ).rejects.toThrow("Event not found: 99999");
+    });
+  });
+
+  describe("withSetting", () => {
+    afterEach(() => {
+      settings.clearTestOverrides();
+    });
+
+    test("applies the override while fn is running", async () => {
+      let currencyDuringFn: string | undefined;
+      await withSetting({ currency: "JPY" }, () => {
+        currencyDuringFn = settings.currency;
+      });
+      expect(currencyDuringFn).toBe("JPY");
+    });
+
+    test("clears the override after fn returns", async () => {
+      await withSetting({ currency: "JPY" }, () => {});
+      expect("currency" in settings).toBe(true);
+      expect(settings.currency).not.toBe("JPY");
+    });
+
+    test("clears the override even when fn throws", async () => {
+      await expect(
+        withSetting({ currency: "JPY" }, () => {
+          throw new Error("boom");
+        }),
+      ).rejects.toThrow("boom");
+      expect(settings.currency).not.toBe("JPY");
+    });
+
+    test("returns the value produced by fn", async () => {
+      const result = await withSetting({ currency: "GBP" }, () => 42);
+      expect(result).toBe(42);
+    });
+
+    test("awaits async callbacks before clearing", async () => {
+      let currencyMidFlight: string | undefined;
+      await withSetting({ currency: "EUR" }, async () => {
+        await wait(1);
+        currencyMidFlight = settings.currency;
+      });
+      expect(currencyMidFlight).toBe("EUR");
+      expect(settings.currency).not.toBe("EUR");
+    });
+
+    test("applies multiple overrides at once", async () => {
+      const seen: Record<string, unknown> = {};
+      await withSetting({ currency: "USD", show_public_site: true }, () => {
+        seen.currency = settings.currency;
+        seen.showPublicSite = settings.showPublicSite;
+      });
+      expect(seen.currency).toBe("USD");
+      expect(seen.showPublicSite).toBe(true);
+      expect(settings.currency).not.toBe("USD");
+      expect(settings.showPublicSite).not.toBe(true);
+    });
+  });
+
+  describe("useSetting", () => {
+    describe("inside a scoped describe", () => {
+      useSetting({ currency: "JPY" });
+
+      test("override is active in tests", () => {
+        expect(settings.currency).toBe("JPY");
+      });
+
+      test("override persists across tests in the same scope", () => {
+        expect(settings.currency).toBe("JPY");
+      });
+    });
+
+    test("override does not leak outside the scoped describe", () => {
+      expect(settings.currency).not.toBe("JPY");
+    });
+  });
+
+  describe("testWithSetting", () => {
+    testWithSetting(
+      "override is active inside the declared test",
+      { currency: "EUR" },
+      () => {
+        expect(settings.currency).toBe("EUR");
+      },
+    );
+
+    testWithSetting(
+      "supports async test bodies",
+      { currency: "JPY" },
+      async () => {
+        await wait(1);
+        expect(settings.currency).toBe("JPY");
+      },
+    );
+
+    test("override does not leak to sibling tests", () => {
+      expect(settings.currency).not.toBe("EUR");
+      expect(settings.currency).not.toBe("JPY");
     });
   });
 });

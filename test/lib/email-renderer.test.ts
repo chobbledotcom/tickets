@@ -12,18 +12,16 @@ import {
   resetEngine,
   validateTemplate,
 } from "#lib/email-renderer.ts";
-import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
+import {
+  describeWithEnv,
+  makeTestEntry as makeEntry,
+  useSetting,
+} from "#test-utils";
 
 describeWithEnv("email-renderer", { db: true }, () => {
-  beforeEach(() => {
-    settings.setForTest({ currency: "GBP" });
-    resetEngine();
-  });
-
-  afterEach(() => {
-    settings.clearTestOverride("currency");
-    resetEngine();
-  });
+  useSetting({ currency: "GBP" });
+  beforeEach(resetEngine);
+  afterEach(resetEngine);
 
   describe("buildTemplateData", () => {
     test("builds correct data shape from single entry", () => {

@@ -12,10 +12,9 @@ import {
   getNextBookableDate,
   normalizeDatetime,
 } from "#lib/dates.ts";
-import { settings } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { describeWithEnv, testEvent } from "#test-utils";
+import { describeWithEnv, testEvent, testWithSetting } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -290,12 +289,15 @@ describeWithEnv("dates", { db: true }, () => {
       );
     });
 
-    test("converts datetime-local to UTC using timezone", () => {
-      // 14:30 BST (June) = 13:30 UTC
-      settings.setForTest({ timezone: "Europe/London" });
-      const result = normalizeDatetime("2026-06-15T14:30", "date");
-      expect(result).toBe("2026-06-15T13:30:00.000Z");
-    });
+    testWithSetting(
+      "converts datetime-local to UTC using timezone",
+      { timezone: "Europe/London" },
+      () => {
+        // 14:30 BST (June) = 13:30 UTC
+        const result = normalizeDatetime("2026-06-15T14:30", "date");
+        expect(result).toBe("2026-06-15T13:30:00.000Z");
+      },
+    );
   });
 
   describe("eventDateToCalendarDate", () => {
@@ -305,13 +307,16 @@ describeWithEnv("dates", { db: true }, () => {
       );
     });
 
-    test("converts UTC datetime to local date in timezone", () => {
-      // 23:30 UTC on June 15 = 00:30 BST on June 16 (Europe/London in summer)
-      settings.setForTest({ timezone: "Europe/London" });
-      expect(eventDateToCalendarDate("2026-06-15T23:30:00.000Z")).toBe(
-        "2026-06-16",
-      );
-    });
+    testWithSetting(
+      "converts UTC datetime to local date in timezone",
+      { timezone: "Europe/London" },
+      () => {
+        // 23:30 UTC on June 15 = 00:30 BST on June 16 (Europe/London in summer)
+        expect(eventDateToCalendarDate("2026-06-15T23:30:00.000Z")).toBe(
+          "2026-06-16",
+        );
+      },
+    );
 
     test("returns null for empty string", () => {
       expect(eventDateToCalendarDate("")).toBeNull();
@@ -321,10 +326,13 @@ describeWithEnv("dates", { db: true }, () => {
       expect(eventDateToCalendarDate("not-a-date")).toBeNull();
     });
 
-    test("returns null for invalid timezone", () => {
-      settings.setForTest({ timezone: "Invalid/Zone" });
-      expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBeNull();
-    });
+    testWithSetting(
+      "returns null for invalid timezone",
+      { timezone: "Invalid/Zone" },
+      () => {
+        expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBeNull();
+      },
+    );
 
     test("handles midnight UTC", () => {
       expect(eventDateToCalendarDate("2026-03-01T00:00:00.000Z")).toBe(
@@ -364,14 +372,17 @@ describeWithEnv("dates", { db: true }, () => {
       expect(daysAgo(`${pastStr}T12:00:00.000Z`)).toBe(10);
     });
 
-    test("respects timezone when determining past date", () => {
-      // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo
-      settings.setForTest({ timezone: "Asia/Tokyo" });
-      const todayTokyo = todayInTz("Asia/Tokyo");
-      const yesterdayTokyo = addDays(todayTokyo, -1);
-      // Event at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
-      expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
-    });
+    testWithSetting(
+      "respects timezone when determining past date",
+      { timezone: "Asia/Tokyo" },
+      () => {
+        // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo
+        const todayTokyo = todayInTz("Asia/Tokyo");
+        const yesterdayTokyo = addDays(todayTokyo, -1);
+        // Event at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
+        expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
+      },
+    );
   });
 
   describe("formatDatetimeLabel", () => {
@@ -395,26 +406,35 @@ describeWithEnv("dates", { db: true }, () => {
   });
 
   describe("formatDatetimeShort", () => {
-    test("uses configured timezone (Europe/London BST)", () => {
-      settings.setForTest({ timezone: "Europe/London" });
-      // 13:00 UTC on 7 April 2026 is during BST (UTC+1) → 14:00 local
-      expect(formatDatetimeShort("2026-04-07T13:00:00.000Z")).toBe(
-        "2026-04-07 14:00",
-      );
-    });
+    testWithSetting(
+      "uses configured timezone (Europe/London BST)",
+      { timezone: "Europe/London" },
+      () => {
+        // 13:00 UTC on 7 April 2026 is during BST (UTC+1) → 14:00 local
+        expect(formatDatetimeShort("2026-04-07T13:00:00.000Z")).toBe(
+          "2026-04-07 14:00",
+        );
+      },
+    );
 
-    test("uses configured timezone (Europe/London GMT)", () => {
-      settings.setForTest({ timezone: "Europe/London" });
-      expect(formatDatetimeShort("2026-01-15T09:05:00.000Z")).toBe(
-        "2026-01-15 09:05",
-      );
-    });
+    testWithSetting(
+      "uses configured timezone (Europe/London GMT)",
+      { timezone: "Europe/London" },
+      () => {
+        expect(formatDatetimeShort("2026-01-15T09:05:00.000Z")).toBe(
+          "2026-01-15 09:05",
+        );
+      },
+    );
 
-    test("uses configured timezone (Asia/Tokyo)", () => {
-      settings.setForTest({ timezone: "Asia/Tokyo" });
-      expect(formatDatetimeShort("2026-06-15T05:30:00.000Z")).toBe(
-        "2026-06-15 14:30",
-      );
-    });
+    testWithSetting(
+      "uses configured timezone (Asia/Tokyo)",
+      { timezone: "Asia/Tokyo" },
+      () => {
+        expect(formatDatetimeShort("2026-06-15T05:30:00.000Z")).toBe(
+          "2026-06-15 14:30",
+        );
+      },
+    );
   });
 });

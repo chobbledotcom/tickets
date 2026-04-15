@@ -8,7 +8,7 @@ import {
   type InValue,
   type Row,
 } from "@libsql/client";
-import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
@@ -33,7 +33,7 @@ import { type GroupInput, invalidateGroupsCache } from "#lib/db/groups.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
 import { initDb } from "#lib/db/migrations.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
+import { settings, type SettingsData } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
@@ -390,6 +390,80 @@ export const withFetchMock = bracket(
     globalThis.fetch = original;
   },
 );
+
+/**
+ * Run `fn` with in-memory settings overrides active (via `settings.setForTest`),
+ * clearing those override keys afterward. Cleanup runs even if `fn` throws.
+ *
+ * Overrides are read by all consumers of the settings snapshot (including route
+ * handlers), so this works for both unit tests and request-level tests — and
+ * avoids DB writes, making it safe in tests without `{ db: true }`.
+ *
+ * @example
+ * await withSetting({ currency: "GBP" }, () => {
+ *   expect(formatCurrency(1050)).toBe("£10.50");
+ * });
+ *
+ * @example
+ * await withSetting({ show_public_site: true }, async () => {
+ *   const response = await handleRequest(mockRequest("/"));
+ *   await expectHtmlResponse(response, 200, "Home");
+ * });
+ */
+export const withSetting = async <T>(
+  overrides: Partial<SettingsData>,
+  fn: () => T | Promise<T>,
+): Promise<T> => {
+  settings.setForTest(overrides);
+  try {
+    return await fn();
+  } finally {
+    settings.clearTestOverride(
+      ...(Object.keys(overrides) as (keyof SettingsData)[]),
+    );
+  }
+};
+
+/**
+ * Describe-scoped settings overrides. Call inside a `describe()` — it registers
+ * beforeEach/afterEach hooks that apply the overrides before each test and
+ * clear them afterward.
+ *
+ * @example
+ * describeWithEnv("email templates", { db: true }, () => {
+ *   useSetting({ currency: "GBP" });
+ *   test("formats GBP amount", () => {
+ *     expect(formatCurrency(1050)).toBe("£10.50");
+ *   });
+ * });
+ */
+export const useSetting = (overrides: Partial<SettingsData>): void => {
+  const keys = Object.keys(overrides) as (keyof SettingsData)[];
+  beforeEach(() => {
+    settings.setForTest(overrides);
+  });
+  afterEach(() => {
+    settings.clearTestOverride(...keys);
+  });
+};
+
+/**
+ * Shorthand for `test(name, () => withSetting(overrides, fn))`. Declares a
+ * single test that runs with the given settings overrides applied, cleared
+ * automatically when the test finishes.
+ *
+ * @example
+ * testWithSetting("formats GBP", { currency: "GBP" }, () => {
+ *   expect(formatCurrency(1050)).toBe("£10.50");
+ * });
+ */
+export const testWithSetting = (
+  name: string,
+  overrides: Partial<SettingsData>,
+  fn: () => void | Promise<void>,
+): void => {
+  it(name, () => withSetting(overrides, fn));
+};
 
 /**
  * Install a URL-based fetch handler on globalThis.fetch.
