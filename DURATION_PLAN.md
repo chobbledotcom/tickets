@@ -93,7 +93,7 @@ This is the core correctness phase. Everything else rides on it.
 - `src/routes/admin/events.ts`
   - `extractCommonFields` / `extractEventUpdateInput` — parse `duration_days` (clamp ≥1), alongside `minimum_days_before`.
 - `src/templates/admin/events.tsx`
-  - Event detail view: show duration alongside min/max days.
+  - Admin event detail view: show duration alongside min/max days so staff can verify booking behavior.
 
 **Tests**
 - `test/lib/forms/event-fields.test.ts` — parse/validate `duration_days` (reject 0, negative, non-integer).
@@ -116,6 +116,7 @@ This is the core correctness phase. Everything else rides on it.
   - `parseCustomPrice` / pay-more validation — the customer-entered price is **per-day**. Multiply by `duration_days` when validating against `max_price`? Or treat `max_price` as already-per-day? **Decision**: `unit_price` and `max_price` are per-day values; UI labels reflect that. Validation checks the per-day value as today; the final charge is `customPrice × duration_days × quantity`.
 - `src/templates/public.tsx`
   - Near price display for daily events with duration>1, show "£X/day × N days = £Y".
+  - On event detail pages, if the event has a concrete start date (or is a daily event where booking resolves a concrete range), show a single date-range line as `<from> to <to>`.
   - `renderPayMoreInput` — label hint: "Price per day…" when duration>1.
 
 **Tests**
@@ -131,6 +132,14 @@ This is the core correctness phase. Everything else rides on it.
 
 **Files**
 - `src/lib/dates.ts` — add `formatDateRangeLabel(startIso, endIso)` → `"Mon 15 Apr – Wed 17 Apr"`. Single-day collapses to `formatDateLabel`.
+  - Add English-only compact range formatter for event/ticket display (for now), with these rules:
+    - Same day: `2 February 2027`
+    - Same month + same year: `2–3 February 2027`
+    - Different month + same year: `2 February – 3 March 2027`
+    - Different year: `2 February 2027 – 3 February 2028` (no dedupe across years)
+  - Keep this as a dedicated helper (e.g. `formatDateRangeLabelCompactEn`) so i18n can later swap locale-specific behavior without rewriting booking logic.
+- `src/templates/public.tsx`
+  - Reuse the compact formatter for the public event/date line so UI shows `<from> to <to>` semantics without awkward repeated month/year text.
 - `src/templates/tickets.tsx` — `attendeeDateHtml` (~line 57–59): render range when `attendee.end_at - attendee.start_at > 1 day`. Keep existing behaviour for single-day.
 - `src/lib/email-renderer.ts` — template data exposes `dateRangeLabel` alongside `date` (kept for backward compatibility).
 - `src/templates/admin/attendees.tsx` / `attendee-table.tsx` — date column shows range when multi-day (small visual tweak; row still sorts by start).
@@ -138,6 +147,7 @@ This is the core correctness phase. Everything else rides on it.
 
 **Tests**
 - `test/lib/dates.test.ts` — `formatDateRangeLabel` for 1-day and multi-day cases.
+- `test/lib/dates.test.ts` — compact English formatter coverage for same-day / same-month / same-year-different-month / cross-year cases.
 - `test/templates/...` — snapshot/render tests update where dates appear.
 
 ---
@@ -146,6 +156,55 @@ This is the core correctness phase. Everything else rides on it.
 
 **Files**
 - `test/e2e/*` / `test/integration/*` — add one end-to-end flow: create daily event with duration=3, customer books start date, confirm stored range, confirm email + confirmation page show range, confirm capacity blocks a second overlapping booking when max reached.
+
+---
+
+## Group bookings interaction plan (deep-dive)
+
+This feature intersects with group behavior in ways that are easy to miss. We should treat this as first-class planning work, not a follow-up.
+
+### Group semantics to lock in
+
+- `duration_days` is **event-scoped**, not attendee-scoped: all tickets in a group booking inherit the same date range from the selected start date.
+- Capacity is checked against **total attendee quantity per day** across the full range, regardless of whether tickets are bought as a group or individually.
+- Group identity (`group_id` or equivalent linkage) remains orthogonal to duration: changing duration on the event affects only future bookings, not existing group rows.
+
+### DB + atomicity details for grouped inserts
+
+- For grouped purchases that create multiple attendee rows in one transaction:
+  - Compute a single `{ start_at, end_at }` from `date + duration_days` and reuse it for every row in the group.
+  - Keep the existing overlap predicate (`ea2.start_at < ? AND ea2.end_at > ?`) for atomic safety.
+  - Run preflight per-day availability for the **full requested quantity** before insert to avoid split-brain outcomes where some group members insert and others fail.
+- If current implementation inserts one attendee at a time, verify ordering/rollback behavior:
+  - Prefer all-or-nothing transaction semantics for group booking writes.
+  - Ensure payment finalization does not leave orphaned partial groups when capacity races occur.
+
+### Availability math with groups (nitty-gritty cases)
+
+For each day in range `D = [start, start + duration)`:
+
+- Effective demand added by booking = `quantity` (group size).
+- Day is valid iff `existingAttendeesForDay + quantity <= max_quantity`.
+- Reject booking if **any** day fails this predicate.
+
+Edge cases to explicitly test:
+
+1. Day 1 has room, Day 2 is full, Day 3 has room → entire group booking must fail.
+2. Two concurrent group checkouts for same range near capacity → only one should commit.
+3. Existing long booking overlaps only tail of requested range; another overlaps head; per-day checks should accept/reject correctly without overlap-sum false positives.
+4. Mixed cart with multiple daily events (different durations) and at least one grouped quantity >1.
+
+### UX/content implications for group flows
+
+- Public event page: show explicit date range text (`<from> to <to>`) when a concrete range can be determined.
+- Ticket/checkout summaries should still make total pricing transparent (`per-day × duration × quantity`) so group organizers can reconcile totals.
+- Confirmation/email should show the resolved date range once booked; that is sufficient for group participants.
+
+### Suggested implementation placement
+
+- Phase 2: include group-aware per-day capacity tests at DB/service layer.
+- Phase 4: include mixed-cart + grouped-quantity pricing checks.
+- Phase 6: e2e scenario should use `quantity > 1` to validate true group path, not only single-ticket happy path.
 
 ---
 
@@ -177,7 +236,8 @@ Roughly **8–10 source files**, **5–7 test files**.
 
 1. Should `duration_days` be editable after a daily event has bookings? (Default: yes, but existing bookings keep their stored ranges; new bookings use the new value.)
 2. Max value — 90 (current `maximum_days_after` default) or 365? Probably 90.
-3. Should the event detail page on the public ticket URL show the duration? (Yes — "3-day course" context is useful.)
+3. Should we add explicit guardrails around editing duration when there are existing group bookings to reduce admin confusion?
+4. Should the public event page use an en dash (`–`) vs literal `to` in the rendered range, and should this vary by template/context?
 
 ## Phase 2 kickoff
 
