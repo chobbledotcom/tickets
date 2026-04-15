@@ -162,8 +162,21 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     },
     domain: getEffectiveDomain(),
     limits: LIMIT_ENTRIES,
+    prune: {
+      payments: formatLastPruned(settings.lastPrunedPayments),
+      sessions: formatLastPruned(settings.lastPrunedSessions),
+      logins: formatLastPruned(settings.lastPrunedLogins),
+    },
     theme: settings.theme,
   };
+};
+
+/** Format a stored last-pruned ms-epoch string as ISO, or "Never" if unset. */
+const formatLastPruned = (raw: string): string => {
+  if (!raw) return "Never";
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return "Never";
+  return new Date(n).toISOString();
 };
 
 /**

@@ -58,6 +58,11 @@ export type DebugPageState = {
   };
   domain: string;
   limits: typeof LIMIT_ENTRIES;
+  prune: {
+    payments: string;
+    sessions: string;
+    logins: string;
+  };
   theme: Theme;
 };
 
@@ -338,6 +343,37 @@ export const adminDebugPage = (
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </article>
+
+      <article>
+        <h2>Database pruning</h2>
+        <p>
+          Automatic cleanup of short-lived rows. Runs in the background on
+          incoming requests; frequency controlled by{" "}
+          <code>PRUNE_INTERVAL_HOURS</code>.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Last pruned (UTC)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>processed_payments</td>
+              <td>{s.prune.payments}</td>
+            </tr>
+            <tr>
+              <td>sessions</td>
+              <td>{s.prune.sessions}</td>
+            </tr>
+            <tr>
+              <td>login_attempts</td>
+              <td>{s.prune.logins}</td>
+            </tr>
           </tbody>
         </table>
       </article>

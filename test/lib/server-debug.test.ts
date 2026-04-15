@@ -399,6 +399,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         database: { hostConfigured: false },
         domain: "localhost",
         limits: [],
+        prune: { payments: "Never", sessions: "Never", logins: "Never" },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };
@@ -470,6 +471,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
             unit: "bytes",
           },
         ],
+        prune: { payments: "Never", sessions: "Never", logins: "Never" },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };

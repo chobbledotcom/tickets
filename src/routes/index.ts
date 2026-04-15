@@ -10,6 +10,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#lib/cookies.ts";
+import { maybeRunPrunes } from "#lib/db/prune.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { settings } from "#lib/db/settings.ts";
 import { isReadOnly } from "#lib/env.ts";
@@ -28,7 +29,7 @@ import {
   logRequest,
   runWithRequestId,
 } from "#lib/logger.ts";
-import { flushPendingWork } from "#lib/pending-work.ts";
+import { addPendingWork, flushPendingWork } from "#lib/pending-work.ts";
 import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
 import {
@@ -452,6 +453,11 @@ export const handleRequest = async (
               // Ensure settings cache is populated before reading custom domain.
               // loadAll() is a no-op when the cache is still valid (60 s TTL).
               await settings.loadAll();
+
+              // Schedule DB pruning as fire-and-forget pending work. Each
+              // prune task self-guards via its last_pruned_* timestamp, so
+              // this is near-free on most requests.
+              addPendingWork(maybeRunPrunes());
 
               // Load effective domain (custom_domain from DB if set, else request hostname)
               loadEffectiveDomain(effectiveRequest.url);

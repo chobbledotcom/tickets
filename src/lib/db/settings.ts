@@ -95,6 +95,9 @@ export const CONFIG_KEYS = {
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
   EVENT_COLUMN_ORDER: "event_column_order",
   ATTENDEE_COLUMN_ORDER: "attendee_column_order",
+  LAST_PRUNED_PAYMENTS: "last_pruned_payments",
+  LAST_PRUNED_SESSIONS: "last_pruned_sessions",
+  LAST_PRUNED_LOGINS: "last_pruned_logins",
 } as const;
 
 export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
@@ -164,6 +167,9 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
   CONFIG_KEYS.EVENT_COLUMN_ORDER,
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
+  CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
+  CONFIG_KEYS.LAST_PRUNED_SESSIONS,
+  CONFIG_KEYS.LAST_PRUNED_LOGINS,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -642,6 +648,15 @@ export const settings = {
   get attendeeColumnOrder(): string {
     return snap("attendee_column_order");
   },
+  get lastPrunedPayments(): string {
+    return snap("last_pruned_payments");
+  },
+  get lastPrunedSessions(): string {
+    return snap("last_pruned_sessions");
+  },
+  get lastPrunedLogins(): string {
+    return snap("last_pruned_logins");
+  },
 
   // Derived from country
   get currency(): string {
@@ -794,6 +809,9 @@ export const settings = {
     ),
     eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
     attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
+    lastPrunedPayments: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_PAYMENTS),
+    lastPrunedSessions: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_SESSIONS),
+    lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
