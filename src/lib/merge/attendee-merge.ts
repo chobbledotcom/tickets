@@ -317,6 +317,15 @@ const applyPiiDecisions = (
 };
 
 /** Apply an answer decision item; returns counter deltas */
+const takeSourceAnswer = (
+  finalAnswers: Map<number, number>,
+  qid: number,
+  sourceAnswerId: number,
+): { kept: number; taken: number; cleared: number } => {
+  finalAnswers.set(qid, sourceAnswerId);
+  return { cleared: 0, kept: 0, taken: 1 };
+};
+
 const applyAnswerDecision = (
   item: AttendeeMergeDiffAnswerItem,
   decision: AttendeeMergeDecisionInput,
@@ -327,8 +336,7 @@ const applyAnswerDecision = (
 
   if (item.conflict) {
     if (choice === "source" && item.sourceAnswerId !== null) {
-      finalAnswers.set(qid, item.sourceAnswerId);
-      return { cleared: 0, kept: 0, taken: 1 };
+      return takeSourceAnswer(finalAnswers, qid, item.sourceAnswerId);
     }
     if (choice === "clear") {
       finalAnswers.delete(qid);
@@ -339,8 +347,7 @@ const applyAnswerDecision = (
   }
   if (item.sourceAnswerId !== null && item.targetAnswerId === null) {
     // Source has answer, target doesn't — adopt source answer
-    finalAnswers.set(qid, item.sourceAnswerId);
-    return { cleared: 0, kept: 0, taken: 1 };
+    return takeSourceAnswer(finalAnswers, qid, item.sourceAnswerId);
   }
   if (item.targetAnswerId !== null) {
     return { cleared: 0, kept: 1, taken: 0 };

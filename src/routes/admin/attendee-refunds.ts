@@ -194,13 +194,18 @@ const processRefundBatch = async (
   return counts;
 };
 
+type RefundResponseCtx = {
+  event: EventWithCount;
+  refundAllUrl: string;
+  counts: RefundCounts;
+  remaining: number;
+};
+
 /** Build the error response branch of a bulk refund (some refunds failed). */
 const buildRefundProblemResponse = async (
-  event: EventWithCount,
-  refundAllUrl: string,
-  counts: RefundCounts,
-  remaining: number,
+  ctx: RefundResponseCtx,
 ): Promise<Response> => {
+  const { event, refundAllUrl, counts, remaining } = ctx;
   const { refundedCount, failedCount, errorCount } = counts;
   const problemCount = failedCount + errorCount;
   const errorNote =
@@ -220,17 +225,19 @@ const buildRefundProblemResponse = async (
 
 /** Build the final response for a bulk refund based on tallied results. */
 const buildRefundAllResponse = async (
-  event: EventWithCount,
-  refundAllUrl: string,
-  counts: RefundCounts,
-  totalRefundable: number,
-  remaining: number,
+  ctx: RefundResponseCtx & { totalRefundable: number },
 ): Promise<Response> => {
-  const { refundedCount, failedCount, errorCount } = counts;
-  const problemCount = failedCount + errorCount;
+  const { counts, event, refundAllUrl, totalRefundable, remaining } = ctx;
+  const refundedCount = counts.refundedCount;
+  const hasProblems = counts.failedCount + counts.errorCount > 0;
 
-  if (problemCount > 0) {
-    return buildRefundProblemResponse(event, refundAllUrl, counts, remaining);
+  if (hasProblems) {
+    return buildRefundProblemResponse({
+      counts,
+      event,
+      refundAllUrl,
+      remaining,
+    });
   }
 
   if (remaining > 0) {
@@ -276,13 +283,13 @@ const processRefundAll = async (
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
   const remaining = refundable.length - batch.length;
   const counts = await processRefundBatch(provider, batch, event.id);
-  return buildRefundAllResponse(
+  return buildRefundAllResponse({
+    counts,
     event,
     refundAllUrl,
-    counts,
-    refundable.length,
     remaining,
-  );
+    totalRefundable: refundable.length,
+  });
 };
 
 /** Handle POST /admin/event/:id/refund-all */

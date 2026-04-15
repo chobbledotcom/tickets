@@ -165,16 +165,20 @@ const computeEventAnswerMap = (
       )
     : undefined;
 
+type PathParams = {
+  ctx: TicketCtx;
+  quantities: Map<number, number>;
+  date: string | null;
+  contact: ReturnType<typeof extractContact>;
+  info: AnswerInfo;
+};
+
 /** Handle the paid registration path */
 const handlePaidPath = async (
   request: Request,
-  ctx: TicketCtx,
-  quantities: Map<number, number>,
-  date: string | null,
-  contact: ReturnType<typeof extractContact>,
-  items: ReturnType<typeof buildRegistrationItems>,
-  info: AnswerInfo,
+  params: PathParams & { items: ReturnType<typeof buildRegistrationItems> },
 ): Promise<Response> => {
+  const { ctx, quantities, date, contact, items, info } = params;
   const available = await checkAvailability(ctx.events, quantities, date);
   if (!available) {
     return ticketFormErrorResponse(ctx)(
@@ -187,13 +191,8 @@ const handlePaidPath = async (
 };
 
 /** Handle the free registration path */
-const handleFreePath = async (
-  ctx: TicketCtx,
-  quantities: Map<number, number>,
-  date: string | null,
-  contact: ReturnType<typeof extractContact>,
-  info: AnswerInfo,
-): Promise<Response> => {
+const handleFreePath = async (params: PathParams): Promise<Response> => {
+  const { ctx, quantities, date, contact, info } = params;
   const result = await processFreeReservation(
     ctx.events,
     quantities,
@@ -278,9 +277,16 @@ const processSubmission = async (
   };
 
   if (await anyRequiresPayment(items)) {
-    return handlePaidPath(request, ctx, quantities, date, contact, items, info);
+    return handlePaidPath(request, {
+      contact,
+      ctx,
+      date,
+      info,
+      items,
+      quantities,
+    });
   }
-  return handleFreePath(ctx, quantities, date, contact, info);
+  return handleFreePath({ contact, ctx, date, info, quantities });
 };
 
 /** Handle POST for ticket registration */
