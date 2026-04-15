@@ -18,8 +18,13 @@ export const adminBuiltSitesPage = (
   sites: BuiltSite[],
   session: AdminSession,
   successMessage?: string,
-): string =>
-  String(
+): string => {
+  const scriptIds = pipe(
+    filter((site: BuiltSite) => site.bunnyScriptId),
+    map((site: BuiltSite) => site.bunnyScriptId),
+  )(sites).join("|");
+
+  return String(
     <Layout title="Built Sites">
       <AdminNav session={session} active="/admin/built-sites" />
       <Flash success={successMessage} />
@@ -66,16 +71,12 @@ export const adminBuiltSitesPage = (
               </tbody>
             </table>
           </div>
-          <p>
-            {pipe(
-              filter((site: BuiltSite) => site.bunnyScriptId),
-              map((site: BuiltSite) => site.bunnyScriptId),
-            )(sites).join("|")}
-          </p>
+          <p>{scriptIds}</p>
         </div>
       )}
     </Layout>,
   );
+};
 
 /**
  * Built site create/edit form values
