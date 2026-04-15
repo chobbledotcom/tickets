@@ -301,6 +301,43 @@ const handleAttendeeCheckin = attendeeFormAction(
   },
 );
 
+/** Build create-attendee input from validated form values */
+const buildCreateAttendeeInput = (
+  values: AddAttendeeFormValues,
+  eventId: number,
+  isDaily: boolean,
+) => {
+  const { name, email, phone, address, special_instructions, quantity, date } =
+    values;
+  return {
+    address: address || "",
+    bookings: [{ date: isDaily ? date : null, eventId, quantity }],
+    email: email || "",
+    name,
+    phone: phone || "",
+    special_instructions: special_instructions || "",
+  };
+};
+
+/** Convert a failed createAttendeeAtomic result into a redirect response */
+const handleCreateAttendeeFailure = (
+  result: { success: false; reason: string },
+  eventId: number,
+): Response => {
+  if (result.reason === "encryption_error") {
+    logError({
+      code: ErrorCode.ENCRYPT_FAILED,
+      detail: "manual add attendee",
+      eventId,
+    });
+  }
+  const errorMsg =
+    result.reason === "capacity_exceeded"
+      ? "Not enough spots available"
+      : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
+  return redirect(`/admin/event/${eventId}`, errorMsg, false);
+};
+
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
 const handleAddAttendee = (
   request: Request,
@@ -319,40 +356,15 @@ const handleAddAttendee = (
       return redirect(`/admin/event/${eventId}`, validation.error, false);
     }
 
-    const {
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      quantity,
-      date,
-    } = validation.values;
-
-    const result = await createAttendeeAtomic({
-      address: address || "",
-      bookings: [{ date: isDaily ? date : null, eventId, quantity }],
-      email: email || "",
-      name,
-      phone: phone || "",
-      special_instructions: special_instructions || "",
-    });
+    const result = await createAttendeeAtomic(
+      buildCreateAttendeeInput(validation.values, eventId, isDaily),
+    );
 
     if (!result.success) {
-      if (result.reason === "encryption_error") {
-        logError({
-          code: ErrorCode.ENCRYPT_FAILED,
-          detail: "manual add attendee",
-          eventId,
-        });
-      }
-      const errorMsg =
-        result.reason === "capacity_exceeded"
-          ? "Not enough spots available"
-          : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-      return redirect(`/admin/event/${eventId}`, errorMsg, false);
+      return handleCreateAttendeeFailure(result, eventId);
     }
 
+    const { name } = validation.values;
     await logActivity(`Attendee '${name}' added manually`, eventId);
     return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
   });
@@ -850,41 +862,74 @@ const collectEventIds = (
   return [...ids];
 };
 
-/** Parse merge decision form data into AttendeeMergeDecisionInput */
-const parseMergeDecisionForm = (
+/** Parse PII decisions from form (each field: "source" or "target") */
+const parsePiiDecisions = (
   form: FormParams,
   diff: AttendeeMergeDiff,
-): AttendeeMergeDecisionInput => {
+): Record<string, MergeValueChoice> => {
   const pii: Record<string, MergeValueChoice> = {};
   for (const field of diff.piiFields) {
     const val = form.getString(`pii_${field.field}`);
     pii[field.field] = val === "source" ? "source" : "target";
   }
+  return pii;
+};
 
+/** Normalize a raw answer choice string into a MergeAnswerChoice */
+const toAnswerChoice = (raw: string): MergeAnswerChoice => {
+  if (raw === "source") return "source";
+  if (raw === "clear") return "clear";
+  return "target";
+};
+
+/** Parse answer decisions from form (only conflicting items) */
+const parseAnswerDecisions = (
+  form: FormParams,
+  diff: AttendeeMergeDiff,
+): Record<string, MergeAnswerChoice> => {
   const answers: Record<string, MergeAnswerChoice> = {};
   for (const item of diff.answerItems) {
     if (item.conflict) {
       const val = form.getString(`answer_${item.questionId}`);
-      if (val === "source") answers[String(item.questionId)] = "source";
-      else if (val === "clear") answers[String(item.questionId)] = "clear";
-      else answers[String(item.questionId)] = "target";
+      answers[String(item.questionId)] = toAnswerChoice(val);
     }
   }
+  return answers;
+};
 
+/** Normalize a raw booking choice string into a MergeBookingChoice */
+const toBookingChoice = (raw: string): MergeBookingChoice => {
+  if (raw === "take_source") return "take_source";
+  if (raw === "skip_source") return "skip_source";
+  return "keep_target";
+};
+
+/** Parse booking decisions from form (only non-moveable items) */
+const parseBookingDecisions = (
+  form: FormParams,
+  diff: AttendeeMergeDiff,
+): Record<string, MergeBookingChoice> => {
   const bookings: Record<string, MergeBookingChoice> = {};
   for (const item of diff.bookingItems) {
     if (item.conflictClass !== "moveable") {
       const key = bookingKey(item.eventId, item.startAt);
       const val = form.getString(`booking_${key}`);
-      if (val === "take_source") bookings[key] = "take_source";
-      else if (val === "skip_source") bookings[key] = "skip_source";
-      else bookings[key] = "keep_target";
+      bookings[key] = toBookingChoice(val);
     }
   }
-
-  const version = form.getString("merge_version");
-  return { answers, bookings, pii, version };
+  return bookings;
 };
+
+/** Parse merge decision form data into AttendeeMergeDecisionInput */
+const parseMergeDecisionForm = (
+  form: FormParams,
+  diff: AttendeeMergeDiff,
+): AttendeeMergeDecisionInput => ({
+  answers: parseAnswerDecisions(form, diff),
+  bookings: parseBookingDecisions(form, diff),
+  pii: parsePiiDecisions(form, diff),
+  version: form.getString("merge_version"),
+});
 
 /* jscpd:ignore-start — merge handlers share structural patterns with other route handlers */
 /** Handle GET /admin/attendees/:attendeeId/merge — analyze + render decisions */
@@ -971,6 +1016,207 @@ const handleMergeGet = (
     }),
   );
 
+type MergeSource = NonNullable<Awaited<ReturnType<typeof loadMergeSource>>>;
+type MergeSummary = Awaited<ReturnType<typeof applyAttendeeMerge>>["summary"];
+
+/** Extract PII subset for merge diff/apply input */
+const extractSourcePii = (source: MergeSource) => ({
+  address: source.address,
+  email: source.email,
+  name: source.name,
+  phone: source.phone,
+  special_instructions: source.special_instructions,
+});
+
+const extractTargetPii = (target: Attendee) => ({
+  address: target.address,
+  email: target.email,
+  name: target.name,
+  phone: target.phone,
+  special_instructions: target.special_instructions,
+});
+
+/** Build merge diff from source + target */
+const buildMergeDiffFor = async (
+  target: Attendee,
+  source: MergeSource,
+  attendeeId: number,
+): Promise<AttendeeMergeDiff> => {
+  const targetBookings = await loadAttendeeBookings(attendeeId);
+  const allEventIds = collectEventIds(targetBookings, source.bookings);
+  const { questions } = await getQuestionsWithEventIds(allEventIds);
+
+  return buildAttendeeMergeDiff(
+    {
+      sourceBookings: source.bookings,
+      sourceId: source.id,
+      sourcePii: extractSourcePii(source),
+      targetBookings,
+      targetId: attendeeId,
+      targetPii: extractTargetPii(target),
+    },
+    questions,
+  );
+};
+
+/** Resolve the (possibly-source) value of a PII field based on decision */
+const pickPiiField = <K extends keyof MergeSource>(
+  decision: AttendeeMergeDecisionInput,
+  field: K & string,
+  source: MergeSource,
+  target: Attendee,
+): string => {
+  const decisionChoice = decision.pii[field];
+  const sourceVal = source[field] as unknown as string;
+  const targetVal = target[field as keyof Attendee] as unknown as string;
+  return decisionChoice === "source" ? sourceVal : targetVal;
+};
+
+/** Update target attendee PII based on merge decisions */
+const updateTargetPiiFromDecision = (
+  attendeeId: number,
+  decision: AttendeeMergeDecisionInput,
+  source: MergeSource,
+  target: Attendee,
+): Promise<unknown> =>
+  updateAttendeePII(attendeeId, {
+    address: pickPiiField(decision, "address", source, target),
+    email: pickPiiField(decision, "email", source, target),
+    name: pickPiiField(decision, "name", source, target),
+    payment_id: target.payment_id,
+    phone: pickPiiField(decision, "phone", source, target),
+    special_instructions: pickPiiField(
+      decision,
+      "special_instructions",
+      source,
+      target,
+    ),
+    ticket_token: target.ticket_token,
+  });
+
+/** Build activity log message parts for a merge summary */
+const buildMergeLogParts = (
+  summary: MergeSummary,
+  sourceName: string,
+  mergedPiiName: string,
+): string[] =>
+  compact([
+    `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
+    summary.bookingsMoved > 0
+      ? `${summary.bookingsMoved} booking(s) moved`
+      : null,
+    summary.bookingsSkipped > 0
+      ? `${summary.bookingsSkipped} booking(s) skipped`
+      : null,
+    summary.bookingsReplacedTarget > 0
+      ? `${summary.bookingsReplacedTarget} booking(s) replaced`
+      : null,
+    summary.answersTakenFromSource > 0
+      ? `${summary.answersTakenFromSource} answer(s) from source`
+      : null,
+    summary.answersCleared > 0
+      ? `${summary.answersCleared} answer(s) cleared`
+      : null,
+  ]);
+
+/** Build flash message parts for a merge */
+const buildMergeFlashParts = (
+  summary: MergeSummary,
+  sourceName: string,
+  mergedPiiName: string,
+): string[] => {
+  const parts = [`Merged ${sourceName} into ${mergedPiiName}`];
+  if (summary.bookingsMoved > 0) {
+    parts.push(`${summary.bookingsMoved} booking(s) moved`);
+  }
+  if (summary.bookingsSkipped > 0) {
+    parts.push(`${summary.bookingsSkipped} booking(s) skipped`);
+  }
+  return parts;
+};
+
+/** Validate merge POST preconditions, returning an error Response or the source */
+const validateMergePostInput = async (
+  attendeeId: number,
+  form: FormParams,
+  session: AuthSession,
+): Promise<
+  | { ok: true; source: MergeSource; sourceToken: string }
+  | { ok: false; response: Response }
+> => {
+  const sourceToken = form.getString("source_token");
+  if (!sourceToken) {
+    return {
+      ok: false,
+      response: errorRedirect(
+        `/admin/attendees/${attendeeId}/merge`,
+        "Source token is required",
+      ),
+    };
+  }
+
+  const source = await loadMergeSource(sourceToken, session);
+  if (!source) {
+    return {
+      ok: false,
+      response: errorRedirect(
+        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
+        "Ticket token not found",
+      ),
+    };
+  }
+
+  if (source.id === attendeeId) {
+    return {
+      ok: false,
+      response: errorRedirect(
+        `/admin/attendees/${attendeeId}/merge`,
+        "Cannot merge an attendee with themselves",
+      ),
+    };
+  }
+
+  return { ok: true, source, sourceToken };
+};
+
+/** Apply merge decisions and return the success redirect response */
+const applyMergeDecisions = async (
+  attendeeId: number,
+  target: Attendee,
+  source: MergeSource,
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): Promise<Response> => {
+  const result = await applyAttendeeMerge({
+    decision,
+    diff,
+    sourceId: source.id,
+    sourcePii: extractSourcePii(source),
+    targetId: attendeeId,
+    targetPii: {
+      ...extractTargetPii(target),
+      payment_id: target.payment_id,
+      ticket_token: target.ticket_token,
+    },
+  });
+
+  const mergedPiiName =
+    decision.pii.name === "source" ? source.name : target.name;
+  await updateTargetPiiFromDecision(attendeeId, decision, source, target);
+
+  const { summary } = result;
+  await logActivity(
+    buildMergeLogParts(summary, source.name, mergedPiiName).join(". "),
+    target.event_id,
+  );
+
+  return redirect(
+    `/admin/attendees/${attendeeId}`,
+    buildMergeFlashParts(summary, source.name, mergedPiiName).join(". "),
+    true,
+  );
+};
+
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
 const handleMergePost = (
   request: Request,
@@ -978,58 +1224,11 @@ const handleMergePost = (
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
     withMergeTarget(session, attendeeId, async (target) => {
-      const sourceToken = form.getString("source_token");
-      if (!sourceToken) {
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}/merge`,
-          "Source token is required",
-        );
-      }
+      const input = await validateMergePostInput(attendeeId, form, session);
+      if (!input.ok) return input.response;
+      const { source, sourceToken } = input;
 
-      const source = await loadMergeSource(sourceToken, session);
-      if (!source) {
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
-          "Ticket token not found",
-        );
-      }
-
-      if (source.id === attendeeId) {
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}/merge`,
-          "Cannot merge an attendee with themselves",
-        );
-      }
-
-      // Rebuild the diff to validate against
-      const targetBookings = await loadAttendeeBookings(attendeeId);
-      const allEventIds = collectEventIds(targetBookings, source.bookings);
-      const { questions } = await getQuestionsWithEventIds(allEventIds);
-
-      const diff = await buildAttendeeMergeDiff(
-        {
-          sourceBookings: source.bookings,
-          sourceId: source.id,
-          sourcePii: {
-            address: source.address,
-            email: source.email,
-            name: source.name,
-            phone: source.phone,
-            special_instructions: source.special_instructions,
-          },
-          targetBookings,
-          targetId: attendeeId,
-          targetPii: {
-            address: target.address,
-            email: target.email,
-            name: target.name,
-            phone: target.phone,
-            special_instructions: target.special_instructions,
-          },
-        },
-        questions,
-      );
-
+      const diff = await buildMergeDiffFor(target, source, attendeeId);
       const decision = parseMergeDecisionForm(form, diff);
       const validation = validateAttendeeMergeDecision(diff, decision);
 
@@ -1046,81 +1245,7 @@ const handleMergePost = (
         );
       }
 
-      const result = await applyAttendeeMerge({
-        decision,
-        diff,
-        sourceId: source.id,
-        sourcePii: {
-          address: source.address,
-          email: source.email,
-          name: source.name,
-          phone: source.phone,
-          special_instructions: source.special_instructions,
-        },
-        targetId: attendeeId,
-        targetPii: {
-          address: target.address,
-          email: target.email,
-          name: target.name,
-          payment_id: target.payment_id,
-          phone: target.phone,
-          special_instructions: target.special_instructions,
-          ticket_token: target.ticket_token,
-        },
-      });
-
-      // Update target PII based on decisions
-      const mergedPiiName =
-        decision.pii.name === "source" ? source.name : target.name;
-      await updateAttendeePII(attendeeId, {
-        address:
-          decision.pii.address === "source" ? source.address : target.address,
-        email: decision.pii.email === "source" ? source.email : target.email,
-        name: decision.pii.name === "source" ? source.name : target.name,
-        payment_id: target.payment_id,
-        phone: decision.pii.phone === "source" ? source.phone : target.phone,
-        special_instructions:
-          decision.pii.special_instructions === "source"
-            ? source.special_instructions
-            : target.special_instructions,
-        ticket_token: target.ticket_token,
-      });
-
-      // Log structured summary
-      const { summary } = result;
-      const parts = compact([
-        `Attendee '${source.name}' merged into '${mergedPiiName}'`,
-        summary.bookingsMoved > 0
-          ? `${summary.bookingsMoved} booking(s) moved`
-          : null,
-        summary.bookingsSkipped > 0
-          ? `${summary.bookingsSkipped} booking(s) skipped`
-          : null,
-        summary.bookingsReplacedTarget > 0
-          ? `${summary.bookingsReplacedTarget} booking(s) replaced`
-          : null,
-        summary.answersTakenFromSource > 0
-          ? `${summary.answersTakenFromSource} answer(s) from source`
-          : null,
-        summary.answersCleared > 0
-          ? `${summary.answersCleared} answer(s) cleared`
-          : null,
-      ]);
-      await logActivity(parts.join(". "), target.event_id);
-
-      const flashParts = [`Merged ${source.name} into ${mergedPiiName}`];
-      if (summary.bookingsMoved > 0) {
-        flashParts.push(`${summary.bookingsMoved} booking(s) moved`);
-      }
-      if (summary.bookingsSkipped > 0) {
-        flashParts.push(`${summary.bookingsSkipped} booking(s) skipped`);
-      }
-
-      return redirect(
-        `/admin/attendees/${attendeeId}`,
-        flashParts.join(". "),
-        true,
-      );
+      return applyMergeDecisions(attendeeId, target, source, diff, decision);
     }),
   );
 /* jscpd:ignore-end */

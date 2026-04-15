@@ -72,7 +72,7 @@ describe("adminEventPage duration display", () => {
       session: TEST_SESSION,
     });
     expect(html).toContain("Booking Duration");
-    expect(html).toContain("3 days");
+    expect(html).toContain("3 day(s)");
   });
 
   test("omits booking duration row for standard events", () => {

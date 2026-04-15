@@ -477,6 +477,56 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
       statusEl.classList.add("checkin-status", `checkin-status-${type}`);
     };
 
+    const handleCheckedIn = (
+      result: { name: string; quantity?: unknown },
+      token: string,
+      idVerified: boolean,
+    ) => {
+      const qty = Number.isFinite(result.quantity)
+        ? (result.quantity as number)
+        : 1;
+      const idNote = idVerified ? " — verify their ID" : "";
+      showCheckinStatus(
+        `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})${idNote}`,
+        "success",
+      );
+      for (const opt of allOptions()) {
+        if (opt.dataset.token === token) {
+          opt.remove();
+          break;
+        }
+      }
+      tokenInput.value = "";
+      input.value = "";
+    };
+
+    const dispatchScanResult = (
+      result: {
+        status?: string;
+        name?: string;
+        message?: string;
+        quantity?: unknown;
+      },
+      token: string,
+      idVerified: boolean,
+    ) => {
+      if (result.status === "checked_in") {
+        handleCheckedIn(
+          result as { name: string; quantity?: unknown },
+          token,
+          idVerified,
+        );
+      } else if (result.status === "already_checked_in") {
+        showCheckinStatus(`${result.name} already checked in`, "warning");
+      } else if (result.status === "refunded") {
+        showCheckinStatus(`${result.name} has been refunded`, "error");
+      } else if (result.status === "not_found") {
+        showCheckinStatus("Ticket not found", "error");
+      } else {
+        showCheckinStatus(result.message ?? "Error", "error");
+      }
+    };
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const token = tokenInput.value.trim();
@@ -510,30 +560,7 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
           result = await postScan({ id_verified: true, token });
         }
 
-        if (result.status === "checked_in") {
-          const qty = Number.isFinite(result.quantity) ? result.quantity : 1;
-          const idNote = idVerified ? " — verify their ID" : "";
-          showCheckinStatus(
-            `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})${idNote}`,
-            "success",
-          );
-          for (const opt of allOptions()) {
-            if (opt.dataset.token === token) {
-              opt.remove();
-              break;
-            }
-          }
-          tokenInput.value = "";
-          input.value = "";
-        } else if (result.status === "already_checked_in") {
-          showCheckinStatus(`${result.name} already checked in`, "warning");
-        } else if (result.status === "refunded") {
-          showCheckinStatus(`${result.name} has been refunded`, "error");
-        } else if (result.status === "not_found") {
-          showCheckinStatus("Ticket not found", "error");
-        } else {
-          showCheckinStatus(result.message ?? "Error", "error");
-        }
+        dispatchScanResult(result, token, idVerified);
       } catch {
         showCheckinStatus("Network error", "error");
       }

@@ -224,6 +224,523 @@ export type AdminEventPageOptions = {
   questionData?: TableQuestionData;
 };
 
+/** Top action nav for the event detail page */
+const EventActionNav = ({
+  event,
+  dateFilter,
+  hasPaidEvent,
+}: {
+  event: EventWithCount;
+  dateFilter: string | null;
+  hasPaidEvent: boolean;
+}): JSX.Element => {
+  const readOnly = isReadOnly();
+  return (
+    <nav>
+      <ul>
+        {!readOnly && (
+          <li>
+            <a href={`/admin/event/${event.id}/edit`}>Edit</a>
+          </li>
+        )}
+        {!readOnly && (
+          <li>
+            <a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a>
+          </li>
+        )}
+        <li>
+          <a href={`/admin/event/${event.id}/log`}>Log</a>
+        </li>
+        {!event.purchase_only && (
+          <li>
+            <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
+          </li>
+        )}
+        <li>
+          <a href={`/admin/event/${event.id}/questions`}>Questions</a>
+        </li>
+        <li>
+          <a
+            href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}
+          >
+            Export CSV
+          </a>
+        </li>
+        {hasPaidEvent && (
+          <li>
+            <a href={`/admin/event/${event.id}/refund-all`} class="danger">
+              Refund All
+            </a>
+          </li>
+        )}
+        {event.active ? (
+          <li>
+            <a href={`/admin/event/${event.id}/deactivate`} class="danger">
+              Deactivate
+            </a>
+          </li>
+        ) : (
+          <li>
+            <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
+          </li>
+        )}
+        <li>
+          <a href={`/admin/event/${event.id}/delete`} class="danger">
+            Delete
+          </a>
+        </li>
+      </ul>
+    </nav>
+  );
+};
+
+/** Daily-specific schedule rows (bookable days, booking window) */
+const DailyScheduleRows = ({
+  event,
+}: {
+  event: EventWithCount;
+}): JSX.Element => (
+  <>
+    <tr>
+      <th>Bookable Days</th>
+      <td>{formatBookableDays(event.bookable_days)}</td>
+    </tr>
+    <tr>
+      <th>Booking Window</th>
+      <td>
+        {event.minimum_days_before} to{" "}
+        {event.maximum_days_after === 0
+          ? "unlimited"
+          : event.maximum_days_after}{" "}
+        days from today
+      </td>
+    </tr>
+    <tr>
+      <th>Booking Duration</th>
+      <td>{event.duration_days} day(s)</td>
+    </tr>
+  </>
+);
+
+/** Attendee count cell content (varies by daily/date-filter state) */
+const AttendeeCountDisplay = ({
+  event,
+  isDaily,
+  dateFilter,
+  adjustedCount,
+  completeQuantitySum,
+}: {
+  event: EventWithCount;
+  isDaily: boolean;
+  dateFilter: string | null;
+  adjustedCount: number;
+  completeQuantitySum: number;
+}): JSX.Element => {
+  if (isDaily && dateFilter) {
+    const overCap = completeQuantitySum >= event.max_attendees;
+    return (
+      <span class={overCap ? "danger-text" : ""}>
+        {completeQuantitySum} / {event.max_attendees} &mdash;{" "}
+        {event.max_attendees - completeQuantitySum} remain
+      </span>
+    );
+  }
+  const nearCap = adjustedCount >= event.max_attendees * 0.9;
+  return (
+    <span class={nearCap ? "danger-text" : ""}>
+      {adjustedCount}
+      {!isDaily && (
+        <>
+          {" "}
+          / {event.max_attendees} &mdash; {event.max_attendees - adjustedCount}{" "}
+          remain
+        </>
+      )}
+    </span>
+  );
+};
+
+/** Attendees row (header + count summary + daily capacity note) */
+const AttendeesSummaryRow = ({
+  event,
+  isDaily,
+  dateFilter,
+  dailySuffix,
+  adjustedCount,
+  completeQuantitySum,
+}: {
+  event: EventWithCount;
+  isDaily: boolean;
+  dateFilter: string | null;
+  dailySuffix: string;
+  adjustedCount: number;
+  completeQuantitySum: number;
+}): JSX.Element => (
+  <tr>
+    <th>Attendees{dailySuffix}</th>
+    <td>
+      <AttendeeCountDisplay
+        event={event}
+        isDaily={isDaily}
+        dateFilter={dateFilter}
+        adjustedCount={adjustedCount}
+        completeQuantitySum={completeQuantitySum}
+      />
+      {isDaily && !dateFilter && (
+        <>
+          {" "}
+          <small>Capacity of {event.max_attendees} applies per date</small>
+        </>
+      )}
+    </td>
+  </tr>
+);
+
+/** Event details table - all event metadata rows */
+const EventDetailsTable = ({
+  event,
+  allowedDomain,
+  ticketUrl,
+  embedScriptCode,
+  embedIframeCode,
+  isDaily,
+  dateFilter,
+  dailySuffix,
+  adjustedCount,
+  completeQuantitySum,
+  sharedRowsHtml,
+}: {
+  event: EventWithCount;
+  allowedDomain: string;
+  ticketUrl: string;
+  embedScriptCode: string;
+  embedIframeCode: string;
+  isDaily: boolean;
+  dateFilter: string | null;
+  dailySuffix: string;
+  adjustedCount: number;
+  completeQuantitySum: number;
+  sharedRowsHtml: string;
+}): JSX.Element => (
+  <article>
+    <div class="table-scroll">
+      <table class="event-details-table">
+        <tbody>
+          <tr>
+            <th colspan="2">{event.name}</th>
+          </tr>
+          {event.date && (
+            <tr>
+              <th>Event Date</th>
+              <td>
+                <span>
+                  <a href={`/admin/calendar?date=${event.date.slice(0, 10)}`}>
+                    {formatDatetimeLabel(event.date)}
+                  </a>{" "}
+                  <small>
+                    <em>({formatCountdown(event.date)})</em>
+                  </small>
+                </span>
+              </td>
+            </tr>
+          )}
+          {event.location && (
+            <tr>
+              <th>Location</th>
+              <td>{event.location}</td>
+            </tr>
+          )}
+          <tr>
+            <th>Event Type</th>
+            <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
+          </tr>
+          {event.non_transferable && (
+            <tr>
+              <th>Non-Transferable</th>
+              <td>Yes &mdash; ID verification required at entry</td>
+            </tr>
+          )}
+          {event.hidden && (
+            <tr>
+              <th>Hidden</th>
+              <td>Yes &mdash; not shown in public events list</td>
+            </tr>
+          )}
+          {event.event_type === "daily" && <DailyScheduleRows event={event} />}
+          <tr>
+            <th>Registration Closes</th>
+            <td>
+              {event.closes_at ? (
+                <span>
+                  {formatDatetimeLabel(event.closes_at)}{" "}
+                  <small>
+                    <em>({formatCountdown(event.closes_at)})</em>
+                  </small>
+                </span>
+              ) : (
+                <em>No deadline</em>
+              )}
+            </td>
+          </tr>
+          <tr>
+            <th>Public URL</th>
+            <td>
+              <a href={ticketUrl}>{`${allowedDomain}/ticket/${event.slug}`}</a>
+              <small>
+                {" "}
+                (<a href={`/ticket/${event.slug}/qr`}>QR Code</a>)
+              </small>
+            </td>
+          </tr>
+          {event.thank_you_url && (
+            <tr>
+              <th>
+                <label for={`thank-you-url-${event.id}`}>Thank You URL</label>
+              </th>
+              <td>
+                <input
+                  type="text"
+                  id={`thank-you-url-${event.id}`}
+                  value={event.thank_you_url}
+                  readonly
+                  data-select-on-click
+                />
+              </td>
+            </tr>
+          )}
+          {event.webhook_url && (
+            <tr>
+              <th>
+                <label for={`webhook-url-${event.id}`}>Webhook URL</label>
+              </th>
+              <td>
+                <input
+                  type="text"
+                  id={`webhook-url-${event.id}`}
+                  value={event.webhook_url}
+                  readonly
+                  data-select-on-click
+                />
+              </td>
+            </tr>
+          )}
+          <tr>
+            <th>
+              <label for={`embed-script-${event.id}`}>Embed Script</label>
+            </th>
+            <td>
+              <input
+                type="text"
+                id={`embed-script-${event.id}`}
+                value={embedScriptCode}
+                readonly
+                data-select-on-click
+              />
+            </td>
+          </tr>
+          <tr>
+            <th>
+              <label for={`embed-iframe-${event.id}`}>Embed Iframe</label>
+            </th>
+            <td>
+              <input
+                type="text"
+                id={`embed-iframe-${event.id}`}
+                value={embedIframeCode}
+                readonly
+                data-select-on-click
+              />
+            </td>
+          </tr>
+          <AttendeesSummaryRow
+            event={event}
+            isDaily={isDaily}
+            dateFilter={dateFilter}
+            dailySuffix={dailySuffix}
+            adjustedCount={adjustedCount}
+            completeQuantitySum={completeQuantitySum}
+          />
+          <Raw html={sharedRowsHtml} />
+        </tbody>
+      </table>
+    </div>
+  </article>
+);
+
+/** Attendees filter links (All / Checked In / Checked Out) */
+const AttendeesFilterLinks = ({
+  basePath,
+  dateQs,
+  activeFilter,
+}: {
+  basePath: string;
+  dateQs: string;
+  activeFilter: AttendeeFilter;
+}): JSX.Element => (
+  <p>
+    <Raw
+      html={FilterLink({
+        active: activeFilter === "all",
+        href: `${basePath}${dateQs}#attendees`,
+        label: "All",
+      })}
+    />
+    {" / "}
+    <Raw
+      html={FilterLink({
+        active: activeFilter === "in",
+        href: `${basePath}/in${dateQs}#attendees`,
+        label: "Checked In",
+      })}
+    />
+    {" / "}
+    <Raw
+      html={FilterLink({
+        active: activeFilter === "out",
+        href: `${basePath}/out${dateQs}#attendees`,
+        label: "Checked Out",
+      })}
+    />
+  </p>
+);
+
+/** Attendees article section (header, optional check-in flash, filters, table) */
+const AttendeesSection = ({
+  allowedDomain,
+  checkinMessage,
+  isDaily,
+  availableDates,
+  activeFilter,
+  dateFilter,
+  basePath,
+  dateQs,
+  returnUrl,
+  tableRows,
+  questionData,
+  phonePrefix,
+}: {
+  allowedDomain: string;
+  checkinMessage: CheckinMessage | undefined;
+  isDaily: boolean;
+  availableDates: DateOption[];
+  activeFilter: AttendeeFilter;
+  dateFilter: string | null;
+  basePath: string;
+  dateQs: string;
+  returnUrl: string;
+  tableRows: AttendeeTableRow[];
+  questionData: TableQuestionData | undefined;
+  phonePrefix: string | undefined;
+}): JSX.Element => {
+  const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
+  const checkedInClass =
+    checkinMessage?.status === "in"
+      ? "checkin-message-in"
+      : "checkin-message-out";
+  return (
+    <article>
+      <h2 id="attendees">Attendees</h2>
+      {checkinMessage && (
+        <p id="message" class={checkedInClass}>
+          Checked {checkinMessage.name} {checkedInLabel}
+        </p>
+      )}
+      {isDaily && availableDates.length > 0 && (
+        <Raw
+          html={DateSelector({
+            activeFilter,
+            basePath,
+            dateFilter,
+            dates: availableDates,
+          })}
+        />
+      )}
+      <AttendeesFilterLinks
+        basePath={basePath}
+        dateQs={dateQs}
+        activeFilter={activeFilter}
+      />
+      <div class="table-scroll">
+        <Raw
+          html={AttendeeTable({
+            activeFilter,
+            allowedDomain,
+            phonePrefix,
+            questionData,
+            returnUrl,
+            rows: tableRows,
+            showDate: isDaily,
+            showEvent: false,
+          })}
+        />
+      </div>
+    </article>
+  );
+};
+
+/** Failed payments article (only rendered when there are incomplete attendees) */
+const FailedPaymentsSection = ({
+  attendees,
+  eventId,
+}: {
+  attendees: Attendee[];
+  eventId: number;
+}): JSX.Element => (
+  <article>
+    <h2 id="failed-payments">Failed Payments</h2>
+    <p>{attendees.length} attendee(s) with unresolved payments</p>
+    <div class="table-scroll">
+      <Raw html={FailedPaymentsTable({ attendees, eventId })} />
+    </div>
+  </article>
+);
+
+/** Add attendee form article (only rendered in writable mode) */
+const AddAttendeeSection = ({
+  event,
+}: {
+  event: EventWithCount;
+}): JSX.Element => (
+  <article>
+    <h2 id="add-attendee">Add Attendee</h2>
+    <CsrfForm action={`/admin/event/${event.id}/attendee`}>
+      <Raw
+        html={renderFields(
+          getAddAttendeeFields(event.fields, event.event_type === "daily"),
+        )}
+      />
+      <button type="submit">Add Attendee</button>
+    </CsrfForm>
+  </article>
+);
+
+/** Compute derived attendee stats needed by the detail page */
+const computeAttendeeStats = (
+  event: EventWithCount,
+  attendees: Attendee[],
+  hasPaidEvent: boolean,
+): {
+  incompleteAttendees: Attendee[];
+  completeAttendees: Attendee[];
+  adjustedCount: number;
+  completeQuantitySum: number;
+} => {
+  const incompleteAttendees = hasPaidEvent
+    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
+    : [];
+  const completeAttendees = hasPaidEvent
+    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+    : attendees;
+  const adjustedCount = event.attendee_count - sumQuantity(incompleteAttendees);
+  const completeQuantitySum = sumQuantity(completeAttendees);
+  return {
+    adjustedCount,
+    completeAttendees,
+    completeQuantitySum,
+    incompleteAttendees,
+  };
+};
+
 export const adminEventPage = ({
   event,
   attendees,
@@ -244,16 +761,12 @@ export const adminEventPage = ({
   const isDaily = event.event_type === "daily";
   const hasPaidEvent = isPaidEvent(event);
 
-  // Separate attendees with incomplete/failed payments from the main list
-  const incompleteAttendees = hasPaidEvent
-    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
-    : [];
-  const completeAttendees = hasPaidEvent
-    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
-    : attendees;
-  const incompleteQuantitySum = sumQuantity(incompleteAttendees);
-  const adjustedCount = event.attendee_count - incompleteQuantitySum;
-  const completeQuantitySum = sumQuantity(completeAttendees);
+  const {
+    incompleteAttendees,
+    completeAttendees,
+    adjustedCount,
+    completeQuantitySum,
+  } = computeAttendeeStats(event, attendees, hasPaidEvent);
 
   const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
   const dailySuffix = isDaily
@@ -284,383 +797,55 @@ export const adminEventPage = ({
     ),
   )(filteredAttendees);
 
-  const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
-  const checkedInClass =
-    checkinMessage?.status === "in"
-      ? "checkin-message-in"
-      : "checkin-message-out";
-
   return String(
     <Layout title={`Event: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
-
-      <nav>
-        <ul>
-          {!isReadOnly() && (
-            <li>
-              <a href={`/admin/event/${event.id}/edit`}>Edit</a>
-            </li>
-          )}
-          {!isReadOnly() && (
-            <li>
-              <a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a>
-            </li>
-          )}
-          <li>
-            <a href={`/admin/event/${event.id}/log`}>Log</a>
-          </li>
-          {!event.purchase_only && (
-            <li>
-              <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
-            </li>
-          )}
-          <li>
-            <a href={`/admin/event/${event.id}/questions`}>Questions</a>
-          </li>
-          <li>
-            <a
-              href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}
-            >
-              Export CSV
-            </a>
-          </li>
-          {hasPaidEvent && (
-            <li>
-              <a href={`/admin/event/${event.id}/refund-all`} class="danger">
-                Refund All
-              </a>
-            </li>
-          )}
-          {event.active ? (
-            <li>
-              <a href={`/admin/event/${event.id}/deactivate`} class="danger">
-                Deactivate
-              </a>
-            </li>
-          ) : (
-            <li>
-              <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
-            </li>
-          )}
-          <li>
-            <a href={`/admin/event/${event.id}/delete`} class="danger">
-              Delete
-            </a>
-          </li>
-        </ul>
-      </nav>
-
+      <EventActionNav
+        event={event}
+        dateFilter={dateFilter}
+        hasPaidEvent={hasPaidEvent}
+      />
       <Flash success={successMessage} />
-
       {!event.active && (
         <div class="error" role="alert">
           This event is deactivated and cannot be booked
         </div>
       )}
-
       <Flash error={errorMessage} />
-
-      <article>
-        <div class="table-scroll">
-          <table class="event-details-table">
-            <tbody>
-              <tr>
-                <th colspan="2">{event.name}</th>
-              </tr>
-              {event.date && (
-                <tr>
-                  <th>Event Date</th>
-                  <td>
-                    <span>
-                      <a
-                        href={`/admin/calendar?date=${event.date.slice(0, 10)}`}
-                      >
-                        {formatDatetimeLabel(event.date)}
-                      </a>{" "}
-                      <small>
-                        <em>({formatCountdown(event.date)})</em>
-                      </small>
-                    </span>
-                  </td>
-                </tr>
-              )}
-              {event.location && (
-                <tr>
-                  <th>Location</th>
-                  <td>{event.location}</td>
-                </tr>
-              )}
-              <tr>
-                <th>Event Type</th>
-                <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
-              </tr>
-              {event.non_transferable && (
-                <tr>
-                  <th>Non-Transferable</th>
-                  <td>Yes &mdash; ID verification required at entry</td>
-                </tr>
-              )}
-              {event.hidden && (
-                <tr>
-                  <th>Hidden</th>
-                  <td>Yes &mdash; not shown in public events list</td>
-                </tr>
-              )}
-              {event.event_type === "daily" && (
-                <tr>
-                  <th>Bookable Days</th>
-                  <td>{formatBookableDays(event.bookable_days)}</td>
-                </tr>
-              )}
-              {event.event_type === "daily" && (
-                <tr>
-                  <th>Booking Window</th>
-                  <td>
-                    {event.minimum_days_before} to{" "}
-                    {event.maximum_days_after === 0
-                      ? "unlimited"
-                      : event.maximum_days_after}{" "}
-                    days from today
-                  </td>
-                </tr>
-              )}
-              {event.event_type === "daily" && (
-                <tr>
-                  <th>Booking Duration</th>
-                  <td>
-                    {event.duration_days} day
-                    {event.duration_days === 1 ? "" : "s"}
-                  </td>
-                </tr>
-              )}
-              <tr>
-                <th>Registration Closes</th>
-                <td>
-                  {event.closes_at ? (
-                    <span>
-                      {formatDatetimeLabel(event.closes_at)}{" "}
-                      <small>
-                        <em>({formatCountdown(event.closes_at)})</em>
-                      </small>
-                    </span>
-                  ) : (
-                    <em>No deadline</em>
-                  )}
-                </td>
-              </tr>
-              <tr>
-                <th>Public URL</th>
-                <td>
-                  <a
-                    href={ticketUrl}
-                  >{`${allowedDomain}/ticket/${event.slug}`}</a>
-                  <small>
-                    {" "}
-                    (<a href={`/ticket/${event.slug}/qr`}>QR Code</a>)
-                  </small>
-                </td>
-              </tr>
-              {event.thank_you_url && (
-                <tr>
-                  <th>
-                    <label for={`thank-you-url-${event.id}`}>
-                      Thank You URL
-                    </label>
-                  </th>
-                  <td>
-                    <input
-                      type="text"
-                      id={`thank-you-url-${event.id}`}
-                      value={event.thank_you_url}
-                      readonly
-                      data-select-on-click
-                    />
-                  </td>
-                </tr>
-              )}
-              {event.webhook_url && (
-                <tr>
-                  <th>
-                    <label for={`webhook-url-${event.id}`}>Webhook URL</label>
-                  </th>
-                  <td>
-                    <input
-                      type="text"
-                      id={`webhook-url-${event.id}`}
-                      value={event.webhook_url}
-                      readonly
-                      data-select-on-click
-                    />
-                  </td>
-                </tr>
-              )}
-              <tr>
-                <th>
-                  <label for={`embed-script-${event.id}`}>Embed Script</label>
-                </th>
-                <td>
-                  <input
-                    type="text"
-                    id={`embed-script-${event.id}`}
-                    value={embedScriptCode}
-                    readonly
-                    data-select-on-click
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th>
-                  <label for={`embed-iframe-${event.id}`}>Embed Iframe</label>
-                </th>
-                <td>
-                  <input
-                    type="text"
-                    id={`embed-iframe-${event.id}`}
-                    value={embedIframeCode}
-                    readonly
-                    data-select-on-click
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th>Attendees{dailySuffix}</th>
-                <td>
-                  {isDaily && dateFilter ? (
-                    <span
-                      class={
-                        completeQuantitySum >= event.max_attendees
-                          ? "danger-text"
-                          : ""
-                      }
-                    >
-                      {completeQuantitySum} / {event.max_attendees} &mdash;{" "}
-                      {event.max_attendees - completeQuantitySum} remain
-                    </span>
-                  ) : (
-                    <span
-                      class={
-                        adjustedCount >= event.max_attendees * 0.9
-                          ? "danger-text"
-                          : ""
-                      }
-                    >
-                      {adjustedCount}
-                      {!isDaily && (
-                        <>
-                          {" "}
-                          / {event.max_attendees} &mdash;{" "}
-                          {event.max_attendees - adjustedCount} remain
-                        </>
-                      )}
-                    </span>
-                  )}
-                  {isDaily && !dateFilter && (
-                    <>
-                      {" "}
-                      <small>
-                        Capacity of {event.max_attendees} applies per date
-                      </small>
-                    </>
-                  )}
-                </td>
-              </tr>
-              <Raw html={renderDetailRows(sharedRows)} />
-            </tbody>
-          </table>
-        </div>
-      </article>
-
-      <article>
-        <h2 id="attendees">Attendees</h2>
-        {checkinMessage && (
-          <p id="message" class={checkedInClass}>
-            Checked {checkinMessage.name} {checkedInLabel}
-          </p>
-        )}
-        {isDaily && availableDates.length > 0 && (
-          <Raw
-            html={DateSelector({
-              activeFilter,
-              basePath,
-              dateFilter,
-              dates: availableDates,
-            })}
-          />
-        )}
-        <p>
-          <Raw
-            html={FilterLink({
-              active: activeFilter === "all",
-              href: `${basePath}${dateQs}#attendees`,
-              label: "All",
-            })}
-          />
-          {" / "}
-          <Raw
-            html={FilterLink({
-              active: activeFilter === "in",
-              href: `${basePath}/in${dateQs}#attendees`,
-              label: "Checked In",
-            })}
-          />
-          {" / "}
-          <Raw
-            html={FilterLink({
-              active: activeFilter === "out",
-              href: `${basePath}/out${dateQs}#attendees`,
-              label: "Checked Out",
-            })}
-          />
-        </p>
-        <div class="table-scroll">
-          <Raw
-            html={AttendeeTable({
-              activeFilter,
-              allowedDomain,
-              phonePrefix,
-              questionData,
-              returnUrl,
-              rows: tableRows,
-              showDate: isDaily,
-              showEvent: false,
-            })}
-          />
-        </div>
-      </article>
-
+      <EventDetailsTable
+        event={event}
+        allowedDomain={allowedDomain}
+        ticketUrl={ticketUrl}
+        embedScriptCode={embedScriptCode}
+        embedIframeCode={embedIframeCode}
+        isDaily={isDaily}
+        dateFilter={dateFilter}
+        dailySuffix={dailySuffix}
+        adjustedCount={adjustedCount}
+        completeQuantitySum={completeQuantitySum}
+        sharedRowsHtml={renderDetailRows(sharedRows)}
+      />
+      <AttendeesSection
+        allowedDomain={allowedDomain}
+        checkinMessage={checkinMessage}
+        isDaily={isDaily}
+        availableDates={availableDates}
+        activeFilter={activeFilter}
+        dateFilter={dateFilter}
+        basePath={basePath}
+        dateQs={dateQs}
+        returnUrl={returnUrl}
+        tableRows={tableRows}
+        questionData={questionData}
+        phonePrefix={phonePrefix}
+      />
       {incompleteAttendees.length > 0 && (
-        <article>
-          <h2 id="failed-payments">Failed Payments</h2>
-          <p>
-            {incompleteAttendees.length} attendee(s) with unresolved payments
-          </p>
-          <div class="table-scroll">
-            <Raw
-              html={FailedPaymentsTable({
-                attendees: incompleteAttendees,
-                eventId: event.id,
-              })}
-            />
-          </div>
-        </article>
+        <FailedPaymentsSection
+          attendees={incompleteAttendees}
+          eventId={event.id}
+        />
       )}
-
-      {!isReadOnly() && (
-        <article>
-          <h2 id="add-attendee">Add Attendee</h2>
-          <CsrfForm action={`/admin/event/${event.id}/attendee`}>
-            <Raw
-              html={renderFields(
-                getAddAttendeeFields(
-                  event.fields,
-                  event.event_type === "daily",
-                ),
-              )}
-            />
-            <button type="submit">Add Attendee</button>
-          </CsrfForm>
-        </article>
-      )}
+      {!isReadOnly() && <AddAttendeeSection event={event} />}
     </Layout>,
   );
 };

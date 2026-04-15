@@ -63,6 +63,80 @@ const resolveTokenEntries = async (
   return entries.length === 0 ? [] : decryptTokenEntries(entries, privateKey);
 };
 
+/** Get the attendee name from decrypted entries, falling back to raw decrypt */
+const resolveAttendeeName = async (
+  allEntries: TokenEntry[],
+  awb: AttendeeWithBookings,
+  privateKey: CryptoKey,
+): Promise<string> => {
+  const fromEntry = allEntries[0]?.attendee.name;
+  if (fromEntry) return fromEntry;
+  const decrypted = await decryptAttendees(
+    [{ pii_blob: awb.pii_blob } as Attendee],
+    privateKey,
+  );
+  return decrypted[0]!.name;
+};
+
+/** Build a wrong_event response when scanned token doesn't match the event */
+const wrongEventResponse = (
+  allEntries: TokenEntry[],
+  attendeeName: string,
+): Response => {
+  const eventNames =
+    allEntries.length > 0
+      ? allEntries.map((e) => e.event.name).join(", ")
+      : "Unknown event";
+  return jsonResponse({
+    eventName: eventNames,
+    name: attendeeName,
+    status: "wrong_event",
+  });
+};
+
+/** Check attendee state (refunded/checked_in/verify_id); return response or null */
+const checkAttendeeState = (
+  entry: TokenEntry,
+  attendeeName: string,
+  idVerified: boolean,
+): Response | null => {
+  if (entry.attendee.refunded) {
+    return jsonResponse({ name: attendeeName, status: "refunded" });
+  }
+  if (entry.attendee.checked_in) {
+    return jsonResponse({
+      name: attendeeName,
+      quantity: entry.attendee.quantity,
+      status: "already_checked_in",
+    });
+  }
+  if (entry.event.non_transferable && !idVerified) {
+    return jsonResponse({
+      name: attendeeName,
+      quantity: entry.attendee.quantity,
+      status: "verify_id",
+    });
+  }
+  return null;
+};
+
+/** Perform the actual check-in (database update + activity log) */
+const performCheckIn = async (
+  entry: TokenEntry,
+  attendeeName: string,
+): Promise<Response> => {
+  await updateCheckedIn(entry.attendee.id, entry.event.id, true);
+  await logActivity(
+    `Attendee checked in via scanner for '${entry.event.name}'`,
+    entry.event.id,
+  );
+  return jsonResponse({
+    name: attendeeName,
+    quantity: entry.attendee.quantity,
+    status: "checked_in",
+  });
+};
+
 /**
  * Handle POST /admin/event/:id/scan - JSON check-in API.
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
@@ -97,32 +171,12 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
     }
 
     const allEntries = await resolveTokenEntries(awb, privateKey);
-
-    // Find the entry matching the scanned event
     const matchingEntry = allEntries.find((e) => e.event.id === id);
-
-    // Decrypt name from first available entry, or from raw attendee if all events deleted
-    // Get name from resolved entries, or decrypt directly if all events were deleted
-    const attendeeName =
-      allEntries[0]?.attendee.name ??
-      (
-        await decryptAttendees(
-          [{ pii_blob: awb.pii_blob } as Attendee],
-          privateKey,
-        )
-      )[0]!.name;
+    const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
 
     // Wrong event — attendee not registered for the scanned event
     if (!matchingEntry && !force) {
-      const eventNames =
-        allEntries.length > 0
-          ? allEntries.map((e) => e.event.name).join(", ")
-          : "Unknown event";
-      return jsonResponse({
-        eventName: eventNames,
-        name: attendeeName,
-        status: "wrong_event",
-      });
+      return wrongEventResponse(allEntries, attendeeName);
     }
 
     // When force=true, use the first entry if no match (cross-event check-in)
@@ -131,44 +185,10 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
       return jsonResponse({ status: "not_found" }, 404);
     }
 
-    // Refunded - cannot check in
-    if (entry.attendee.refunded) {
-      return jsonResponse({
-        name: attendeeName,
-        status: "refunded",
-      });
-    }
+    const stateResponse = checkAttendeeState(entry, attendeeName, idVerified);
+    if (stateResponse) return stateResponse;
 
-    // Already checked in
-    if (entry.attendee.checked_in) {
-      return jsonResponse({
-        name: attendeeName,
-        quantity: entry.attendee.quantity,
-        status: "already_checked_in",
-      });
-    }
-
-    // Non-transferable event - require ID verification before check-in
-    if (entry.event.non_transferable && !idVerified) {
-      return jsonResponse({
-        name: attendeeName,
-        quantity: entry.attendee.quantity,
-        status: "verify_id",
-      });
-    }
-
-    // Check them in for the specific event
-    await updateCheckedIn(entry.attendee.id, entry.event.id, true);
-    await logActivity(
-      `Attendee checked in via scanner for '${entry.event.name}'`,
-      entry.event.id,
-    );
-
-    return jsonResponse({
-      name: attendeeName,
-      quantity: entry.attendee.quantity,
-      status: "checked_in",
-    });
+    return performCheckIn(entry, attendeeName);
   });
 
 /** Pattern matching scan API paths (used by middleware for content-type validation) */
