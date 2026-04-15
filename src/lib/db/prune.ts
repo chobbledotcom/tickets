@@ -19,6 +19,7 @@
 import { getDb } from "#lib/db/client.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
+  parsePositiveInt,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
@@ -74,11 +75,7 @@ export const pruneLoginAttempts = async (): Promise<number> => {
  * Parse a `last_pruned_*` setting (stored as ms-epoch string) to a number.
  * Empty string / unparseable => 0, meaning "never run, due immediately".
  */
-const parseLastPrunedMs = (raw: string): number => {
-  if (!raw) return 0;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-};
+const parseLastPrunedMs = (raw: string): number => parsePositiveInt(raw, 0);
 
 /** True when now - last >= PRUNE_INTERVAL_MS. */
 const isDue = (lastMs: number, now: number): boolean =>

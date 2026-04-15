@@ -9,14 +9,22 @@
 import { getEnv } from "#lib/env.ts";
 
 /**
+ * Parse a string as a positive integer, falling back to the given default
+ * if the input is empty, non-numeric, or non-positive.
+ */
+export const parsePositiveInt = (raw: string, fallback: number): number => {
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/**
  * Read a limit from an env var with a fallback default.
  * Returns the env value when it parses to a positive integer, otherwise the default.
  */
 export const readLimit = (envKey: string, defaultValue: number): number => {
   const raw = getEnv(envKey);
   if (raw === undefined) return defaultValue;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : defaultValue;
+  return parsePositiveInt(raw, defaultValue);
 };
 
 // ---------------------------------------------------------------------------
