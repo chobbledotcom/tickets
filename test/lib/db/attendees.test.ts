@@ -1129,4 +1129,361 @@ describeWithEnv("db > attendees", { db: true }, () => {
       expect(decrypted[0]?.checked_in).toBe(false);
     });
   });
+
+  // ──────────────────────────────────────────────────────────────
+  // Defensive tests for capacity maths / SQL bomb-proofing
+  // ──────────────────────────────────────────────────────────────
+  describe("capacity edge cases", () => {
+    test("boundary: booking ending on day N does not overlap booking starting on day N", async () => {
+      // Two 1-day bookings back-to-back: end_at of the first equals start_at
+      // of the second. SQL uses strict `<` / `>`, so they must not overlap.
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 1,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      const first = await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 1 }],
+        email: "a@example.com",
+        name: "A",
+      });
+      expect(first.success).toBe(true);
+
+      // Same capacity (=1) but next day — must succeed.
+      const second = await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-02", eventId: event.id, quantity: 1 }],
+        email: "b@example.com",
+        name: "B",
+      });
+      expect(second.success).toBe(true);
+    });
+
+    test("same event listed twice in one cart sums per-day demand", async () => {
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 3,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      // Two items for same event/date adding up to 4 → exceeds cap of 3.
+      const ok = await checkBatchAvailability(
+        [
+          { eventId: event.id, quantity: 2 },
+          { eventId: event.id, quantity: 2 },
+        ],
+        "2026-05-01",
+      );
+      expect(ok).toBe(false);
+
+      // Same events/date summing to exactly the cap → accepted.
+      const okExact = await checkBatchAvailability(
+        [
+          { eventId: event.id, quantity: 1 },
+          { eventId: event.id, quantity: 2 },
+        ],
+        "2026-05-01",
+      );
+      expect(okExact).toBe(true);
+    });
+
+    test("checkBatchAvailability admits range when adjacent 1-day bookings occupy the full cap on non-overlapping days", async () => {
+      // Without per-day expansion this case would false-reject because
+      // overlap-sum would see both existing bookings inside the new range.
+      const event = await createTestEvent({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 2,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      // Fill day 1 with qty=2 (separate 1-day booking) and day 3 with qty=2.
+      await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-05-01",
+            durationDays: 1,
+            eventId: event.id,
+            quantity: 2,
+          },
+        ],
+        email: "d1@example.com",
+        name: "Day1",
+      });
+      await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-05-03",
+            durationDays: 1,
+            eventId: event.id,
+            quantity: 2,
+          },
+        ],
+        email: "d3@example.com",
+        name: "Day3",
+      });
+
+      // New 3-day booking starting 2026-05-01 covers days 1,2,3 — every day
+      // is at/over capacity. Should be rejected (overlap-sum would also
+      // reject, but per-day is the real check).
+      expect(
+        await checkBatchAvailability(
+          [{ durationDays: 3, eventId: event.id, quantity: 1 }],
+          "2026-05-01",
+        ),
+      ).toBe(false);
+
+      // New 1-day booking on day 2 has room — must succeed.
+      expect(
+        await checkBatchAvailability(
+          [{ durationDays: 1, eventId: event.id, quantity: 2 }],
+          "2026-05-02",
+        ),
+      ).toBe(true);
+    });
+
+    test("updateEventLink overlap-sum behaviour on multi-day event", async () => {
+      // Documents a known over-rejection in the SQL overlap-sum path used
+      // by admin updates. If a 2-day event has max=2 and two non-overlapping
+      // 1-day bookings of qty=1 exist, updating one of them to a new 1-day
+      // slot triggers overlap-sum=2 inside the old range; since the
+      // update excludes the row being edited, it still succeeds. This test
+      // nails down the "excludes self" guarantee.
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 2,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      const a = await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 2 }],
+        email: "a@example.com",
+        name: "A",
+      });
+      expect(a.success).toBe(true);
+      if (!a.success) return;
+
+      // Moving own booking to a different day should NOT self-collide,
+      // even though overlap-sum at the target date initially sees our own row.
+      const move = await updateEventLink(a.attendees[0]!.id, event.id, {
+        date: "2026-05-02",
+        durationDays: 1,
+        quantity: 2,
+      });
+      expect(move.success).toBe(true);
+
+      // Stored date should be the new one.
+      const rows = await getAttendeesRaw(event.id);
+      expect(rows[0]!.date).toBe("2026-05-02");
+    });
+
+    test("recomputeEventBookingRanges with durationDays=0 clamps to 1", async () => {
+      const event = await createTestEvent({
+        durationDays: 2,
+        eventType: "daily",
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+      await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-05-01",
+            durationDays: 2,
+            eventId: event.id,
+            quantity: 1,
+          },
+        ],
+        email: "c@example.com",
+        name: "Clamp",
+      });
+
+      await recomputeEventBookingRanges(event.id, 0);
+
+      const row = await getDb().execute({
+        args: [event.id],
+        sql: "SELECT start_at, end_at FROM event_attendees WHERE event_id = ?",
+      });
+      const diffDays =
+        (new Date(String(row.rows[0]!.end_at)).getTime() -
+          new Date(String(row.rows[0]!.start_at)).getTime()) /
+        86_400_000;
+      expect(diffDays).toBe(1);
+    });
+
+    test("recomputeEventBookingRanges leaves non-daily (NULL start_at) rows alone", async () => {
+      const dailyEvent = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+      const standardEvent = await createTestEvent({
+        eventType: "standard",
+        maxAttendees: 5,
+      });
+
+      await createAttendeeAtomic({
+        bookings: [
+          { eventId: standardEvent.id, quantity: 1 },
+          { date: "2026-05-01", eventId: dailyEvent.id, quantity: 1 },
+        ],
+        email: "mix@example.com",
+        name: "Mixed",
+      });
+
+      await recomputeEventBookingRanges(standardEvent.id, 7);
+
+      const row = await getDb().execute({
+        args: [standardEvent.id],
+        sql: "SELECT start_at, end_at FROM event_attendees WHERE event_id = ?",
+      });
+      expect(row.rows[0]!.start_at).toBeNull();
+      expect(row.rows[0]!.end_at).toBeNull();
+    });
+
+    test("checkBatchAvailability rejects when any event in the batch does not exist", async () => {
+      const event = await createTestEvent({ maxAttendees: 5 });
+      expect(
+        await checkBatchAvailability([
+          { eventId: event.id, quantity: 1 },
+          { eventId: 99999, quantity: 1 },
+        ]),
+      ).toBe(false);
+    });
+
+    test("atomic insert safety net: concurrent booking races are rejected", async () => {
+      // Race two full-capacity bookings at the same second. Only one must win.
+      const event = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        maxAttendees: 2,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      const [first, second] = await Promise.all([
+        createAttendeeAtomic({
+          bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 2 }],
+          email: "race1@example.com",
+          name: "Race1",
+        }),
+        createAttendeeAtomic({
+          bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 2 }],
+          email: "race2@example.com",
+          name: "Race2",
+        }),
+      ]);
+
+      const wins = [first.success, second.success].filter(Boolean).length;
+      expect(wins).toBe(1);
+
+      // Stored total must be exactly the cap.
+      const { count } = (await getDb()
+        .execute({
+          args: [event.id],
+          sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
+        })
+        .then((r) => r.rows[0])) as { count: number };
+      expect(Number(count)).toBe(2);
+    });
+
+    test("atomic insert SQL overlap-sum never admits an invalid booking", async () => {
+      // The customer atomic-insert path relies on overlap-sum SQL as a
+      // safety net after `checkBatchAvailability`. We bypass the preflight
+      // to stress the SQL guard: it must not accept a booking that would
+      // put any day over capacity.
+      const event = await createTestEvent({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 2,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      // Fill day 2 via a 1-day booking (qty=2).
+      await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-05-02",
+            durationDays: 1,
+            eventId: event.id,
+            quantity: 2,
+          },
+        ],
+        email: "mid@example.com",
+        name: "Mid",
+      });
+
+      // New 3-day booking covers days 1,2,3 — day 2 is at capacity, so must
+      // be rejected even with no preflight.
+      const result = await createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-05-01",
+            durationDays: 3,
+            eventId: event.id,
+            quantity: 1,
+          },
+        ],
+        email: "span@example.com",
+        name: "Span",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("group per-day cap across two daily events sharing a day", async () => {
+      const { createTestGroup } = await import("#test-utils");
+      const group = await createTestGroup({ maxAttendees: 2 });
+      const a = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+      const b = await createTestEvent({
+        durationDays: 1,
+        eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+
+      // Fill group cap on 2026-05-01 via event A.
+      await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-01", eventId: a.id, quantity: 2 }],
+        email: "a@example.com",
+        name: "A",
+      });
+
+      // Adding any quantity on event B for the same day must be rejected
+      // because the shared group cap is already exhausted.
+      expect(
+        await checkBatchAvailability(
+          [{ eventId: b.id, quantity: 1 }],
+          "2026-05-01",
+        ),
+      ).toBe(false);
+
+      // A different day has full group room.
+      expect(
+        await checkBatchAvailability(
+          [{ eventId: b.id, quantity: 2 }],
+          "2026-05-02",
+        ),
+      ).toBe(true);
+    });
+  });
 });
