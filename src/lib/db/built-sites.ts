@@ -60,14 +60,10 @@ export interface BuiltSite {
 }
 
 /** Form input for CRUD operations */
-export type BuiltSiteFormInput = {
-  name: string;
-  bunnyUrl: string;
-  dbUrl: string;
-  dbToken: string;
-  bunnyScriptId: string;
-  assignable: boolean;
-};
+export type BuiltSiteFormInput = Pick<
+  BuiltSite,
+  "name" | "bunnyUrl" | "dbUrl" | "dbToken" | "bunnyScriptId" | "assignable"
+>;
 
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
