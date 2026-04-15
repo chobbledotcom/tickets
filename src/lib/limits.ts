@@ -74,22 +74,22 @@ export const LOGIN_LOCKOUT_MS = readLimit("LOGIN_LOCKOUT_MS", 15 * 60 * 1000);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Retention (days) for finalized processed_payments rows (default: 7) */
+/** Retention (days) for finalized processed_payments rows (default: 90) */
 export const PRUNE_PAYMENTS_RETENTION_DAYS = readLimit(
   "PRUNE_PAYMENTS_RETENTION_DAYS",
-  7,
+  90,
 );
 
-/** Retention (days) past expiry for sessions rows (default: 1) */
+/** Retention (days) past expiry for sessions rows (default: 90) */
 export const PRUNE_SESSIONS_RETENTION_DAYS = readLimit(
   "PRUNE_SESSIONS_RETENTION_DAYS",
-  1,
+  90,
 );
 
-/** Retention (days) past lockout for login_attempts rows (default: 1) */
+/** Retention (days) past lockout for login_attempts rows (default: 90) */
 export const PRUNE_LOGINS_RETENTION_DAYS = readLimit(
   "PRUNE_LOGINS_RETENTION_DAYS",
-  1,
+  90,
 );
 
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
@@ -229,21 +229,21 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
   {
     label: "Prune: payments retention",
     envKey: "PRUNE_PAYMENTS_RETENTION_DAYS",
-    defaultValue: 7,
+    defaultValue: 90,
     current: PRUNE_PAYMENTS_RETENTION_DAYS,
     unit: "days",
   },
   {
     label: "Prune: sessions retention",
     envKey: "PRUNE_SESSIONS_RETENTION_DAYS",
-    defaultValue: 1,
+    defaultValue: 90,
     current: PRUNE_SESSIONS_RETENTION_DAYS,
     unit: "days",
   },
   {
     label: "Prune: login-attempts retention",
     envKey: "PRUNE_LOGINS_RETENTION_DAYS",
-    defaultValue: 1,
+    defaultValue: 90,
     current: PRUNE_LOGINS_RETENTION_DAYS,
     unit: "days",
   },
