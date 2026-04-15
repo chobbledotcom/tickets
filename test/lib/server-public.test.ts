@@ -18,6 +18,7 @@ import { formatCreationError } from "#routes/utils.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,
+  assertPublicHtml,
   awaitTestRequest,
   createTestEvent,
   createTestGroup,
@@ -56,38 +57,32 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows public homepage when enabled", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(response, 200, "Home", "/admin/login");
+      await assertPublicHtml("/", "Home", "/admin/login");
     });
 
     test("shows website title on homepage", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.websiteTitle("My Cool Site");
-      const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(response, 200, "My Cool Site");
+      await assertPublicHtml("/", "My Cool Site");
     });
 
     test("shows homepage text when configured", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.homepageText("Welcome to our events!");
-      const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(response, 200, "Welcome to our events!");
+      await assertPublicHtml("/", "Welcome to our events!");
     });
 
     test("shows no content message when homepage text not set", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(response, 200, "No content.");
+      await assertPublicHtml("/", "No content.");
     });
 
     test("shows public nav links", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.terms("Some terms");
       await settings.update.contactPageText("Contact us");
-      const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/",
         'href="/"',
         'href="/events"',
         'href="/terms"',
@@ -97,19 +92,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("hides terms and contact nav links when pages are empty", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/"));
-      const html = await expectHtmlResponse(response, 200, 'href="/"');
-      expect(html).toContain('href="/events"');
+      const html = await assertPublicHtml("/", 'href="/"', 'href="/events"');
       expect(html).not.toContain('href="/terms"');
       expect(html).not.toContain('href="/contact"');
     });
 
     test("shows login link styled as footer", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/",
         'class="homepage-footer"',
         'href="/admin/login"',
         "Login",
@@ -124,18 +115,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("renders markdown paragraphs in homepage text", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.homepageText("Line one\n\nLine two");
-      const response = await handleRequest(mockRequest("/"));
-      const html = await expectHtmlResponse(response, 200, "Line one");
-      expect(html).toContain("<p>Line one</p>");
-      expect(html).toContain("<p>Line two</p>");
+      await assertPublicHtml("/", "<p>Line one</p>", "<p>Line two</p>");
     });
 
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/"));
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(RSS_DISCOVERY_TAG);
-      expect(html).toContain(ICS_DISCOVERY_TAG);
+      await assertPublicHtml("/", RSS_DISCOVERY_TAG, ICS_DISCOVERY_TAG);
     });
   });
 
@@ -147,20 +132,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("shows no events message when enabled but no events exist", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(
-        response,
-        200,
-        "No events listed.",
-        "/admin/login",
-      );
+      await assertPublicHtml("/events", "No events listed.", "/admin/login");
     });
 
     test("shows website title with no events message", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.websiteTitle("My Events");
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(response, 200, "No events listed.", "My Events");
+      await assertPublicHtml("/events", "No events listed.", "My Events");
     });
 
     test("shows active events with book now links", async () => {
@@ -169,10 +147,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Concert",
         maxAttendees: 100,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/events",
         event.name,
         "Book now",
         `href="/ticket/${event.slug}"`,
@@ -186,8 +162,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
         purchaseOnly: true,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(response, 200, "Raffle", "Buy now");
+      const html = await assertPublicHtml("/events", "Raffle", "Buy now");
       expect(html).not.toContain("Book now");
     });
 
@@ -198,16 +173,14 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
       });
       await deactivateTestEvent(event.id);
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(response, 200, "No events listed.");
+      const html = await assertPublicHtml("/events", "No events listed.");
       expect(html).not.toContain("Hidden Event");
     });
 
     test("does not show hidden events in public events list", async () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({ name: "Secret Event", hidden: true });
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(response, 200, "No events listed.");
+      const html = await assertPublicHtml("/events", "No events listed.");
       expect(html).not.toContain("Secret Event");
     });
 
@@ -215,8 +188,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.showPublicSite(true);
       await createTestEvent({ name: "Visible Event" });
       await createTestEvent({ name: "Secret Event", hidden: true });
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(response, 200, "Visible Event");
+      const html = await assertPublicHtml("/events", "Visible Event");
       expect(html).not.toContain("Secret Event");
     });
 
@@ -225,10 +197,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Secret Event",
         hidden: true,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(response, 200, "Secret Event");
+      await assertPublicHtml(`/ticket/${event.slug}`, "Secret Event");
     });
 
     test("hidden event ticket page has noindex x-robots-tag", async () => {
@@ -266,10 +235,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         groupId: group.id,
         maxAttendees: 50,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/events",
         "Summer Festival",
         `href="/ticket/${group.slug}"`,
         "Book now",
@@ -288,10 +255,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         groupId: group.id,
         maxAttendees: 50,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/events",
         "Described Festival",
         "A wonderful summer celebration",
       );
@@ -309,10 +274,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         groupId: group.id,
         maxAttendees: 50,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await response.text();
+      const html = await assertPublicHtml(
+        "/events",
+        "Visible Event In Hidden Group",
+      );
       expect(html).not.toContain("Secret Group");
-      expect(html).toContain("Visible Event In Hidden Group");
     });
 
     test("hidden group is still accessible via direct ticket URL", async () => {
@@ -326,10 +292,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         groupId: group.id,
         maxAttendees: 50,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${group.slug}`),
-      );
-      await expectHtmlResponse(response, 200, "Hidden Group Event");
+      await assertPublicHtml(`/ticket/${group.slug}`, "Hidden Group Event");
     });
 
     test("grouped events also appear individually on events page", async () => {
@@ -347,10 +310,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Ungrouped Event",
         maxAttendees: 50,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/events",
         "My Group",
         "Ungrouped Event",
         "Grouped Event",
@@ -368,8 +329,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "a@test.com",
         bookings: [{ eventId: event.id, quantity: 1 }],
       });
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(response, 200, "Sold Out");
+      const html = await assertPublicHtml("/events", "Sold Out");
       expect(html).not.toContain(`href="/ticket/${event.slug}"`);
     });
 
@@ -381,8 +341,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
         closesAt: pastDate,
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(response, 200, "Registration Closed");
+      await assertPublicHtml("/events", "Registration Closed");
     });
 
     test("shows event location when set", async () => {
@@ -392,8 +351,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
         location: "Town Hall",
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(response, 200, "Town Hall");
+      await assertPublicHtml("/events", "Town Hall");
     });
 
     test("shows event date when set", async () => {
@@ -403,8 +361,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
         date: "2026-06-15T14:00",
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(response, 200, "2026");
+      await assertPublicHtml("/events", "2026");
     });
 
     test("shows event description when set", async () => {
@@ -414,26 +371,22 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
         description: "A great event",
       });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(response, 200, "A great event");
+      await assertPublicHtml("/events", "A great event");
     });
 
     test("shows website title on events page", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.websiteTitle("My Events Site");
       await createTestEvent({ name: "Concert", maxAttendees: 100 });
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(response, 200, "My Events Site");
+      await assertPublicHtml("/events", "My Events Site");
     });
 
     test("shows public nav on events page", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.terms("Some terms");
       await settings.update.contactPageText("Contact us");
-      const response = await handleRequest(mockRequest("/events"));
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/events",
         'href="/"',
         'href="/events"',
         'href="/terms"',
@@ -451,10 +404,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/events"));
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(RSS_DISCOVERY_TAG);
-      expect(html).toContain(ICS_DISCOVERY_TAG);
+      await assertPublicHtml("/events", RSS_DISCOVERY_TAG, ICS_DISCOVERY_TAG);
     });
   });
 
@@ -467,13 +417,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows terms page when enabled", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.terms("Our terms and conditions.");
-      const response = await handleRequest(mockRequest("/terms"));
-      await expectHtmlResponse(
-        response,
-        200,
-        "Our terms and conditions.",
-        "T&amp;Cs",
-      );
+      await assertPublicHtml("/terms", "Our terms and conditions.", "T&amp;Cs");
     });
 
     test("returns 404 when terms not configured", async () => {
@@ -485,10 +429,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.terms("Some terms");
-      const response = await handleRequest(mockRequest("/terms"));
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(RSS_DISCOVERY_TAG);
-      expect(html).toContain(ICS_DISCOVERY_TAG);
+      await assertPublicHtml("/terms", RSS_DISCOVERY_TAG, ICS_DISCOVERY_TAG);
     });
   });
 
@@ -501,13 +442,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("shows contact page when enabled", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.contactPageText("Get in touch with us");
-      const response = await handleRequest(mockRequest("/contact"));
-      await expectHtmlResponse(
-        response,
-        200,
-        "Get in touch with us",
-        "Contact",
-      );
+      await assertPublicHtml("/contact", "Get in touch with us", "Contact");
     });
 
     test("returns 404 when contact text not configured", async () => {
@@ -521,10 +456,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.contactPageText(
         "Phone: 123\n\nAddress: 1 High Street",
       );
-      const response = await handleRequest(mockRequest("/contact"));
-      const html = await expectHtmlResponse(response, 200, "Phone: 123");
-      expect(html).toContain("<p>Phone: 123</p>");
-      expect(html).toContain("<p>Address: 1 High Street</p>");
+      await assertPublicHtml(
+        "/contact",
+        "<p>Phone: 123</p>",
+        "<p>Address: 1 High Street</p>",
+      );
     });
 
     test("returns 404 for non-GET requests to /contact", async () => {
@@ -537,10 +473,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.contactPageText("Contact us");
-      const response = await handleRequest(mockRequest("/contact"));
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(RSS_DISCOVERY_TAG);
-      expect(html).toContain(ICS_DISCOVERY_TAG);
+      await assertPublicHtml("/contact", RSS_DISCOVERY_TAG, ICS_DISCOVERY_TAG);
     });
   });
 
@@ -788,12 +721,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         "Continue",
         `action="/ticket/${event.slug}"`,
       );
@@ -805,15 +734,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      const html = await response.text();
-      expect(html).toContain(
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         '<meta property="og:title" content="Birthday Party">',
-      );
-      expect(html).toContain('<meta property="og:type" content="website">');
-      expect(html).toContain(
+        '<meta property="og:type" content="website">',
         `<meta property="og:url" content="http://localhost/ticket/${event.slug}">`,
       );
     });
@@ -824,12 +748,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
         description: "A <b>great</b> event",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         "A &lt;b&gt;great&lt;/b&gt; event",
         'class="description"',
       );
@@ -842,12 +762,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         "<strong>Date:</strong>",
         "Monday 15 June 2026 at 14:00 UTC",
         "<strong>Location:</strong>",
@@ -860,11 +776,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml(`/ticket/${event.slug}`);
       expect(html).not.toContain("<strong>Date:</strong>");
       expect(html).not.toContain("<strong>Location:</strong>");
     });
@@ -874,11 +786,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml(`/ticket/${event.slug}`);
       expect(html).not.toContain("font-size: 0.9em");
     });
 
@@ -901,13 +809,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
         description: "A <b>great</b> event",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      const html = await assertPublicHtml(
+        `/ticket/${event.slug}?iframe=true`,
+        'class="iframe"',
+        "Continue",
       );
-      const html = await expectHtmlResponse(response, 200, 'class="iframe"');
       expect(html).not.toContain("<h1>");
       expect(html).not.toContain("A <b>great</b> event");
-      expect(html).toContain("Continue");
     });
 
     test("shows header and description without iframe param", async () => {
@@ -916,14 +824,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         thankYouUrl: "https://example.com",
         description: "A <b>great</b> event",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
+      const html = await assertPublicHtml(
+        `/ticket/${event.slug}`,
+        "<h1>",
+        "A &lt;b&gt;great&lt;/b&gt; event",
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
       expect(html).not.toContain('class="iframe"');
-      expect(html).toContain("<h1>");
-      expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
     });
 
     test("does not set CSRF cookies (uses signed tokens instead)", async () => {
@@ -1056,12 +962,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
       });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${group.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${group.slug}`,
         "Public Group",
         "Continue",
         "Select Tickets",
@@ -1090,12 +992,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
       });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${group.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${group.slug}`,
         "Festival Group",
         "A wonderful festival with multiple events",
       );
@@ -1184,10 +1082,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maximumDaysAfter: 14,
       });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${group.slug}`),
+      await assertPublicHtml(
+        `/ticket/${group.slug}`,
+        "Select Date",
+        'name="date"',
       );
-      await expectHtmlResponse(response, 200, "Select Date", 'name="date"');
     });
   });
 
@@ -1542,12 +1441,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Multi Event 2",
         maxAttendees: 100,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
         "Continue",
         "Multi Event 1",
         "Multi Event 2",
@@ -1566,12 +1461,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 100,
         description: "Second event info",
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
         "First event info",
         "Second event info",
       );
@@ -1586,10 +1477,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Multi No Desc 2",
         maxAttendees: 100,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      const html = await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        "Multi No Desc",
       );
-      const html = await expectHtmlResponse(response, 200, "Multi No Desc");
       expect(html).not.toContain("margin: 0.25rem 0 0.5rem");
     });
 
@@ -1609,10 +1500,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        "Sold Out",
       );
-      await expectHtmlResponse(response, 200, "Sold Out");
     });
 
     test("shows description for sold-out event in ticket page", async () => {
@@ -1632,12 +1523,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         bookings: [{ eventId: event2.id, quantity: 1 }],
       });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
         "Available desc",
         "Sold out desc",
         "Sold Out",
@@ -1655,13 +1542,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       await deactivateTestEvent(event2.id);
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
       // The active event should have a quantity selector
-      expect(html).toContain(`quantity_${event1.id}`);
+      const html = await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        `quantity_${event1.id}`,
+      );
       // The inactive event should not have a quantity selector
       expect(html).not.toContain(`quantity_${event2.id}`);
     });
@@ -1920,45 +1805,31 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
   describe("GET /ticket/reserved", () => {
     test("shows reservation success page", async () => {
-      const response = await handleRequest(mockRequest("/ticket/reserved"));
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertPublicHtml(
+        "/ticket/reserved",
         "Thank you for your order",
       );
       expect(html).not.toContain("view your ticket");
     });
 
     test("shows ticket link when tokens are provided", async () => {
-      const response = await handleRequest(
-        mockRequest("/ticket/reserved?tokens=abc123+def456"),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/ticket/reserved?tokens=abc123+def456",
         'href="/t/abc123+def456"',
         "Click here to view your ticket",
       );
     });
 
     test("includes iframe-resizer child script when iframe=true", async () => {
-      const response = await handleRequest(
-        mockRequest("/ticket/reserved?tokens=abc123&iframe=true"),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        "/ticket/reserved?tokens=abc123&iframe=true",
         "iframe-resizer-child.js",
         'class="iframe"',
       );
     });
 
     test("excludes iframe-resizer child script without iframe param", async () => {
-      const response = await handleRequest(
-        mockRequest("/ticket/reserved?tokens=abc123"),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml("/ticket/reserved?tokens=abc123");
       expect(html).not.toContain("iframe-resizer-child.js");
     });
 
@@ -1969,23 +1840,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
       });
       try {
-        const response = await handleRequest(
-          mockRequest("/ticket/reserved?tokens=abc123"),
+        await assertPublicHtml(
+          "/ticket/reserved?tokens=abc123",
+          "Junk/Spam",
+          "tickets@mysite.com",
         );
-        const html = await expectHtmlResponse(response, 200, "Junk/Spam");
-        expect(html).toContain("tickets@mysite.com");
       } finally {
         restore();
       }
     });
 
     test("does not show email notice when email is not configured", async () => {
-      const response = await handleRequest(
-        mockRequest("/ticket/reserved?tokens=abc123"),
-      );
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertPublicHtml(
+        "/ticket/reserved?tokens=abc123",
         "Thank you for your order",
       );
       expect(html).not.toContain("Junk/Spam");
@@ -3080,25 +2947,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         .slice(0, 16);
       const event = await createTestEvent({ closesAt: futureDate });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml(`/ticket/${event.slug}`, "Continue");
       expect(html).not.toContain("Registration closed.");
-      expect(html).toContain("Continue");
     });
 
     test("shows form when closes_at is null", async () => {
       const event = await createTestEvent();
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml(`/ticket/${event.slug}`, "Continue");
       expect(html).not.toContain("Registration closed.");
-      expect(html).toContain("Continue");
     });
 
     test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {
@@ -3148,10 +3005,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const event1 = await createTestEvent({ closesAt: pastDate });
       const event2 = await createTestEvent({ closesAt: pastDate });
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        "Registration closed.",
       );
-      await expectHtmlResponse(response, 200, "Registration closed.");
     });
 
     test("shows 'Registration Closed' label for individual closed event in ticket", async () => {
@@ -3159,15 +3016,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const event1 = await createTestEvent({ closesAt: pastDate });
       const event2 = await createTestEvent();
 
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
         "Registration Closed",
+        event2.name, // open event shows form
       );
-      expect(html).toContain(event2.name); // open event shows form
     });
 
     test("shows error on POST when event closes during submission", async () => {
@@ -3232,12 +3085,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         "Select Date",
         '<select name="date"',
       );
@@ -3252,12 +3101,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         minimumDaysBefore: 30,
         maximumDaysAfter: 7,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         "No dates are currently available for booking",
       );
     });
@@ -3479,11 +3324,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml(`/ticket/${event.slug}`);
       // The holiday date should not appear as an option
       expect(html).not.toContain(`value="${validDate}"`);
     });
@@ -3521,12 +3362,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
         "Select Date",
         '<select name="date"',
       );
@@ -3711,14 +3548,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Multi Date 2",
         maxAttendees: 50,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
       // Event 1 has date and location, event 2 does not
-      expect(html).toContain("Multi Date 1");
-      expect(html).toContain("Multi Date 2");
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        "Multi Date 1",
+        "Multi Date 2",
+      );
     });
 
     test("computes shared dates across daily events", async () => {
@@ -3744,13 +3579,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
       // Should contain Monday dates but not Tuesday dates
-      expect(html).toContain("Monday");
+      const html = await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        "Monday",
+      );
       expect(html).not.toContain("Tuesday");
     });
   });
@@ -3760,12 +3593,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       await settings.update.terms("I agree to the event rules.");
 
       const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event.slug}`,
         "agree_terms",
         "I agree to the event rules.",
         "I agree to the terms above",
@@ -3774,11 +3603,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
     test("does not show terms checkbox when no terms configured", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const html = await assertPublicHtml(`/ticket/${event.slug}`);
       expect(html).not.toContain("agree_terms");
     });
 
@@ -3838,12 +3663,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "TC Multi 2",
         maxAttendees: 50,
       });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
-      );
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertPublicHtml(
+        `/ticket/${event1.slug}+${event2.slug}`,
         "agree_terms",
         "Multi-event terms apply.",
       );

@@ -5,6 +5,7 @@ import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
+  assertPublicHtml,
   awaitTestRequest,
   createTestEvent,
   deactivateTestEvent,
@@ -346,12 +347,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
             >),
           ),
         async () => {
-          const response = await handleRequest(
-            mockRequest("/payment/cancel?session_id=cs_test_cancel"),
-          );
-          await expectHtmlResponse(
-            response,
-            200,
+          await assertPublicHtml(
+            "/payment/cancel?session_id=cs_test_cancel",
             "Payment Cancelled",
             `/ticket/${event.slug}`,
           );
@@ -395,12 +392,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
             >),
           ),
         async () => {
-          const response = await handleRequest(
-            mockRequest("/payment/cancel?session_id=cs_test_cancel_multi"),
-          );
-          await expectHtmlResponse(
-            response,
-            200,
+          await assertPublicHtml(
+            "/payment/cancel?session_id=cs_test_cancel_multi",
             "Payment Cancelled",
             `/ticket/${event.slug}`,
           );

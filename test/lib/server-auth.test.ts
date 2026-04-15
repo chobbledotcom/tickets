@@ -6,6 +6,7 @@ import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
 import {
+  assertPublicHtml,
   awaitTestRequest,
   describeWithEnv,
   expectAdminRedirect,
@@ -25,8 +26,7 @@ import {
 describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("GET /admin/", () => {
     test("shows login page when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/"));
-      await expectHtmlResponse(response, 200, "Login");
+      await assertPublicHtml("/admin/", "Login");
     });
 
     test("shows dashboard when authenticated", async () => {
@@ -41,15 +41,13 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("GET /admin (without trailing slash)", () => {
     test("shows login page when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin"));
-      await expectHtmlResponse(response, 200, "Login");
+      await assertPublicHtml("/admin", "Login");
     });
   });
 
   describe("GET /admin/login", () => {
     test("shows login page", async () => {
-      const response = await handleRequest(mockRequest("/admin/login"));
-      const html = await expectHtmlResponse(response, 200, "Login");
+      const html = await assertPublicHtml("/admin/login", "Login");
       // Login page contains a signed CSRF token in the form
       expect(html).toMatch(/name="csrf_token" value="s1\./);
     });

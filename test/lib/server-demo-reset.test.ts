@@ -10,6 +10,7 @@ import {
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
 import {
+  assertPublicHtml,
   awaitTestRequest,
   createTestEvent,
   describeWithEnv,
@@ -50,17 +51,17 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
     test("shows reset page when demo mode is on", async () => {
       setDemoModeForTest(true);
-      const response = await handleRequest(mockRequest("/demo/reset"));
-      const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expect(html).toContain("confirm_phrase");
-      expect(html).toContain(RESET_DATABASE_PHRASE);
+      await assertPublicHtml(
+        "/demo/reset",
+        "Reset Database",
+        "confirm_phrase",
+        RESET_DATABASE_PHRASE,
+      );
     });
 
     test("contains back to login link", async () => {
       setDemoModeForTest(true);
-      const response = await handleRequest(mockRequest("/demo/reset"));
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain('href="/admin"');
+      await assertPublicHtml("/demo/reset", 'href="/admin"');
     });
   });
 
@@ -242,10 +243,12 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
     test("demo reset page uses shared reset form", async () => {
       setDemoModeForTest(true);
-      const response = await handleRequest(mockRequest("/demo/reset"));
-      const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expect(html).toContain(RESET_DATABASE_PHRASE);
-      expect(html).toContain("confirm_phrase");
+      await assertPublicHtml(
+        "/demo/reset",
+        "Reset Database",
+        RESET_DATABASE_PHRASE,
+        "confirm_phrase",
+      );
     });
   });
 });
