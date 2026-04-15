@@ -38,7 +38,7 @@ body:not(:has(#main-nav)) {
 }
 
 :root[data-theme="dark"] {
-  --color-accent: #0097fc4f;
+  --color-accent: #451c6e;
   --color-bg: #01001c;
   --color-bg-secondary: #460066;
   --color-link: #95d5ff;
@@ -96,6 +96,13 @@ html[data-theme="dark"] {
 }
 [data-theme="dark"] table {
   border-width: 2px;
+}
+[data-theme="dark"] table tr:nth-child(2n) {
+  background: linear-gradient(45deg, #460066 0%, #430e79 50%, #460066 100%);
+}
+[data-theme="dark"] table thead {
+  background-color: #290738;
+  color: #FFF;
 }
 
 @keyframes btn-glow-pulse {
