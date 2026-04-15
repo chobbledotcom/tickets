@@ -24,21 +24,33 @@ import {
 
 /** Stub all Bunny + GitHub APIs for a successful build */
 const stubSuccessfulBuild = () => ({
+  createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+    Promise.resolve({
+      defaultHostname: "https://test-42.b-cdn.net",
+      ok: true as const,
+      pullZoneId: 99,
+      scriptId: 42,
+    }),
+  ),
+  dbTestStub: stub(builderApi, "testDbConnection", () =>
+    Promise.resolve({ ok: true as const }),
+  ),
+  encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
   fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
     const url = String(input);
     if (url.includes("releases/latest")) {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            tag_name: "v2026-01-01-000000",
-            name: "Test Release",
-            published_at: "2026-01-01T00:00:00Z",
             assets: [
               {
-                name: "bunny-script.ts",
                 browser_download_url: "https://example.com/script.ts",
+                name: "bunny-script.ts",
               },
             ],
+            name: "Test Release",
+            published_at: "2026-01-01T00:00:00Z",
+            tag_name: "v2026-01-01-000000",
           }),
           { status: 200 },
         ),
@@ -51,25 +63,13 @@ const stubSuccessfulBuild = () => ({
     }
     return Promise.resolve(new Response("error", { status: 500 }));
   }),
-  createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-    Promise.resolve({
-      ok: true as const,
-      scriptId: 42,
-      pullZoneId: 99,
-      defaultHostname: "https://test-42.b-cdn.net",
-    }),
-  ),
-  updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+  publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
     Promise.resolve({ ok: true as const }),
   ),
   secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
     Promise.resolve({ ok: true as const }),
   ),
-  publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
-  encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
-  dbTestStub: stub(builderApi, "testDbConnection", () =>
+  updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
     Promise.resolve({ ok: true as const }),
   ),
 });
@@ -151,9 +151,9 @@ describeWithEnv(
 
     test("POST /admin/builder returns error when site name is empty", async () => {
       const { response } = await adminFormPost("/admin/builder", {
-        site_name: "",
-        db_url: "libsql://test.turso.io",
         db_token: "token",
+        db_url: "libsql://test.turso.io",
+        site_name: "",
       });
       expectRedirect(response, "/admin/builder");
       expectFlash(
@@ -165,9 +165,9 @@ describeWithEnv(
 
     test("POST /admin/builder returns error when db_url is empty", async () => {
       const { response } = await adminFormPost("/admin/builder", {
-        site_name: "Test",
-        db_url: "",
         db_token: "token",
+        db_url: "",
+        site_name: "Test",
       });
       expectRedirect(response, "/admin/builder");
       expectFlash(
@@ -179,9 +179,9 @@ describeWithEnv(
 
     test("POST /admin/builder returns error when db_token is empty", async () => {
       const { response } = await adminFormPost("/admin/builder", {
-        site_name: "Test",
-        db_url: "libsql://test.turso.io",
         db_token: "",
+        db_url: "libsql://test.turso.io",
+        site_name: "Test",
       });
       expectRedirect(response, "/admin/builder");
       expectFlash(
@@ -196,15 +196,15 @@ describeWithEnv(
         () =>
           stub(builderApi, "testDbConnection", () =>
             Promise.resolve({
-              ok: false as const,
               error: "Connection refused",
+              ok: false as const,
             }),
           ),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
-            site_name: "Test",
-            db_url: "libsql://test.turso.io",
             db_token: "token",
+            db_url: "libsql://test.turso.io",
+            site_name: "Test",
           });
           expectRedirect(response, "/admin/builder");
           expectFlash(
@@ -219,9 +219,9 @@ describeWithEnv(
     test("POST /admin/builder creates site and records it on success", async () => {
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
-          site_name: "My Test Site",
-          db_url: "libsql://test.turso.io",
           db_token: "token123",
+          db_url: "libsql://test.turso.io",
+          site_name: "My Test Site",
         });
 
         expectRedirect(response, "/admin/builder");
@@ -241,10 +241,10 @@ describeWithEnv(
     test("POST /admin/builder passes assignable flag", async () => {
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
-          site_name: "Assignable Site",
-          db_url: "libsql://test.turso.io",
-          db_token: "token123",
           assignable: "1",
+          db_token: "token123",
+          db_url: "libsql://test.turso.io",
+          site_name: "Assignable Site",
         });
 
         expectRedirect(response, "/admin/builder");
@@ -257,21 +257,21 @@ describeWithEnv(
     test("POST /admin/builder returns error when build fails", async () => {
       await withMocks(
         () => ({
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
           buildStub: stub(builderApi, "buildSite", () =>
             Promise.resolve({
-              ok: false as const,
               error: "Create edge script failed (500): Error",
+              ok: false as const,
             }),
+          ),
+          dbTestStub: stub(builderApi, "testDbConnection", () =>
+            Promise.resolve({ ok: true as const }),
           ),
         }),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
-            site_name: "Test",
-            db_url: "libsql://test.turso.io",
             db_token: "token",
+            db_url: "libsql://test.turso.io",
+            site_name: "Test",
           });
           expectRedirect(response, "/admin/builder");
           expectFlash(
@@ -287,9 +287,9 @@ describeWithEnv(
       const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
       try {
         const { response } = await adminFormPost("/admin/builder", {
-          site_name: "Test",
-          db_url: "libsql://test.turso.io",
           db_token: "token",
+          db_url: "libsql://test.turso.io",
+          site_name: "Test",
         });
         expect(response.status).toBe(404);
       } finally {
@@ -304,22 +304,22 @@ describeWithEnv(
 
       await withMocks(
         () => ({
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
           buildStub: stub(builderApi, "buildSite", () =>
             Promise.resolve({
+              defaultHostname: "https://test.b-cdn.net",
               ok: true as const,
               scriptId: 1,
-              defaultHostname: "https://test.b-cdn.net",
             }),
+          ),
+          dbTestStub: stub(builderApi, "testDbConnection", () =>
+            Promise.resolve({ ok: true as const }),
           ),
         }),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
-            site_name: "Test",
-            db_url: "libsql://test.turso.io",
             db_token: "token",
+            db_url: "libsql://test.turso.io",
+            site_name: "Test",
           });
           expectRedirect(response, "/admin/builder");
           expectFlash(
@@ -337,9 +337,9 @@ describeWithEnv(
       // Build a site first
       await withMocks(stubSuccessfulBuild, async () => {
         await adminFormPost("/admin/builder", {
-          site_name: "Table Test Site",
-          db_url: "libsql://test.turso.io",
           db_token: "token123",
+          db_url: "libsql://test.turso.io",
+          site_name: "Table Test Site",
         });
       });
 
