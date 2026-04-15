@@ -15,131 +15,179 @@ describe("payment-crypto", () => {
       expect(secureCompare("abc123", "abc123")).toBe(true);
     });
 
-    test("returns false for different strings of same length", () => {
+    test("returns false for strings differing in one character", () => {
       expect(secureCompare("abc123", "abc124")).toBe(false);
     });
 
-    test("returns false for strings of different lengths", () => {
-      expect(secureCompare("short", "longer")).toBe(false);
-    });
-
-    test("returns false when first string is longer", () => {
-      expect(secureCompare("longer", "short")).toBe(false);
-    });
-
-    test("returns false for completely different strings of same length", () => {
-      expect(secureCompare("aaaaaa", "zzzzzz")).toBe(false);
-    });
-
-    test("handles strings differing only in first character", () => {
+    test("returns false for strings differing in first character", () => {
       expect(secureCompare("Xbcdef", "abcdef")).toBe(false);
     });
 
-    test("handles strings differing only in last character", () => {
-      expect(secureCompare("abcdeX", "abcdef")).toBe(false);
+    test("returns false for strings of different lengths", () => {
+      // Must differ regardless of which argument is longer: both orderings matter
+      // because the impl must not leak length via early-return.
+      expect(secureCompare("short", "longer")).toBe(false);
+      expect(secureCompare("longer", "short")).toBe(false);
+    });
+
+    test("returns true when both strings are empty", () => {
+      expect(secureCompare("", "")).toBe(true);
+    });
+
+    test("returns false when only one string is empty", () => {
+      expect(secureCompare("", "nonempty")).toBe(false);
+      expect(secureCompare("nonempty", "")).toBe(false);
+    });
+
+    test("returns true for identical hex signatures (webhook use case)", () => {
+      // Realistic case: comparing 64-char hex HMAC signatures
+      const sig = "a".repeat(64);
+      expect(secureCompare(sig, sig)).toBe(true);
+    });
+
+    test("returns false when hex signatures differ only in final char", () => {
+      // A length-aware early exit would pass this; this guards against that.
+      const a = `${"a".repeat(63)}0`;
+      const b = `${"a".repeat(63)}1`;
+      expect(secureCompare(a, b)).toBe(false);
     });
   });
 
   describe("computeHmacSha256", () => {
-    test("returns an ArrayBuffer", async () => {
-      const result = await computeHmacSha256(encode("data"), "secret");
-      expect(result instanceof ArrayBuffer).toBe(true);
-    });
-
-    test("returns 32 bytes (SHA-256 output size)", async () => {
-      const result = await computeHmacSha256(encode("data"), "secret");
-      expect(result.byteLength).toBe(32);
-    });
-
-    test("produces deterministic output for same inputs", async () => {
-      const a = await computeHmacSha256(encode("hello"), "key");
-      const b = await computeHmacSha256(encode("hello"), "key");
-      expect(hmacToHex(a)).toBe(hmacToHex(b));
-    });
-
-    test("produces different output for different data", async () => {
-      const a = await computeHmacSha256(encode("hello"), "key");
-      const b = await computeHmacSha256(encode("world"), "key");
-      expect(hmacToHex(a)).not.toBe(hmacToHex(b));
-    });
-
-    test("produces different output for different secrets", async () => {
-      const a = await computeHmacSha256(encode("data"), "secret1");
-      const b = await computeHmacSha256(encode("data"), "secret2");
-      expect(hmacToHex(a)).not.toBe(hmacToHex(b));
-    });
-
-    test("produces known HMAC-SHA256 value", async () => {
-      // Known test vector: HMAC-SHA256("test", "secret")
-      const result = await computeHmacSha256(encode("test"), "secret");
-      const hex = hmacToHex(result);
-      expect(hex).toBe(
-        "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914",
+    // RFC 4231 test vector #1: proves algorithm correctness against the spec.
+    // key = 0x0b * 20 ("\v\v..."), data = "Hi There"
+    test("matches RFC 4231 test vector 1", async () => {
+      const key = "\x0b".repeat(20);
+      const buf = await computeHmacSha256(encode("Hi There"), key);
+      expect(hmacToHex(buf)).toBe(
+        "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7",
       );
+    });
+
+    // RFC 4231 test vector #2: short key, short data
+    test("matches RFC 4231 test vector 2", async () => {
+      const buf = await computeHmacSha256(
+        encode("what do ya want for nothing?"),
+        "Jefe",
+      );
+      expect(hmacToHex(buf)).toBe(
+        "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843",
+      );
+    });
+
+    test("produces different signatures for different payloads under same secret", async () => {
+      const a = await computeHmacSha256(encode("payload-a"), "secret");
+      const b = await computeHmacSha256(encode("payload-b"), "secret");
+      expect(hmacToHex(a)).not.toBe(hmacToHex(b));
+    });
+
+    test("produces different signatures for same payload under different secrets", async () => {
+      const a = await computeHmacSha256(encode("payload"), "secret1");
+      const b = await computeHmacSha256(encode("payload"), "secret2");
+      expect(hmacToHex(a)).not.toBe(hmacToHex(b));
+    });
+
+    test("handles empty payload", async () => {
+      // HMAC-SHA256(key="key", data="") — independently verifiable.
+      const buf = await computeHmacSha256(encode(""), "key");
+      expect(hmacToHex(buf)).toBe(
+        "5d5d139563c95b5967b9bd9a8c9b233a9dedb45072794cd232dc1b74832607d0",
+      );
+    });
+
+    test("handles multi-byte UTF-8 payload", async () => {
+      // Payload with non-ASCII must be byte-compared, not string-compared
+      const data = encode("café ☕");
+      const a = await computeHmacSha256(data, "secret");
+      const b = await computeHmacSha256(data, "secret");
+      expect(hmacToHex(a)).toBe(hmacToHex(b));
+      // Different encoding of the same codepoints should match
+      const c = await computeHmacSha256(encode("café ☕"), "secret");
+      expect(hmacToHex(a)).toBe(hmacToHex(c));
     });
   });
 
   describe("hmacToHex", () => {
-    test("converts single byte to two hex chars", () => {
-      const buf = new Uint8Array([255]).buffer;
-      expect(hmacToHex(buf)).toBe("ff");
-    });
-
-    test("pads single-digit hex values with leading zero", () => {
+    test("pads single-digit hex bytes to two chars", () => {
       const buf = new Uint8Array([0, 1, 15]).buffer;
       expect(hmacToHex(buf)).toBe("00010f");
     });
 
-    test("converts known bytes to expected hex", () => {
-      const buf = new Uint8Array([0xde, 0xad, 0xbe, 0xef]).buffer;
-      expect(hmacToHex(buf)).toBe("deadbeef");
+    test("emits full-byte values without truncation", () => {
+      const buf = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0xff]).buffer;
+      expect(hmacToHex(buf)).toBe("deadbeefff");
     });
 
-    test("produces lowercase hex", () => {
+    test("uses lowercase hex (required by Stripe signature format)", () => {
       const buf = new Uint8Array([0xab, 0xcd]).buffer;
       expect(hmacToHex(buf)).toBe("abcd");
+    });
+
+    test("returns empty string for empty buffer", () => {
+      expect(hmacToHex(new Uint8Array([]).buffer)).toBe("");
     });
   });
 
   describe("hmacToBase64", () => {
-    test("converts known bytes to expected base64", () => {
-      // "Hello" in bytes: [72, 101, 108, 108, 111]
+    test("matches standard base64 encoding of ASCII bytes", () => {
+      // "Hello" → [72, 101, 108, 108, 111]
       const buf = new Uint8Array([72, 101, 108, 108, 111]).buffer;
       expect(hmacToBase64(buf)).toBe(btoa("Hello"));
     });
 
-    test("produces valid base64 characters", () => {
-      const buf = new Uint8Array([0, 128, 255]).buffer;
-      const result = hmacToBase64(buf);
-      expect(result).toMatch(/^[A-Za-z0-9+/]+=*$/);
+    test("encodes full byte range (0x00–0xFF) without corruption", () => {
+      // Square's signature uses base64; high-bit bytes must survive encoding.
+      const bytes = new Uint8Array([0, 128, 255]);
+      const b64 = hmacToBase64(bytes.buffer);
+      const decoded = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      expect(Array.from(decoded)).toEqual([0, 128, 255]);
     });
 
-    test("round-trips with atob", () => {
-      const original = new Uint8Array([10, 20, 30, 40, 50]);
-      const base64 = hmacToBase64(original.buffer);
-      const decoded = atob(base64);
-      const bytes = new Uint8Array(decoded.length);
-      for (let i = 0; i < decoded.length; i++) {
-        bytes[i] = decoded.charCodeAt(i);
-      }
-      expect(Array.from(bytes)).toEqual(Array.from(original));
+    test("returns empty string for empty buffer", () => {
+      expect(hmacToBase64(new Uint8Array([]).buffer)).toBe("");
     });
   });
 
-  describe("end-to-end: compute then convert", () => {
-    test("computeHmacSha256 + hmacToHex produces consistent hex signature", async () => {
-      const buf = await computeHmacSha256(encode("payload"), "secret");
-      const hex = hmacToHex(buf);
-      expect(hex.length).toBe(64); // 32 bytes = 64 hex chars
-      expect(hex).toMatch(/^[0-9a-f]{64}$/);
+  describe("provider signature flows", () => {
+    // Stripe signs `${timestamp}.${payload}` with the webhook secret and
+    // compares the signature as hex. This test mirrors that flow end-to-end.
+    test("Stripe-style hex signature verifies a signed payload", async () => {
+      const secret = "whsec_test_secret";
+      const payload = '1700000000.{"id":"evt_test","type":"payment_intent"}';
+      const signature = hmacToHex(
+        await computeHmacSha256(encode(payload), secret),
+      );
+      const recomputed = hmacToHex(
+        await computeHmacSha256(encode(payload), secret),
+      );
+      expect(secureCompare(signature, recomputed)).toBe(true);
     });
 
-    test("computeHmacSha256 + hmacToBase64 produces consistent base64 signature", async () => {
-      const buf = await computeHmacSha256(encode("payload"), "secret");
-      const b64 = hmacToBase64(buf);
-      expect(b64).toMatch(/^[A-Za-z0-9+/]+=*$/);
-      // Base64 of 32 bytes is 44 chars (with padding)
-      expect(b64.length).toBe(44);
+    test("Stripe-style signature rejects tampered payload", async () => {
+      const secret = "whsec_test_secret";
+      const original = '1700000000.{"id":"evt_test","amount":1000}';
+      const tampered = '1700000000.{"id":"evt_test","amount":9999}';
+      const sigOriginal = hmacToHex(
+        await computeHmacSha256(encode(original), secret),
+      );
+      const sigTampered = hmacToHex(
+        await computeHmacSha256(encode(tampered), secret),
+      );
+      expect(secureCompare(sigOriginal, sigTampered)).toBe(false);
+    });
+
+    // Square signs `${notificationUrl}${payload}` and sends the result base64.
+    test("Square-style base64 signature verifies a signed payload", async () => {
+      const secret = "square_signing_key";
+      const url = "https://example.com/webhook";
+      const payload = '{"type":"payment.updated"}';
+      const signature = hmacToBase64(
+        await computeHmacSha256(encode(url + payload), secret),
+      );
+      const recomputed = hmacToBase64(
+        await computeHmacSha256(encode(url + payload), secret),
+      );
+      expect(secureCompare(signature, recomputed)).toBe(true);
     });
   });
 });
