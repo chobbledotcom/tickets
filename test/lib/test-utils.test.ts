@@ -48,6 +48,7 @@ import {
   updateTestEvent,
   updateTestGroup,
   urlFromFetchInput,
+  useSetting,
   wait,
   withSetting,
 } from "#test-utils";
@@ -915,6 +916,24 @@ describe("test-utils", () => {
       expect(seen.showPublicSite).toBe(true);
       expect(settings.currency).not.toBe("USD");
       expect(settings.showPublicSite).not.toBe(true);
+    });
+  });
+
+  describe("useSetting", () => {
+    describe("inside a scoped describe", () => {
+      useSetting({ currency: "JPY" });
+
+      test("override is active in tests", () => {
+        expect(settings.currency).toBe("JPY");
+      });
+
+      test("override persists across tests in the same scope", () => {
+        expect(settings.currency).toBe("JPY");
+      });
+    });
+
+    test("override does not leak outside the scoped describe", () => {
+      expect(settings.currency).not.toBe("JPY");
     });
   });
 });

@@ -7,6 +7,7 @@ import {
   describeWithEnv,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
+  withSetting,
 } from "#test-utils";
 
 describeWithEnv("db > settings", { db: true }, () => {
@@ -292,10 +293,10 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.timezone).toBe("Pacific/Auckland");
     });
 
-    test("getTimezoneFromDb returns test override when set", () => {
-      settings.setForTest({ timezone: "America/Chicago" });
-      const value = settings.timezone;
-      expect(value).toBe("America/Chicago");
+    test("getTimezoneFromDb returns test override when set", async () => {
+      await withSetting({ timezone: "America/Chicago" }, () => {
+        expect(settings.timezone).toBe("America/Chicago");
+      });
     });
 
     test("getTimezoneFromDb returns permanent cache when set", () => {

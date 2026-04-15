@@ -425,6 +425,29 @@ export const withSetting = async <T>(
 };
 
 /**
+ * Describe-scoped settings overrides. Call inside a `describe()` — it registers
+ * beforeEach/afterEach hooks that apply the overrides before each test and
+ * clear them afterward.
+ *
+ * @example
+ * describeWithEnv("email templates", { db: true }, () => {
+ *   useSetting({ currency: "GBP" });
+ *   test("formats GBP amount", () => {
+ *     expect(formatCurrency(1050)).toBe("£10.50");
+ *   });
+ * });
+ */
+export const useSetting = (overrides: Partial<SettingsData>): void => {
+  const keys = Object.keys(overrides) as (keyof SettingsData)[];
+  beforeEach(() => {
+    settings.setForTest(overrides);
+  });
+  afterEach(() => {
+    settings.clearTestOverride(...keys);
+  });
+};
+
+/**
  * Install a URL-based fetch handler on globalThis.fetch.
  * For each request, calls `handler(url, init)`. If the handler returns null,
  * the call falls through to the provided `fallback` fetch.

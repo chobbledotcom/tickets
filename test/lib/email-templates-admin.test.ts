@@ -13,18 +13,13 @@ import {
   mockFormRequest,
   testCookie,
   testCsrfToken,
+  useSetting,
 } from "#test-utils";
 
 describeWithEnv("admin email templates", { db: true }, () => {
-  beforeEach(() => {
-    settings.setForTest({ currency: "GBP" });
-    resetEngine();
-  });
-
-  afterEach(() => {
-    settings.clearTestOverride("currency");
-    resetEngine();
-  });
+  useSetting({ currency: "GBP" });
+  beforeEach(resetEngine);
+  afterEach(resetEngine);
 
   async function postTemplateForm(
     path: string,
