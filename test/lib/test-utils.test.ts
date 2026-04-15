@@ -47,6 +47,7 @@ import {
   testRequest,
   updateTestEvent,
   updateTestGroup,
+  testWithSetting,
   urlFromFetchInput,
   useSetting,
   wait,
@@ -933,6 +934,30 @@ describe("test-utils", () => {
     });
 
     test("override does not leak outside the scoped describe", () => {
+      expect(settings.currency).not.toBe("JPY");
+    });
+  });
+
+  describe("testWithSetting", () => {
+    testWithSetting(
+      "override is active inside the declared test",
+      { currency: "EUR" },
+      () => {
+        expect(settings.currency).toBe("EUR");
+      },
+    );
+
+    testWithSetting(
+      "supports async test bodies",
+      { currency: "JPY" },
+      async () => {
+        await wait(1);
+        expect(settings.currency).toBe("JPY");
+      },
+    );
+
+    test("override does not leak to sibling tests", () => {
+      expect(settings.currency).not.toBe("EUR");
       expect(settings.currency).not.toBe("JPY");
     });
   });

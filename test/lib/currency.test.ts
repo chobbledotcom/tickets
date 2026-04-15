@@ -11,7 +11,7 @@ import {
   createTestDbWithSetup,
   resetDb,
   setupTestEncryptionKey,
-  withSetting,
+  testWithSetting,
 } from "#test-utils";
 
 describe("currency", () => {
@@ -54,49 +54,51 @@ describe("currency", () => {
   });
 
   describe("formatCurrency", () => {
-    test("formats GBP with pound symbol", async () => {
-      await withSetting({ currency: "GBP" }, () => {
+    testWithSetting(
+      "formats GBP with pound symbol",
+      { currency: "GBP" },
+      () => {
         expect(formatCurrency(1050)).toBe("£10.50");
-      });
+      },
+    );
+
+    testWithSetting("formats GBP zero amount", { currency: "GBP" }, () => {
+      expect(formatCurrency(0)).toBe("£0");
     });
 
-    test("formats GBP zero amount", async () => {
-      await withSetting({ currency: "GBP" }, () => {
-        expect(formatCurrency(0)).toBe("£0");
-      });
-    });
-
-    test("formats USD with dollar symbol", async () => {
-      await withSetting({ currency: "USD" }, () => {
+    testWithSetting(
+      "formats USD with dollar symbol",
+      { currency: "USD" },
+      () => {
         expect(formatCurrency(1050)).toBe("$10.50");
-      });
+      },
+    );
+
+    testWithSetting("formats EUR with euro symbol", { currency: "EUR" }, () => {
+      const result = formatCurrency(1050);
+      expect(result).toContain("10.50");
+      expect(result).toContain("€");
     });
 
-    test("formats EUR with euro symbol", async () => {
-      await withSetting({ currency: "EUR" }, () => {
-        const result = formatCurrency(1050);
-        expect(result).toContain("10.50");
-        expect(result).toContain("€");
-      });
-    });
-
-    test("formats JPY without decimal places", async () => {
-      await withSetting({ currency: "JPY" }, () => {
+    testWithSetting(
+      "formats JPY without decimal places",
+      { currency: "JPY" },
+      () => {
         expect(formatCurrency(1050)).toBe("¥1,050");
-      });
-    });
+      },
+    );
 
-    test("formats KWD with 3 decimal places", async () => {
-      await withSetting({ currency: "KWD" }, () => {
+    testWithSetting(
+      "formats KWD with 3 decimal places",
+      { currency: "KWD" },
+      () => {
         const result = formatCurrency(1050);
         expect(result).toContain("1.050");
-      });
-    });
+      },
+    );
 
-    test("accepts string input", async () => {
-      await withSetting({ currency: "GBP" }, () => {
-        expect(formatCurrency("1050")).toBe("£10.50");
-      });
+    testWithSetting("accepts string input", { currency: "GBP" }, () => {
+      expect(formatCurrency("1050")).toBe("£10.50");
     });
 
     test("falls back to GBP when no currency loaded", () => {
@@ -105,60 +107,50 @@ describe("currency", () => {
   });
 
   describe("toMinorUnits", () => {
-    test("converts GBP major to minor units", async () => {
-      await withSetting({ currency: "GBP" }, () => {
+    testWithSetting(
+      "converts GBP major to minor units",
+      { currency: "GBP" },
+      () => {
         expect(toMinorUnits(10.5)).toBe(1050);
-      });
+      },
+    );
+
+    testWithSetting("converts whole number", { currency: "GBP" }, () => {
+      expect(toMinorUnits(25)).toBe(2500);
     });
 
-    test("converts whole number", async () => {
-      await withSetting({ currency: "GBP" }, () => {
-        expect(toMinorUnits(25)).toBe(2500);
-      });
+    testWithSetting("rounds to nearest integer", { currency: "GBP" }, () => {
+      expect(toMinorUnits(10.999)).toBe(1100);
     });
 
-    test("rounds to nearest integer", async () => {
-      await withSetting({ currency: "GBP" }, () => {
-        expect(toMinorUnits(10.999)).toBe(1100);
-      });
+    testWithSetting("converts JPY (no decimals)", { currency: "JPY" }, () => {
+      expect(toMinorUnits(1050)).toBe(1050);
     });
 
-    test("converts JPY (no decimals)", async () => {
-      await withSetting({ currency: "JPY" }, () => {
-        expect(toMinorUnits(1050)).toBe(1050);
-      });
-    });
-
-    test("converts KWD (3 decimals)", async () => {
-      await withSetting({ currency: "KWD" }, () => {
-        expect(toMinorUnits(1.05)).toBe(1050);
-      });
+    testWithSetting("converts KWD (3 decimals)", { currency: "KWD" }, () => {
+      expect(toMinorUnits(1.05)).toBe(1050);
     });
   });
 
   describe("toMajorUnits", () => {
-    test("converts GBP minor to major units string", async () => {
-      await withSetting({ currency: "GBP" }, () => {
+    testWithSetting(
+      "converts GBP minor to major units string",
+      { currency: "GBP" },
+      () => {
         expect(toMajorUnits(1050)).toBe("10.50");
-      });
+      },
+    );
+
+    testWithSetting("converts zero", { currency: "GBP" }, () => {
+      expect(toMajorUnits(0)).toBe("0.00");
     });
 
-    test("converts zero", async () => {
-      await withSetting({ currency: "GBP" }, () => {
-        expect(toMajorUnits(0)).toBe("0.00");
-      });
+    testWithSetting("converts JPY (no decimals)", { currency: "JPY" }, () => {
+      expect(toMajorUnits(1050)).toBe("1050");
     });
 
-    test("converts JPY (no decimals)", async () => {
-      await withSetting({ currency: "JPY" }, () => {
-        expect(toMajorUnits(1050)).toBe("1050");
-      });
-    });
-
-    test("converts KWD (3 decimals)", async () => {
-      await withSetting({ currency: "KWD" }, () => {
-        expect(toMajorUnits(1050)).toBe("1.050");
-      });
+    testWithSetting("converts KWD (3 decimals)", { currency: "KWD" }, () => {
+      expect(toMajorUnits(1050)).toBe("1.050");
     });
   });
 

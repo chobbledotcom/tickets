@@ -8,7 +8,7 @@ import {
   type InValue,
   type Row,
 } from "@libsql/client";
-import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import forge from "node-forge";
 import { bracket } from "#fp";
@@ -445,6 +445,24 @@ export const useSetting = (overrides: Partial<SettingsData>): void => {
   afterEach(() => {
     settings.clearTestOverride(...keys);
   });
+};
+
+/**
+ * Shorthand for `test(name, () => withSetting(overrides, fn))`. Declares a
+ * single test that runs with the given settings overrides applied, cleared
+ * automatically when the test finishes.
+ *
+ * @example
+ * testWithSetting("formats GBP", { currency: "GBP" }, () => {
+ *   expect(formatCurrency(1050)).toBe("£10.50");
+ * });
+ */
+export const testWithSetting = (
+  name: string,
+  overrides: Partial<SettingsData>,
+  fn: () => void | Promise<void>,
+): void => {
+  it(name, () => withSetting(overrides, fn));
 };
 
 /**
