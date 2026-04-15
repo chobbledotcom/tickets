@@ -103,6 +103,7 @@ const handleBuilderPost = async (
     dbUrl,
     dbToken,
     assignable,
+    String(buildResult.scriptId),
   );
   await logActivity(`Built new site: ${siteName}`);
 

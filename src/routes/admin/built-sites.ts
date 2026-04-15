@@ -22,6 +22,7 @@ const extractBuiltSiteInput = (
   values: Record<string, string | number | null>,
 ): BuiltSiteFormInput => ({
   assignable: values.assignable === "1",
+  bunnyScriptId: String(values.bunny_script_id ?? ""),
   bunnyUrl: String(values.bunny_url),
   dbToken: String(values.db_token),
   dbUrl: String(values.db_url),
