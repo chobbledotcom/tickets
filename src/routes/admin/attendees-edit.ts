@@ -1,0 +1,417 @@
+/**
+ * Admin attendee edit routes (edit page, event links, refresh payment)
+ */
+
+import { compact, filter, uniqueBy } from "#fp";
+import { getAvailableDates } from "#lib/dates.ts";
+import { logActivity } from "#lib/db/activityLog.ts";
+import {
+  ATTENDEE_LEFT_JOIN_SELECT,
+  addEventLink,
+  decryptAttendeeOrNull,
+  type EventAttendeeRow,
+  markRefunded,
+  unlinkAttendeeFromEvent,
+  updateAttendeePII,
+  updateEventLink,
+} from "#lib/db/attendees.ts";
+import { queryAll, queryOne } from "#lib/db/client.ts";
+import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
+import { getActiveHolidays } from "#lib/db/holidays.ts";
+import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+  saveAttendeeAnswers,
+} from "#lib/db/questions.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
+/* jscpd:ignore-start */
+import type { FormParams } from "#lib/form-data.ts";
+/* jscpd:ignore-end */
+import { getActivePaymentProvider } from "#lib/payments.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
+import { requirePrivateKey } from "#routes/admin/utils.ts";
+import {
+  AUTH_FORM,
+  type AuthSession,
+  applyFlash,
+  errorRedirect,
+  htmlResponse,
+  orNotFound,
+  redirect,
+  requireSessionOr,
+  withAuth,
+} from "#routes/utils.ts";
+import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
+import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-utils.ts";
+
+/** Get all events (active + the current event), uniquified */
+const getEventsForSelector = async (
+  currentEventId: number,
+): Promise<EventWithCount[]> => {
+  const allEvents = await getAllEvents();
+  const currentEvent = allEvents.find((e) => e.id === currentEventId);
+  const activeEvents = filter((e: EventWithCount) => e.active)(allEvents);
+  return uniqueBy((e: EventWithCount) => e.id)(
+    compact([currentEvent, ...activeEvents]),
+  );
+};
+
+/** A resolved event link for display in the edit page */
+type EventLinkData = {
+  event: EventWithCount;
+  booking: EventAttendeeRow;
+  date: string | null;
+};
+
+const loadAttendeeForEdit = async (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<{
+  attendee: Attendee;
+  event: EventWithCount;
+  eventLinks: EventLinkData[];
+  allEvents: EventWithCount[];
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
+  /** Available dates per daily event (for date picker) */
+  availableDatesByEvent: Record<number, string[]>;
+} | null> => {
+  const pk = await requirePrivateKey(session);
+  const attendeeRaw = await queryOne<Attendee>(
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+     FROM attendees a
+     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id = ?`,
+    [attendeeId],
+  );
+  if (!attendeeRaw) return null;
+  const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
+
+  // Load all event bookings for this attendee
+  const bookingRows = await queryAll<EventAttendeeRow>(
+    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM event_attendees WHERE attendee_id = ?
+     ORDER BY start_at, event_id`,
+    [attendeeId],
+  );
+
+  // Resolve events for each booking
+  const eventLinks: EventLinkData[] = [];
+  for (const booking of bookingRows) {
+    const event = await getEventWithCount(booking.event_id);
+    if (event) {
+      eventLinks.push({
+        booking,
+        date: booking.start_at ? booking.start_at.slice(0, 10) : null,
+        event,
+      });
+    }
+  }
+
+  // Attendees always have at least one event link (enforced by createAttendeeAtomic)
+  const firstEvent = eventLinks[0]!.event;
+  const allEvents = await getEventsForSelector(firstEvent.id);
+  const questions = await getQuestionsForEvent(firstEvent.id);
+  const answersMap = await getAttendeeAnswersBatch([attendeeId]);
+  const holidays = await getActiveHolidays();
+  const selectedAnswerIds = answersMap.get(attendeeId) ?? [];
+
+  // Build available dates for each daily event
+  const availableDatesByEvent: Record<number, string[]> = {};
+  for (const evt of allEvents) {
+    if (evt.event_type === "daily") {
+      availableDatesByEvent[evt.id] = getAvailableDates(evt, holidays);
+    }
+  }
+
+  return {
+    allEvents,
+    attendee,
+    availableDatesByEvent,
+    event: firstEvent,
+    eventLinks,
+    questions,
+    selectedAnswerIds,
+  };
+};
+
+type EditAttendeeData = NonNullable<
+  Awaited<ReturnType<typeof loadAttendeeForEdit>>
+>;
+
+/** Load attendee for edit, returning 404 if not found */
+const withEditAttendee = (
+  session: AuthSession,
+  attendeeId: number,
+  handler: (data: EditAttendeeData) => Response | Promise<Response>,
+): Promise<Response> =>
+  orNotFound(loadAttendeeForEdit(session, attendeeId), handler);
+
+/** Handle GET /admin/attendees/:attendeeId */
+export const handleEditAttendeeGet = (
+  request: Request,
+  { attendeeId }: { attendeeId: number },
+): Promise<Response> =>
+  requireSessionOr(request, (session) =>
+    withEditAttendee(session, attendeeId, (data) => {
+      const flash = applyFlash(request);
+      return htmlResponse(
+        adminEditAttendeePage(
+          data,
+          session,
+          getReturnUrl(request),
+          flash.success,
+          flash.error,
+        ),
+      );
+    }),
+  );
+
+/** Create a POST handler for /admin/attendees/:attendeeId/* routes */
+const editAttendeePost =
+  (
+    handler: (
+      session: AuthSession,
+      form: FormParams,
+      data: EditAttendeeData,
+      attendeeId: number,
+    ) => Response | Promise<Response>,
+  ) =>
+  (
+    request: Request,
+    { attendeeId }: { attendeeId: number },
+  ): Promise<Response> =>
+    withAuth(request, AUTH_FORM, (session, form) =>
+      withEditAttendee(session, attendeeId, (data) =>
+        handler(session, form, data, attendeeId),
+      ),
+    );
+
+/** Parse a quantity value from a form field, clamping to [1, max] */
+function parseQuantity(value: string, max: number): number {
+  const parsed = Math.floor(Number(value));
+  return Math.max(1, Math.min(max, Number.isNaN(parsed) ? 1 : parsed));
+}
+
+/** Handle POST /admin/attendees/:attendeeId */
+async function editAttendeeHandler(
+  _session: AuthSession,
+  form: FormParams,
+  data: EditAttendeeData,
+  attendeeId: number,
+): Promise<Response> {
+  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
+  const editError = (msg: string) =>
+    errorRedirect(`/admin/attendees/${attendeeId}`, msg);
+  const name = form.getString("name");
+  const email = form.getString("email");
+  const phone = form.getString("phone");
+  const address = form.getString("address");
+  const special_instructions = form.getString("special_instructions");
+
+  if (!name.trim()) return editError("Name is required");
+
+  // Parse question answers
+  const answerIds: number[] = [];
+  for (const q of data.questions) {
+    const raw = form.get(`question_${q.id}`);
+    if (raw) {
+      const answerId = Number.parseInt(raw, 10);
+      if (q.answers.some((a) => a.id === answerId)) {
+        answerIds.push(answerId);
+      }
+    }
+  }
+
+  // Update PII (shared across events)
+  await updateAttendeePII(attendeeId, {
+    address,
+    email,
+    name,
+    payment_id: data.attendee.payment_id,
+    phone,
+    special_instructions,
+    ticket_token: data.attendee.ticket_token,
+  });
+
+  // Update answers (atomic delete + insert)
+  if (data.questions.length > 0) {
+    await saveAttendeeAnswers([attendeeId], answerIds);
+  }
+
+  await logActivity(`Attendee '${name}' updated`, data.event.id);
+
+  return redirect(
+    `/admin/event/${data.event.id}#attendees`,
+    `Updated ${name}`,
+    true,
+    { form },
+  );
+}
+export const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
+
+/** Handle POST /admin/attendees/:attendeeId/refresh-payment */
+async function refreshPaymentHandler(
+  _session: AuthSession,
+  _form: FormParams,
+  data: EditAttendeeData,
+  attendeeId: number,
+): Promise<Response> {
+  if (!data.attendee.payment_id) {
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      "No payment to refresh",
+      false,
+    );
+  }
+
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    return errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR);
+  }
+
+  const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);
+  if (isRefunded && !data.attendee.refunded) {
+    await markRefunded(attendeeId, data.event.id);
+    await logActivity(
+      `Payment marked as refunded for attendee '${data.attendee.name}'`,
+      data.event.id,
+    );
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      "Payment status updated: refunded",
+      true,
+    );
+  }
+
+  return redirect(
+    `/admin/attendees/${attendeeId}`,
+    "Payment status is up to date",
+    true,
+  );
+}
+export const handleRefreshPayment = editAttendeePost(refreshPaymentHandler);
+
+/* jscpd:ignore-start — route handlers share structural patterns (withAuth, errorRedirect) */
+/** Handle POST /admin/attendees/:attendeeId/link — add event link */
+export const handleAddEventLink = (
+  request: Request,
+  { attendeeId }: { attendeeId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async (_session, form) => {
+    const eventId = Number(form.get("event_id")) || 0;
+    if (!eventId) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Event is required",
+      );
+    }
+
+    const targetEvent = await getEventWithCount(eventId);
+    if (!targetEvent) {
+      return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+    }
+
+    const quantity = parseQuantity(
+      form.get("quantity") || "1",
+      targetEvent.max_quantity,
+    );
+
+    // Date for daily events
+    const date =
+      targetEvent.event_type === "daily"
+        ? form.getString("date") || null
+        : null;
+
+    const result = await addEventLink(attendeeId, {
+      date,
+      eventId,
+      quantity,
+    });
+
+    if (!result.success) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Not enough spots available",
+      );
+    }
+
+    await logActivity(`Attendee linked to '${targetEvent.name}'`, eventId);
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Added to ${targetEvent.name}`,
+      true,
+    );
+  });
+
+/** Handle POST /admin/attendees/:attendeeId/unlink/:eventId — remove event link */
+export const handleUnlinkEvent = (
+  request: Request,
+  { attendeeId, eventId }: { attendeeId: number; eventId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async () => {
+    // Don't allow removing the last event link — would orphan the attendee
+    const linkCount = await queryOne<{ count: number }>(
+      "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+      [attendeeId],
+    );
+    if (linkCount && linkCount.count <= 1) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Cannot remove the last event — delete the attendee instead",
+      );
+    }
+
+    const event = await getEventWithCount(eventId);
+    const eventName = event!.name;
+
+    await unlinkAttendeeFromEvent(attendeeId, eventId);
+    await logActivity(`Attendee unlinked from '${eventName}'`, eventId);
+
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Removed from ${eventName}`,
+      true,
+    );
+  });
+
+/** Handle POST /admin/attendees/:attendeeId/event/:eventId — update per-event link */
+export const handleUpdateEventLink = (
+  request: Request,
+  { attendeeId, eventId }: { attendeeId: number; eventId: number },
+): Promise<Response> =>
+  withAuth(request, AUTH_FORM, async (_session, form) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+    }
+
+    const quantity = parseQuantity(
+      form.get("quantity") || "1",
+      event.max_quantity,
+    );
+
+    const date =
+      event.event_type === "daily" ? form.getString("date") || null : null;
+
+    const result = await updateEventLink(attendeeId, eventId, {
+      date,
+      quantity,
+    });
+
+    if (!result.success) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Not enough spots available",
+      );
+    }
+
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      `Updated ${event.name}`,
+      true,
+    );
+  });
+
+/* jscpd:ignore-end */
