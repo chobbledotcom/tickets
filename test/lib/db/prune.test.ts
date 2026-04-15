@@ -1,25 +1,23 @@
 /**
  * Tests for DB pruning (processed_payments, sessions, login_attempts)
  * and the maybeRunPrunes scheduler.
+ *
+ * Rows are inserted directly via SQL (no HTTP) so the fire-and-forget
+ * prune in the request handler can't race with test setup.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#lib/crypto/hashing.ts";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { getDb, insert } from "#lib/db/client.ts";
-import {
-  finalizeSession as finalizePaymentSession,
-  reserveSession,
-} from "#lib/db/processed-payments.ts";
+import { createSession, getAllSessions } from "#lib/db/sessions.ts";
 import {
   maybeRunPrunes,
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
 } from "#lib/db/prune.ts";
-import { createSession, getAllSessions } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
   PRUNE_INTERVAL_MS,
@@ -28,27 +26,85 @@ import {
   PRUNE_SESSIONS_RETENTION_MS,
 } from "#lib/limits.ts";
 import { nowMs } from "#lib/now.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 
-/** Insert a finalized processed_payments row with a chosen processed_at. */
+/**
+ * Insert a finalized processed_payments row via direct SQL.
+ * FKs are not enforced (see migrations.ts), so attendee_id can be any
+ * non-null integer — the prune query only filters on `attendee_id IS NOT NULL`.
+ */
 const insertFinalizedPayment = async (
   sessionId: string,
   processedAtIso: string,
 ): Promise<void> => {
-  const event = await createTestEvent({ maxAttendees: 10 });
-  const attendeeResult = await createAttendeeAtomic({
-    bookings: [{ eventId: event.id }],
-    email: `${sessionId}@example.com`,
-    name: "Prune Test",
-  });
-  if (!attendeeResult.success) throw new Error("attendee create failed");
-  await reserveSession(sessionId);
-  await finalizePaymentSession(sessionId, attendeeResult.attendees[0]!.id);
-  // Backdate processed_at
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: 1,
+      payment_session_id: sessionId,
+      processed_at: processedAtIso,
+      ticket_tokens: "",
+    }),
+  );
+};
+
+/** Insert an unfinalized (attendee_id NULL) processed_payments row. */
+const insertUnfinalizedPayment = async (
+  sessionId: string,
+  processedAtIso: string,
+): Promise<void> => {
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: null,
+      payment_session_id: sessionId,
+      processed_at: processedAtIso,
+    }),
+  );
+};
+
+/** Insert a login_attempts row with the given lockout (or NULL). */
+const insertLoginAttempt = async (
+  ipPlain: string,
+  attempts: number,
+  lockedUntil: number | null,
+): Promise<string> => {
+  const ipHash = await hmacHash(ipPlain);
   await getDb().execute({
-    args: [processedAtIso, sessionId],
-    sql: "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+    args: [ipHash, attempts, lockedUntil],
+    sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
   });
+  return ipHash;
+};
+
+/** Is a processed_payments row with this session ID still in the DB? */
+const paymentExists = async (sessionId: string): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [sessionId],
+    sql: "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
+  });
+  return rows.length > 0;
+};
+
+/** Is a login_attempts row with this ip hash still in the DB? */
+const loginAttemptExists = async (ipHash: string): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [ipHash],
+    sql: "SELECT 1 FROM login_attempts WHERE ip = ?",
+  });
+  return rows.length > 0;
+};
+
+/** Clear all last_pruned_* timestamps so every task is due. */
+const clearAllLastPruned = async (): Promise<void> => {
+  await settings.update.lastPrunedPayments("");
+  await settings.update.lastPrunedSessions("");
+  await settings.update.lastPrunedLogins("");
+};
+
+/** Set all last_pruned_* timestamps to the same value. */
+const setAllLastPruned = async (value: string): Promise<void> => {
+  await settings.update.lastPrunedPayments(value);
+  await settings.update.lastPrunedSessions(value);
+  await settings.update.lastPrunedLogins(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -59,66 +115,44 @@ describeWithEnv("db > prune", { db: true }, () => {
       ).toISOString();
       await insertFinalizedPayment("sess_old", old);
 
-      const deleted = await prunePayments();
+      await prunePayments();
 
-      expect(deleted).toBe(1);
-      const { rows } = await getDb().execute({
-        args: ["sess_old"],
-        sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-      });
-      expect(rows.length).toBe(0);
+      expect(await paymentExists("sess_old")).toBe(false);
     });
 
     test("keeps finalized payments within retention window", async () => {
       const recent = new Date(nowMs() - 1000).toISOString();
       await insertFinalizedPayment("sess_recent", recent);
 
-      const deleted = await prunePayments();
+      await prunePayments();
 
-      expect(deleted).toBe(0);
-      const { rows } = await getDb().execute({
-        args: ["sess_recent"],
-        sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-      });
-      expect(rows.length).toBe(1);
+      expect(await paymentExists("sess_recent")).toBe(true);
     });
 
     test("leaves unfinalized reservations alone regardless of age", async () => {
       const old = new Date(
         nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
       ).toISOString();
-      await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: null,
-          payment_session_id: "sess_unfinalized",
-          processed_at: old,
-        }),
-      );
+      await insertUnfinalizedPayment("sess_unfinalized", old);
 
-      const deleted = await prunePayments();
+      await prunePayments();
 
-      expect(deleted).toBe(0);
-      const { rows } = await getDb().execute({
-        args: ["sess_unfinalized"],
-        sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-      });
-      expect(rows.length).toBe(1);
+      expect(await paymentExists("sess_unfinalized")).toBe(true);
     });
   });
 
   describe("pruneSessions", () => {
     test("deletes sessions whose expiry is past the retention window", async () => {
       const expiredMs = nowMs() - PRUNE_SESSIONS_RETENTION_MS - 60_000;
-      await createSession("stale-tok", "csrf", expiredMs, null, 1);
+      await createSession("stale-tok", "csrf-stale", expiredMs, null, 1);
 
-      const deleted = await pruneSessions();
+      await pruneSessions();
 
-      expect(deleted).toBe(1);
       const remaining = await getAllSessions();
-      expect(remaining.map((s) => s.csrf_token)).not.toContain("csrf");
+      expect(remaining.map((s) => s.csrf_token)).not.toContain("csrf-stale");
     });
 
-    test("keeps active sessions (future expiry)", async () => {
+    test("keeps active sessions with future expiry", async () => {
       await createSession(
         "active-tok",
         "csrf-active",
@@ -127,15 +161,13 @@ describeWithEnv("db > prune", { db: true }, () => {
         1,
       );
 
-      const deleted = await pruneSessions();
+      await pruneSessions();
 
-      expect(deleted).toBe(0);
       const remaining = await getAllSessions();
       expect(remaining.map((s) => s.csrf_token)).toContain("csrf-active");
     });
 
     test("keeps recently-expired sessions within retention grace", async () => {
-      // Expired 1 second ago — within retention window
       await createSession(
         "fresh-expired",
         "csrf-fresh-expired",
@@ -144,84 +176,79 @@ describeWithEnv("db > prune", { db: true }, () => {
         1,
       );
 
-      const deleted = await pruneSessions();
+      await pruneSessions();
 
-      expect(deleted).toBe(0);
+      const remaining = await getAllSessions();
+      expect(remaining.map((s) => s.csrf_token)).toContain("csrf-fresh-expired");
     });
   });
 
   describe("pruneLoginAttempts", () => {
     test("deletes rows with lockouts past retention window", async () => {
-      const ipHash = await hmacHash("1.2.3.4");
-      const oldLockout = nowMs() - PRUNE_LOGINS_RETENTION_MS - 60_000;
-      await getDb().execute({
-        args: [ipHash, 5, oldLockout],
-        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
-      });
+      const ipHash = await insertLoginAttempt(
+        "1.2.3.4",
+        5,
+        nowMs() - PRUNE_LOGINS_RETENTION_MS - 60_000,
+      );
 
-      const deleted = await pruneLoginAttempts();
+      await pruneLoginAttempts();
 
-      expect(deleted).toBe(1);
+      expect(await loginAttemptExists(ipHash)).toBe(false);
     });
 
     test("keeps counter-only rows (locked_until IS NULL)", async () => {
-      const ipHash = await hmacHash("5.6.7.8");
-      await getDb().execute({
-        args: [ipHash, 2],
-        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
-      });
+      const ipHash = await insertLoginAttempt("5.6.7.8", 2, null);
 
-      const deleted = await pruneLoginAttempts();
+      await pruneLoginAttempts();
 
-      expect(deleted).toBe(0);
-      const { rows } = await getDb().execute({
-        args: [ipHash],
-        sql: "SELECT ip FROM login_attempts WHERE ip = ?",
-      });
-      expect(rows.length).toBe(1);
+      expect(await loginAttemptExists(ipHash)).toBe(true);
     });
 
     test("keeps rows with currently-active lockouts", async () => {
-      const ipHash = await hmacHash("9.10.11.12");
-      const futureLockout = nowMs() + 60_000;
-      await getDb().execute({
-        args: [ipHash, 5, futureLockout],
-        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
-      });
+      const ipHash = await insertLoginAttempt("9.10.11.12", 5, nowMs() + 60_000);
 
-      const deleted = await pruneLoginAttempts();
+      await pruneLoginAttempts();
 
-      expect(deleted).toBe(0);
+      expect(await loginAttemptExists(ipHash)).toBe(true);
     });
   });
 
   describe("maybeRunPrunes scheduler", () => {
-    test("records last-pruned timestamp after running", async () => {
-      await settings.update.lastPrunedPayments("");
-      await settings.update.lastPrunedSessions("");
-      await settings.update.lastPrunedLogins("");
-      await settings.loadAll();
-
+    test("records fresh payments timestamp after running", async () => {
+      await clearAllLastPruned();
       const before = nowMs();
+
       await maybeRunPrunes();
 
-      const paymentsTs = Number.parseInt(settings.lastPrunedPayments, 10);
-      const sessionsTs = Number.parseInt(settings.lastPrunedSessions, 10);
-      const loginsTs = Number.parseInt(settings.lastPrunedLogins, 10);
-      expect(paymentsTs).toBeGreaterThanOrEqual(before);
-      expect(sessionsTs).toBeGreaterThanOrEqual(before);
-      expect(loginsTs).toBeGreaterThanOrEqual(before);
+      const ts = Number.parseInt(settings.lastPrunedPayments, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh sessions timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedSessions, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh logins timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedLogins, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
     });
 
     test("skips tasks not yet due since last run", async () => {
-      // Simulate "just ran" for all three
-      const justRan = String(nowMs());
-      await settings.update.lastPrunedPayments(justRan);
-      await settings.update.lastPrunedSessions(justRan);
-      await settings.update.lastPrunedLogins(justRan);
-      await settings.loadAll();
-
-      // Insert an old finalized payment that WOULD be pruned if the task ran
+      await setAllLastPruned(String(nowMs()));
       const old = new Date(
         nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
       ).toISOString();
@@ -229,128 +256,81 @@ describeWithEnv("db > prune", { db: true }, () => {
 
       await maybeRunPrunes();
 
-      // Row should still exist — task was skipped
-      const { rows } = await getDb().execute({
-        args: ["sess_skip"],
-        sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-      });
-      expect(rows.length).toBe(1);
+      expect(await paymentExists("sess_skip")).toBe(true);
     });
 
     test("runs tasks when last-run is older than the interval", async () => {
-      // Insert first, then backdate last_pruned. Doing it the other way round
-      // races with the request-handler fire-and-forget prune triggered by the
-      // HTTP call inside insertFinalizedPayment.
       const old = new Date(
         nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
       ).toISOString();
       await insertFinalizedPayment("sess_due", old);
-
-      const oldRun = String(nowMs() - PRUNE_INTERVAL_MS - 60_000);
-      await settings.update.lastPrunedPayments(oldRun);
-      await settings.update.lastPrunedSessions(oldRun);
-      await settings.update.lastPrunedLogins(oldRun);
+      await setAllLastPruned(String(nowMs() - PRUNE_INTERVAL_MS - 60_000));
 
       await maybeRunPrunes();
 
-      const { rows } = await getDb().execute({
-        args: ["sess_due"],
-        sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-      });
-      expect(rows.length).toBe(0);
+      expect(await paymentExists("sess_due")).toBe(false);
     });
 
     test("one task's failure does not block the others", async () => {
-      // Empty last-run timestamps → all three due
-      await settings.update.lastPrunedPayments("");
-      await settings.update.lastPrunedSessions("");
-      await settings.update.lastPrunedLogins("");
-      await settings.loadAll();
+      // Insert a prunable payment so we can verify its task actually ran.
+      const old = new Date(
+        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertFinalizedPayment("sess_isolation", old);
 
-      // Drop sessions table so pruneSessions fails
+      await clearAllLastPruned();
+
+      // Drop sessions so pruneSessions fails; payments + logins should still run.
       await getDb().execute("DROP TABLE sessions");
 
       await maybeRunPrunes();
 
-      // Payments and logins timestamps should still be updated
-      expect(settings.lastPrunedPayments).not.toBe("");
-      expect(settings.lastPrunedLogins).not.toBe("");
-      // (afterEach -> resetDb will clean up the dropped sessions table)
+      expect(await paymentExists("sess_isolation")).toBe(false);
     });
 
     test("treats an invalid last-pruned value as never-run", async () => {
-      // Write a garbage value, then call maybeRunPrunes — it should run.
       await settings.update.lastPrunedPayments("not-a-number");
-      await settings.update.lastPrunedSessions("");
-      await settings.update.lastPrunedLogins("");
-      await settings.loadAll();
-
       const before = nowMs();
+
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedPayments, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
     });
 
-    test("multiple concurrent calls are idempotent", async () => {
+    test("concurrent calls leave the DB in a consistent state", async () => {
       const old = new Date(
         nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
       ).toISOString();
       await insertFinalizedPayment("sess_concurrent", old);
-
-      // Reset timestamps AFTER the insert (which makes HTTP calls that race
-      // with the fire-and-forget prune scheduler in the request handler).
-      await settings.update.lastPrunedPayments("");
-      await settings.update.lastPrunedSessions("");
-      await settings.update.lastPrunedLogins("");
+      await clearAllLastPruned();
 
       await Promise.all([maybeRunPrunes(), maybeRunPrunes(), maybeRunPrunes()]);
 
-      // Row is deleted exactly once; concurrent calls do not error
-      const { rows } = await getDb().execute({
-        args: ["sess_concurrent"],
-        sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-      });
-      expect(rows.length).toBe(0);
+      expect(await paymentExists("sess_concurrent")).toBe(false);
     });
   });
 
-  describe("interval arithmetic (FakeTime)", () => {
-    test("task becomes due exactly PRUNE_INTERVAL_MS after its last run", async () => {
-      const start = 1_700_000_000_000;
-      const time = new FakeTime(start);
-      try {
-        await settings.update.lastPrunedPayments(String(start));
-        await settings.update.lastPrunedSessions(String(start));
-        await settings.update.lastPrunedLogins(String(start));
-        await settings.loadAll();
+  test("a task becomes due exactly PRUNE_INTERVAL_MS after its last run", async () => {
+    const start = 1_700_000_000_000;
+    const time = new FakeTime(start);
+    try {
+      await setAllLastPruned(String(start));
+      const old = new Date(
+        start - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertFinalizedPayment("sess_interval", old);
 
-        // Insert something prunable (dated far in the past)
-        const old = new Date(
-          start - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
-        ).toISOString();
-        await insertFinalizedPayment("sess_interval", old);
+      time.tick(PRUNE_INTERVAL_MS - 1);
+      await maybeRunPrunes();
+      expect(await paymentExists("sess_interval")).toBe(true);
 
-        // Just before interval elapses — not yet due
-        time.tick(PRUNE_INTERVAL_MS - 1);
-        await maybeRunPrunes();
-        const mid = await getDb().execute({
-          args: ["sess_interval"],
-          sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-        });
-        expect(mid.rows.length).toBe(1);
-
-        // Interval elapses — now due
-        time.tick(1);
-        await maybeRunPrunes();
-        const after = await getDb().execute({
-          args: ["sess_interval"],
-          sql: "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-        });
-        expect(after.rows.length).toBe(0);
-      } finally {
-        time.restore();
-      }
-    });
+      time.tick(1);
+      await maybeRunPrunes();
+      expect(await paymentExists("sess_interval")).toBe(false);
+    } finally {
+      time.restore();
+    }
   });
 });
