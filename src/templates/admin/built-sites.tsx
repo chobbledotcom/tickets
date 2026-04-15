@@ -9,6 +9,7 @@ import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { filter, map, pipe } from "#fp";
 
 /**
  * Admin built sites list page
@@ -29,40 +30,48 @@ export const adminBuiltSitesPage = (
       {sites.length === 0 ? (
         <p>No built sites recorded.</p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Bunny URL</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sites.map((site) => (
+        <div>
+          <div class="table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td>{site.name}</td>
-                  <td>
-                    <a href={site.bunnyUrl} target="_blank" rel="noopener">
-                      {site.bunnyUrl}
-                    </a>
-                  </td>
-                  <td>
-                    {site.assignedAttendeeId
-                      ? `Assigned (attendee #${site.assignedAttendeeId})`
-                      : site.assignable
-                        ? "Available"
-                        : "Not assignable"}
-                  </td>
-                  <td>
-                    <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/built-sites/${site.id}/delete`}>Delete</a>
-                  </td>
+                  <th>Name</th>
+                  <th>Bunny URL</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sites.map((site) => (
+                  <tr>
+                    <td>{site.name}</td>
+                    <td>
+                      <a href={site.bunnyUrl} target="_blank" rel="noopener">
+                        {site.bunnyUrl}
+                      </a>
+                    </td>
+                    <td>
+                      {site.assignedAttendeeId
+                        ? `Assigned (attendee #${site.assignedAttendeeId})`
+                        : site.assignable
+                          ? "Available"
+                          : "Not assignable"}
+                    </td>
+                    <td>
+                      <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
+                      <a href={`/admin/built-sites/${site.id}/delete`}>Delete</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p>
+            {pipe(
+              filter((site: BuiltSite) => site.bunnyScriptId),
+              map((site: BuiltSite) => site.bunnyScriptId),
+            )(sites).join("|")}
+          </p>
         </div>
       )}
     </Layout>,
