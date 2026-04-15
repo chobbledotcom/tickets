@@ -119,8 +119,8 @@ const handleBackupDownload: TypedRouteHandler<
     ) as ArrayBuffer;
     return new Response(body, {
       headers: {
-        "content-type": "application/zip",
         "content-disposition": `attachment; filename="${filename}"`,
+        "content-type": "application/zip",
       },
     });
   });
@@ -214,8 +214,8 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
 /** Backup routes */
 export const backupRoutes = defineRoutes({
   "GET /admin/backup": handleBackupGet,
-  "POST /admin/backup/create": handleBackupCreate,
   "GET /admin/backup/download/:filename": handleBackupDownload,
+  "POST /admin/backup/create": handleBackupCreate,
   "POST /admin/backup/restore": handleBackupRestore,
   "POST /admin/backup/restore/confirm": handleBackupRestoreConfirm,
 });

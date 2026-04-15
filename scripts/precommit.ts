@@ -47,15 +47,15 @@ const filterTestOutput = (stdout: string, stderr: string): string => {
 };
 
 const steps: Step[] = [
-  { name: "biome:fix", cmd: ["deno", "task", "biome:fix"] },
-  { name: "typecheck", cmd: ["deno", "task", "typecheck"] },
-  { name: "lint", cmd: ["deno", "task", "lint"] },
-  { name: "cpd", cmd: ["deno", "task", "cpd"] },
-  { name: "build:edge", cmd: ["deno", "task", "build:edge"] },
+  { cmd: ["deno", "task", "biome:fix"], name: "biome:fix" },
+  { cmd: ["deno", "task", "typecheck"], name: "typecheck" },
+  { cmd: ["deno", "task", "lint"], name: "lint" },
+  { cmd: ["deno", "task", "cpd"], name: "cpd" },
+  { cmd: ["deno", "task", "build:edge"], name: "build:edge" },
   {
-    name: "test:coverage",
     cmd: ["deno", "task", "test:coverage"],
     filterOutput: filterTestOutput,
+    name: "test:coverage",
   },
 ];
 
@@ -65,8 +65,8 @@ const runStep = async (step: Step): Promise<boolean> => {
 
   const cmd = new Deno.Command(step.cmd[0], {
     args: step.cmd.slice(1),
-    stdout: "piped",
     stderr: "piped",
+    stdout: "piped",
   });
 
   const result = await cmd.output();

@@ -86,7 +86,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("marks can_pay_more events as paid", () => {
-      const entries = [makeEntry({ unit_price: 0, can_pay_more: true })];
+      const entries = [makeEntry({ can_pay_more: true, unit_price: 0 })];
       const data = buildTemplateData(
         entries,
         "GBP",
@@ -110,34 +110,34 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
   describe("renderTemplate", () => {
     const sampleData: TemplateData = {
+      attendee: {
+        address: "123 St",
+        date: null,
+        email: "jane@test.com",
+        name: "Jane",
+        phone: "555",
+        price_paid: "2000",
+        quantity: 2,
+        special_instructions: "",
+      },
+      currency: "GBP",
       entries: [
         {
-          event: { name: "Concert", slug: "concert", is_paid: true },
           attendee: {
-            name: "Jane",
-            email: "jane@test.com",
-            phone: "555",
             address: "123 St",
-            special_instructions: "",
-            quantity: 2,
-            price_paid: "2000",
             date: null,
+            email: "jane@test.com",
+            name: "Jane",
+            phone: "555",
+            price_paid: "2000",
+            quantity: 2,
+            special_instructions: "",
           },
+          event: { is_paid: true, name: "Concert", slug: "concert" },
         },
       ],
       event_names: "Concert",
-      attendee: {
-        name: "Jane",
-        email: "jane@test.com",
-        phone: "555",
-        address: "123 St",
-        special_instructions: "",
-        quantity: 2,
-        price_paid: "2000",
-        date: null,
-      },
       ticket_url: "https://example.com/t/ABC",
-      currency: "GBP",
     };
 
     test("renders simple variable interpolation", async () => {
@@ -202,11 +202,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
         entries: [
           {
             ...sampleData.entries[0]!,
-            event: { name: "Event A", slug: "a", is_paid: false },
+            event: { is_paid: false, name: "Event A", slug: "a" },
           },
           {
             ...sampleData.entries[0]!,
-            event: { name: "Event B", slug: "b", is_paid: false },
+            event: { is_paid: false, name: "Event B", slug: "b" },
           },
         ],
       };
@@ -359,8 +359,8 @@ describeWithEnv("email-renderer", { db: true }, () => {
         makeEntry(
           {},
           {
-            phone: "555-1234",
             address: "123 Main St",
+            phone: "555-1234",
             special_instructions: "Wheelchair",
           },
         ),
@@ -380,7 +380,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
     test("omits empty contact fields in admin notification", async () => {
       const entries = [
-        makeEntry({}, { phone: "", address: "", special_instructions: "" }),
+        makeEntry({}, { address: "", phone: "", special_instructions: "" }),
       ];
       const data = buildTemplateData(
         entries,

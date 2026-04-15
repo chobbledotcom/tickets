@@ -9,10 +9,10 @@ import {
 import { describeWithEnv } from "#test-utils";
 
 const mockSession = {
-  token: "test-token",
-  wrappedDataKey: null,
-  userId: 1,
   adminLevel: "owner" as const,
+  token: "test-token",
+  userId: 1,
+  wrappedDataKey: null,
 };
 
 const baseState: BackupPageState = {

@@ -30,14 +30,14 @@ const walletRequest = (
 ) =>
   handleRequest(
     new Request(`http://localhost${path}`, {
-      method: options.method ?? "GET",
       headers: { host: "localhost", ...options.headers },
+      method: options.method ?? "GET",
       ...(options.method === "POST"
         ? {
             body: "{}",
             headers: {
-              host: "localhost",
               "content-type": "application/json",
+              host: "localhost",
               ...options.headers,
             },
           }

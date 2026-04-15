@@ -29,9 +29,9 @@ export const setFlashContext = (flash: Flash): void => {
 export const getFlash = (): Flash => {
   const store = flashStore.getStore();
   return {
-    success: store?.success,
     error: store?.error,
     result: store?.result,
+    success: store?.success,
   };
 };
 

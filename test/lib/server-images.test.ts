@@ -41,26 +41,26 @@ const editFormData = async (
   const event = await getEventWithCount(eventId);
   if (!event) throw new Error(`Event not found: ${eventId}`);
   return {
+    bookable_days: event.bookable_days.join(","),
+    closes_at_date: "",
+    closes_at_time: "",
     csrf_token: csrfToken,
-    name: event.name,
-    description: event.description,
     date_date: "",
     date_time: "",
+    description: event.description,
+    event_type: event.event_type,
+    fields: event.fields || "email",
     location: event.location,
     max_attendees: String(event.max_attendees),
+    max_price: toMajorUnits(event.max_price),
     max_quantity: String(event.max_quantity),
-    fields: event.fields || "email",
+    maximum_days_after: String(event.maximum_days_after),
+    minimum_days_before: String(event.minimum_days_before),
+    name: event.name,
+    slug: event.slug,
     thank_you_url: event.thank_you_url ?? "",
     unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
     webhook_url: event.webhook_url ?? "",
-    closes_at_date: "",
-    closes_at_time: "",
-    event_type: event.event_type,
-    bookable_days: event.bookable_days.join(","),
-    minimum_days_before: String(event.minimum_days_before),
-    maximum_days_after: String(event.maximum_days_after),
-    slug: event.slug,
-    max_price: toMajorUnits(event.max_price),
   };
 };
 
@@ -88,9 +88,9 @@ const submitEditJpeg = (
   filename: string,
 ): Promise<Response> =>
   submitEditImage(eventId, cookie, csrfToken, {
-    name: filename,
-    data: JPEG_HEADER,
     contentType: "image/jpeg",
+    data: JPEG_HEADER,
+    name: filename,
   });
 
 /** Submit a POST to /admin/event/:id/image/delete */
@@ -127,24 +127,24 @@ const newEventFormFields = (
   csrfToken: string,
   name: string,
 ): Record<string, string> => ({
+  bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday",
+  closes_at_date: "",
+  closes_at_time: "",
   csrf_token: csrfToken,
-  name,
-  description: "",
   date_date: "",
   date_time: "",
+  description: "",
+  event_type: "standard",
+  fields: "email",
   location: "",
   max_attendees: "50",
   max_quantity: "1",
-  fields: "email",
+  maximum_days_after: "",
+  minimum_days_before: "",
+  name,
   thank_you_url: "",
   unit_price: "",
   webhook_url: "",
-  closes_at_date: "",
-  closes_at_time: "",
-  event_type: "standard",
-  bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday",
-  minimum_days_before: "",
-  maximum_days_after: "",
 });
 
 /** Submit a create-event form with an image file attached */
@@ -187,7 +187,7 @@ const submitEventDelete = (
   handleRequest(
     mockFormRequest(
       `/admin/event/${eventId}/delete`,
-      { csrf_token: csrfToken, confirm_identifier: eventName },
+      { confirm_identifier: eventName, csrf_token: csrfToken },
       cookie,
     ),
   );
@@ -215,17 +215,17 @@ const proxyRequest = (ext = "jpg"): Promise<Response> =>
 describeWithEnv(
   "server (event images)",
   {
-    env: {
-      STORAGE_ZONE_NAME: "testzone",
-      STORAGE_ZONE_KEY: "testkey",
-    },
     db: true,
+    env: {
+      STORAGE_ZONE_KEY: "testkey",
+      STORAGE_ZONE_NAME: "testzone",
+    },
   },
   () => {
     describe("POST /admin/event/:id/edit (image upload via edit form)", () => {
       describeWithEnv(
         "when storage is not configured",
-        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        { env: { STORAGE_ZONE_KEY: undefined, STORAGE_ZONE_NAME: undefined } },
         () => {
           test("ignores image", async () => {
             await withStorageDisabled(async () => {
@@ -258,9 +258,9 @@ describeWithEnv(
 
         await withStorageMock(async () => {
           const response = await submitEditImage(event.id, cookie, csrfToken, {
-            name: "test.pdf",
-            data: PDF_BYTES,
             contentType: "application/pdf",
+            data: PDF_BYTES,
+            name: "test.pdf",
           });
           await expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
           const updated = await getEventWithCount(event.id);
@@ -278,9 +278,9 @@ describeWithEnv(
 
         await withStorageMock(async () => {
           const response = await submitEditImage(event.id, cookie, csrfToken, {
-            name: "big.jpg",
-            data: oversized,
             contentType: "image/jpeg",
+            data: oversized,
+            name: "big.jpg",
           });
           await expectImageErrorRedirect(response, "256KB");
         });
@@ -291,9 +291,9 @@ describeWithEnv(
 
         await withStorageMock(async () => {
           const response = await submitEditImage(event.id, cookie, csrfToken, {
-            name: "fake.jpg",
-            data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
             contentType: "image/jpeg",
+            data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
+            name: "fake.jpg",
           });
           await expectImageErrorRedirect(response, "valid image");
         });
@@ -378,7 +378,7 @@ describeWithEnv(
             cookie,
             csrfToken,
             "Image Test Event",
-            { name: "photo.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
+            { contentType: "image/jpeg", data: JPEG_HEADER, name: "photo.jpg" },
           );
           expect(response.status).toBe(302);
 
@@ -400,9 +400,9 @@ describeWithEnv(
             csrfToken,
             "Bad Image Event",
             {
-              name: "test.pdf",
-              data: PDF_BYTES,
               contentType: "application/pdf",
+              data: PDF_BYTES,
+              name: "test.pdf",
             },
           );
           expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
@@ -570,7 +570,7 @@ describeWithEnv(
 
       describeWithEnv(
         "when storage is not enabled",
-        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        { env: { STORAGE_ZONE_KEY: undefined, STORAGE_ZONE_NAME: undefined } },
         () => {
           test("returns 404", async () => {
             await withStorageDisabled(async () => {
@@ -582,12 +582,12 @@ describeWithEnv(
 
       test("returns 404 for non-GET method", async () => {
         const request = new Request(`http://localhost${PROXY_PATH}.jpg`, {
-          method: "POST",
           body: "test",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             host: "localhost",
           },
+          method: "POST",
         });
         expect((await handleRequest(request)).status).toBe(404);
       });
@@ -627,7 +627,7 @@ describeWithEnv(
 
       describeWithEnv(
         "when storage is not configured",
-        { env: { STORAGE_ZONE_NAME: undefined, STORAGE_ZONE_KEY: undefined } },
+        { env: { STORAGE_ZONE_KEY: undefined, STORAGE_ZONE_NAME: undefined } },
         () => {
           test("ignores attachment", async () => {
             await withStorageDisabled(async () => {
@@ -638,9 +638,9 @@ describeWithEnv(
                 cookie,
                 csrfToken,
                 {
-                  name: "guide.pdf",
-                  data: PDF_BYTES,
                   contentType: "application/pdf",
+                  data: PDF_BYTES,
+                  name: "guide.pdf",
                 },
               );
               expect(response.status).toBe(302);
@@ -660,9 +660,9 @@ describeWithEnv(
             cookie,
             csrfToken,
             {
-              name: "guide.pdf",
-              data: PDF_BYTES,
               contentType: "application/pdf",
+              data: PDF_BYTES,
+              name: "guide.pdf",
             },
           );
           expectRedirectWithFlash(
@@ -686,9 +686,9 @@ describeWithEnv(
             cookie,
             csrfToken,
             {
-              name: "huge.zip",
-              data: oversized,
               contentType: "application/zip",
+              data: oversized,
+              name: "huge.zip",
             },
           );
           expectImageErrorRedirect(response, "25MB");
@@ -700,8 +700,8 @@ describeWithEnv(
       test("deletes old attachment when uploading new one", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();
         await eventsTable.update(event.id, {
-          attachmentUrl: "old-file.pdf",
           attachmentName: "old.pdf",
+          attachmentUrl: "old-file.pdf",
         });
 
         await withStorageMock(async (fetchCalls) => {
@@ -710,9 +710,9 @@ describeWithEnv(
             cookie,
             csrfToken,
             {
-              name: "new.pdf",
-              data: PDF_BYTES,
               contentType: "application/pdf",
+              data: PDF_BYTES,
+              name: "new.pdf",
             },
           );
           expect(response.status).toBe(302);
@@ -728,7 +728,7 @@ describeWithEnv(
         const { event, cookie, csrfToken } = await setupEventAndLogin();
 
         await runWithStorageConfig(
-          { zoneName: "testzone", zoneKey: "testkey" },
+          { zoneKey: "testkey", zoneName: "testzone" },
           () =>
             withFetchMock(async (originalFetch) => {
               installUrlHandler(originalFetch, () =>
@@ -740,9 +740,9 @@ describeWithEnv(
                 cookie,
                 csrfToken,
                 {
-                  name: "guide.pdf",
-                  data: PDF_BYTES,
                   contentType: "application/pdf",
+                  data: PDF_BYTES,
+                  name: "guide.pdf",
                 },
               );
               expectImageErrorRedirect(response, "upload failed");
@@ -763,10 +763,10 @@ describeWithEnv(
               newEventFormFields(csrfToken, "Attachment Event"),
               cookie,
               {
+                contentType: "application/pdf",
+                data: PDF_BYTES,
                 fieldName: "attachment",
                 name: "info.pdf",
-                data: PDF_BYTES,
-                contentType: "application/pdf",
               },
             ),
           );
@@ -786,8 +786,8 @@ describeWithEnv(
       test("removes attachment from event and storage", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();
         await eventsTable.update(event.id, {
-          attachmentUrl: "to-delete.pdf",
           attachmentName: "file.pdf",
+          attachmentUrl: "to-delete.pdf",
         });
 
         await withStorageMock(async () => {
@@ -857,8 +857,8 @@ describeWithEnv(
       test("deletes attachment from storage when event is deleted", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();
         await eventsTable.update(event.id, {
-          attachmentUrl: "event-attachment.pdf",
           attachmentName: "doc.pdf",
+          attachmentUrl: "event-attachment.pdf",
         });
 
         await withStorageMock(async (fetchCalls) => {
@@ -880,9 +880,9 @@ describeWithEnv(
       test("deletes both image and attachment from storage when event is deleted", async () => {
         const { event, cookie, csrfToken } = await setupEventAndLogin();
         await eventsTable.update(event.id, {
-          imageUrl: "both-image.jpg",
-          attachmentUrl: "both-attachment.pdf",
           attachmentName: "both.pdf",
+          attachmentUrl: "both-attachment.pdf",
+          imageUrl: "both-image.jpg",
         });
 
         await withStorageMock(async (fetchCalls) => {

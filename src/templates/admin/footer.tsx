@@ -76,9 +76,9 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
 export const renderDebugFooter = (): string =>
   isQueryLogEnabled()
     ? debugFooterHtml({
-        renderTimeMs: performance.now() - getQueryLogStartTime(),
-        queries: getQueryLog(),
         cacheStats: getAllCacheStats(),
+        queries: getQueryLog(),
+        renderTimeMs: performance.now() - getQueryLogStartTime(),
       })
     : "";
 

@@ -24,9 +24,9 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         thankYouUrl: "https://example.com",
       });
       const attendeeResult = await createAttendeeAtomic({
-        name: "Test",
-        email: "test@example.com",
         bookings: [{ eventId: event.id }],
+        email: "test@example.com",
+        name: "Test",
       });
       if (!attendeeResult.success) throw new Error("Failed to create attendee");
 
@@ -58,8 +58,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       ).toISOString();
       await getDb().execute(
         insert("processed_payments", {
-          payment_session_id: "sess_stale",
           attendee_id: null,
+          payment_session_id: "sess_stale",
           processed_at: oldTimestamp,
         }),
       );

@@ -26,8 +26,8 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const map = buildInputKeyMap(columns);
     expect(map).toEqual({
       max_attendees: "maxAttendees",
-      thank_you_url: "thankYouUrl",
       name: "name",
+      thank_you_url: "thankYouUrl",
     });
   });
 
@@ -112,13 +112,13 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     });
 
     await createTestEvent({
-      name: "Event One",
       maxAttendees: 10,
+      name: "Event One",
       thankYouUrl: "https://example.com",
     });
     await createTestEvent({
-      name: "Event Two",
       maxAttendees: 20,
+      name: "Event Two",
       thankYouUrl: "https://example.com",
     });
 
@@ -178,26 +178,26 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       name: "events",
       primaryKey: "id",
       schema: {
-        id: col.generated<number>(),
+        active: col.withDefault(() => 1),
         created: col.withDefault(() => new Date().toISOString()),
+        id: col.generated<number>(),
+        max_attendees: col.simple<number>(),
+        max_quantity: col.withDefault(() => 1),
         slug: col.transform(
           (v: string) => v.toUpperCase(),
           (v: string) => v.toLowerCase(),
         ),
         slug_index: col.simple<string>(),
-        max_attendees: col.simple<number>(),
         thank_you_url: col.simple<string>(),
         unit_price: col.withDefault(() => 0),
-        max_quantity: col.withDefault(() => 1),
         webhook_url: col.simple<string | null>(),
-        active: col.withDefault(() => 1),
       },
     });
 
     const row = await testTable.insert({
+      maxAttendees: 10,
       slug: "test-event",
       slugIndex: "test-index",
-      maxAttendees: 10,
       thankYouUrl: "http://test.com",
     });
     expect(row.slug).toBe("test-event");
@@ -249,16 +249,16 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
   test("getProvidedColumns uses inputKeyMap fallback for single-word keys", async () => {
     const event = await createTestEvent({
-      name: "Fallback Test",
       maxAttendees: 10,
+      name: "Fallback Test",
       thankYouUrl: "https://example.com",
     });
 
     const updated = await eventsTable.update(event.id, {
+      maxAttendees: 10,
       name: "Updated Name",
       slug: "updated-slug",
       slugIndex: "updated-index",
-      maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
     expect(updated?.name).toBe("Updated Name");

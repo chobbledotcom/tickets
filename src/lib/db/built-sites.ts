@@ -75,12 +75,12 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   name: "built_sites",
   primaryKey: "id",
   schema: {
-    id: idCol,
-    site_data: col.encrypted<string>(encrypt, decrypt),
     assignable: assignableCol,
     assigned_attendee_id: nullCol,
     assigned_event_id: nullCol,
     created: createdCol,
+    id: idCol,
+    site_data: col.encrypted<string>(encrypt, decrypt),
   },
 });
 
@@ -92,9 +92,9 @@ export const buildSiteDataBlob = (
   dbToken = "",
 ): string =>
   JSON.stringify({
-    v: 1,
     n: name,
     u: bunnyUrl,
+    v: 1,
     ...(dbUrl ? { d: dbUrl } : {}),
     ...(dbToken ? { t: dbToken } : {}),
   } satisfies SiteDataBlob);
@@ -107,8 +107,8 @@ const toRawInput = (
   dbToken: string,
   assignable: boolean,
 ): BuiltSiteInput => ({
-  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
   assignable: assignable ? 1 : 0,
+  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
 });
 
 /** Parse a decrypted site data blob */
@@ -119,15 +119,15 @@ export const parseSiteDataBlob = (json: string): SiteDataBlob =>
 const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
   const blob = parseSiteDataBlob(row.site_data);
   return {
-    id: row.id,
-    name: blob.n,
-    bunnyUrl: blob.u,
-    dbUrl: blob.d ?? "",
-    dbToken: blob.t ?? "",
     assignable: Boolean(row.assignable),
     assignedAttendeeId: row.assigned_attendee_id ?? null,
     assignedEventId: row.assigned_event_id ?? null,
+    bunnyUrl: blob.u,
     created: row.created,
+    dbToken: blob.t ?? "",
+    dbUrl: blob.d ?? "",
+    id: row.id,
+    name: blob.n,
   };
 };
 
@@ -135,7 +135,7 @@ const builtSitesCache = requestCache(() =>
   queryAndDecrypt("SELECT * FROM built_sites ORDER BY created DESC"),
 );
 
-registerCache(() => ({ name: "built_sites", entries: builtSitesCache.size() }));
+registerCache(() => ({ entries: builtSitesCache.size(), name: "built_sites" }));
 
 /** Invalidate the built sites cache */
 export const invalidateBuiltSitesCache = (): void => {
@@ -164,25 +164,24 @@ export const builtSitesTable = withCacheInvalidation(
  * while storing data as an encrypted blob underneath.
  */
 export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
-  name: "built_sites",
-  primaryKey: "id",
-  schema: {
-    id: idCol,
-    name: {} as ColumnDef<string>,
-    bunnyUrl: {} as ColumnDef<string>,
-    dbUrl: {} as ColumnDef<string>,
-    dbToken: {} as ColumnDef<string>,
-    assignable: {} as ColumnDef<boolean>,
-    assignedAttendeeId: {} as ColumnDef<number | null>,
-    assignedEventId: {} as ColumnDef<number | null>,
-    created: createdCol,
+  deleteById: (id: InValue): Promise<void> => builtSitesTable.deleteById(id),
+
+  findAll: (): Promise<BuiltSite[]> => builtSitesCache.getAll(),
+
+  findById: async (id: InValue): Promise<BuiltSite | null> => {
+    // findById already decrypts via fromDb internally
+    const row = await rawBuiltSitesTable.findById(id);
+    if (!row) return null;
+    return rowToBuiltSite(row);
   },
+
+  fromDb: (row: BuiltSite): Promise<BuiltSite> => Promise.resolve(row),
   inputKeyMap: {
-    name: "name",
-    bunny_url: "bunnyUrl",
-    db_url: "dbUrl",
-    db_token: "dbToken",
     assignable: "assignable",
+    bunny_url: "bunnyUrl",
+    db_token: "dbToken",
+    db_url: "dbUrl",
+    name: "name",
   },
 
   insert: async (input: BuiltSiteFormInput): Promise<BuiltSite> => {
@@ -198,6 +197,32 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     // insert() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
   },
+  name: "built_sites",
+  primaryKey: "id",
+  schema: {
+    assignable: {} as ColumnDef<boolean>,
+    assignedAttendeeId: {} as ColumnDef<number | null>,
+    assignedEventId: {} as ColumnDef<number | null>,
+    bunnyUrl: {} as ColumnDef<string>,
+    created: createdCol,
+    dbToken: {} as ColumnDef<string>,
+    dbUrl: {} as ColumnDef<string>,
+    id: idCol,
+    name: {} as ColumnDef<string>,
+  },
+
+  toDbValues: (
+    input: BuiltSiteFormInput | Partial<BuiltSiteFormInput>,
+  ): Promise<Record<string, InValue>> =>
+    Promise.resolve({
+      assignable: input.assignable ? 1 : 0,
+      site_data: buildSiteDataBlob(
+        input.name ?? "",
+        input.bunnyUrl ?? "",
+        input.dbUrl ?? "",
+        input.dbToken ?? "",
+      ),
+    }),
 
   update: async (
     id: InValue,
@@ -218,32 +243,6 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     // update() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
   },
-
-  findById: async (id: InValue): Promise<BuiltSite | null> => {
-    // findById already decrypts via fromDb internally
-    const row = await rawBuiltSitesTable.findById(id);
-    if (!row) return null;
-    return rowToBuiltSite(row);
-  },
-
-  deleteById: (id: InValue): Promise<void> => builtSitesTable.deleteById(id),
-
-  findAll: (): Promise<BuiltSite[]> => builtSitesCache.getAll(),
-
-  fromDb: (row: BuiltSite): Promise<BuiltSite> => Promise.resolve(row),
-
-  toDbValues: (
-    input: BuiltSiteFormInput | Partial<BuiltSiteFormInput>,
-  ): Promise<Record<string, InValue>> =>
-    Promise.resolve({
-      site_data: buildSiteDataBlob(
-        input.name ?? "",
-        input.bunnyUrl ?? "",
-        input.dbUrl ?? "",
-        input.dbToken ?? "",
-      ),
-      assignable: input.assignable ? 1 : 0,
-    }),
 };
 
 /** Insert a new built site record */

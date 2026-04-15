@@ -22,9 +22,9 @@ import { holidayFields } from "#templates/fields.ts";
 const extractHolidayInput = (
   values: Record<string, string | number | null>,
 ): HolidayInput => ({
+  endDate: String(values.end_date),
   name: String(values.name),
   startDate: String(values.start_date),
-  endDate: String(values.end_date),
 });
 
 /** Validate end_date >= start_date */
@@ -39,23 +39,23 @@ export const validateDateRange = (
 
 /** Holidays resource for REST create/update operations */
 const holidaysResource = defineNamedResource({
-  table: holidaysTable,
   fields: holidayFields,
-  toInput: extractHolidayInput,
   nameField: "name",
+  table: holidaysTable,
+  toInput: extractHolidayInput,
   validate: validateDateRange,
 });
 
 const crud = createOwnerCrudHandlers({
-  singular: "Holiday",
-  listPath: "/admin/holidays",
   getAll: getAllHolidays,
-  resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
+  getName: (h) => h.name,
+  listPath: "/admin/holidays",
+  renderDelete: adminHolidayDeletePage,
+  renderEdit: adminHolidayEditPage,
   renderList: adminHolidaysPage,
   renderNew: adminHolidayNewPage,
-  renderEdit: adminHolidayEditPage,
-  renderDelete: adminHolidayDeletePage,
-  getName: (h) => h.name,
+  resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
+  singular: "Holiday",
 });
 
 /** Holiday routes */

@@ -19,27 +19,27 @@ import { notFoundResponse } from "#routes/utils.ts";
 
 /** Common MIME types by file extension */
 const EXT_MIME_MAP: Record<string, string> = {
-  ".pdf": "application/pdf",
+  ".csv": "text/csv",
   ".doc": "application/msword",
   ".docx":
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
   ".ppt": "application/vnd.ms-powerpoint",
   ".pptx":
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".txt": "text/plain",
-  ".csv": "text/csv",
-  ".zip": "application/zip",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
   ".svg": "image/svg+xml",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
+  ".txt": "text/plain",
   ".wav": "audio/wav",
+  ".webp": "image/webp",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".zip": "application/zip",
 };
 
 /** Get MIME type from a filename's extension, defaulting to octet-stream */
@@ -93,9 +93,9 @@ const handleAttachmentDownload: TypedRouteHandler<
   const contentType = getMimeType(event.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {
-      "content-type": contentType,
-      "content-disposition": `attachment; filename="${event.attachment_name.replace(/"/g, '\\"')}"`,
       "cache-control": "public, max-age=3600",
+      "content-disposition": `attachment; filename="${event.attachment_name.replace(/"/g, '\\"')}"`,
+      "content-type": contentType,
     },
   });
 };

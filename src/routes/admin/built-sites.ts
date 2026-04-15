@@ -21,31 +21,31 @@ import { builtSiteFields } from "#templates/fields.ts";
 const extractBuiltSiteInput = (
   values: Record<string, string | number | null>,
 ): BuiltSiteFormInput => ({
-  name: String(values.name),
-  bunnyUrl: String(values.bunny_url),
-  dbUrl: String(values.db_url),
-  dbToken: String(values.db_token),
   assignable: values.assignable === "1",
+  bunnyUrl: String(values.bunny_url),
+  dbToken: String(values.db_token),
+  dbUrl: String(values.db_url),
+  name: String(values.name),
 });
 
 /** Built sites resource for REST create/update operations */
 const builtSitesResource = defineNamedResource({
-  table: builtSitesCrudTable,
   fields: builtSiteFields,
-  toInput: extractBuiltSiteInput,
   nameField: "name",
+  table: builtSitesCrudTable,
+  toInput: extractBuiltSiteInput,
 });
 
 const crud = createOwnerCrudHandlers({
-  singular: "Built site",
-  listPath: "/admin/built-sites",
   getAll: getAllBuiltSites,
-  resource: builtSitesResource,
+  getName: (s) => s.name,
+  listPath: "/admin/built-sites",
+  renderDelete: adminBuiltSiteDeletePage,
+  renderEdit: adminBuiltSiteEditPage,
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
-  renderEdit: adminBuiltSiteEditPage,
-  renderDelete: adminBuiltSiteDeletePage,
-  getName: (s) => s.name,
+  resource: builtSitesResource,
+  singular: "Built site",
 });
 
 /** Built site routes */

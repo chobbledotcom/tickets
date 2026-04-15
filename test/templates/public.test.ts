@@ -57,13 +57,13 @@ describe("ticketPage (single event)", () => {
     if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
     else detectIframeMode("https://example.com/");
     return ticketPage({
-      events: [buildTicketEvent(ev, opts?.isClosed)],
-      slugs: [ev.slug],
-      error: opts?.error,
-      dates: opts?.dates ?? [],
-      terms: opts?.terms,
       baseUrl: opts?.baseUrl,
+      dates: opts?.dates ?? [],
+      error: opts?.error,
+      events: [buildTicketEvent(ev, opts?.isClosed)],
       questions: opts?.questions,
+      slugs: [ev.slug],
+      terms: opts?.terms,
     });
   };
 
@@ -108,8 +108,8 @@ describe("ticketPage (single event)", () => {
 
   test("shows quantity selector when max_quantity > 1 and spots available", () => {
     const multiQtyEvent = testEventWithCount({
-      max_quantity: 5,
       attendee_count: 0,
+      max_quantity: 5,
     });
     const html = renderTicket(multiQtyEvent);
     expect(html).toContain("Number of Tickets");
@@ -121,8 +121,8 @@ describe("ticketPage (single event)", () => {
 
   test("limits quantity selector to remaining spots", () => {
     const limitedEvent = testEventWithCount({
-      max_quantity: 10,
       attendee_count: 97, // Only 3 spots remaining
+      max_quantity: 10,
     });
     const html = renderTicket(limitedEvent);
     expect(html).toContain("Number of Tickets");
@@ -233,12 +233,12 @@ describe("ticketPage (single event)", () => {
   test("renders custom questions when provided", () => {
     const questions = [
       {
+        answers: [
+          { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+          { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+        ],
         id: 1,
         text: "Size?",
-        answers: [
-          { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-          { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-        ],
       },
     ];
     const html = renderTicket(event, { questions });
@@ -248,9 +248,9 @@ describe("ticketPage (single event)", () => {
 
   test("includes OpenGraph tags when baseUrl is provided", () => {
     const ev = testEventWithCount({
+      description: "A fun party",
       name: "Birthday Party",
       slug: "birthday-party",
-      description: "A fun party",
     });
     const html = renderTicket(ev, {
       baseUrl: "https://tix.example.com",
@@ -276,7 +276,7 @@ describe("ticketPage (single event)", () => {
 describe("buildOgTags", () => {
   test("includes title, type, and url", () => {
     const html = buildOgTags(
-      { name: "My Event", description: "", slug: "my-event", image_url: "" },
+      { description: "", image_url: "", name: "My Event", slug: "my-event" },
       "https://example.com",
     );
     expect(html).toContain('<meta property="og:title" content="My Event">');
@@ -289,10 +289,10 @@ describe("buildOgTags", () => {
   test("includes description when present", () => {
     const html = buildOgTags(
       {
-        name: "My Event",
         description: "Come join us",
-        slug: "my-event",
         image_url: "",
+        name: "My Event",
+        slug: "my-event",
       },
       "https://example.com",
     );
@@ -303,7 +303,7 @@ describe("buildOgTags", () => {
 
   test("excludes description when empty", () => {
     const html = buildOgTags(
-      { name: "My Event", description: "", slug: "my-event", image_url: "" },
+      { description: "", image_url: "", name: "My Event", slug: "my-event" },
       "https://example.com",
     );
     expect(html).not.toContain("og:description");
@@ -312,10 +312,10 @@ describe("buildOgTags", () => {
   test("includes image when present", () => {
     const html = buildOgTags(
       {
-        name: "My Event",
         description: "",
-        slug: "my-event",
         image_url: "photo.jpg",
+        name: "My Event",
+        slug: "my-event",
       },
       "https://example.com",
     );
@@ -326,7 +326,7 @@ describe("buildOgTags", () => {
 
   test("excludes image when empty", () => {
     const html = buildOgTags(
-      { name: "My Event", description: "", slug: "my-event", image_url: "" },
+      { description: "", image_url: "", name: "My Event", slug: "my-event" },
       "https://example.com",
     );
     expect(html).not.toContain("og:image");
@@ -335,10 +335,10 @@ describe("buildOgTags", () => {
   test("escapes HTML in event name", () => {
     const html = buildOgTags(
       {
-        name: 'Event "with quotes"',
         description: "",
-        slug: "my-event",
         image_url: "",
+        name: 'Event "with quotes"',
+        slug: "my-event",
       },
       "https://example.com",
     );
@@ -369,20 +369,20 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 100,
+          id: 1,
           max_attendees: 100,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
       buildTicketEvent(
         testEventWithCount({
-          id: 2,
-          slug: "cd34e",
-          name: "Event B",
           attendee_count: 50,
+          id: 2,
           max_attendees: 50,
+          name: "Event B",
+          slug: "cd34e",
         }),
       ),
     ];
@@ -395,10 +395,10 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -416,26 +416,26 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
     const questions = [
       {
+        answers: [{ id: 10, question_id: 5, sort_order: 0, text: "Small" }],
         id: 5,
         text: "Size?",
-        answers: [{ id: 10, question_id: 5, text: "Small", sort_order: 0 }],
       },
     ];
     const questionEventMap = new Map([[5, [1]]]);
     const html = ticketPage({
       events,
-      slugs: ["ab12c"],
-      questions,
       questionEventMap,
+      questions,
+      slugs: ["ab12c"],
     });
     expect(html).toContain("Size?");
     expect(html).toContain('name="question_5"');
@@ -447,10 +447,10 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -465,10 +465,10 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -481,10 +481,10 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -496,10 +496,10 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -513,11 +513,11 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
           max_quantity: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -531,11 +531,11 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
           max_quantity: 3,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
     ];
@@ -550,20 +550,20 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
           max_quantity: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
       buildTicketEvent(
         testEventWithCount({
-          id: 2,
-          slug: "cd34e",
-          name: "Event B",
           attendee_count: 0,
+          id: 2,
           max_quantity: 1,
+          name: "Event B",
+          slug: "cd34e",
         }),
       ),
     ];
@@ -576,20 +576,20 @@ describe("ticketPage", () => {
     const events = [
       buildTicketEvent(
         testEventWithCount({
-          id: 1,
-          slug: "ab12c",
-          name: "Event A",
           attendee_count: 0,
+          id: 1,
           max_quantity: 1,
+          name: "Event A",
+          slug: "ab12c",
         }),
       ),
       buildTicketEvent(
         testEventWithCount({
-          id: 2,
-          slug: "cd34e",
-          name: "Event B",
           attendee_count: 50,
+          id: 2,
           max_attendees: 50,
+          name: "Event B",
+          slug: "cd34e",
         }),
       ),
     ];
@@ -604,16 +604,16 @@ describe("ticketPage event date and location", () => {
     if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
     else detectIframeMode("https://example.com/");
     return ticketPage({
+      dates: [],
       events: [buildTicketEvent(ev)],
       slugs: [ev.slug],
-      dates: [],
     });
   };
 
   test("shows date on public ticket page when event has date", () => {
     const event = testEventWithCount({
-      date: "2026-06-15T14:00:00.000Z",
       attendee_count: 0,
+      date: "2026-06-15T14:00:00.000Z",
     });
     const html = renderTicket(event);
     expect(html).toContain("<strong>Date:</strong>");
@@ -621,15 +621,15 @@ describe("ticketPage event date and location", () => {
   });
 
   test("does not show date on public ticket page when date is empty", () => {
-    const event = testEventWithCount({ date: "", attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, date: "" });
     const html = renderTicket(event);
     expect(html).not.toContain("<strong>Date:</strong>");
   });
 
   test("shows location on public ticket page when event has location", () => {
     const event = testEventWithCount({
-      location: "Village Hall",
       attendee_count: 0,
+      location: "Village Hall",
     });
     const html = renderTicket(event);
     expect(html).toContain("<strong>Location:</strong>");
@@ -637,16 +637,16 @@ describe("ticketPage event date and location", () => {
   });
 
   test("does not show location on public ticket page when location is empty", () => {
-    const event = testEventWithCount({ location: "", attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, location: "" });
     const html = renderTicket(event);
     expect(html).not.toContain("<strong>Location:</strong>");
   });
 
   test("hides date and location in iframe mode", () => {
     const event = testEventWithCount({
+      attendee_count: 0,
       date: "2026-06-15T14:00:00.000Z",
       location: "Village Hall",
-      attendee_count: 0,
     });
     const html = renderTicket(event, { iframe: true });
     expect(html).not.toContain("<strong>Date:</strong>");
@@ -655,8 +655,8 @@ describe("ticketPage event date and location", () => {
 
   test("shows past event badge for event with date in the past", () => {
     const event = testEventWithCount({
-      date: "2020-01-15T14:00:00.000Z",
       attendee_count: 0,
+      date: "2020-01-15T14:00:00.000Z",
     });
     const html = renderTicket(event);
     expect(html).toContain("badge-alert");
@@ -665,15 +665,15 @@ describe("ticketPage event date and location", () => {
 
   test("does not show past event badge for future event", () => {
     const event = testEventWithCount({
-      date: "2099-06-15T14:00:00.000Z",
       attendee_count: 0,
+      date: "2099-06-15T14:00:00.000Z",
     });
     const html = renderTicket(event);
     expect(html).not.toContain("badge-alert");
   });
 
   test("does not show past event badge when date is empty", () => {
-    const event = testEventWithCount({ date: "", attendee_count: 0 });
+    const event = testEventWithCount({ attendee_count: 0, date: "" });
     const html = renderTicket(event);
     expect(html).not.toContain("badge-alert");
   });
@@ -681,8 +681,8 @@ describe("ticketPage event date and location", () => {
   test("past event badge shows singular day for 1 day ago", () => {
     const yesterday = addDays(todayInTz(settings.timezone), -1);
     const event = testEventWithCount({
-      date: `${yesterday}T12:00:00.000Z`,
       attendee_count: 0,
+      date: `${yesterday}T12:00:00.000Z`,
     });
     const html = renderTicket(event);
     expect(html).toContain("1 day ago");
@@ -692,8 +692,8 @@ describe("ticketPage event date and location", () => {
   test("past event badge shows plural days for multiple days ago", () => {
     const threeDaysAgo = addDays(todayInTz(settings.timezone), -3);
     const event = testEventWithCount({
-      date: `${threeDaysAgo}T12:00:00.000Z`,
       attendee_count: 0,
+      date: `${threeDaysAgo}T12:00:00.000Z`,
     });
     const html = renderTicket(event);
     expect(html).toContain("3 days ago");
@@ -708,8 +708,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
           attendee: testAttendee(),
+          event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
         },
         token,
       },
@@ -722,8 +722,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ date: "" }),
           attendee: testAttendee(),
+          event: testEventWithCount({ date: "" }),
         },
         token,
       },
@@ -736,8 +736,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ location: "Village Hall" }),
           attendee: testAttendee(),
+          event: testEventWithCount({ location: "Village Hall" }),
         },
         token,
       },
@@ -750,8 +750,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ location: "" }),
           attendee: testAttendee(),
+          event: testEventWithCount({ location: "" }),
         },
         token,
       },
@@ -764,11 +764,11 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
+          attendee: testAttendee(),
           event: testEventWithCount({
             date: "2026-06-15T14:00:00.000Z",
             location: "Town Centre",
           }),
-          attendee: testAttendee(),
         },
         token,
       },
@@ -782,18 +782,18 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({
-            id: 1,
-            date: "2026-06-15T14:00:00.000Z",
-          }),
           attendee: testAttendee({ id: 1 }),
+          event: testEventWithCount({
+            date: "2026-06-15T14:00:00.000Z",
+            id: 1,
+          }),
         },
         token: "AABB0011CCDDEEF1",
       },
       {
         entry: {
-          event: testEventWithCount({ id: 2, date: "" }),
           attendee: testAttendee({ id: 2 }),
+          event: testEventWithCount({ date: "", id: 2 }),
         },
         token: "AABB0011CCDDEEF2",
       },
@@ -808,8 +808,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ purchase_only: true }),
           attendee: testAttendee(),
+          event: testEventWithCount({ purchase_only: true }),
         },
         token,
       },
@@ -824,8 +824,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ purchase_only: true }),
           attendee: testAttendee(),
+          event: testEventWithCount({ purchase_only: true }),
         },
         token,
       },
@@ -840,11 +840,11 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({
-            purchase_only: true,
-            non_transferable: true,
-          }),
           attendee: testAttendee(),
+          event: testEventWithCount({
+            non_transferable: true,
+            purchase_only: true,
+          }),
         },
         token,
       },
@@ -857,8 +857,8 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ purchase_only: true }),
           attendee: testAttendee(),
+          event: testEventWithCount({ purchase_only: true }),
         },
         token,
       },
@@ -872,15 +872,15 @@ describe("ticketViewPage event date and location", () => {
     const cards = [
       {
         entry: {
-          event: testEventWithCount({ id: 1, purchase_only: true }),
           attendee: testAttendee({ id: 1 }),
+          event: testEventWithCount({ id: 1, purchase_only: true }),
         },
         token: "AABB0011CCDDEEF1",
       },
       {
         entry: {
-          event: testEventWithCount({ id: 2, purchase_only: false }),
           attendee: testAttendee({ id: 2 }),
+          event: testEventWithCount({ id: 2, purchase_only: false }),
         },
         token: "AABB0011CCDDEEF2",
       },
@@ -893,7 +893,7 @@ describe("ticketViewPage event date and location", () => {
 
 describeWithEnv(
   "event images",
-  { env: { STORAGE_ZONE_NAME: "testzone", STORAGE_ZONE_KEY: "testkey" } },
+  { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
     describe("renderEventImage", () => {
       test("returns empty string when image_url is null", () => {
@@ -921,9 +921,9 @@ describeWithEnv(
     describe("ticketPage with image", () => {
       const renderSingleEvent = (ev: EventWithCount) =>
         ticketPage({
+          dates: [],
           events: [buildTicketEvent(ev)],
           slugs: [ev.slug],
-          dates: [],
           terms: null,
         });
 
@@ -955,15 +955,15 @@ describeWithEnv(
           buildTicketEvent(
             testEventWithCount({
               id: 1,
-              name: "Event A",
               image_url: "img-a.jpg",
+              name: "Event A",
             }),
           ),
           buildTicketEvent(
             testEventWithCount({
               id: 2,
-              name: "Event B",
               image_url: "img-b.jpg",
+              name: "Event B",
             }),
           ),
         ];
@@ -975,7 +975,7 @@ describeWithEnv(
       test("does not show images when image_url is null", () => {
         const events = [
           buildTicketEvent(
-            testEventWithCount({ id: 1, name: "Event A", image_url: "" }),
+            testEventWithCount({ id: 1, image_url: "", name: "Event A" }),
           ),
         ];
         const html = ticketPage({ events, slugs: ["slug-a"] });
@@ -990,8 +990,8 @@ describeWithEnv(
         const cards = [
           {
             entry: {
-              event: testEventWithCount({ id: 1 }),
               attendee: testAttendee({ id: 1 }),
+              event: testEventWithCount({ id: 1 }),
             },
             token,
           },
@@ -1004,15 +1004,15 @@ describeWithEnv(
         const cards = [
           {
             entry: {
-              event: testEventWithCount({ id: 1 }),
               attendee: testAttendee({ id: 1 }),
+              event: testEventWithCount({ id: 1 }),
             },
             token: "AABB0011CCDDEEF1",
           },
           {
             entry: {
-              event: testEventWithCount({ id: 2 }),
               attendee: testAttendee({ id: 2 }),
+              event: testEventWithCount({ id: 2 }),
             },
             token: "AABB0011CCDDEEF2",
           },
@@ -1029,8 +1029,8 @@ describeWithEnv(
         const cards = [
           {
             entry: {
-              event: testEventWithCount({ image_url: "ticket-img.jpg" }),
               attendee: testAttendee(),
+              event: testEventWithCount({ image_url: "ticket-img.jpg" }),
             },
             token,
           },
@@ -1044,8 +1044,8 @@ describeWithEnv(
         const cards = [
           {
             entry: {
-              event: testEventWithCount({ image_url: "" }),
               attendee: testAttendee(),
+              event: testEventWithCount({ image_url: "" }),
             },
             token,
           },

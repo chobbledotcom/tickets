@@ -269,8 +269,8 @@ export const defineTable = <Row, Input = Row>(config: {
     const args: InValue[] = columns.map((col) => dbValues[col] as InValue);
 
     const result = await getDb().execute({
-      sql: buildInsertSql(name, columns),
       args,
+      sql: buildInsertSql(name, columns),
     });
 
     const initialRow = schema[primaryKey].generated
@@ -327,8 +327,8 @@ export const defineTable = <Row, Input = Row>(config: {
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
     await getDb().execute({
-      sql: `DELETE FROM ${name} WHERE ${primaryKey} = ?`,
       args: [id],
+      sql: `DELETE FROM ${name} WHERE ${primaryKey} = ?`,
     });
   };
 
@@ -339,17 +339,17 @@ export const defineTable = <Row, Input = Row>(config: {
   };
 
   return {
+    deleteById,
+    findAll,
+    findById,
+    fromDb,
+    inputKeyMap,
+    insert,
     name,
     primaryKey,
     schema,
-    inputKeyMap,
-    insert,
-    update,
-    findById,
-    deleteById,
-    findAll,
-    fromDb,
     toDbValues,
+    update,
   };
 };
 
@@ -363,6 +363,10 @@ export const withCacheInvalidation = <Row, Input>(
   invalidate: () => void,
 ): Table<Row, Input> => ({
   ...table,
+  deleteById: async (id) => {
+    await table.deleteById(id);
+    invalidate();
+  },
   insert: async (input) => {
     const result = await table.insert(input);
     invalidate();
@@ -372,10 +376,6 @@ export const withCacheInvalidation = <Row, Input>(
     const result = await table.update(id, input);
     invalidate();
     return result;
-  },
-  deleteById: async (id) => {
-    await table.deleteById(id);
-    invalidate();
   },
 });
 
@@ -392,44 +392,13 @@ const wrapNullable =
  * Helper to create column definitions
  */
 export const col = {
-  /** Auto-generated column (like id) */
-  generated: <T>(): ColumnDef<T> => ({ generated: true }),
-
-  /** Column with default value */
-  withDefault: <T>(defaultFn: () => T): ColumnDef<T> => ({
-    default: defaultFn,
-  }),
-
-  /** Column with read/write transforms (e.g., for encryption) */
-  encrypted: <T>(
-    encrypt: ColumnTransform<T>,
-    decrypt: ColumnTransform<T>,
-  ): ColumnDef<T> => ({ write: encrypt, read: decrypt }),
-
-  /** Encrypted text column with empty-string default */
-  encryptedText: (
-    encrypt: ColumnTransform<string>,
-    decrypt: ColumnTransform<string>,
-  ): ColumnDef<string> => ({
-    default: () => "",
-    write: (v: string) => (v === "" ? v : encrypt(v)),
-    read: (v: string) => (v === "" ? v : decrypt(v)),
-  }),
-
-  /** Wrap an existing encrypted column def to pass through null values */
-  encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
-    write: def.write ? wrapNullable(def.write) : undefined,
-    read: def.read ? wrapNullable(def.read) : undefined,
-  }),
-
-  /** Simple column with no special handling */
-  simple: <T>(): ColumnDef<T> => ({}),
-
-  /** Column with custom transforms */
-  transform: <T>(
-    write: (v: T) => Promise<T> | T,
-    read: (v: T) => Promise<T> | T,
-  ): ColumnDef<T> => ({ write, read }),
+  /** Boolean column stored as INTEGER 0/1 in the database */
+  boolean: (defaultValue: boolean): ColumnDef<boolean> =>
+    col.converted<boolean>({
+      default: () => defaultValue,
+      read: (raw: InValue) => Number(raw) === 1,
+      write: (v: boolean) => (v ? 1 : 0),
+    }),
 
   /** Column with type conversion between app and DB representations */
   converted: <App>(config: {
@@ -438,15 +407,45 @@ export const col = {
     read: (raw: InValue) => App;
   }): ColumnDef<App> => ({
     default: config.default,
-    write: config.write as (v: App) => App,
     read: config.read as (v: App) => App,
+    write: config.write as (v: App) => App,
   }),
 
-  /** Boolean column stored as INTEGER 0/1 in the database */
-  boolean: (defaultValue: boolean): ColumnDef<boolean> =>
-    col.converted<boolean>({
-      default: () => defaultValue,
-      write: (v: boolean) => (v ? 1 : 0),
-      read: (raw: InValue) => Number(raw) === 1,
-    }),
+  /** Column with read/write transforms (e.g., for encryption) */
+  encrypted: <T>(
+    encrypt: ColumnTransform<T>,
+    decrypt: ColumnTransform<T>,
+  ): ColumnDef<T> => ({ read: decrypt, write: encrypt }),
+
+  /** Wrap an existing encrypted column def to pass through null values */
+  encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
+    read: def.read ? wrapNullable(def.read) : undefined,
+    write: def.write ? wrapNullable(def.write) : undefined,
+  }),
+
+  /** Encrypted text column with empty-string default */
+  encryptedText: (
+    encrypt: ColumnTransform<string>,
+    decrypt: ColumnTransform<string>,
+  ): ColumnDef<string> => ({
+    default: () => "",
+    read: (v: string) => (v === "" ? v : decrypt(v)),
+    write: (v: string) => (v === "" ? v : encrypt(v)),
+  }),
+  /** Auto-generated column (like id) */
+  generated: <T>(): ColumnDef<T> => ({ generated: true }),
+
+  /** Simple column with no special handling */
+  simple: <T>(): ColumnDef<T> => ({}),
+
+  /** Column with custom transforms */
+  transform: <T>(
+    write: (v: T) => Promise<T> | T,
+    read: (v: T) => Promise<T> | T,
+  ): ColumnDef<T> => ({ read, write }),
+
+  /** Column with default value */
+  withDefault: <T>(defaultFn: () => T): ColumnDef<T> => ({
+    default: defaultFn,
+  }),
 };

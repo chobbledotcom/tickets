@@ -20,7 +20,7 @@ const rendered = (
 
 describe("renderField", () => {
   test("renders text input with label", () => {
-    const html = rendered({ name: "username", label: "Username" });
+    const html = rendered({ label: "Username", name: "username" });
     expect(html).toContain("<label>");
     expect(html).toContain("Username");
     expect(html).toContain('type="text"');
@@ -29,18 +29,18 @@ describe("renderField", () => {
 
   test("renders required attribute", () => {
     const html = rendered({
-      name: "email",
       label: "Email",
-      type: "email",
+      name: "email",
       required: true,
+      type: "email",
     });
     expect(html).toContain("required");
   });
 
   test("renders placeholder", () => {
     const html = rendered({
-      name: "name",
       label: "Name",
+      name: "name",
       placeholder: "Enter your name",
     });
     expect(html).toContain('placeholder="Enter your name"');
@@ -48,10 +48,10 @@ describe("renderField", () => {
 
   test("renders hint text", () => {
     const html = rendered({
-      name: "pw",
-      label: "Password",
-      type: "password",
       hint: "Minimum 8 characters",
+      label: "Password",
+      name: "pw",
+      type: "password",
     });
     expect(html).toContain("Minimum 8 characters");
     expect(html).toContain("<small");
@@ -59,9 +59,9 @@ describe("renderField", () => {
 
   test("renders hintHtml as raw HTML", () => {
     const html = rendered({
-      name: "desc",
-      label: "Description",
       hintHtml: '<a href="/guide">Help</a>',
+      label: "Description",
+      name: "desc",
     });
     expect(html).toContain('<a href="/guide">Help</a>');
     expect(html).toContain("<small");
@@ -69,41 +69,41 @@ describe("renderField", () => {
 
   test("renders min attribute for number", () => {
     const html = rendered({
-      name: "qty",
       label: "Quantity",
-      type: "number",
       min: 1,
+      name: "qty",
+      type: "number",
     });
     expect(html).toContain('min="1"');
   });
 
   test("renders pattern attribute", () => {
-    const html = rendered({ name: "code", label: "Code", pattern: "[A-Z]{3}" });
+    const html = rendered({ label: "Code", name: "code", pattern: "[A-Z]{3}" });
     expect(html).toContain('pattern="[A-Z]{3}"');
   });
 
   test("renders maxlength attribute", () => {
     const html = rendered({
-      name: "desc",
       label: "Description",
       maxlength: 128,
+      name: "desc",
     });
     expect(html).toContain('maxlength="128"');
   });
 
   test("renders autocomplete when provided, omits when absent", () => {
     expect(
-      rendered({ name: "name", label: "Name", autocomplete: "name" }),
+      rendered({ autocomplete: "name", label: "Name", name: "name" }),
     ).toContain('autocomplete="name"');
-    expect(rendered({ name: "name", label: "Name" })).not.toContain(
+    expect(rendered({ label: "Name", name: "name" })).not.toContain(
       "autocomplete",
     );
   });
 
   test("renders textarea for textarea type", () => {
     const html = rendered({
-      name: "description",
       label: "Description",
+      name: "description",
       type: "textarea",
     });
     expect(html).toContain("<textarea");
@@ -111,14 +111,14 @@ describe("renderField", () => {
   });
 
   test("renders value when provided", () => {
-    expect(rendered({ name: "name", label: "Name" }, "John")).toContain(
+    expect(rendered({ label: "Name", name: "name" }, "John")).toContain(
       'value="John"',
     );
   });
 
   test("escapes HTML in value", () => {
     const html = rendered(
-      { name: "name", label: "Name" },
+      { label: "Name", name: "name" },
       '<script>alert("xss")</script>',
     );
     expect(html).toContain("&lt;script&gt;");
@@ -127,7 +127,7 @@ describe("renderField", () => {
 
   test("renders textarea with value", () => {
     const html = rendered(
-      { name: "description", label: "Description", type: "textarea" },
+      { label: "Description", name: "description", type: "textarea" },
       "Some description",
     );
     expect(html).toContain(">Some description</textarea>");
@@ -135,13 +135,13 @@ describe("renderField", () => {
 
   describe("select type", () => {
     const colorSelect: Field = {
-      name: "color",
       label: "Color",
-      type: "select",
+      name: "color",
       options: [
-        { value: "red", label: "Red" },
-        { value: "blue", label: "Blue" },
+        { label: "Red", value: "red" },
+        { label: "Blue", value: "blue" },
       ],
+      type: "select",
     };
 
     test("renders select element with options", () => {
@@ -160,11 +160,11 @@ describe("renderField", () => {
 
     test("renders hint on select", () => {
       const html = renderField({
-        name: "priority",
-        label: "Priority",
-        type: "select",
         hint: "Choose the priority",
-        options: [{ value: "low", label: "Low" }],
+        label: "Priority",
+        name: "priority",
+        options: [{ label: "Low", value: "low" }],
+        type: "select",
       });
       expect(html).toContain("Choose the priority");
     });
@@ -173,8 +173,8 @@ describe("renderField", () => {
   describe("date type", () => {
     test("renders date input", () => {
       const html = rendered({
-        name: "start_date",
         label: "Start Date",
+        name: "start_date",
         type: "date",
       });
       expect(html).toContain('type="date"');
@@ -183,7 +183,7 @@ describe("renderField", () => {
 
     test("renders date input with value", () => {
       const html = rendered(
-        { name: "start_date", label: "Start Date", type: "date" },
+        { label: "Start Date", name: "start_date", type: "date" },
         "2026-12-25",
       );
       expect(html).toContain('value="2026-12-25"');
@@ -193,8 +193,8 @@ describe("renderField", () => {
   describe("datetime type", () => {
     test("renders split date and time inputs", () => {
       const html = rendered({
-        name: "closes_at",
         label: "Closes At",
+        name: "closes_at",
         type: "datetime",
       });
       expect(html).toContain('name="closes_at_date"');
@@ -205,7 +205,7 @@ describe("renderField", () => {
 
     test("splits combined value into date and time parts", () => {
       const html = rendered(
-        { name: "closes_at", label: "Closes At", type: "datetime" },
+        { label: "Closes At", name: "closes_at", type: "datetime" },
         "2099-06-15T14:30",
       );
       expect(html).toContain('value="2099-06-15"');
@@ -214,7 +214,7 @@ describe("renderField", () => {
 
     test("renders no value attributes when value is empty", () => {
       const html = rendered(
-        { name: "closes_at", label: "Closes At", type: "datetime" },
+        { label: "Closes At", name: "closes_at", type: "datetime" },
         "",
       );
       expect(html).not.toContain("value=");
@@ -224,10 +224,10 @@ describe("renderField", () => {
   describe("file type", () => {
     test("renders file input with accept attribute", () => {
       const html = rendered({
-        name: "image",
-        label: "Upload Image",
-        type: "file",
         accept: "image/jpeg,image/png",
+        label: "Upload Image",
+        name: "image",
+        type: "file",
       });
       expect(html).toContain('type="file"');
       expect(html).toContain('accept="image/jpeg,image/png"');
@@ -236,14 +236,14 @@ describe("renderField", () => {
 
   describe("checkbox-group type", () => {
     const daysField: Field = {
-      name: "days",
       label: "Days",
-      type: "checkbox-group",
+      name: "days",
       options: [
-        { value: "Monday", label: "Monday" },
-        { value: "Tuesday", label: "Tuesday" },
-        { value: "Wednesday", label: "Wednesday" },
+        { label: "Monday", value: "Monday" },
+        { label: "Tuesday", value: "Tuesday" },
+        { label: "Wednesday", value: "Wednesday" },
       ],
+      type: "checkbox-group",
     };
 
     test("renders checkbox inputs with correct names and values", () => {
@@ -270,8 +270,8 @@ describe("renderField", () => {
 describe("renderFields", () => {
   test("renders all fields", () => {
     const fields: Field[] = [
-      field({ name: "name", label: "Name", required: true }),
-      field({ name: "email", label: "Email", type: "email", required: true }),
+      field({ label: "Name", name: "name", required: true }),
+      field({ label: "Email", name: "email", required: true, type: "email" }),
     ];
     const html = renderFields(fields);
     expect(html).toContain('name="name"');
@@ -280,17 +280,17 @@ describe("renderFields", () => {
 
   test("populates field values", () => {
     const fields: Field[] = [
-      field({ name: "name", label: "Name" }),
-      field({ name: "count", label: "Count", type: "number" }),
+      field({ label: "Name", name: "name" }),
+      field({ label: "Count", name: "count", type: "number" }),
     ];
-    const html = renderFields(fields, { name: "Test", count: 42 });
+    const html = renderFields(fields, { count: 42, name: "Test" });
     expect(html).toContain('value="Test"');
     expect(html).toContain('value="42"');
   });
 
   test("omits value attribute for null values", () => {
     const html = renderFields(
-      [field({ name: "price", label: "Price", type: "number" })],
+      [field({ label: "Price", name: "price", type: "number" })],
       { price: null },
     );
     expect(html).not.toContain('value="null"');
@@ -298,7 +298,7 @@ describe("renderFields", () => {
 
   test("uses defaultValue when no explicit value or saved data", () => {
     const html = renderFields([
-      field({ name: "country", label: "Country", defaultValue: "US" }),
+      field({ defaultValue: "US", label: "Country", name: "country" }),
     ]);
     expect(html).toContain('value="US"');
   });
@@ -309,14 +309,14 @@ describe("renderFields with saved form data", () => {
 
   test("restores saved text values", () => {
     setSavedFormData(new FormParams("name=Alice"));
-    expect(renderFields([field({ name: "name", label: "Name" })])).toContain(
+    expect(renderFields([field({ label: "Name", name: "name" })])).toContain(
       'value="Alice"',
     );
   });
 
   test("explicit values take precedence over saved values", () => {
     setSavedFormData(new FormParams("name=Saved"));
-    const html = renderFields([field({ name: "name", label: "Name" })], {
+    const html = renderFields([field({ label: "Name", name: "name" })], {
       name: "Explicit",
     });
     expect(html).toContain('value="Explicit"');
@@ -326,7 +326,7 @@ describe("renderFields with saved form data", () => {
   test("saved data takes precedence over defaultValue", () => {
     setSavedFormData(new FormParams("country=GB"));
     const html = renderFields([
-      field({ name: "country", label: "Country", defaultValue: "US" }),
+      field({ defaultValue: "US", label: "Country", name: "country" }),
     ]);
     expect(html).toContain('value="GB"');
     expect(html).not.toContain('value="US"');

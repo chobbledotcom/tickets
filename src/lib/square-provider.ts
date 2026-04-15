@@ -36,8 +36,6 @@ import {
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
-  type: "square",
-
   checkoutCompletedEventType: "payment.updated",
 
   createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
@@ -47,70 +45,14 @@ export const squarePaymentProvider: PaymentProvider = {
     });
   },
 
-  async retrieveSession(
-    sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
-    // sessionId is the Square order ID
-    const order = await retrieveOrder(sessionId);
-    if (!order?.id) {
-      logDebug("Square", `Order ${sessionId} not found`);
-      return null;
-    }
-
-    const { metadata } = order;
-    if (!hasRequiredSessionMetadata(metadata)) {
-      logDebug("Square", `Order ${sessionId} missing required metadata fields`);
-      return null;
-    }
-
-    // Determine payment status from the payment itself (most reliable source)
-    const paymentReference = order.tenders?.[0]?.paymentId ?? "";
-
-    let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
-    if (paymentReference) {
-      const payment = await retrievePayment(paymentReference);
-      if (payment?.status === "COMPLETED") {
-        paymentStatus = "paid";
-      }
-    }
-
-    return {
-      id: order.id,
-      paymentStatus,
-      paymentReference,
-      amountTotal: Number(order.totalMoney.amount),
-      metadata: extractSessionMetadata(metadata),
-    };
-  },
-
-  verifyWebhookSignature(
-    ...args: Parameters<PaymentProvider["verifyWebhookSignature"]>
-  ) {
-    return verifyWebhookSignature(...args);
-  },
-
-  refundPayment(paymentReference: string): Promise<boolean> {
-    return refundPayment(paymentReference);
-  },
-
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const payment = await retrievePayment(paymentReference);
     if (!payment) return false;
     return (payment.refundedMoney?.amount ?? BigInt(0)) > BigInt(0);
   },
 
-  setupWebhookEndpoint(
-    _secretKey: string,
-    _webhookUrl: string,
-    _existingEndpointId?: string | null,
-  ): Promise<WebhookSetupResult> {
-    // Square webhook setup is manual - user creates subscription in dashboard
-    // and provides the signature key. This method is a no-op for Square.
-    return Promise.resolve({
-      success: false,
-      error:
-        "Square webhooks must be configured manually in the Square Developer Dashboard",
-    });
+  refundPayment(paymentReference: string): Promise<boolean> {
+    return refundPayment(paymentReference);
   },
 
   async resolveWebhookSession(
@@ -149,5 +91,62 @@ export const squarePaymentProvider: PaymentProvider = {
     // Square webhook retries.
     const session = await this.retrieveSession(orderId);
     return session ?? "skip";
+  },
+
+  async retrieveSession(
+    sessionId: string,
+  ): Promise<ValidatedPaymentSession | null> {
+    // sessionId is the Square order ID
+    const order = await retrieveOrder(sessionId);
+    if (!order?.id) {
+      logDebug("Square", `Order ${sessionId} not found`);
+      return null;
+    }
+
+    const { metadata } = order;
+    if (!hasRequiredSessionMetadata(metadata)) {
+      logDebug("Square", `Order ${sessionId} missing required metadata fields`);
+      return null;
+    }
+
+    // Determine payment status from the payment itself (most reliable source)
+    const paymentReference = order.tenders?.[0]?.paymentId ?? "";
+
+    let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
+    if (paymentReference) {
+      const payment = await retrievePayment(paymentReference);
+      if (payment?.status === "COMPLETED") {
+        paymentStatus = "paid";
+      }
+    }
+
+    return {
+      amountTotal: Number(order.totalMoney.amount),
+      id: order.id,
+      metadata: extractSessionMetadata(metadata),
+      paymentReference,
+      paymentStatus,
+    };
+  },
+
+  setupWebhookEndpoint(
+    _secretKey: string,
+    _webhookUrl: string,
+    _existingEndpointId?: string | null,
+  ): Promise<WebhookSetupResult> {
+    // Square webhook setup is manual - user creates subscription in dashboard
+    // and provides the signature key. This method is a no-op for Square.
+    return Promise.resolve({
+      error:
+        "Square webhooks must be configured manually in the Square Developer Dashboard",
+      success: false,
+    });
+  },
+  type: "square",
+
+  verifyWebhookSignature(
+    ...args: Parameters<PaymentProvider["verifyWebhookSignature"]>
+  ) {
+    return verifyWebhookSignature(...args);
   },
 };

@@ -62,14 +62,19 @@ const renderContactPage: PageRenderer = (session, error, success) => {
 
 /** Handle POST /admin/site - save homepage */
 const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
-  label: "Site homepage",
-  redirectTo: "/admin/site",
   extract: (form) => {
     applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
     return {
-      title: form.getString("website_title"),
       text: form.getString("homepage_text"),
+      title: form.getString("website_title"),
     };
+  },
+  label: "Site homepage",
+  log: () => "Homepage updated",
+  redirectTo: "/admin/site",
+  save: async ({ title, text }) => {
+    await settings.update.websiteTitle(title);
+    await settings.update.homepageText(text);
   },
   validate: ({ title, text }) => {
     if (title.length > MAX_WEBSITE_TITLE_LENGTH) {
@@ -80,33 +85,28 @@ const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
     }
     return null;
   },
-  save: async ({ title, text }) => {
-    await settings.update.websiteTitle(title);
-    await settings.update.homepageText(text);
-  },
-  log: () => "Homepage updated",
 });
 
 /** Handle POST /admin/site/contact - save contact page */
 const handleSiteContactPost = settingsHandler({
-  label: "Site contact page",
-  redirectTo: "/admin/site/contact",
   extract: (form) => {
     applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
     return form.getString("contact_page_text");
   },
+  label: "Site contact page",
+  log: () => "Contact page updated",
+  redirectTo: "/admin/site/contact",
+  save: (v) => settings.update.contactPageText(v),
   validate: (v) =>
     v.length > MAX_TEXTAREA_LENGTH
       ? `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
       : null,
-  save: (v) => settings.update.contactPageText(v),
-  log: () => "Contact page updated",
 });
 
 /** Site editor routes */
 export const siteRoutes = defineRoutes({
   "GET /admin/site": siteGetRoute(renderHomePage),
-  "POST /admin/site": handleSiteHomePost,
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
+  "POST /admin/site": handleSiteHomePost,
   "POST /admin/site/contact": handleSiteContactPost,
 });

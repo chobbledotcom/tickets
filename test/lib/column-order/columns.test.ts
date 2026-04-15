@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#lib/columns/attendee-columns.ts";
+import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
 import type { AttendeeTableRow } from "#lib/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import {
@@ -59,10 +59,7 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("status cell shows Active or Inactive", () => {
     expect(
-      EVENT_TABLE_COLUMNS.status!.cell(
-        testEventWithCount({ active: true }),
-        u,
-      ),
+      EVENT_TABLE_COLUMNS.status!.cell(testEventWithCount({ active: true }), u),
     ).toBe("Active");
     expect(
       EVENT_TABLE_COLUMNS.status!.cell(
@@ -85,11 +82,11 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
   const opts: AttendeeColumnOpts = {
     allowedDomain: "example.com",
-    phonePrefix: "44",
-    renderStatus: () => "",
-    renderActions: () => "",
-    answerTextMap: new Map(),
     answerQuestionMap: new Map(),
+    answerTextMap: new Map(),
+    phonePrefix: "44",
+    renderActions: () => "",
+    renderStatus: () => "",
   };
   const makeRow = (
     overrides: Partial<AttendeeTableRow> = {},
@@ -102,7 +99,7 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
 
   test("event cell renders link to admin event page", () => {
     const html = ATTENDEE_TABLE_COLUMNS.event!.cell(
-      makeRow({ eventName: "Gala", eventId: 42 }),
+      makeRow({ eventId: 42, eventName: "Gala" }),
       opts,
     );
     expect(html).toContain("/admin/event/42");

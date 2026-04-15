@@ -11,9 +11,9 @@ import {
 } from "#test-utils";
 
 const testConfig: EmailConfig = {
-  provider: "resend",
   apiKey: "re_test_key",
   fromAddress: "tickets@example.com",
+  provider: "resend",
 };
 
 const setupDbEmailConfig = async (
@@ -42,9 +42,9 @@ describeWithEnv(
   {
     db: true,
     env: {
-      HOST_EMAIL_PROVIDER: undefined,
       HOST_EMAIL_API_KEY: undefined,
       HOST_EMAIL_FROM_ADDRESS: undefined,
+      HOST_EMAIL_PROVIDER: undefined,
     },
   },
   () => {

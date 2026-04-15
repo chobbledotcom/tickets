@@ -96,8 +96,8 @@ const validateAndParse = async <T, V extends FieldValues = FieldValues>(
 ): Promise<ParseResult<T>> => {
   const validation = validateForm<V>(form, fields);
   return validation.valid
-    ? { ok: true, input: await toInput(validation.values) }
-    : { ok: false, error: validation.error };
+    ? { input: await toInput(validation.values), ok: true }
+    : { error: validation.error, ok: false };
 };
 
 /** Check existence and return not found result if missing */
@@ -106,7 +106,7 @@ const requireExists = async <Row, Input>(
   id: InValue,
 ): Promise<NotFoundResult | null> => {
   const existing = await table.findById(id);
-  return existing ? null : { ok: false, notFound: true };
+  return existing ? null : { notFound: true, ok: false };
 };
 
 /** Run async validation, return error result or null */
@@ -117,12 +117,12 @@ const runValidation = async <Input, Id>(
 ): Promise<ErrorResult | null> => {
   if (!validate) return null;
   const error = await validate(input, id);
-  return error ? { ok: false, error } : null;
+  return error ? { error, ok: false } : null;
 };
 
 /** Convert row or null to update result */
 const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
-  row ? { ok: true, row } : { ok: false, notFound: true };
+  row ? { ok: true, row } : { notFound: true, ok: false };
 
 /** Parse and validate input, returning parsed input or error */
 const parseAndValidate = async <Input, Id>(
@@ -215,13 +215,13 @@ export const defineResource = <
     : undefined;
 
   return {
-    table,
+    create,
+    delete: deleteRow,
     fields,
     parseInput,
     parsePartialInput,
-    create,
+    table,
     update,
-    delete: deleteRow,
     ...(verifyName && { verifyName }),
   };
 };

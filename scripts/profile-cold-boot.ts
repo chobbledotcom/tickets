@@ -19,7 +19,7 @@ const measure = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
   const start = performance.now();
   const result = await fn();
   const duration = performance.now() - start;
-  timings.push({ name, duration });
+  timings.push({ duration, name });
   return result;
 };
 
@@ -27,7 +27,7 @@ const measureSync = <T>(name: string, fn: () => T): T => {
   const start = performance.now();
   const result = fn();
   const duration = performance.now() - start;
-  timings.push({ name, duration });
+  timings.push({ duration, name });
   return result;
 };
 

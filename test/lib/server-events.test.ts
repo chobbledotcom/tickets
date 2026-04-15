@@ -66,9 +66,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
         mockMultipartRequest("/admin/event", {
-          name: "Test Event",
           max_attendees: "100",
           max_quantity: "1",
+          name: "Test Event",
           thank_you_url: "https://example.com",
         }),
       );
@@ -80,11 +80,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "New Event",
+            csrf_token: await testCsrfToken(),
             max_attendees: "50",
             max_quantity: "1",
+            name: "New Event",
             thank_you_url: "https://example.com/thanks",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -105,11 +105,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "Demo Event",
+            csrf_token: await testCsrfToken(),
             max_attendees: "50",
             max_quantity: "1",
+            name: "Demo Event",
             webhook_url: "https://example.com/webhook",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -132,12 +132,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "Grouped Event",
+            csrf_token: await testCsrfToken(),
+            group_id: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
+            name: "Grouped Event",
             thank_you_url: "https://example.com/thanks",
-            group_id: String(group.id),
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -154,12 +154,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "Bad Group Event",
+            csrf_token: await testCsrfToken(),
+            group_id: "999",
             max_attendees: "50",
             max_quantity: "1",
+            name: "Bad Group Event",
             thank_you_url: "https://example.com/thanks",
-            group_id: "999",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -178,23 +178,23 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         slug: "standard-group",
       });
       await createTestEvent({
-        name: "Standard Event",
-        maxAttendees: 50,
-        groupId: group.id,
         eventType: "standard",
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Standard Event",
       });
 
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "Daily Mismatch",
+            csrf_token: await testCsrfToken(),
+            event_type: "daily",
+            group_id: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
+            name: "Daily Mismatch",
             thank_you_url: "https://example.com/thanks",
-            group_id: String(group.id),
-            event_type: "daily",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -209,11 +209,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "New Event",
+            csrf_token: "invalid-csrf-token",
             max_attendees: "50",
             max_quantity: "1",
+            name: "New Event",
             thank_you_url: "https://example.com/thanks",
-            csrf_token: "invalid-csrf-token",
           },
           await testCookie(),
         ),
@@ -226,9 +226,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "New Event",
             max_attendees: "50",
             max_quantity: "1",
+            name: "New Event",
             thank_you_url: "https://example.com/thanks",
           },
           await testCookie(),
@@ -242,10 +242,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "",
-            max_attendees: "",
-            thank_you_url: "",
             csrf_token: await testCsrfToken(),
+            max_attendees: "",
+            name: "",
+            thank_you_url: "",
           },
           await testCookie(),
         ),
@@ -256,8 +256,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("rejects duplicate slug", async () => {
       // First, create an event with a specific name
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Duplicate Event",
         maxAttendees: 100,
+        name: "Duplicate Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -266,11 +266,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "Duplicate Event",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
+            name: "Duplicate Event",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -295,8 +295,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows event details when authenticated", async () => {
       const { event } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -319,8 +319,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows question answer summary when questions assigned", async () => {
       const { event, cookie } = await setupEventAndLogin({
-        name: "Q Event",
         maxAttendees: 100,
+        name: "Q Event",
       });
       const { questionsTable, answersTable, setEventQuestions } = await import(
         "#lib/db/questions.ts"
@@ -328,8 +328,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size" });
       await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       await setEventQuestions(event.id, [q.id]);
 
@@ -363,8 +363,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows duplicate form pre-filled with event settings but no name", async () => {
       await setupEventAndLogin({
-        name: "Original Event",
         maxAttendees: 75,
+        name: "Original Event",
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 2000,
         webhookUrl: "https://example.com/webhook",
@@ -618,8 +618,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("sanitizes slug for filename", async () => {
       const { cookie } = await setupEventAndLogin({
-        name: "Test Event Special",
         maxAttendees: 100,
+        name: "Test Event Special",
         thankYouUrl: "https://example.com",
       });
 
@@ -655,13 +655,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Shirt Size" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
       await setEventQuestions(event.id, [q.id]);
       await saveAttendeeAnswers([attendee.id], [a1.id]);
@@ -695,8 +695,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows edit form when authenticated", async () => {
       const { event } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1500,
       });
@@ -722,10 +722,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
       const response = await handleRequest(
         mockMultipartRequest("/admin/event/1/edit", {
-          name: "Updated Event",
-          slug: "updated-event",
           max_attendees: "50",
           max_quantity: "1",
+          name: "Updated Event",
+          slug: "updated-event",
           thank_you_url: "https://example.com/updated",
         }),
       );
@@ -734,10 +734,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("returns 404 for non-existent event", async () => {
       const { response } = await adminFormPost("/admin/event/999/edit", {
-        name: "Updated Event",
-        slug: "updated-event",
         max_attendees: "50",
         max_quantity: "1",
+        name: "Updated Event",
+        slug: "updated-event",
         thank_you_url: "https://example.com/updated",
       });
       expect(response.status).toBe(404);
@@ -753,12 +753,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "Updated Event",
-            slug: "updated-event",
+            csrf_token: "invalid-token",
             max_attendees: "50",
             max_quantity: "1",
+            name: "Updated Event",
+            slug: "updated-event",
             thank_you_url: "https://example.com/updated",
-            csrf_token: "invalid-token",
           },
           cookie,
         ),
@@ -776,12 +776,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "",
-            slug: "test-slug",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
+            name: "",
+            slug: "test-slug",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -799,13 +799,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             max_attendees: "200",
             max_quantity: "5",
+            name: event.name,
+            slug: event.slug,
             thank_you_url: "https://example.com/updated",
             unit_price: "20.00",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -832,12 +832,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             max_attendees: "200",
             max_quantity: "5",
+            name: event.name,
+            slug: event.slug,
             webhook_url: "https://example.com/new-webhook",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -860,20 +860,20 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         slug: "group-two",
       });
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Group Switch Event",
         groupId: group1.id,
         maxAttendees: 50,
+        name: "Group Switch Event",
       });
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             group_id: String(group2.id),
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: event.name,
+            slug: event.slug,
           },
           cookie,
         ),
@@ -890,20 +890,20 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("rejects non-existent group_id on edit", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Edit Bad Group",
         maxAttendees: 50,
+        name: "Edit Bad Group",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             group_id: "999",
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: event.name,
+            slug: event.slug,
           },
           cookie,
         ),
@@ -917,27 +917,27 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         slug: "daily-group",
       });
       await createTestEvent({
-        name: "Daily Event",
-        maxAttendees: 50,
-        groupId: group.id,
         eventType: "daily",
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Daily Event",
       });
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Standard Event",
-        maxAttendees: 50,
         eventType: "standard",
+        maxAttendees: 50,
+        name: "Standard Event",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             group_id: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: event.name,
+            slug: event.slug,
           },
           cookie,
         ),
@@ -951,27 +951,27 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         slug: "same-type-group",
       });
       await createTestEvent({
-        name: "Standard A",
-        maxAttendees: 50,
-        groupId: group.id,
         eventType: "standard",
+        groupId: group.id,
+        maxAttendees: 50,
+        name: "Standard A",
       });
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Standard B",
-        maxAttendees: 50,
         eventType: "standard",
+        maxAttendees: 50,
+        name: "Standard B",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             group_id: String(group.id),
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: event.name,
+            slug: event.slug,
           },
           cookie,
         ),
@@ -984,8 +984,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("updates event slug", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Slug Update Test",
         maxAttendees: 100,
+        name: "Slug Update Test",
         thankYouUrl: "https://example.com",
       });
 
@@ -993,12 +993,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: "Slug Update Test",
-            slug: "new-custom-slug",
+            csrf_token: csrfToken,
             max_attendees: "100",
             max_quantity: "1",
+            name: "Slug Update Test",
+            slug: "new-custom-slug",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1015,19 +1015,19 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("normalizes slug on update (spaces, uppercase)", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Normalize Test",
         maxAttendees: 50,
+        name: "Normalize Test",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: "Normalize Test",
-            slug: "  My Custom Slug  ",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: "Normalize Test",
+            slug: "  My Custom Slug  ",
           },
           cookie,
         ),
@@ -1044,19 +1044,19 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("rejects invalid slug characters", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Invalid Slug Test",
         maxAttendees: 50,
+        name: "Invalid Slug Test",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "Invalid Slug Test",
-            slug: "invalid_slug!@#",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: "Invalid Slug Test",
+            slug: "invalid_slug!@#",
           },
           cookie,
         ),
@@ -1070,22 +1070,22 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("rejects duplicate slug used by another event", async () => {
       const event1 = await createTestEvent({
-        name: "Event One",
         maxAttendees: 50,
+        name: "Event One",
       });
       const event2 = await createTestEvent({
-        name: "Event Two",
         maxAttendees: 50,
+        name: "Event Two",
       });
 
       // Try to change event2's slug to event1's slug
       const { response } = await adminFormPost(
         `/admin/event/${event2.id}/edit`,
         {
-          name: "Event Two",
-          slug: event1.slug,
           max_attendees: "50",
           max_quantity: "1",
+          name: "Event Two",
+          slug: event1.slug,
         },
       );
       await expectHtmlResponse(
@@ -1101,19 +1101,19 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         slug: "slug-group",
       });
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Event Slug Collision",
         maxAttendees: 50,
+        name: "Event Slug Collision",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: group.slug,
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: event.name,
+            slug: group.slug,
           },
           cookie,
         ),
@@ -1127,19 +1127,19 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("allows keeping the same slug on update", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Same Slug Test",
         maxAttendees: 50,
+        name: "Same Slug Test",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: "Same Slug Test",
-            slug: event.slug,
+            csrf_token: csrfToken,
             max_attendees: "100",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: "Same Slug Test",
+            slug: event.slug,
           },
           cookie,
         ),
@@ -1213,7 +1213,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken, confirm_identifier: event.name },
+          { confirm_identifier: event.name, csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1227,15 +1227,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("returns error when identifier does not match", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken, confirm_identifier: "wrong-identifier" },
+          { confirm_identifier: "wrong-identifier", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1249,15 +1249,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("displays error on confirmation page after failed attempt", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
       const postResponse = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken, confirm_identifier: "wrong" },
+          { confirm_identifier: "wrong", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1313,7 +1313,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken, confirm_identifier: event.name },
+          { confirm_identifier: event.name, csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1327,8 +1327,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("returns error when name does not match", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
       // Deactivate the event first
@@ -1337,7 +1337,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken, confirm_identifier: "wrong-identifier" },
+          { confirm_identifier: "wrong-identifier", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1351,8 +1351,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("displays error on confirmation page after failed attempt", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
       await deactivateTestEvent(event.id);
@@ -1360,7 +1360,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const postResponse = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken, confirm_identifier: "wrong" },
+          { confirm_identifier: "wrong", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1395,8 +1395,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows delete confirmation page when authenticated", async () => {
       const { event } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1412,8 +1412,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("POST /admin/event/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
@@ -1433,8 +1433,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("rejects invalid CSRF token", async () => {
       const { event, cookie } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1453,8 +1453,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("rejects mismatched event identifier", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1474,8 +1474,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("displays error on confirmation page after failed attempt", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1497,8 +1497,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("deletes event with matching identifier (case insensitive)", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1522,8 +1522,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("deletes event with matching identifier (trimmed)", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1542,8 +1542,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("deletes event and all attendees", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com",
       });
       await createTestAttendee(
@@ -1583,8 +1583,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("skips identifier verification when verify_identifier=false (for API users)", async () => {
       await createTestEvent({
-        name: "API Event",
         maxAttendees: 50,
+        name: "API Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -1611,8 +1611,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("DELETE /admin/event/:id/delete", () => {
     test("deletes event using DELETE method", async () => {
       await createTestEvent({
-        name: "Delete Method Test",
         maxAttendees: 50,
+        name: "Delete Method Test",
         thankYouUrl: "https://example.com",
       });
 
@@ -1621,15 +1621,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         new Request(
           "http://localhost/admin/event/1/delete?verify_identifier=false",
           {
-            method: "DELETE",
+            body: new URLSearchParams({
+              csrf_token: await testCsrfToken(),
+            }).toString(),
             headers: {
               "content-type": "application/x-www-form-urlencoded",
               cookie: await testCookie(),
               host: "localhost",
             },
-            body: new URLSearchParams({
-              csrf_token: await testCsrfToken(),
-            }).toString(),
+            method: "DELETE",
           },
         ),
       );
@@ -1645,9 +1645,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("POST /admin/event with unit_price", () => {
     test("creates event with unit_price when authenticated", async () => {
       const { response } = await adminFormPost("/admin/event", {
-        name: "Paid Event",
         max_attendees: "50",
         max_quantity: "1",
+        name: "Paid Event",
         thank_you_url: "https://example.com/thanks",
         unit_price: "10.00",
       });
@@ -1661,12 +1661,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         await mockMultipartRequest(
           "/admin/event",
           {
-            name: "Pay More Event",
-            max_attendees: "50",
-            max_quantity: "1",
-            unit_price: "10.00",
             can_pay_more: "1",
             csrf_token: await testCsrfToken(),
+            max_attendees: "50",
+            max_quantity: "1",
+            name: "Pay More Event",
+            unit_price: "10.00",
           },
           await testCookie(),
         ),
@@ -1684,11 +1684,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         await mockMultipartRequest(
           "/admin/event",
           {
-            name: "Normal Event",
+            csrf_token: await testCsrfToken(),
             max_attendees: "50",
             max_quantity: "1",
+            name: "Normal Event",
             unit_price: "5.00",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -1707,13 +1707,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         await mockMultipartRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
-            max_attendees: String(event.max_attendees),
-            max_quantity: String(event.max_quantity),
-            unit_price: "10.00",
             can_pay_more: "1",
             csrf_token: await testCsrfToken(),
+            max_attendees: String(event.max_attendees),
+            max_quantity: String(event.max_quantity),
+            name: event.name,
+            slug: event.slug,
+            unit_price: "10.00",
           },
           await testCookie(),
         ),
@@ -1750,13 +1750,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockMultipartRequest(
           "/admin/event",
           {
-            name: "Bad Max Price",
-            max_attendees: "50",
-            max_quantity: "1",
-            unit_price: "10.00",
-            max_price: "10.50",
             can_pay_more: "1",
             csrf_token: await testCsrfToken(),
+            max_attendees: "50",
+            max_price: "10.50",
+            max_quantity: "1",
+            name: "Bad Max Price",
+            unit_price: "10.00",
           },
           await testCookie(),
         ),
@@ -1769,14 +1769,14 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("allows max_price less than unit_price + 100 when can_pay_more is off", async () => {
-      const event = await createTestEvent({ unitPrice: 1000, maxPrice: 1050 });
+      const event = await createTestEvent({ maxPrice: 1050, unitPrice: 1000 });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.max_price).toBe(1050);
     });
 
     test("accepts max_price equal to unit_price + 100", async () => {
-      const event = await createTestEvent({ unitPrice: 1000, maxPrice: 1100 });
+      const event = await createTestEvent({ maxPrice: 1100, unitPrice: 1000 });
       expect(event.max_price).toBe(1100);
     });
 
@@ -1801,8 +1801,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("shows log page when authenticated", async () => {
       // Create an event to generate activity
       await createTestEvent({
-        name: "Log Test",
         maxAttendees: 50,
+        name: "Log Test",
       });
 
       const response = await awaitTestRequest("/admin/log", {
@@ -1845,8 +1845,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows log for existing event", async () => {
       const { event } = await setupEventAndLogin({
-        name: "Event Log",
         maxAttendees: 50,
+        name: "Event Log",
       });
 
       await assertAdminHtml(`/admin/event/${event.id}/log`, "Log", event.name);
@@ -1874,8 +1874,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("admin/events.ts (event delete handler via onDelete)", () => {
     test("delete event handler cleans up associated data", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "On Delete Test",
         maxAttendees: 100,
+        name: "On Delete Test",
         thankYouUrl: "https://example.com",
       });
       await createTestAttendee(
@@ -1906,8 +1906,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("admin/events.ts (eventErrorPage with deleted event)", () => {
     test("edit validation returns 400 with error when event exists", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "First Edit Err",
         maxAttendees: 100,
+        name: "First Edit Err",
         thankYouUrl: "https://example.com",
       });
 
@@ -1916,11 +1916,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
+            name: "",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1933,8 +1933,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("admin/events.ts (form.get fallbacks)", () => {
     test("deactivate event without confirm_identifier uses empty fallback", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Deactivate Fallback",
         maxAttendees: 100,
+        name: "Deactivate Fallback",
         thankYouUrl: "https://example.com",
       });
 
@@ -1956,8 +1956,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("reactivate event without confirm_identifier uses empty fallback", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Reactivate Fallback",
         maxAttendees: 100,
+        name: "Reactivate Fallback",
         thankYouUrl: "https://example.com",
       });
       await deactivateTestEvent(event.id);
@@ -1980,8 +1980,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("delete event without confirm_identifier uses empty fallback", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Delete Fallback",
         maxAttendees: 100,
+        name: "Delete Fallback",
         thankYouUrl: "https://example.com",
       });
 
@@ -2001,8 +2001,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("POST /admin/event/:id/edit validation error", () => {
     test("shows error when editing non-existent event", async () => {
       const { response } = await adminFormPost("/admin/event/99999/edit", {
-        name: "Updated Name",
         max_attendees: "50",
+        name: "Updated Name",
       });
       expect(response.status).toBe(404);
     });
@@ -2013,18 +2013,18 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         cookie,
         csrfToken,
       } = await setupEventAndLogin({
-        name: "Edit Orig",
         maxAttendees: 50,
+        name: "Edit Orig",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event1.id}/edit`,
           {
-            name: "",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: "",
           },
           cookie,
         ),
@@ -2036,8 +2036,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("POST /admin/event/:id/delete with custom onDelete", () => {
     test("deletes event and cascades to attendees", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Cascade Delete",
         maxAttendees: 50,
+        name: "Cascade Delete",
       });
       await createTestAttendee(
         event.id,
@@ -2070,18 +2070,18 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         cookie,
         csrfToken,
       } = await setupEventAndLogin({
-        name: "Event Err 1",
         maxAttendees: 50,
+        name: "Event Err 1",
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event1.id}/edit`,
           {
-            name: "",
+            csrf_token: csrfToken,
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            name: "",
           },
           cookie,
         ),
@@ -2091,8 +2091,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("event delete cascades to attendees using custom onDelete", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Cascade Del Test",
         maxAttendees: 50,
+        name: "Cascade Del Test",
       });
       await createTestAttendee(
         event.id,
@@ -2121,8 +2121,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const { eventsTable } = await import("#lib/db/events.ts");
 
       const event1 = await createTestEvent({
-        name: "Event For Delete Err",
         maxAttendees: 50,
+        name: "Event For Delete Err",
       });
 
       // Spy on eventsTable.findById: return the row on first call (so requireExists passes),
@@ -2137,8 +2137,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
             // Delete the event from DB so getEventWithCount returns null
             const { getDb } = await import("#lib/db/client.ts");
             await getDb().execute({
-              sql: "DELETE FROM events WHERE id = ?",
               args: [id as number],
+              sql: "DELETE FROM events WHERE id = ?",
             });
             invalidateEventsCache();
           }
@@ -2151,9 +2151,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         const { response } = await adminFormPost(
           `/admin/event/${event1.id}/edit`,
           {
-            name: "",
             max_attendees: "50",
             max_quantity: "1",
+            name: "",
           },
         );
         // requireExists sees the row (first findById). Validation fails (empty name).
@@ -2168,8 +2168,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("admin event onDelete handler", () => {
     test("deleting an event triggers the onDelete handler which calls deleteEvent", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Delete OnDelete Test",
         maxAttendees: 10,
+        name: "Delete OnDelete Test",
       });
       // Add an attendee so delete covers more paths
       await createTestAttendee(event.id, event.slug, "User A", "a@test.com");
@@ -2177,7 +2177,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/delete`,
-          { csrf_token: csrfToken, confirm_identifier: event.name },
+          { confirm_identifier: event.name, csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -2194,17 +2194,17 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       try {
         // First event succeeds, claiming the only slug Math.random can produce
         await adminFormPost("/admin/event", {
-          name: "First Event",
           max_attendees: "50",
           max_quantity: "1",
+          name: "First Event",
           thank_you_url: "https://example.com",
         });
         // Second event: all 10 attempts generate the same taken slug
         await expect(
           adminFormPost("/admin/event", {
-            name: "Collision Event",
             max_attendees: "50",
             max_quantity: "1",
+            name: "Collision Event",
             thank_you_url: "https://example.com",
           }),
         ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
@@ -2217,8 +2217,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("edit event notFound race condition", () => {
     test("returns 404 when event is deleted during edit update", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Race Condition Event",
         maxAttendees: 50,
+        name: "Race Condition Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -2236,11 +2236,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           mockFormRequest(
             `/admin/event/${event.id}/edit`,
             {
-              name: "Updated Name",
-              slug: "updated-slug",
+              csrf_token: csrfToken,
               max_attendees: "50",
               max_quantity: "1",
-              csrf_token: csrfToken,
+              name: "Updated Name",
+              slug: "updated-slug",
             },
             cookie,
           ),
@@ -2412,13 +2412,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
-            max_attendees: "100",
-            max_quantity: "1",
             closes_at_date: "not-a-date",
             closes_at_time: "99:99",
             csrf_token: csrfToken,
+            max_attendees: "100",
+            max_quantity: "1",
+            name: event.name,
+            slug: event.slug,
           },
           cookie,
         ),
@@ -2538,13 +2538,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
-            max_attendees: "100",
-            max_quantity: "1",
+            csrf_token: csrfToken,
             date_date: "not-a-date",
             date_time: "99:99",
-            csrf_token: csrfToken,
+            max_attendees: "100",
+            max_quantity: "1",
+            name: event.name,
+            slug: event.slug,
           },
           cookie,
         ),
@@ -2567,7 +2567,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("preserves existing set-cookie headers when adding another", async () => {
       const headers = new Headers();
       headers.append("set-cookie", "first=one; Path=/");
-      const response = new Response("body", { status: 200, headers });
+      const response = new Response("body", { headers, status: 200 });
       const result = await withCookie(response, "second=two; Path=/");
       const cookies = result.headers.getSetCookie();
       expect(cookies.length).toBe(2);
@@ -2609,10 +2609,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("daily event type", () => {
     test("creates a daily event with custom config", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: ["Monday", "Wednesday", "Friday"],
-        minimumDaysBefore: 2,
+        eventType: "daily",
         maximumDaysAfter: 30,
+        minimumDaysBefore: 2,
       });
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -2644,10 +2644,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("admin event detail page shows Daily type for daily events", async () => {
       const { event } = await setupEventAndLogin({
-        eventType: "daily",
         bookableDays: ["Monday", "Tuesday"],
-        minimumDaysBefore: 3,
+        eventType: "daily",
         maximumDaysAfter: 60,
+        minimumDaysBefore: 3,
       });
 
       await assertAdminHtml(
@@ -2677,10 +2677,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("admin event edit page pre-fills daily config", async () => {
       const { event } = await setupEventAndLogin({
-        eventType: "daily",
         bookableDays: ["Wednesday", "Friday"],
-        minimumDaysBefore: 5,
+        eventType: "daily",
         maximumDaysAfter: 120,
+        minimumDaysBefore: 5,
       });
 
       const html = await assertAdminHtml(
@@ -2696,10 +2696,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("updates event from standard to daily", async () => {
       const event = await createTestEvent();
       await updateTestEvent(event.id, {
-        eventType: "daily",
         bookableDays: ["Saturday", "Sunday"],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -2712,10 +2712,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("updates event from daily to standard", async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: ["Monday"],
-        minimumDaysBefore: 7,
+        eventType: "daily",
         maximumDaysAfter: 365,
+        minimumDaysBefore: 7,
       });
       await updateTestEvent(event.id, { eventType: "standard" });
 
@@ -2726,10 +2726,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("duplicate page pre-fills daily event config", async () => {
       await setupEventAndLogin({
-        eventType: "daily",
         bookableDays: ["Tuesday", "Thursday"],
-        minimumDaysBefore: 2,
+        eventType: "daily",
         maximumDaysAfter: 45,
+        minimumDaysBefore: 2,
       });
 
       const html = await assertAdminHtml(
@@ -2744,11 +2744,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("rejects invalid event_type value", async () => {
       const { response } = await adminFormPost("/admin/event", {
-        name: "Bad Type Event",
+        event_type: "invalid",
         max_attendees: "50",
         max_quantity: "1",
+        name: "Bad Type Event",
         thank_you_url: "https://example.com",
-        event_type: "invalid",
       });
       expectStatus(400)(response);
     });
@@ -2821,15 +2821,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "Edit Target",
-            slug: event.slug,
+            bookable_days: "Funday,Bunday",
+            csrf_token: csrfToken,
+            event_type: "daily",
             max_attendees: "50",
             max_quantity: "1",
-            event_type: "daily",
-            bookable_days: "Funday,Bunday",
-            minimum_days_before: "1",
             maximum_days_after: "90",
-            csrf_token: csrfToken,
+            minimum_days_before: "1",
+            name: "Edit Target",
+            slug: event.slug,
           },
           cookie,
         ),
@@ -2849,12 +2849,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
           {
-            name: event.name,
-            slug: event.slug,
+            csrf_token: csrfToken,
             max_attendees: "200",
             max_quantity: "1",
+            name: event.name,
+            slug: event.slug,
             thank_you_url: "https://example.com/updated",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -2876,7 +2876,6 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     const createDailyEventWithAttendees = async () => {
       const event = await createTestEvent({
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -2886,24 +2885,25 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        minimumDaysBefore: 0,
+        eventType: "daily",
         maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       // Create attendees on two different dates via the public form
       await submitTicketForm(event.slug, {
-        name: "User A",
+        date: validDate1,
         email: "a@test.com",
-        date: validDate1,
+        name: "User A",
       });
       await submitTicketForm(event.slug, {
-        name: "User B",
+        date: validDate1,
         email: "b@test.com",
-        date: validDate1,
+        name: "User B",
       });
       await submitTicketForm(event.slug, {
-        name: "User C",
-        email: "c@test.com",
         date: validDate2,
+        email: "c@test.com",
+        name: "User C",
       });
       return event;
     };
@@ -3112,8 +3112,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("stale reservation cleanup on admin event view", () => {
     test("cleans up stale reservations when viewing an event", async () => {
       const { event, cookie } = await setupEventAndLogin({
-        name: "Cleanup Test Event",
         maxAttendees: 100,
+        name: "Cleanup Test Event",
         thankYouUrl: "https://example.com",
       });
 
@@ -3121,18 +3121,18 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
       await getDb().execute(
         insert("processed_payments", {
-          payment_session_id: "cs_stale_admin_test",
           attendee_id: null,
+          payment_session_id: "cs_stale_admin_test",
           processed_at: staleTime,
         }),
       );
 
       // Verify it exists
       const before = await getDb().execute({
+        args: ["cs_stale_admin_test"],
         sql: `SELECT *
               FROM processed_payments
               WHERE payment_session_id = ?`,
-        args: ["cs_stale_admin_test"],
       });
       expect(before.rows.length).toBe(1);
 
@@ -3144,26 +3144,26 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       // Stale reservation should be cleaned up
       const after = await getDb().execute({
+        args: ["cs_stale_admin_test"],
         sql: `SELECT *
               FROM processed_payments
               WHERE payment_session_id = ?`,
-        args: ["cs_stale_admin_test"],
       });
       expect(after.rows.length).toBe(0);
     });
 
     test("does not clean up fresh reservations when viewing an event", async () => {
       const { event, cookie } = await setupEventAndLogin({
-        name: "Fresh Reservation Test",
         maxAttendees: 100,
+        name: "Fresh Reservation Test",
         thankYouUrl: "https://example.com",
       });
 
       // Insert a fresh reservation (just now)
       await getDb().execute(
         insert("processed_payments", {
-          payment_session_id: "cs_fresh_admin_test",
           attendee_id: null,
+          payment_session_id: "cs_fresh_admin_test",
           processed_at: new Date().toISOString(),
         }),
       );
@@ -3176,10 +3176,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
       // Fresh reservation should still exist
       const after = await getDb().execute({
+        args: ["cs_fresh_admin_test"],
         sql: `SELECT *
               FROM processed_payments
               WHERE payment_session_id = ?`,
-        args: ["cs_fresh_admin_test"],
       });
       expect(after.rows.length).toBe(1);
     });
@@ -3255,12 +3255,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("admin event edit page shows attachment info when event has attachment", async () => {
       const { event, cookie } = await setupEventAndLogin();
       await eventsTable.update(event.id, {
-        attachmentUrl: "uuid-guide.pdf",
         attachmentName: "Event Guide.pdf",
+        attachmentUrl: "uuid-guide.pdf",
       });
 
       await runWithStorageConfig(
-        { zoneName: "testzone", zoneKey: "testkey" },
+        { zoneKey: "testkey", zoneName: "testzone" },
         async () => {
           const response = await awaitTestRequest(
             `/admin/event/${event.id}/edit`,
@@ -3278,7 +3278,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const { event, cookie } = await setupEventAndLogin();
 
       await runWithStorageConfig(
-        { zoneName: "testzone", zoneKey: "testkey" },
+        { zoneKey: "testkey", zoneName: "testzone" },
         async () => {
           const response = await awaitTestRequest(
             `/admin/event/${event.id}/edit`,

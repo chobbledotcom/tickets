@@ -139,24 +139,24 @@ describeWithEnv("admin email templates", { db: true }, () => {
       const response = await postTemplateForm(
         "/admin/settings/email-templates/confirmation",
         {
-          subject: "Custom: {{ event_names }}",
           html: "<b>{{ attendee.name }}</b>",
+          subject: "Custom: {{ event_names }}",
           text: "Hi {{ attendee.name }}",
         },
       );
 
       expect(response.status).toBe(302);
       await expectTemplatesMatch("confirmation", {
-        subject: "Custom: {{ event_names }}",
         html: "<b>{{ attendee.name }}</b>",
+        subject: "Custom: {{ event_names }}",
         text: "Hi {{ attendee.name }}",
       });
     });
 
     test("stores templates encrypted at rest", async () => {
       await postTemplateForm("/admin/settings/email-templates/confirmation", {
-        subject: "Custom: {{ event_names }}",
         html: "<b>{{ attendee.name }}</b>",
+        subject: "Custom: {{ event_names }}",
         text: "Hi {{ attendee.name }}",
       });
       await settings.loadAll();
@@ -181,8 +181,8 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
       // But getEmailTemplateSet should return decrypted values
       await expectTemplatesMatch("confirmation", {
-        subject: "Custom: {{ event_names }}",
         html: "<b>{{ attendee.name }}</b>",
+        subject: "Custom: {{ event_names }}",
         text: "Hi {{ attendee.name }}",
       });
     });
@@ -198,7 +198,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
       const response = await postTemplateForm(
         "/admin/settings/email-templates/confirmation",
-        { subject: "", html: "", text: "" },
+        { html: "", subject: "", text: "" },
       );
 
       expect(response.status).toBe(302);
@@ -208,7 +208,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("rejects invalid Liquid syntax", async () => {
       const response = await postTemplateForm(
         "/admin/settings/email-templates/confirmation",
-        { subject: "{% for x in items %}unclosed", html: "", text: "" },
+        { html: "", subject: "{% for x in items %}unclosed", text: "" },
       );
 
       expect(response.status).toBe(302);
@@ -232,7 +232,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("rejects template exceeding max length", async () => {
       const response = await postTemplateForm(
         "/admin/settings/email-templates/confirmation",
-        { subject: "", html: "x".repeat(51_201), text: "" },
+        { html: "x".repeat(51_201), subject: "", text: "" },
       );
 
       expect(response.status).toBe(302);
@@ -249,8 +249,8 @@ describeWithEnv("admin email templates", { db: true }, () => {
       const response = await postTemplateForm(
         "/admin/settings/email-templates/admin",
         {
-          subject: "New: {{ attendee.name }}",
           html: "<p>Admin HTML</p>",
+          subject: "New: {{ attendee.name }}",
           text: "Admin text",
         },
       );
@@ -265,9 +265,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("renders template preview with sample data", async () => {
       await assertJson(
         postPreviewForm({
-          type: "confirmation",
-          template: "Hello {{ attendee.name }}",
           format: "text",
+          template: "Hello {{ attendee.name }}",
+          type: "confirmation",
         }),
         200,
         (json) => {
@@ -279,9 +279,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("returns error for invalid template syntax", async () => {
       await assertJsonError(
         postPreviewForm({
-          type: "confirmation",
-          template: "{% invalid %}",
           format: "text",
+          template: "{% invalid %}",
+          type: "confirmation",
         }),
         400,
         "Template syntax error",
@@ -291,9 +291,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("returns error for invalid template type", async () => {
       await assertJsonError(
         postPreviewForm({
-          type: "invalid",
-          template: "test",
           format: "text",
+          template: "test",
+          type: "invalid",
         }),
         400,
         "Invalid template type",
@@ -307,9 +307,9 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("returns error when template render throws", async () => {
       await assertJsonError(
         postPreviewForm({
-          type: "confirmation",
-          template: '{% render "nonexistent" %}',
           format: "text",
+          template: '{% render "nonexistent" %}',
+          type: "confirmation",
         }),
         400,
         "nonexistent",
@@ -319,10 +319,10 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("renders currency filter in preview", async () => {
       await assertJson(
         postPreviewForm({
-          type: "confirmation",
+          format: "html",
           template:
             "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
-          format: "html",
+          type: "confirmation",
         }),
         200,
         (json) => {

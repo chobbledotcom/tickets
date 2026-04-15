@@ -86,8 +86,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/site", {
-          website_title: "Test",
           homepage_text: "Hello",
+          website_title: "Test",
         }),
       );
       expectAdminRedirect(response);
@@ -97,7 +97,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
-          { website_title: "Test", csrf_token: "invalid" },
+          { csrf_token: "invalid", website_title: "Test" },
           await testCookie(),
         ),
       );
@@ -106,8 +106,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
     test("saves website title and homepage text", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        website_title: "My Site",
         homepage_text: "Welcome!",
+        website_title: "My Site",
       });
       expectRedirectContaining(response, "Homepage updated");
 
@@ -119,8 +119,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       await settings.update.websiteTitle("Old Title");
       await settings.update.homepageText("Old Text");
       const { response } = await adminFormPost("/admin/site", {
-        website_title: "",
         homepage_text: "",
+        website_title: "",
       });
       expect(response.status).toBe(302);
       expect(settings.websiteTitle).toBe("");
@@ -129,8 +129,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
     test("rejects title exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
         homepage_text: "",
+        website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
       });
       expectRedirectWithFlash(
         "/admin/site",
@@ -143,8 +143,8 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
     test("rejects homepage text exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        website_title: "",
         homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        website_title: "",
       });
       expectRedirectWithFlash(
         "/admin/site",

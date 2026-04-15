@@ -210,8 +210,8 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
         const intent = {
           ...contact,
           date,
-          items,
           eventAnswerIds,
+          items,
         };
         return handlePaymentFlow(request, intent, ctx);
       }
@@ -262,9 +262,9 @@ export const handleTicket = async (
     signCsrfToken(),
   ]);
   const ctx: TicketCtx = {
-    slugs: actionSlugs,
-    events: activeEvents,
     baseUrl: getBaseUrl(request),
+    events: activeEvents,
+    slugs: actionSlugs,
     ...sharedCtx,
   };
   if (request.method === "GET") applyFlash(request);

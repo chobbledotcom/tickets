@@ -131,7 +131,7 @@ describeWithEnv("backup", { db: true }, () => {
       const encoder = new TextEncoder();
       const zip = zipSync({
         "manifest.json": encoder.encode(
-          JSON.stringify({ schemaHash: "ok", latestUpdate: "ok" }),
+          JSON.stringify({ latestUpdate: "ok", schemaHash: "ok" }),
         ),
       });
       expect(readManifest(zip)).toBeNull();
@@ -240,8 +240,8 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("preserves newlines in values through roundtrip", async () => {
       await createTestEvent({
-        name: "Newline Zip",
         description: "first\nsecond\nthird",
+        name: "Newline Zip",
       });
       await restoreFromZip(await createBackupZip());
       const events = await eventsTable.findAll();

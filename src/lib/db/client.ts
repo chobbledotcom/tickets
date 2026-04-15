@@ -27,8 +27,8 @@ const createDbClient = (): Client => {
     throw new Error("DB_URL environment variable is required");
   }
   return createClient({
-    url,
     authToken: getEnv("DB_TOKEN"),
+    url,
   });
 };
 
@@ -53,7 +53,7 @@ export const queryOne = async <T>(
   sql: string,
   args: InValue[],
 ): Promise<T | null> => {
-  const result = await trackQuery(sql, () => getDb().execute({ sql, args }));
+  const result = await trackQuery(sql, () => getDb().execute({ args, sql }));
   const rows = resultRows<T>(result);
   return rows.length === 0 ? null : rows[0]!;
 };
@@ -64,7 +64,7 @@ export const queryAll = async <T>(
   args?: InValue[],
 ): Promise<T[]> => {
   const result = await trackQuery(sql, () =>
-    args ? getDb().execute({ sql, args }) : getDb().execute(sql),
+    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
   );
   return resultRows<T>(result);
 };
@@ -76,7 +76,7 @@ export const deleteByField = async (
   value: InValue,
 ): Promise<void> => {
   const sql = `DELETE FROM ${table} WHERE ${field} = ?`;
-  await trackQuery(sql, () => getDb().execute({ sql, args: [value] }));
+  await trackQuery(sql, () => getDb().execute({ args: [value], sql }));
 };
 
 /** Delete rows from multiple tables in a single batch transaction */
@@ -85,8 +85,8 @@ export const deleteByFieldBatch = (
 ): Promise<void> =>
   executeBatch(
     deletes.map(({ table, field, value }) => ({
-      sql: `DELETE FROM ${table} WHERE ${field} = ?`,
       args: [value],
+      sql: `DELETE FROM ${table} WHERE ${field} = ?`,
     })),
   );
 
@@ -173,7 +173,7 @@ export const insert = (
   }
 
   return {
-    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`,
     args,
+    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`,
   };
 };

@@ -137,7 +137,7 @@ const validatePaidSession = async (
       response: paymentErrorResponse("Invalid session data"),
     };
   }
-  return { ok: true, data: { session, intent } };
+  return { data: { intent, session }, ok: true };
 };
 
 /**
@@ -154,8 +154,8 @@ const tryRefund = async (
   if (!provider) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      eventId,
       detail: "No payment provider configured for refund",
+      eventId,
     });
     return false;
   }
@@ -167,8 +167,8 @@ const tryRefund = async (
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      eventId,
       detail: `Failed to refund payment ${paymentReference}`,
+      eventId,
     });
   }
 
@@ -201,45 +201,63 @@ const validationFailure = async (
 ): Promise<PaymentResult> => {
   if (validation.status === 404) {
     return {
-      success: false,
+      detail: `Post-payment event not found (session=${session.id})`,
       error: validation.error,
       status: 404,
-      detail: `Post-payment event not found (session=${session.id})`,
+      success: false,
     };
   }
   const refunded = await refundAndLog(session, validation.error, eventId);
   return {
-    success: false,
     error: validation.error,
-    status: validation.status,
     refunded,
+    status: validation.status,
+    success: false,
   };
+};
+
+/** Load an event by ID or return a 404 "Event not found" error payload. */
+const loadEventOr404 = async <Extra extends Record<string, unknown>>(
+  eventId: number,
+  extra: Extra,
+): Promise<
+  | {
+      ok: true;
+      event: NonNullable<Awaited<ReturnType<typeof getEventWithCount>>>;
+    }
+  | ({ ok: false; error: string; status: 404 } & Extra)
+> => {
+  const event = await getEventWithCount(eventId);
+  if (!event)
+    return { error: "Event not found", ok: false, status: 404, ...extra };
+  return { event, ok: true };
 };
 
 const validateEventForPayment = async (
   eventId: number,
   includeEventName = false,
 ): Promise<EventValidation> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) return { ok: false, error: "Event not found", status: 404 };
+  const loaded = await loadEventOr404(eventId, {});
+  if (!loaded.ok) return loaded;
+  const event = loaded.event;
   const name = includeEventName ? event.name : undefined;
   if (!event.active) {
     return {
-      ok: false,
       error: name
         ? `${name} is no longer accepting registrations.`
         : "This event is no longer accepting registrations.",
+      ok: false,
     };
   }
   if (isRegistrationClosed(event)) {
     return {
-      ok: false,
       error: name
         ? `Sorry, registration for ${name} closed while you were completing payment.`
         : "Sorry, registration closed while you were completing payment.",
+      ok: false,
     };
   }
-  return { ok: true, event };
+  return { event, ok: true };
 };
 
 const validateAndPrice = async (
@@ -252,7 +270,7 @@ const validateAndPrice = async (
   );
   if (!validation.ok) return validation;
   const expectedPrice = validation.event.unit_price * input.quantity;
-  return { ok: true, event: validation.event, expectedPrice };
+  return { event: validation.event, expectedPrice, ok: true };
 };
 
 /** Check if the amount charged matches the current event price (including booking fee).
@@ -297,14 +315,17 @@ const alreadyProcessedResult = async (
   eventId: number,
   existing: ProcessedPayment & { attendee_id: number },
 ): Promise<PaymentResult> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) return { success: false, error: "Event not found", status: 404 };
+  const loaded = await loadEventOr404(eventId, { success: false as const });
+  if (!loaded.ok) {
+    const { ok: _ok, ...rest } = loaded;
+    return rest;
+  }
   const decrypted = await decryptSessionTokens(existing.ticket_tokens);
   const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
-    success: true,
     attendee: { id: existing.attendee_id },
-    event,
+    event: loaded.event,
+    success: true,
     ticketTokens,
   };
 };
@@ -362,14 +383,14 @@ const extractIntent = (
   if (!items || items.length === 0) return null;
 
   return {
-    name: metadata.name,
-    email: metadata.email,
-    phone: metadata.phone,
     address: metadata.address,
-    special_instructions: metadata.special_instructions,
     date: metadata.date || null,
-    items,
+    email: metadata.email,
     eventAnswerIds: parseEventAnswerIds(metadata.answer_ids),
+    items,
+    name: metadata.name,
+    phone: metadata.phone,
+    special_instructions: metadata.special_instructions,
   };
 };
 
@@ -380,7 +401,7 @@ const priceMismatchRefund = async (
   eventId: number,
 ): Promise<PaymentResult> => {
   const refunded = await refundAndLog(session, PRICE_CHANGED_MESSAGE, eventId);
-  return { success: false, error: PRICE_CHANGED_MESSAGE, refunded, detail };
+  return { detail, error: PRICE_CHANGED_MESSAGE, refunded, success: false };
 };
 
 /**
@@ -412,9 +433,9 @@ const processPaymentSession = async (
 
     // Session reserved but not finalized — another request is processing
     return {
-      success: false,
       error: "Payment is being processed. Please wait a moment and refresh.",
       status: 409,
+      success: false,
     };
   }
 
@@ -434,9 +455,9 @@ const processPaymentSession = async (
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
     validatedItems.push({
-      item,
       event: vp.event,
       expectedPrice: vp.expectedPrice,
+      item,
     });
   }
 
@@ -475,20 +496,20 @@ const processPaymentSession = async (
 
   // Create one attendee with all event bookings in a single atomic operation
   const bookings = validatedItems.map(({ item, event }) => ({
-    eventId: item.e,
-    quantity: item.q,
-    pricePaid: item.p,
     date: event.event_type === "daily" ? intent.date : null,
+    eventId: item.e,
+    pricePaid: item.p,
+    quantity: item.q,
   }));
 
   const result = await createAttendeeAtomic({
-    name: intent.name,
+    address: intent.address,
+    bookings,
     email: intent.email,
+    name: intent.name,
     paymentId: session.paymentReference,
     phone: intent.phone,
-    address: intent.address,
     special_instructions: intent.special_instructions,
-    bookings,
   });
 
   // For paid bookings, require all-or-nothing: partial success = rollback + refund
@@ -499,9 +520,9 @@ const processPaymentSession = async (
       validatedItems[0]!.event.name,
     );
     return {
-      success: false,
       error,
       refunded: await refundAndLog(session, error, validatedItems[0]!.event.id),
+      success: false,
     };
   }
   const created = result as Extract<typeof result, { success: true }>;
@@ -528,9 +549,9 @@ const processPaymentSession = async (
   await logAndNotifyRegistration(createdEntries);
 
   return {
-    success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
+    success: true,
     ticketTokens: [ticketToken],
   };
 };
@@ -568,8 +589,8 @@ const processSessionAndRedirect = async (
     const eventId = validation.data.intent.items[0]?.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      eventId,
       detail: `[redirect] ${result.detail ?? result.error}`,
+      eventId,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
   }
@@ -591,7 +612,7 @@ const processSessionAndRedirect = async (
   const thankYouUrl =
     validation.data.intent.items.length === 1 ? result.event.thank_you_url : "";
   return htmlResponse(
-    successPage({ ticketUrl: null, thankYouUrl, paid: true }),
+    successPage({ paid: true, thankYouUrl, ticketUrl: null }),
   );
 };
 
@@ -635,7 +656,7 @@ const renderSuccessFromTokens = async (
   const fromEmail = await getFromEmailIfConfigured();
 
   return htmlResponse(
-    successPage({ ticketUrl, thankYouUrl, paid: true, fromEmail }),
+    successPage({ fromEmail, paid: true, thankYouUrl, ticketUrl }),
   );
 };
 
@@ -835,30 +856,30 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   const eventIdForLog = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {
-    session,
     intent,
+    session,
   });
 
   if (!result.success) {
     // Log once at the boundary — inner functions pass structured context via result.detail
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      eventId: eventIdForLog,
       detail: result.detail ?? result.error,
+      eventId: eventIdForLog,
     });
     logDebug("Webhook", `Failed payload: ${payload}`);
   }
 
   return webhookAckResponse({
-    processed: result.success,
     error: result.success ? undefined : result.error,
+    processed: result.success,
   });
 };
 
 /** Payment routes definition */
 const paymentRoutes = defineRoutes({
-  "GET /payment/success": handlePaymentSuccess,
   "GET /payment/cancel": handlePaymentCancel,
+  "GET /payment/success": handlePaymentSuccess,
   "POST /payment/webhook": handlePaymentWebhook,
 });
 

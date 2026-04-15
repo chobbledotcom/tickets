@@ -41,36 +41,35 @@ export type DeleteGroupBody = DeleteBody;
 const STRIP_KEYS = ["slug_index"];
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
-  name: "groups",
-  singular: "Group",
-  table: groupsTable,
   getAll: getAllGroups,
+  name: "groups",
   nameField: "name",
-  stripKeys: STRIP_KEYS,
   onDelete: deleteGroup,
-  validate: validateGroupSlug,
+  singular: "Group",
+  stripKeys: STRIP_KEYS,
+  table: groupsTable,
 
   toCreateInput: async (body) => {
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    if (!name) return { ok: false, error: "name is required" };
+    if (!name) return { error: "name is required", ok: false };
 
     const { slug, slugIndex } = await generateUniqueGroupSlug();
     return {
-      ok: true,
       input: {
+        description:
+          typeof body.description === "string" ? body.description : "",
+        hidden: body.hidden === true,
+        maxAttendees:
+          typeof body.max_attendees === "number" ? body.max_attendees : 0,
         name,
         slug,
         slugIndex,
-        description:
-          typeof body.description === "string" ? body.description : "",
         termsAndConditions:
           typeof body.terms_and_conditions === "string"
             ? body.terms_and_conditions
             : "",
-        maxAttendees:
-          typeof body.max_attendees === "number" ? body.max_attendees : 0,
-        hidden: body.hidden === true,
       },
+      ok: true,
     };
   },
 
@@ -86,26 +85,27 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     );
 
     return {
-      ok: true,
       input: {
-        name: parsed.name,
-        slug,
-        slugIndex,
         description:
           body.description != null
             ? String(body.description)
             : existing.description,
-        termsAndConditions:
-          body.terms_and_conditions != null
-            ? String(body.terms_and_conditions)
-            : existing.terms_and_conditions,
+        hidden:
+          typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
         maxAttendees:
           typeof body.max_attendees === "number"
             ? body.max_attendees
             : existing.max_attendees,
-        hidden:
-          typeof body.hidden === "boolean" ? body.hidden : existing.hidden,
+        name: parsed.name,
+        slug,
+        slugIndex,
+        termsAndConditions:
+          body.terms_and_conditions != null
+            ? String(body.terms_and_conditions)
+            : existing.terms_and_conditions,
       },
+      ok: true,
     };
   },
+  validate: validateGroupSlug,
 });

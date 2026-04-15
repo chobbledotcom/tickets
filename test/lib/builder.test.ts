@@ -28,10 +28,10 @@ describeWithEnv(
             Promise.resolve(
               new Response(
                 JSON.stringify({
-                  tag_name: "v2026-01-01-000000",
+                  assets: [],
                   name: "Test",
                   published_at: "2026-01-01T00:00:00Z",
-                  assets: [],
+                  tag_name: "v2026-01-01-000000",
                 }),
                 { status: 200 },
               ),
@@ -39,9 +39,9 @@ describeWithEnv(
           ),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {
@@ -59,9 +59,9 @@ describeWithEnv(
           ),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {
@@ -96,15 +96,15 @@ describeWithEnv(
               return Promise.resolve(
                 new Response(
                   JSON.stringify({
-                    tag_name: "v2026-01-01-000000",
-                    name: "Test",
-                    published_at: "2026-01-01T00:00:00Z",
                     assets: [
                       {
-                        name: "bunny-script.ts",
                         browser_download_url: "https://example.com/script.ts",
+                        name: "bunny-script.ts",
                       },
                     ],
+                    name: "Test",
+                    published_at: "2026-01-01T00:00:00Z",
+                    tag_name: "v2026-01-01-000000",
                   }),
                   { status: 200 },
                 ),
@@ -115,9 +115,9 @@ describeWithEnv(
           }),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {
@@ -132,6 +132,19 @@ describeWithEnv(
 
       await withMocks(
         () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test-42.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 99,
+              scriptId: 42,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -141,15 +154,15 @@ describeWithEnv(
                 return Promise.resolve(
                   new Response(
                     JSON.stringify({
-                      tag_name: "v2026-01-01-000000",
-                      name: "Test Release",
-                      published_at: "2026-01-01T00:00:00Z",
                       assets: [
                         {
-                          name: "bunny-script.ts",
                           browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
                         },
                       ],
+                      name: "Test Release",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
                     }),
                     { status: 200 },
                   ),
@@ -163,15 +176,7 @@ describeWithEnv(
               return Promise.resolve(new Response("error", { status: 500 }));
             },
           ),
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-            Promise.resolve({
-              ok: true as const,
-              scriptId: 42,
-              pullZoneId: 99,
-              defaultHostname: "https://test-42.b-cdn.net",
-            }),
-          ),
-          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(
@@ -182,20 +187,15 @@ describeWithEnv(
               return Promise.resolve({ ok: true as const });
             },
           ),
-          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
             Promise.resolve({ ok: true as const }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
           ),
         }),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
 
           expect(result.ok).toBe(true);
@@ -211,6 +211,12 @@ describeWithEnv(
     test("buildSite returns error when edge script creation fails", async () => {
       await withMocks(
         () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              error: "Create edge script failed (500): Server Error",
+              ok: false as const,
+            }),
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -220,15 +226,15 @@ describeWithEnv(
                 return Promise.resolve(
                   new Response(
                     JSON.stringify({
-                      tag_name: "v2026-01-01-000000",
-                      name: "Test",
-                      published_at: "2026-01-01T00:00:00Z",
                       assets: [
                         {
-                          name: "bunny-script.ts",
                           browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
                         },
                       ],
+                      name: "Test",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
                     }),
                     { status: 200 },
                   ),
@@ -242,18 +248,12 @@ describeWithEnv(
               return Promise.resolve(new Response("error", { status: 500 }));
             },
           ),
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-            Promise.resolve({
-              ok: false as const,
-              error: "Create edge script failed (500): Server Error",
-            }),
-          ),
         }),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {
@@ -268,6 +268,19 @@ describeWithEnv(
 
       await withMocks(
         () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test-42.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 99,
+              scriptId: 42,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -277,15 +290,15 @@ describeWithEnv(
                 return Promise.resolve(
                   new Response(
                     JSON.stringify({
-                      tag_name: "v2026-01-01-000000",
-                      name: "Test Release",
-                      published_at: "2026-01-01T00:00:00Z",
                       assets: [
                         {
-                          name: "bunny-script.ts",
                           browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
                         },
                       ],
+                      name: "Test Release",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
                     }),
                     { status: 200 },
                   ),
@@ -299,15 +312,7 @@ describeWithEnv(
               return Promise.resolve(new Response("error", { status: 500 }));
             },
           ),
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-            Promise.resolve({
-              ok: true as const,
-              scriptId: 42,
-              pullZoneId: 99,
-              defaultHostname: "https://test-42.b-cdn.net",
-            }),
-          ),
-          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(
@@ -318,20 +323,15 @@ describeWithEnv(
               return Promise.resolve({ ok: true as const });
             },
           ),
-          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
             Promise.resolve({ ok: true as const }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
           ),
         }),
         async ({ createStub, updatePzStub, publishStub }) => {
           const result = await builderApi.buildSite({
-            siteName: "My Site",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "My Site",
           });
 
           expect(result.ok).toBe(true);
@@ -375,6 +375,14 @@ describeWithEnv(
     test("buildSite returns error when pull zone update fails", async () => {
       await withMocks(
         () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 99,
+              scriptId: 42,
+            }),
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -384,15 +392,15 @@ describeWithEnv(
                 return Promise.resolve(
                   new Response(
                     JSON.stringify({
-                      tag_name: "v2026-01-01-000000",
-                      name: "Test",
-                      published_at: "2026-01-01T00:00:00Z",
                       assets: [
                         {
-                          name: "bunny-script.ts",
                           browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
                         },
                       ],
+                      name: "Test",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
                     }),
                     { status: 200 },
                   ),
@@ -403,26 +411,18 @@ describeWithEnv(
               );
             },
           ),
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-            Promise.resolve({
-              ok: true as const,
-              scriptId: 42,
-              pullZoneId: 99,
-              defaultHostname: "https://test.b-cdn.net",
-            }),
-          ),
           updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
             Promise.resolve({
-              ok: false as const,
               error: "Update pull zone failed (500): Server Error",
+              ok: false as const,
             }),
           ),
         }),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {
@@ -435,6 +435,19 @@ describeWithEnv(
     test("buildSite returns error when secret setting fails", async () => {
       await withMocks(
         () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 99,
+              scriptId: 42,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -444,15 +457,15 @@ describeWithEnv(
                 return Promise.resolve(
                   new Response(
                     JSON.stringify({
-                      tag_name: "v2026-01-01-000000",
-                      name: "Test",
-                      published_at: "2026-01-01T00:00:00Z",
                       assets: [
                         {
-                          name: "bunny-script.ts",
                           browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
                         },
                       ],
+                      name: "Test",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
                     }),
                     { status: 200 },
                   ),
@@ -463,37 +476,24 @@ describeWithEnv(
               );
             },
           ),
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+          secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
             Promise.resolve({
-              ok: true as const,
-              scriptId: 42,
-              pullZoneId: 99,
-              defaultHostname: "https://test.b-cdn.net",
+              error: "Set secret DB_URL failed (403): Forbidden",
+              ok: false as const,
             }),
           ),
           updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
             Promise.resolve({ ok: true as const }),
           ),
-          secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-            Promise.resolve({
-              ok: false as const,
-              error: "Set secret DB_URL failed (403): Forbidden",
-            }),
-          ),
-          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
-          ),
         }),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {
@@ -506,6 +506,19 @@ describeWithEnv(
     test("buildSite returns error when publish fails", async () => {
       await withMocks(
         () => ({
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 99,
+              scriptId: 42,
+            }),
+          ),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -515,15 +528,15 @@ describeWithEnv(
                 return Promise.resolve(
                   new Response(
                     JSON.stringify({
-                      tag_name: "v2026-01-01-000000",
-                      name: "Test",
-                      published_at: "2026-01-01T00:00:00Z",
                       assets: [
                         {
-                          name: "bunny-script.ts",
                           browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
                         },
                       ],
+                      name: "Test",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
                     }),
                     { status: 200 },
                   ),
@@ -534,37 +547,24 @@ describeWithEnv(
               );
             },
           ),
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({
-              ok: true as const,
-              scriptId: 42,
-              pullZoneId: 99,
-              defaultHostname: "https://test.b-cdn.net",
+              error: "Publish edge script failed (500): Error",
+              ok: false as const,
             }),
-          ),
-          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
-            Promise.resolve({ ok: true as const }),
           ),
           secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
             Promise.resolve({ ok: true as const }),
           ),
-          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
-            Promise.resolve({
-              ok: false as const,
-              error: "Publish edge script failed (500): Error",
-            }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
           ),
         }),
         async () => {
           const result = await builderApi.buildSite({
-            siteName: "Test",
-            dbUrl: "libsql://test.turso.io",
             dbToken: "token123",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
           expect(result.ok).toBe(false);
           if (!result.ok) {

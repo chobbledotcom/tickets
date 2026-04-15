@@ -38,7 +38,7 @@ export const adminSessionsPage = (
     sessions.length > 0
       ? pipe(
           map((s: Session) =>
-            SessionRow({ session: s, isCurrent: s.token === currentToken }),
+            SessionRow({ isCurrent: s.token === currentToken, session: s }),
           ),
           joinStrings,
         )(sessions)

@@ -80,26 +80,26 @@ export const buildWebhookPayload = (
 
   const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
   return {
+    address: first.attendee.address,
+    business_email: settings.businessEmail,
+    currency,
+    email: first.attendee.email,
     event_type: "registration.completed",
     name: first.attendee.name,
-    email: first.attendee.email,
-    phone: first.attendee.phone,
-    address: first.attendee.address,
-    special_instructions: first.attendee.special_instructions,
-    price_paid: hasPaidEvent ? totalPricePaid : null,
-    currency,
     payment_id: first.attendee.payment_id || null,
+    phone: first.attendee.phone,
+    price_paid: hasPaidEvent ? totalPricePaid : null,
+    special_instructions: first.attendee.special_instructions,
     ticket_url: buildTicketUrl(entries),
     tickets: entries.map(({ event, attendee }) => ({
+      date: attendee.date,
       event_name: event.name,
       event_slug: event.slug,
-      unit_price: event.unit_price,
       quantity: attendee.quantity,
-      date: attendee.date,
       ticket_token: attendee.ticket_token,
+      unit_price: event.unit_price,
     })),
     timestamp: nowIso(),
-    business_email: settings.businessEmail,
   };
 };
 
@@ -114,23 +114,23 @@ export const sendWebhook = async (
 ): Promise<void> => {
   try {
     const { ok, status } = await fetchText(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
     });
     if (!ok) {
       const eventName = payload.tickets.map((t) => t.event_name).join(", ");
       logError({
         code: ErrorCode.WEBHOOK_SEND,
-        eventId,
         detail: `status=${status} for '${eventName}'`,
+        eventId,
       });
     }
   } catch (error) {
     logError({
       code: ErrorCode.WEBHOOK_SEND,
-      eventId,
       detail: error instanceof Error ? error.message : String(error),
+      eventId,
     });
   }
 };

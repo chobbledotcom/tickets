@@ -161,8 +161,8 @@ describe("stripe-mock utilities", () => {
       await Deno.writeTextFile(fakeBinPath, "#!/bin/sh\nexit 0\n");
       await new Deno.Command("chmod", {
         args: ["+x", fakeBinPath],
-        stdout: "null",
         stderr: "null",
+        stdout: "null",
       }).output();
 
       // Temporarily rename the real binary and put our fake one in its place
@@ -175,8 +175,8 @@ describe("stripe-mock utilities", () => {
         await Deno.copyFile(fakeBinPath, realPath);
         await new Deno.Command("chmod", {
           args: ["+x", realPath],
-          stdout: "null",
           stderr: "null",
+          stdout: "null",
         }).output();
         renamed = true;
 

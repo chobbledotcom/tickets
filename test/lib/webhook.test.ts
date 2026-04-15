@@ -116,7 +116,7 @@ describe("webhook", () => {
       const entries = [
         makeEntry(
           { unit_price: 500 },
-          { quantity: 2, price_paid: "1000", payment_id: "pi_abc123" },
+          { payment_id: "pi_abc123", price_paid: "1000", quantity: 2 },
         ),
       ];
 
@@ -134,18 +134,18 @@ describe("webhook", () => {
         makeEntry(
           { id: 1, name: "Event A", slug: "event-a", unit_price: 300 },
           {
-            ticket_token: "AA00BB11CC",
-            price_paid: "300",
             payment_id: "pi_multi",
+            price_paid: "300",
+            ticket_token: "AA00BB11CC",
           },
         ),
         makeEntry(
           { id: 2, name: "Event B", slug: "event-b", unit_price: 700 },
           {
-            ticket_token: "DD22EE33FF",
-            quantity: 2,
-            price_paid: "1400",
             payment_id: "pi_multi",
+            price_paid: "1400",
+            quantity: 2,
+            ticket_token: "DD22EE33FF",
           },
         ),
       ];
@@ -171,11 +171,11 @@ describe("webhook", () => {
     test("includes price_paid for free can_pay_more event where attendee paid", async () => {
       const entries: RegistrationEntry[] = [
         {
-          event: makeEvent({ unit_price: 0, can_pay_more: true }),
           attendee: makeAttendee({
-            price_paid: "500",
             payment_id: "pi_donate",
+            price_paid: "500",
           }),
+          event: makeEvent({ can_pay_more: true, unit_price: 0 }),
         },
       ];
 
@@ -198,11 +198,11 @@ describe("webhook", () => {
       const entries = [
         makeEntry(
           { id: 1, name: "Daily Event", slug: "daily-event" },
-          { ticket_token: "AA00BB11CC", date: "2025-07-15" },
+          { date: "2025-07-15", ticket_token: "AA00BB11CC" },
         ),
         makeEntry(
           { id: 2, name: "Standard Event", slug: "standard-event" },
-          { ticket_token: "DD22EE33FF", date: null },
+          { date: null, ticket_token: "DD22EE33FF" },
         ),
       ];
 
@@ -443,7 +443,7 @@ describe("webhook", () => {
       });
       const event = makeEvent(eventFromDb(dbEvent, "https://example.com/hook"));
 
-      await logAndNotifyRegistration([{ event, attendee: makeAttendee() }]);
+      await logAndNotifyRegistration([{ attendee: makeAttendee(), event }]);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
@@ -459,7 +459,7 @@ describe("webhook", () => {
       const dbEvent = await createTestEvent();
       const event = makeEvent(eventFromDb(dbEvent, ""));
 
-      await logAndNotifyRegistration([{ event, attendee: makeAttendee() }]);
+      await logAndNotifyRegistration([{ attendee: makeAttendee(), event }]);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(0);

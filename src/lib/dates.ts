@@ -85,7 +85,7 @@ const bookableRange = (
   const maxDays =
     event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
   const end = addDays(todayStr, maxDays);
-  return { bookableDays: event.bookable_days, start, end };
+  return { bookableDays: event.bookable_days, end, start };
 };
 
 /** Check if a date is bookable (matches allowed day and not a holiday) */

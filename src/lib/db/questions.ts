@@ -59,6 +59,10 @@ export type QuestionWithAnswers = Question & { answers: Answer[] };
 /** Shared column defs for tables with an encrypted text column */
 const generatedId = col.generated<number>();
 const encryptedText = col.encrypted<string>(encrypt, decrypt);
+const questionIdAndSortOrder = {
+  question_id: col.simple<number>(),
+  sort_order: col.simple<number>(),
+};
 
 type QuestionInput = { text: string };
 
@@ -75,9 +79,8 @@ export const answersTable = defineTable<Answer, AnswerInput>({
   primaryKey: "id",
   schema: {
     id: generatedId,
-    question_id: col.simple<number>(),
+    ...questionIdAndSortOrder,
     text: encryptedText,
-    sort_order: col.simple<number>(),
   },
 });
 
@@ -94,10 +97,9 @@ export const eventQuestionsTable = defineTable<
   name: "event_questions",
   primaryKey: "id",
   schema: {
-    id: col.generated<number>(),
     event_id: col.simple<number>(),
-    question_id: col.simple<number>(),
-    sort_order: col.simple<number>(),
+    id: col.generated<number>(),
+    ...questionIdAndSortOrder,
   },
 });
 
@@ -110,9 +112,9 @@ export const attendeeAnswersTable = defineTable<
   name: "attendee_answers",
   primaryKey: "id",
   schema: {
-    id: col.generated<number>(),
-    attendee_id: col.simple<number>(),
     answer_id: col.simple<number>(),
+    attendee_id: col.simple<number>(),
+    id: col.generated<number>(),
   },
 });
 
@@ -142,14 +144,14 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   const questionMap = new Map<number, { text: string; answers: Answer[] }>();
   for (const row of rows) {
     if (!questionMap.has(row.q_id)) {
-      questionMap.set(row.q_id, { text: row.q_text, answers: [] });
+      questionMap.set(row.q_id, { answers: [], text: row.q_text });
     }
     if (row.a_id !== null) {
       questionMap.get(row.q_id)!.answers.push({
         id: row.a_id,
         question_id: row.a_question_id!,
-        text: row.a_text!,
         sort_order: row.a_sort_order!,
+        text: row.a_text!,
       });
     }
   }
@@ -241,7 +243,7 @@ export const getQuestionsWithEventIds = async (
   questionEventMap: QuestionEventMap;
 }> => {
   if (eventIds.length === 0)
-    return { questions: [], questionEventMap: new Map() };
+    return { questionEventMap: new Map(), questions: [] };
 
   const ph = inPlaceholders(eventIds);
   const rows = await queryAll<JoinedRowWithEvents>(
@@ -254,7 +256,7 @@ export const getQuestionsWithEventIds = async (
     [...eventIds, ...eventIds],
   );
 
-  if (rows.length === 0) return { questions: [], questionEventMap: new Map() };
+  if (rows.length === 0) return { questionEventMap: new Map(), questions: [] };
 
   const questionEventMap = reduce(
     (acc: QuestionEventMap, row: JoinedRowWithEvents) => {
@@ -267,7 +269,7 @@ export const getQuestionsWithEventIds = async (
   )(rows);
 
   const questions = withAnswers(await groupJoinedRows(rows));
-  return { questions, questionEventMap };
+  return { questionEventMap, questions };
 };
 
 /** Set which questions are assigned to an event (replaces existing) */
@@ -276,7 +278,7 @@ export const setEventQuestions = async (
   questionIds: number[],
 ): Promise<void> => {
   const statements = [
-    { sql: "DELETE FROM event_questions WHERE event_id = ?", args: [eventId] },
+    { args: [eventId], sql: "DELETE FROM event_questions WHERE event_id = ?" },
     ...questionIds.map((qid, i) =>
       insert("event_questions", {
         event_id: eventId,
@@ -290,8 +292,8 @@ export const setEventQuestions = async (
 
 const answerInsert = (attendeeId: number, answerId: number) =>
   insert("attendee_answers", {
-    attendee_id: attendeeId,
     answer_id: answerId,
+    attendee_id: attendeeId,
   });
 
 /** Replace all answers for one or more attendees in a single atomic batch.
@@ -302,8 +304,8 @@ export const saveAttendeeAnswers = async (
 ): Promise<void> => {
   if (attendeeIds.length === 0) return;
   const deletes = attendeeIds.map((attendeeId) => ({
-    sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     args: [attendeeId],
+    sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
   }));
   const inserts =
     answerIds.length === 0
@@ -336,14 +338,14 @@ export const saveEventAnswers = async (
   const statements: { sql: string; args: InValue[] }[] = [];
   for (const [attendeeId, answers] of answersByAttendee) {
     statements.push({
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
       args: [attendeeId],
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
     const placeholders = answers.map(() => "(?, ?)").join(", ");
     const args = answers.flatMap((id) => [attendeeId, id]);
     statements.push({
-      sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
       args,
+      sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
     });
   }
   if (statements.length > 0) {
@@ -399,8 +401,8 @@ export const getAttendeeAnswersByQuestion = async (
     const decrypted = await answersTable.fromDb({
       id: row.answer_id,
       question_id: row.question_id,
-      text: row.answer_text,
       sort_order: 0,
+      text: row.answer_text,
     });
     result.set(row.question_id, {
       answerId: row.answer_id,
@@ -418,8 +420,8 @@ export const saveAttendeeAnswersByQuestion = async (
 ): Promise<void> => {
   const statements: { sql: string; args: InValue[] }[] = [
     {
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
       args: [attendeeId],
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     },
     ...Array.from(questionToAnswer.values()).map((answerId) =>
       answerInsert(attendeeId, answerId),
@@ -433,15 +435,15 @@ export const saveAttendeeAnswersByQuestion = async (
 export const deleteQuestion = async (questionId: number): Promise<void> => {
   await executeBatch([
     {
+      args: [questionId],
       sql: "DELETE FROM attendee_answers WHERE answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
-      args: [questionId],
     },
-    { sql: "DELETE FROM answers WHERE question_id = ?", args: [questionId] },
+    { args: [questionId], sql: "DELETE FROM answers WHERE question_id = ?" },
     {
-      sql: "DELETE FROM event_questions WHERE question_id = ?",
       args: [questionId],
+      sql: "DELETE FROM event_questions WHERE question_id = ?",
     },
-    { sql: "DELETE FROM questions WHERE id = ?", args: [questionId] },
+    { args: [questionId], sql: "DELETE FROM questions WHERE id = ?" },
   ]);
 };
 
@@ -449,10 +451,10 @@ export const deleteQuestion = async (questionId: number): Promise<void> => {
 export const deleteAnswer = async (answerId: number): Promise<void> => {
   await executeBatch([
     {
-      sql: "DELETE FROM attendee_answers WHERE answer_id = ?",
       args: [answerId],
+      sql: "DELETE FROM attendee_answers WHERE answer_id = ?",
     },
-    { sql: "DELETE FROM answers WHERE id = ?", args: [answerId] },
+    { args: [answerId], sql: "DELETE FROM answers WHERE id = ?" },
   ]);
 };
 
@@ -499,12 +501,12 @@ export const swapAnswerOrder = async (
 ): Promise<void> => {
   await executeBatch([
     {
-      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
       args: [sortOrder2, answerId1],
+      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
     },
     {
-      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
       args: [sortOrder1, answerId2],
+      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
     },
   ]);
 };

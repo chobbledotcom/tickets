@@ -262,12 +262,12 @@ export const adminEventPage = ({
       : " (total)"
     : "";
   const sharedRows = buildSharedDetailRows({
-    attendees: completeAttendees,
     attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,
-    maxCapacity: isDaily && !dateFilter ? 0 : event.max_attendees,
+    attendees: completeAttendees,
     hasPaidEvent,
-    questionData,
     labelSuffix: dailySuffix,
+    maxCapacity: isDaily && !dateFilter ? 0 : event.max_attendees,
+    questionData,
     skipAttendees: true,
   });
   const basePath = `/admin/event/${event.id}`;
@@ -571,8 +571,8 @@ export const adminEventPage = ({
         {isDaily && availableDates.length > 0 && (
           <Raw
             html={DateSelector({
-              basePath,
               activeFilter,
+              basePath,
               dateFilter,
               dates: availableDates,
             })}
@@ -581,39 +581,39 @@ export const adminEventPage = ({
         <p>
           <Raw
             html={FilterLink({
+              active: activeFilter === "all",
               href: `${basePath}${dateQs}#attendees`,
               label: "All",
-              active: activeFilter === "all",
             })}
           />
           {" / "}
           <Raw
             html={FilterLink({
+              active: activeFilter === "in",
               href: `${basePath}/in${dateQs}#attendees`,
               label: "Checked In",
-              active: activeFilter === "in",
             })}
           />
           {" / "}
           <Raw
             html={FilterLink({
+              active: activeFilter === "out",
               href: `${basePath}/out${dateQs}#attendees`,
               label: "Checked Out",
-              active: activeFilter === "out",
             })}
           />
         </p>
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({
-              rows: tableRows,
-              allowedDomain,
-              showEvent: false,
-              showDate: isDaily,
               activeFilter,
-              returnUrl,
+              allowedDomain,
               phonePrefix,
               questionData,
+              returnUrl,
+              rows: tableRows,
+              showDate: isDaily,
+              showEvent: false,
             })}
           />
         </div>
@@ -666,28 +666,28 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
 const formatBookableDays = (days: string[]): string => days.join(",");
 
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
-  name: event.name,
-  description: event.description,
-  date: event.date ? formatDatetimeLocal(event.date) : null,
-  location: event.location,
-  slug: event.slug,
-  event_type: event.event_type,
-  group_id: event.group_id,
-  max_attendees: event.max_attendees,
-  max_quantity: event.max_quantity,
-  bookable_days: formatBookableDays(event.bookable_days),
-  minimum_days_before: event.minimum_days_before,
-  maximum_days_after: event.maximum_days_after,
-  fields: event.fields,
-  unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
-  can_pay_more: event.can_pay_more ? "1" : "",
-  max_price: toMajorUnits(event.max_price),
-  closes_at: formatDatetimeLocal(event.closes_at),
-  thank_you_url: event.thank_you_url,
-  webhook_url: event.webhook_url,
-  non_transferable: event.non_transferable ? "1" : "",
-  hidden: event.hidden ? "1" : "",
   assign_built_site: event.assign_built_site ? "1" : "",
+  bookable_days: formatBookableDays(event.bookable_days),
+  can_pay_more: event.can_pay_more ? "1" : "",
+  closes_at: formatDatetimeLocal(event.closes_at),
+  date: event.date ? formatDatetimeLocal(event.date) : null,
+  description: event.description,
+  event_type: event.event_type,
+  fields: event.fields,
+  group_id: event.group_id,
+  hidden: event.hidden ? "1" : "",
+  location: event.location,
+  max_attendees: event.max_attendees,
+  max_price: toMajorUnits(event.max_price),
+  max_quantity: event.max_quantity,
+  maximum_days_after: event.maximum_days_after,
+  minimum_days_before: event.minimum_days_before,
+  name: event.name,
+  non_transferable: event.non_transferable ? "1" : "",
+  slug: event.slug,
+  thank_you_url: event.thank_you_url,
+  unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
+  webhook_url: event.webhook_url,
 });
 
 /** Event fields with autofocus on the name field */

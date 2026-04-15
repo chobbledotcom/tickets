@@ -59,10 +59,10 @@ export const buildPkpassForToken = async (
 
   return new Response(body, {
     headers: {
-      "Content-Type": PKPASS_CONTENT_TYPE,
+      "Cache-Control": WALLET_CACHE_CONTROL,
       "Content-Disposition": `inline; filename="ticket.pkpass"`,
       "Content-Length": String(body.byteLength),
-      "Cache-Control": WALLET_CACHE_CONTROL,
+      "Content-Type": PKPASS_CONTENT_TYPE,
     },
   });
 };

@@ -12,8 +12,8 @@ import { encodeBody } from "#routes/utils.ts";
  * Security headers for all responses
  */
 const BASE_SECURITY_HEADERS: Record<string, string> = {
-  "x-content-type-options": "nosniff",
   "referrer-policy": "strict-origin-when-cross-origin",
+  "x-content-type-options": "nosniff",
   "x-robots-tag": "noindex, nofollow",
 };
 
@@ -134,11 +134,11 @@ export const isValidContentType = (request: Request, path: string): boolean => {
  */
 export const contentTypeRejectionResponse = (): Response =>
   new Response(encodeBody("Bad Request: Invalid Content-Type"), {
-    status: 400,
     headers: {
       "content-type": "text/plain",
       ...getSecurityHeaders(false),
     },
+    status: 400,
   });
 
 /** Tracking parameters added by social media and ad platforms */

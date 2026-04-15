@@ -67,11 +67,11 @@ export const validateGroupSlug = async (
 
 /** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) => ({
-  name: values.name,
   description: values.description,
-  termsAndConditions: values.terms_and_conditions,
-  maxAttendees: values.max_attendees ?? 0,
   hidden: values.hidden === "1",
+  maxAttendees: values.max_attendees ?? 0,
+  name: values.name,
+  termsAndConditions: values.terms_and_conditions,
 });
 
 /** Extract group input from create form values (auto-generates slug) */
@@ -104,34 +104,34 @@ export const deleteGroup = async (
 
 /** Shared CRUD handler config */
 const crudConfig = {
-  singular: "Group",
-  listPath: "/admin/groups",
-  getRowPath: (g: Group) => `/admin/groups/${g.id}`,
   getAll: getAllGroups,
+  getName: (g: Group) => g.name,
+  getRowPath: (g: Group) => `/admin/groups/${g.id}`,
+  listPath: "/admin/groups",
+  renderDelete: adminGroupDeletePage,
+  renderEdit: adminGroupEditPage,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
-  renderEdit: adminGroupEditPage,
-  renderDelete: adminGroupDeletePage,
-  getName: (g: Group) => g.name,
+  singular: "Group",
 } as const;
 
 /** Groups resource for REST create operations (auto-generated slug) */
 const groupsCreateResource = defineNamedResource({
-  table: groupsTable,
   fields: groupCreateFields,
-  toInput: extractGroupCreateInput,
   nameField: "name",
   onDelete: deleteGroup,
+  table: groupsTable,
+  toInput: extractGroupCreateInput,
 });
 
 /** Groups resource for REST update operations (user-provided slug) */
 const groupsResource = defineNamedResource({
-  table: groupsTable,
   fields: groupFields,
-  toInput: extractGroupEditInput,
   nameField: "name",
-  validate: validateGroupSlug,
   onDelete: deleteGroup,
+  table: groupsTable,
+  toInput: extractGroupEditInput,
+  validate: validateGroupSlug,
 });
 
 const crudCreate = createCrudHandlers({

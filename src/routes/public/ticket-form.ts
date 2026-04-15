@@ -62,16 +62,16 @@ export const parseQuestionAnswers = (
   for (const q of questions) {
     const raw = form.get(`question_${q.id}`);
     if (!raw) {
-      return { ok: false, error: `Please answer: ${q.text}` };
+      return { error: `Please answer: ${q.text}`, ok: false };
     }
     const answerId = Number.parseInt(raw, 10);
     const validAnswer = q.answers.some((a) => a.id === answerId);
     if (!validAnswer) {
-      return { ok: false, error: `Invalid answer for: ${q.text}` };
+      return { error: `Invalid answer for: ${q.text}`, ok: false };
     }
     answerIds.push(answerId);
   }
-  return { ok: true, answerIds };
+  return { answerIds, ok: true };
 };
 
 /** Build a per-event answer map from parsed answers and the question-event mapping.

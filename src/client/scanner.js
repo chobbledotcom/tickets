@@ -29,12 +29,12 @@ const postScan = async (
   if (idVerified) body.id_verified = true;
 
   const res = await fetch(`/admin/event/${eventId}/scan`, {
-    method: "POST",
+    body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
       "x-csrf-token": csrfToken,
     },
-    body: JSON.stringify(body),
+    method: "POST",
   });
 
   return res.json();

@@ -66,11 +66,11 @@ type CheckedInStats = {
 const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
   const ticketsTotal = sumQuantity(attendees);
   return {
-    ticketsCheckedIn: countCheckedIn(attendees),
-    ticketsTotal,
+    hasMultiQuantity: ticketsTotal !== attendees.length,
     rowsCheckedIn: countCheckedInRows(attendees),
     rowsTotal: attendees.length,
-    hasMultiQuantity: ticketsTotal !== attendees.length,
+    ticketsCheckedIn: countCheckedIn(attendees),
+    ticketsTotal,
   };
 };
 

@@ -61,28 +61,28 @@ describe("webhook example", () => {
 
   /** Build a RegistrationEntry from the example constants */
   const exampleEntry = (): RegistrationEntry => ({
-    event: {
-      id: 1,
-      name: EXAMPLE_EVENT.name,
-      slug: EXAMPLE_EVENT.slug,
-      webhook_url: "https://hooks.example.com/registration",
-      max_attendees: 100,
-      attendee_count: 10,
-      unit_price: EXAMPLE_EVENT.unit_price,
-      can_pay_more: false,
-    },
     attendee: {
+      address: EXAMPLE_ATTENDEE.address,
+      date: EXAMPLE_ATTENDEE.date,
+      email: EXAMPLE_ATTENDEE.email,
       id: 1,
       name: EXAMPLE_ATTENDEE.name,
-      email: EXAMPLE_ATTENDEE.email,
-      phone: EXAMPLE_ATTENDEE.phone,
-      address: EXAMPLE_ATTENDEE.address,
-      special_instructions: EXAMPLE_ATTENDEE.special_instructions,
-      quantity: EXAMPLE_ATTENDEE.quantity,
       payment_id: EXAMPLE_ATTENDEE.payment_id,
+      phone: EXAMPLE_ATTENDEE.phone,
       price_paid: EXAMPLE_ATTENDEE.price_paid,
+      quantity: EXAMPLE_ATTENDEE.quantity,
+      special_instructions: EXAMPLE_ATTENDEE.special_instructions,
       ticket_token: EXAMPLE_ATTENDEE.ticket_token,
-      date: EXAMPLE_ATTENDEE.date,
+    },
+    event: {
+      attendee_count: 10,
+      can_pay_more: false,
+      id: 1,
+      max_attendees: 100,
+      name: EXAMPLE_EVENT.name,
+      slug: EXAMPLE_EVENT.slug,
+      unit_price: EXAMPLE_EVENT.unit_price,
+      webhook_url: "https://hooks.example.com/registration",
     },
   });
 

@@ -54,15 +54,15 @@ const recordAttempt = async (
   if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
     const lockedUntil = nowMs() + LOGIN_LOCKOUT_MS;
     await getDb().execute({
-      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
       args: [hashedIp, newAttempts, lockedUntil],
+      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
     });
     return true;
   }
 
   await getDb().execute({
-    sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
     args: [hashedIp, newAttempts],
+    sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
   });
   return false;
 };

@@ -223,10 +223,10 @@ const validateSingleField = (
 
   if (field.type === "datetime") {
     const result = getDatetimeValue(form, field.name);
-    if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
+    if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
     if (!result) {
       if (field.required)
-        return { valid: false, error: `${field.label} is required` };
+        return { error: `${field.label} is required`, valid: false };
       return { valid: true, value: null };
     }
     trimmed = result;
@@ -245,12 +245,12 @@ const validateSingleField = (
   }
 
   if (field.required && !trimmed) {
-    return { valid: false, error: `${field.label} is required` };
+    return { error: `${field.label} is required`, valid: false };
   }
 
   if (field.validate && trimmed) {
     const error = field.validate(trimmed);
-    if (error) return { valid: false, error };
+    if (error) return { error, valid: false };
   }
 
   return { valid: true, value: parseFieldValue(field, trimmed) };

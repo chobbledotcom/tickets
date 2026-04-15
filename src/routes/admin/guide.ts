@@ -18,18 +18,18 @@ const handleAdminGuideGet = (request: Request): Promise<Response> =>
     const hostEmail = getHostEmailConfig();
     return htmlResponse(
       adminGuidePage(session, {
-        hostEmailProvider: hostEmail
-          ? EMAIL_PROVIDER_LABELS[hostEmail.provider]
-          : null,
-        hostEmailFromAddress: hostEmail?.fromAddress ?? null,
-        hostAppleWalletPassTypeId:
-          settings.appleWallet.hostConfig?.passTypeId ?? null,
-        hostGoogleWalletIssuerId:
-          settings.googleWallet.hostConfig?.issuerId ?? null,
         builderEnabled: isBuilderEnabled(),
         bunnyDnsSubdomainSuffix: isBunnyDnsEnabled()
           ? getBunnyDnsSubdomainSuffix()
           : null,
+        hostAppleWalletPassTypeId:
+          settings.appleWallet.hostConfig?.passTypeId ?? null,
+        hostEmailFromAddress: hostEmail?.fromAddress ?? null,
+        hostEmailProvider: hostEmail
+          ? EMAIL_PROVIDER_LABELS[hostEmail.provider]
+          : null,
+        hostGoogleWalletIssuerId:
+          settings.googleWallet.hostConfig?.issuerId ?? null,
       }),
     );
   });

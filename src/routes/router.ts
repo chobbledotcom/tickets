@@ -102,9 +102,9 @@ const compilePattern = (
     });
 
   return {
-    regex: new RegExp(`^${regexStr}$`),
-    paramNames,
     numericParams,
+    paramNames,
+    regex: new RegExp(`^${regexStr}$`),
   };
 };
 
@@ -122,12 +122,32 @@ const parseRoutePattern = (
 };
 
 /**
- * Compile all routes for efficient matching
+ * Compile all routes for efficient matching.
+ *
+ * Routes are sorted so more-specific patterns (fewer params, longer literals)
+ * are tried first. This means literal routes like "/join/complete" beat
+ * "/join/:code" regardless of insertion order, so route definition objects
+ * can be sorted alphabetically by tooling without changing match behaviour.
  */
+const routeSpecificity = (path: string): [number, number] => {
+  const paramCount = (path.match(/:\w+/g) ?? []).length;
+  const literalLength = path.replace(/:\w+/g, "").length;
+  return [paramCount, -literalLength];
+};
+
+const compareSpecificity = (a: string, b: string): number => {
+  const [aParams, aLit] = routeSpecificity(a);
+  const [bParams, bLit] = routeSpecificity(b);
+  return aParams - bParams || aLit - bLit;
+};
+
 const compileRoutes = (
   routes: Record<string, RouteHandlerFn>,
-): Map<string, CompiledRoute[]> =>
-  reduce(
+): Map<string, CompiledRoute[]> => {
+  const sortedEntries = Object.entries(routes).sort(([a], [b]) =>
+    compareSpecificity(parseRoutePattern(a).path, parseRoutePattern(b).path),
+  );
+  return reduce(
     (
       compiled: Map<string, CompiledRoute[]>,
       [pattern, handler]: [string, RouteHandlerFn],
@@ -135,12 +155,13 @@ const compileRoutes = (
       const { method, path } = parseRoutePattern(pattern);
       const { regex, paramNames, numericParams } = compilePattern(path);
       const methodRoutes = compiled.get(method) ?? [];
-      methodRoutes.push({ regex, paramNames, numericParams, handler });
+      methodRoutes.push({ handler, numericParams, paramNames, regex });
       compiled.set(method, methodRoutes);
       return compiled;
     },
     new Map<string, CompiledRoute[]>(),
-  )(Object.entries(routes));
+  )(sortedEntries);
+};
 
 /**
  * Extract params from regex match using param names

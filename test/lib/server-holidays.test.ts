@@ -39,9 +39,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         mockFormRequest(
           "/admin/users",
           {
-            username: "manager1",
             admin_level: "manager",
             csrf_token: await testCsrfToken(),
+            username: "manager1",
           },
           await testCookie(),
         ),
@@ -65,9 +65,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
       const joinResponse = await handleRequest(
         mockFormRequest(`/join/${inviteToken}`, {
+          csrf_token: joinCsrf,
           password: "managerpass123",
           password_confirm: "managerpass123",
-          csrf_token: joinCsrf,
         }),
       );
       expect(joinResponse.status).toBe(302);
@@ -87,8 +87,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       // Login as manager
       const loginResponse = await handleRequest(
         await mockAdminLoginRequest({
-          username: "manager1",
           password: "managerpass123",
+          username: "manager1",
         }),
       );
       const managerCookie =
@@ -115,9 +115,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("shows holidays in table when present", async () => {
       const holiday = await createTestHoliday({
+        endDate: "2026-12-26",
         name: "Christmas",
         startDate: "2026-12-25",
-        endDate: "2026-12-26",
       });
       const { response } = await adminGet("/admin/holidays");
       await expectHtmlResponse(
@@ -155,9 +155,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/holidays", {
+          end_date: "2026-12-25",
           name: "Test",
           start_date: "2026-12-25",
-          end_date: "2026-12-25",
         }),
       );
       expectAdminRedirect(response);
@@ -165,9 +165,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("creates holiday and redirects", async () => {
       const holiday = await createTestHoliday({
+        endDate: "2027-01-01",
         name: "New Year",
         startDate: "2027-01-01",
-        endDate: "2027-01-01",
       });
       expect(holiday.name).toBe("New Year");
       expect(holiday.start_date).toBe("2027-01-01");
@@ -176,9 +176,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("creates multi-day holiday", async () => {
       const holiday = await createTestHoliday({
+        endDate: "2026-04-06",
         name: "Easter",
         startDate: "2026-04-03",
-        endDate: "2026-04-06",
       });
       expect(holiday.name).toBe("Easter");
       expect(holiday.start_date).toBe("2026-04-03");
@@ -187,9 +187,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects missing name", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
+        end_date: "2026-12-25",
         name: "",
         start_date: "2026-12-25",
-        end_date: "2026-12-25",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -201,9 +201,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects missing start_date", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
+        end_date: "2026-12-25",
         name: "Test",
         start_date: "",
-        end_date: "2026-12-25",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -215,9 +215,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects missing end_date", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
+        end_date: "",
         name: "Test",
         start_date: "2026-12-25",
-        end_date: "",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -229,9 +229,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects invalid date format", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
+        end_date: "2026-12-25",
         name: "Test",
         start_date: "not-a-date",
-        end_date: "2026-12-25",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("valid date"), false);
@@ -239,9 +239,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects end_date before start_date", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
+        end_date: "2026-12-25",
         name: "Test",
         start_date: "2026-12-26",
-        end_date: "2026-12-25",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -263,9 +263,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("shows edit form with pre-filled values", async () => {
       const holiday = await createTestHoliday({
+        endDate: "2026-12-26",
         name: "Christmas",
         startDate: "2026-12-25",
-        endDate: "2026-12-26",
       });
       const { response } = await adminGet(`/admin/holidays/${holiday.id}/edit`);
       await expectHtmlResponse(
@@ -289,9 +289,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const holiday = await createTestHoliday();
       const response = await handleRequest(
         mockFormRequest(`/admin/holidays/${holiday.id}/edit`, {
+          end_date: "2026-12-25",
           name: "Updated",
           start_date: "2026-12-25",
-          end_date: "2026-12-25",
         }),
       );
       expectAdminRedirect(response);
@@ -311,9 +311,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/edit`,
         {
+          end_date: "2026-12-25",
           name: "Test",
           start_date: "2026-12-26",
-          end_date: "2026-12-25",
         },
       );
       expect(response.status).toBe(302);
@@ -326,9 +326,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("returns 404 for non-existent holiday", async () => {
       const { response } = await adminFormPost("/admin/holidays/999/edit", {
+        end_date: "2026-12-25",
         name: "Test",
         start_date: "2026-12-25",
-        end_date: "2026-12-25",
       });
       expectStatus(404)(response);
     });
@@ -338,9 +338,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/edit`,
         {
+          end_date: "2026-12-25",
           name: "",
           start_date: "2026-12-25",
-          end_date: "2026-12-25",
         },
       );
       expect(response.status).toBe(302);
@@ -483,15 +483,15 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("returns holidays with end_date >= today", async () => {
       // Create a future holiday
       await createTestHoliday({
+        endDate: "2099-01-01",
         name: "Future Holiday",
         startDate: "2099-01-01",
-        endDate: "2099-01-01",
       });
       // Create a past holiday
       await createTestHoliday({
+        endDate: "2020-01-01",
         name: "Past Holiday",
         startDate: "2020-01-01",
-        endDate: "2020-01-01",
       });
       const { getActiveHolidays } = await import("#lib/db/holidays.ts");
       const active = await getActiveHolidays();
@@ -516,9 +516,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         "#templates/admin/holidays.tsx"
       );
       const holiday = testHoliday({
+        end_date: "2026-01-02",
         name: "Test",
         start_date: "2026-01-01",
-        end_date: "2026-01-02",
       });
       const values = holidayToFieldValues(holiday);
       expect(values.name).toBe("Test");
@@ -530,9 +530,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("holidayErrorPage fallback", () => {
     test("returns 404 when holiday not found during edit error", async () => {
       const { response } = await adminFormPost("/admin/holidays/999/edit", {
+        end_date: "2026-12-25",
         name: "",
         start_date: "2026-12-25",
-        end_date: "2026-12-25",
       });
       expectStatus(404)(response);
     });

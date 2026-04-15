@@ -31,12 +31,12 @@ describe("adminQuestionsPage", () => {
     const html = adminQuestionsPage(
       [
         {
+          answers: [
+            { id: 10, question_id: 1, sort_order: 0, text: "Red" },
+            { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+          ],
           id: 1,
           text: "Favourite colour?",
-          answers: [
-            { id: 10, question_id: 1, text: "Red", sort_order: 0 },
-            { id: 11, question_id: 1, text: "Blue", sort_order: 1 },
-          ],
         },
       ],
       TEST_SESSION,
@@ -49,9 +49,9 @@ describe("adminQuestionsPage", () => {
     const html = adminQuestionsPage(
       [
         {
+          answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Yes" }],
           id: 1,
           text: "Yes or no?",
-          answers: [{ id: 10, question_id: 1, text: "Yes", sort_order: 0 }],
         },
       ],
       TEST_SESSION,
@@ -68,12 +68,12 @@ describe("adminQuestionsPage", () => {
 
 describe("adminQuestionPage", () => {
   const question = {
+    answers: [
+      { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+      { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+    ],
     id: 1,
     text: "T-shirt size?",
-    answers: [
-      { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-      { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-    ],
   };
 
   test("renders question text and edit form", () => {
@@ -102,7 +102,7 @@ describe("adminQuestionPage", () => {
 
   test("renders empty answers state", () => {
     const html = adminQuestionPage(
-      { id: 1, text: "Q?", answers: [] },
+      { answers: [], id: 1, text: "Q?" },
       TEST_SESSION,
     );
     expect(html).toContain("No answers yet");
@@ -128,13 +128,13 @@ describe("adminQuestionPage", () => {
 
   test("renders both move buttons for middle answer", () => {
     const q = {
+      answers: [
+        { id: 10, question_id: 1, sort_order: 0, text: "A" },
+        { id: 11, question_id: 1, sort_order: 1, text: "B" },
+        { id: 12, question_id: 1, sort_order: 2, text: "C" },
+      ],
       id: 1,
       text: "Q?",
-      answers: [
-        { id: 10, question_id: 1, text: "A", sort_order: 0 },
-        { id: 11, question_id: 1, text: "B", sort_order: 1 },
-        { id: 12, question_id: 1, text: "C", sort_order: 2 },
-      ],
     };
     const html = adminQuestionPage(q, TEST_SESSION);
     expect(html).toContain("/answers/11/move-up");
@@ -144,9 +144,9 @@ describe("adminQuestionPage", () => {
 
 describe("adminQuestionDeletePage", () => {
   const question = {
+    answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Small" }],
     id: 1,
     text: "T-shirt size?",
-    answers: [{ id: 10, question_id: 1, text: "Small", sort_order: 0 }],
   };
 
   test("renders confirmation form with question text", () => {
@@ -175,12 +175,12 @@ describe("adminQuestionDeletePage", () => {
 
 describe("adminAnswerDeletePage", () => {
   const question = {
+    answers: [
+      { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+      { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+    ],
     id: 1,
     text: "T-shirt size?",
-    answers: [
-      { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-      { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-    ],
   };
   const answer = question.answers[0]!;
 
@@ -221,9 +221,9 @@ describe("adminEventQuestionsPage", () => {
     const event = testEventWithCount({ id: 1, name: "My Event" });
     const questions = [
       {
+        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Yes" }],
         id: 1,
         text: "Yes or no?",
-        answers: [{ id: 10, question_id: 1, text: "Yes", sort_order: 0 }],
       },
     ];
     const html = adminEventQuestionsPage(
@@ -240,12 +240,12 @@ describe("adminEventQuestionsPage", () => {
     const event = testEventWithCount({ id: 1, name: "My Event" });
     const questions = [
       {
+        answers: [
+          { id: 10, question_id: 1, sort_order: 0, text: "A" },
+          { id: 11, question_id: 1, sort_order: 1, text: "B" },
+        ],
         id: 1,
         text: "Q?",
-        answers: [
-          { id: 10, question_id: 1, text: "A", sort_order: 0 },
-          { id: 11, question_id: 1, text: "B", sort_order: 1 },
-        ],
       },
     ];
     const html = adminEventQuestionsPage(
@@ -262,13 +262,13 @@ describe("adminEventQuestionsPage", () => {
     const event = testEventWithCount({ id: 1, name: "My Event" });
     const questions = [
       {
+        answers: [
+          { id: 10, question_id: 1, sort_order: 0, text: "S" },
+          { id: 11, question_id: 1, sort_order: 1, text: "M" },
+          { id: 12, question_id: 1, sort_order: 2, text: "L" },
+        ],
         id: 1,
         text: "Size?",
-        answers: [
-          { id: 10, question_id: 1, text: "S", sort_order: 0 },
-          { id: 11, question_id: 1, text: "M", sort_order: 1 },
-          { id: 12, question_id: 1, text: "L", sort_order: 2 },
-        ],
       },
     ];
     const html = adminEventQuestionsPage(
@@ -288,27 +288,27 @@ describe("buildAnswerSummaryRows", () => {
 
   test("returns empty string when no questions", () => {
     expect(
-      buildAnswerSummaryRows({ questions: [], attendeeAnswerMap: new Map() }),
+      buildAnswerSummaryRows({ attendeeAnswerMap: new Map(), questions: [] }),
     ).toBe("");
   });
 
   test("renders question with answer counts", () => {
     const html = buildAnswerSummaryRows({
-      questions: [
-        {
-          id: 1,
-          text: "Size?",
-          answers: [
-            { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-            { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-          ],
-        },
-      ],
       attendeeAnswerMap: new Map([
         [1, [10]],
         [2, [10]],
         [3, [11]],
       ]),
+      questions: [
+        {
+          answers: [
+            { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+            { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+          ],
+          id: 1,
+          text: "Size?",
+        },
+      ],
     });
     expect(html).toContain("<th>Size?</th>");
     expect(html).toContain("Small (2)");
@@ -317,14 +317,14 @@ describe("buildAnswerSummaryRows", () => {
 
   test("shows zero for answers with no selections", () => {
     const html = buildAnswerSummaryRows({
+      attendeeAnswerMap: new Map(),
       questions: [
         {
+          answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A" }],
           id: 1,
           text: "Q?",
-          answers: [{ id: 10, question_id: 1, text: "A", sort_order: 0 }],
         },
       ],
-      attendeeAnswerMap: new Map(),
     });
     expect(html).toContain("A (0)");
   });
@@ -333,20 +333,20 @@ describe("buildAnswerSummaryRows", () => {
 describe("adminEventPage with questionData", () => {
   test("renders answer summary rows in details table", () => {
     const html = adminEventPage({
-      event: testEventWithCount({ id: 1, name: "E" }),
-      attendees: [],
       allowedDomain: "example.com",
-      session: TEST_SESSION,
+      attendees: [],
+      event: testEventWithCount({ id: 1, name: "E" }),
       questionData: {
+        attendeeAnswerMap: new Map(),
         questions: [
           {
+            answers: [{ id: 10, question_id: 1, sort_order: 0, text: "S" }],
             id: 1,
             text: "Size?",
-            answers: [{ id: 10, question_id: 1, text: "S", sort_order: 0 }],
           },
         ],
-        attendeeAnswerMap: new Map(),
       },
+      session: TEST_SESSION,
     });
     expect(html).toContain("<th>Size?</th>");
     expect(html).toContain("S (0)");

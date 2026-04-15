@@ -49,7 +49,7 @@ const importPrivateKey = (pem: string): Promise<CryptoKey> => {
   return crypto.subtle.importKey(
     "pkcs8",
     bytes.buffer as ArrayBuffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    { hash: "SHA-256", name: "RSASSA-PKCS1-v1_5" },
     false,
     ["sign"],
   );
@@ -72,15 +72,15 @@ export const buildEventTicketClass = (
   data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => ({
-  id: `${creds.issuerId}.${data.serialNumber}-class`,
-  issuerName: data.organizationName,
-  reviewStatus: "UNDER_REVIEW",
   eventName: {
     defaultValue: {
       language: "en-US",
       value: data.eventName,
     },
   },
+  id: `${creds.issuerId}.${data.serialNumber}-class`,
+  issuerName: data.organizationName,
+  reviewStatus: "UNDER_REVIEW",
   ...(data.eventDate
     ? {
         dateTime: {
@@ -91,13 +91,13 @@ export const buildEventTicketClass = (
   ...(data.eventLocation
     ? {
         venue: {
-          name: {
+          address: {
             defaultValue: {
               language: "en-US",
               value: data.eventLocation,
             },
           },
-          address: {
+          name: {
             defaultValue: {
               language: "en-US",
               value: data.eventLocation,
@@ -117,17 +117,17 @@ export const buildEventTicketObject = (
 
   if (data.attendeeDate) {
     textModules.push({
-      id: "booking-date",
-      header: "BOOKING DATE",
       body: data.attendeeDate,
+      header: "BOOKING DATE",
+      id: "booking-date",
     });
   }
 
   if (data.quantity > 1) {
     textModules.push({
-      id: "qty",
-      header: "QTY",
       body: String(data.quantity),
+      header: "QTY",
+      id: "qty",
     });
   }
 
@@ -135,20 +135,20 @@ export const buildEventTicketObject = (
     const majorUnits =
       data.pricePaid / 10 ** getDecimalPlaces(data.currencyCode);
     textModules.push({
-      id: "price",
-      header: "PRICE",
       body: `${majorUnits} ${data.currencyCode}`,
+      header: "PRICE",
+      id: "price",
     });
   }
 
   return {
-    id: `${creds.issuerId}.${data.serialNumber}`,
-    classId: `${creds.issuerId}.${data.serialNumber}-class`,
-    state: "ACTIVE",
     barcode: {
       type: "QR_CODE",
       value: data.checkinUrl,
     },
+    classId: `${creds.issuerId}.${data.serialNumber}-class`,
+    id: `${creds.issuerId}.${data.serialNumber}`,
+    state: "ACTIVE",
     ...(textModules.length > 0 ? { textModulesData: textModules } : {}),
   };
 };
@@ -158,15 +158,15 @@ export const buildJwtPayload = (
   data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => ({
-  iss: creds.serviceAccountEmail,
   aud: "google",
-  typ: "savetowallet",
   iat: Math.floor(startOfHour(new Date()).getTime() / 1000),
+  iss: creds.serviceAccountEmail,
   origins: [],
   payload: {
     eventTicketClasses: [buildEventTicketClass(data, creds)],
     eventTicketObjects: [buildEventTicketObject(data, creds)],
   },
+  typ: "savetowallet",
 });
 
 /** Sign a JWT payload with RS256 using the service account private key */

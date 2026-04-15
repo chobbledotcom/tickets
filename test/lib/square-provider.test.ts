@@ -44,12 +44,12 @@ describe("square-provider", () => {
             Promise.resolve({
               id: "order_completed",
               metadata: {
-                name: "Alice",
                 email: "alice@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
+                name: "Alice",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_1" }],
               state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_1" }],
               totalMoney: { amount: BigInt(1000), currency: "USD" },
             }),
           ),
@@ -78,12 +78,12 @@ describe("square-provider", () => {
             Promise.resolve({
               id: "order_open",
               metadata: {
-                name: "Bob",
                 email: "bob@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
+                name: "Bob",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_2" }],
               state: "OPEN",
+              tenders: [{ id: "tender_1", paymentId: "pay_2" }],
               totalMoney: { amount: BigInt(1000), currency: "USD" },
             }),
           ),
@@ -112,12 +112,12 @@ describe("square-provider", () => {
             Promise.resolve({
               id: "order_open",
               metadata: {
-                name: "Carol",
                 email: "carol@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
+                name: "Carol",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_3" }],
               state: "OPEN",
+              tenders: [{ id: "tender_1", paymentId: "pay_3" }],
               totalMoney: { amount: BigInt(1000), currency: "USD" },
             }),
           ),
@@ -144,9 +144,9 @@ describe("square-provider", () => {
             Promise.resolve({
               id: "order_no_tenders",
               metadata: {
-                name: "Dave",
                 email: "dave@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
+                name: "Dave",
               },
               state: "OPEN",
               totalMoney: { amount: BigInt(1000), currency: "USD" },
@@ -169,8 +169,8 @@ describe("square-provider", () => {
           stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
               id: "pay_123",
-              status: "COMPLETED",
               refundedMoney: { amount: BigInt(1000), currency: "USD" },
+              status: "COMPLETED",
             }),
           ),
         async () => {
@@ -187,8 +187,8 @@ describe("square-provider", () => {
           stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
               id: "pay_123",
-              status: "COMPLETED",
               refundedMoney: { amount: BigInt(0), currency: "USD" },
+              status: "COMPLETED",
             }),
           ),
         async () => {
@@ -230,23 +230,23 @@ describe("square-provider", () => {
 
   describe("createCheckoutSession", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
-      const event = testEvent({ unit_price: 1000, fields: "email" as const });
+      const event = testEvent({ fields: "email" as const, unit_price: 1000 });
       const intent = {
-        name: "John",
-        email: "john@example.com",
-        phone: "bad",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "john@example.com",
         items: [
           {
             eventId: event.id,
-            quantity: 1,
-            unitPrice: event.unit_price,
-            slug: event.slug,
             name: event.name,
+            quantity: 1,
+            slug: event.slug,
+            unitPrice: event.unit_price,
           },
         ],
+        name: "John",
+        phone: "bad",
+        special_instructions: "",
       };
       await withMocks(
         () =>
@@ -268,23 +268,23 @@ describe("square-provider", () => {
     });
 
     test("returns null when createPaymentLink throws a generic error", async () => {
-      const event = testEvent({ unit_price: 1000, fields: "email" as const });
+      const event = testEvent({ fields: "email" as const, unit_price: 1000 });
       const intent = {
-        name: "John",
-        email: "john@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "john@example.com",
         items: [
           {
             eventId: event.id,
-            quantity: 1,
-            unitPrice: event.unit_price,
-            slug: event.slug,
             name: event.name,
+            quantity: 1,
+            slug: event.slug,
+            unitPrice: event.unit_price,
           },
         ],
+        name: "John",
+        phone: "",
+        special_instructions: "",
       };
       await withMocks(
         () =>
@@ -305,21 +305,21 @@ describe("square-provider", () => {
   describe("createCheckoutSession", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
       const intent = {
-        name: "John",
-        email: "bad",
-        phone: "",
         address: "",
-        special_instructions: "",
         date: null,
+        email: "bad",
         items: [
           {
             eventId: 1,
-            quantity: 1,
-            unitPrice: 1000,
-            slug: "evt",
             name: "Evt",
+            quantity: 1,
+            slug: "evt",
+            unitPrice: 1000,
           },
         ],
+        name: "John",
+        phone: "",
+        special_instructions: "",
       };
       await withMocks(
         () =>
@@ -349,12 +349,12 @@ describe("square-provider", () => {
             Promise.resolve({
               id: "order_nested_456",
               metadata: {
-                name: "Alice",
                 email: "alice@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
+                name: "Alice",
               },
-              tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
               state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
               totalMoney: { amount: BigInt(1000), currency: "USD" },
             }),
           ),
@@ -367,8 +367,6 @@ describe("square-provider", () => {
         }),
         async (mocks) => {
           const result = await squarePaymentProvider.resolveWebhookSession({
-            id: "evt_square",
-            type: "payment.updated",
             data: {
               object: {
                 payment: {
@@ -378,6 +376,8 @@ describe("square-provider", () => {
                 },
               },
             },
+            id: "evt_square",
+            type: "payment.updated",
           });
           expect(result).not.toBe("skip");
           expect(result).not.toBeNull();
@@ -388,8 +388,6 @@ describe("square-provider", () => {
 
     test("returns skip for non-COMPLETED payment status", async () => {
       const result = await squarePaymentProvider.resolveWebhookSession({
-        id: "evt_pending",
-        type: "payment.updated",
         data: {
           object: {
             payment: {
@@ -399,14 +397,14 @@ describe("square-provider", () => {
             },
           },
         },
+        id: "evt_pending",
+        type: "payment.updated",
       });
       expect(result).toBe("skip");
     });
 
     test("returns null when no order_id or id found", async () => {
       const result = await squarePaymentProvider.resolveWebhookSession({
-        id: "evt_no_id",
-        type: "payment.updated",
         data: {
           object: {
             payment: {
@@ -414,6 +412,8 @@ describe("square-provider", () => {
             },
           },
         },
+        id: "evt_no_id",
+        type: "payment.updated",
       });
       expect(result).toBeNull();
     });
@@ -425,8 +425,6 @@ describe("square-provider", () => {
         }),
         async (mocks) => {
           const result = await squarePaymentProvider.resolveWebhookSession({
-            id: "evt_no_order",
-            type: "payment.updated",
             data: {
               object: {
                 payment: {
@@ -435,6 +433,8 @@ describe("square-provider", () => {
                 },
               },
             },
+            id: "evt_no_order",
+            type: "payment.updated",
           });
           // retrieveSession called with payment id as fallback
           expect(mocks.order.calls[0]!.args[0]).toBe("pay_fallback_id");
@@ -456,8 +456,6 @@ describe("square-provider", () => {
           ),
         async () => {
           const result = await squarePaymentProvider.resolveWebhookSession({
-            id: "evt_no_meta",
-            type: "payment.updated",
             data: {
               object: {
                 payment: {
@@ -467,6 +465,8 @@ describe("square-provider", () => {
                 },
               },
             },
+            id: "evt_no_meta",
+            type: "payment.updated",
           });
           expect(result).toBe("skip");
         },
@@ -478,8 +478,6 @@ describe("square-provider", () => {
         () => stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
         async (mockOrder) => {
           const result = await squarePaymentProvider.resolveWebhookSession({
-            id: "evt_flat",
-            type: "payment.updated",
             data: {
               object: {
                 id: "pay_flat",
@@ -487,6 +485,8 @@ describe("square-provider", () => {
                 status: "COMPLETED",
               },
             },
+            id: "evt_flat",
+            type: "payment.updated",
           });
           expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
           expect(result).toBe("skip");
