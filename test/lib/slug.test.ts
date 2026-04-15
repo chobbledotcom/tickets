@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { generateSlug, normalizeSlug, validateSlug } from "#lib/slug.ts";
+import {
+  generateSlug,
+  generateUniqueSlug,
+  normalizeSlug,
+  validateSlug,
+} from "#lib/slug.ts";
 
 describe("slug", () => {
   describe("generateSlug", () => {
@@ -33,6 +38,16 @@ describe("slug", () => {
       }
       // With ~1.15M combinations, 20 slugs should all be unique
       expect(slugs.size).toBe(20);
+    });
+  });
+
+  describe("generateUniqueSlug", () => {
+    test("throws after exhausting all retry attempts", async () => {
+      const alwaysTaken = () => Promise.resolve(true);
+      const computeIndex = (s: string) => Promise.resolve(s);
+      await expect(
+        generateUniqueSlug(computeIndex, alwaysTaken),
+      ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
     });
   });
 

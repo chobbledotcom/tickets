@@ -10,12 +10,9 @@ const DIGITS = "0123456789";
 const LETTERS = "abcdefgh";
 const ALPHABET = DIGITS + LETTERS;
 
-/** Seam for tests: replace random to control slug output without touching the global Math object */
-export const _internals = { random: () => Math.random() };
-
 /** Pick a random character from a string */
 const randomChar = (chars: string): string =>
-  chars[Math.floor(_internals.random() * chars.length)]!;
+  chars[Math.floor(Math.random() * chars.length)]!;
 
 /**
  * Generate a random slug with at least 2 digits and 2 letters.
@@ -33,7 +30,7 @@ export const generateSlug = (): string => {
 
   // Fisher-Yates shuffle
   for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(_internals.random() * (i + 1));
+    const j = Math.floor(Math.random() * (i + 1));
     [chars[i], chars[j]] = [chars[j]!, chars[i]!];
   }
 
