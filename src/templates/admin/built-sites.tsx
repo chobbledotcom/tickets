@@ -63,7 +63,9 @@ export const adminBuiltSitesPage = (
                     </td>
                     <td>
                       <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
-                      <a href={`/admin/built-sites/${site.id}/delete`}>Delete</a>
+                      <a href={`/admin/built-sites/${site.id}/delete`}>
+                        Delete
+                      </a>
                     </td>
                   </tr>
                 ))}

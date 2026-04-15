@@ -745,43 +745,63 @@ const verifyCsrf = async (
   return authFailure(channel, "invalid-csrf");
 };
 
+/** Parse a form-encoded body with optional CSRF check */
+const parseCsrfForm = async (
+  request: Request,
+  skipCsrf: boolean,
+  channel: AuthChannel,
+): Promise<FormParams | Response> => {
+  const form = await parseFormData(request);
+  if (skipCsrf) return form;
+  const err = await verifyCsrf(form.getString("csrf_token"), channel);
+  return err ?? form;
+};
+
+/** Parse a multipart body with optional CSRF check */
+const parseCsrfMultipart = async (
+  request: Request,
+  skipCsrf: boolean,
+  channel: AuthChannel,
+): Promise<FormData | Response> => {
+  const fd = await request.formData();
+  if (skipCsrf) return fd;
+  const err = await verifyCsrf(
+    String(fd.get("csrf_token") ?? "").trim(),
+    channel,
+  );
+  return err ?? fd;
+};
+
+/** Parse a JSON body with optional CSRF check (via header) */
+const parseCsrfJson = async (
+  request: Request,
+  skipCsrf: boolean,
+  channel: AuthChannel,
+): Promise<Record<string, unknown> | Response> => {
+  if (!skipCsrf) {
+    const err = await verifyCsrf(
+      request.headers.get("x-csrf-token") ?? "",
+      channel,
+    );
+    if (err) return err;
+  }
+  return parseJsonBody(request);
+};
+
 /** Validate CSRF and parse body for the given mode */
-const parseCsrfBody = async (
+const parseCsrfBody = (
   request: Request,
   mode: BodyMode,
   skipCsrf: boolean,
 ): Promise<FormParams | FormData | Record<string, unknown> | Response> => {
   const channel = channelFor(mode);
   switch (mode) {
-    case "form": {
-      const form = await parseFormData(request);
-      if (!skipCsrf) {
-        const err = await verifyCsrf(form.getString("csrf_token"), channel);
-        if (err) return err;
-      }
-      return form;
-    }
-    case "multipart": {
-      const fd = await request.formData();
-      if (!skipCsrf) {
-        const err = await verifyCsrf(
-          String(fd.get("csrf_token") ?? "").trim(),
-          channel,
-        );
-        if (err) return err;
-      }
-      return fd;
-    }
-    case "json": {
-      if (!skipCsrf) {
-        const err = await verifyCsrf(
-          request.headers.get("x-csrf-token") ?? "",
-          channel,
-        );
-        if (err) return err;
-      }
-      return parseJsonBody(request);
-    }
+    case "form":
+      return parseCsrfForm(request, skipCsrf, channel);
+    case "multipart":
+      return parseCsrfMultipart(request, skipCsrf, channel);
+    case "json":
+      return parseCsrfJson(request, skipCsrf, channel);
   }
 };
 
