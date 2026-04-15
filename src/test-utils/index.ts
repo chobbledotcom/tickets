@@ -2241,6 +2241,7 @@ export const testBuiltSite = (
   assignable: false,
   assignedAttendeeId: null,
   assignedEventId: null,
+  bunnyScriptId: "",
   bunnyUrl: "https://test.b-cdn.net",
   created: "2026-01-01T00:00:00Z",
   dbToken: "",
@@ -2258,6 +2259,7 @@ export const createTestBuiltSite = (
 ): Promise<BuiltSite> => {
   const input: BuiltSiteFormInput = {
     assignable: overrides.assignable ?? false,
+    bunnyScriptId: overrides.bunnyScriptId ?? "",
     bunnyUrl: overrides.bunnyUrl ?? "https://test.b-cdn.net",
     dbToken: overrides.dbToken ?? "",
     dbUrl: overrides.dbUrl ?? "",
@@ -2267,6 +2269,7 @@ export const createTestBuiltSite = (
   return authenticatedFormRequest(
     "/admin/built-sites",
     {
+      bunny_script_id: input.bunnyScriptId,
       bunny_url: input.bunnyUrl,
       db_token: input.dbToken,
       db_url: input.dbUrl,
@@ -2296,6 +2299,7 @@ export const updateTestBuiltSite = async (
   return authenticatedFormRequest(
     `/admin/built-sites/${siteId}/edit`,
     {
+      bunny_script_id: updates.bunnyScriptId ?? existing.bunnyScriptId,
       bunny_url: updates.bunnyUrl ?? existing.bunnyUrl,
       db_token: updates.dbToken ?? existing.dbToken,
       db_url: updates.dbUrl ?? existing.dbUrl,

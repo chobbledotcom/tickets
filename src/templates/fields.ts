@@ -550,6 +550,12 @@ export const builtSiteFields: Field[] = [
     type: "password",
   },
   {
+    label: "Bunny Script ID",
+    name: "bunny_script_id",
+    placeholder: "12345",
+    type: "text",
+  },
+  {
     hint: "Make this site available for automatic assignment when a ticket is purchased",
     label: "Assignable",
     name: "assignable",

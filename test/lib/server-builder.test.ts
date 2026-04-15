@@ -234,6 +234,7 @@ describeWithEnv(
         expect(sites[0]!.bunnyUrl).toBe("https://test-42.b-cdn.net");
         expect(sites[0]!.dbUrl).toBe("libsql://test.turso.io");
         expect(sites[0]!.dbToken).toBe("token123");
+        expect(sites[0]!.bunnyScriptId).toBe("42");
         expect(sites[0]!.assignable).toBe(false);
       });
     });

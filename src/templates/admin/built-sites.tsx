@@ -75,6 +75,7 @@ export const builtSiteToFieldValues = (
   site?: BuiltSite,
 ): Record<string, string | number | null> => ({
   assignable: site?.assignable ? "1" : "",
+  bunny_script_id: site?.bunnyScriptId ?? "",
   bunny_url: site?.bunnyUrl ?? "",
   db_token: site?.dbToken ?? "",
   db_url: site?.dbUrl ?? "",
