@@ -32,6 +32,11 @@
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
+/* Public-facing pages (no admin nav) get a narrower reading width */
+body:not(:has(#main-nav)) {
+  --width-content: 800px;
+}
+
 :root[data-theme="dark"] {
   --color-accent: #0097fc4f;
   --color-bg: #01001c;
