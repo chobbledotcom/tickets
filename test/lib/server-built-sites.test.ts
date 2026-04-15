@@ -82,6 +82,34 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const { response } = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Assigned (attendee #42)");
     });
+
+    test("displays script IDs separated by pipes below the table", async () => {
+      await createTestBuiltSite({
+        bunnyScriptId: "1111",
+        name: "Site 1",
+      });
+      await createTestBuiltSite({
+        bunnyScriptId: "222",
+        name: "Site 2",
+      });
+      await createTestBuiltSite({
+        bunnyScriptId: "",
+        name: "Site 3",
+      });
+      const { response } = await adminGet("/admin/built-sites");
+      const body = await response.text();
+      expect(body).toContain("1111|222");
+      expect(body).not.toContain("1111|222|");
+    });
+
+    test("displays empty string when no script IDs present", async () => {
+      await createTestBuiltSite({
+        bunnyScriptId: "",
+        name: "No Script",
+      });
+      const { response } = await adminGet("/admin/built-sites");
+      await expectHtmlResponse(response, 200);
+    });
   });
 
   describe("GET /admin/built-sites/new", () => {
@@ -102,6 +130,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         "Bunny URL",
         "Database URL",
         "Database Token",
+        "Bunny Script ID",
       );
     });
   });
@@ -175,6 +204,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
 
     test("shows edit form with pre-filled values", async () => {
       const site = await createTestBuiltSite({
+        bunnyScriptId: "54321",
         bunnyUrl: "https://editme.b-cdn.net",
         name: "Edit Me",
       });
@@ -185,6 +215,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         "Edit Built Site",
         "Edit Me",
         "https://editme.b-cdn.net",
+        "54321",
       );
     });
 
@@ -212,6 +243,17 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         name: "Updated",
       });
       expect(updated.name).toBe("Updated");
+    });
+
+    test("updates bunny script id", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "111",
+        name: "ScriptIdSite",
+      });
+      const updated = await updateTestBuiltSite(site.id, {
+        bunnyScriptId: "999",
+      });
+      expect(updated.bunnyScriptId).toBe("999");
     });
 
     test("returns 404 for non-existent built site", async () => {
@@ -393,6 +435,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       expect(values.bunny_url).toBe("");
       expect(values.db_url).toBe("");
       expect(values.db_token).toBe("");
+      expect(values.bunny_script_id).toBe("");
       expect(values.assignable).toBe("");
     });
 
@@ -401,6 +444,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         "#templates/admin/built-sites.tsx"
       );
       const site = testBuiltSite({
+        bunnyScriptId: "42",
         bunnyUrl: "https://test.b-cdn.net",
         dbToken: "tok123",
         dbUrl: "libsql://test.turso.io",
@@ -411,6 +455,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       expect(values.bunny_url).toBe("https://test.b-cdn.net");
       expect(values.db_url).toBe("libsql://test.turso.io");
       expect(values.db_token).toBe("tok123");
+      expect(values.bunny_script_id).toBe("42");
       expect(values.assignable).toBe("");
     });
 

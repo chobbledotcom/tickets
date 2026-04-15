@@ -23,6 +23,8 @@ export interface SiteDataBlob {
   d?: string;
   /** Database token (optional, absent in older blobs) */
   t?: string;
+  /** Bunny edge script ID (optional, absent in older blobs) */
+  s?: string;
 }
 
 /** Built site row as stored in the database */
@@ -50,6 +52,7 @@ export interface BuiltSite {
   bunnyUrl: string;
   dbUrl: string;
   dbToken: string;
+  bunnyScriptId: string;
   assignable: boolean;
   assignedAttendeeId: number | null;
   assignedEventId: number | null;
@@ -57,13 +60,10 @@ export interface BuiltSite {
 }
 
 /** Form input for CRUD operations */
-export type BuiltSiteFormInput = {
-  name: string;
-  bunnyUrl: string;
-  dbUrl: string;
-  dbToken: string;
-  assignable: boolean;
-};
+export type BuiltSiteFormInput = Pick<
+  BuiltSite,
+  "name" | "bunnyUrl" | "dbUrl" | "dbToken" | "bunnyScriptId" | "assignable"
+>;
 
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
@@ -90,6 +90,7 @@ export const buildSiteDataBlob = (
   bunnyUrl: string,
   dbUrl = "",
   dbToken = "",
+  bunnyScriptId = "",
 ): string =>
   JSON.stringify({
     n: name,
@@ -97,6 +98,7 @@ export const buildSiteDataBlob = (
     v: 1,
     ...(dbUrl ? { d: dbUrl } : {}),
     ...(dbToken ? { t: dbToken } : {}),
+    ...(bunnyScriptId ? { s: bunnyScriptId } : {}),
   } satisfies SiteDataBlob);
 
 /** Build raw table input from individual fields */
@@ -105,10 +107,11 @@ const toRawInput = (
   bunnyUrl: string,
   dbUrl: string,
   dbToken: string,
+  bunnyScriptId: string,
   assignable: boolean,
 ): BuiltSiteInput => ({
   assignable: assignable ? 1 : 0,
-  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken),
+  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId),
 });
 
 /** Parse a decrypted site data blob */
@@ -122,6 +125,7 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     assignable: Boolean(row.assignable),
     assignedAttendeeId: row.assigned_attendee_id ?? null,
     assignedEventId: row.assigned_event_id ?? null,
+    bunnyScriptId: blob.s ?? "",
     bunnyUrl: blob.u,
     created: row.created,
     dbToken: blob.t ?? "",
@@ -178,6 +182,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   fromDb: (row: BuiltSite): Promise<BuiltSite> => Promise.resolve(row),
   inputKeyMap: {
     assignable: "assignable",
+    bunny_script_id: "bunnyScriptId",
     bunny_url: "bunnyUrl",
     db_token: "dbToken",
     db_url: "dbUrl",
@@ -191,6 +196,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         input.bunnyUrl,
         input.dbUrl,
         input.dbToken,
+        input.bunnyScriptId,
         input.assignable,
       ),
     );
@@ -203,6 +209,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     assignable: {} as ColumnDef<boolean>,
     assignedAttendeeId: {} as ColumnDef<number | null>,
     assignedEventId: {} as ColumnDef<number | null>,
+    bunnyScriptId: {} as ColumnDef<string>,
     bunnyUrl: {} as ColumnDef<string>,
     created: createdCol,
     dbToken: {} as ColumnDef<string>,
@@ -221,6 +228,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         input.bunnyUrl ?? "",
         input.dbUrl ?? "",
         input.dbToken ?? "",
+        input.bunnyScriptId ?? "",
       ),
     }),
 
@@ -234,11 +242,12 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const bunnyUrl = input.bunnyUrl ?? existing.bunnyUrl;
     const dbUrl = input.dbUrl ?? existing.dbUrl;
     const dbToken = input.dbToken ?? existing.dbToken;
+    const bunnyScriptId = input.bunnyScriptId ?? existing.bunnyScriptId;
     const assignable = input.assignable ?? existing.assignable;
     // Row exists (checked above), so update always returns non-null
     const row = (await builtSitesTable.update(
       id,
-      toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable),
+      toRawInput(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId, assignable),
     )) as BuiltSiteRow;
     // update() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
@@ -252,9 +261,10 @@ export const insertBuiltSite = (
   dbUrl = "",
   dbToken = "",
   assignable = false,
+  bunnyScriptId = "",
 ): Promise<BuiltSiteRow> =>
   builtSitesTable.insert(
-    toRawInput(name, bunnyUrl, dbUrl, dbToken, assignable),
+    toRawInput(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId, assignable),
   );
 
 /** Get all built sites, decrypted and sorted by name */
