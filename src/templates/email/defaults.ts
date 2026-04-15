@@ -56,14 +56,14 @@ Name: {{ attendee.name }}
 
 /** Map of template type to default templates */
 export const DEFAULT_TEMPLATES = {
-  confirmation: {
-    subject: DEFAULT_CONFIRMATION_SUBJECT,
-    html: DEFAULT_CONFIRMATION_HTML,
-    text: DEFAULT_CONFIRMATION_TEXT,
-  },
   admin: {
-    subject: DEFAULT_ADMIN_SUBJECT,
     html: DEFAULT_ADMIN_HTML,
+    subject: DEFAULT_ADMIN_SUBJECT,
     text: DEFAULT_ADMIN_TEXT,
+  },
+  confirmation: {
+    html: DEFAULT_CONFIRMATION_HTML,
+    subject: DEFAULT_CONFIRMATION_SUBJECT,
+    text: DEFAULT_CONFIRMATION_TEXT,
   },
 } as const;

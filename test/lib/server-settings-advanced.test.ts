@@ -86,9 +86,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
     test("shows host email label when host email is configured", async () => {
       const restore = setTestEnv({
-        HOST_EMAIL_PROVIDER: "resend",
         HOST_EMAIL_API_KEY: "key-123",
         HOST_EMAIL_FROM_ADDRESS: "noreply@example.com",
+        HOST_EMAIL_PROVIDER: "resend",
       });
       try {
         const response = await awaitTestRequest("/admin/settings-advanced", {
@@ -130,8 +130,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/show-public-api",
           {
-            show_public_api: "true",
             csrf_token: "invalid-csrf-token",
+            show_public_api: "true",
           },
           await testCookie(),
         ),
@@ -196,9 +196,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
     test("saves email provider settings", async () => {
       const { response } = await adminFormPost("/admin/settings/email", {
-        email_provider: "resend",
         email_api_key: "re_test_123",
         email_from_address: "tickets@example.com",
+        email_provider: "resend",
       });
 
       expect(response.status).toBe(302);
@@ -229,9 +229,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
     test("rejects invalid from-address format", async () => {
       const { response } = await adminFormPost("/admin/settings/email", {
-        email_provider: "resend",
         email_api_key: "re_test_123",
         email_from_address: "not-an-email",
+        email_provider: "resend",
       });
 
       expect(response.status).toBe(302);
@@ -251,9 +251,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
     test("saves provider without updating key when key is empty", async () => {
       const { response } = await adminFormPost("/admin/settings/email", {
-        email_provider: "postmark",
         email_api_key: "",
         email_from_address: "",
+        email_provider: "postmark",
       });
 
       expect(response.status).toBe(302);
@@ -262,9 +262,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
     test("logs activity when email provider is set", async () => {
       await adminFormPost("/admin/settings/email", {
-        email_provider: "sendgrid",
         email_api_key: "sg_key",
         email_from_address: "from@test.com",
+        email_provider: "sendgrid",
       });
 
       const logs = await getAllActivityLog();
@@ -464,8 +464,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     test("resets database and redirects to setup on correct phrase", async () => {
       // Create some data first
       const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
         maxAttendees: 100,
+        name: "Test Event",
         thankYouUrl: "https://example.com/thanks",
       });
 
@@ -521,9 +521,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     {
       env: {
         BUNNY_API_KEY: undefined,
-        BUNNY_SCRIPT_ID: undefined,
-        BUNNY_DNS_ZONE_ID: undefined,
         BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
+        BUNNY_DNS_ZONE_ID: undefined,
+        BUNNY_SCRIPT_ID: undefined,
       },
     },
     () => {
@@ -536,7 +536,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         Deno.env.set("BUNNY_DNS_SUBDOMAIN_SUFFIX", ".tickets");
         const original = bunnyCdnApi.getCdnHostname;
         bunnyCdnApi.getCdnHostname = () =>
-          Promise.resolve({ ok: true as const, hostname: "test.b-cdn.net" });
+          Promise.resolve({ hostname: "test.b-cdn.net", ok: true as const });
         restoreCdnHostname = () => {
           bunnyCdnApi.getCdnHostname = original;
         };
@@ -600,8 +600,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/host-subdomain",
               {
-                subdomain: "myevent",
                 csrf_token: await testCsrfToken(),
+                subdomain: "myevent",
               },
               await testCookie(),
             ),
@@ -625,12 +625,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/host-subdomain",
               "existing.tickets.example.com",
               {
-                method: "POST",
-                headers: {
-                  cookie: `__Host-session=${token}`,
-                  "content-type": "application/x-www-form-urlencoded",
-                },
                 body: `subdomain=myevent&csrf_token=${encodeURIComponent(csrfToken)}`,
+                headers: {
+                  "content-type": "application/x-www-form-urlencoded",
+                  cookie: `__Host-session=${token}`,
+                },
+                method: "POST",
               },
             ),
           );
@@ -644,8 +644,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/host-subdomain",
               {
-                subdomain: "-invalid",
                 csrf_token: await testCsrfToken(),
+                subdomain: "-invalid",
               },
               await testCookie(),
             ),
@@ -664,9 +664,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
-                  ok: true as const,
                   available: true,
                   fullDomain: "myevent.tickets.example.com",
+                  ok: true as const,
                 }),
             },
             async () => {
@@ -674,8 +674,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 mockFormRequest(
                   "/admin/settings/host-subdomain",
                   {
-                    subdomain: "myevent",
                     csrf_token: await testCsrfToken(),
+                    subdomain: "myevent",
                   },
                   await testCookie(),
                 ),
@@ -694,9 +694,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
-                  ok: true as const,
                   available: true,
                   fullDomain: "myevent.tickets.example.com",
+                  ok: true as const,
                 }),
             },
             async () => {
@@ -705,8 +705,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 mockFormRequest(
                   "/admin/settings/host-subdomain",
                   {
-                    subdomain: "myevent",
                     csrf_token: await testCsrfToken(),
+                    subdomain: "myevent",
                   },
                   cookie,
                 ),
@@ -729,8 +729,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
-                  ok: false as const,
                   error: "DNS zone error",
+                  ok: false as const,
                 }),
             },
             async () => {
@@ -738,8 +738,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 mockFormRequest(
                   "/admin/settings/host-subdomain",
                   {
-                    subdomain: "myevent",
                     csrf_token: await testCsrfToken(),
+                    subdomain: "myevent",
                   },
                   await testCookie(),
                 ),
@@ -760,9 +760,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
-                  ok: true as const,
                   available: false,
                   fullDomain: "myevent.tickets.example.com",
+                  ok: true as const,
                 }),
             },
             async () => {
@@ -770,8 +770,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 mockFormRequest(
                   "/admin/settings/host-subdomain",
                   {
-                    subdomain: "myevent",
                     csrf_token: await testCsrfToken(),
+                    subdomain: "myevent",
                   },
                   await testCookie(),
                 ),
@@ -792,8 +792,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             {
               registerBunnySubdomain: () =>
                 Promise.resolve({
-                  ok: true as const,
                   fullDomain: "myevent.tickets.example.com",
+                  ok: true as const,
                 }),
             },
             async () => {
@@ -801,9 +801,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 mockFormRequest(
                   "/admin/settings/host-subdomain",
                   {
-                    subdomain: "myevent",
-                    save: "1",
                     csrf_token: await testCsrfToken(),
+                    save: "1",
+                    subdomain: "myevent",
                   },
                   await testCookie(),
                 ),
@@ -832,16 +832,16 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           await withMockBunnyCdnApi(
             {
               registerBunnySubdomain: () =>
-                Promise.resolve({ ok: false as const, error: "DNS error" }),
+                Promise.resolve({ error: "DNS error", ok: false as const }),
             },
             async () => {
               const response = await handleRequest(
                 mockFormRequest(
                   "/admin/settings/host-subdomain",
                   {
-                    subdomain: "myevent",
-                    save: "1",
                     csrf_token: await testCsrfToken(),
+                    save: "1",
+                    subdomain: "myevent",
                   },
                   await testCookie(),
                 ),
@@ -864,9 +864,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               mockFormRequest(
                 "/admin/settings/host-subdomain",
                 {
-                  subdomain: "myevent",
-                  save: "1",
                   csrf_token: await testCsrfToken(),
+                  save: "1",
+                  subdomain: "myevent",
                 },
                 await testCookie(),
               ),
@@ -902,8 +902,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         const original = bunnyCdnApi.getCdnHostname;
         bunnyCdnApi.getCdnHostname = () =>
           Promise.resolve({
-            ok: true as const,
             hostname: "mysite.b-cdn.net",
+            ok: true as const,
           });
         restoreCdnHostname = () => {
           bunnyCdnApi.getCdnHostname = original;
@@ -1037,8 +1037,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           const original = bunnyCdnApi.validateCustomDomain;
           bunnyCdnApi.validateCustomDomain = () =>
             Promise.resolve({
-              ok: false as const,
               error: "DNS not configured",
+              ok: false as const,
             });
           try {
             const { response } = await adminFormPost(
@@ -1215,8 +1215,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           const original = bunnyCdnApi.validateCustomDomain;
           bunnyCdnApi.validateCustomDomain = () =>
             Promise.resolve({
-              ok: false as const,
               error: "Add hostname failed (400): Hostname already exists",
+              ok: false as const,
             });
           try {
             const { response } = await adminFormPost(
@@ -1308,8 +1308,8 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
           const original = bunnyCdnApi.validateCustomDomain;
           bunnyCdnApi.validateCustomDomain = () =>
             Promise.resolve({
-              ok: false as const,
               error: "DNS not configured",
+              ok: false as const,
             });
           try {
             await adminFormPost("/admin/settings/custom-domain", {

@@ -74,11 +74,11 @@ export const adminBuiltSitesPage = (
 export const builtSiteToFieldValues = (
   site?: BuiltSite,
 ): Record<string, string | number | null> => ({
-  name: site?.name ?? "",
-  bunny_url: site?.bunnyUrl ?? "",
-  db_url: site?.dbUrl ?? "",
-  db_token: site?.dbToken ?? "",
   assignable: site?.assignable ? "1" : "",
+  bunny_url: site?.bunnyUrl ?? "",
+  db_token: site?.dbToken ?? "",
+  db_url: site?.dbUrl ?? "",
+  name: site?.name ?? "",
 });
 
 /**

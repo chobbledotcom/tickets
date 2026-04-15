@@ -163,9 +163,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         const response = await handleRequest(
           new Request("http://localhost/admin/backup/restore", {
-            method: "POST",
-            headers: { cookie, host: "localhost" },
             body: formData,
+            headers: { cookie, host: "localhost" },
+            method: "POST",
           }),
         );
         expect(response.status).toBe(200);
@@ -180,10 +180,10 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         const fakeZip = zipSync({
           "manifest.json": encoder.encode(
             JSON.stringify({
-              schemaHash: "wrong",
               latestUpdate: "",
-              timestamp: "",
+              schemaHash: "wrong",
               tables: {},
+              timestamp: "",
             }),
           ),
           "settings.sql": new Uint8Array(0),
@@ -197,9 +197,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         const response = await handleRequest(
           new Request("http://localhost/admin/backup/restore", {
-            method: "POST",
-            headers: { cookie, host: "localhost" },
             body: formData,
+            headers: { cookie, host: "localhost" },
+            method: "POST",
           }),
         );
         const html = await response.text();
@@ -214,9 +214,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         formData.append("csrf_token", csrfToken);
         const response = await handleRequest(
           new Request("http://localhost/admin/backup/restore", {
-            method: "POST",
-            headers: { cookie, host: "localhost" },
             body: formData,
+            headers: { cookie, host: "localhost" },
+            method: "POST",
           }),
         );
         expect(response.status).toBe(302);
@@ -234,9 +234,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         const response = await handleRequest(
           new Request("http://localhost/admin/backup/restore", {
-            method: "POST",
-            headers: { cookie, host: "localhost" },
             body: formData,
+            headers: { cookie, host: "localhost" },
+            method: "POST",
           }),
         );
         expect(response.status).toBe(302);

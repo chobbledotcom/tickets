@@ -22,24 +22,24 @@ import {
 
 /** GitHub release API response for a valid release */
 const MOCK_RELEASE = {
-  tag_name: "v2099-01-01-120000",
-  name: "2099-01-01 - Big Update",
-  published_at: "2099-01-01T12:00:00Z",
   assets: [
     {
-      name: "bunny-script.ts",
       browser_download_url:
         "https://github.com/chobbledotcom/tickets/releases/download/v2099-01-01-120000/bunny-script.ts",
+      name: "bunny-script.ts",
     },
   ],
+  name: "2099-01-01 - Big Update",
+  published_at: "2099-01-01T12:00:00Z",
+  tag_name: "v2099-01-01-120000",
 };
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {
-  tag_name: "v2099-01-01-120000",
+  assets: [],
   name: "2099-01-01 - No Asset",
   published_at: "2099-01-01T12:00:00Z",
-  assets: [],
+  tag_name: "v2099-01-01-120000",
 };
 
 /** Simulate a production build from a known date */
@@ -60,6 +60,9 @@ const setupForDeploy = async () => {
  * for a successful deploy. Returns mocks for cleanup.
  */
 const stubSuccessfulDeploy = () => ({
+  deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
+    Promise.resolve({ ok: true as const }),
+  ),
   fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
     const url = String(input);
     if (url.includes("releases/latest")) {
@@ -74,9 +77,6 @@ const stubSuccessfulDeploy = () => ({
     }
     return Promise.resolve(new Response("Unexpected", { status: 500 }));
   }),
-  deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
 });
 
 describeWithEnv("server (admin update)", { db: true }, () => {
@@ -316,6 +316,9 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       await setupForDeploy();
       await withMocks(
         () => ({
+          deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -330,9 +333,6 @@ describeWithEnv("server (admin update)", { db: true }, () => {
                 new Response("Not Found", { status: 404 }),
               );
             },
-          ),
-          deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
-            Promise.resolve({ ok: true as const }),
           ),
         }),
         async () => {
@@ -350,6 +350,12 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       await setupForDeploy();
       await withMocks(
         () => ({
+          deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
+            Promise.resolve({
+              error: "Upload script code failed (500): Server Error",
+              ok: false as const,
+            }),
+          ),
           fetchStub: stub(
             globalThis,
             "fetch",
@@ -364,12 +370,6 @@ describeWithEnv("server (admin update)", { db: true }, () => {
                 new Response("console.log('code')", { status: 200 }),
               );
             },
-          ),
-          deployStub: stub(bunnyCdnApi, "deployScriptCode", () =>
-            Promise.resolve({
-              ok: false as const,
-              error: "Upload script code failed (500): Server Error",
-            }),
           ),
         }),
         async () => {

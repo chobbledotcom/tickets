@@ -29,7 +29,7 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
 
-  return htmlResponse(successPage({ ticketUrl, fromEmail }));
+  return htmlResponse(successPage({ fromEmail, ticketUrl }));
 };
 
 /** Handle ticket request: try events by slugs, fall back to group for single slugs */
@@ -72,9 +72,9 @@ export const handleTicketQrGet = async (
 
 /** Public ticket routes */
 const publicRoutes = defineRoutes({
-  "GET /ticket/reserved": handleReservedGet,
-  "GET /ticket/:slug/qr": handleTicketQrGet,
   "GET /ticket/:slug": handleTicketBySlug,
+  "GET /ticket/:slug/qr": handleTicketQrGet,
+  "GET /ticket/reserved": handleReservedGet,
   "POST /ticket/:slug": handleTicketBySlug,
 });
 

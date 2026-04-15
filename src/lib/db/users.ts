@@ -23,7 +23,7 @@ const usersCache = requestCache(() => queryAll<User>(USER_SELECT));
 
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
-registerCache(() => ({ name: "users", entries: usersCache.size() }));
+registerCache(() => ({ entries: usersCache.size(), name: "users" }));
 
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
@@ -53,13 +53,13 @@ const insertUser = async (opts: {
     : null;
 
   const values = {
-    username_hash: encryptedUsername,
-    username_index: usernameIndex,
-    password_hash: encryptedPasswordHash,
-    wrapped_data_key: opts.wrappedDataKey,
     admin_level: encryptedAdminLevel,
     invite_code_hash: encryptedInviteCode,
     invite_expiry: encryptedInviteExpiry,
+    password_hash: encryptedPasswordHash,
+    username_hash: encryptedUsername,
+    username_index: usernameIndex,
+    wrapped_data_key: opts.wrappedDataKey,
   };
   const result = await getDb().execute(insert("users", values));
 
@@ -78,12 +78,12 @@ export const createUser = (
   adminLevel: AdminLevel,
 ): Promise<User> =>
   insertUser({
-    username,
     adminLevel,
-    passwordHash,
-    wrappedDataKey,
     inviteCodeHash: null,
     inviteExpiry: null,
+    passwordHash,
+    username,
+    wrappedDataKey,
   });
 
 /**
@@ -96,12 +96,12 @@ export const createInvitedUser = (
   inviteExpiry: string,
 ): Promise<User> =>
   insertUser({
-    username,
     adminLevel,
-    passwordHash: "",
-    wrappedDataKey: null,
     inviteCodeHash,
     inviteExpiry,
+    passwordHash: "",
+    username,
+    wrappedDataKey: null,
   });
 
 /**
@@ -179,8 +179,8 @@ export const setUserPassword = async (
   const encryptedNull = await encrypt("");
 
   await getDb().execute({
-    sql: "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
     args: [encryptedHash, encryptedNull, encryptedNull, userId],
+    sql: "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
   });
   invalidateUsersCache();
 
@@ -199,8 +199,8 @@ export const activateUser = async (
   const wrappedDataKey = await wrapKey(dataKey, kek);
 
   await getDb().execute({
-    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = ?",
     args: [wrappedDataKey, userId],
+    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = ?",
   });
   invalidateUsersCache();
 };
@@ -210,9 +210,9 @@ export const activateUser = async (
  */
 export const deleteUser = async (userId: number): Promise<void> => {
   await deleteByFieldBatch([
-    { table: "api_keys", field: "user_id", value: userId },
-    { table: "sessions", field: "user_id", value: userId },
-    { table: "users", field: "id", value: userId },
+    { field: "user_id", table: "api_keys", value: userId },
+    { field: "user_id", table: "sessions", value: userId },
+    { field: "id", table: "users", value: userId },
   ]);
   invalidateUsersCache();
 };
@@ -278,22 +278,22 @@ export const hasPassword = async (user: User): Promise<boolean> => {
  * Stubbable API for testing
  */
 export const usersApi = {
-  createUser,
+  activateUser,
   createInvitedUser,
-  getUserByUsername,
-  getUserById,
-  isUsernameTaken,
-  getAllUsers,
-  verifyUserPassword,
+  createUser,
   decryptAdminLevel,
   decryptUsername,
-  setUserPassword,
-  activateUser,
   deleteUser,
+  getAllUsers,
+  getUserById,
   getUserByInviteCode,
+  getUserByUsername,
   hashInviteCode,
-  isInviteValid,
-  isInviteExpired,
   hasPassword,
   invalidateUsersCache,
+  isInviteExpired,
+  isInviteValid,
+  isUsernameTaken,
+  setUserPassword,
+  verifyUserPassword,
 };

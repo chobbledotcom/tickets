@@ -23,9 +23,9 @@ export const fetchText = async (
   const response = await fetch(url, init);
   const text = await response.text();
   return {
-    status: response.status,
-    ok: response.ok,
-    text,
     headers: response.headers,
+    ok: response.ok,
+    status: response.status,
+    text,
   };
 };

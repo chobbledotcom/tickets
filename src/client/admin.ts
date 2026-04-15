@@ -12,10 +12,10 @@ const csrfPost = async (
 ): Promise<any> => {
   const body = `csrf_token=${encodeURIComponent(csrfToken)}${extraBody}`;
   const res = await fetch(url, {
-    method: "POST",
+    body,
     credentials: "same-origin",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body,
+    method: "POST",
   });
   return res.json();
 };
@@ -489,12 +489,12 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
 
       const postScan = async (body: Record<string, unknown>) => {
         const r = await fetch(`/admin/event/${eventId}/scan`, {
-          method: "POST",
+          body: JSON.stringify(body),
           headers: {
             "content-type": "application/json",
             "x-csrf-token": csrfInput.value,
           },
-          body: JSON.stringify(body),
+          method: "POST",
         });
         return r.json();
       };
@@ -507,7 +507,7 @@ for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
         let idVerified = false;
         if (result.status === "verify_id") {
           idVerified = true;
-          result = await postScan({ token, id_verified: true });
+          result = await postScan({ id_verified: true, token });
         }
 
         if (result.status === "checked_in") {

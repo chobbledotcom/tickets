@@ -85,74 +85,31 @@ export const runWithRequestId = <T>(fn: () => T): T =>
  * Single source of truth — ErrorCode and errorCodeLabel are derived from this.
  */
 const ERROR_DEFS = {
-  // Database errors
-  DB_CONNECTION: ["E_DB_CONNECTION", "Database connection failed"],
-  DB_QUERY: ["E_DB_QUERY", "Database query failed"],
+  AUTH_CSRF_MISMATCH: ["E_AUTH_CSRF_MISMATCH", "CSRF mismatch"],
+  AUTH_EXPIRED: ["E_AUTH_EXPIRED", "Session expired"],
+
+  // Authentication errors
+  AUTH_INVALID_SESSION: ["E_AUTH_INVALID_SESSION", "Invalid session"],
+  AUTH_RATE_LIMITED: ["E_AUTH_RATE_LIMITED", "Rate limited"],
 
   // Capacity/availability errors
   CAPACITY_EXCEEDED: ["E_CAPACITY_EXCEEDED", "Capacity exceeded"],
 
+  // CDN/network errors (transient edge failures)
+  CDN_REQUEST: ["E_CDN_REQUEST", "CDN request failed"],
+
+  // Configuration errors
+  CONFIG_MISSING: ["E_CONFIG_MISSING", "Configuration missing"],
+  DATA_INVALID: ["E_DATA_INVALID", "Invalid data"],
+  // Database errors
+  DB_CONNECTION: ["E_DB_CONNECTION", "Database connection failed"],
+  DB_QUERY: ["E_DB_QUERY", "Database query failed"],
+
   // Encryption/decryption errors
   DECRYPT_FAILED: ["E_DECRYPT_FAILED", "Decryption failed"],
-  ENCRYPT_FAILED: ["E_ENCRYPT_FAILED", "Encryption failed"],
-  KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],
 
-  // Authentication errors
-  AUTH_INVALID_SESSION: ["E_AUTH_INVALID_SESSION", "Invalid session"],
-  AUTH_EXPIRED: ["E_AUTH_EXPIRED", "Session expired"],
-  AUTH_CSRF_MISMATCH: ["E_AUTH_CSRF_MISMATCH", "CSRF mismatch"],
-  AUTH_RATE_LIMITED: ["E_AUTH_RATE_LIMITED", "Rate limited"],
-
-  // Payment provider errors (provider-agnostic)
-  PAYMENT_SIGNATURE: [
-    "E_PAYMENT_SIGNATURE",
-    "Payment signature verification failed",
-  ],
-  PAYMENT_SESSION: ["E_PAYMENT_SESSION", "Payment session error"],
-  PAYMENT_REFUND: ["E_PAYMENT_REFUND", "Payment refund failed"],
-  PAYMENT_CHECKOUT: ["E_PAYMENT_CHECKOUT", "Payment checkout failed"],
-  PAYMENT_WEBHOOK_SETUP: [
-    "E_PAYMENT_WEBHOOK_SETUP",
-    "Payment webhook setup failed",
-  ],
-
-  // Stripe-specific errors (used by stripe.ts internals)
-  STRIPE_SIGNATURE: [
-    "E_STRIPE_SIGNATURE",
-    "Stripe signature verification failed",
-  ],
-  STRIPE_SESSION: ["E_STRIPE_SESSION", "Stripe session retrieval failed"],
-  STRIPE_REFUND: ["E_STRIPE_REFUND", "Stripe refund failed"],
-  STRIPE_CHECKOUT: ["E_STRIPE_CHECKOUT", "Stripe checkout failed"],
-  STRIPE_WEBHOOK_SETUP: [
-    "E_STRIPE_WEBHOOK_SETUP",
-    "Stripe webhook setup failed",
-  ],
-
-  // Square-specific errors (used by square.ts internals)
-  SQUARE_SIGNATURE: [
-    "E_SQUARE_SIGNATURE",
-    "Square signature verification failed",
-  ],
-  SQUARE_SESSION: ["E_SQUARE_SESSION", "Square session retrieval failed"],
-  SQUARE_REFUND: ["E_SQUARE_REFUND", "Square refund failed"],
-  SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
-  SQUARE_ORDER: ["E_SQUARE_ORDER", "Square order validation failed"],
-
-  // Validation errors
-  VALIDATION_FORM: ["E_VALIDATION_FORM", "Form validation error"],
-  VALIDATION_CONTENT_TYPE: [
-    "E_VALIDATION_CONTENT_TYPE",
-    "Invalid content type",
-  ],
-  DATA_INVALID: ["E_DATA_INVALID", "Invalid data"],
-
-  // Storage errors
-  STORAGE_DELETE: ["E_STORAGE_DELETE", "Storage delete failed"],
-  STORAGE_UPLOAD: ["E_STORAGE_UPLOAD", "Storage upload failed"],
-
-  // Webhook errors
-  WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
+  // Domain validation errors
+  DOMAIN_REJECTED: ["E_DOMAIN_REJECTED", "Domain rejected"],
 
   // Email errors
   EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
@@ -160,19 +117,62 @@ const ERROR_DEFS = {
     "E_EMAIL_TEMPLATE_RENDER",
     "Email template render failed",
   ],
+  ENCRYPT_FAILED: ["E_ENCRYPT_FAILED", "Encryption failed"],
+  KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],
+  NOT_FOUND_ATTENDEE: ["E_NOT_FOUND_ATTENDEE", "Attendee not found"],
 
   // Not found
   NOT_FOUND_EVENT: ["E_NOT_FOUND_EVENT", "Event not found"],
-  NOT_FOUND_ATTENDEE: ["E_NOT_FOUND_ATTENDEE", "Attendee not found"],
+  PAYMENT_CHECKOUT: ["E_PAYMENT_CHECKOUT", "Payment checkout failed"],
+  PAYMENT_REFUND: ["E_PAYMENT_REFUND", "Payment refund failed"],
+  PAYMENT_SESSION: ["E_PAYMENT_SESSION", "Payment session error"],
 
-  // Configuration errors
-  CONFIG_MISSING: ["E_CONFIG_MISSING", "Configuration missing"],
+  // Payment provider errors (provider-agnostic)
+  PAYMENT_SIGNATURE: [
+    "E_PAYMENT_SIGNATURE",
+    "Payment signature verification failed",
+  ],
+  PAYMENT_WEBHOOK_SETUP: [
+    "E_PAYMENT_WEBHOOK_SETUP",
+    "Payment webhook setup failed",
+  ],
+  SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
+  SQUARE_ORDER: ["E_SQUARE_ORDER", "Square order validation failed"],
+  SQUARE_REFUND: ["E_SQUARE_REFUND", "Square refund failed"],
+  SQUARE_SESSION: ["E_SQUARE_SESSION", "Square session retrieval failed"],
 
-  // Domain validation errors
-  DOMAIN_REJECTED: ["E_DOMAIN_REJECTED", "Domain rejected"],
+  // Square-specific errors (used by square.ts internals)
+  SQUARE_SIGNATURE: [
+    "E_SQUARE_SIGNATURE",
+    "Square signature verification failed",
+  ],
 
-  // CDN/network errors (transient edge failures)
-  CDN_REQUEST: ["E_CDN_REQUEST", "CDN request failed"],
+  // Storage errors
+  STORAGE_DELETE: ["E_STORAGE_DELETE", "Storage delete failed"],
+  STORAGE_UPLOAD: ["E_STORAGE_UPLOAD", "Storage upload failed"],
+  STRIPE_CHECKOUT: ["E_STRIPE_CHECKOUT", "Stripe checkout failed"],
+  STRIPE_REFUND: ["E_STRIPE_REFUND", "Stripe refund failed"],
+  STRIPE_SESSION: ["E_STRIPE_SESSION", "Stripe session retrieval failed"],
+
+  // Stripe-specific errors (used by stripe.ts internals)
+  STRIPE_SIGNATURE: [
+    "E_STRIPE_SIGNATURE",
+    "Stripe signature verification failed",
+  ],
+  STRIPE_WEBHOOK_SETUP: [
+    "E_STRIPE_WEBHOOK_SETUP",
+    "Stripe webhook setup failed",
+  ],
+  VALIDATION_CONTENT_TYPE: [
+    "E_VALIDATION_CONTENT_TYPE",
+    "Invalid content type",
+  ],
+
+  // Validation errors
+  VALIDATION_FORM: ["E_VALIDATION_FORM", "Form validation error"],
+
+  // Webhook errors
+  WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
 } as const;
 
 type ErrorDefs = typeof ERROR_DEFS;

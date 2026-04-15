@@ -190,7 +190,7 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
  * Get aggregated statistics for active events.
  * Filters active events from the provided list, computes attendees
  * (sum of quantities) from cached EventWithCount data, and queries
- * ticket count (rows) and income (sum of price_paid).
+ * ticket count and income (sum of price_paid) via a single aggregate.
  */
 export const getActiveEventStats = async (
   events: EventWithCount[],
@@ -205,16 +205,18 @@ export const getActiveEventStats = async (
     0,
   )(active);
 
-  const rows = await queryAll<{ price_paid: number }>(
-    `SELECT ea.price_paid FROM event_attendees ea
-     WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
+  const row = (await queryOne<{ tickets: number; income: number }>(
+    `SELECT COUNT(*) AS tickets,
+            COALESCE(SUM(ea.price_paid), 0) AS income
+       FROM event_attendees ea
+      WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
-  );
-  const income = reduce(
-    (sum: number, r: { price_paid: number }) => sum + r.price_paid,
-    0,
-  )(rows);
-  return { attendees, income, tickets: rows.length };
+  ))!;
+  return {
+    attendees,
+    income: row.income,
+    tickets: row.tickets,
+  };
 };
 
 /**
@@ -256,6 +258,14 @@ const contactFields = ({
   phone,
   special_instructions,
 });
+
+/** Build an INSERT statement for the attendees table from encrypted fields. */
+export const buildAttendeeInsert = (enc: EncryptedAttendeeData) =>
+  insert("attendees", {
+    created: enc.created,
+    pii_blob: enc.encryptedPiiBlob,
+    ticket_token_index: enc.ticketTokenIndex,
+  });
 
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
 export const encryptAttendeeFields = async (
@@ -438,11 +448,11 @@ export const recomputeEventBookingRanges = async (
 ): Promise<void> => {
   const duration = Math.max(1, Math.floor(durationDays));
   await getDb().execute({
-    args: [duration, eventId],
     // datetime(start_at, '+N days') keeps same time-of-day; start_at is always
     // "YYYY-MM-DDT00:00:00Z" so the result is "YYYY-MM-DD 00:00:00". Normalize
     // back to ISO with a T separator + Z suffix so SQL text comparisons against
     // other end_at values stay consistent.
+    args: [duration, eventId],
     sql: `UPDATE event_attendees
            SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || 'Z'
            WHERE event_id = ? AND start_at IS NOT NULL`,
@@ -553,13 +563,9 @@ const buildCapacityCondition = (
 /**
  * Build a capacity-checked INSERT INTO event_attendees for a single booking.
  * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
- *
- * NOTE: the inline SQL capacity check here uses the overlap-sum predicate
- * (`ea2.start_at < ? AND ea2.end_at > ?`). For multi-day bookings this is a
- * conservative safety net only; accurate per-day capacity enforcement happens
- * up-front in `checkBatchAvailability` before the insert runs. Over-rejection
- * here is safe (it just triggers a user retry) and the race window is narrow.
- *
+ */
+/**
+ * Build a capacity-checked INSERT into event_attendees.
  * @param attendeeIdExpr - SQL expression for attendee_id (e.g. "last_insert_rowid()" or "?")
  * @param attendeeIdArg - Argument for "?" expr, omit for last_insert_rowid()
  */
@@ -598,16 +604,9 @@ const buildCapacityCheckedInsert = (
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   /**
-   * Check availability for multiple events.
-   *
-   * For daily events, enumerates every day in the requested range
-   * (`[date, date + durationDays)` per item) and runs a per-day capacity
-   * query. Per-day iteration is used instead of a single overlap-sum so
-   * multi-day bookings that only partially overlap an existing booking do
-   * not produce false "sold out" results.
-   *
-   * Group `max_attendees` is also enforced per-day across the union of
-   * requested ranges.
+   * Check availability for multiple events in a single query.
+   * Uses a JOIN with conditional date filtering: daily events check per-date
+   * capacity while standard events check total capacity.
    */
   checkBatchAvailability: async (
     items: BatchAvailabilityItem[],
@@ -782,11 +781,7 @@ export const attendeesApi = {
     // If all capacity checks fail, the attendee is cleaned up in the final step.
     const batchResults = await executeBatchWithResults([
       // Step 1: Create attendee record (unconditional)
-      insert("attendees", {
-        created: enc.created,
-        pii_blob: enc.encryptedPiiBlob,
-        ticket_token_index: enc.ticketTokenIndex,
-      }),
+      buildAttendeeInsert(enc),
       // Steps 2..N+1: One capacity-checked INSERT per booking
       ...bookingStatements,
       // Final step: Clean up attendee if no event links were created

@@ -87,17 +87,17 @@ describeWithEnv("db > auth", { db: true }, () => {
       const newPassword = "newpassword456";
 
       const event = await createTestEvent({
-        name: "Password Test Event",
         maxAttendees: 100,
+        name: "Password Test Event",
         thankYouUrl: "https://example.com/thanks",
       });
 
       // Create an attendee BEFORE password change
       const beforeResult = await createAttendeeAtomic({
-        name: "Alice Before",
-        email: "alice@example.com",
-        paymentId: "pi_before_change",
         bookings: [{ eventId: event.id }],
+        email: "alice@example.com",
+        name: "Alice Before",
+        paymentId: "pi_before_change",
       });
       if (!beforeResult.success) throw new Error("Failed to create attendee");
       const attendeeBefore = beforeResult.attendees[0]!;
@@ -118,10 +118,10 @@ describeWithEnv("db > auth", { db: true }, () => {
 
       // Create an attendee AFTER password change
       const afterResult = await createAttendeeAtomic({
-        name: "Bob After",
-        email: "bob@example.com",
-        paymentId: "pi_after_change",
         bookings: [{ eventId: event.id }],
+        email: "bob@example.com",
+        name: "Bob After",
+        paymentId: "pi_after_change",
       });
       if (!afterResult.success) throw new Error("Failed to create attendee");
       const attendeeAfter = afterResult.attendees[0]!;
@@ -245,8 +245,8 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("isLoginRateLimited clears expired lockout", async () => {
       await getDb().execute(
         insert("login_attempts", {
-          ip: "192.168.1.6",
           attempts: 5,
+          ip: "192.168.1.6",
           locked_until: Date.now() - 1000,
         }),
       );
@@ -258,8 +258,8 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("isLoginRateLimited returns false for attempts below max without lockout", async () => {
       await getDb().execute(
         insert("login_attempts", {
-          ip: "192.168.1.7",
           attempts: 3,
+          ip: "192.168.1.7",
           locked_until: null,
         }),
       );
@@ -278,10 +278,10 @@ describeWithEnv("db > auth", { db: true }, () => {
 
       // Simulate expired lockout
       await getDb().execute({
+        args: [Date.now() - 1000],
         sql: `UPDATE login_attempts
               SET locked_until = ?
               WHERE locked_until IS NOT NULL`,
-        args: [Date.now() - 1000],
       });
 
       const limited = await isLoginRateLimited(ip);

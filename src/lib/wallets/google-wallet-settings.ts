@@ -11,6 +11,14 @@ const kit = createWalletSettingsKit<
   GoogleWalletCredentials,
   "issuerId" | "serviceAccountEmail" | "serviceAccountKey"
 >({
+  build: (v) =>
+    v.issuerId && v.serviceAccountEmail && v.serviceAccountKey
+      ? {
+          issuerId: v.issuerId,
+          serviceAccountEmail: v.serviceAccountEmail,
+          serviceAccountKey: v.serviceAccountKey,
+        }
+      : null,
   fields: {
     issuerId: {
       dbKey: "google_wallet_issuer_id",
@@ -25,14 +33,6 @@ const kit = createWalletSettingsKit<
       envKey: "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
     },
   },
-  build: (v) =>
-    v.issuerId && v.serviceAccountEmail && v.serviceAccountKey
-      ? {
-          issuerId: v.issuerId,
-          serviceAccountEmail: v.serviceAccountEmail,
-          serviceAccountKey: v.serviceAccountKey,
-        }
-      : null,
 });
 
 export const getHostGoogleWalletConfig = kit.getHostConfig;

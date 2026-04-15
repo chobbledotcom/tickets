@@ -63,9 +63,9 @@ describe("paymentPage", () => {
 describe("successPage", () => {
   test("renders order success message when paid", () => {
     const html = successPage({
-      ticketUrl: null,
-      thankYouUrl: "https://example.com/thanks",
       paid: true,
+      thankYouUrl: "https://example.com/thanks",
+      ticketUrl: null,
     });
     expect(html).toContain("Thank you for your order");
     expect(html).toContain("https://example.com/thanks");
@@ -79,16 +79,16 @@ describe("successPage", () => {
 
   test("includes meta refresh redirect", () => {
     const html = successPage({
-      ticketUrl: null,
-      thankYouUrl: "https://example.com/thanks",
       paid: true,
+      thankYouUrl: "https://example.com/thanks",
+      ticketUrl: null,
     });
     expect(html).toContain('http-equiv="refresh"');
     expect(html).toContain("3;url=https://example.com/thanks");
   });
 
   test("includes data-payment-result attribute for popup postMessage", () => {
-    const html = successPage({ ticketUrl: null, paid: true });
+    const html = successPage({ paid: true, ticketUrl: null });
     expect(html).toContain('data-payment-result="success"');
   });
 
@@ -98,29 +98,29 @@ describe("successPage", () => {
   });
 
   test("renders without redirect when thankYouUrl is empty", () => {
-    const html = successPage({ ticketUrl: null, paid: true });
+    const html = successPage({ paid: true, ticketUrl: null });
     expect(html).not.toContain('http-equiv="refresh"');
     expect(html).not.toContain("redirected");
   });
 
   test("renders ticket link with plural text for multiple tickets", () => {
-    const html = successPage({ ticketUrl: "/t/abc123+def456", paid: true });
+    const html = successPage({ paid: true, ticketUrl: "/t/abc123+def456" });
     expect(html).toContain('href="/t/abc123+def456"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain("Click here to view your ticket");
   });
 
   test("renders ticket link with singular text for single ticket", () => {
-    const html = successPage({ ticketUrl: "/t/abc123", paid: true });
+    const html = successPage({ paid: true, ticketUrl: "/t/abc123" });
     expect(html).toContain('href="/t/abc123"');
     expect(html).toContain("Click here to view your ticket");
   });
 
   test("renders both ticket link and redirect when both provided", () => {
     const html = successPage({
-      ticketUrl: "/t/abc123",
-      thankYouUrl: "https://example.com/thanks",
       paid: true,
+      thankYouUrl: "https://example.com/thanks",
+      ticketUrl: "/t/abc123",
     });
     expect(html).toContain('href="/t/abc123"');
     expect(html).toContain("Click here to view your ticket");
@@ -129,7 +129,7 @@ describe("successPage", () => {
   });
 
   test("does not render ticket link when ticketUrl is null", () => {
-    const html = successPage({ ticketUrl: null, paid: true });
+    const html = successPage({ paid: true, ticketUrl: null });
     expect(html).not.toContain("view your ticket");
   });
 
@@ -161,24 +161,24 @@ describe("successPage", () => {
 
   test("shows email notice when fromEmail is provided", () => {
     const html = successPage({
-      ticketUrl: "/t/abc123",
-      paid: true,
       fromEmail: "tickets@example.com",
+      paid: true,
+      ticketUrl: "/t/abc123",
     });
     expect(html).toContain("tickets@example.com");
     expect(html).toContain("Junk/Spam");
   });
 
   test("does not show email notice when fromEmail is empty", () => {
-    const html = successPage({ ticketUrl: "/t/abc123", paid: true });
+    const html = successPage({ paid: true, ticketUrl: "/t/abc123" });
     expect(html).not.toContain("Junk/Spam");
   });
 });
 
 test("shows email notice for reservation when fromEmail is provided", () => {
   const html = successPage({
-    ticketUrl: "/t/abc123",
     fromEmail: "tickets@example.com",
+    ticketUrl: "/t/abc123",
   });
   expect(html).toContain("tickets@example.com");
   expect(html).toContain("Junk/Spam");

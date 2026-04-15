@@ -100,12 +100,12 @@ export const groupToFieldValues = (
   const max_attendees = group?.max_attendees || null;
   const hidden = group?.hidden ? "1" : "";
   return {
+    description,
+    hidden,
+    max_attendees,
     name,
     slug,
-    description,
     terms_and_conditions: terms,
-    max_attendees,
-    hidden,
   };
 };
 
@@ -235,7 +235,7 @@ export const adminGroupDetailPage = (
   const eventRows =
     events.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ e, columnKeys, filters })),
+          map((e: EventWithCount) => EventRow({ columnKeys, e, filters })),
           joinStrings,
         )(events)
       : `<tr><td colspan="${columnKeys.length}">No events in this group</td></tr>`;
@@ -249,10 +249,10 @@ export const adminGroupDetailPage = (
   const effectiveCapacity =
     group.max_attendees > 0 ? group.max_attendees : totalMaxAttendees(events);
   const sharedRows = buildSharedDetailRows({
-    attendees,
     attendeeCount: totalCount,
-    maxCapacity: effectiveCapacity,
+    attendees,
     hasPaidEvent,
+    maxCapacity: effectiveCapacity,
     questionData,
   });
 
@@ -338,13 +338,13 @@ export const adminGroupDetailPage = (
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({
-              rows: tableRows,
               allowedDomain,
-              showEvent: true,
-              showDate: events.some((e) => e.event_type === "daily"),
-              returnUrl: `/admin/groups/${group.id}#attendees`,
               phonePrefix,
               questionData,
+              returnUrl: `/admin/groups/${group.id}#attendees`,
+              rows: tableRows,
+              showDate: events.some((e) => e.event_type === "daily"),
+              showEvent: true,
             })}
           />
         </div>

@@ -13,20 +13,20 @@ const TEST_DIR = join(currentDir, "../../test");
  */
 const FORBIDDEN_PATTERNS = [
   {
-    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*=\s*new\s+Map\s*[<(]/m,
     description: "Module-level Map (use database instead)",
+    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*=\s*new\s+Map\s*[<(]/m,
   },
   {
-    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*=\s*new\s+Set\s*[<(]/m,
     description: "Module-level Set (use database instead)",
+    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*=\s*new\s+Set\s*[<(]/m,
   },
   {
-    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*:\s*Map\s*</m,
     description: "Module-level typed Map (use database instead)",
+    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*:\s*Map\s*</m,
   },
   {
-    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*:\s*Set\s*</m,
     description: "Module-level typed Set (use database instead)",
+    pattern: /^(?:export\s+)?(?:const|let)\s+\w+\s*:\s*Set\s*</m,
   },
 ];
 
@@ -171,7 +171,7 @@ describe("code quality", () => {
       let lineNum = 0;
       for (const line of lines) {
         lineNum++;
-        const v = check({ relativePath, line, lineNum });
+        const v = check({ line, lineNum, relativePath });
         if (v) violations.push(v);
       }
     }
@@ -397,8 +397,9 @@ describe("code quality", () => {
           continue;
         }
         // Count usages: function calls, property access, or object shorthand
-        // Matches: name(, name., name, (in objects), name: (with type)
-        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:]`);
+        // Matches: name(, name., name, (in objects), name: (with type),
+        // and name } (when symbol is the trailing entry of an object literal)
+        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:}]`);
         if (usagePattern.test(line)) {
           usageCount++;
         }

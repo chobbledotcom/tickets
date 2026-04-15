@@ -35,8 +35,8 @@ describeWithEnv(
   {
     encryptionKey: true,
     env: {
-      STORAGE_ZONE_NAME: undefined,
       STORAGE_ZONE_KEY: undefined,
+      STORAGE_ZONE_NAME: undefined,
     },
   },
   () => {
@@ -49,7 +49,7 @@ describeWithEnv(
 
       test("returns false when only zoneName is set", () => {
         runWithStorageConfig(
-          { zoneName: "myzone", zoneKey: "", localPath: "" },
+          { localPath: "", zoneKey: "", zoneName: "myzone" },
           () => {
             expect(isStorageEnabled()).toBe(false);
           },
@@ -58,7 +58,7 @@ describeWithEnv(
 
       test("returns false when only zoneKey is set", () => {
         runWithStorageConfig(
-          { zoneName: "", zoneKey: "mykey", localPath: "" },
+          { localPath: "", zoneKey: "mykey", zoneName: "" },
           () => {
             expect(isStorageEnabled()).toBe(false);
           },
@@ -66,7 +66,7 @@ describeWithEnv(
       });
 
       test("returns true when Bunny credentials are set", () => {
-        runWithStorageConfig({ zoneName: "myzone", zoneKey: "mykey" }, () => {
+        runWithStorageConfig({ zoneKey: "mykey", zoneName: "myzone" }, () => {
           expect(isStorageEnabled()).toBe(true);
         });
       });
@@ -193,9 +193,9 @@ describeWithEnv(
       test("listFiles returns empty array when directory does not exist", async () => {
         await runWithStorageConfig(
           {
-            zoneName: "",
-            zoneKey: "",
             localPath: `/tmp/nonexistent-dir-${crypto.randomUUID()}`,
+            zoneKey: "",
+            zoneName: "",
           },
           async () => {
             const files = await listFiles("backup-");
@@ -479,20 +479,20 @@ describeWithEnv(
       "deleteAllEventStorageFiles",
       {
         env: {
-          STORAGE_ZONE_NAME: "testzone",
           STORAGE_ZONE_KEY: "testkey",
+          STORAGE_ZONE_NAME: "testzone",
         },
       },
       () => {
         test("deletes images and attachments for all events", async () => {
           const events = [
-            { id: 1, image_url: "img1.jpg", attachment_url: "att1.pdf" },
-            { id: 2, image_url: "img2.png", attachment_url: "" },
-            { id: 3, image_url: "", attachment_url: "att3.pdf" },
+            { attachment_url: "att1.pdf", id: 1, image_url: "img1.jpg" },
+            { attachment_url: "", id: 2, image_url: "img2.png" },
+            { attachment_url: "att3.pdf", id: 3, image_url: "" },
           ];
 
           await runWithStorageConfig(
-            { zoneName: "testzone", zoneKey: "testkey" },
+            { zoneKey: "testkey", zoneName: "testzone" },
             () =>
               withFetchMock(async (originalFetch) => {
                 const deletedUrls: string[] = [];
@@ -529,7 +529,7 @@ describeWithEnv(
         });
 
         test("skips events with no image or attachment", async () => {
-          const events = [{ id: 1, image_url: "", attachment_url: "" }];
+          const events = [{ attachment_url: "", id: 1, image_url: "" }];
 
           await withFetchMock(async (originalFetch) => {
             const deletedUrls: string[] = [];
@@ -557,12 +557,12 @@ describeWithEnv(
 
         test("continues deleting when individual file delete fails", async () => {
           const events = [
-            { id: 1, image_url: "fail.jpg", attachment_url: "" },
-            { id: 2, image_url: "succeed.jpg", attachment_url: "" },
+            { attachment_url: "", id: 1, image_url: "fail.jpg" },
+            { attachment_url: "", id: 2, image_url: "succeed.jpg" },
           ];
 
           await runWithStorageConfig(
-            { zoneName: "testzone", zoneKey: "testkey" },
+            { zoneKey: "testkey", zoneName: "testzone" },
             () =>
               withFetchMock(async (originalFetch) => {
                 const deletedUrls: string[] = [];
@@ -596,8 +596,8 @@ describeWithEnv(
       "Bunny CDN raw operations",
       {
         env: {
-          STORAGE_ZONE_NAME: "testzone",
           STORAGE_ZONE_KEY: "testkey",
+          STORAGE_ZONE_NAME: "testzone",
         },
       },
       () => {
@@ -608,7 +608,7 @@ describeWithEnv(
 
         test("listFiles lists files from Bunny CDN matching prefix", async () => {
           await runWithStorageConfig(
-            { zoneName: "testzone", zoneKey: "testkey" },
+            { zoneKey: "testkey", zoneName: "testzone" },
             () =>
               withFetchMock(async (originalFetch) => {
                 installUrlHandler(originalFetch, (url) => {

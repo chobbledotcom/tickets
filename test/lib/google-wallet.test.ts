@@ -13,16 +13,16 @@ import { generateGoogleTestCreds } from "#test-utils";
 const makePassData = (
   overrides: Partial<WalletPassData> = {},
 ): WalletPassData => ({
-  serialNumber: "ABC123",
-  organizationName: "Test Platform",
-  eventName: "Summer Concert",
+  attendeeDate: null,
+  checkinUrl: "https://example.com/checkin/ABC123",
+  currencyCode: "GBP",
   eventDate: "2026-06-15T19:00:00Z",
   eventLocation: "Town Hall",
-  attendeeDate: null,
-  quantity: 1,
+  eventName: "Summer Concert",
+  organizationName: "Test Platform",
   pricePaid: 0,
-  currencyCode: "GBP",
-  checkinUrl: "https://example.com/checkin/ABC123",
+  quantity: 1,
+  serialNumber: "ABC123",
   ...overrides,
 });
 
@@ -134,7 +134,7 @@ describe("google-wallet", () => {
     test("includes price with 2-decimal currency (GBP)", async () => {
       await ensureCreds();
       const decoded = await extractPayload(
-        makePassData({ pricePaid: 2500, currencyCode: "EUR" }),
+        makePassData({ currencyCode: "EUR", pricePaid: 2500 }),
       );
       const obj = decoded.payload.eventTicketObjects[0];
       const price = obj.textModulesData.find(
@@ -154,7 +154,7 @@ describe("google-wallet", () => {
     test("formats price with 0-decimal currency (JPY)", async () => {
       await ensureCreds();
       const decoded = await extractPayload(
-        makePassData({ pricePaid: 1000, currencyCode: "JPY" }),
+        makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
       );
       const obj = decoded.payload.eventTicketObjects[0];
       const price = obj.textModulesData.find(

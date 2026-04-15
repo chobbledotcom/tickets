@@ -98,8 +98,8 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       ).toISOString();
       await getDb().execute(
         insert("processed_payments", {
-          payment_session_id: "cs_stale_recovery",
           attendee_id: null,
+          payment_session_id: "cs_stale_recovery",
           processed_at: staleTime,
         }),
       );

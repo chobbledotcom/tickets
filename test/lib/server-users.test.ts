@@ -175,13 +175,13 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const encHash = await encrypt(hash);
       await getDb().execute(
         insert("users", {
+          admin_level: await encrypt("manager"),
+          password_hash: encHash,
           username_hash: await encrypt("manager"),
           username_index: "manager-idx-unique",
-          password_hash: encHash,
           // Give the manager a wrapped_data_key so login works
           wrapped_data_key: (await getUserByUsername(TEST_ADMIN_USERNAME))!
             .wrapped_data_key,
-          admin_level: await encrypt("manager"),
         }),
       );
       invalidateUsersCache();
@@ -312,8 +312,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("redirects when not authenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/users", {
-          username: "newuser",
           admin_level: "manager",
+          username: "newuser",
         }),
       );
       expectAdminRedirect(response);
@@ -321,8 +321,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("creates invited user and shows invite link", async () => {
       const { response } = await adminFormPost("/admin/users", {
-        username: "newmanager",
         admin_level: "manager",
+        username: "newmanager",
       });
 
       expect(response.status).toBe(302);
@@ -336,8 +336,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("rejects duplicate username", async () => {
       const { response } = await adminFormPost("/admin/users", {
-        username: TEST_ADMIN_USERNAME,
         admin_level: "manager",
+        username: TEST_ADMIN_USERNAME,
       });
 
       expectRedirectWithFlash(
@@ -349,8 +349,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("rejects invalid role", async () => {
       const { response } = await adminFormPost("/admin/users", {
-        username: "newuser",
         admin_level: "superadmin",
+        username: "newuser",
       });
 
       expectRedirectWithFlash(
@@ -365,8 +365,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("shows delete confirmation page", async () => {
       // Create a user to delete
       await adminFormPost("/admin/users", {
-        username: "todelete",
         admin_level: "manager",
+        username: "todelete",
       });
 
       const response = await awaitTestRequest("/admin/users/2/delete", {
@@ -400,8 +400,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("deletes a user with correct confirmation", async () => {
       // Create an invited user first
       await adminFormPost("/admin/users", {
-        username: "deleteme",
         admin_level: "manager",
+        username: "deleteme",
       });
 
       const usersBefore = await getAllUsers();
@@ -422,8 +422,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("rejects deletion with wrong confirmation", async () => {
       await adminFormPost("/admin/users", {
-        username: "keepme",
         admin_level: "manager",
+        username: "keepme",
       });
 
       const { response } = await adminFormPost("/admin/users/2/delete", {
@@ -441,8 +441,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("rejects deletion without confirmation", async () => {
       await adminFormPost("/admin/users", {
-        username: "keepme2",
         admin_level: "manager",
+        username: "keepme2",
       });
 
       const { response } = await adminFormPost("/admin/users/2/delete");
@@ -463,8 +463,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("deletes another owner with correct confirmation", async () => {
       // Create another owner user
       await adminFormPost("/admin/users", {
-        username: "otheradmin",
         admin_level: "owner",
+        username: "otheradmin",
       });
 
       const usersBefore = await getAllUsers();
@@ -488,8 +488,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("login with username and password", async () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: TEST_ADMIN_USERNAME,
           password: TEST_ADMIN_PASSWORD,
+          username: TEST_ADMIN_USERNAME,
         }),
       );
       expectRedirectWithFlash("/admin", "Logged in")(response);
@@ -502,8 +502,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("login with wrong username returns 401", async () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: "nonexistent",
           password: TEST_ADMIN_PASSWORD,
+          username: "nonexistent",
         }),
       );
       expectRedirectWithFlash(
@@ -516,8 +516,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("login with wrong password returns 401", async () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: TEST_ADMIN_USERNAME,
           password: "wrongpassword",
+          username: TEST_ADMIN_USERNAME,
         }),
       );
       expectRedirectWithFlash(
@@ -684,8 +684,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("rejects user who has not set password", async () => {
       // Create invite but don't complete join flow
       await adminFormPost("/admin/users", {
-        username: "nopassword",
         admin_level: "manager",
+        username: "nopassword",
       });
 
       const { response } = await adminFormPost("/admin/users/2/activate");
@@ -739,8 +739,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("POST /admin/users (form validation)", () => {
     test("rejects missing username", async () => {
       const { response } = await adminFormPost("/admin/users", {
-        username: "",
         admin_level: "manager",
+        username: "",
       });
       expect(response.status).toBe(302);
     });
@@ -767,9 +767,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest("/join/expired-post-123", {
+          csrf_token: "fake",
           password: "pass12345678",
           password_confirm: "pass12345678",
-          csrf_token: "fake",
         }),
       );
       expect(response.status).toBe(410);
@@ -783,9 +783,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // POST with invalid (unsigned) CSRF token
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
+          csrf_token: "wrong",
           password: "newpassword123",
           password_confirm: "newpassword123",
-          csrf_token: "wrong",
         }),
       );
       expectRedirectWithFlash(
@@ -801,9 +801,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // POST with fake CSRF token (not properly signed)
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
+          csrf_token: "token",
           password: "newpassword123",
           password_confirm: "newpassword123",
-          csrf_token: "token",
         }),
       );
       expect(response.status).toBe(302);
@@ -816,12 +816,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const body = "password=newpassword123&password_confirm=newpassword123";
       const response = await handleRequest(
         new Request(`http://localhost/join/${inviteCode}`, {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body,
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            host: "localhost",
+          },
+          method: "POST",
         }),
       );
       expect(response.status).toBe(302);
@@ -842,8 +842,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("shows Invited status for user without password", async () => {
       // Create invited user (no password yet)
       await adminFormPost("/admin/users", {
-        username: "invited-only",
         admin_level: "manager",
+        username: "invited-only",
       });
 
       const response = await awaitTestRequest("/admin/users", {
@@ -856,16 +856,16 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("shows Invite Expired status for expired invite", async () => {
       // Create an invited user then manually set expiry to the past
       await adminFormPost("/admin/users", {
-        username: "expired-display",
         admin_level: "manager",
+        username: "expired-display",
       });
 
       const expiredExpiry = await encrypt(
         new Date(Date.now() - 1000).toISOString(),
       );
       await getDb().execute({
-        sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
         args: [expiredExpiry],
+        sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
       });
       invalidateUsersCache();
 
@@ -948,13 +948,13 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute(
         insert("users", {
-          username_hash: await encrypt("no-expiry-user"),
-          username_index: usernameIdx,
-          password_hash: "",
-          wrapped_data_key: null,
           admin_level: await encrypt("manager"),
           invite_code_hash: await encrypt("somehash"),
           invite_expiry: null,
+          password_hash: "",
+          username_hash: await encrypt("no-expiry-user"),
+          username_index: usernameIdx,
+          wrapped_data_key: null,
         }),
       );
       invalidateUsersCache();
@@ -969,13 +969,13 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const usernameIdx = await hmacHash("badlevel-user");
       await getDb().execute(
         insert("users", {
-          username_hash: await encrypt("badlevel-user"),
-          username_index: usernameIdx,
-          password_hash: "",
-          wrapped_data_key: null,
           admin_level: await encrypt("superadmin"),
           invite_code_hash: null,
           invite_expiry: null,
+          password_hash: "",
+          username_hash: await encrypt("badlevel-user"),
+          username_index: usernameIdx,
+          wrapped_data_key: null,
         }),
       );
       invalidateUsersCache();
@@ -991,13 +991,13 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute(
         insert("users", {
-          username_hash: await encrypt("empty-expiry-user"),
-          username_index: usernameIdx,
-          password_hash: "",
-          wrapped_data_key: null,
           admin_level: await encrypt("manager"),
           invite_code_hash: await encrypt("somehash"),
           invite_expiry: await encrypt(""),
+          password_hash: "",
+          username_hash: await encrypt("empty-expiry-user"),
+          username_index: usernameIdx,
+          wrapped_data_key: null,
         }),
       );
       invalidateUsersCache();
@@ -1015,11 +1015,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute(
         insert("users", {
+          admin_level: await encrypt("manager"),
+          password_hash: "",
           username_hash: await encrypt("formmanager"),
           username_index: managerIdx,
-          password_hash: "",
           wrapped_data_key: null,
-          admin_level: await encrypt("manager"),
         }),
       );
       invalidateUsersCache();
@@ -1040,10 +1040,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings",
           {
+            csrf_token: signedCsrf,
             current_password: "test",
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: signedCsrf,
           },
           `${getSessionCookieName()}=mgr-form-session`,
         ),
@@ -1073,12 +1073,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         const signedCsrf = await signCsrfToken();
         return withAuth(
           mockRequest("/test", {
-            method: "POST",
             headers: {
-              cookie,
               "content-type": "application/json",
+              cookie,
               "x-csrf-token": signedCsrf,
             },
+            method: "POST",
           }),
           { body: "json", role: "owner" },
           () => jsonResponse({ status: "ok" }),
@@ -1140,8 +1140,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("password change returns 500 when wrapped_data_key is corrupted", async () => {
       // Corrupt the owner's wrapped_data_key (password verification will still pass, but unwrap will fail)
       await getDb().execute({
-        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
         args: [],
+        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
       });
       invalidateUsersCache();
 
@@ -1162,8 +1162,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("password change returns 500 when user is deleted mid-request", async () => {
       // Delete the user while session still exists
       await getDb().execute({
-        sql: "DELETE FROM users WHERE id = 1",
         args: [],
+        sql: "DELETE FROM users WHERE id = 1",
       });
       invalidateUsersCache();
 
@@ -1180,8 +1180,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("audit logging", () => {
     test("logs activity when user is invited", async () => {
       await adminFormPost("/admin/users", {
-        username: "auditinvite",
         admin_level: "manager",
+        username: "auditinvite",
       });
 
       const logs = await getAllActivityLog();
@@ -1218,8 +1218,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("logs activity when user is deleted", async () => {
       await adminFormPost("/admin/users", {
-        username: "auditdelete",
         admin_level: "manager",
+        username: "auditdelete",
       });
 
       await adminFormPost("/admin/users/2/delete", {
@@ -1238,9 +1238,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // POST to nonexistent invite code
       const response = await handleRequest(
         mockFormRequest("/join/nonexistent-code", {
+          csrf_token: "csrf",
           password: "testpass123",
           password_confirm: "testpass123",
-          csrf_token: "csrf",
         }),
       );
       expect(response.status).toBe(404);

@@ -12,14 +12,14 @@ import { describeWithEnv } from "#test-utils";
 const makeTicketData = (
   overrides: Partial<SvgTicketData> = {},
 ): SvgTicketData => ({
-  eventName: "Summer Concert",
+  attendeeDate: null,
+  checkinUrl: "https://example.com/checkin/abc123",
+  currency: "GBP",
   eventDate: "",
   eventLocation: "",
-  attendeeDate: null,
-  quantity: 1,
+  eventName: "Summer Concert",
   pricePaid: "0",
-  currency: "GBP",
-  checkinUrl: "https://example.com/checkin/abc123",
+  quantity: 1,
   ...overrides,
 });
 
@@ -39,17 +39,17 @@ describeWithEnv("svg-ticket", { db: true }, () => {
   describe("extractViewBox", () => {
     test("parses viewBox dimensions", () => {
       const svg = '<svg viewBox="0 0 33 33"><rect/></svg>';
-      expect(extractViewBox(svg)).toEqual({ width: 33, height: 33 });
+      expect(extractViewBox(svg)).toEqual({ height: 33, width: 33 });
     });
 
     test("returns default size when no viewBox", () => {
       const svg = "<svg><rect/></svg>";
-      expect(extractViewBox(svg)).toEqual({ width: 180, height: 180 });
+      expect(extractViewBox(svg)).toEqual({ height: 180, width: 180 });
     });
 
     test("falls back to defaults for incomplete viewBox", () => {
       const svg = '<svg viewBox="0 0"><rect/></svg>';
-      expect(extractViewBox(svg)).toEqual({ width: 180, height: 180 });
+      expect(extractViewBox(svg)).toEqual({ height: 180, width: 180 });
     });
   });
 
@@ -170,9 +170,9 @@ describeWithEnv("svg-ticket", { db: true }, () => {
     test("includes event name and info lines when purchaseOnly is true", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({
-          purchaseOnly: true,
           eventLocation: "Online",
           pricePaid: "1000",
+          purchaseOnly: true,
         }),
       );
       expect(svg).toContain("Summer Concert");

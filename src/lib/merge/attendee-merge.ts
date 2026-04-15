@@ -136,9 +136,9 @@ export const buildAttendeeMergeDiff = async (
         (sourcePii as Record<string, string>)[def.field] || "";
       return {
         ...def,
-        targetValue,
-        sourceValue,
         same: targetValue === sourceValue,
+        sourceValue,
+        targetValue,
       };
     },
   )(PII_FIELDS);
@@ -167,7 +167,7 @@ export const buildAttendeeMergeDiff = async (
     sourceBookings,
   );
 
-  return { targetId, sourceId, piiFields, answerItems, bookingItems, version };
+  return { answerItems, bookingItems, piiFields, sourceId, targetId, version };
 };
 
 /** Build answer diff items for all questions relevant to both attendees */
@@ -190,13 +190,13 @@ const buildAnswerDiffItems = (
     const sa = sourceAnswers.get(qid) ?? null;
     const conflict = ta !== null && sa !== null && ta.answerId !== sa.answerId;
     acc.push({
+      conflict,
       questionId: qid,
       questionText: questionTextMap.get(qid) ?? `Question #${qid}`,
-      targetAnswerId: ta?.answerId ?? null,
-      targetAnswerText: ta?.answerText ?? null,
       sourceAnswerId: sa?.answerId ?? null,
       sourceAnswerText: sa?.answerText ?? null,
-      conflict,
+      targetAnswerId: ta?.answerId ?? null,
+      targetAnswerText: ta?.answerText ?? null,
     });
     return acc;
   }, [] as AttendeeMergeDiffAnswerItem[])([...relevantQuestionIds]);
@@ -235,11 +235,11 @@ const buildBookingDiffItems = (
     }
 
     return {
-      eventId: sb.event_id,
-      startAt: sb.start_at,
-      sourceBooking: sb,
-      targetBooking: tb,
       conflictClass,
+      eventId: sb.event_id,
+      sourceBooking: sb,
+      startAt: sb.start_at,
+      targetBooking: tb,
     };
   })(sourceBookings);
 };
@@ -260,7 +260,7 @@ export const validateAttendeeMergeDecision = (
     errors.push(
       "The merge preview is out of date. Please reload and try again.",
     );
-    return { valid: false, errors };
+    return { errors, valid: false };
   }
 
   // Check answer decisions for conflicts
@@ -287,7 +287,7 @@ export const validateAttendeeMergeDecision = (
     }
   }
 
-  return errors.length > 0 ? { valid: false, errors } : { valid: true };
+  return errors.length > 0 ? { errors, valid: false } : { valid: true };
 };
 
 // ---------------------------------------------------------------------------
@@ -363,15 +363,15 @@ export const applyAttendeeMerge = async (
   /** Build an INSERT statement to copy a source booking to the target */
   const bookingInsert = (booking: EventAttendeeRow): BatchStatement =>
     insert("event_attendees", {
-      event_id: booking.event_id,
-      attendee_id: targetId,
-      start_at: booking.start_at,
-      end_at: booking.end_at,
-      quantity: booking.quantity,
-      checked_in: booking.checked_in,
-      refunded: booking.refunded,
-      price_paid: booking.price_paid,
       attachment_downloads: booking.attachment_downloads,
+      attendee_id: targetId,
+      checked_in: booking.checked_in,
+      end_at: booking.end_at,
+      event_id: booking.event_id,
+      price_paid: booking.price_paid,
+      quantity: booking.quantity,
+      refunded: booking.refunded,
+      start_at: booking.start_at,
     }) as BatchStatement;
 
   for (const item of diff.bookingItems) {
@@ -384,10 +384,10 @@ export const applyAttendeeMerge = async (
     } else if (choice === "take_source" && item.targetBooking) {
       // Replace target booking with source booking
       deleteTargetBookingStatements.push({
+        args: [targetId, item.eventId, item.startAt, item.startAt],
         sql: `DELETE FROM event_attendees
               WHERE attendee_id = ? AND event_id = ?
               AND (start_at IS ? OR start_at = ?)`,
-        args: [targetId, item.eventId, item.startAt, item.startAt],
       });
       insertStatements.push(bookingInsert(item.sourceBooking));
       bookingsReplacedTarget++;
@@ -405,18 +405,18 @@ export const applyAttendeeMerge = async (
     ...insertStatements,
     // Clean up source attendee
     {
+      args: [sourceId],
       sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
-      args: [sourceId],
     },
     {
+      args: [sourceId],
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-      args: [sourceId],
     },
     {
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
       args: [sourceId],
+      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
     },
-    { sql: "DELETE FROM attendees WHERE id = ?", args: [sourceId] },
+    { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
 
   // Save merged answers for target
@@ -425,13 +425,13 @@ export const applyAttendeeMerge = async (
   invalidateEventsCache();
 
   const summary: AttendeeMergeApplySummary = {
-    piiFieldsFromSource,
+    answersCleared,
     answersKept,
     answersTakenFromSource,
-    answersCleared,
     bookingsMoved,
-    bookingsSkipped,
     bookingsReplacedTarget,
+    bookingsSkipped,
+    piiFieldsFromSource,
   };
 
   return { success: true, summary };

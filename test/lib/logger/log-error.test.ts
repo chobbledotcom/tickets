@@ -55,7 +55,7 @@ describe("log-error", () => {
     });
 
     test("logs error with attendee ID", () => {
-      logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
+      logError({ attendeeId: 99, code: ErrorCode.WEBHOOK_SEND });
       expect(spyRef.lastMessage()).toBe("[Error] E_WEBHOOK_SEND attendee=99");
     });
 
@@ -68,10 +68,10 @@ describe("log-error", () => {
 
     test("logs error with all context fields", () => {
       logError({
-        code: ErrorCode.NOT_FOUND_EVENT,
-        eventId: 1,
         attendeeId: 2,
+        code: ErrorCode.NOT_FOUND_EVENT,
         detail: "inactive",
+        eventId: 1,
       });
       expect(spyRef.lastMessage()).toBe(
         '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
@@ -150,8 +150,8 @@ describe("log-error", () => {
         await runWithPendingWork(async () => {
           logError({
             code: ErrorCode.PAYMENT_REFUND,
-            eventId: event.id,
             detail: "refund declined",
+            eventId: event.id,
           });
           await flushPendingWork();
         });
@@ -208,8 +208,8 @@ describe("log-error", () => {
     test("logs error with all context fields", () => {
       logErrorLocal({
         code: ErrorCode.CDN_REQUEST,
-        eventId: 5,
         detail: "ntfy send failed",
+        eventId: 5,
       });
       expect(spyRef.lastMessage()).toBe(
         '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',

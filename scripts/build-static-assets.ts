@@ -91,52 +91,52 @@ export const buildStaticAssets = async (
   options: { stop?: boolean } = {},
 ): Promise<void> => {
   await buildBundle("Scanner", {
+    bundle: true,
     entryPoints: ["./src/client/scanner.js"],
+    format: "iife",
+    minify: true,
     outfile: "./src/static/scanner.js",
     platform: "browser",
-    format: "iife",
-    bundle: true,
-    minify: true,
     plugins: [denoNpmResolvePlugin],
   });
 
   await buildBundle("Admin", {
+    bundle: true,
     entryPoints: ["./src/client/admin.ts"],
+    format: "iife",
+    minify: true,
     outfile: "./src/static/admin.js",
     platform: "browser",
-    format: "iife",
-    bundle: true,
-    minify: true,
     plugins: [denoImportMapPlugin],
   });
 
   await buildBundle("Embed", {
+    bundle: true,
     entryPoints: ["./src/client/embed.ts"],
+    format: "iife",
+    minify: true,
     outfile: "./src/static/embed.js",
     platform: "browser",
-    format: "iife",
-    bundle: true,
-    minify: true,
   });
 
   await buildBundle("iframe-resizer-parent", {
+    bundle: true,
     entryPoints: ["./src/client/iframe-resizer-parent.ts"],
+    format: "iife",
+    minify: true,
     outfile: "./src/static/iframe-resizer-parent.js",
     platform: "browser",
-    format: "iife",
-    bundle: true,
-    minify: true,
     plugins: [iframeResizerResolvePlugin],
   });
 
   await buildBundle("iframe-resizer-child", {
+    banner: { js: "window.iframeResizer={license:'GPLv3'};" },
+    bundle: true,
     entryPoints: ["./src/client/iframe-resizer-child.ts"],
+    format: "iife",
+    minify: true,
     outfile: "./src/static/iframe-resizer-child.js",
     platform: "browser",
-    format: "iife",
-    bundle: true,
-    minify: true,
-    banner: { js: "window.iframeResizer={license:'GPLv3'};" },
     plugins: [iframeResizerResolvePlugin],
   });
 

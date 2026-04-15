@@ -85,13 +85,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("returns 404 when attendee belongs to different event", async () => {
       const event1 = await createTestEvent({
-        name: "Event 1",
         maxAttendees: 100,
+        name: "Event 1",
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
-        name: "Event 2",
         maxAttendees: 100,
+        name: "Event 2",
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(
@@ -254,13 +254,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         new Request(
           `http://localhost/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
-            method: "DELETE",
-            headers: {
-              host: "localhost",
-              cookie: await testCookie(),
-              "content-type": "application/x-www-form-urlencoded",
-            },
             body: formBody,
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              cookie: await testCookie(),
+              host: "localhost",
+            },
+            method: "DELETE",
           },
         ),
       );
@@ -286,8 +286,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("routes/admin/attendees.ts (parseAttendeeIds)", () => {
     test("returns 404 for non-existent attendee on delete page", async () => {
       const { event, cookie } = await setupEventAndLogin({
-        name: "Att Del 404",
         maxAttendees: 50,
+        name: "Att Del 404",
       });
 
       const response = await handleRequest(
@@ -295,8 +295,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           `http://localhost/admin/event/${event.id}/attendee/99999/delete`,
           {
             headers: {
-              host: "localhost",
               cookie,
+              host: "localhost",
             },
           },
         ),
@@ -308,8 +308,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("routes/admin/attendees.ts (parseAttendeeIds)", () => {
     test("exercises parseAttendeeIds via POST route with valid params", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        name: "Parse Ids Test",
         maxAttendees: 50,
+        name: "Parse Ids Test",
       });
       const attendee = await createTestAttendee(
         event.id,
@@ -323,7 +323,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          { csrf_token: csrfToken, confirm_identifier: "Test User" },
+          { confirm_identifier: "Test User", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -450,9 +450,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("deletes incomplete attendee on free can_pay_more event", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
+        canPayMore: true,
         maxAttendees: 100,
         unitPrice: 0,
-        canPayMore: true,
       });
       const attendee = await createPaidTestAttendee(
         event.id,
@@ -678,8 +678,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/admin/event/${event.id}/attendee`, {
-          name: "Jane Doe",
           email: "jane@example.com",
+          name: "Jane Doe",
           quantity: "1",
         }),
       );
@@ -693,10 +693,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
           {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            quantity: "1",
             csrf_token: "invalid-token",
+            email: "jane@example.com",
+            name: "Jane Doe",
+            quantity: "1",
           },
           cookie,
         ),
@@ -706,8 +706,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("returns 404 for non-existent event", async () => {
       const { response } = await adminFormPost("/admin/event/999/attendee", {
-        name: "Jane Doe",
         email: "jane@example.com",
+        name: "Jane Doe",
         quantity: "1",
       });
       expect(response.status).toBe(404);
@@ -715,18 +715,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("adds attendee to email event", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        maxAttendees: 100,
         fields: "email",
+        maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
           {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            quantity: "1",
             csrf_token: csrfToken,
+            email: "jane@example.com",
+            name: "Jane Doe",
+            quantity: "1",
           },
           cookie,
         ),
@@ -740,18 +740,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("adds attendee to phone event", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        maxAttendees: 100,
         fields: "phone",
+        maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
           {
+            csrf_token: csrfToken,
             name: "Phone User",
             phone: "+1234567890",
             quantity: "1",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -765,19 +765,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("adds attendee to both event", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        maxAttendees: 100,
         fields: "email,phone",
+        maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
           {
-            name: "Both User",
+            csrf_token: csrfToken,
             email: "both@example.com",
+            name: "Both User",
             phone: "+1234567890",
             quantity: "2",
-            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -799,10 +799,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
           {
-            name: "",
-            email: "",
-            quantity: "1",
             csrf_token: csrfToken,
+            email: "",
+            name: "",
+            quantity: "1",
           },
           cookie,
         ),
@@ -823,8 +823,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/event/${event.id}/attendee`,
         {
-          name: "Second",
           email: "second@example.com",
+          name: "Second",
           quantity: "1",
         },
       );
@@ -841,8 +841,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         () =>
           stub(attendeesApi, "createAttendeeAtomic", () =>
             Promise.resolve({
-              success: false,
               reason: "encryption_error",
+              success: false,
             }),
           ),
         async () => {
@@ -850,10 +850,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             mockFormRequest(
               `/admin/event/${event.id}/attendee`,
               {
-                name: "Enc Fail",
-                email: "enc@example.com",
-                quantity: "1",
                 csrf_token: csrfToken,
+                email: "enc@example.com",
+                name: "Enc Fail",
+                quantity: "1",
               },
               cookie,
             ),
@@ -870,8 +870,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const futureDate = addDays(todayInTz("UTC"), 7);
 
       const { event, cookie, csrfToken } = await setupEventAndLogin({
-        maxAttendees: 100,
-        eventType: "daily",
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -881,17 +879,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
+        eventType: "daily",
+        maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee`,
           {
-            name: "Daily User",
-            email: "daily@example.com",
-            quantity: "1",
-            date: futureDate,
             csrf_token: csrfToken,
+            date: futureDate,
+            email: "daily@example.com",
+            name: "Daily User",
+            quantity: "1",
           },
           cookie,
         ),
@@ -968,12 +968,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Doe",
-        email: "john@example.com",
-        phone: "555-1234",
         address: "123 Main St",
-        special_instructions: "VIP guest",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "john@example.com",
+        name: "John Doe",
+        phone: "555-1234",
+        special_instructions: "VIP guest",
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1018,8 +1018,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows current event in registrations table", async () => {
       const event = await createTestEvent({
-        name: "Current Event",
         maxAttendees: 100,
+        name: "Current Event",
       });
       const attendee = await createTestAttendee(
         event.id,
@@ -1041,8 +1041,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("edit page shows event registrations and add-to-event sections", async () => {
       const event = await createTestEvent({
-        name: "Edit Page Event",
         maxAttendees: 100,
+        name: "Edit Page Event",
       });
       const attendee = await createTestAttendee(
         event.id,
@@ -1069,8 +1069,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("edit page shows checked-in badge for checked-in attendee", async () => {
       const event = await createTestEvent({
-        name: "Checkin Badge Event",
         maxAttendees: 100,
+        name: "Checkin Badge Event",
       });
       const attendee = await createTestAttendee(
         event.id,
@@ -1091,15 +1091,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("edit page loads available dates for daily events", async () => {
       const event = await createTestEvent({
-        name: "Daily Dates Event",
-        maxAttendees: 100,
         eventType: "daily",
+        maxAttendees: 100,
+        name: "Daily Dates Event",
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "Daily User",
+        bookings: [{ date: "2026-04-07", eventId: event.id }],
         email: "daily@example.com",
-        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+        name: "Daily User",
       });
       if (!result.success) throw new Error("Failed");
       const attendeeId = result.attendees[0]!.id;
@@ -1118,13 +1118,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("includes active events in add-to-event selector", async () => {
       const event1 = await createTestEvent({
-        name: "Event 1",
         maxAttendees: 100,
+        name: "Event 1",
       });
       await createTestEvent({
-        name: "Event 2",
-        maxAttendees: 100,
         active: true,
+        maxAttendees: 100,
+        name: "Event 2",
       });
       const attendee = await createTestAttendee(
         event1.id,
@@ -1152,12 +1152,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/admin/attendees/${attendee.id}`, {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "jane@example.com",
           event_id: String(event.id),
+          name: "Jane Doe",
+          phone: "",
+          special_instructions: "",
         }),
       );
       expectAdminRedirect(response);
@@ -1165,12 +1165,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("returns 404 for non-existent attendee", async () => {
       const { response } = await adminFormPost("/admin/attendees/999", {
-        name: "Jane Doe",
-        email: "jane@example.com",
-        phone: "",
         address: "",
-        special_instructions: "",
+        email: "jane@example.com",
         event_id: "1",
+        name: "Jane Doe",
+        phone: "",
+        special_instructions: "",
       });
       expect(response.status).toBe(404);
     });
@@ -1187,13 +1187,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
           {
-            name: "Jane Doe",
-            email: "jane@example.com",
-            phone: "",
             address: "",
-            special_instructions: "",
-            event_id: String(event.id),
             csrf_token: "invalid-token",
+            email: "jane@example.com",
+            event_id: String(event.id),
+            name: "Jane Doe",
+            phone: "",
+            special_instructions: "",
           },
           await testCookie(),
         ),
@@ -1212,12 +1212,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "",
-          email: "jane@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "jane@example.com",
           event_id: String(event.id),
+          name: "",
+          phone: "",
+          special_instructions: "",
         },
       );
       expect(response.status).toBe(302);
@@ -1237,13 +1237,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "",
-          email: "jane@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "jane@example.com",
           event_id: String(event.id),
+          name: "",
+          phone: "",
           return_url: returnUrl,
+          special_instructions: "",
         },
       );
       expect(response.status).toBe(302);
@@ -1261,12 +1261,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "   ",
-          email: "jane@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "jane@example.com",
           event_id: String(event.id),
+          name: "   ",
+          phone: "",
+          special_instructions: "",
         },
       );
       expect(response.status).toBe(302);
@@ -1284,13 +1284,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "555-9999",
           address: "456 Oak Ave",
-          special_instructions: "Wheelchair access",
+          email: "jane@example.com",
           event_id: String(event.id),
+          name: "Jane Doe",
+          phone: "555-9999",
           quantity: "1",
+          special_instructions: "Wheelchair access",
         },
       );
       expect(response.status).toBe(302);
@@ -1326,14 +1326,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "john@example.com",
           event_id: String(event.id),
+          name: "John Doe",
+          phone: "",
           quantity: "1",
           return_url: returnUrl,
+          special_instructions: "",
         },
       );
       expectRedirect(
@@ -1347,8 +1347,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates attendee PII via edit form", async () => {
       const event = await createTestEvent({
-        name: "Event 1",
         maxAttendees: 100,
+        name: "Event 1",
       });
       const attendee = await createTestAttendee(
         event.id,
@@ -1359,10 +1359,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "Jane Smith",
-          email: "jane@example.com",
-          phone: "",
           address: "",
+          email: "jane@example.com",
+          name: "Jane Smith",
+          phone: "",
           special_instructions: "",
         },
       );
@@ -1387,10 +1387,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "Jane Doe",
-          email: "jane@example.com",
-          phone: "",
           address: "",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          phone: "",
           special_instructions: "",
         },
       );
@@ -1434,20 +1434,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows current event in registrations and active events in add-to-event", async () => {
       const event1 = await createTestEvent({
-        name: "Event 1",
-        maxAttendees: 100,
         active: true,
+        maxAttendees: 100,
+        name: "Event 1",
       });
       await createTestEvent({
-        name: "Event 2",
-        maxAttendees: 100,
         active: true,
+        maxAttendees: 100,
+        name: "Event 2",
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Doe",
-        email: "john@example.com",
         bookings: [{ eventId: event1.id, quantity: 1 }],
+        email: "john@example.com",
+        name: "John Doe",
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1469,9 +1469,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Doe",
-        email: "",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "",
+        name: "John Doe",
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1485,15 +1485,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows inactive event in registrations table", async () => {
       const inactiveEvent = await createTestEvent({
-        name: "Inactive Event",
         maxAttendees: 100,
+        name: "Inactive Event",
       });
 
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Doe",
-        email: "john@example.com",
         bookings: [{ eventId: inactiveEvent.id, quantity: 1 }],
+        email: "john@example.com",
+        name: "John Doe",
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1501,8 +1501,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Manually set event to inactive after creating attendee
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
-        sql: "UPDATE events SET active = 0 WHERE id = ?",
         args: [inactiveEvent.id],
+        sql: "UPDATE events SET active = 0 WHERE id = ?",
       });
 
       const response = await awaitTestRequest(
@@ -1522,9 +1522,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Doe",
-        email: "john@example.com",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "john@example.com",
+        name: "John Doe",
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1532,12 +1532,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "",
           event_id: String(event.id),
+          name: "John Doe",
+          phone: "",
+          special_instructions: "",
         },
       );
       expect(response.status).toBe(302);
@@ -1547,12 +1547,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Doe",
-        email: "john@example.com",
-        phone: "555-1234",
         address: "123 Main St",
-        special_instructions: "VIP",
         bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "john@example.com",
+        name: "John Doe",
+        phone: "555-1234",
+        special_instructions: "VIP",
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1560,12 +1560,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "Jane Smith",
-          email: "jane@example.com",
-          phone: "555-9999",
           address: "456 Oak Ave",
-          special_instructions: "Special access needed",
+          email: "jane@example.com",
           event_id: String(event.id),
+          name: "Jane Smith",
+          phone: "555-9999",
+          special_instructions: "Special access needed",
         },
       );
       expect(response.status).toBe(302);
@@ -1664,7 +1664,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const postResponse = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
-          { csrf_token: csrfToken, confirm_identifier: "Wrong Name" },
+          { confirm_identifier: "Wrong Name", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -1686,10 +1686,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Create attendee with price_paid using createAttendeeAtomic
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "Jane Paid",
+        bookings: [{ eventId: event.id, pricePaid: 1000, quantity: 1 }],
         email: "jane@example.com",
+        name: "Jane Paid",
         paymentId: "pi_test",
-        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
 
       if (!result.success) {
@@ -1826,10 +1826,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "Paid User",
+        bookings: [{ eventId: event.id, pricePaid: 1000, quantity: 1 }],
         email: "paid@example.com",
+        name: "Paid User",
         paymentId: "pi_test_123",
-        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const response = await awaitTestRequest(
@@ -1855,10 +1855,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "#lib/db/attendees.ts"
       );
       const result = await createAttendeeAtomic({
-        name: "Refunded User",
+        bookings: [{ eventId: event.id, pricePaid: 1000, quantity: 1 }],
         email: "refunded@example.com",
+        name: "Refunded User",
         paymentId: "pi_refunded_123",
-        bookings: [{ eventId: event.id, quantity: 1, pricePaid: 1000 }],
       });
       if (!result.success) throw new Error("Failed to create attendee");
       await markRefunded(result.attendees[0]!.id, event.id);
@@ -2070,16 +2070,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "T-shirt size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
       await setEventQuestions(event.id, [q.id]);
-      return { event, q, a1, a2, attendee };
+      return { a1, a2, attendee, event, q };
     };
 
     test("shows questions on edit page", async () => {
@@ -2131,13 +2131,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "john@example.com",
           event_id: String(event.id),
+          name: "John Doe",
+          phone: "",
           quantity: "1",
+          special_instructions: "",
           [`question_${q.id}`]: String(a2.id),
         },
       );
@@ -2158,13 +2158,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "john@example.com",
           event_id: String(event.id),
+          name: "John Doe",
+          phone: "",
           quantity: "1",
+          special_instructions: "",
           [`question_${q.id}`]: String(a2.id),
         },
       );
@@ -2184,13 +2184,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "john@example.com",
           event_id: String(event.id),
+          name: "John Doe",
+          phone: "",
           quantity: "1",
+          special_instructions: "",
         },
       );
       expect(response.status).toBe(302);
@@ -2206,13 +2206,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
           address: "",
-          special_instructions: "",
+          email: "john@example.com",
           event_id: String(event.id),
+          name: "John Doe",
+          phone: "",
           quantity: "1",
+          special_instructions: "",
           [`question_${q.id}`]: "99999",
         },
       );
@@ -2327,9 +2327,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "#lib/db/attendees.ts"
       );
       const result = await create({
-        name: "Unlink",
-        email: "unlink@test.com",
         bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+        email: "unlink@test.com",
+        name: "Unlink",
       });
       if (!result.success) throw new Error("Failed to create");
       const attendeeId = result.attendees[0]!.id;
@@ -2447,8 +2447,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("POST /admin/attendees/:id/link handles daily event without date", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({
-        maxAttendees: 50,
         eventType: "daily",
+        maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
         event1.id,
@@ -2458,7 +2458,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: String(event2.id), date: "" },
+        { date: "", event_id: String(event2.id) },
       );
       expect(response.status).toBe(302);
     });
@@ -2466,8 +2466,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("POST /admin/attendees/:id/link handles daily event with date", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({
-        maxAttendees: 50,
         eventType: "daily",
+        maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
         event1.id,
@@ -2477,7 +2477,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: String(event2.id), date: "2026-04-07" },
+        { date: "2026-04-07", event_id: String(event2.id) },
       );
       expect(response.status).toBe(302);
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2515,51 +2515,51 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/event/${event.id}`,
-        { quantity: "2", date: "" },
+        { date: "", quantity: "2" },
       );
       expect(response.status).toBe(302);
     });
 
     test("POST /admin/attendees/:id/event/:eventId handles daily event without date", async () => {
       const event = await createTestEvent({
-        maxAttendees: 50,
         eventType: "daily",
+        maxAttendees: 50,
       });
       const { createAttendeeAtomic: create } = await import(
         "#lib/db/attendees.ts"
       );
       const result = await create({
-        name: "Daily NoDate",
+        bookings: [{ date: "2026-04-07", eventId: event.id }],
         email: "dnd@test.com",
-        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+        name: "Daily NoDate",
       });
       if (!result.success) throw new Error("Failed");
 
       const { response } = await adminFormPost(
         `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
-        { quantity: "1", date: "" },
+        { date: "", quantity: "1" },
       );
       expect(response.status).toBe(302);
     });
 
     test("POST /admin/attendees/:id/event/:eventId handles daily event date", async () => {
       const event = await createTestEvent({
-        maxAttendees: 50,
         eventType: "daily",
+        maxAttendees: 50,
       });
       const { createAttendeeAtomic: create } = await import(
         "#lib/db/attendees.ts"
       );
       const result = await create({
-        name: "Daily Upd",
+        bookings: [{ date: "2026-04-07", eventId: event.id }],
         email: "du@test.com",
-        bookings: [{ eventId: event.id, date: "2026-04-07" }],
+        name: "Daily Upd",
       });
       if (!result.success) throw new Error("Failed");
 
       const { response } = await adminFormPost(
         `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
-        { quantity: "1", date: "2026-04-08" },
+        { date: "2026-04-08", quantity: "1" },
       );
       expect(response.status).toBe(302);
     });
@@ -2777,12 +2777,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("merges source events into target and deletes source", async () => {
       const event1 = await createTestEvent({
-        name: "Event One",
         maxAttendees: 10,
+        name: "Event One",
       });
       const event2 = await createTestEvent({
-        name: "Event Two",
         maxAttendees: 10,
+        name: "Event Two",
       });
 
       const { attendee: target } = await createTestAttendeeDirect(
@@ -2800,7 +2800,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
-        { source_token: sourceToken, merge_version: mergeVersion },
+        { merge_version: mergeVersion, source_token: sourceToken },
       );
 
       expectRedirectWithFlash(
@@ -2838,8 +2838,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "555-1111",
       );
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       const { token: sourceToken } = await createTestAttendeeDirect(
         event2.id,
@@ -2853,7 +2853,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Submit without choosing source for any field (all default to target)
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
-        { source_token: sourceToken, merge_version: mergeVersion },
+        { merge_version: mergeVersion, source_token: sourceToken },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
@@ -2873,8 +2873,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "jane@example.com",
       );
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       const { token: sourceToken } = await createTestAttendeeDirect(
         event2.id,
@@ -2891,13 +2891,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
-          pii_name: "source",
-          pii_email: "source",
-          pii_phone: "source",
           pii_address: "source",
+          pii_email: "source",
+          pii_name: "source",
+          pii_phone: "source",
           pii_special_instructions: "source",
+          source_token: sourceToken,
         },
       );
       expect(response.status).toBe(302);
@@ -2939,8 +2939,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
           [`booking_${bookingKey}`]: "keep_target",
         },
       );
@@ -2974,7 +2974,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "123 Main St",
         "No nuts",
       );
-      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
       const { token: sourceToken } = await createTestAttendeeDirect(
         event2.id,
         "John Smith",
@@ -3001,7 +3001,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         1,
         "555-1234",
       );
-      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
       // Source has no phone — exercises sourceValue || "—" branch
       const { token: sourceToken } = await createTestAttendeeDirect(
         event2.id,
@@ -3023,7 +3023,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Jane Doe",
         "",
       );
-      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
       const { token: sourceToken } = await createTestAttendeeDirect(
         event2.id,
         "John Smith",
@@ -3044,16 +3044,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "jane@example.com",
       );
       const dailyEvent = await createTestEvent({
-        name: "Daily E",
-        maxAttendees: 50,
         eventType: "daily",
+        maxAttendees: 50,
+        name: "Daily E",
       });
       // Create source via createAttendeeAtomic with a daily event date
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        name: "John Smith",
+        bookings: [{ date: "2026-05-01", eventId: dailyEvent.id }],
         email: "john@example.com",
-        bookings: [{ eventId: dailyEvent.id, date: "2026-05-01" }],
+        name: "John Smith",
       });
       if (!result.success) throw new Error("createAttendeeAtomic failed");
       const sourceToken = result.attendees[0]!.ticket_token;
@@ -3068,7 +3068,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows moveable booking row without decision column when no conflicts", async () => {
       const event1 = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({ name: "E2", maxAttendees: 10 });
+      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
 
       const { attendee: target } = await createTestAttendeeDirect(
         event1.id,
@@ -3118,13 +3118,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Favourite colour?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Red",
         sortOrder: 0,
+        text: "Red",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Blue",
         sortOrder: 1,
+        text: "Blue",
       });
       await setEventQuestions(event.id, [q.id]);
 
@@ -3134,8 +3134,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "jane@example.com",
       );
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       await setEventQuestions(event2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
@@ -3171,13 +3171,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Small",
         sortOrder: 0,
+        text: "Small",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Large",
         sortOrder: 1,
+        text: "Large",
       });
       await setEventQuestions(event.id, [q.id]);
 
@@ -3187,8 +3187,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "jane@example.com",
       );
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       await setEventQuestions(event2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
@@ -3219,8 +3219,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
           [`answer_${q.id}`]: "source",
         },
       );
@@ -3259,8 +3259,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
           [`booking_${bookingKey}`]: "skip_source",
         },
       );
@@ -3275,8 +3275,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("stale preview version rejected", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
 
       const { attendee: target } = await createTestAttendeeDirect(
@@ -3294,8 +3294,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: "stale-version",
+          source_token: sourceToken,
         },
       );
       // Validation error renders the merge page (200) with error message
@@ -3309,13 +3309,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Diet?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Vegan",
         sortOrder: 0,
+        text: "Vegan",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "Keto",
         sortOrder: 1,
+        text: "Keto",
       });
       await setEventQuestions(event.id, [q.id]);
 
@@ -3325,8 +3325,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "jane@example.com",
       );
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       await setEventQuestions(event2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
@@ -3347,8 +3347,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
           [`answer_${q.id}`]: "clear",
         },
       );
@@ -3363,13 +3363,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const q = await questionsTable.insert({ text: "Shirt?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "M",
         sortOrder: 0,
+        text: "M",
       });
       const a2 = await answersTable.insert({
         questionId: q.id,
-        text: "L",
         sortOrder: 1,
+        text: "L",
       });
       await setEventQuestions(event.id, [q.id]);
 
@@ -3379,8 +3379,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "jane@example.com",
       );
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       await setEventQuestions(event2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
@@ -3401,8 +3401,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
           [`answer_${q.id}`]: "target",
         },
       );
@@ -3415,14 +3415,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("POST merge auto-adopts source-only non-conflicting answer", async () => {
       const event1 = await createTestEvent({ maxAttendees: 10 });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       const q = await questionsTable.insert({ text: "Colour?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Green",
         sortOrder: 0,
+        text: "Green",
       });
       await setEventQuestions(event1.id, [q.id]);
       await setEventQuestions(event2.id, [q.id]);
@@ -3450,8 +3450,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
         },
       );
       expect(response.status).toBe(302);
@@ -3463,14 +3463,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("POST merge keeps target-only non-conflicting answer", async () => {
       const event1 = await createTestEvent({ maxAttendees: 10 });
       const event2 = await createTestEvent({
-        name: "E2",
         maxAttendees: 10,
+        name: "E2",
       });
       const q = await questionsTable.insert({ text: "Food?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
-        text: "Pizza",
         sortOrder: 0,
+        text: "Pizza",
       });
       await setEventQuestions(event1.id, [q.id]);
       await setEventQuestions(event2.id, [q.id]);
@@ -3496,8 +3496,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
         },
       );
       expect(response.status).toBe(302);
@@ -3526,8 +3526,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          source_token: sourceToken,
           merge_version: mergeVersion,
+          source_token: sourceToken,
           [`booking_${bookingKey}`]: "take_source",
         },
       );

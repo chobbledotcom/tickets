@@ -59,7 +59,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
-        await mockAdminLoginRequest({ username: "testadmin", password: "" }),
+        await mockAdminLoginRequest({ password: "", username: "testadmin" }),
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -72,8 +72,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("rejects wrong password", async () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: "wrong",
+          username: "testadmin",
         }),
       );
       expect(response.status).toBe(302);
@@ -87,7 +87,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("accepts correct password and sets cookie", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
-        await mockAdminLoginRequest({ username: "testadmin", password }),
+        await mockAdminLoginRequest({ password, username: "testadmin" }),
       );
       expectRedirectWithFlash("/admin", "Logged in")(response);
       const sessionCookie = response.headers
@@ -100,12 +100,12 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const body = "username=testadmin&password=testpassword123";
       const response = await handleRequest(
         new Request("http://localhost/admin/login", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/x-www-form-urlencoded",
-          },
           body,
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            host: "localhost",
+          },
+          method: "POST",
         }),
       );
 
@@ -120,9 +120,9 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("rejects login when CSRF token is invalid", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/login", {
-          username: "testadmin",
-          password: TEST_ADMIN_PASSWORD,
           csrf_token: "invalid-csrf-token",
+          password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
         }),
       );
 
@@ -137,7 +137,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("returns 429 when rate limited", async () => {
       // Rate limiting uses direct connection IP (falls back to "direct" in tests)
       const makeRequest = () =>
-        mockAdminLoginRequest({ username: "testadmin", password: "wrong" });
+        mockAdminLoginRequest({ password: "wrong", username: "testadmin" });
 
       // Make 5 failed attempts to trigger lockout
       for (let i = 0; i < 5; i++) {
@@ -161,8 +161,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       };
 
       const request = await mockAdminLoginRequest({
-        username: "testadmin",
         password: "wrong",
+        username: "testadmin",
       });
 
       // Make request with server context
@@ -183,8 +183,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       };
 
       const request = await mockAdminLoginRequest({
-        username: "testadmin",
         password: "wrong",
+        username: "testadmin",
       });
 
       // Make request with server context
@@ -425,14 +425,14 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       // Null out the user's wrapped_data_key to simulate an unactivated user
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
-        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
         args: [],
+        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
       });
 
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
         }),
       );
       // Should redirect with error - user exists but is not activated
@@ -450,14 +450,14 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       // Corrupt the user's wrapped_data_key so unwrapKey throws
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
-        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
         args: [],
+        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
       });
 
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
         }),
       );
       // Should fail - KEK can't unwrap corrupted key
@@ -480,8 +480,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const start = Date.now();
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
         }),
       );
       const elapsed = Date.now() - start;
@@ -495,15 +495,15 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       // Null out user's wrapped_data_key
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
-        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
         args: [],
+        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
       });
 
       // Login should redirect with error since user is not activated
       const response = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
         }),
       );
       expect(response.status).toBe(302);
@@ -621,8 +621,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("shows error after failed login attempt", async () => {
       const postResponse = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: "wrong",
+          username: "testadmin",
         }),
       );
       expect(postResponse.status).toBe(302);
@@ -650,9 +650,9 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         mockFormRequest(
           "/admin/login",
           {
-            username: "testadmin",
-            password: "wrong",
             csrf_token: csrfToken,
+            password: "wrong",
+            username: "testadmin",
           },
           cookie,
         ),

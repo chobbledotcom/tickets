@@ -9,42 +9,42 @@ import type { Attendee } from "#lib/types.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 
 const makeAttendee = (id: number, name: string): Attendee => ({
-  id,
-  event_id: 1,
-  name,
-  email: "test@test.com",
-  phone: "",
   address: "",
-  special_instructions: "",
-  created: "2024-01-01T00:00:00Z",
-  payment_id: "",
-  quantity: 1,
-  price_paid: "0",
+  attachment_downloads: 0,
   checked_in: false,
+  created: "2024-01-01T00:00:00Z",
+  date: null,
+  email: "test@test.com",
+  event_id: 1,
+  id,
+  name,
+  payment_id: "",
+  phone: "",
+  pii_blob: "",
+  price_paid: "0",
+  quantity: 1,
   refunded: false,
+  special_instructions: "",
   ticket_token: "ABC123",
   ticket_token_index: "idx",
-  date: null,
-  attachment_downloads: 0,
-  pii_blob: "",
 });
 
 const makeQuestions = (): QuestionWithAnswers[] => [
   {
+    answers: [
+      { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+      { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+    ],
     id: 1,
     text: "T-shirt Size",
-    answers: [
-      { id: 10, question_id: 1, text: "Small", sort_order: 0 },
-      { id: 11, question_id: 1, text: "Large", sort_order: 1 },
-    ],
   },
   {
+    answers: [
+      { id: 20, question_id: 2, sort_order: 0, text: "None" },
+      { id: 21, question_id: 2, sort_order: 1, text: "Vegetarian" },
+    ],
     id: 2,
     text: "Dietary Requirements",
-    answers: [
-      { id: 20, question_id: 2, text: "None", sort_order: 0 },
-      { id: 21, question_id: 2, text: "Vegetarian", sort_order: 1 },
-    ],
   },
 ];
 
@@ -63,8 +63,8 @@ describe("CSV with custom questions", () => {
     const answerMap = new Map([[1, [10, 20]]]);
 
     const csv = generateAttendeesCsv(attendees, false, undefined, {
-      questions,
       attendeeAnswerMap: answerMap,
+      questions,
     });
 
     const header = csv.split("\n")[0]!;
@@ -81,8 +81,8 @@ describe("CSV with custom questions", () => {
     ]);
 
     const csv = generateAttendeesCsv(attendees, false, undefined, {
-      questions,
       attendeeAnswerMap: answerMap,
+      questions,
     });
 
     const lines = csv.split("\n");
@@ -98,8 +98,8 @@ describe("CSV with custom questions", () => {
     const answerMap = new Map<number, number[]>();
 
     const csv = generateAttendeesCsv(attendees, false, undefined, {
-      questions,
       attendeeAnswerMap: answerMap,
+      questions,
     });
 
     const lines = csv.split("\n");

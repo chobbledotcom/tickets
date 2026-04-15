@@ -26,11 +26,11 @@ const handleGoogleWalletGet = async (
   const saveUrl = await buildGoogleWalletUrl(result.passData, config);
 
   return new Response(null, {
-    status: 302,
     headers: {
-      Location: saveUrl,
       "Cache-Control": WALLET_CACHE_CONTROL,
+      Location: saveUrl,
     },
+    status: 302,
   });
 };
 

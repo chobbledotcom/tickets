@@ -58,8 +58,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/seeds", {
-          event_count: "1",
           attendees_per_event: "0",
+          event_count: "1",
         }),
       );
       expectAdminRedirect(response);
@@ -70,7 +70,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "0" },
+          { attendees_per_event: "0", event_count: "1" },
           managerCookie,
         ),
       );
@@ -83,9 +83,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "2",
             attendees_per_event: "0",
             csrf_token: await testCsrfToken(),
+            event_count: "2",
           },
           cookie,
         ),
@@ -105,9 +105,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "2",
             attendees_per_event: "3",
             csrf_token: await testCsrfToken(),
+            event_count: "2",
           },
           await testCookie(),
         ),
@@ -150,9 +150,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "999",
             attendees_per_event: "0",
             csrf_token: await testCsrfToken(),
+            event_count: "999",
           },
           await testCookie(),
         ),
@@ -169,9 +169,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "-5",
             attendees_per_event: "-10",
             csrf_token: await testCsrfToken(),
+            event_count: "-5",
           },
           await testCookie(),
         ),
@@ -187,7 +187,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "0", csrf_token: "invalid" },
+          { attendees_per_event: "0", csrf_token: "invalid", event_count: "1" },
           await testCookie(),
         ),
       );
@@ -200,9 +200,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "1",
             attendees_per_event: "0",
             csrf_token: await testCsrfToken(),
+            event_count: "1",
           },
           await testCookie(),
         ),
@@ -223,9 +223,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "1",
             attendees_per_event: "0",
             csrf_token: await testCsrfToken(),
+            event_count: "1",
           },
           await testCookie(),
         ),
@@ -243,9 +243,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "abc",
             attendees_per_event: "2",
             csrf_token: await testCsrfToken(),
+            event_count: "abc",
           },
           await testCookie(),
         ),
@@ -262,9 +262,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            event_count: "1",
             attendees_per_event: "abc",
             csrf_token: await testCsrfToken(),
+            event_count: "1",
           },
           await testCookie(),
         ),
@@ -299,7 +299,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "2", attendees_per_event: "0", csrf_token: csrf1 },
+          { attendees_per_event: "0", csrf_token: csrf1, event_count: "2" },
           await testCookie(),
         ),
       );
@@ -316,7 +316,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "3", attendees_per_event: "0", csrf_token: csrf2 },
+          { attendees_per_event: "0", csrf_token: csrf2, event_count: "3" },
           await testCookie(),
         ),
       );

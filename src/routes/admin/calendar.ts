@@ -93,9 +93,9 @@ const compileDateOptions = (
   );
 
   return map((d: string) => ({
-    value: d,
-    label: formatDateLabel(d),
     hasBookings: attendeeDateSet.has(d) || standardDatesWithBookings.has(d),
+    label: formatDateLabel(d),
+    value: d,
   }))(allDates);
 };
 
@@ -116,10 +116,10 @@ const buildCalendarAttendees = (
     const event = eventById.get(a.event_id)!;
     return {
       ...a,
-      eventName: event.name,
       eventDate: event.date,
-      eventLocation: event.location,
       eventId: event.id,
+      eventLocation: event.location,
+      eventName: event.name,
     };
   })(attendees);
 };
@@ -146,7 +146,7 @@ const withCalendarSession = (
 const loadStandardEventContext = async () => {
   const standardEvents = await getAllStandardEvents();
   const standardEventDateMap = buildStandardEventDateMap(standardEvents);
-  return { standardEvents, standardEventDateMap };
+  return { standardEventDateMap, standardEvents };
 };
 
 /** Load and decrypt attendees for standard events matching a calendar date */

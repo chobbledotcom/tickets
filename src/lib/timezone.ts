@@ -54,10 +54,10 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
 
   // Use Intl for weekday/month names and timezone abbreviation
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    weekday: "long",
     month: "long",
+    timeZone: tz,
     timeZoneName: "short",
+    weekday: "long",
   }).formatToParts(new Date(utcIso));
 
   const get = (type: string): string =>
@@ -73,13 +73,13 @@ export const formatDatetimeShortInTz = (utcIso: string, tz: string): string => {
   // sv-SE renders dates in ISO-8601 form (yyyy-MM-dd HH:mm), which is
   // unambiguous and locale-independent.
   const formatted = new Date(utcIso).toLocaleString("sv-SE", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit",
     hour12: false,
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: tz,
+    year: "numeric",
   });
   return formatted.replace(/^(\d{4}-\d{2}-\d{2}) 24:/, "$1 00:");
 };

@@ -35,7 +35,7 @@ describe("asset-paths", () => {
 
 describe("Layout skip navigation", () => {
   test("renders skip-nav link targeting main-content", () => {
-    const html = String(Layout({ title: "Test", children: "" }));
+    const html = String(Layout({ children: "", title: "Test" }));
     expect(html).toContain('class="skip-nav"');
     expect(html).toContain('href="#main-content"');
     expect(html).toContain("Skip to content");
@@ -71,7 +71,7 @@ describeWithEnv(
   () => {
     test("AdminNav shows read-only banner", () => {
       const html = String(
-        AdminNav({ session: TEST_SESSION, active: "/admin/" }),
+        AdminNav({ active: "/admin/", session: TEST_SESSION }),
       );
       expect(html).toContain("read-only-banner");
       expect(html).toContain("This site is in read-only mode");
@@ -80,9 +80,9 @@ describeWithEnv(
     test("ticketPage hides booking form in read-only mode", () => {
       const event = testEventWithCount({ attendee_count: 0 });
       const html = ticketPage({
+        dates: [],
         events: [buildTicketEvent(event)],
         slugs: [event.slug],
-        dates: [],
       });
       expect(html).toContain("Registration closed.");
       expect(html).not.toContain("Continue");

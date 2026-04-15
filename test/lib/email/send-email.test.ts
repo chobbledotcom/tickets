@@ -6,16 +6,16 @@ import { sendEmail } from "#lib/email.ts";
 import { useFetchStub } from "#test-utils";
 
 const testConfig: EmailConfig = {
-  provider: "resend",
   apiKey: "re_test_key",
   fromAddress: "tickets@example.com",
+  provider: "resend",
 };
 
 const minimalMsg: EmailMessage = {
-  to: "a@b.com",
-  subject: "s",
   html: "h",
+  subject: "s",
   text: "t",
+  to: "a@b.com",
 };
 
 const sendWithProvider = (
@@ -54,11 +54,11 @@ describe("sendEmail", () => {
 
   test("sends via Resend with correct URL, headers, and body", async () => {
     const msg: EmailMessage = {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
-      text: "Hi",
       replyTo: "reply@test.com",
+      subject: "Test",
+      text: "Hi",
+      to: "user@test.com",
     };
 
     const status = await sendEmail(testConfig, msg);
@@ -79,10 +79,10 @@ describe("sendEmail", () => {
 
   test("sends via Postmark with correct URL, headers, and body", async () => {
     await sendWithProvider("postmark", {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
+      subject: "Test",
       text: "Hi",
+      to: "user@test.com",
     });
 
     const [url] = fetch.getFetchArgs();
@@ -100,11 +100,11 @@ describe("sendEmail", () => {
 
   test("sends via SendGrid with correct URL, headers, and body", async () => {
     const msg: EmailMessage = {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
-      text: "Hi",
       replyTo: "reply@test.com",
+      subject: "Test",
+      text: "Hi",
+      to: "user@test.com",
     };
 
     await sendWithProvider("sendgrid", msg);
@@ -127,10 +127,10 @@ describe("sendEmail", () => {
 
   test("sends via SendGrid without reply_to when not provided", async () => {
     await sendWithProvider("sendgrid", {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
+      subject: "Test",
       text: "Hi",
+      to: "user@test.com",
     });
 
     expect(fetch.getFetchJsonBody().reply_to).toBeUndefined();
@@ -138,11 +138,11 @@ describe("sendEmail", () => {
 
   test("sends via Mailgun (US) with correct URL, headers, and FormData body", async () => {
     await sendWithProvider("mailgun-us", {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
-      text: "Hi",
       replyTo: "reply@test.com",
+      subject: "Test",
+      text: "Hi",
+      to: "user@test.com",
     });
 
     expect(fetch.callCount()).toBe(1);
@@ -161,10 +161,10 @@ describe("sendEmail", () => {
 
   test("sends via Mailgun (EU) with EU API endpoint", async () => {
     await sendWithProvider("mailgun-eu", {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
+      subject: "Test",
       text: "Hi",
+      to: "user@test.com",
     });
 
     expect(fetch.callCount()).toBe(1);
@@ -178,10 +178,10 @@ describe("sendEmail", () => {
 
   test("sends via Mailgun without h:Reply-To when not provided", async () => {
     await sendWithProvider("mailgun-us", {
-      to: "user@test.com",
-      subject: "Test",
       html: "<p>Hi</p>",
+      subject: "Test",
       text: "Hi",
+      to: "user@test.com",
     });
 
     expect(fetch.getFetchFormBody().get("h:Reply-To")).toBeNull();
@@ -231,23 +231,23 @@ describe("sendEmail with attachments", () => {
   const fetch = useFetchStub();
 
   const attachment = {
-    filename: "ticket.svg",
     content: btoa("<svg>test</svg>"),
     contentType: "image/svg+xml",
+    filename: "ticket.svg",
   };
   const msgWithAttachment: EmailMessage = {
-    to: "user@test.com",
-    subject: "Tickets",
-    html: "<p>Hi</p>",
-    text: "Hi",
     attachments: [attachment],
+    html: "<p>Hi</p>",
+    subject: "Tickets",
+    text: "Hi",
+    to: "user@test.com",
   };
 
   test("Resend includes attachments with filename and content", async () => {
     await sendEmail(testConfig, msgWithAttachment);
 
     expect(fetch.getFetchJsonBody().attachments).toEqual([
-      { filename: "ticket.svg", content: attachment.content },
+      { content: attachment.content, filename: "ticket.svg" },
     ]);
   });
 
@@ -256,9 +256,9 @@ describe("sendEmail with attachments", () => {
 
     expect(fetch.getFetchJsonBody().Attachments).toEqual([
       {
-        Name: "ticket.svg",
         Content: attachment.content,
         ContentType: "image/svg+xml",
+        Name: "ticket.svg",
       },
     ]);
   });
@@ -269,9 +269,9 @@ describe("sendEmail with attachments", () => {
     expect(fetch.getFetchJsonBody().attachments).toEqual([
       {
         content: attachment.content,
+        disposition: "attachment",
         filename: "ticket.svg",
         type: "image/svg+xml",
-        disposition: "attachment",
       },
     ]);
   });

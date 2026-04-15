@@ -91,8 +91,8 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "example.com",
         csrf_token: "invalid-csrf-token",
+        embed_hosts: "example.com",
       });
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
@@ -130,7 +130,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
-          { embed_hosts: "", csrf_token: csrfToken },
+          { csrf_token: csrfToken, embed_hosts: "" },
           cookie,
         ),
       );

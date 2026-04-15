@@ -329,8 +329,8 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       "alice@test.com",
     );
     await eventsTable.update(event.id, {
-      attachmentUrl: "abc-guide.pdf",
       attachmentName: "Event Guide.pdf",
+      attachmentUrl: "abc-guide.pdf",
     });
 
     const response = await awaitTestRequest(`/t/${token}`);

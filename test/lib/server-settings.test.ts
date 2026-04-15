@@ -146,10 +146,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings",
           {
+            csrf_token: "invalid-csrf-token",
             current_password: TEST_ADMIN_PASSWORD,
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: "invalid-csrf-token",
           },
           await testCookie(),
         ),
@@ -231,8 +231,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // Verify new password works
       const newLoginResponse = await handleRequest(
         await mockAdminLoginRequest({
-          username: "testadmin",
           password: "newpassword123",
+          username: "testadmin",
         }),
       );
       expectRedirectWithFlash("/admin", "Logged in")(newLoginResponse);
@@ -242,8 +242,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // Corrupt the wrapped_data_key so updateUserPassword fails to unwrap it
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
-        sql: "UPDATE users SET wrapped_data_key = ?",
         args: ["corrupted-key-data"],
+        sql: "UPDATE users SET wrapped_data_key = ?",
       });
       invalidateUsersCache();
 
@@ -276,8 +276,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/stripe",
           {
-            stripe_secret_key: "sk_test_123",
             csrf_token: "invalid-csrf-token",
+            stripe_secret_key: "sk_test_123",
           },
           await testCookie(),
         ),
@@ -324,9 +324,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -362,9 +362,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -390,9 +390,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -415,9 +415,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_live_123",
               secret: "whsec_live_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -473,11 +473,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "testStripeConnection", () =>
             Promise.resolve({
-              ok: false,
               apiKey: {
-                valid: false,
                 error: "No Stripe secret key configured",
+                valid: false,
               },
+              ok: false,
               webhooks: [],
             }),
           ),
@@ -504,15 +504,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "testStripeConnection", () =>
             Promise.resolve({
+              apiKey: { mode: "test", valid: true },
               ok: true,
-              apiKey: { valid: true, mode: "test" },
               ownEndpointId: "we_test_123",
               webhooks: [
                 {
-                  endpointId: "we_test_123",
-                  url: "https://example.com/payment/webhook",
-                  status: "enabled",
                   enabledEvents: ["checkout.session.completed"],
+                  endpointId: "we_test_123",
+                  status: "enabled",
+                  url: "https://example.com/payment/webhook",
                 },
               ],
             }),
@@ -543,8 +543,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "testStripeConnection", () =>
             Promise.resolve({
+              apiKey: { mode: "test", valid: true },
               ok: false,
-              apiKey: { valid: true, mode: "test" },
               webhooks: [],
             }),
           ),
@@ -615,9 +615,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
+            csrf_token: "invalid-csrf-token",
             square_access_token: "EAAAl_test_123",
             square_location_id: "L_test_123",
-            csrf_token: "invalid-csrf-token",
           },
           await testCookie(),
         ),
@@ -742,12 +742,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(squareApi, "testSquareConnection", () =>
             Promise.resolve({
-              ok: false,
               accessToken: {
-                valid: false,
                 error: "No Square access token configured",
+                valid: false,
               },
               location: { configured: false },
+              ok: false,
               webhook: { configured: false },
             }),
           ),
@@ -774,14 +774,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(squareApi, "testSquareConnection", () =>
             Promise.resolve({
-              ok: true,
-              accessToken: { valid: true, mode: "sandbox" },
+              accessToken: { mode: "sandbox", valid: true },
               location: {
                 configured: true,
                 locationId: "L_test_123",
                 name: "Test Location",
                 status: "ACTIVE",
               },
+              ok: true,
               webhook: { configured: true },
             }),
           ),
@@ -806,12 +806,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(squareApi, "testSquareConnection", () =>
             Promise.resolve({
-              ok: false,
-              accessToken: { valid: true, mode: "sandbox" },
+              accessToken: { mode: "sandbox", valid: true },
               location: {
                 configured: false,
                 error: "No location ID configured",
               },
+              ok: false,
               webhook: { configured: true },
             }),
           ),
@@ -887,8 +887,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("shows error when webhook setup fails", async () => {
       const mockSetupWebhook = stub(stripeApi, "setupWebhookEndpoint", () =>
         Promise.resolve({
-          success: false,
           error: "Connection refused",
+          success: false,
         }),
       );
 
@@ -952,8 +952,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            terms_and_conditions: "Some terms",
             csrf_token: "invalid-csrf-token",
+            terms_and_conditions: "Some terms",
           },
           await testCookie(),
         ),
@@ -1056,8 +1056,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/settings", {
           headers: {
-            host: "localhost",
             cookie: await testCookie(),
+            host: "localhost",
           },
         }),
       );
@@ -1072,8 +1072,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/settings", {
           headers: {
-            host: "localhost",
             cookie: await testCookie(),
+            host: "localhost",
           },
         }),
       );
@@ -1191,9 +1191,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -1293,13 +1293,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("deletes storage files for all events during admin reset", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       await eventsTable.update(event.id, {
-        imageUrl: "admin-reset-image.jpg",
-        attachmentUrl: "admin-reset-attachment.pdf",
         attachmentName: "doc.pdf",
+        attachmentUrl: "admin-reset-attachment.pdf",
+        imageUrl: "admin-reset-image.jpg",
       });
 
       await runWithStorageConfig(
-        { zoneName: "testzone", zoneKey: "testkey" },
+        { zoneKey: "testkey", zoneName: "testzone" },
         () =>
           withFetchMock(async (originalFetch) => {
             const deletedUrls: string[] = [];
@@ -1352,8 +1352,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/theme",
           {
-            theme: "dark",
             csrf_token: "invalid-csrf-token",
+            theme: "dark",
           },
           await testCookie(),
         ),
@@ -1366,8 +1366,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/theme",
           {
-            theme: "invalid-theme",
             csrf_token: await testCsrfToken(),
+            theme: "invalid-theme",
           },
           await testCookie(),
         ),
@@ -1403,8 +1403,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/theme",
           {
-            theme: "dark",
             csrf_token: await testCsrfToken(),
+            theme: "dark",
           },
           await testCookie(),
         ),
@@ -1419,8 +1419,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/theme",
           {
-            theme: "light",
             csrf_token: await testCsrfToken(),
+            theme: "light",
           },
           await testCookie(),
         ),
@@ -1441,8 +1441,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/theme",
           {
-            theme: "dark",
             csrf_token: await testCsrfToken(),
+            theme: "dark",
           },
           await testCookie(),
         ),
@@ -1484,8 +1484,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/show-public-site",
           {
-            show_public_site: "true",
             csrf_token: "invalid-csrf-token",
+            show_public_site: "true",
           },
           await testCookie(),
         ),
@@ -1498,8 +1498,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/show-public-site",
           {
-            show_public_site: "true",
             csrf_token: await testCsrfToken(),
+            show_public_site: "true",
           },
           await testCookie(),
         ),
@@ -1514,8 +1514,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/show-public-site",
           {
-            show_public_site: "false",
             csrf_token: await testCsrfToken(),
+            show_public_site: "false",
           },
           await testCookie(),
         ),
@@ -1536,8 +1536,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/show-public-site",
           {
-            show_public_site: "true",
             csrf_token: await testCsrfToken(),
+            show_public_site: "true",
           },
           await testCookie(),
         ),
@@ -1854,9 +1854,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -1865,8 +1865,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/stripe",
               {
-                stripe_secret_key: "sk_test_real_secret",
                 csrf_token: await testCsrfToken(),
+                stripe_secret_key: "sk_test_real_secret",
               },
               await testCookie(),
             ),
@@ -1892,9 +1892,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
+            csrf_token: await testCsrfToken(),
             square_access_token: "EAAAl_real_secret",
             square_location_id: "L_test_loc",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -1934,9 +1934,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -1945,8 +1945,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/stripe",
               {
-                stripe_secret_key: "sk_test_original",
                 csrf_token: await testCsrfToken(),
+                stripe_secret_key: "sk_test_original",
               },
               await testCookie(),
             ),
@@ -1957,8 +1957,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/stripe",
               {
-                stripe_secret_key: MASK_SENTINEL,
                 csrf_token: await testCsrfToken(),
+                stripe_secret_key: MASK_SENTINEL,
               },
               await testCookie(),
             ),
@@ -1982,9 +1982,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
+            csrf_token: await testCsrfToken(),
             square_access_token: "EAAAl_original",
             square_location_id: "L_original",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -1995,9 +1995,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
+            csrf_token: await testCsrfToken(),
             square_access_token: MASK_SENTINEL,
             square_location_id: "L_updated",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -2016,8 +2016,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square-webhook",
           {
-            square_webhook_signature_key: "sig_original",
             csrf_token: await testCsrfToken(),
+            square_webhook_signature_key: "sig_original",
           },
           await testCookie(),
         ),
@@ -2028,8 +2028,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square-webhook",
           {
-            square_webhook_signature_key: MASK_SENTINEL,
             csrf_token: await testCsrfToken(),
+            square_webhook_signature_key: MASK_SENTINEL,
           },
           await testCookie(),
         ),
@@ -2049,10 +2049,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/email",
           {
-            email_provider: "resend",
+            csrf_token: await testCsrfToken(),
             email_api_key: "re_original_key",
             email_from_address: "from@test.com",
-            csrf_token: await testCsrfToken(),
+            email_provider: "resend",
           },
           await testCookie(),
         ),
@@ -2063,9 +2063,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/email",
           {
-            email_provider: "resend",
-            email_api_key: MASK_SENTINEL,
             csrf_token: await testCsrfToken(),
+            email_api_key: MASK_SENTINEL,
+            email_provider: "resend",
           },
           await testCookie(),
         ),
@@ -2083,9 +2083,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -2094,8 +2094,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/stripe",
               {
-                stripe_secret_key: "sk_test_old",
                 csrf_token: await testCsrfToken(),
+                stripe_secret_key: "sk_test_old",
               },
               await testCookie(),
             ),
@@ -2106,8 +2106,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/stripe",
               {
-                stripe_secret_key: "sk_test_new",
                 csrf_token: await testCsrfToken(),
+                stripe_secret_key: "sk_test_new",
               },
               await testCookie(),
             ),
@@ -2126,9 +2126,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         () =>
           stub(stripeApi, "setupWebhookEndpoint", () =>
             Promise.resolve({
-              success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
+              success: true,
             }),
           ),
         async () => {
@@ -2137,8 +2137,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
             mockFormRequest(
               "/admin/settings/stripe",
               {
-                stripe_secret_key: "sk_test_keep_me",
                 csrf_token: await testCsrfToken(),
+                stripe_secret_key: "sk_test_keep_me",
               },
               await testCookie(),
             ),
@@ -2148,7 +2148,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           const response = await handleRequest(
             mockFormRequest(
               "/admin/settings/stripe",
-              { stripe_secret_key: "", csrf_token: await testCsrfToken() },
+              { csrf_token: await testCsrfToken(), stripe_secret_key: "" },
               await testCookie(),
             ),
           );
@@ -2166,7 +2166,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe",
-          { stripe_secret_key: "", csrf_token: await testCsrfToken() },
+          { csrf_token: await testCsrfToken(), stripe_secret_key: "" },
           await testCookie(),
         ),
       );
@@ -2182,9 +2182,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
+            csrf_token: await testCsrfToken(),
             square_access_token: "",
             square_location_id: "L_test",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -2199,8 +2199,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square-webhook",
           {
-            square_webhook_signature_key: "",
             csrf_token: await testCsrfToken(),
+            square_webhook_signature_key: "",
           },
           await testCookie(),
         ),
@@ -2227,8 +2227,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/stripe",
           {
-            stripe_secret_key: "sk_test_new_key_123",
             csrf_token: await testCsrfToken(),
+            stripe_secret_key: "sk_test_new_key_123",
           },
           await testCookie(),
         ),
@@ -2249,9 +2249,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
+            csrf_token: await testCsrfToken(),
             square_access_token: "EAAAl_test_new",
             square_location_id: "L_test_456",
-            csrf_token: await testCsrfToken(),
           },
           await testCookie(),
         ),

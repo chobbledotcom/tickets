@@ -57,7 +57,7 @@ const getEdgeScriptImpl = async (): Promise<
   }
 
   const data: EdgeScriptResponse = JSON.parse(response.text);
-  return { ok: true, data };
+  return { data, ok: true };
 };
 
 /** Map edge script data to a result, returning early on API error. */
@@ -79,11 +79,11 @@ const findPullZoneIdImpl = (): Promise<
     const zone = data.LinkedPullZones[0];
     if (!zone) {
       return {
-        ok: false as const,
         error: `Edge script ${getBunnyScriptId()} has no linked pull zones`,
+        ok: false as const,
       };
     }
-    return { ok: true as const, id: zone.Id };
+    return { id: zone.Id, ok: true as const };
   });
 
 /**
@@ -95,8 +95,8 @@ const toCnameTarget = (hostname: string): string =>
 
 const getCdnHostnameImpl = (): Promise<CdnHostnameResult> =>
   withEdgeScript((data) => ({
-    ok: true as const,
     hostname: toCnameTarget(data.DefaultHostname),
+    ok: true as const,
   }));
 
 /** Return ok for a successful response or parse an error. */
@@ -118,9 +118,9 @@ const parseBunnyError = (
     /* use raw text */
   }
   return {
-    ok: false,
     error: `${label} failed (${response.status}): ${message}`,
     errorKey,
+    ok: false,
   };
 };
 
@@ -135,12 +135,12 @@ const pullZonePost = async (
   const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}${suffix}`;
 
   const response = await fetchText(url, {
-    method: "POST",
+    body: JSON.stringify(body),
     headers: {
       AccessKey: getBunnyApiKey(),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    method: "POST",
   });
 
   return okOrError(response, label);
@@ -153,8 +153,8 @@ const loadFreeCertificate = async (
   const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
 
   const response = await fetchText(url, {
-    method: "GET",
     headers: { AccessKey: getBunnyApiKey() },
+    method: "GET",
   });
 
   return okOrError(response, "Load free certificate");
@@ -198,7 +198,7 @@ const validateCustomDomainImpl = async (
   const sslResult = await pullZonePost(
     pullZoneId,
     "setForceSSL",
-    { Hostname: hostname, ForceSSL: true },
+    { ForceSSL: true, Hostname: hostname },
     "Set force SSL",
   );
   if (!sslResult.ok) {
@@ -272,7 +272,7 @@ const checkSubdomainAvailableImpl = async (
   const recordName = buildSubdomainRecordName(subdomain);
   const fullDomain = `${recordName}.${zoneResult.zone.Domain}`;
   const taken = zoneResult.zone.Records.some((r) => r.Name === recordName);
-  return { ok: true, available: !taken, fullDomain };
+  return { available: !taken, fullDomain, ok: true };
 };
 
 /** Delay helper for retry backoff. */
@@ -297,7 +297,7 @@ const registerBunnySubdomainImpl = async (
   const availCheck = await bunnyCdnApi.checkSubdomainAvailable(subdomain);
   if (!availCheck.ok) return availCheck;
   if (!availCheck.available) {
-    return { ok: false, error: `Subdomain "${subdomain}" is already taken` };
+    return { error: `Subdomain "${subdomain}" is already taken`, ok: false };
   }
 
   const recordName = buildSubdomainRecordName(subdomain);
@@ -314,10 +314,10 @@ const registerBunnySubdomainImpl = async (
   // 2. Add CNAME record in DNS zone
   const zoneId = getBunnyDnsZoneId();
   const dnsRecordBody = {
-    Type: DNS_RECORD_TYPE_CNAME,
     Name: recordName,
-    Value: target,
     Ttl: 300,
+    Type: DNS_RECORD_TYPE_CNAME,
+    Value: target,
   };
   const dnsUrl = `${BUNNY_API_BASE}/dnszone/${zoneId}/records`;
   logDebug(
@@ -325,12 +325,12 @@ const registerBunnySubdomainImpl = async (
     `Adding DNS CNAME: url=${dnsUrl} name=${recordName} value=${target} fullDomain=${fullDomain}`,
   );
   const addResponse = await fetchText(dnsUrl, {
-    method: "PUT",
+    body: JSON.stringify(dnsRecordBody),
     headers: {
       AccessKey: getBunnyApiKey(),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(dnsRecordBody),
+    method: "PUT",
   });
 
   if (!addResponse.ok) {
@@ -375,7 +375,7 @@ const registerBunnySubdomainImpl = async (
     return cdnResult;
   }
 
-  return { ok: true, fullDomain };
+  return { fullDomain, ok: true };
 };
 
 /**
@@ -389,8 +389,8 @@ const deleteDnsRecordImpl = async (
   const url = `${BUNNY_API_BASE}/dnszone/${zoneId}/records/${recordId}`;
   logDebug("Domain", `Deleting DNS record: ${url}`);
   const response = await fetchText(url, {
-    method: "DELETE",
     headers: { AccessKey: getBunnyApiKey() },
+    method: "DELETE",
   });
   return okOrError(response, "Delete DNS record");
 };
@@ -406,12 +406,12 @@ const computeScriptRequest = (
   body: string,
 ): Promise<FetchResult> =>
   fetchText(`${BUNNY_API_BASE}${path}`, {
-    method,
+    body,
     headers: {
       AccessKey: getBunnyApiKey(),
       "Content-Type": "application/json",
     },
-    body,
+    method,
   });
 
 /** POST/PUT to /compute/script/{id}/{action} */
@@ -458,10 +458,10 @@ const createEdgeScriptImpl = async (
     "/compute/script",
     "POST",
     JSON.stringify({
-      Name: name,
       Code: code,
-      ScriptType: 1,
       CreateLinkedPullZone: true,
+      Name: name,
+      ScriptType: 1,
     }),
   );
 
@@ -471,10 +471,10 @@ const createEdgeScriptImpl = async (
 
   const data = JSON.parse(response.text);
   return {
-    ok: true,
-    scriptId: data.Id,
-    pullZoneId: data.LinkedPullZones[0].Id,
     defaultHostname: data.DefaultHostname ?? "",
+    ok: true,
+    pullZoneId: data.LinkedPullZones[0].Id,
+    scriptId: data.Id,
   };
 };
 
@@ -538,20 +538,20 @@ const deployScriptCodeImpl = async (code: string): Promise<BunnyApiResult> => {
 
 /** Stubbable API for testing */
 export const bunnyCdnApi = {
-  validateCustomDomain: validateCustomDomainImpl,
-  findPullZoneId: findPullZoneIdImpl,
-  getDnsZone: getDnsZoneImpl,
   checkSubdomainAvailable: checkSubdomainAvailableImpl,
-  registerBunnySubdomain: registerBunnySubdomainImpl,
-  getEdgeScript: getEdgeScriptImpl,
-  getCdnHostname: getCdnHostnameImpl,
+  createEdgeScript: createEdgeScriptImpl,
+  delay,
   deleteDnsRecord: deleteDnsRecordImpl,
   deployScriptCode: deployScriptCodeImpl,
-  createEdgeScript: createEdgeScriptImpl,
-  setEdgeScriptSecret: setEdgeScriptSecretImpl,
+  findPullZoneId: findPullZoneIdImpl,
+  getCdnHostname: getCdnHostnameImpl,
+  getDnsZone: getDnsZoneImpl,
+  getEdgeScript: getEdgeScriptImpl,
   publishEdgeScript: publishEdgeScriptImpl,
+  registerBunnySubdomain: registerBunnySubdomainImpl,
+  setEdgeScriptSecret: setEdgeScriptSecretImpl,
   updatePullZone: updatePullZoneImpl,
-  delay,
+  validateCustomDomain: validateCustomDomainImpl,
 };
 
 /** Validate a custom domain (delegates to bunnyCdnApi for testability). */

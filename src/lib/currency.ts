@@ -10,8 +10,8 @@ import { settings } from "#lib/db/settings.ts";
 /** Get the number of decimal places for a currency code */
 export const getDecimalPlaces = (currencyCode: string): number =>
   new Intl.NumberFormat("en", {
-    style: "currency",
     currency: currencyCode,
+    style: "currency",
   }).resolvedOptions().minimumFractionDigits ?? 2;
 
 /**
@@ -23,8 +23,8 @@ export const formatCurrency = (minorUnits: number | string): string => {
   const places = getDecimalPlaces(code);
   const divisor = 10 ** places;
   return new Intl.NumberFormat("en", {
-    style: "currency",
     currency: code,
+    style: "currency",
     trailingZeroDisplay: "stripIfInteger",
   }).format(Number(minorUnits) / divisor);
 };
@@ -65,21 +65,21 @@ export const validatePrice = (
   if (!raw) {
     return minPrice === 0
       ? { ok: true, price: 0 }
-      : { ok: false, error: "Please enter a price" };
+      : { error: "Please enter a price", ok: false };
   }
   const parsed = Number.parseFloat(raw);
   if (Number.isNaN(parsed) || parsed < 0) {
-    return { ok: false, error: "Please enter a valid price" };
+    return { error: "Please enter a valid price", ok: false };
   }
   const priceMinor = toMinorUnits(parsed);
   if (priceMinor < minPrice) {
     return {
-      ok: false,
       error: "Price must be at least the minimum ticket price",
+      ok: false,
     };
   }
   if (priceMinor > maxPrice) {
-    return { ok: false, error: "Price exceeds the maximum allowed" };
+    return { error: "Price exceeds the maximum allowed", ok: false };
   }
   return { ok: true, price: priceMinor };
 };

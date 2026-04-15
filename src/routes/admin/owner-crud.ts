@@ -143,17 +143,17 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({
     auth: { requireSession: auth.requireSession, withForm: auth.withForm },
-    path: `${cfg.listPath}/:id/delete`,
-    load: (id) => cfg.resource.table.findById(id),
-    render: cfg.renderDelete,
     identifier: cfg.getName,
+    identifierLabel: `${cfg.singular} name`,
+    load: (id) => cfg.resource.table.findById(id),
     onConfirm: async (row, id) => {
       await cfg.resource.delete(id);
       await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
     },
-    successRedirect: cfg.listPath,
+    path: `${cfg.listPath}/:id/delete`,
+    render: cfg.renderDelete,
     successMessage: `${cfg.singular} deleted`,
-    identifierLabel: `${cfg.singular} name`,
+    successRedirect: cfg.listPath,
   });
 
   const routes = {
@@ -166,12 +166,12 @@ const createCrudHandlersWithAuth = <Row, Input>(
   } as Record<string, RouteHandlerFn>;
 
   return {
-    listGet,
-    newGet,
     createPost,
+    deleteRoutes: confirmedDelete.routes,
     editGet,
     editPost,
-    deleteRoutes: confirmedDelete.routes,
+    listGet,
+    newGet,
     routes,
   };
 };

@@ -22,12 +22,12 @@ export const sendNtfyError = async (code: string): Promise<void> => {
 
   try {
     await fetchText(ntfyUrl, {
-      method: "POST",
-      headers: {
-        Title: `${domain} error`,
-        Tags: "warning",
-      },
       body: code,
+      headers: {
+        Tags: "warning",
+        Title: `${domain} error`,
+      },
+      method: "POST",
     });
   } catch {
     logErrorLocal({ code: ErrorCode.CDN_REQUEST, detail: "ntfy send failed" });

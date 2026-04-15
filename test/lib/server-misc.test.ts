@@ -163,11 +163,11 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("rejects POST requests without Content-Type header", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/login", {
-          method: "POST",
+          body: "password=test",
           headers: {
             host: "localhost",
           },
-          body: "password=test",
+          method: "POST",
         }),
       );
       await expectHtmlResponse(response, 400, "Invalid Content-Type");
@@ -176,12 +176,12 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("rejects POST requests with wrong Content-Type", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/login", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/json",
-          },
           body: JSON.stringify({ password: "test" }),
+          headers: {
+            "content-type": "application/json",
+            host: "localhost",
+          },
+          method: "POST",
         }),
       );
       await expectHtmlResponse(response, 400, "Invalid Content-Type");
@@ -189,12 +189,12 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("accepts POST requests with multipart/form-data Content-Type", () => {
       const request = new Request("http://localhost/admin/login", {
-        method: "POST",
-        headers: {
-          host: "localhost",
-          "content-type": "multipart/form-data; boundary=----test",
-        },
         body: "------test--",
+        headers: {
+          "content-type": "multipart/form-data; boundary=----test",
+          host: "localhost",
+        },
+        method: "POST",
       });
       expect(isValidContentType(request, "/admin/login")).toBe(true);
     });
@@ -204,12 +204,12 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("POST with empty content-type is rejected", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/login", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "",
-          },
           body: "password=test",
+          headers: {
+            "content-type": "",
+            host: "localhost",
+          },
+          method: "POST",
         }),
       );
       await expectHtmlResponse(response, 400, "Invalid Content-Type");
@@ -219,8 +219,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
   describe("routes/router.ts (slug and generic param patterns)", () => {
     test("slug pattern matches lowercase alphanumeric with hyphens", async () => {
       const event = await createTestEvent({
-        name: "My Test Event",
         maxAttendees: 50,
+        name: "My Test Event",
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
@@ -244,8 +244,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { settings: s } = await import("#lib/db/settings.ts");
       await getDbFn().execute({
-        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
       });
       s.invalidateCache();
 
@@ -514,8 +514,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
   describe("routes/router.ts (param patterns)", () => {
     test("matches slug pattern with lowercase alphanumeric and hyphens", async () => {
       const event = await createTestEvent({
-        name: "My Test Event",
         maxAttendees: 50,
+        name: "My Test Event",
       });
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
@@ -642,8 +642,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
       // Remove wrapped_private_key so requirePrivateKey throws SessionKeyError
       await getDbFn().execute({
-        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
       });
       s.invalidateCache();
 

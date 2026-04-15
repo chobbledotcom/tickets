@@ -31,8 +31,6 @@ import {
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
-  type: "stripe",
-
   checkoutCompletedEventType: "checkout.session.completed",
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
@@ -41,60 +39,14 @@ export const stripePaymentProvider: PaymentProvider = {
       return toCheckoutResult(session?.id, session?.url, "Stripe");
     }),
 
-  async retrieveSession(
-    sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
-    const session = await retrieveCheckoutSession(sessionId);
-    if (!session) return null;
-
-    const { id, payment_status, payment_intent, metadata, amount_total } =
-      session;
-
-    if (!hasRequiredSessionMetadata(metadata)) {
-      return null;
-    }
-
-    if (amount_total === null) return null;
-
-    return {
-      id,
-      paymentStatus: isPaymentStatus(payment_status)
-        ? payment_status
-        : "unpaid",
-      paymentReference: payment_intent ?? "",
-      amountTotal: amount_total,
-      metadata: extractSessionMetadata(metadata),
-    };
-  },
-
-  async verifyWebhookSignature(
-    payload: string,
-    signature: string,
-    _webhookUrl: string,
-    _payloadBytes: Uint8Array,
-  ): Promise<WebhookVerifyResult> {
-    const result = await verifyWebhookSignature(payload, signature);
-    if (!result.valid) {
-      return { valid: false, error: result.error };
-    }
-    return {
-      valid: true,
-      event: result.event,
-    };
-  },
-
-  async refundPayment(paymentReference: string): Promise<boolean> {
-    const result = await stripeRefund(paymentReference);
-    return result !== null;
-  },
-
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const intent = await retrievePaymentIntent(paymentReference);
     return intent?.latest_charge?.refunded ?? false;
   },
 
-  setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
-    return setupWebhookEndpoint(...args);
+  async refundPayment(paymentReference: string): Promise<boolean> {
+    const result = await stripeRefund(paymentReference);
+    return result !== null;
   },
 
   resolveWebhookSession({
@@ -116,13 +68,13 @@ export const stripePaymentProvider: PaymentProvider = {
       hasRequiredSessionMetadata(metadata)
     ) {
       return Promise.resolve({
+        amountTotal,
         id,
+        metadata: extractSessionMetadata(metadata),
+        paymentReference: asString(obj.payment_intent),
         paymentStatus: isPaymentStatus(paymentStatus)
           ? paymentStatus
           : "unpaid",
-        paymentReference: asString(obj.payment_intent),
-        amountTotal,
-        metadata: extractSessionMetadata(metadata),
       });
     }
 
@@ -132,5 +84,52 @@ export const stripePaymentProvider: PaymentProvider = {
     }
 
     return Promise.resolve(null);
+  },
+
+  async retrieveSession(
+    sessionId: string,
+  ): Promise<ValidatedPaymentSession | null> {
+    const session = await retrieveCheckoutSession(sessionId);
+    if (!session) return null;
+
+    const { id, payment_status, payment_intent, metadata, amount_total } =
+      session;
+
+    if (!hasRequiredSessionMetadata(metadata)) {
+      return null;
+    }
+
+    if (amount_total === null) return null;
+
+    return {
+      amountTotal: amount_total,
+      id,
+      metadata: extractSessionMetadata(metadata),
+      paymentReference: payment_intent ?? "",
+      paymentStatus: isPaymentStatus(payment_status)
+        ? payment_status
+        : "unpaid",
+    };
+  },
+
+  setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
+    return setupWebhookEndpoint(...args);
+  },
+  type: "stripe",
+
+  async verifyWebhookSignature(
+    payload: string,
+    signature: string,
+    _webhookUrl: string,
+    _payloadBytes: Uint8Array,
+  ): Promise<WebhookVerifyResult> {
+    const result = await verifyWebhookSignature(payload, signature);
+    if (!result.valid) {
+      return { error: result.error, valid: false };
+    }
+    return {
+      event: result.event,
+      valid: true,
+    };
   },
 };

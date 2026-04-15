@@ -31,13 +31,13 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
   test("getEventActivityLog returns entries for specific event", async () => {
     const event1 = await createTestEvent({
-      name: "Event One",
       maxAttendees: 50,
+      name: "Event One",
       thankYouUrl: "https://example.com",
     });
     const event2 = await createTestEvent({
-      name: "Event Two",
       maxAttendees: 50,
+      name: "Event Two",
       thankYouUrl: "https://example.com",
     });
 
@@ -73,8 +73,8 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
   test("getAllActivityLog returns all entries", async () => {
     const event = await createTestEvent({
-      name: "Test Event",
       maxAttendees: 50,
+      name: "Test Event",
       thankYouUrl: "https://example.com",
     });
 
@@ -108,8 +108,8 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
   test("getEventWithActivityLog returns event and activity log together", async () => {
     const event = await createTestEvent({
-      name: "Batch Test Event",
       maxAttendees: 50,
+      name: "Batch Test Event",
       thankYouUrl: "https://example.com",
     });
 

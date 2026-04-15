@@ -6,7 +6,10 @@
 import { map, reduce } from "#fp";
 import { encrypt } from "#lib/crypto/encryption.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
-import { encryptAttendeeFields } from "#lib/db/attendees.ts";
+import {
+  buildAttendeeInsert,
+  encryptAttendeeFields,
+} from "#lib/db/attendees.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
@@ -85,23 +88,9 @@ const prepareEvent = async (
   ] = await encryptBatch("", "", "", "", "", "", "");
 
   return insert("events", {
-    name: encName,
-    slug: encSlug,
-    slug_index: slugIndex,
-    description: encDesc,
-    date: encDate,
-    location: encLoc,
-    group_id: 0,
-    created,
-    max_attendees: maxAttendees,
-    thank_you_url: encThankYou,
-    unit_price: unitPrice,
-    max_quantity: 4,
-    webhook_url: encWebhook,
     active: 1,
-    fields: "email",
-    closes_at: encClosesAt,
-    event_type: "standard",
+    attachment_name: encAttachmentName,
+    attachment_url: encAttachmentUrl,
     bookable_days: JSON.stringify([
       "Monday",
       "Tuesday",
@@ -111,12 +100,26 @@ const prepareEvent = async (
       "Saturday",
       "Sunday",
     ]),
-    minimum_days_before: 1,
-    maximum_days_after: 90,
+    closes_at: encClosesAt,
+    created,
+    date: encDate,
+    description: encDesc,
+    event_type: "standard",
+    fields: "email",
+    group_id: 0,
     image_url: encImageUrl,
-    attachment_url: encAttachmentUrl,
-    attachment_name: encAttachmentName,
+    location: encLoc,
+    max_attendees: maxAttendees,
+    max_quantity: 4,
+    maximum_days_after: 90,
+    minimum_days_before: 1,
+    name: encName,
     non_transferable: 0,
+    slug: encSlug,
+    slug_index: slugIndex,
+    thank_you_url: encThankYou,
+    unit_price: unitPrice,
+    webhook_url: encWebhook,
   });
 };
 
@@ -140,11 +143,7 @@ const prepareAttendee = async (
   }))!;
 
   return [
-    insert("attendees", {
-      created: enc.created,
-      pii_blob: enc.encryptedPiiBlob,
-      ticket_token_index: enc.ticketTokenIndex,
-    }),
+    buildAttendeeInsert(enc),
     insert("event_attendees", {
       attendee_id: rawSql("last_insert_rowid()"),
       event_id: eventId,
@@ -178,11 +177,11 @@ export const createSeeds = async (
       randomQuantity(),
     );
     return {
+      capacity: sum(quantities),
       index: i,
       quantities,
-      capacity: sum(quantities),
-      unitPrice: i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
       slug: slugs[i]!,
+      unitPrice: i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
     };
   });
 
@@ -233,7 +232,7 @@ export const createSeeds = async (
   invalidateEventsCache();
 
   return {
-    eventsCreated: eventCount,
     attendeesCreated: totalAttendees,
+    eventsCreated: eventCount,
   };
 };

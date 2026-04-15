@@ -167,11 +167,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
+          csrf_token: csrfToken,
           google_wallet_issuer_id: "",
           google_wallet_service_account_email:
             "test@test.iam.gserviceaccount.com",
           google_wallet_service_account_key: testCreds.serviceAccountKey,
-          csrf_token: csrfToken,
         },
         cookie,
       ),
@@ -190,10 +190,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
+          csrf_token: csrfToken,
           google_wallet_issuer_id: "1234567890",
           google_wallet_service_account_email: "",
           google_wallet_service_account_key: testCreds.serviceAccountKey,
-          csrf_token: csrfToken,
         },
         cookie,
       ),
@@ -212,11 +212,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
+          csrf_token: csrfToken,
           google_wallet_issuer_id: "1234567890",
           google_wallet_service_account_email:
             "test@test.iam.gserviceaccount.com",
           google_wallet_service_account_key: "",
-          csrf_token: csrfToken,
         },
         cookie,
       ),
@@ -235,11 +235,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
+          csrf_token: csrfToken,
           google_wallet_issuer_id: "1234567890",
           google_wallet_service_account_email:
             "test@test.iam.gserviceaccount.com",
           google_wallet_service_account_key: "not a valid key",
-          csrf_token: csrfToken,
         },
         cookie,
       ),
@@ -260,11 +260,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
+          csrf_token: csrfToken,
           google_wallet_issuer_id: "1234567890",
           google_wallet_service_account_email:
             "test@test.iam.gserviceaccount.com",
           google_wallet_service_account_key: testCreds.serviceAccountKey,
-          csrf_token: csrfToken,
         },
         cookie,
       ),
@@ -291,10 +291,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
+          csrf_token: csrfToken,
           google_wallet_issuer_id: "",
           google_wallet_service_account_email: "",
           google_wallet_service_account_key: "",
-          csrf_token: csrfToken,
         },
         cookie,
       ),
@@ -369,12 +369,12 @@ describeWithEnv(
 describeWithEnv(
   "Google Wallet env var fallback",
   {
+    db: true,
     env: {
       GOOGLE_WALLET_ISSUER_ID: undefined,
       GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: undefined,
       GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: undefined,
     },
-    db: true,
   },
   () => {
     beforeEach(async () => {

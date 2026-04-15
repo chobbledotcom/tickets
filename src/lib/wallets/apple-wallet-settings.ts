@@ -11,14 +11,20 @@ const kit = createWalletSettingsKit<
   SigningCredentials,
   "passTypeId" | "teamId" | "signingCert" | "signingKey" | "wwdrCert"
 >({
+  build: (v) =>
+    v.passTypeId && v.teamId && v.signingCert && v.signingKey && v.wwdrCert
+      ? {
+          passTypeId: v.passTypeId,
+          signingCert: v.signingCert,
+          signingKey: v.signingKey,
+          teamId: v.teamId,
+          wwdrCert: v.wwdrCert,
+        }
+      : null,
   fields: {
     passTypeId: {
       dbKey: "apple_wallet_pass_type_id",
       envKey: "APPLE_WALLET_PASS_TYPE_ID",
-    },
-    teamId: {
-      dbKey: "apple_wallet_team_id",
-      envKey: "APPLE_WALLET_TEAM_ID",
     },
     signingCert: {
       dbKey: "apple_wallet_signing_cert",
@@ -28,21 +34,15 @@ const kit = createWalletSettingsKit<
       dbKey: "apple_wallet_signing_key",
       envKey: "APPLE_WALLET_SIGNING_KEY",
     },
+    teamId: {
+      dbKey: "apple_wallet_team_id",
+      envKey: "APPLE_WALLET_TEAM_ID",
+    },
     wwdrCert: {
       dbKey: "apple_wallet_wwdr_cert",
       envKey: "APPLE_WALLET_WWDR_CERT",
     },
   },
-  build: (v) =>
-    v.passTypeId && v.teamId && v.signingCert && v.signingKey && v.wwdrCert
-      ? {
-          passTypeId: v.passTypeId,
-          teamId: v.teamId,
-          signingCert: v.signingCert,
-          signingKey: v.signingKey,
-          wwdrCert: v.wwdrCert,
-        }
-      : null,
 });
 
 export const getHostAppleWalletConfig = kit.getHostConfig;

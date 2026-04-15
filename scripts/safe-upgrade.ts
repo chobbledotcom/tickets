@@ -79,7 +79,7 @@ async function fetchNpmVersions(pkg: string): Promise<VersionInfo[]> {
     // Skip pre-release versions
     if (/[-+]/.test(ver)) continue;
     if (!/^\d+\.\d+\.\d+$/.test(ver)) continue;
-    versions.push({ version: ver, publishedAt: new Date(dateStr) });
+    versions.push({ publishedAt: new Date(dateStr), version: ver });
   }
   return versions;
 }
@@ -103,8 +103,8 @@ async function fetchJsrVersions(
     if (/[-+]/.test(entry.version)) continue;
     if (!/^\d+\.\d+\.\d+$/.test(entry.version)) continue;
     versions.push({
-      version: entry.version,
       publishedAt: new Date(entry.createdAt),
+      version: entry.version,
     });
   }
   return versions;
@@ -116,14 +116,14 @@ async function checkUpgrade(
   cutoffDate: Date,
 ): Promise<UpgradeResult> {
   const result: UpgradeResult = {
-    name,
-    registry: specifier.startsWith("npm:") ? "npm" : "jsr",
     currentSpec: specifier,
     currentVersion: null,
-    newVersion: null,
-    newPublishedAt: null,
-    skippedNewer: null,
     error: null,
+    name,
+    newPublishedAt: null,
+    newVersion: null,
+    registry: specifier.startsWith("npm:") ? "npm" : "jsr",
+    skippedNewer: null,
   };
 
   try {

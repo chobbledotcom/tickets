@@ -8,7 +8,7 @@ describeWithEnv("buildSvgTicketData", { db: true }, () => {
     const data = buildSvgTicketData(
       makeEntry(
         { name: "Concert" },
-        { quantity: 2, price_paid: "1500", ticket_token: "tok123" },
+        { price_paid: "1500", quantity: 2, ticket_token: "tok123" },
       ),
       "GBP",
     );
@@ -80,7 +80,7 @@ describe("buildTicketAttachments", () => {
 
   test("attachment preserves non-ASCII characters via UTF-8 encoding", async () => {
     const attachments = await buildTicketAttachments(
-      [makeEntry({ name: "Cafe Musik", location: "Zurich" })],
+      [makeEntry({ location: "Zurich", name: "Cafe Musik" })],
       "GBP",
     );
 

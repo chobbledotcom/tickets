@@ -37,12 +37,12 @@ const errorMsg = (e: unknown): string => (e as Error).message;
 const getUpdatePageState = (): UpdatePageState => {
   const latestVersion = settings.latestScriptVersion;
   return {
-    buildDate: formatBuildDate(BUILD_TIMESTAMP),
     buildCommit: (BUILD_COMMIT as string).slice(0, 12),
+    buildDate: formatBuildDate(BUILD_TIMESTAMP),
+    bunnyConfigured: isBunnyCdnEnabled(),
     latestVersion,
     latestVersionName: settings.latestScriptVersionName,
     updateAvailable: latestVersion !== "" && isNewerVersion(latestVersion),
-    bunnyConfigured: isBunnyCdnEnabled(),
   };
 };
 
@@ -110,7 +110,7 @@ const deployUpdate = async (): Promise<Response> => {
 
 export const updateRoutes = defineRoutes({
   "GET /admin/update": handleUpdateGet,
+  "POST /admin/update": (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
   "POST /admin/update/check": (r: Request) =>
     withAuth(r, OWNER_FORM, checkForUpdate),
-  "POST /admin/update": (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
 });

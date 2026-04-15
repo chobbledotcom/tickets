@@ -78,8 +78,8 @@ describe("itemsSubtotal", () => {
 
   test("calculates subtotal from items", () => {
     const items = [
-      { unitPrice: 500, quantity: 2 },
-      { unitPrice: 1000, quantity: 1 },
+      { quantity: 2, unitPrice: 500 },
+      { quantity: 1, unitPrice: 1000 },
     ];
     expect(itemsSubtotal(items)).toBe(2000);
   });

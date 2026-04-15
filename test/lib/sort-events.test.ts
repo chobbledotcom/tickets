@@ -31,16 +31,16 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("places no-date standard events before dated standard events", () => {
     const noDate = testEvent({
+      date: "",
+      event_type: "standard",
       id: 1,
       name: "Undated",
-      event_type: "standard",
-      date: "",
     });
     const dated = testEvent({
+      date: "2026-06-15T14:00:00.000Z",
+      event_type: "standard",
       id: 2,
       name: "Dated",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
     });
 
     const sorted = sortEvents([dated, noDate], []);
@@ -50,12 +50,12 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("places dated standard events before daily events", () => {
     const dated = testEvent({
+      date: "2026-06-15T14:00:00.000Z",
+      event_type: "standard",
       id: 1,
       name: "Dated",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
     });
-    const daily = testEvent({ id: 2, name: "Daily", event_type: "daily" });
+    const daily = testEvent({ event_type: "daily", id: 2, name: "Daily" });
 
     const sorted = sortEvents([daily, dated], []);
     expect(sorted[0]!.name).toBe("Dated");
@@ -64,12 +64,12 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("places no-date standard before daily events", () => {
     const noDate = testEvent({
+      date: "",
+      event_type: "standard",
       id: 1,
       name: "Undated",
-      event_type: "standard",
-      date: "",
     });
-    const daily = testEvent({ id: 2, name: "Daily", event_type: "daily" });
+    const daily = testEvent({ event_type: "daily", id: 2, name: "Daily" });
 
     const sorted = sortEvents([daily, noDate], []);
     expect(sorted[0]!.name).toBe("Undated");
@@ -78,22 +78,22 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("sorts no-date standard events alphabetically by name", () => {
     const c = testEvent({
+      date: "",
+      event_type: "standard",
       id: 1,
       name: "Charlie",
-      event_type: "standard",
-      date: "",
     });
     const a = testEvent({
+      date: "",
+      event_type: "standard",
       id: 2,
       name: "Alpha",
-      event_type: "standard",
-      date: "",
     });
     const b = testEvent({
+      date: "",
+      event_type: "standard",
       id: 3,
       name: "Bravo",
-      event_type: "standard",
-      date: "",
     });
 
     const sorted = sortEvents([c, a, b], []);
@@ -102,16 +102,16 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("sorts dated standard events by date ascending", () => {
     const later = testEvent({
+      date: "2026-09-01T10:00:00.000Z",
+      event_type: "standard",
       id: 1,
       name: "Later",
-      event_type: "standard",
-      date: "2026-09-01T10:00:00.000Z",
     });
     const earlier = testEvent({
+      date: "2026-06-15T14:00:00.000Z",
+      event_type: "standard",
       id: 2,
       name: "Earlier",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
     });
 
     const sorted = sortEvents([later, earlier], []);
@@ -121,25 +121,25 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("sorts dated standard events by name when dates are equal", () => {
     expectAlphaBeforeBravo({
-      event_type: "standard",
       date: "2026-06-15T14:00:00.000Z",
+      event_type: "standard",
     });
   });
 
   test("sorts daily events by next bookable date ascending", () => {
     const laterDaily = testEvent({
-      id: 1,
-      name: "Later Daily",
       event_type: "daily",
-      minimum_days_before: 5,
+      id: 1,
       maximum_days_after: 30,
+      minimum_days_before: 5,
+      name: "Later Daily",
     });
     const soonerDaily = testEvent({
-      id: 2,
-      name: "Sooner Daily",
       event_type: "daily",
-      minimum_days_before: 1,
+      id: 2,
       maximum_days_after: 30,
+      minimum_days_before: 1,
+      name: "Sooner Daily",
     });
 
     const sorted = sortEvents([laterDaily, soonerDaily], []);
@@ -149,18 +149,18 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("sorts daily events by name when next bookable dates are equal", () => {
     const b = testEvent({
-      id: 1,
-      name: "Bravo Daily",
       event_type: "daily",
-      minimum_days_before: 1,
+      id: 1,
       maximum_days_after: 30,
+      minimum_days_before: 1,
+      name: "Bravo Daily",
     });
     const a = testEvent({
-      id: 2,
-      name: "Alpha Daily",
       event_type: "daily",
-      minimum_days_before: 1,
+      id: 2,
       maximum_days_after: 30,
+      minimum_days_before: 1,
+      name: "Alpha Daily",
     });
     const sorted = sortEvents([b, a], []);
     expect(sorted[0]!.name).toBe("Alpha Daily");
@@ -169,19 +169,19 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("places daily events with no bookable dates after those with dates", () => {
     const hasBookable = testEvent({
-      id: 1,
-      name: "Has Dates",
       event_type: "daily",
-      minimum_days_before: 0,
+      id: 1,
       maximum_days_after: 30,
+      minimum_days_before: 0,
+      name: "Has Dates",
     });
     const noBookable = testEvent({
-      id: 2,
-      name: "No Dates",
-      event_type: "daily",
       bookable_days: [],
-      minimum_days_before: 0,
+      event_type: "daily",
+      id: 2,
       maximum_days_after: 30,
+      minimum_days_before: 0,
+      name: "No Dates",
     });
 
     const sorted = sortEvents([noBookable, hasBookable], []);
@@ -190,22 +190,22 @@ describeWithEnv("sortEvents", { db: true }, () => {
   });
 
   test("sorts daily events with no bookable dates by name", () => {
-    expectAlphaBeforeBravo({ event_type: "daily", bookable_days: [] });
+    expectAlphaBeforeBravo({ bookable_days: [], event_type: "daily" });
   });
 
   test("places daily event with bookable dates before one without regardless of input order", () => {
     const withDates = testEvent({
-      id: 1,
-      name: "With Dates",
       event_type: "daily",
-      minimum_days_before: 0,
+      id: 1,
       maximum_days_after: 30,
+      minimum_days_before: 0,
+      name: "With Dates",
     });
     const withoutDates = testEvent({
+      bookable_days: [],
+      event_type: "daily",
       id: 2,
       name: "Without Dates",
-      event_type: "daily",
-      bookable_days: [],
     });
 
     // Test both input orderings to exercise both dateA="" and dateB="" branches
@@ -221,26 +221,26 @@ describeWithEnv("sortEvents", { db: true }, () => {
     // Block the next few days so event A's first bookable date is pushed later
     const holidays: Holiday[] = [
       {
+        end_date: addDays(todayStr, 5),
         id: 1,
         name: "Holiday",
         start_date: addDays(todayStr, 1),
-        end_date: addDays(todayStr, 5),
       },
     ];
 
     const blockedEvent = testEvent({
-      id: 1,
-      name: "Blocked",
       event_type: "daily",
-      minimum_days_before: 1,
+      id: 1,
       maximum_days_after: 30,
+      minimum_days_before: 1,
+      name: "Blocked",
     });
     const freeEvent = testEvent({
-      id: 2,
-      name: "Free",
       event_type: "daily",
-      minimum_days_before: 0,
+      id: 2,
       maximum_days_after: 30,
+      minimum_days_before: 0,
+      name: "Free",
     });
 
     const sorted = sortEvents([blockedEvent, freeEvent], holidays);
@@ -250,22 +250,22 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("sorts a mixed list of all three event types correctly", () => {
     const daily = testEvent({
-      id: 1,
-      name: "Daily Event",
       event_type: "daily",
+      id: 1,
       minimum_days_before: 0,
+      name: "Daily Event",
     });
     const datedStandard = testEvent({
+      date: "2026-06-15T14:00:00.000Z",
+      event_type: "standard",
       id: 2,
       name: "Dated Standard",
-      event_type: "standard",
-      date: "2026-06-15T14:00:00.000Z",
     });
     const nodateStandard = testEvent({
+      date: "",
+      event_type: "standard",
       id: 3,
       name: "No-Date Standard",
-      event_type: "standard",
-      date: "",
     });
 
     const sorted = sortEvents([daily, datedStandard, nodateStandard], []);
@@ -278,9 +278,9 @@ describeWithEnv("sortEvents", { db: true }, () => {
 
   test("preserves EventWithCount fields", () => {
     const event = testEventWithCount({
+      attendee_count: 42,
       id: 1,
       name: "Test",
-      attendee_count: 42,
     });
     const sorted = sortEvents([event], []);
     expect((sorted[0] as EventWithCount).attendee_count).toBe(42);

@@ -58,7 +58,7 @@ export const getEmailConfig = (): EmailConfig | null => {
   const apiKey = settings.email.apiKey;
   const from = settings.email.fromAddress || settings.businessEmail || "";
   if (!provider || !apiKey || !from) return null;
-  return { provider: provider as EmailProvider, apiKey, fromAddress: from };
+  return { apiKey, fromAddress: from, provider: provider as EmailProvider };
 };
 
 /** Read host-level email config from environment variables. Returns null if not fully configured. */
@@ -74,7 +74,7 @@ const getHostEmailConfigFromEnv = (): EmailConfig | null => {
     });
     return null;
   }
-  return { provider, apiKey, fromAddress };
+  return { apiKey, fromAddress, provider };
 };
 
 const [getHostEmailOverride, setHostEmailOverride] = lazyRef<
@@ -116,6 +116,30 @@ const bearerAuth = (apiKey: string): Headers => ({
   Authorization: `Bearer ${apiKey}`,
 });
 
+/** Provider using bearer-token auth (Resend, SendGrid, etc). */
+const bearerProvider = (
+  url: string,
+  body: (config: EmailConfig, msg: EmailMessage) => unknown,
+): ProviderRequest => provider(url, bearerAuth, body);
+
+/** Map EmailMessage attachments into a provider-specific shape, or undefined. */
+const mapAttachments = <T>(
+  msg: EmailMessage,
+  fn: (a: EmailAttachment) => T,
+): T[] | undefined => msg.attachments?.map(fn);
+
+const resendAttachment = (a: EmailAttachment) => ({
+  content: a.content,
+  filename: a.filename,
+});
+
+const sendgridAttachment = (a: EmailAttachment) => ({
+  content: a.content,
+  disposition: "attachment",
+  filename: a.filename,
+  type: a.contentType,
+});
+
 const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   const form = new FormData();
   form.append("from", config.fromAddress);
@@ -144,64 +168,51 @@ const mailgun = (host: string) =>
   );
 
 const PROVIDERS = {
-  resend: provider(
-    "https://api.resend.com/emails",
-    bearerAuth,
-    (config, msg) => ({
-      from: config.fromAddress,
-      to: [msg.to],
-      reply_to: msg.replyTo,
-      subject: msg.subject,
-      html: msg.html,
-      text: msg.text,
-      attachments: msg.attachments?.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-      })),
-    }),
-  ),
+  "mailgun-eu": mailgun("api.eu.mailgun.net"),
+  "mailgun-us": mailgun("api.mailgun.net"),
   postmark: provider(
     "https://api.postmarkapp.com/email",
     (apiKey) => ({
-      "X-Postmark-Server-Token": apiKey,
       Accept: "application/json",
+      "X-Postmark-Server-Token": apiKey,
     }),
     (config, msg) => ({
-      From: config.fromAddress,
-      To: msg.to,
-      ReplyTo: msg.replyTo,
-      Subject: msg.subject,
-      HtmlBody: msg.html,
-      TextBody: msg.text,
       Attachments: msg.attachments?.map((a) => ({
-        Name: a.filename,
         Content: a.content,
         ContentType: a.contentType,
+        Name: a.filename,
       })),
+      From: config.fromAddress,
+      HtmlBody: msg.html,
+      ReplyTo: msg.replyTo,
+      Subject: msg.subject,
+      TextBody: msg.text,
+      To: msg.to,
     }),
   ),
-  sendgrid: provider(
+  resend: bearerProvider("https://api.resend.com/emails", (config, msg) => ({
+    attachments: mapAttachments(msg, resendAttachment),
+    from: config.fromAddress,
+    html: msg.html,
+    reply_to: msg.replyTo,
+    subject: msg.subject,
+    text: msg.text,
+    to: [msg.to],
+  })),
+  sendgrid: bearerProvider(
     "https://api.sendgrid.com/v3/mail/send",
-    bearerAuth,
     (config, msg) => ({
-      personalizations: [{ to: [{ email: msg.to }] }],
-      from: { email: config.fromAddress },
-      reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
-      subject: msg.subject,
+      attachments: mapAttachments(msg, sendgridAttachment),
       content: [
         { type: "text/plain", value: msg.text },
         { type: "text/html", value: msg.html },
       ],
-      attachments: msg.attachments?.map((a) => ({
-        content: a.content,
-        filename: a.filename,
-        type: a.contentType,
-        disposition: "attachment",
-      })),
+      from: { email: config.fromAddress },
+      personalizations: [{ to: [{ email: msg.to }] }],
+      reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
+      subject: msg.subject,
     }),
   ),
-  "mailgun-us": mailgun("api.mailgun.net"),
-  "mailgun-eu": mailgun("api.eu.mailgun.net"),
 } as const satisfies Record<string, ProviderRequest>;
 
 /** Union of all supported email provider keys, derived from the PROVIDERS map */
@@ -218,11 +229,11 @@ export const isEmailProvider = (value: string): value is EmailProvider =>
 
 /** Display labels for email providers — keys must match EmailProvider */
 export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
-  resend: "Resend",
-  postmark: "Postmark",
-  sendgrid: "SendGrid",
-  "mailgun-us": "Mailgun (US)",
   "mailgun-eu": "Mailgun (EU)",
+  "mailgun-us": "Mailgun (US)",
+  postmark: "Postmark",
+  resend: "Resend",
+  sendgrid: "SendGrid",
 };
 
 /** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
@@ -242,11 +253,11 @@ export const sendEmail = async (
     const [url, headers, body] = buildRequest(config, msg);
     const isFormData = body instanceof FormData;
     const { ok, status } = await fetchText(url, {
-      method: "POST",
+      body: isFormData ? body : JSON.stringify(body),
       headers: isFormData
         ? headers
         : { ...headers, "Content-Type": "application/json" },
-      body: isFormData ? body : JSON.stringify(body),
+      method: "POST",
     });
     if (!ok) {
       logError({
@@ -269,15 +280,15 @@ export const buildSvgTicketData = (
   entry: EmailEntry,
   currency: string,
 ): SvgTicketData => ({
-  eventName: entry.event.name,
+  attendeeDate: entry.attendee.date,
+  checkinUrl: buildCheckinUrl(entry.attendee.ticket_token),
+  currency,
   eventDate: entry.event.date,
   eventLocation: entry.event.location,
-  attendeeDate: entry.attendee.date,
-  quantity: entry.attendee.quantity,
+  eventName: entry.event.name,
   pricePaid: entry.attendee.price_paid,
-  currency,
-  checkinUrl: buildCheckinUrl(entry.attendee.ticket_token),
   purchaseOnly: entry.event.purchase_only,
+  quantity: entry.attendee.quantity,
 });
 
 /** Generate SVG ticket attachments for all entries */
@@ -292,9 +303,9 @@ export const buildTicketAttachments = async (
     ticketDataList.map((data) => generateSvgTicket(data)),
   );
   return svgs.map((svg, i) => ({
-    filename: entries.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
     content: toBase64(new TextEncoder().encode(svg)),
     contentType: "image/svg+xml",
+    filename: entries.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
   }));
 };
 
@@ -327,8 +338,8 @@ export const sendRegistrationEmails = async (
       sendEmail(config, {
         to: attendeeEmail,
         ...confirmation,
-        replyTo,
         attachments,
+        replyTo,
       }),
     );
   }
@@ -353,9 +364,9 @@ export const sendTestEmail = async (
   to: string,
 ): Promise<number | undefined> => {
   return await sendEmail(config, {
-    to,
-    subject: "Test email from your ticket system",
     html: "<p>This is a test email. Your email configuration is working correctly.</p>",
+    subject: "Test email from your ticket system",
     text: "This is a test email. Your email configuration is working correctly.",
+    to,
   });
 };

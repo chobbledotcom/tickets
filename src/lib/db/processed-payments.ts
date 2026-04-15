@@ -52,16 +52,20 @@ export const isReservationStale = (processedAt: string): boolean => {
   return nowMs() - reservedAt > STALE_RESERVATION_MS;
 };
 
+/** Execute a SQL statement parameterized by a single payment session ID */
+const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
+  getDb().execute({ args: [sessionId], sql });
+
 /**
  * Delete a stale reservation to allow retry
  */
 export const deleteStaleReservation = async (
   sessionId: string,
 ): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
-    args: [sessionId],
-  });
+  await execWithSessionId(
+    sessionId,
+    "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+  );
 };
 
 /**
@@ -71,8 +75,8 @@ export const deleteStaleReservation = async (
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
     args: [cutoff],
+    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
   });
   return result.rowsAffected;
 };
@@ -92,8 +96,8 @@ export const reserveSession = async (
   try {
     await getDb().execute(
       insert("processed_payments", {
-        payment_session_id: sessionId,
         attendee_id: null,
+        payment_session_id: sessionId,
         processed_at: nowIso(),
       }),
     );
@@ -116,7 +120,7 @@ export const reserveSession = async (
         return reserveSession(sessionId);
       }
 
-      return { reserved: false, existing };
+      return { existing, reserved: false };
     }
     throw e;
   }
@@ -133,8 +137,8 @@ export const finalizeSession = async (
   const joined = ticketTokens.join("+");
   const encryptedTokens = joined ? await encrypt(joined) : "";
   await getDb().execute({
-    sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
     args: [attendeeId, encryptedTokens, sessionId],
+    sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
   });
 };
 
@@ -153,10 +157,10 @@ export const decryptSessionTokens = async (
  * Clear stored ticket tokens for a session (after redirect has consumed them)
  */
 export const clearSessionTokens = async (sessionId: string): Promise<void> => {
-  await getDb().execute({
-    sql: "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
-    args: [sessionId],
-  });
+  await execWithSessionId(
+    sessionId,
+    "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
+  );
 };
 
 /**
