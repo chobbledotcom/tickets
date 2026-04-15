@@ -2,7 +2,7 @@
 
 ## Goal
 
-Let admins mark a daily event as a fixed-length multi-day booking (e.g. a 3-day workshop, a weekend retreat, equipment rented for 5 days). A single ticket reserves the full range; price scales with days; availability is checked across every day in the range.
+Let admins mark a daily event as a fixed-length multi-day booking (e.g. a 3-day workshop, a weekend retreat, etc. A single ticket reserves the full range; price scales with days; availability is checked across every day in the range.
 
 This is deliberately a **small, low-risk step** that (a) delivers a new capability to existing users (multi-day courses/retreats/rentals), and (b) lays the plumbing for a later "customer picks their own end date" feature by making the whole stack multi-day-aware.
 
