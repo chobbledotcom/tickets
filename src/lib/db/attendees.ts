@@ -190,7 +190,7 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
  * Get aggregated statistics for active events.
  * Filters active events from the provided list, computes attendees
  * (sum of quantities) from cached EventWithCount data, and queries
- * ticket count (rows) and income (sum of price_paid).
+ * ticket count and income (sum of price_paid) via a single aggregate.
  */
 export const getActiveEventStats = async (
   events: EventWithCount[],
@@ -205,16 +205,18 @@ export const getActiveEventStats = async (
     0,
   )(active);
 
-  const rows = await queryAll<{ price_paid: number }>(
-    `SELECT ea.price_paid FROM event_attendees ea
-     WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
+  const row = (await queryOne<{ tickets: number; income: number }>(
+    `SELECT COUNT(*) AS tickets,
+            COALESCE(SUM(ea.price_paid), 0) AS income
+       FROM event_attendees ea
+      WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
-  );
-  const income = reduce(
-    (sum: number, r: { price_paid: number }) => sum + r.price_paid,
-    0,
-  )(rows);
-  return { attendees, income, tickets: rows.length };
+  ))!;
+  return {
+    attendees,
+    income: row.income,
+    tickets: row.tickets,
+  };
 };
 
 /**
