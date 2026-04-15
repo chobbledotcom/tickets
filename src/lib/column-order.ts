@@ -174,7 +174,7 @@ export const renderFilteredValue = (
   let contextValue = rawValue;
   if (typeof rawValue === "string" && expression.includes("| date")) {
     const d = new Date(rawValue);
-    if (!isNaN(d.getTime())) contextValue = d;
+    if (!Number.isNaN(d.getTime())) contextValue = d;
   }
   const result = engine.parseAndRenderSync(`{{ ${expression} }}`, {
     [key]: contextValue,

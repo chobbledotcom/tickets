@@ -34,7 +34,7 @@ import {
   getReturnUrl,
   NO_PROVIDER_ERROR,
   verifiedAttendeeForm,
-} from "./attendees.ts";
+} from "./attendees-route-helpers.ts";
 
 /** Refund error messages */
 const NO_PAYMENT_ERROR = "This attendee has no payment to refund.";
