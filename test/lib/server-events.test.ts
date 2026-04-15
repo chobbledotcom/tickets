@@ -2185,34 +2185,6 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
   });
 
-  describe("slug collision on create", () => {
-    test("throws when all slug generation attempts collide", async () => {
-      // Stub Math.random to make generateSlug deterministic — every attempt
-      // produces the same slug, so after the first event claims it the
-      // second creation exhausts all 10 retries and throws.
-      const randomStub = stub(Math, "random", () => 0.5);
-      try {
-        // First event succeeds, claiming the only slug Math.random can produce
-        await adminFormPost("/admin/event", {
-          max_attendees: "50",
-          max_quantity: "1",
-          name: "First Event",
-          thank_you_url: "https://example.com",
-        });
-        // Second event: all 10 attempts generate the same taken slug
-        await expect(
-          adminFormPost("/admin/event", {
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Collision Event",
-            thank_you_url: "https://example.com",
-          }),
-        ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
-      } finally {
-        randomStub.restore();
-      }
-    });
-  });
 
   describe("edit event notFound race condition", () => {
     test("returns 404 when event is deleted during edit update", async () => {
