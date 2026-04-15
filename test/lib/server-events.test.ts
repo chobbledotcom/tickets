@@ -5,6 +5,7 @@ import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb, insert } from "#lib/db/client.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
+import { _internals as slugInternals } from "#lib/slug.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { nowMs } from "#lib/now.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
@@ -2187,10 +2188,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("slug collision on create", () => {
     test("throws when all slug generation attempts collide", async () => {
-      // Stub Math.random to make generateSlug deterministic — every attempt
-      // produces the same slug, so after the first event claims it the
-      // second creation exhausts all 10 retries and throws.
-      const randomStub = stub(Math, "random", () => 0.5);
+      // Stub slug._internals.random to make generateSlug deterministic — every
+      // attempt produces the same slug, so after the first event claims it the
+      // second creation exhausts all 10 retries and throws.  Using the module
+      // seam instead of Math.random avoids polluting the global across
+      // concurrent test workers.
+      const randomStub = stub(slugInternals, "random", () => 0.5);
       try {
         // First event succeeds, claiming the only slug Math.random can produce
         await adminFormPost("/admin/event", {
