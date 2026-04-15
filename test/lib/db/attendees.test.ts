@@ -403,7 +403,7 @@ describeWithEnv("db > attendees", { db: true }, () => {
       );
       const events = await getAllEvents();
       const mixed = events.map((e) =>
-        e.id === event2.id ? { ...e, active: false } : e
+        e.id === event2.id ? { ...e, active: false } : e,
       );
       const stats = await getActiveEventStats(mixed);
       expect(stats.tickets).toBe(1);

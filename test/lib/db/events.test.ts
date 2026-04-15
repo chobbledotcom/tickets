@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { logActivity } from "#lib/db/activityLog.ts";
+import {
+  getAllActivityLog,
+  getEventActivityLog,
+  logActivity,
+} from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
   decryptAttendees,
@@ -27,7 +31,6 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#lib/db/processed-payments.ts";
-import { getAllActivityLog, getEventActivityLog } from "#lib/db/activityLog.ts";
 import {
   createTestAttendee,
   createTestEvent,

@@ -33,7 +33,7 @@ import { type GroupInput, invalidateGroupsCache } from "#lib/db/groups.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
 import { initDb } from "#lib/db/migrations.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { settings, type SettingsData } from "#lib/db/settings.ts";
+import { type SettingsData, settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";

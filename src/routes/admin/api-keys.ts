@@ -93,7 +93,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
   });
 
 /** Confirmed-delete handlers for API keys */
-const apiKeyDelete = createConfirmedHandlers({
+const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
   path: "/admin/api-keys/:apiKeyId/delete",
   load: (id, session) => getApiKeyForUser(id, session.userId).catch(() => null),
   render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),

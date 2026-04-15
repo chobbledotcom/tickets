@@ -168,7 +168,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
           installUrlHandler(originalFetch, (url) =>
             url.includes("bunnycdn.com") || url.includes("b-cdn.net")
               ? Promise.reject(new Error("forced upload failure"))
-              : null);
+              : null,
+          );
           await expect(initDb()).rejects.toThrow();
         });
 

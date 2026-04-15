@@ -11,8 +11,11 @@ import {
 
 /** Build an edge script API response */
 const edgeScriptResponse = (
-  pullZones: { Id: number; PullZoneName: string; DefaultHostname: string }[] =
-    [],
+  pullZones: {
+    Id: number;
+    PullZoneName: string;
+    DefaultHostname: string;
+  }[] = [],
   defaultHostname = "mysite.b-cdn.net",
 ) => ({
   Id: 1,
@@ -26,7 +29,11 @@ describeWithEnv(
   () => {
     test("returns edge script data on success", async () => {
       const response = edgeScriptResponse([
-        { Id: 222, PullZoneName: "mysite", DefaultHostname: "mysite.b-cdn.net" },
+        {
+          Id: 222,
+          PullZoneName: "mysite",
+          DefaultHostname: "mysite.b-cdn.net",
+        },
       ]);
       await withMocks(
         () => stubFetchJson(response),
@@ -82,7 +89,11 @@ describeWithEnv(
   () => {
     test("returns pull zone ID from first linked pull zone", async () => {
       const response = edgeScriptResponse([
-        { Id: 222, PullZoneName: "mysite", DefaultHostname: "mysite.b-cdn.net" },
+        {
+          Id: 222,
+          PullZoneName: "mysite",
+          DefaultHostname: "mysite.b-cdn.net",
+        },
       ]);
       await withMocks(
         () => stubFetchJson(response),
@@ -195,8 +206,7 @@ describeWithEnv(
 
     test("defaults hostname to empty string when not in response", async () => {
       await withMocks(
-        () =>
-          stubFetchJson({ Id: 7, LinkedPullZones: [{ Id: 50 }] }),
+        () => stubFetchJson({ Id: 7, LinkedPullZones: [{ Id: 50 }] }),
         async () => {
           const result = await bunnyCdnApi.createEdgeScript("Test", "code");
           expect(result).toEqual({
@@ -341,7 +351,9 @@ describeWithEnv(
             "libsql://test",
           );
           expect(result.ok).toBe(true);
-          expect(recorder.calls[0]!.url).toContain("/compute/script/42/secrets");
+          expect(recorder.calls[0]!.url).toContain(
+            "/compute/script/42/secrets",
+          );
           expect(recorder.calls[0]!.init!.method).toBe("PUT");
           const body = JSON.parse(recorder.calls[0]!.init!.body as string);
           expect(body.Name).toBe("DB_URL");

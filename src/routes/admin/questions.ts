@@ -129,7 +129,7 @@ const handleAddAnswer = withValidatedText(
 );
 
 /** Confirmed-delete handlers for questions */
-const questionDelete = createConfirmedHandlers({
+const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
   load: (id) => getQuestionWithAnswers(id),
   render: (q, session, error) => adminQuestionDeletePage(q, session, error),
   identifier: (q) => q.text,

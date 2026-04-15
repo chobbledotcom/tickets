@@ -1399,16 +1399,14 @@ export const adminGuidePage = (
 
         <Q q="What happens when I change my password?">
           <p>
-            Changing your password <strong>ends every active session</strong>
-            {" "}
+            Changing your password <strong>ends every active session</strong>{" "}
             for your account &mdash; you and anyone else signed in as you will
             be logged out and must sign in again with the new password.
           </p>
           <p>
-            Your existing attendee data remains fully accessible. The
-            encryption key is re-secured with the new password, so every
-            record created before the change can still be decrypted after you
-            log back in.
+            Your existing attendee data remains fully accessible. The encryption
+            key is re-secured with the new password, so every record created
+            before the change can still be decrypted after you log back in.
           </p>
         </Q>
 
@@ -1710,10 +1708,9 @@ export const adminGuidePage = (
       <Section id="custom-domain" title="Custom Domain">
         <Q q="How do I set up a custom domain?">
           <p>
-            If your site runs on Bunny CDN and the{" "}
-            <code>BUNNY_API_KEY</code> and <code>BUNNY_SCRIPT_ID</code>{" "}
-            environment variables are configured, you'll see a{" "}
-            <strong>Custom Domain</strong> section in{" "}
+            If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>{" "}
+            and <code>BUNNY_SCRIPT_ID</code> environment variables are
+            configured, you'll see a <strong>Custom Domain</strong> section in{" "}
             <a href="/admin/settings-advanced">Advanced Settings</a>. Enter your
             domain (e.g. <code>tickets.yourdomain.com</code>) and save, then
             follow the CNAME instructions shown and click{" "}
@@ -1731,12 +1728,12 @@ export const adminGuidePage = (
 
         <Q q="What if validation fails?">
           <p>
-            Validation is attempted automatically when you save your domain.
-            If it fails &mdash; usually because DNS hasn't propagated yet
-            &mdash; your domain is still saved and you'll see a warning.
-            Create the CNAME record shown on the page, wait a few minutes
-            for DNS to propagate, then click{" "}
-            <strong>Validate Custom Domain</strong> to try again.
+            Validation is attempted automatically when you save your domain. If
+            it fails &mdash; usually because DNS hasn't propagated yet &mdash;
+            your domain is still saved and you'll see a warning. Create the
+            CNAME record shown on the page, wait a few minutes for DNS to
+            propagate, then click <strong>Validate Custom Domain</strong> to try
+            again.
           </p>
         </Q>
       </Section>

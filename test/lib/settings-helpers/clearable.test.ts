@@ -1,6 +1,6 @@
+import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
@@ -39,7 +39,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ email: "user@test.com" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "user@test.com" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings");
     expect(saveFn).toHaveBeenCalledWith("user@test.com");
@@ -57,7 +61,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ email: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings");
     expect(saveFn).toHaveBeenCalledWith("");
@@ -75,7 +83,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ email: "   " }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "   " }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(saveFn).toHaveBeenCalledWith("");
     expectFlash(res, "Email cleared");
@@ -91,17 +103,26 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ email: "not-an-email" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "not-an-email" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(400);
     expect(saveFn).not.toHaveBeenCalled();
-    expect(mockErrorPage).toHaveBeenCalledWith("Invalid email", 400, "settings-email");
+    expect(mockErrorPage).toHaveBeenCalledWith(
+      "Invalid email",
+      400,
+      "settings-email",
+    );
   });
 
   test("skips validator for empty value even when validate is provided", async () => {
     // Clearing always succeeds regardless of the validator
-    const validateFn = fn((_v: string) => "Should not be called") as unknown as
-      ((value: string) => string | null) & ReturnType<typeof fn>;
+    const validateFn = fn(
+      (_v: string) => "Should not be called",
+    ) as unknown as ((value: string) => string | null) & ReturnType<typeof fn>;
     const handler = clearableFieldHandler({
       formId: "settings-email",
       field: "email",
@@ -110,7 +131,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: () => Promise.resolve(),
     });
 
-    const res = await handler(formFrom({ email: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ email: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(302);
     expect(validateFn).not.toHaveBeenCalled();
@@ -125,7 +150,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ my_field: "some value" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_field: "some value" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(302);
     expect(saveFn).toHaveBeenCalledWith("some value");
@@ -139,7 +168,11 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
       save: () => Promise.resolve(),
     });
 
-    const res = await handler(formFrom({ my_field: "val" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ my_field: "val" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings-advanced");
   });

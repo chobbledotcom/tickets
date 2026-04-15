@@ -8,9 +8,7 @@ describeWithEnv("db > client", { db: true }, () => {
     setDb(null);
     const restore = setTestEnv({ DB_URL: undefined });
     try {
-      expect(() => getDb()).toThrow(
-        "DB_URL environment variable is required",
-      );
+      expect(() => getDb()).toThrow("DB_URL environment variable is required");
     } finally {
       restore();
     }
@@ -35,9 +33,7 @@ describeWithEnv("db > client", { db: true }, () => {
       name: "Alice",
       email: "a@b.com",
     });
-    expect(stmt.sql).toBe(
-      "INSERT INTO users (name, email)" + " VALUES (?, ?)",
-    );
+    expect(stmt.sql).toBe("INSERT INTO users (name, email)" + " VALUES (?, ?)");
     expect(stmt.args).toEqual(["Alice", "a@b.com"]);
   });
 

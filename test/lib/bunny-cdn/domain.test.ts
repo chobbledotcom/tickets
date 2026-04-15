@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  bunnyCdnApi,
   buildSubdomainRecordName,
+  bunnyCdnApi,
   checkSubdomainAvailable,
   registerBunnySubdomain,
 } from "#lib/bunny-cdn.ts";
@@ -250,9 +250,7 @@ describeWithEnv(
       const zone = {
         Id: 42,
         Domain: "example.com",
-        Records: [
-          { Id: 1, Type: 2, Name: "existing", Value: "target.com" },
-        ],
+        Records: [{ Id: 1, Type: 2, Name: "existing", Value: "target.com" }],
       };
       await withMocks(
         () =>
@@ -397,9 +395,7 @@ describeWithEnv(
           const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
           expect(result).toEqual({ ok: true });
           expect(recorder.calls).toHaveLength(1);
-          expect(recorder.calls[0]!.url).toContain(
-            "/dnszone/42/records/999",
-          );
+          expect(recorder.calls[0]!.url).toContain("/dnszone/42/records/999");
           expect(recorder.calls[0]!.init!.method).toBe("DELETE");
         },
       );
@@ -500,9 +496,7 @@ describeWithEnv(
                 fullDomain: "myevent.tickets.example.com",
               });
               expect(recorder.calls).toHaveLength(1);
-              expect(recorder.calls[0]!.url).toContain(
-                "/dnszone/42/records",
-              );
+              expect(recorder.calls[0]!.url).toContain("/dnszone/42/records");
               expect(
                 JSON.parse(recorder.calls[0]!.init!.body as string),
               ).toEqual({

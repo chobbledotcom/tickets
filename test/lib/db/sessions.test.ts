@@ -28,13 +28,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
   });
 
   test("deleteSession removes session", async () => {
-    await createSession(
-      "delete-me",
-      "csrf-delete",
-      Date.now() + 1000,
-      null,
-      1,
-    );
+    await createSession("delete-me", "csrf-delete", Date.now() + 1000, null, 1);
     await deleteSession("delete-me");
 
     const session = await getSession("delete-me");
@@ -77,13 +71,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
   });
 
   test("deleteOtherSessions removes all sessions except current", async () => {
-    await createSession(
-      "current",
-      "csrf-current",
-      Date.now() + 10000,
-      null,
-      1,
-    );
+    await createSession("current", "csrf-current", Date.now() + 10000, null, 1);
     await createSession("other1", "csrf-other1", Date.now() + 10000, null, 1);
     await createSession("other2", "csrf-other2", Date.now() + 10000, null, 1);
 

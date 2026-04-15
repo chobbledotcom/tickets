@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#lib/columns/attendee-columns.ts";
+import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
 import type { AttendeeTableRow } from "#lib/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import {
@@ -59,10 +59,7 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("status cell shows Active or Inactive", () => {
     expect(
-      EVENT_TABLE_COLUMNS.status!.cell(
-        testEventWithCount({ active: true }),
-        u,
-      ),
+      EVENT_TABLE_COLUMNS.status!.cell(testEventWithCount({ active: true }), u),
     ).toBe("Active");
     expect(
       EVENT_TABLE_COLUMNS.status!.cell(

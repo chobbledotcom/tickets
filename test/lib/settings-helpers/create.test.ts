@@ -1,6 +1,6 @@
+import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { expect } from "@std/expect";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
@@ -38,7 +38,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ value: "hello" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ value: "hello" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expectRedirect(res, "/admin/settings", "form=settings-test");
     expectFlash(res, "Test setting updated");
@@ -55,7 +59,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       log: (v) => `Set to ${v}`,
     });
 
-    const res = await handler(formFrom({ value: "y" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ value: "y" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(await lastLogMessage()).toBe("Set to y");
     expectFlash(res, "Set to y");
@@ -71,11 +79,19 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ value: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ value: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(400);
     expect(saveFn).not.toHaveBeenCalled();
-    expect(mockErrorPage).toHaveBeenCalledWith("Value is required", 400, "settings-test");
+    expect(mockErrorPage).toHaveBeenCalledWith(
+      "Value is required",
+      400,
+      "settings-test",
+    );
   });
 
   test("async validator is awaited before save", async () => {
@@ -88,11 +104,19 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ value: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ value: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(400);
     expect(saveFn).not.toHaveBeenCalled();
-    expect(mockErrorPage).toHaveBeenCalledWith("Async error", 400, "settings-test");
+    expect(mockErrorPage).toHaveBeenCalledWith(
+      "Async error",
+      400,
+      "settings-test",
+    );
   });
 
   test("proceeds without calling errorPage when no validate function provided", async () => {
@@ -104,7 +128,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       save: saveFn as (v: string) => Promise<void>,
     });
 
-    const res = await handler(formFrom({ value: "" }), mockErrorPage, nullSession);
+    const res = await handler(
+      formFrom({ value: "" }),
+      mockErrorPage,
+      nullSession,
+    );
 
     expect(res.status).toBe(302);
     expect(saveFn).toHaveBeenCalledWith("");
@@ -121,7 +149,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
         save: () => Promise.resolve(),
       });
 
-      const res = await handler(formFrom({ value: "x" }), mockErrorPage, nullSession);
+      const res = await handler(
+        formFrom({ value: "x" }),
+        mockErrorPage,
+        nullSession,
+      );
 
       expectRedirect(res, "/admin/settings-advanced");
     });
@@ -134,7 +166,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
         save: () => Promise.resolve(),
       });
 
-      const res = await handler(formFrom({ value: "x" }), mockErrorPage, nullSession);
+      const res = await handler(
+        formFrom({ value: "x" }),
+        mockErrorPage,
+        nullSession,
+      );
 
       expectRedirect(res, "/admin/site");
     });
@@ -147,7 +183,11 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
         save: () => Promise.resolve(),
       });
 
-      const res = await handler(formFrom({ value: "x" }), mockErrorPage, nullSession);
+      const res = await handler(
+        formFrom({ value: "x" }),
+        mockErrorPage,
+        nullSession,
+      );
       const location = res.headers.get("location") ?? "";
 
       expect(location).not.toContain("form=");
