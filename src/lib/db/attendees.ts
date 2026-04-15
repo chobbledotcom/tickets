@@ -448,27 +448,35 @@ export const recomputeEventBookingRanges = async (
 ): Promise<void> => {
   const duration = Math.max(1, Math.floor(durationDays));
   await getDb().execute({
-    // datetime(start_at, '+N days') keeps same time-of-day; start_at is always
-    // "YYYY-MM-DDT00:00:00Z" so the result is "YYYY-MM-DD 00:00:00". Normalize
-    // back to ISO with a T separator + Z suffix so SQL text comparisons against
-    // other end_at values stay consistent.
+    // datetime(start_at, '+N days') keeps the same time-of-day; since
+    // start_at is always "YYYY-MM-DDT00:00:00Z" the result is
+    // "YYYY-MM-DD 00:00:00" (no millis, no Z). We stitch the ISO suffix
+    // '.000Z' back on so the stored format exactly matches what fresh
+    // inserts produce via `new Date(...).toISOString()`.
     args: [duration, eventId],
     sql: `UPDATE event_attendees
-           SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || 'Z'
+           SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
            WHERE event_id = ? AND start_at IS NOT NULL`,
   });
   invalidateEventsCache();
 };
 
-/** Get the total attendee quantity for a specific event + date */
+/** Get the total attendee quantity for a specific event + date, optionally
+ * excluding one attendee (used when an admin edits their own booking so the
+ * row being updated doesn't fight itself in the capacity check). */
 export const getDateAttendeeCount = async (
   eventId: number,
   date: string,
+  excludeAttendeeId?: number,
 ): Promise<number> => {
   const { startAt, endAt } = dateToRange(date);
+  const exclude = excludeAttendeeId ? " AND attendee_id != ?" : "";
+  const args = excludeAttendeeId
+    ? [eventId, endAt, startAt, excludeAttendeeId]
+    : [eventId, endAt, startAt];
   const rows = await queryAll<{ count: number }>(
-    "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND start_at < ? AND end_at > ?",
-    [eventId, endAt, startAt],
+    `SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND start_at < ? AND end_at > ?${exclude}`,
+    args,
   );
   return rows[0]!.count;
 };
@@ -485,26 +493,45 @@ const getGroupMaxAttendees = async (groupId: number): Promise<number> => {
 /**
  * Count total attendees across all events in a group.
  * Date-aware: standard events always count, daily events only count matching date.
+ * Optional `excludeAttendeeId` skips rows belonging to that attendee (used for
+ * self-excluding admin edits).
  */
 const getGroupAttendeeCount = async (
   groupId: number,
   date: string | null,
+  excludeAttendeeId?: number,
 ): Promise<number> => {
   const range = date ? dateToRange(date) : null;
+  const exclude = excludeAttendeeId ? " AND ea.attendee_id != ?" : "";
+  const args: InValue[] = [
+    groupId,
+    date,
+    range?.endAt ?? null,
+    range?.startAt ?? null,
+  ];
+  if (excludeAttendeeId) args.push(excludeAttendeeId);
   const rows = await queryAll<{ count: number }>(
     `SELECT COALESCE(SUM(ea.quantity), 0) as count
      FROM event_attendees ea
      JOIN events e ON e.id = ea.event_id
      WHERE e.group_id = ?
-       AND (? IS NULL OR e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
-    [groupId, date, range?.endAt ?? null, range?.startAt ?? null],
+       AND (? IS NULL OR e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))${exclude}`,
+    args,
   );
   return rows[0]!.count;
 };
 
 /**
  * Build the WHERE clause for capacity checking on event_attendees.
- * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates)
+ *
+ * For a dated (daily-event) booking, emits one capacity subquery per day in
+ * `[date, date + durationDays)` and ANDs them together — so the atomic
+ * INSERT only commits if every day within the range actually has room
+ * (not just the range-wide overlap sum).
+ *
+ * For standard events (no date) it emits a single total-count check.
+ *
+ * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates).
  */
 const buildCapacityCondition = (
   eventId: number,
@@ -513,27 +540,65 @@ const buildCapacityCondition = (
   excludeAttendeeId?: number,
   durationDays = 1,
 ): { sql: string; args: InValue[] } => {
-  const range = date ? dateToRange(date, durationDays) : null;
-  const endAt = range?.endAt ?? null;
-  const startAt = range?.startAt ?? null;
-
   const excludeClause = excludeAttendeeId ? " AND ea2.attendee_id != ?" : "";
-  const capacityFilter = date
-    ? `SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause} AND ea2.start_at < ? AND ea2.end_at > ?`
-    : `SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause}`;
-  const capacityArgs: InValue[] = date
-    ? excludeAttendeeId
-      ? [eventId, excludeAttendeeId, endAt, startAt]
-      : [eventId, endAt, startAt]
-    : excludeAttendeeId
-      ? [eventId, excludeAttendeeId]
-      : [eventId];
-
   const groupExclude = excludeAttendeeId
     ? "AND ea3.attendee_id != ?\n                  "
     : "";
-  const groupCapacityCheck = `
-          AND (
+
+  // Build one event-capacity check per day (or a single total check for
+  // standard events without a date).
+  const eventCapacityClauses: string[] = [];
+  const eventCapacityArgs: InValue[] = [];
+
+  if (!date) {
+    eventCapacityClauses.push(
+      `(SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)`,
+    );
+    if (excludeAttendeeId) {
+      eventCapacityArgs.push(eventId, excludeAttendeeId, qty, eventId);
+    } else {
+      eventCapacityArgs.push(eventId, qty, eventId);
+    }
+  } else {
+    const duration = Math.max(1, durationDays);
+    for (let i = 0; i < duration; i++) {
+      const day = addDaysStr(date, i);
+      const { startAt, endAt } = dateToRange(day);
+      eventCapacityClauses.push(
+        `(SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause} AND ea2.start_at < ? AND ea2.end_at > ?) + ? <= (SELECT max_attendees FROM events WHERE id = ?)`,
+      );
+      if (excludeAttendeeId) {
+        eventCapacityArgs.push(
+          eventId,
+          excludeAttendeeId,
+          endAt,
+          startAt,
+          qty,
+          eventId,
+        );
+      } else {
+        eventCapacityArgs.push(eventId, endAt, startAt, qty, eventId);
+      }
+    }
+  }
+
+  // Build group-capacity checks: one per day for daily events, or one
+  // overall check for standard events. For each day, total quantity across
+  // all events in the group (daily events filtered to that day; standard
+  // events always count) must leave room for `qty`.
+  const groupClauses: string[] = [];
+  const groupArgs: InValue[] = [];
+  const groupDays: (string | null)[] = date
+    ? Array.from({ length: Math.max(1, durationDays) }, (_, i) =>
+        addDaysStr(date, i),
+      )
+    : [null];
+
+  for (const day of groupDays) {
+    const range = day ? dateToRange(day) : null;
+    const endAt = range?.endAt ?? null;
+    const startAt = range?.startAt ?? null;
+    groupClauses.push(`(
             SELECT CASE
               WHEN ev.group_id = 0 THEN 1
               WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
@@ -549,14 +614,15 @@ const buildCapacityCondition = (
             FROM events ev
             LEFT JOIN groups g ON g.id = ev.group_id
             WHERE ev.id = ?
-          ) = 1`;
-  const groupCapacityArgs: InValue[] = excludeAttendeeId
-    ? [excludeAttendeeId, date, endAt, startAt, qty, eventId]
-    : [date, endAt, startAt, qty, eventId];
+          ) = 1`);
+    if (excludeAttendeeId) groupArgs.push(excludeAttendeeId);
+    groupArgs.push(day, endAt, startAt, qty, eventId);
+  }
 
+  const sql = [...eventCapacityClauses, ...groupClauses].join(" AND ");
   return {
-    args: [...capacityArgs, qty, eventId, ...groupCapacityArgs],
-    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
+    args: [...eventCapacityArgs, ...groupArgs],
+    sql,
   };
 };
 
@@ -613,6 +679,10 @@ export const attendeesApi = {
     date?: string | null,
   ): Promise<boolean> => {
     if (items.length === 0) return true;
+    // Reject negative quantities outright — treating them as "no demand"
+    // would let malicious callers bypass capacity by offsetting positive
+    // rows with negative ones.
+    if (items.some((i) => i.quantity < 0)) return false;
     const eventIds = items.map((i) => i.eventId);
 
     const eventRows = await queryAll<{
@@ -748,6 +818,11 @@ export const attendeesApi = {
     if (bookings.length === 0) {
       return { reason: "capacity_exceeded", success: false };
     }
+    // Reject negative quantities outright — otherwise the atomic insert
+    // would happily store a negative row and skew future capacity checks.
+    if (bookings.some((b) => (b.quantity ?? 1) < 0)) {
+      return { reason: "capacity_exceeded", success: false };
+    }
 
     const contactInfo = { address, email, name, phone, special_instructions };
     // Use first booking's pricePaid for encryption (PII blob is shared)
@@ -826,33 +901,77 @@ export const attendeesApi = {
     invalidateEventsCache();
     return { attendees: successfulBookings, success: true };
   },
-  /** Check if an event has available spots for the requested quantity */
+  /** Check if an event has available spots for the requested quantity.
+   * For multi-day daily events, every day in the booking range is checked
+   * (both per-event and per-group capacity). */
   hasAvailableSpots: async (
     eventId: number,
     quantity = 1,
     date?: string | null,
-  ): Promise<boolean> => {
-    const event = await getEventWithCount(eventId);
-    if (!event) return false;
-    if (date) {
-      const dateCount = await getDateAttendeeCount(eventId, date);
+  ): Promise<boolean> =>
+    checkEventAvailability(eventId, quantity, date ?? null, undefined),
+};
+
+/**
+ * Shared per-event availability check: walks every day in the booking range
+ * and verifies both per-event and per-group capacity holds, optionally
+ * excluding one attendee so admin edits don't self-collide.
+ *
+ * Passing `date = null` skips per-day iteration (standard events).
+ */
+const checkEventAvailability = async (
+  eventId: number,
+  quantity: number,
+  date: string | null,
+  excludeAttendeeId: number | undefined,
+): Promise<boolean> => {
+  if (quantity <= 0) return true;
+  const event = await getEventWithCount(eventId);
+  if (!event) return false;
+
+  const isDaily = event.event_type === "daily";
+  const duration = isDaily && date ? Math.max(1, event.duration_days) : 1;
+  const days: (string | null)[] =
+    isDaily && date
+      ? Array.from({ length: duration }, (_, i) => addDaysStr(date, i))
+      : [null];
+
+  for (const day of days) {
+    if (day) {
+      const dateCount = await getDateAttendeeCount(
+        eventId,
+        day,
+        excludeAttendeeId,
+      );
       if (dateCount + quantity > event.max_attendees) return false;
     } else {
-      if (event.attendee_count + quantity > event.max_attendees) return false;
+      // Standard event: total count minus this attendee's contribution.
+      let existing = event.attendee_count;
+      if (excludeAttendeeId) {
+        const ownRow = await queryOne<{ count: number }>(
+          "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id = ?",
+          [eventId, excludeAttendeeId],
+        );
+        existing -= ownRow?.count ?? 0;
+      }
+      if (existing + quantity > event.max_attendees) return false;
     }
-    // Check group capacity if event belongs to a group with a limit
-    if (event.group_id > 0) {
-      const groupLimit = await getGroupMaxAttendees(event.group_id);
-      if (groupLimit > 0) {
+  }
+
+  if (event.group_id > 0) {
+    const groupLimit = await getGroupMaxAttendees(event.group_id);
+    if (groupLimit > 0) {
+      for (const day of days) {
         const groupCount = await getGroupAttendeeCount(
           event.group_id,
-          date ?? null,
+          day,
+          excludeAttendeeId,
         );
         if (groupCount + quantity > groupLimit) return false;
       }
     }
-    return true;
-  },
+  }
+  return true;
 };
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
@@ -1038,6 +1157,19 @@ export const updateEventLink = async (
   input: UpdateEventLinkInput,
 ): Promise<UpdateEventLinkResult> => {
   const { quantity: qty, date, durationDays = 1 } = input;
+  if (qty < 0) return CAPACITY_EXCEEDED;
+
+  // Per-day preflight (accurate): avoids the SQL overlap-sum false rejection
+  // on multi-day events where existing bookings span separate days within
+  // the new range. The atomic UPDATE below keeps the SQL safety net.
+  const preflight = await checkEventAvailability(
+    eventId,
+    qty,
+    date,
+    attendeeId,
+  );
+  if (!preflight) return CAPACITY_EXCEEDED;
+
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const condition = buildCapacityCondition(
     eventId,
@@ -1068,11 +1200,23 @@ const checkCapacityResult = (result: {
 /**
  * Add a new event link for an existing attendee with atomic capacity check.
  * Does NOT create a new attendee or touch PII — just inserts an event_attendees row.
+ * Runs a per-day preflight first so multi-day events aren't false-rejected
+ * by the SQL overlap-sum guard.
  */
 export const addEventLink = async (
   attendeeId: number,
   booking: EventBooking,
-): Promise<UpdateEventLinkResult> =>
-  checkCapacityResult(
+): Promise<UpdateEventLinkResult> => {
+  const qty = booking.quantity ?? 1;
+  if (qty < 0) return CAPACITY_EXCEEDED;
+  const preflight = await checkEventAvailability(
+    booking.eventId,
+    qty,
+    booking.date ?? null,
+    undefined,
+  );
+  if (!preflight) return CAPACITY_EXCEEDED;
+  return checkCapacityResult(
     await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
   );
+};

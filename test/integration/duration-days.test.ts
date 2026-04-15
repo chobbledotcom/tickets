@@ -110,8 +110,9 @@ describeWithEnv("integration: duration_days", { db: true }, () => {
         args: [event.id],
         sql: "SELECT end_at FROM event_attendees WHERE event_id = ?",
       });
-      // start=2026-06-12 + 4 days → 2026-06-16 00:00:00Z
-      expect(String(row.rows[0]!.end_at)).toBe("2026-06-16T00:00:00Z");
+      // start=2026-06-12 + 4 days → 2026-06-16 00:00:00Z (matches the ISO
+      // `.000Z` format emitted by fresh inserts via `new Date().toISOString()`)
+      expect(String(row.rows[0]!.end_at)).toBe("2026-06-16T00:00:00.000Z");
 
       // Event metadata itself still needs updating separately; verify the
       // event can be read and has the original duration (reconciliation only
