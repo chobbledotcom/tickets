@@ -1580,6 +1580,41 @@ export const errorResponse =
     new Response(error, { status });
 
 // ---------------------------------------------------------------------------
+// Fetch recording helpers
+// Stub globalThis.fetch, record every call, and return a fixed response.
+// Works with withMocks() since the returned object has .restore().
+// ---------------------------------------------------------------------------
+
+export interface FetchCall {
+  url: string;
+  init: RequestInit | undefined;
+}
+
+/** Stub fetch to return a JSON response with given body. */
+export const stubFetchJson = (body: unknown) =>
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response(JSON.stringify(body))),
+  );
+
+/** Stub fetch that records calls and returns a fixed response.
+ * Returns an object with `.calls` (the recorded requests) and `.restore()`.
+ * Compatible with `withMocks()` since it implements `Restorable`. */
+export const stubFetchRecorder = (responseInit?: ResponseInit) => {
+  const calls: FetchCall[] = [];
+  const fetchStub = stub(
+    globalThis,
+    "fetch",
+    (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return Promise.resolve(
+        new Response(null, { status: 204, ...responseInit }),
+      );
+    },
+  );
+  return { restore: () => fetchStub.restore(), calls };
+};
+
+// ---------------------------------------------------------------------------
 // Test data factories
 // Partial-override factories for common domain objects.
 // Pass only the fields you care about; everything else gets sensible defaults.
