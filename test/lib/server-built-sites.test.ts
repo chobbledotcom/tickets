@@ -82,6 +82,34 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const { response } = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200, "Assigned (attendee #42)");
     });
+
+    test("displays script IDs separated by pipes below the table", async () => {
+      await createTestBuiltSite({
+        bunnyScriptId: "1111",
+        name: "Site 1",
+      });
+      await createTestBuiltSite({
+        bunnyScriptId: "222",
+        name: "Site 2",
+      });
+      await createTestBuiltSite({
+        bunnyScriptId: "",
+        name: "Site 3",
+      });
+      const { response } = await adminGet("/admin/built-sites");
+      const body = await response.text();
+      expect(body).toContain("1111|222");
+      expect(body).not.toContain("1111|222|");
+    });
+
+    test("displays empty string when no script IDs present", async () => {
+      await createTestBuiltSite({
+        bunnyScriptId: "",
+        name: "No Script",
+      });
+      const { response } = await adminGet("/admin/built-sites");
+      await expectHtmlResponse(response, 200);
+    });
   });
 
   describe("GET /admin/built-sites/new", () => {

@@ -17,8 +17,13 @@ export const adminBuiltSitesPage = (
   sites: BuiltSite[],
   session: AdminSession,
   successMessage?: string,
-): string =>
-  String(
+): string => {
+  const scriptIds = sites
+    .filter((site) => site.bunnyScriptId)
+    .map((site) => site.bunnyScriptId)
+    .join("|");
+
+  return String(
     <Layout title="Built Sites">
       <AdminNav session={session} active="/admin/built-sites" />
       <Flash success={successMessage} />
@@ -29,44 +34,48 @@ export const adminBuiltSitesPage = (
       {sites.length === 0 ? (
         <p>No built sites recorded.</p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Bunny URL</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sites.map((site) => (
+        <div>
+          <div class="table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td>{site.name}</td>
-                  <td>
-                    <a href={site.bunnyUrl} target="_blank" rel="noopener">
-                      {site.bunnyUrl}
-                    </a>
-                  </td>
-                  <td>
-                    {site.assignedAttendeeId
-                      ? `Assigned (attendee #${site.assignedAttendeeId})`
-                      : site.assignable
-                        ? "Available"
-                        : "Not assignable"}
-                  </td>
-                  <td>
-                    <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/built-sites/${site.id}/delete`}>Delete</a>
-                  </td>
+                  <th>Name</th>
+                  <th>Bunny URL</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sites.map((site) => (
+                  <tr>
+                    <td>{site.name}</td>
+                    <td>
+                      <a href={site.bunnyUrl} target="_blank" rel="noopener">
+                        {site.bunnyUrl}
+                      </a>
+                    </td>
+                    <td>
+                      {site.assignedAttendeeId
+                        ? `Assigned (attendee #${site.assignedAttendeeId})`
+                        : site.assignable
+                          ? "Available"
+                          : "Not assignable"}
+                    </td>
+                    <td>
+                      <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
+                      <a href={`/admin/built-sites/${site.id}/delete`}>Delete</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p>{scriptIds}</p>
         </div>
       )}
     </Layout>,
   );
+};
 
 /**
  * Built site create/edit form values
