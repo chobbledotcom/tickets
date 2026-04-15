@@ -92,6 +92,20 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
     response: json({ available: true }),
   },
   {
+    description: "List all non-hidden event groups",
+    method: "GET",
+    path: "/api/groups",
+    response: json({
+      groups: [
+        {
+          description: "Weekend workshop events",
+          name: "Workshops",
+          slug: "workshops",
+        },
+      ],
+    }),
+  },
+  {
     description: "Create a booking",
     method: "POST",
     path: "/api/events/:slug/book",

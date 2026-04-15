@@ -8,6 +8,7 @@ import {
   createDailyTestEvent,
   createTestAttendeeDirect,
   createTestEvent,
+  createTestGroup,
   deactivateTestEvent,
   describeWithEnv,
   setupStripe,
@@ -186,6 +187,18 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(event.isSoldOut).toBe(false);
       expect(event.isClosed).toBe(false);
       expect(typeof event.maxPurchasable).toBe("number");
+      // groupSlug is null for ungrouped events
+      expect(event.groupSlug).toBeNull();
+    });
+
+    test("includes groupSlug matching the event's group", async () => {
+      const group = await createTestGroup({
+        name: "Workshops",
+        slug: "workshops",
+      });
+      await createTestEvent({ groupId: group.id, name: "Workshop Event" });
+      const { events } = await fetchEventsList();
+      expect(events[0]!.groupSlug).toBe("workshops");
     });
 
     test("sets isSoldOut when event is at capacity", async () => {
@@ -208,7 +221,17 @@ describeWithEnv("Public API", { db: true }, () => {
       const apiEvent = body.event as Record<string, unknown>;
       expect(apiEvent.name).toBe("My Event");
       expect(apiEvent.description).toBe("Hello");
+      expect(apiEvent.groupSlug).toBeNull();
       expectCorsHeaders(response);
+    });
+
+    test("includes groupSlug for event with a group", async () => {
+      const group = await createTestGroup({ slug: "concerts" });
+      const event = await createTestEvent({ groupId: group.id });
+      const { body } = await fetchEventBySlug(event.slug);
+      expect((body.event as Record<string, unknown>).groupSlug).toBe(
+        "concerts",
+      );
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -644,6 +667,58 @@ describeWithEnv("Public API", { db: true }, () => {
     });
   });
 
+  describe("GET /api/groups", () => {
+    /** Fetch the groups list and return parsed groups array */
+    const fetchGroupsList = async (): Promise<{
+      response: Response;
+      groups: Record<string, unknown>[];
+    }> => {
+      const response = await handleRequest(apiRequest("/api/groups"));
+      const body = (await response.json()) as Record<string, unknown>;
+      return { groups: body.groups as Record<string, unknown>[], response };
+    };
+
+    test("returns empty array when no groups exist", async () => {
+      const { response, groups } = await fetchGroupsList();
+      expect(response.status).toBe(200);
+      expect(groups).toEqual([]);
+      expectCorsHeaders(response);
+    });
+
+    test("returns non-hidden groups with name, slug, and description", async () => {
+      await createTestGroup({
+        description: "Weekend events",
+        name: "Workshops",
+        slug: "workshops",
+      });
+      const { response, groups } = await fetchGroupsList();
+      expect(response.status).toBe(200);
+      expect(groups.length).toBe(1);
+      expect(groups[0]!.name).toBe("Workshops");
+      expect(groups[0]!.slug).toBe("workshops");
+      expect(groups[0]!.description).toBe("Weekend events");
+    });
+
+    test("excludes hidden groups", async () => {
+      await createTestGroup({ hidden: false, name: "Visible Group" });
+      await createTestGroup({ hidden: true, name: "Hidden Group" });
+      const { groups } = await fetchGroupsList();
+      expect(groups.length).toBe(1);
+      expect(groups[0]!.name).toBe("Visible Group");
+    });
+
+    test("does not expose internal fields", async () => {
+      await createTestGroup({ name: "Test Group" });
+      const { groups } = await fetchGroupsList();
+      const group = groups[0]!;
+      expect(group.id).toBeUndefined();
+      expect(group.slug_index).toBeUndefined();
+      expect(group.hidden).toBeUndefined();
+      expect(group.max_attendees).toBeUndefined();
+      expect(group.terms_and_conditions).toBeUndefined();
+    });
+  });
+
   describe("OPTIONS /api/*", () => {
     test("returns 204 with CORS headers for events", async () => {
       const response = await handleRequest(
@@ -678,6 +753,14 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns 204 for book path", async () => {
       const response = await handleRequest(
         apiRequest("/api/events/test-slug/book", { method: "OPTIONS" }),
+      );
+      expect(response.status).toBe(204);
+      expectCorsHeaders(response);
+    });
+
+    test("returns 204 for groups path", async () => {
+      const response = await handleRequest(
+        apiRequest("/api/groups", { method: "OPTIONS" }),
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);

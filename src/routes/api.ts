@@ -10,6 +10,7 @@ import { processBooking } from "#lib/booking.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
+import { getAllGroups } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { sortEvents } from "#lib/sort-events.ts";
@@ -64,6 +65,7 @@ export type PublicEvent = {
   nonTransferable: boolean;
   purchaseOnly: boolean;
   fields: string;
+  groupSlug: string | null;
   eventType: string;
   isSoldOut: boolean;
   isClosed: boolean;
@@ -71,11 +73,18 @@ export type PublicEvent = {
   availableDates?: string[];
 };
 
+export type PublicGroup = {
+  description: string;
+  name: string;
+  slug: string;
+};
+
 /** Serialize an event to the public API shape (same data the web UI renders) */
 export const toPublicEvent = (
   event: EventWithCount,
   closed = false,
   availableDates?: string[],
+  groupSlug: string | null = null,
 ): PublicEvent => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isSoldOut = spotsRemaining <= 0;
@@ -88,6 +97,7 @@ export const toPublicEvent = (
     description: event.description,
     eventType: event.event_type,
     fields: event.fields,
+    groupSlug,
     imageUrl: event.image_url || null,
     isClosed: closed,
     isSoldOut,
@@ -147,12 +157,23 @@ const withActiveEvent =
 
 /** GET /api/events — list active, non-hidden events */
 const handleListEvents = async (): Promise<Response> => {
-  const allEvents = await getAllEvents();
-  const holidays = await getActiveHolidays();
+  const [allEvents, allGroups, holidays] = await Promise.all([
+    getAllEvents(),
+    getAllGroups(),
+    getActiveHolidays(),
+  ]);
+  const groupSlugById = new Map(allGroups.map((g) => [g.id, g.slug]));
   const events = pipe(
     filter((e: EventWithCount) => e.active && !e.hidden),
     (active: EventWithCount[]) => sortEvents(active, holidays),
-    map((e: EventWithCount) => toPublicEvent(e, isRegistrationClosed(e))),
+    map((e: EventWithCount) =>
+      toPublicEvent(
+        e,
+        isRegistrationClosed(e),
+        undefined,
+        groupSlugById.get(e.group_id) ?? null,
+      ),
+    ),
   )(allEvents);
   return apiResponse({ events });
 };
@@ -160,11 +181,16 @@ const handleListEvents = async (): Promise<Response> => {
 /** GET /api/events/:slug — single event detail */
 const handleGetEvent = withActiveEvent(async (_request, event) => {
   const closed = isRegistrationClosed(event);
+  const allGroups = await getAllGroups();
+  const group = allGroups.find((g) => g.id === event.group_id);
+  const groupSlug = group?.slug ?? null;
   let availableDates: string[] | undefined;
   if (event.event_type === "daily") {
     availableDates = getAvailableDates(event, await getActiveHolidays());
   }
-  return apiResponse({ event: toPublicEvent(event, closed, availableDates) });
+  return apiResponse({
+    event: toPublicEvent(event, closed, availableDates, groupSlug),
+  });
 });
 
 /** GET /api/events/:slug/availability — check if spots are available */
@@ -279,6 +305,19 @@ const handleBook = withActiveEvent(async (request, event) => {
   );
 });
 
+/** GET /api/groups — list non-hidden event groups */
+const handleListGroups = async (): Promise<Response> => {
+  const allGroups = await getAllGroups();
+  const groups: PublicGroup[] = allGroups
+    .filter((g) => !g.hidden)
+    .map((g) => ({
+      description: g.description,
+      name: g.name,
+      slug: g.slug,
+    }));
+  return apiResponse({ groups });
+};
+
 // =============================================================================
 // Route definitions
 // =============================================================================
@@ -287,10 +326,12 @@ export const apiRoutes = defineRoutes({
   "GET /api/events": handleListEvents,
   "GET /api/events/:slug": handleGetEvent,
   "GET /api/events/:slug/availability": handleCheckAvailability,
+  "GET /api/groups": handleListGroups,
   "OPTIONS /api/events": handleOptions,
   "OPTIONS /api/events/:slug": handleOptions,
   "OPTIONS /api/events/:slug/availability": handleOptions,
   "OPTIONS /api/events/:slug/book": handleOptions,
+  "OPTIONS /api/groups": handleOptions,
   "POST /api/events/:slug/book": handleBook,
 });
 
