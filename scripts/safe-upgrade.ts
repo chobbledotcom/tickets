@@ -36,7 +36,7 @@ function parseArgs(): { dryRun: boolean; minAgeDays: number } {
     if (arg === "--dry-run") dryRun = true;
     else if (arg.startsWith("--min-age-days=")) {
       minAgeDays = parseInt(arg.split("=")[1], 10);
-      if (isNaN(minAgeDays) || minAgeDays < 0) {
+      if (Number.isNaN(minAgeDays) || minAgeDays < 0) {
         console.error("Invalid --min-age-days value");
         Deno.exit(1);
       }

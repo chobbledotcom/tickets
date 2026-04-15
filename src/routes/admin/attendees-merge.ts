@@ -2,7 +2,7 @@
  * Admin attendee merge routes
  */
 
-import { compact } from "#fp";
+import { filter, map, pipe } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
@@ -14,9 +14,7 @@ import {
 } from "#lib/db/attendees.ts";
 import { queryAll, queryOne } from "#lib/db/client.ts";
 import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
-/* jscpd:ignore-start */
 import type { FormParams } from "#lib/form-data.ts";
-/* jscpd:ignore-end */
 import {
   applyAttendeeMerge,
   bookingKey,
@@ -204,46 +202,41 @@ const updateTargetPiiFromDecision = (
     ticket_token: target.ticket_token,
   });
 
+/** Build labeled count strings from summary fields, omitting zero-count entries */
+const mergeCountParts = (fields: Array<[number, string]>): string[] =>
+  pipe(
+    filter(([count]: [number, string]) => count > 0),
+    map(([count, label]: [number, string]) => `${count} ${label}`),
+  )(fields);
+
 /** Build activity log message parts for a merge summary */
 const buildMergeLogParts = (
   summary: MergeSummary,
   sourceName: string,
   mergedPiiName: string,
-): string[] =>
-  compact([
-    `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
-    summary.bookingsMoved > 0
-      ? `${summary.bookingsMoved} booking(s) moved`
-      : null,
-    summary.bookingsSkipped > 0
-      ? `${summary.bookingsSkipped} booking(s) skipped`
-      : null,
-    summary.bookingsReplacedTarget > 0
-      ? `${summary.bookingsReplacedTarget} booking(s) replaced`
-      : null,
-    summary.answersTakenFromSource > 0
-      ? `${summary.answersTakenFromSource} answer(s) from source`
-      : null,
-    summary.answersCleared > 0
-      ? `${summary.answersCleared} answer(s) cleared`
-      : null,
-  ]);
+): string[] => [
+  `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
+  ...mergeCountParts([
+    [summary.bookingsMoved, "booking(s) moved"],
+    [summary.bookingsSkipped, "booking(s) skipped"],
+    [summary.bookingsReplacedTarget, "booking(s) replaced"],
+    [summary.answersTakenFromSource, "answer(s) from source"],
+    [summary.answersCleared, "answer(s) cleared"],
+  ]),
+];
 
 /** Build flash message parts for a merge */
 const buildMergeFlashParts = (
   summary: MergeSummary,
   sourceName: string,
   mergedPiiName: string,
-): string[] => {
-  const parts = [`Merged ${sourceName} into ${mergedPiiName}`];
-  if (summary.bookingsMoved > 0) {
-    parts.push(`${summary.bookingsMoved} booking(s) moved`);
-  }
-  if (summary.bookingsSkipped > 0) {
-    parts.push(`${summary.bookingsSkipped} booking(s) skipped`);
-  }
-  return parts;
-};
+): string[] => [
+  `Merged ${sourceName} into ${mergedPiiName}`,
+  ...mergeCountParts([
+    [summary.bookingsMoved, "booking(s) moved"],
+    [summary.bookingsSkipped, "booking(s) skipped"],
+  ]),
+];
 
 /** Validate merge POST preconditions, returning an error Response or the source */
 const validateMergePostInput = async (

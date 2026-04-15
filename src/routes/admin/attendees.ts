@@ -12,7 +12,7 @@ import { getEventWithCount } from "#lib/db/events.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { isPaidEvent } from "#lib/types.ts";
+import { type AdminSession, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -33,26 +33,39 @@ import {
   getAddAttendeeFields,
 } from "#templates/fields.ts";
 import {
-  handleAddEventLink,
   handleEditAttendeeGet,
   handleEditAttendeePost,
   handleRefreshPayment,
+} from "./attendees-edit.ts";
+import {
+  handleAddEventLink,
   handleUnlinkEvent,
   handleUpdateEventLink,
-} from "./attendees-edit.ts";
+} from "./attendees-links.ts";
 import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
 import {
+  type AttendeeWithEvent,
   attendeeFormAction,
   attendeeGetRoute,
   getReturnUrl,
   verifiedAttendeeForm,
-} from "./attendees-utils.ts";
+} from "./attendees-route-helpers.ts";
+
+/** Signature shared by all attendee GET page renderers */
+type AttendeePageRenderer = (
+  data: AttendeeWithEvent,
+  session: AdminSession,
+  returnUrl?: string,
+  error?: string,
+) => string;
 
 /** Create a GET handler that renders an attendee page with flash error */
-const attendeePageRoute = (render: typeof adminDeleteAttendeePage) =>
+const attendeePageRoute = (render: AttendeePageRenderer) =>
   attendeeGetRoute((data, session, request) => {
     const flash = applyFlash(request);
-    return htmlResponse(render(data, session, getReturnUrl(request), flash.error));
+    return htmlResponse(
+      render(data, session, getReturnUrl(request), flash.error),
+    );
   });
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
@@ -230,7 +243,13 @@ const handleResendNotification = verifiedAttendeeForm(
   },
 );
 
-/** Attendee routes */
+/**
+ * Attendee routes
+ * Event-link management: attendees-links.ts
+ * Edit page + refresh payment: attendees-edit.ts
+ * Merge: attendees-merge.ts
+ * Refunds: attendee-refunds.ts
+ */
 export const attendeesRoutes = defineRoutes({
   "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
