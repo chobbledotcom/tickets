@@ -1144,8 +1144,10 @@ const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     if (isAllCleared(d)) return null;
     if (!d.passTypeId) return "Pass Type ID is required";
     if (!d.teamId) return "Team ID is required";
-    const requiredError = validateAppleWalletRequiredSecrets(d);
-    if (requiredError) return requiredError;
+    if (!settings.appleWallet.hasDbConfig) {
+      const requiredError = validateAppleWalletRequiredSecrets(d);
+      if (requiredError) return requiredError;
+    }
     return validateAppleWalletPemFields(d);
   },
 });
@@ -1154,7 +1156,6 @@ const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
 const validateAppleWalletRequiredSecrets = (
   d: AppleWalletFormData,
 ): string | null => {
-  if (settings.appleWallet.hasDbConfig) return null;
   if (d.cert.action !== "provided") return "Signing certificate is required";
   if (d.key.action !== "provided") return "Signing private key is required";
   if (d.wwdr.action !== "provided") return "WWDR certificate is required";

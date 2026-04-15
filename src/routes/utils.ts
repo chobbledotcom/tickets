@@ -745,64 +745,37 @@ const verifyCsrf = async (
   return authFailure(channel, "invalid-csrf");
 };
 
-/** Parse a form-encoded body with optional CSRF check */
-const parseCsrfForm = async (
-  request: Request,
-  skipCsrf: boolean,
-  channel: AuthChannel,
-): Promise<FormParams | Response> => {
-  const form = await parseFormData(request);
-  if (skipCsrf) return form;
-  const err = await verifyCsrf(form.getString("csrf_token"), channel);
-  return err ?? form;
-};
-
-/** Parse a multipart body with optional CSRF check */
-const parseCsrfMultipart = async (
-  request: Request,
-  skipCsrf: boolean,
-  channel: AuthChannel,
-): Promise<FormData | Response> => {
-  const fd = await request.formData();
-  if (skipCsrf) return fd;
-  const err = await verifyCsrf(
-    String(fd.get("csrf_token") ?? "").trim(),
-    channel,
-  );
-  return err ?? fd;
-};
-
-/** Parse a JSON body with optional CSRF check (via header) */
-const parseCsrfJson = async (
-  request: Request,
-  skipCsrf: boolean,
-  channel: AuthChannel,
-): Promise<Record<string, unknown> | Response> => {
-  if (!skipCsrf) {
-    const err = await verifyCsrf(
-      request.headers.get("x-csrf-token") ?? "",
-      channel,
-    );
-    if (err) return err;
-  }
-  return parseJsonBody(request);
-};
-
-/** Validate CSRF and parse body for the given mode */
-const parseCsrfBody = (
+/** Validate CSRF and parse body for the given mode.
+ *
+ * `skipCsrf` only applies to JSON bodies (used for API key auth). Form and
+ * multipart bodies are always CSRF-checked because API key clients use JSON. */
+const parseCsrfBody = async (
   request: Request,
   mode: BodyMode,
   skipCsrf: boolean,
 ): Promise<FormParams | FormData | Record<string, unknown> | Response> => {
   const channel = channelFor(mode);
-  switch (mode) {
-    case "form":
-      return parseCsrfForm(request, skipCsrf, channel);
-    case "multipart":
-      return parseCsrfMultipart(request, skipCsrf, channel);
-    case "json":
-      return parseCsrfJson(request, skipCsrf, channel);
+  if (mode === "json") {
+    if (!skipCsrf) {
+      const err = await verifyCsrf(
+        request.headers.get("x-csrf-token") ?? "",
+        channel,
+      );
+      if (err) return err;
+    }
+    return parseJsonBody(request);
   }
+  if (mode === "form") {
+    const form = await parseFormData(request);
+    const err = await verifyCsrf(form.getString("csrf_token"), channel);
+    return err ?? form;
+  }
+  const fd = await request.formData();
+  const err = await verifyCsrf(
+    String(fd.get("csrf_token") ?? "").trim(),
+    channel,
+  );
+  return err ?? fd;
 };
 
 /** Derive the auth channel (html vs json) from the body mode */

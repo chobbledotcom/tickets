@@ -349,10 +349,9 @@ const applyAnswerDecision = (
     // Source has answer, target doesn't — adopt source answer
     return takeSourceAnswer(finalAnswers, qid, item.sourceAnswerId);
   }
-  if (item.targetAnswerId !== null) {
-    return { cleared: 0, kept: 1, taken: 0 };
-  }
-  return { cleared: 0, kept: 0, taken: 0 };
+  // Target has an answer (diff items require at least one side non-null and
+  // the conflict/source-only branches are exhausted).
+  return { cleared: 0, kept: 1, taken: 0 };
 };
 
 /** Apply all answer decisions — returns final answer map and summary counts */
