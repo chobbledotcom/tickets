@@ -33,7 +33,7 @@ import { type GroupInput, invalidateGroupsCache } from "#lib/db/groups.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
 import { initDb } from "#lib/db/migrations.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
+import { settings, type SettingsData } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
@@ -390,6 +390,39 @@ export const withFetchMock = bracket(
     globalThis.fetch = original;
   },
 );
+
+/**
+ * Run `fn` with in-memory settings overrides active (via `settings.setForTest`),
+ * clearing those override keys afterward. Cleanup runs even if `fn` throws.
+ *
+ * Overrides are read by all consumers of the settings snapshot (including route
+ * handlers), so this works for both unit tests and request-level tests — and
+ * avoids DB writes, making it safe in tests without `{ db: true }`.
+ *
+ * @example
+ * await withSetting({ currency: "GBP" }, () => {
+ *   expect(formatCurrency(1050)).toBe("£10.50");
+ * });
+ *
+ * @example
+ * await withSetting({ show_public_site: true }, async () => {
+ *   const response = await handleRequest(mockRequest("/"));
+ *   await expectHtmlResponse(response, 200, "Home");
+ * });
+ */
+export const withSetting = async <T>(
+  overrides: Partial<SettingsData>,
+  fn: () => T | Promise<T>,
+): Promise<T> => {
+  settings.setForTest(overrides);
+  try {
+    return await fn();
+  } finally {
+    settings.clearTestOverride(
+      ...(Object.keys(overrides) as (keyof SettingsData)[]),
+    );
+  }
+};
 
 /**
  * Install a URL-based fetch handler on globalThis.fetch.
