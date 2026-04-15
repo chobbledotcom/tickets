@@ -27,13 +27,13 @@ These findings come from reading the current implementation and should guide sco
 - Customer still picks a **single start date**. The system extends the end automatically.
 - Price: `unit_price × quantity × duration_days`.
 - Start dates are only offered when **every day in the resulting range** is bookable (not a holiday, within the `bookable_days` weekday mask, and within `minimum_days_before` / `maximum_days_after`).
+- `duration_days` is always editable for daily events. On save, we also update existing `event_attendees.end_at` ranges for that event so stored bookings stay consistent with the event's current duration policy.
 
 ## Non-goals (explicitly out of scope)
 
 - Customer-chosen end date (phase 2 — this plan's infra supports it).
 - Per-day pricing tiers / discounts.
 - Partial cancellation/refund of days.
-- Admin edit of duration on existing bookings rewriting their ranges retroactively (new bookings pick up new duration; existing rows keep their stored range).
 - Calendar UI spreading a booking across multiple day cells (phase 2).
 - CSV export end-date column (phase 2).
 
@@ -73,6 +73,10 @@ This is the core correctness phase. Everything else rides on it.
   - `dateToStartEnd(date, durationDays)` — thread duration through.
   - `EventBooking` type (in `attendee-types.ts`): add `durationDays?: number` (default 1).
   - `buildCapacityCheckedInsert(booking, ...)` — pass `booking.durationDays` into `dateToStartEnd` so `end_at` is correct. The capacity-check SQL (overlap: `ea2.start_at < ? AND ea2.end_at > ?`) works unchanged for range-vs-range overlap.
+  - Add a reconciliation helper for duration edits (e.g. `recomputeEventBookingRanges(eventId, durationDays)`):
+    - Updates `end_at` for existing rows where `event_id = ?` and `start_at IS NOT NULL`.
+    - Formula: `end_at = datetime(start_at, '+' || durationDays || ' days')` (or equivalent UTC-safe expression).
+    - Runs in same transaction as event update when duration changes.
   - `getDateAttendeeCount(eventId, date)` — unchanged; still checks a single day's load (this is what makes multi-day checks accurate).
 - `src/lib/db/attendees.ts → checkBatchAvailability`
   - **Accuracy fix**: for each daily event in the batch, if `duration_days > 1` expand to per-day checks.
@@ -90,6 +94,7 @@ This is the core correctness phase. Everything else rides on it.
   - `checkBatchAvailability` rejects when **any** day in a multi-day range is at capacity (even if adjacent days have space)
   - `checkBatchAvailability` accepts when all days have room
   - `createAttendeeAtomic` stores `end_at = start_at + duration × 86_400_000 ms` for a duration-3 event
+  - duration edit reconciliation updates existing rows' `end_at` for that event
 
 ---
 
@@ -102,12 +107,23 @@ This is the core correctness phase. Everything else rides on it.
   - Hide/disable when `event_type !== 'daily'` — can piggyback on existing daily-only field visibility logic.
 - `src/routes/admin/events.ts`
   - `extractCommonFields` / `extractEventUpdateInput` — parse `duration_days` (clamp ≥1), alongside `minimum_days_before`.
+  - On event edit save: if `duration_days` changed and event is daily, call the DB reconciliation helper in the same transaction.
 - `src/templates/admin/events.tsx`
   - Admin event detail view: show duration alongside min/max days so staff can verify booking behavior.
+  - Event edit form JS warning flow:
+    - If duration value differs from persisted value, show warning label:
+      `"Changing booking duration will update existing bookings for this event."`
+    - Show a confirmation input/checkbox gate before enabling Save.
+    - Keep warning hidden when duration is unchanged.
+- `src/templates/admin/attendees.tsx` / `src/templates/admin/attendee-table.tsx` / attendee edit template
+  - When editing attendee event links for daily bookings, show both start and end dates (or compact range) to make duration-impacted edits explicit.
+  - When admin changes a booking date manually, recompute and persist end date using current event duration.
 
 **Tests**
 - `test/lib/forms/event-fields.test.ts` — parse/validate `duration_days` (reject 0, negative, non-integer).
 - `test/admin-api-events.test.ts` / `test/templates/admin/events.test.ts` — create a daily event with duration 3 and confirm it persists.
+- `test/templates/admin/events.test.ts` — warning/confirmation UI appears only when duration value changes.
+- `test/admin-attendee-edit.test.ts` (or equivalent) — attendee edit view renders date ranges and persists recomputed end date.
 
 ---
 
@@ -225,6 +241,7 @@ Edge cases to explicitly test:
 |---|---|
 | Over-rejection from overlap-sum in atomic insert (race window) | JS-side per-day check in `checkBatchAvailability` is primary; SQL overlap-sum is safety net. Document. |
 | Existing events silently change behaviour | Default `duration_days = 1` is a strict no-op for every existing row. |
+| Editing duration rewrites historical/future ranges unexpectedly | Require explicit UI warning + confirmation before save; run update in one transaction and log admin action. |
 | Price regression for existing paid daily events | Multiplier only applies when `duration_days > 1`; 1 × price is a no-op. Covered by test. |
 | Webhook/provider metadata `date` field is single-date | No change — still stores start date. Duration re-read from event at finalize time (duration is event-scoped, not booking-scoped). |
 | Admin accidentally sets duration on `standard` event | Ignored by booking logic. Optional: hide field in admin UI for standard events. |
@@ -243,11 +260,12 @@ Edge cases to explicitly test:
 
 Roughly **8–10 source files**, **5–7 test files**.
 
-## Open questions (to resolve during implementation, not now)
+## Resolved decisions (April 2026)
 
-1. Should `duration_days` be editable after a daily event has bookings? (Default: yes, but existing bookings keep their stored ranges; new bookings use the new value.)
-2. Max value — 90 (current `maximum_days_after` default) or 365? Probably 90.
-3. Should we add explicit guardrails around editing duration when there are many existing future attendee rows to reduce admin confusion?
+1. `duration_days` is always editable for daily events, and saving a changed value updates existing bookings for that event.
+2. Maximum `duration_days` is **90**.
+3. Admin UI must show explicit warning + confirmation when duration is changed.
+4. Because duration edits rewrite booking ranges, attendee-edit surfaces should show start/end (range) rather than start-only for daily bookings.
 
 ## Phase 2 kickoff
 
