@@ -6,6 +6,16 @@ Let admins mark a daily event as a fixed-length multi-day booking (e.g. a 3-day 
 
 This is deliberately a **small, low-risk step** that (a) delivers a new capability to existing users (multi-day courses/retreats/rentals), and (b) lays the plumbing for a later "customer picks their own end date" feature by making the whole stack multi-day-aware.
 
+## Codebase findings (April 2026 deep-dive)
+
+These findings come from reading the current implementation and should guide scope decisions:
+
+- There is no persistent "booking group" object after checkout. The payment/session path carries `items` + optional `date`; attendee writes are just `attendees` + `event_attendees` rows. Group context is not stored on attendee bookings.
+- "Groups" in this codebase are event collections (`events.group_id`) used for discovery, shared public pages, and optional aggregate capacity limits — not a long-lived booking container.
+- Group capacity checks happen dynamically by event membership (`events.group_id`) during availability/insert checks, not via any attendee-side group foreign key.
+- Public event headers already render a single `Date:` line for dated events; duration display should therefore be implemented as a date-range label there (not as a separate "duration" field).
+- Range copy decision: use an **en dash (`–`)** in rendered ranges.
+
 ## Semantics (decisions)
 
 - `duration_days INTEGER NOT NULL DEFAULT 1` on `events`.
@@ -131,15 +141,16 @@ This is the core correctness phase. Everything else rides on it.
 ### Phase 5 — Display: confirmation page, email, admin views
 
 **Files**
-- `src/lib/dates.ts` — add `formatDateRangeLabel(startIso, endIso)` → `"Mon 15 Apr – Wed 17 Apr"`. Single-day collapses to `formatDateLabel`.
-  - Add English-only compact range formatter for event/ticket display (for now), with these rules:
+- `src/lib/dates.ts`
+  - Add `formatDateRangeLabel(startIso, endIso)` for booking records, returning a human range; single-day collapses to `formatDateLabel`.
+  - Add English-only compact date-range formatter for event/ticket display (for now), using **en dash** style rules:
     - Same day: `2 February 2027`
     - Same month + same year: `2–3 February 2027`
     - Different month + same year: `2 February – 3 March 2027`
     - Different year: `2 February 2027 – 3 February 2028` (no dedupe across years)
-  - Keep this as a dedicated helper (e.g. `formatDateRangeLabelCompactEn`) so i18n can later swap locale-specific behavior without rewriting booking logic.
+  - Keep this as a dedicated helper (e.g. `formatDateRangeLabelCompactEn`) so i18n can later replace locale behavior cleanly.
 - `src/templates/public.tsx`
-  - Reuse the compact formatter for the public event/date line so UI shows `<from> to <to>` semantics without awkward repeated month/year text.
+  - Reuse the compact formatter for the public event/date line so UI shows an explicit range when available, with en dash-separated labels.
 - `src/templates/tickets.tsx` — `attendeeDateHtml` (~line 57–59): render range when `attendee.end_at - attendee.start_at > 1 day`. Keep existing behaviour for single-day.
 - `src/lib/email-renderer.ts` — template data exposes `dateRangeLabel` alongside `date` (kept for backward compatibility).
 - `src/templates/admin/attendees.tsx` / `attendee-table.tsx` — date column shows range when multi-day (small visual tweak; row still sorts by start).
@@ -165,38 +176,38 @@ This feature intersects with group behavior in ways that are easy to miss. We sh
 
 ### Group semantics to lock in
 
-- `duration_days` is **event-scoped**, not attendee-scoped: all tickets in a group booking inherit the same date range from the selected start date.
+- `duration_days` is **event-scoped**, not attendee-scoped: all tickets in one checkout for a daily event inherit the same date range from the selected start date.
 - Capacity is checked against **total attendee quantity per day** across the full range, regardless of whether tickets are bought as a group or individually.
-- Group identity (`group_id` or equivalent linkage) remains orthogonal to duration: changing duration on the event affects only future bookings, not existing group rows.
+- Group identity is `events.group_id` membership, not attendee booking linkage: changing duration on the event affects only future attendee rows via future inserts.
 
-### DB + atomicity details for grouped inserts
+### DB + atomicity details for multi-event/group-page checkouts
 
-- For grouped purchases that create multiple attendee rows in one transaction:
-  - Compute a single `{ start_at, end_at }` from `date + duration_days` and reuse it for every row in the group.
+- For one checkout that creates multiple `event_attendees` rows:
+  - Compute a single `{ start_at, end_at }` from `date + duration_days` for each daily event booking being inserted.
   - Keep the existing overlap predicate (`ea2.start_at < ? AND ea2.end_at > ?`) for atomic safety.
-  - Run preflight per-day availability for the **full requested quantity** before insert to avoid split-brain outcomes where some group members insert and others fail.
+  - Run preflight per-day availability for the **full requested quantity** before insert to avoid partial success outcomes where some booking rows insert and others fail.
 - If current implementation inserts one attendee at a time, verify ordering/rollback behavior:
-  - Prefer all-or-nothing transaction semantics for group booking writes.
-  - Ensure payment finalization does not leave orphaned partial groups when capacity races occur.
+  - Prefer all-or-nothing transaction semantics for multi-row booking writes.
+  - Ensure payment finalization does not leave orphaned partial attendee links when capacity races occur.
 
 ### Availability math with groups (nitty-gritty cases)
 
 For each day in range `D = [start, start + duration)`:
 
-- Effective demand added by booking = `quantity` (group size).
+- Effective demand added by booking = `quantity`.
 - Day is valid iff `existingAttendeesForDay + quantity <= max_quantity`.
 - Reject booking if **any** day fails this predicate.
 
 Edge cases to explicitly test:
 
-1. Day 1 has room, Day 2 is full, Day 3 has room → entire group booking must fail.
-2. Two concurrent group checkouts for same range near capacity → only one should commit.
+1. Day 1 has room, Day 2 is full, Day 3 has room → entire checkout booking for that event must fail.
+2. Two concurrent checkouts for same range near capacity → only one should commit.
 3. Existing long booking overlaps only tail of requested range; another overlaps head; per-day checks should accept/reject correctly without overlap-sum false positives.
 4. Mixed cart with multiple daily events (different durations) and at least one grouped quantity >1.
 
 ### UX/content implications for group flows
 
-- Public event page: show explicit date range text (`<from> to <to>`) when a concrete range can be determined.
+- Public event page: show explicit date range text when a concrete range can be determined, using en dash style.
 - Ticket/checkout summaries should still make total pricing transparent (`per-day × duration × quantity`) so group organizers can reconcile totals.
 - Confirmation/email should show the resolved date range once booked; that is sufficient for group participants.
 
@@ -236,8 +247,7 @@ Roughly **8–10 source files**, **5–7 test files**.
 
 1. Should `duration_days` be editable after a daily event has bookings? (Default: yes, but existing bookings keep their stored ranges; new bookings use the new value.)
 2. Max value — 90 (current `maximum_days_after` default) or 365? Probably 90.
-3. Should we add explicit guardrails around editing duration when there are existing group bookings to reduce admin confusion?
-4. Should the public event page use an en dash (`–`) vs literal `to` in the rendered range, and should this vary by template/context?
+3. Should we add explicit guardrails around editing duration when there are many existing future attendee rows to reduce admin confusion?
 
 ## Phase 2 kickoff
 
