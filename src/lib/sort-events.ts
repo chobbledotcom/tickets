@@ -19,6 +19,27 @@ const eventTier = (event: Event): number => {
   return event.date === "" ? 0 : 1;
 };
 
+/** Tier 1: dated standard — sort by date ASC, then name */
+const compareDatedStandard = (a: Event, b: Event): number => {
+  const cmp = a.date.localeCompare(b.date);
+  return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
+};
+
+/** Tier 2: daily — sort by next bookable date ASC, then name */
+const compareDaily = (
+  nextDates: Map<number, string | null>,
+  a: Event,
+  b: Event,
+): number => {
+  const dateA = nextDates.get(a.id) ?? "";
+  const dateB = nextDates.get(b.id) ?? "";
+  if (dateA === "" && dateB === "") return a.name.localeCompare(b.name);
+  if (dateA === "") return 1;
+  if (dateB === "") return -1;
+  const cmp = dateA.localeCompare(dateB);
+  return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
+};
+
 /**
  * Create a comparator that uses pre-computed next-bookable-dates for daily events.
  */
@@ -28,24 +49,9 @@ const compareEvents =
     const tierA = eventTier(a);
     const tierB = eventTier(b);
     if (tierA !== tierB) return tierA - tierB;
-
-    // Tier 0: no-date standard — sort by name only
     if (tierA === 0) return a.name.localeCompare(b.name);
-
-    // Tier 1: dated standard — sort by date ASC, then name
-    if (tierA === 1) {
-      const cmp = a.date.localeCompare(b.date);
-      return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
-    }
-
-    // Tier 2: daily — sort by next bookable date ASC, then name
-    const dateA = nextDates.get(a.id) ?? "";
-    const dateB = nextDates.get(b.id) ?? "";
-    if (dateA === "" && dateB === "") return a.name.localeCompare(b.name);
-    if (dateA === "") return 1;
-    if (dateB === "") return -1;
-    const cmp = dateA.localeCompare(dateB);
-    return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
+    if (tierA === 1) return compareDatedStandard(a, b);
+    return compareDaily(nextDates, a, b);
   };
 
 /**

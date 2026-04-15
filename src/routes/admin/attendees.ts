@@ -137,6 +137,43 @@ const handleAttendeeCheckin = attendeeFormAction(
   },
 );
 
+/** Build create-attendee input from validated form values */
+const buildCreateAttendeeInput = (
+  values: AddAttendeeFormValues,
+  eventId: number,
+  isDaily: boolean,
+) => {
+  const { name, email, phone, address, special_instructions, quantity, date } =
+    values;
+  return {
+    address: address || "",
+    bookings: [{ date: isDaily ? date : null, eventId, quantity }],
+    email: email || "",
+    name,
+    phone: phone || "",
+    special_instructions: special_instructions || "",
+  };
+};
+
+/** Convert a failed createAttendeeAtomic result into a redirect response */
+const handleCreateAttendeeFailure = (
+  result: { success: false; reason: string },
+  eventId: number,
+): Response => {
+  if (result.reason === "encryption_error") {
+    logError({
+      code: ErrorCode.ENCRYPT_FAILED,
+      detail: "manual add attendee",
+      eventId,
+    });
+  }
+  const errorMsg =
+    result.reason === "capacity_exceeded"
+      ? "Not enough spots available"
+      : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
+  return redirect(`/admin/event/${eventId}`, errorMsg, false);
+};
+
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
 const handleAddAttendee = (
   request: Request,
@@ -155,40 +192,15 @@ const handleAddAttendee = (
       return redirect(`/admin/event/${eventId}`, validation.error, false);
     }
 
-    const {
-      name,
-      email,
-      phone,
-      address,
-      special_instructions,
-      quantity,
-      date,
-    } = validation.values;
-
-    const result = await createAttendeeAtomic({
-      address: address || "",
-      bookings: [{ date: isDaily ? date : null, eventId, quantity }],
-      email: email || "",
-      name,
-      phone: phone || "",
-      special_instructions: special_instructions || "",
-    });
+    const result = await createAttendeeAtomic(
+      buildCreateAttendeeInput(validation.values, eventId, isDaily),
+    );
 
     if (!result.success) {
-      if (result.reason === "encryption_error") {
-        logError({
-          code: ErrorCode.ENCRYPT_FAILED,
-          detail: "manual add attendee",
-          eventId,
-        });
-      }
-      const errorMsg =
-        result.reason === "capacity_exceeded"
-          ? "Not enough spots available"
-          : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-      return redirect(`/admin/event/${eventId}`, errorMsg, false);
+      return handleCreateAttendeeFailure(result, eventId);
     }
 
+    const { name } = validation.values;
     await logActivity(`Attendee '${name}' added manually`, eventId);
     return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
   });

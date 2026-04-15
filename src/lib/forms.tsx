@@ -116,54 +116,72 @@ const splitDatetime = (value: string): { date: string; time: string } => {
   return { date, time };
 };
 
+/** Render the input element for a field based on its type */
+const renderFieldInput = (field: Field, value: string): JSX.Element => {
+  if (field.type === "textarea") {
+    return (
+      <textarea
+        name={field.name}
+        required={field.required}
+        placeholder={field.placeholder}
+        maxlength={field.maxlength}
+        autocomplete={field.autocomplete}
+      >
+        <Raw html={escapeHtml(value)} />
+      </textarea>
+    );
+  }
+  if (field.type === "select" && field.options) {
+    return (
+      <Raw
+        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+      />
+    );
+  }
+  if (field.type === "checkbox-group" && field.options) {
+    return (
+      <Raw
+        html={renderCheckboxGroup(
+          field.name,
+          field.options,
+          new Set(value ? value.split(",").map((v) => v.trim()) : []),
+        )}
+      />
+    );
+  }
+  if (field.type === "datetime") {
+    return (
+      <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
+    );
+  }
+  if (field.type === "file") {
+    return <input type="file" name={field.name} accept={field.accept} />;
+  }
+  return (
+    <input
+      type={field.type}
+      name={field.name}
+      value={value || undefined}
+      required={field.required}
+      placeholder={field.placeholder}
+      min={field.min}
+      max={field.max}
+      minlength={field.minlength}
+      inputmode={field.inputmode}
+      maxlength={field.maxlength}
+      pattern={field.pattern}
+      title={field.title}
+      autofocus={field.autofocus}
+      autocomplete={field.autocomplete}
+    />
+  );
+};
+
 export const renderField = (field: Field, value: string = ""): string =>
   String(
     <label>
       {field.label}
-      {field.type === "textarea" ? (
-        <textarea
-          name={field.name}
-          required={field.required}
-          placeholder={field.placeholder}
-          maxlength={field.maxlength}
-          autocomplete={field.autocomplete}
-        >
-          <Raw html={escapeHtml(value)} />
-        </textarea>
-      ) : field.type === "select" && field.options ? (
-        <Raw
-          html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
-        />
-      ) : field.type === "checkbox-group" && field.options ? (
-        <Raw
-          html={renderCheckboxGroup(
-            field.name,
-            field.options,
-            new Set(value ? value.split(",").map((v) => v.trim()) : []),
-          )}
-        />
-      ) : field.type === "datetime" ? (
-        <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
-      ) : field.type === "file" ? (
-        <input type="file" name={field.name} accept={field.accept} />
-      ) : (
-        <input
-          type={field.type}
-          name={field.name}
-          value={value || undefined}
-          required={field.required}
-          placeholder={field.placeholder}
-          min={field.min}
-          max={field.max}
-          minlength={field.minlength}
-          inputmode={field.inputmode}
-          maxlength={field.maxlength}
-          pattern={field.pattern}
-          title={field.title}
-          autofocus={field.autofocus}
-          autocomplete={field.autocomplete}
-        />
-      )}
+      {renderFieldInput(field, value)}
       {field.hint && <small>{field.hint}</small>}
       {field.hintHtml && (
         <small>
@@ -208,6 +226,35 @@ const parseFieldValue = (
     : trimmed;
 
 /**
+ * Collect the raw trimmed value for a field from the form data.
+ * Returns the string value, or a FieldValidationResult for early exit
+ * (e.g. datetime partial error or empty-but-not-required datetime).
+ */
+const collectFieldValue = (
+  form: FormParams,
+  field: Field,
+): string | FieldValidationResult => {
+  if (field.type === "datetime") {
+    const result = getDatetimeValue(form, field.name);
+    if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
+    if (!result) {
+      if (field.required)
+        return { error: `${field.label} is required`, valid: false };
+      return { valid: true, value: null };
+    }
+    return result;
+  }
+  if (field.type === "checkbox-group") {
+    return form
+      .getAll(field.name)
+      .map((v) => v.trim())
+      .filter((v) => v)
+      .join(",");
+  }
+  return form.getString(field.name);
+};
+
+/**
  * Validate a single field and return its parsed value.
  * For checkbox-group fields, collects all checked values via getAll()
  * and joins them as a comma-separated string.
@@ -219,26 +266,10 @@ const validateSingleField = (
   // File fields are handled separately via FormData, not URLSearchParams
   if (field.type === "file") return { valid: true, value: null };
 
-  let trimmed: string;
+  const collected = collectFieldValue(form, field);
+  if (typeof collected !== "string") return collected;
 
-  if (field.type === "datetime") {
-    const result = getDatetimeValue(form, field.name);
-    if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
-    if (!result) {
-      if (field.required)
-        return { error: `${field.label} is required`, valid: false };
-      return { valid: true, value: null };
-    }
-    trimmed = result;
-  } else if (field.type === "checkbox-group") {
-    trimmed = form
-      .getAll(field.name)
-      .map((v) => v.trim())
-      .filter((v) => v)
-      .join(",");
-  } else {
-    trimmed = form.getString(field.name);
-  }
+  let trimmed = collected;
 
   if (!trimmed && field.defaultValue) {
     trimmed = field.defaultValue;

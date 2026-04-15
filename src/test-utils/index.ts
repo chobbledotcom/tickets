@@ -1106,6 +1106,53 @@ const authenticatedMultipartFormRequest = <T>(
     errorContext,
   );
 
+/** Format a boolean form field ("1" when truthy, "" otherwise) */
+const bool = (v: unknown): string => (v ? "1" : "");
+
+/** Format an optional numeric form field (stringified, or "" when nullish) */
+const optionalNumber = (v: number | null | undefined): string =>
+  v != null ? String(v) : "";
+
+/** Format an optional price field (major units string, or "" when nullish) */
+const optionalPrice = (v: number | null | undefined): string =>
+  v != null ? priceFormValue(v) : "";
+
+/** Build the form data body for creating an event */
+const buildCreateEventForm = (
+  input: Omit<EventInput, "slug" | "slugIndex">,
+): Record<string, string> => {
+  const closesAtParts = splitClosesAt(input.closesAt, null);
+  const dateParts = splitClosesAt(input.date, null);
+  return {
+    assign_built_site: bool(input.assignBuiltSite),
+    bookable_days: input.bookableDays
+      ? formatBookableDaysForForm(input.bookableDays)
+      : "",
+    can_pay_more: bool(input.canPayMore),
+    closes_at_date: closesAtParts.date,
+    closes_at_time: closesAtParts.time,
+    date_date: dateParts.date,
+    date_time: dateParts.time,
+    description: input.description ?? "",
+    event_type: input.eventType ?? "",
+    fields: input.fields ?? "email",
+    group_id: String(input.groupId ?? 0),
+    hidden: bool(input.hidden),
+    location: input.location ?? "",
+    max_attendees: String(input.maxAttendees),
+    max_price: priceFormValue(input.maxPrice),
+    max_quantity: String(input.maxQuantity ?? 1),
+    maximum_days_after: optionalNumber(input.maximumDaysAfter),
+    minimum_days_before: optionalNumber(input.minimumDaysBefore),
+    name: input.name,
+    non_transferable: bool(input.nonTransferable),
+    purchase_only: bool(input.purchaseOnly),
+    thank_you_url: input.thankYouUrl ?? "",
+    unit_price: optionalPrice(input.unitPrice),
+    webhook_url: input.webhookUrl ?? "",
+  };
+};
+
 /**
  * Create an event via the REST API
  * This is the preferred way to create test events as it exercises production code.
@@ -1115,43 +1162,9 @@ export const createTestEvent = (
   overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
 ): Promise<Event> => {
   const input = testEventInput(overrides);
-
-  const closesAtParts = splitClosesAt(input.closesAt, null);
-  const dateParts = splitClosesAt(input.date, null);
-
   return authenticatedMultipartFormRequest(
     "/admin/event",
-    {
-      assign_built_site: input.assignBuiltSite ? "1" : "",
-      bookable_days: input.bookableDays
-        ? formatBookableDaysForForm(input.bookableDays)
-        : "",
-      can_pay_more: input.canPayMore ? "1" : "",
-      closes_at_date: closesAtParts.date,
-      closes_at_time: closesAtParts.time,
-      date_date: dateParts.date,
-      date_time: dateParts.time,
-      description: input.description ?? "",
-      event_type: input.eventType ?? "",
-      fields: input.fields ?? "email",
-      group_id: String(input.groupId ?? 0),
-      hidden: input.hidden ? "1" : "",
-      location: input.location ?? "",
-      max_attendees: String(input.maxAttendees),
-      max_price: priceFormValue(input.maxPrice),
-      max_quantity: String(input.maxQuantity ?? 1),
-      maximum_days_after:
-        input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
-      minimum_days_before:
-        input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
-      name: input.name,
-      non_transferable: input.nonTransferable ? "1" : "",
-      purchase_only: input.purchaseOnly ? "1" : "",
-      thank_you_url: input.thankYouUrl ?? "",
-      unit_price:
-        input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
-      webhook_url: input.webhookUrl ?? "",
-    },
+    buildCreateEventForm(input),
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
       const { getAllEvents } = await import("#lib/db/events.ts");
@@ -1201,6 +1214,82 @@ const splitClosesAt = (
   return { date, time };
 };
 
+/** Pick a field from updates, falling back to an existing value */
+const pickField = <T>(update: T | undefined, existing: T): T =>
+  update !== undefined ? update : existing;
+
+/** Build boolean form fields for updating an event */
+const buildUpdateBoolFields = (
+  updates: Partial<EventInput>,
+  existing: EventWithCount,
+): Record<string, string> => ({
+  assign_built_site: bool(
+    pickField(updates.assignBuiltSite, existing.assign_built_site),
+  ),
+  can_pay_more: bool(pickField(updates.canPayMore, existing.can_pay_more)),
+  hidden: bool(pickField(updates.hidden, existing.hidden)),
+  non_transferable: bool(
+    pickField(updates.nonTransferable, existing.non_transferable),
+  ),
+  purchase_only: bool(pickField(updates.purchaseOnly, existing.purchase_only)),
+});
+
+/** Build numeric form fields for updating an event */
+const buildUpdateNumericFields = (
+  updates: Partial<EventInput>,
+  existing: EventWithCount,
+): Record<string, string> => ({
+  group_id: String(pickField(updates.groupId, existing.group_id)),
+  max_attendees: String(
+    pickField(updates.maxAttendees, existing.max_attendees),
+  ),
+  max_price: priceFormValue(pickField(updates.maxPrice, existing.max_price)),
+  max_quantity: String(pickField(updates.maxQuantity, existing.max_quantity)),
+  maximum_days_after: String(
+    pickField(updates.maximumDaysAfter, existing.maximum_days_after),
+  ),
+  minimum_days_before: String(
+    pickField(updates.minimumDaysBefore, existing.minimum_days_before),
+  ),
+  unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+});
+
+/** Build string form fields for updating an event */
+const buildUpdateStringFields = (
+  updates: Partial<EventInput>,
+  existing: EventWithCount,
+): Record<string, string> => ({
+  bookable_days: formatBookableDaysForForm(
+    pickField(updates.bookableDays, existing.bookable_days),
+  ),
+  description: pickField(updates.description, existing.description),
+  event_type: pickField(updates.eventType, existing.event_type),
+  fields: pickField(updates.fields, existing.fields),
+  location: pickField(updates.location, existing.location),
+  name: pickField(updates.name, existing.name),
+  slug: pickField(updates.slug, existing.slug),
+  thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
+  webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
+});
+
+/** Build the form data body for updating an event, merging updates with existing values */
+const buildUpdateEventForm = (
+  updates: Partial<EventInput>,
+  existing: EventWithCount,
+): Record<string, string> => {
+  const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
+  const dateParts = splitClosesAt(updates.date, existing.date);
+  return {
+    ...buildUpdateBoolFields(updates, existing),
+    ...buildUpdateNumericFields(updates, existing),
+    ...buildUpdateStringFields(updates, existing),
+    closes_at_date: closesAtParts.date,
+    closes_at_time: closesAtParts.time,
+    date_date: dateParts.date,
+    date_time: dateParts.time,
+  };
+};
+
 /**
  * Update an event via the REST API
  */
@@ -1212,51 +1301,9 @@ export const updateTestEvent = async (
   if (!existing) {
     throw new Error(`Event not found: ${eventId}`);
   }
-
-  const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
-  const dateParts = splitClosesAt(updates.date, existing.date);
-
   return authenticatedMultipartFormRequest(
     `/admin/event/${eventId}/edit`,
-    {
-      assign_built_site:
-        (updates.assignBuiltSite ?? existing.assign_built_site) ? "1" : "",
-      bookable_days: updates.bookableDays
-        ? formatBookableDaysForForm(updates.bookableDays)
-        : formatBookableDaysForForm(existing.bookable_days),
-      can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
-      closes_at_date: closesAtParts.date,
-      closes_at_time: closesAtParts.time,
-      date_date: dateParts.date,
-      date_time: dateParts.time,
-      description: updates.description ?? existing.description,
-      event_type: updates.eventType ?? existing.event_type,
-      fields: updates.fields ?? existing.fields,
-      group_id: String(updates.groupId ?? existing.group_id),
-      hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
-      location: updates.location ?? existing.location,
-      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
-      max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
-      max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
-      maximum_days_after: String(
-        updates.maximumDaysAfter ?? existing.maximum_days_after,
-      ),
-      minimum_days_before: String(
-        updates.minimumDaysBefore ?? existing.minimum_days_before,
-      ),
-      name: updates.name ?? existing.name,
-      non_transferable:
-        (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
-      purchase_only:
-        (updates.purchaseOnly ?? existing.purchase_only) ? "1" : "",
-      slug: updates.slug ?? existing.slug,
-      thank_you_url: formatOptional(
-        updates.thankYouUrl,
-        existing.thank_you_url,
-      ),
-      unit_price: formatPrice(updates.unitPrice, existing.unit_price),
-      webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
-    },
+    buildUpdateEventForm(updates, existing),
     async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
   );
