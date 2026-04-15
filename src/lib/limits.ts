@@ -9,14 +9,22 @@
 import { getEnv } from "#lib/env.ts";
 
 /**
+ * Parse a string as a positive integer, falling back to the given default
+ * if the input is empty, non-numeric, or non-positive.
+ */
+export const parsePositiveInt = (raw: string, fallback: number): number => {
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/**
  * Read a limit from an env var with a fallback default.
  * Returns the env value when it parses to a positive integer, otherwise the default.
  */
 export const readLimit = (envKey: string, defaultValue: number): number => {
   const raw = getEnv(envKey);
   if (raw === undefined) return defaultValue;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : defaultValue;
+  return parsePositiveInt(raw, defaultValue);
 };
 
 // ---------------------------------------------------------------------------
@@ -69,6 +77,43 @@ export const MAX_LOGIN_ATTEMPTS = readLimit("MAX_LOGIN_ATTEMPTS", 5);
 export const LOGIN_LOCKOUT_MS = readLimit("LOGIN_LOCKOUT_MS", 15 * 60 * 1000);
 
 // ---------------------------------------------------------------------------
+// Database pruning
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Retention (days) for finalized processed_payments rows (default: 90) */
+export const PRUNE_PAYMENTS_RETENTION_DAYS = readLimit(
+  "PRUNE_PAYMENTS_RETENTION_DAYS",
+  90,
+);
+
+/** Retention (days) past expiry for sessions rows (default: 90) */
+export const PRUNE_SESSIONS_RETENTION_DAYS = readLimit(
+  "PRUNE_SESSIONS_RETENTION_DAYS",
+  90,
+);
+
+/** Retention (days) past lockout for login_attempts rows (default: 90) */
+export const PRUNE_LOGINS_RETENTION_DAYS = readLimit(
+  "PRUNE_LOGINS_RETENTION_DAYS",
+  90,
+);
+
+/** How often (hours) to re-run each prune task (default: 24 = daily) */
+export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
+
+/** Computed: prune interval in ms. */
+export const PRUNE_INTERVAL_MS = PRUNE_INTERVAL_HOURS * 60 * 60 * 1000;
+
+/** Computed: retention windows in ms. */
+export const PRUNE_PAYMENTS_RETENTION_MS =
+  PRUNE_PAYMENTS_RETENTION_DAYS * DAY_MS;
+export const PRUNE_SESSIONS_RETENTION_MS =
+  PRUNE_SESSIONS_RETENTION_DAYS * DAY_MS;
+export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
+
+// ---------------------------------------------------------------------------
 // Metadata for debug page display
 // ---------------------------------------------------------------------------
 
@@ -119,6 +164,8 @@ export const formatLimitValue = (value: number, unit: string): string => {
   if (unit === "ms") return formatMs(value);
   if (unit === "seconds") return formatSeconds(value);
   if (unit === "chars") return `${value} chars`;
+  if (unit === "days") return `${value} days`;
+  if (unit === "hours") return `${value} hours`;
   return `${value} ${unit}`;
 };
 
@@ -186,5 +233,33 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 15 * 60 * 1000,
     current: LOGIN_LOCKOUT_MS,
     unit: "ms",
+  },
+  {
+    label: "Prune: payments retention",
+    envKey: "PRUNE_PAYMENTS_RETENTION_DAYS",
+    defaultValue: 90,
+    current: PRUNE_PAYMENTS_RETENTION_DAYS,
+    unit: "days",
+  },
+  {
+    label: "Prune: sessions retention",
+    envKey: "PRUNE_SESSIONS_RETENTION_DAYS",
+    defaultValue: 90,
+    current: PRUNE_SESSIONS_RETENTION_DAYS,
+    unit: "days",
+  },
+  {
+    label: "Prune: login-attempts retention",
+    envKey: "PRUNE_LOGINS_RETENTION_DAYS",
+    defaultValue: 90,
+    current: PRUNE_LOGINS_RETENTION_DAYS,
+    unit: "days",
+  },
+  {
+    label: "Prune: run interval",
+    envKey: "PRUNE_INTERVAL_HOURS",
+    defaultValue: 24,
+    current: PRUNE_INTERVAL_HOURS,
+    unit: "hours",
   },
 ];

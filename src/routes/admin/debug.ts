@@ -162,9 +162,21 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     },
     domain: getEffectiveDomain(),
     limits: LIMIT_ENTRIES,
+    prune: {
+      payments: formatLastPruned(settings.lastPrunedPayments),
+      sessions: formatLastPruned(settings.lastPrunedSessions),
+      logins: formatLastPruned(settings.lastPrunedLogins),
+    },
     theme: settings.theme,
   };
 };
+
+/** Format a stored last-pruned ms-epoch string as ISO.
+ * `raw` is always a positive ms-epoch string by the time we render: every
+ * incoming request triggers maybeRunPrunes() as pending work, which writes a
+ * fresh timestamp before the /admin/debug handler reads the snapshot. */
+const formatLastPruned = (raw: string): string =>
+  new Date(Number(raw)).toISOString();
 
 /**
  * Handle GET /admin/debug - owner only

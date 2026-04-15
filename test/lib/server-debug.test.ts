@@ -399,12 +399,26 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         database: { hostConfigured: false },
         domain: "localhost",
         limits: [],
+        prune: { payments: "Never", sessions: "Never", logins: "Never" },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };
       const html = adminDebugPage(session, state);
       expect(html).toContain("myevent.example.com");
       expect(html).toContain(".tickets");
+    });
+  });
+
+  describe("Database pruning section", () => {
+    test("renders the most recent prune timestamp as ISO", async () => {
+      // Set a recent timestamp so the request-handler's fire-and-forget
+      // maybeRunPrunes() sees it as not-yet-due and doesn't overwrite.
+      const ts = Date.now() - 1000;
+      await settings.update.lastPrunedPayments(String(ts));
+      await settings.update.lastPrunedSessions(String(ts));
+      await settings.update.lastPrunedLogins(String(ts));
+      const expected = new Date(ts).toISOString();
+      await assertAdminHtml("/admin/debug", "Database pruning", expected);
     });
   });
 
@@ -470,6 +484,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
             unit: "bytes",
           },
         ],
+        prune: { payments: "Never", sessions: "Never", logins: "Never" },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };
