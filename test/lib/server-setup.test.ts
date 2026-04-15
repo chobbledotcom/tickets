@@ -4,6 +4,7 @@ import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
   assertJson,
+  assertPublicHtml,
   awaitTestRequest,
   createTestDb,
   describeWithEnv,
@@ -68,10 +69,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("GET /setup/ shows setup page", async () => {
-        const response = await handleRequest(mockRequest("/setup/"));
-        await expectHtmlResponse(
-          response,
-          200,
+        await assertPublicHtml(
+          "/setup/",
           "Initial Setup",
           "Admin Password",
           "Your Country",
@@ -80,8 +79,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("GET /setup (without trailing slash) shows setup page", async () => {
-        const response = await handleRequest(mockRequest("/setup"));
-        await expectHtmlResponse(response, 200, "Initial Setup");
+        await assertPublicHtml("/setup", "Initial Setup");
       });
 
       test("POST /setup/ with valid data completes setup", async () => {
@@ -318,8 +316,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("GET /setup/complete shows success page when setup is done", async () => {
-        const response = await handleRequest(mockRequest("/setup/complete"));
-        await expectHtmlResponse(response, 200, "Setup Complete");
+        await assertPublicHtml("/setup/complete", "Setup Complete");
       });
     });
   });

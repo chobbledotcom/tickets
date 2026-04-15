@@ -6,6 +6,7 @@ import { paymentsApi } from "#lib/payments.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { handleRequest } from "#routes";
 import {
+  assertAdminHtml,
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
@@ -210,10 +211,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("includes return_url as hidden field when provided", async () => {
       const ctx = await setupRefundTest("pi_test_return");
       const url = `${refundUrl(ctx.event.id, ctx.attendee.id)}?return_url=${encodeURIComponent("/admin/calendar#attendees")}`;
-      const response = await awaitTestRequest(url, { cookie: ctx.cookie });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        url,
         'name="return_url"',
         "/admin/calendar#attendees",
       );

@@ -21,6 +21,8 @@ import {
 import { handleRequest } from "#routes";
 import {
   adminFormPost,
+  assertAdminHtmlWithCookie,
+  assertPublicHtml,
   awaitTestRequest,
   createTestInvite,
   createTestManagerSession,
@@ -237,8 +239,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "mgr-dash-session",
         "dashmanager",
       );
-      const response = await awaitTestRequest("/admin/", { cookie });
-      await expectHtmlResponse(response, 200, "Events");
+      await assertAdminHtmlWithCookie("/admin/", cookie, "Events");
     });
   });
 
@@ -527,8 +528,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("login page shows username field", async () => {
-      const response = await handleRequest(mockRequest("/admin/"));
-      await expectHtmlResponse(response, 200, "username");
+      await assertPublicHtml("/admin/", "username");
     });
   });
 
@@ -551,8 +551,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("GET /join/complete shows confirmation page", async () => {
-      const response = await handleRequest(mockRequest("/join/complete"));
-      await expectHtmlResponse(response, 200, "Password Set");
+      await assertPublicHtml("/join/complete", "Password Set");
     });
 
     test("POST /join/:code sets password for invited user", async () => {
@@ -649,8 +648,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       s.invalidateCache();
       invalidateUsersCache();
 
-      const response = await handleRequest(mockRequest("/setup/"));
-      await expectHtmlResponse(response, 200, "admin_username");
+      await assertPublicHtml("/setup/", "admin_username");
     });
   });
 

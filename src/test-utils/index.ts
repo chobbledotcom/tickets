@@ -1391,6 +1391,43 @@ export const assertAdminHtml = async (
 };
 
 /**
+ * Like {@link assertAdminHtml} but authenticated with an explicit cookie —
+ * use for manager sessions or other non-owner admin cookies.
+ *
+ * @example
+ * const managerCookie = await createTestManagerSession();
+ * await assertAdminHtmlWithCookie("/admin/log", managerCookie, "Log");
+ */
+export const assertAdminHtmlWithCookie = async (
+  path: string,
+  cookie: string,
+  ...substrings: string[]
+): Promise<string> => {
+  const response = await awaitTestRequest(path, { cookie });
+  return expectHtmlResponse(response, 200, ...substrings);
+};
+
+/**
+ * Fetch a public (unauthenticated) page and assert the response is a 200
+ * HTML response containing all given substrings. Returns the HTML for
+ * further assertions.
+ *
+ * @example
+ * await assertPublicHtml("/", "Home", "/admin/login");
+ *
+ * const html = await assertPublicHtml("/events", "My Events");
+ * expect(html).not.toContain("draft");
+ */
+export const assertPublicHtml = async (
+  path: string,
+  ...substrings: string[]
+): Promise<string> => {
+  const { handleRequest } = await import("#routes");
+  const response = await handleRequest(mockRequest(path));
+  return expectHtmlResponse(response, 200, ...substrings);
+};
+
+/**
  * Assert status and check that the HTML body contains all given substrings.
  * Returns the HTML string for further assertions.
  */

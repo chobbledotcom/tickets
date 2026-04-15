@@ -13,6 +13,7 @@ import {
   adminAttendeeAction,
   adminEventPage,
   adminFormPost,
+  assertAdminHtml,
   awaitTestRequest,
   createPaidTestAttendee,
   createTestAttendee,
@@ -665,12 +666,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("event page shows Check out button for checked-in attendee", async () => {
       // Check in first, then view the event page
-      const { event, cookie } = await checkinAction({})();
+      const { event } = await checkinAction({})();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(response, 200, "Check out");
+      await assertAdminHtml(`/admin/event/${event.id}`, "Check out");
     });
   });
 
@@ -907,14 +905,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("event page shows add attendee form", async () => {
-      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
+      const { event } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Add Attendee",
         `/admin/event/${event.id}/attendee`,
         "Your Name",

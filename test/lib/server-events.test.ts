@@ -14,6 +14,8 @@ import { formatCountdown, withCookie } from "#routes/utils.ts";
 import {
   adminFormPost,
   adminGet,
+  assertAdminHtml,
+  assertAdminHtmlWithCookie,
   awaitTestRequest,
   createTestAttendee,
   createTestEvent,
@@ -292,16 +294,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows event details when authenticated", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await awaitTestRequest("/admin/event/1", {
-        cookie: cookie,
-      });
-      await expectHtmlResponse(response, 200, event.name);
+      await assertAdminHtml("/admin/event/1", event.name);
     });
 
     test("shows Edit link on event page", async () => {
@@ -363,7 +362,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows duplicate form pre-filled with event settings but no name", async () => {
-      const { cookie } = await setupEventAndLogin({
+      await setupEventAndLogin({
         name: "Original Event",
         maxAttendees: 75,
         thankYouUrl: "https://example.com/thanks",
@@ -371,12 +370,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         webhookUrl: "https://example.com/webhook",
       });
 
-      const response = await awaitTestRequest("/admin/event/1/duplicate", {
-        cookie: cookie,
-      });
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertAdminHtml(
+        "/admin/event/1/duplicate",
         "Duplicate Event",
         "Original Event",
         'value="75"',
@@ -451,12 +446,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         ),
       );
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/in`, {
-        cookie: cookie,
-      });
-      const html = await expectHtmlResponse(response, 200, "Checked In User");
+      const html = await assertAdminHtml(
+        `/admin/event/${event.id}/in`,
+        "Checked In User",
+        "<strong>Checked In</strong>",
+      );
       expect(html).not.toContain("Not Checked User");
-      expect(html).toContain("<strong>Checked In</strong>");
     });
   });
 
@@ -699,19 +694,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows edit form when authenticated", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1500,
       });
 
-      const response = await awaitTestRequest("/admin/event/1/edit", {
-        cookie: cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        "/admin/event/1/edit",
         "Edit:",
         'value="Test Event"',
         'value="100"',
@@ -1185,17 +1176,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows deactivate confirmation page when authenticated", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await awaitTestRequest("/admin/event/1/deactivate", {
-        cookie: cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        "/admin/event/1/deactivate",
         "Deactivate Event",
         "Return a 404",
         'name="confirm_identifier"',
@@ -1297,19 +1284,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows reactivate confirmation page when authenticated", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       // Deactivate the event first
       await deactivateTestEvent(event.id);
 
-      const response = await awaitTestRequest("/admin/event/1/reactivate", {
-        cookie: cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        "/admin/event/1/reactivate",
         "Reactivate Event",
         "available for registrations",
         'name="confirm_identifier"',
@@ -1411,18 +1394,14 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows delete confirmation page when authenticated", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await awaitTestRequest("/admin/event/1/delete", {
-        cookie: cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        "/admin/event/1/delete",
         "Delete Event",
         event.name,
         "type its name",
@@ -1834,10 +1813,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("shows log page for manager", async () => {
       const managerCookie = await createTestManagerSession();
-      const response = await awaitTestRequest("/admin/log", {
-        cookie: managerCookie,
-      });
-      await expectHtmlResponse(response, 200, "Log");
+      await assertAdminHtmlWithCookie("/admin/log", managerCookie, "Log");
     });
 
     test("shows truncation message when more than 200 entries", async () => {
@@ -1868,15 +1844,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("shows log for existing event", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         name: "Event Log",
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/log`, {
-        cookie,
-      });
-      await expectHtmlResponse(response, 200, "Log", event.name);
+      await assertAdminHtml(`/admin/event/${event.id}/log`, "Log", event.name);
     });
   });
 
@@ -2317,42 +2290,31 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event detail page shows closes_at with countdown when set", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         closesAt: "2099-06-15T14:30",
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Registration Closes",
+        "from now",
       );
       expect(html).not.toContain("No deadline");
-      expect(html).toContain("from now");
     });
 
     test("admin event detail page shows 'No deadline' when closes_at is null", async () => {
-      const { event, cookie } = await setupEventAndLogin();
+      const { event } = await setupEventAndLogin();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(response, 200, "No deadline");
+      await assertAdminHtml(`/admin/event/${event.id}`, "No deadline");
     });
 
     test("admin event edit page shows closes_at in form", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         closesAt: "2099-06-15T14:30",
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}/edit`,
         'value="2099-06-15"',
         'value="14:30"',
         "Registration Closes At",
@@ -2360,14 +2322,11 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event detail page shows 'closed' countdown for past closes_at", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         closesAt: "2024-01-01T00:00",
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(response, 200, "(closed)");
+      await assertAdminHtml(`/admin/event/${event.id}`, "(closed)");
     });
 
     test("admin event detail page shows days-only countdown", async () => {
@@ -2505,16 +2464,12 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin detail page shows Event Date and Location when set", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Event Date",
         "Monday 15 June 2026 at 14:00 UTC",
         "<th>Location</th>",
@@ -2523,54 +2478,41 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin detail page hides Event Date and Location when empty", async () => {
-      const { event, cookie } = await setupEventAndLogin();
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      expect(response.status).toBe(200);
-      const html = await response.text();
+      const { event } = await setupEventAndLogin();
+      const html = await assertAdminHtml(`/admin/event/${event.id}`);
       expect(html).not.toContain("Event Date");
       expect(html).not.toContain("<th>Location</th>");
     });
 
     test("admin edit page pre-fills date as split inputs", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         date: "2026-06-15T14:00",
       });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}/edit`,
         'value="2026-06-15"',
         'value="14:00"',
       );
     });
 
     test("admin edit page pre-fills location", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         location: "Village Hall",
       });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      await expectHtmlResponse(response, 200, 'value="Village Hall"');
+      await assertAdminHtml(
+        `/admin/event/${event.id}/edit`,
+        'value="Village Hall"',
+      );
     });
 
     test("CSV export includes Event Date and Event Location columns", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
       await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-      const response = await awaitTestRequest(
+      await assertAdminHtml(
         `/admin/event/${event.id}/export`,
-        { cookie },
-      );
-      await expectHtmlResponse(
-        response,
-        200,
         "Event Date",
         "Event Location",
         "Village Hall",
@@ -2701,19 +2643,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event detail page shows Daily type for daily events", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         eventType: "daily",
         bookableDays: ["Monday", "Tuesday"],
         minimumDaysBefore: 3,
         maximumDaysAfter: 60,
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Event Type",
         "Daily",
         "Bookable Days",
@@ -2726,14 +2664,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event detail page shows Standard type without daily config", async () => {
-      const { event, cookie } = await setupEventAndLogin();
+      const { event } = await setupEventAndLogin();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Event Type",
         "Standard",
       );
@@ -2742,25 +2676,21 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event edit page pre-fills daily config", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         eventType: "daily",
         bookableDays: ["Wednesday", "Friday"],
         minimumDaysBefore: 5,
         maximumDaysAfter: 120,
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertAdminHtml(
+        `/admin/event/${event.id}/edit`,
         'value="Wednesday" checked',
         'value="Friday" checked',
+        'value="5"',
+        'value="120"',
       );
       expect(html).not.toContain('value="Monday" checked');
-      expect(html).toContain('value="5"');
-      expect(html).toContain('value="120"');
     });
 
     test("updates event from standard to daily", async () => {
@@ -2795,25 +2725,21 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("duplicate page pre-fills daily event config", async () => {
-      const { cookie } = await setupEventAndLogin({
+      await setupEventAndLogin({
         eventType: "daily",
         bookableDays: ["Tuesday", "Thursday"],
         minimumDaysBefore: 2,
         maximumDaysAfter: 45,
       });
 
-      const response = await awaitTestRequest("/admin/event/1/duplicate", {
-        cookie,
-      });
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      const html = await assertAdminHtml(
+        "/admin/event/1/duplicate",
         'value="Tuesday" checked',
         'value="Thursday" checked',
+        'value="2"',
+        'value="45"',
       );
       expect(html).not.toContain('value="Monday" checked');
-      expect(html).toContain('value="2"');
-      expect(html).toContain('value="45"');
     });
 
     test("rejects invalid event_type value", async () => {
@@ -2844,45 +2770,34 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event detail page shows non-transferable row when enabled", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         nonTransferable: true,
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Non-Transferable",
         "ID verification required at entry",
       );
     });
 
     test("admin event detail page does not show non-transferable row when disabled", async () => {
-      const { event, cookie } = await setupEventAndLogin();
+      const { event } = await setupEventAndLogin();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      const html = await response.text();
+      const html = await assertAdminHtml(`/admin/event/${event.id}`);
       expect(html).not.toContain("Non-Transferable");
     });
 
     test("admin event edit page pre-fills non-transferable select", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         nonTransferable: true,
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
-        cookie,
-      });
-      const html = await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}/edit`,
         "Non-Transferable Tickets",
+        'value="1" selected',
       );
-      expect(html).toContain('value="1" selected');
     });
 
     test("updates event to enable non_transferable", async () => {
@@ -3310,26 +3225,19 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("admin event detail page shows Hidden row when enabled", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { event } = await setupEventAndLogin({
         hidden: true,
       });
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      await expectHtmlResponse(
-        response,
-        200,
+      await assertAdminHtml(
+        `/admin/event/${event.id}`,
         "Hidden",
         "not shown in public events list",
       );
     });
 
     test("admin event detail page does not show Hidden row when disabled", async () => {
-      const { event, cookie } = await setupEventAndLogin();
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      const html = await response.text();
+      const { event } = await setupEventAndLogin();
+      const html = await assertAdminHtml(`/admin/event/${event.id}`);
       expect(html).not.toContain("not shown in public events list");
     });
 
