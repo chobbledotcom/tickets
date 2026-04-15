@@ -205,17 +205,17 @@ export const getActiveEventStats = async (
     0,
   )(active);
 
-  const row = await queryOne<{ tickets: number; income: number }>(
+  const row = (await queryOne<{ tickets: number; income: number }>(
     `SELECT COUNT(*) AS tickets,
             COALESCE(SUM(ea.price_paid), 0) AS income
        FROM event_attendees ea
       WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
-  );
+  ))!;
   return {
     attendees,
-    income: row?.income ?? 0,
-    tickets: row?.tickets ?? 0,
+    income: row.income,
+    tickets: row.tickets,
   };
 };
 
