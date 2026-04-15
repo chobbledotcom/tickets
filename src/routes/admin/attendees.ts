@@ -48,20 +48,15 @@ import {
   verifiedAttendeeForm,
 } from "./attendees-utils.ts";
 
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeeGetRoute(
-  (data, session, request) => {
+/** Create a GET handler that renders an attendee page with flash error */
+const attendeePageRoute = (render: typeof adminDeleteAttendeePage) =>
+  attendeeGetRoute((data, session, request) => {
     const flash = applyFlash(request);
-    return htmlResponse(
-      adminDeleteAttendeePage(
-        data,
-        session,
-        getReturnUrl(request),
-        flash.error,
-      ),
-    );
-  },
-);
+    return htmlResponse(render(data, session, getReturnUrl(request), flash.error));
+  });
+
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
+const handleAdminAttendeeDeleteGet = attendeePageRoute(adminDeleteAttendeePage);
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = verifiedAttendeeForm(
@@ -199,18 +194,8 @@ const handleAddAttendee = (
   });
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
-const handleAdminResendNotificationGet = attendeeGetRoute(
-  (data, session, request) => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminResendNotificationPage(
-        data,
-        session,
-        getReturnUrl(request),
-        flash.error,
-      ),
-    );
-  },
+const handleAdminResendNotificationGet = attendeePageRoute(
+  adminResendNotificationPage,
 );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
