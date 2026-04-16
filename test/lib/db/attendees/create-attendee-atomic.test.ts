@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   createAttendeeAtomic,
-  dateToRange,
   decryptAttendees,
   getAttendeesRaw,
 } from "#lib/db/attendees.ts";
+import { dateToRange } from "#lib/db/capacity.ts";
 import { getDb } from "#lib/db/client.ts";
 
 /** Fetch raw start_at/end_at for an event (getAttendeesRaw drops them). */

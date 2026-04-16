@@ -16,7 +16,12 @@ import {
   isGroupSlugTaken,
   resetGroupEvents,
 } from "#lib/db/groups.ts";
-import { createTestEvent, createTestGroup, describeWithEnv } from "#test-utils";
+import {
+  bookAttendee,
+  createTestEvent,
+  createTestGroup,
+  describeWithEnv,
+} from "#test-utils";
 
 describeWithEnv("db > groups", { db: true }, () => {
   describe("CRUD", () => {
@@ -101,10 +106,10 @@ describeWithEnv("db > groups", { db: true }, () => {
         sql: "UPDATE events SET active = 0 WHERE id = ?",
       });
 
-      const attendee = await createAttendeeAtomic({
-        bookings: [{ eventId: e1.id, quantity: 3 }],
+      const attendee = await bookAttendee(e1, {
         email: "a@example.com",
         name: "A",
+        quantity: 3,
       });
       if (!attendee.success) throw new Error("Failed to create attendee");
 

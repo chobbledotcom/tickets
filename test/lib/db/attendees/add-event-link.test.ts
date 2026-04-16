@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { addEventLink, getAttendeesRaw } from "#lib/db/attendees.ts";
 import {
-  addEventLink,
-  createAttendeeAtomic,
-  getAttendeesRaw,
-} from "#lib/db/attendees.ts";
-import {
+  bookAttendee,
   createDailyTestEvent,
   createTestEvent,
   describeWithEnv,
@@ -15,28 +12,10 @@ describeWithEnv("db > attendees > addEventLink", { db: true }, () => {
   test("admits a multi-day link whose range contains non-overlapping bookings", async () => {
     // Per-day expansion must admit a range whose days each have room,
     // even though overlap-sum sees multiple bookings inside the window.
-    const event = await createDailyTestEvent({
-      durationDays: 3,
-      maxAttendees: 2,
-      maximumDaysAfter: 30,
-    });
-    for (const [date, email] of [
-      ["2026-05-01", "a@example.com"],
-      ["2026-05-03", "b@example.com"],
-    ] as const) {
-      await createAttendeeAtomic({
-        bookings: [{ date, durationDays: 1, eventId: event.id, quantity: 1 }],
-        email,
-        name: email,
-      });
-    }
-    const base = await createAttendeeAtomic({
-      bookings: [
-        { date: "2026-05-20", durationDays: 1, eventId: event.id, quantity: 1 },
-      ],
-      email: "base@example.com",
-      name: "Base",
-    });
+    const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 2 });
+    await bookAttendee(event, { date: "2026-05-01", durationDays: 1 });
+    await bookAttendee(event, { date: "2026-05-03", durationDays: 1 });
+    const base = await bookAttendee(event, { date: "2026-05-20", durationDays: 1 });
     if (!base.success) throw new Error("setup failed");
     const link = await addEventLink(base.attendees[0]!.id, {
       date: "2026-05-01",
@@ -50,11 +29,7 @@ describeWithEnv("db > attendees > addEventLink", { db: true }, () => {
   test("defaults quantity to 1 when omitted", async () => {
     const first = await createTestEvent({ maxAttendees: 3 });
     const second = await createTestEvent({ maxAttendees: 3 });
-    const base = await createAttendeeAtomic({
-      bookings: [{ eventId: first.id, quantity: 1 }],
-      email: "qdef@example.com",
-      name: "QDef",
-    });
+    const base = await bookAttendee(first);
     if (!base.success) throw new Error("setup failed");
     const link = await addEventLink(base.attendees[0]!.id, {
       eventId: second.id,

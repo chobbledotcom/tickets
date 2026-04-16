@@ -284,11 +284,54 @@ describe("db > event_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("event_id");
     expect(colNames).not.toContain("date");
     expect(colNames).not.toContain("quantity");
+    expect(colNames).not.toContain("name");
+    expect(colNames).not.toContain("email");
+    expect(colNames).not.toContain("phone");
+    expect(colNames).not.toContain("address");
+    expect(colNames).not.toContain("payment_id");
     expect(colNames).toContain("id");
     expect(colNames).toContain("pii_blob");
 
     const payments = await client.execute("SELECT * FROM processed_payments");
     expect(payments.rows.length).toBe(1);
     expect(payments.rows[0]!.attendee_id).toBe(1);
+  });
+
+  test("drops PII columns when event_id was dropped in a prior partial run", async () => {
+    setupTestEncryptionKey();
+    const client = createClient({ url: ":memory:" });
+    setDb(client);
+
+    // Simulate a DB in the intermediate state: event_id and its relatives
+    // have already been dropped (e.g. by a partial earlier migration), but
+    // the pre-pii_blob PII columns are still present with NOT NULL.
+    await client.execute(
+      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+    );
+    await client.execute(`CREATE TABLE attendees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      payment_id TEXT,
+      created TEXT NOT NULL,
+      ticket_token_index TEXT,
+      pii_blob TEXT NOT NULL DEFAULT '',
+      checked_in TEXT NOT NULL DEFAULT '',
+      price_paid TEXT
+    )`);
+
+    await initDb();
+
+    const cols = await client.execute("PRAGMA table_info(attendees)");
+    const colNames = cols.rows.map((r) => r.name);
+    expect(colNames).not.toContain("name");
+    expect(colNames).not.toContain("email");
+    expect(colNames).not.toContain("phone");
+    expect(colNames).not.toContain("address");
+    expect(colNames).not.toContain("payment_id");
+    expect(colNames).toContain("pii_blob");
+    expect(colNames).toContain("ticket_token_index");
   });
 });

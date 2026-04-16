@@ -21,6 +21,11 @@ import type {
   EncryptInput,
 } from "#lib/db/attendee-types.ts";
 import {
+  addDaysStr,
+  buildCapacityCondition,
+  dateToRange,
+} from "#lib/db/capacity.ts";
+import {
   executeBatch,
   executeBatchWithResults,
   getDb,
@@ -405,12 +410,6 @@ const CAPACITY_EXCEEDED = {
   success: false as const,
 };
 
-/** Add N calendar days to a YYYY-MM-DD date string (UTC-based). */
-const addDaysStr = (dateStr: string, days: number): string => {
-  const date = new Date(`${dateStr}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-};
 
 /** Convert nullable date to start_at/end_at (null-safe wrapper around dateToRange) */
 const dateToStartEnd = (
@@ -423,24 +422,9 @@ const dateToStartEnd = (
 };
 
 /**
- * Convert a date string ("YYYY-MM-DD") to a start_at/end_at pair.
- * The range is inclusive of `durationDays` calendar days starting at `date` @ 00:00Z;
- * `end_at` is the first midnight after the window (matches the existing 1-day semantic).
- */
-export const dateToRange = (
-  date: string,
-  durationDays = 1,
-): { startAt: string; endAt: string } => {
-  const ms = new Date(`${date}T00:00:00Z`).getTime();
-  const endIso = new Date(ms + durationDays * 86_400_000).toISOString();
-  return { endAt: endIso, startAt: `${date}T00:00:00Z` };
-};
-
-/**
  * Recompute `end_at` on all existing `event_attendees` rows for an event based
  * on a new `duration_days` value. Leaves rows with NULL `start_at` (non-daily
- * events) unchanged. Runs as a single UPDATE so callers can batch it alongside
- * the corresponding event update.
+ * events) unchanged.
  */
 export const recomputeEventBookingRanges = async (
   eventId: number,
@@ -448,12 +432,6 @@ export const recomputeEventBookingRanges = async (
 ): Promise<void> => {
   const duration = Math.max(1, Math.floor(durationDays));
   await getDb().execute({
-    // datetime(start_at, '+N days') keeps same time-of-day; start_at is always
-    // "YYYY-MM-DDT00:00:00Z" so the result is "YYYY-MM-DD 00:00:00" (no millis,
-    // no Z). We stitch the ISO suffix ".000Z" back on so stored end_at values
-    // exactly match what fresh inserts produce via `new Date(...).toISOString()`
-    // — prevents scuzzy mixed formats in raw-row dumps and locks lexical
-    // comparisons to a single shape.
     args: [duration, eventId],
     sql: `UPDATE event_attendees
            SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
@@ -462,11 +440,6 @@ export const recomputeEventBookingRanges = async (
   invalidateEventsCache();
 };
 
-/**
- * Get the total attendee quantity for a specific event + date, optionally
- * excluding one attendee (used when an admin edits their own booking so the
- * row being updated doesn't fight itself in the capacity check).
- */
 export const getDateAttendeeCount = async (
   eventId: number,
   date: string,
@@ -525,18 +498,6 @@ const getGroupAttendeeCount = async (
   return rows[0]!.count;
 };
 
-/**
- * Accurate per-day availability check for a single-event booking, shared by
- * `hasAvailableSpots` (customer JSON API), `addEventLink`, and `updateEventLink`.
- *
- * Walks every day in `[date, date + durationDays)` and checks:
- *   - event's own max_attendees against existing per-day load
- *   - group's max_attendees (if any) against existing per-day group load
- *
- * Correct by construction — no overlap-sum false-rejection. The atomic SQL
- * insert/update still runs its own WHERE-guarded check as a race-free safety
- * net; this preflight ensures we don't fail rows that actually have room.
- */
 /** Enumerate every day in [date, date + durationDays) for per-day checks,
  * or a single [null] for non-daily / date-less bookings. */
 const capacityCheckDays = (
@@ -549,8 +510,6 @@ const capacityCheckDays = (
   return Array.from({ length: duration }, (_, i) => addDaysStr(date, i));
 };
 
-/** Existing event-level load for one day (null day = total). Self-excluding
- * so admin edits to their own booking don't fight themselves. */
 const loadForDay = async (
   eventId: number,
   day: string | null,
@@ -559,13 +518,10 @@ const loadForDay = async (
 ): Promise<number> => {
   if (day) return getDateAttendeeCount(eventId, day, excludeAttendeeId);
   if (!excludeAttendeeId) return attendeeCount;
-  const row = await queryOne<{ count: number }>(
+  return (await queryOne<{ count: number }>(
     "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id != ?",
     [eventId, excludeAttendeeId],
-  );
-  // SELECT COALESCE(SUM(...), 0) always returns exactly one row, so row is
-  // never undefined here.
-  return row!.count;
+  ))!.count;
 };
 
 const checkEventCapForDays = async (
@@ -576,12 +532,7 @@ const checkEventCapForDays = async (
   event: { max_attendees: number; attendee_count: number },
 ): Promise<boolean> => {
   for (const day of days) {
-    const load = await loadForDay(
-      eventId,
-      day,
-      excludeAttendeeId,
-      event.attendee_count,
-    );
+    const load = await loadForDay(eventId, day, excludeAttendeeId, event.attendee_count);
     if (load + quantity > event.max_attendees) return false;
   }
   return true;
@@ -596,11 +547,7 @@ const checkGroupCapForDays = async (
   const groupLimit = await getGroupMaxAttendees(groupId);
   if (groupLimit <= 0) return true;
   for (const day of days) {
-    const groupCount = await getGroupAttendeeCount(
-      groupId,
-      day,
-      excludeAttendeeId,
-    );
+    const groupCount = await getGroupAttendeeCount(groupId, day, excludeAttendeeId);
     if (groupCount + quantity > groupLimit) return false;
   }
   return true;
@@ -615,134 +562,13 @@ const checkEventAvailability = async (
 ): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
-
-  const days = capacityCheckDays(
-    event.event_type === "daily",
-    date,
-    durationDays,
-  );
-
-  const eventOk = await checkEventCapForDays(
-    eventId,
-    quantity,
-    days,
-    excludeAttendeeId,
-    event,
-  );
+  const days = capacityCheckDays(event.event_type === "daily", date, durationDays);
+  const eventOk = await checkEventCapForDays(eventId, quantity, days, excludeAttendeeId, event);
   if (!eventOk) return false;
-
   if (event.group_id <= 0) return true;
-  return checkGroupCapForDays(
-    event.group_id,
-    quantity,
-    days,
-    excludeAttendeeId,
-  );
+  return checkGroupCapForDays(event.group_id, quantity, days, excludeAttendeeId);
 };
 
-/**
- * Build a single-day capacity clause (event-cap + group-cap when applicable).
- * `dayRange` is null for non-daily / date-less bookings; use `? IS NULL OR …`
- * to elide the time filter in one branch rather than two SQL shapes.
- */
-const buildDayCapacitySql = (
-  eventId: number,
-  qty: number,
-  dayRange: { startAt: string; endAt: string } | null,
-  excludeAttendeeId?: number,
-): { sql: string; args: InValue[] } => {
-  const dayDate = dayRange?.startAt.slice(0, 10) ?? null;
-  const startAt = dayRange?.startAt ?? null;
-  const endAt = dayRange?.endAt ?? null;
-  const excludeEa2 = excludeAttendeeId ? "AND ea2.attendee_id != ? " : "";
-  const excludeEa3 = excludeAttendeeId ? "AND ea3.attendee_id != ? " : "";
-  const excludeArg: InValue[] = excludeAttendeeId ? [excludeAttendeeId] : [];
-
-  const sql = `(
-    SELECT COALESCE(SUM(ea2.quantity), 0)
-    FROM event_attendees ea2
-    WHERE ea2.event_id = ? ${excludeEa2}
-    AND (? IS NULL OR (ea2.start_at < ? AND ea2.end_at > ?))
-  ) + ? <= (SELECT max_attendees FROM events WHERE id = ?)
-  AND (
-    SELECT CASE
-      WHEN ev.group_id = 0 THEN 1
-      WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
-      WHEN (
-        SELECT COALESCE(SUM(ea3.quantity), 0)
-        FROM event_attendees ea3
-        JOIN events e2 ON e2.id = ea3.event_id
-        WHERE e2.group_id = ev.group_id ${excludeEa3}
-        AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
-      ) + ? <= g.max_attendees THEN 1
-      ELSE 0
-    END
-    FROM events ev
-    LEFT JOIN groups g ON g.id = ev.group_id
-    WHERE ev.id = ?
-  ) = 1`;
-
-  return {
-    args: [
-      eventId,
-      ...excludeArg,
-      startAt,
-      endAt,
-      startAt,
-      qty,
-      eventId,
-      ...excludeArg,
-      dayDate,
-      endAt,
-      startAt,
-      qty,
-      eventId,
-    ],
-    sql,
-  };
-};
-
-/**
- * Build the WHERE clause for capacity checking on event_attendees.
- *
- * Multi-day daily bookings emit one clause per day, AND'd together, so the
- * SQL safety-net matches the per-day accuracy of the JS preflight. A single
- * overlap-sum clause is strictly conservative — it's safe in the sense that
- * it never under-rejects, but it false-rejects admin edits whose range
- * contains existing non-overlapping bookings. Per-day expansion eliminates
- * that UX hazard; range length is bounded (≤90 via form validation) so the
- * SQL stays cheap.
- *
- * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates)
- */
-const buildCapacityCondition = (
-  eventId: number,
-  qty: number,
-  date: string | null,
-  excludeAttendeeId?: number,
-  durationDays = 1,
-): { sql: string; args: InValue[] } => {
-  if (!date) return buildDayCapacitySql(eventId, qty, null, excludeAttendeeId);
-  const duration = Math.max(1, Math.floor(durationDays));
-  const clauses: string[] = [];
-  const args: InValue[] = [];
-  for (let i = 0; i < duration; i++) {
-    const daily = buildDayCapacitySql(
-      eventId,
-      qty,
-      dateToRange(addDaysStr(date, i), 1),
-      excludeAttendeeId,
-    );
-    clauses.push(`(${daily.sql})`);
-    args.push(...daily.args);
-  }
-  return { args, sql: clauses.join(" AND ") };
-};
-
-/**
- * Build a capacity-checked INSERT INTO event_attendees for a single booking.
- * Uses last_insert_rowid() to reference the attendee created in step 1 of the batch.
- */
 /**
  * Build a capacity-checked INSERT into event_attendees.
  * @param attendeeIdExpr - SQL expression for attendee_id (e.g. "last_insert_rowid()" or "?")

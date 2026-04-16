@@ -9,8 +9,8 @@ import { hmacHash } from "#lib/crypto/hashing.ts";
 import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
-  dateToRange,
 } from "#lib/db/attendees.ts";
+import { dateToRange } from "#lib/db/capacity.ts";
 import {
   executeBatch,
   getDb,

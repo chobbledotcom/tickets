@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createAttendeeAtomic,
-  decryptAttendees,
-  getAttendeesRaw,
-} from "#lib/db/attendees.ts";
+import { decryptAttendees, getAttendeesRaw } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
 import {
+  bookAttendee,
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
@@ -57,11 +54,11 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    const result = await createAttendeeAtomic({
-      bookings: [{ eventId: event.id, quantity: 1 }],
+    const result = await bookAttendee(event, {
       email: "phone@example.com",
       name: "Phone Person",
       phone: "+44 7700 900000",
+      quantity: 1,
     });
 
     expect(result.success).toBe(true);
@@ -83,12 +80,12 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    const result = await createAttendeeAtomic({
+    const result = await bookAttendee(event, {
       address: "",
-      bookings: [{ eventId: event.id, quantity: 1 }],
       email: "",
       name: "NoContact Person",
       phone: "",
+      quantity: 1,
       special_instructions: "",
     });
 
@@ -116,10 +113,10 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    const result = await createAttendeeAtomic({
-      bookings: [{ eventId: event.id, quantity: 1 }],
+    const result = await bookAttendee(event, {
       email: "inst@example.com",
       name: "Instructions Person",
+      quantity: 1,
       special_instructions: "No nuts please\nAllergic to dairy",
     });
 
@@ -139,11 +136,11 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    const result = await createAttendeeAtomic({
+    const result = await bookAttendee(event, {
       address: "123 Main St\nSpringfield\nIL 62701",
-      bookings: [{ eventId: event.id, quantity: 1 }],
       email: "addr@example.com",
       name: "Address Person",
+      quantity: 1,
     });
 
     expect(result.success).toBe(true);

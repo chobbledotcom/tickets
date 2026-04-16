@@ -23,7 +23,7 @@ import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
-import { getDb, insert, setDb } from "#lib/db/client.ts";
+import { getDb, insert, queryOne, setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
   getEventWithCount,
@@ -929,11 +929,13 @@ const createDirectAdminSession = async (): Promise<{
   const { nowMs } = await import("#lib/now.ts");
 
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user?.wrapped_data_key)
+  if (!user?.wrapped_data_key) {
     throw new Error("Admin user not found after setup");
+  }
   const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
-  if (!passwordHash)
+  if (!passwordHash) {
     throw new Error("Admin password verification failed after setup");
+  }
   const kek = await deriveKEK(passwordHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
@@ -1413,6 +1415,24 @@ export const createTestAttendee = async (
  * This is used in production by getAttendees, so not a test-only export
  */
 export { getAttendeesRaw };
+
+/** Range fields from event_attendees that aren't on the Attendee type. */
+export type RawEventRange = {
+  start_at: string | null;
+  end_at: string | null;
+  quantity: number;
+};
+
+/**
+ * Fetch raw start_at/end_at/quantity for the first event_attendees row
+ * matching an event. Useful for tests that need the full timestamps
+ * (getAttendeesRaw only exposes the truncated `date` field).
+ */
+export const rawEventRange = (eventId: number): Promise<RawEventRange | null> =>
+  queryOne<RawEventRange>(
+    "SELECT start_at, end_at, quantity FROM event_attendees WHERE event_id = ? ORDER BY attendee_id LIMIT 1",
+    [eventId],
+  );
 
 // ---------------------------------------------------------------------------
 // FP-style curried assertion helpers
@@ -2383,6 +2403,47 @@ export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
 
 export type { BuiltSiteFormInput };
 
+import type {
+  CreateAttendeeResult,
+  EventBooking,
+} from "#lib/db/attendee-types.ts";
+
+export type BookAttendeeOpts = Partial<Omit<EventBooking, "eventId">> & {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  special_instructions?: string;
+  paymentId?: string;
+};
+
+/**
+ * Book a single attendee onto an event via createAttendeeAtomic.
+ * One-liner wrapper for the common test pattern with sensible defaults
+ * (name "X", email "x@example.com").
+ */
+export const bookAttendee = async (
+  event: Pick<Event, "id">,
+  opts: BookAttendeeOpts = {},
+): Promise<CreateAttendeeResult> => {
+  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const booking: EventBooking = { eventId: event.id };
+  if (opts.date !== undefined) booking.date = opts.date;
+  if (opts.quantity !== undefined) booking.quantity = opts.quantity;
+  if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
+  return createAttendeeAtomic({
+    bookings: [booking],
+    email: opts.email ?? "x@example.com",
+    name: opts.name ?? "X",
+    ...(opts.phone !== undefined && { phone: opts.phone }),
+    ...(opts.address !== undefined && { address: opts.address }),
+    ...(opts.special_instructions !== undefined && {
+      special_instructions: opts.special_instructions,
+    }),
+    ...(opts.paymentId !== undefined && { paymentId: opts.paymentId }),
+  });
+};
+
 /**
  * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).
  * Returns the plaintext token just like production code receives it.
@@ -2488,7 +2549,8 @@ export const createDailyTestEvent = (
   createTestEvent({
     bookableDays: allDays,
     eventType: "daily",
-    maximumDaysAfter: 14,
+    maxAttendees: 10,
+    maximumDaysAfter: 60,
     minimumDaysBefore: 0,
     ...overrides,
   });
@@ -2632,8 +2694,9 @@ export const createTestManagerSession = async (
   const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
   if (!passwordHash) throw new Error("Admin password verification failed");
   const kek = await deriveKEK(passwordHash);
-  if (!user.wrapped_data_key)
+  if (!user.wrapped_data_key) {
     throw new Error("Admin user has no wrapped data key");
+  }
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   // Create manager user with a properly wrapped data key
@@ -2772,11 +2835,7 @@ export const createDailyTestAttendee = async (
   eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
 ): Promise<{ event: Event; attendee: Attendee; token: string }> => {
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-  const event = await createDailyTestEvent({
-    maxAttendees: 10,
-    maximumDaysAfter: 30,
-    ...eventOverrides,
-  });
+  const event = await createDailyTestEvent(eventOverrides);
   const result = await createAttendeeAtomic({
     bookings: [{ date, eventId: event.id }],
     email,

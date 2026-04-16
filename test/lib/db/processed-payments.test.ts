@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { getDb, insert } from "#lib/db/client.ts";
 import {
   finalizeSession as finalizePaymentSession,
@@ -9,7 +8,7 @@ import {
   STALE_RESERVATION_MS,
 } from "#lib/db/processed-payments.ts";
 import { nowMs } from "#lib/now.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {
@@ -23,8 +22,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendeeResult = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      const attendeeResult = await bookAttendee(event, {
         email: "test@example.com",
         name: "Test",
       });
