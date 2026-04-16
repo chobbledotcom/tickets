@@ -34,7 +34,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "drop PII columns from attendees (now in pii_blob)";
+  "drop any legacy columns from attendees (event_id + pre-pii_blob PII)";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -489,17 +489,28 @@ const recreateTable = async (tableName: string): Promise<void> => {
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
 };
 
+/** Get the set of columns declared by SCHEMA for a given table */
+const getSchemaColumns = (tableName: string): Set<string> =>
+  new Set(
+    SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c),
+  );
+
 /**
- * Drop event_id, date, quantity from attendees table.
- * SQLite can't DROP COLUMN when a FK references the column, so we recreate the table.
- * Only runs if the old columns still exist (idempotent).
+ * Drop any legacy columns from attendees that aren't in the current schema
+ * (event_id, date, quantity, and the pre-pii_blob PII columns: name, email,
+ * phone, address, payment_id, etc).
+ *
+ * SQLite can't DROP COLUMN when a FK references the column, so we recreate
+ * the table. Idempotent: if every existing column matches the schema, skip.
  */
 const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   const cols = await getExistingColumns("attendees");
-  if (!cols.has("event_id")) {
+  const expected = getSchemaColumns("attendees");
+  const hasLegacy = [...cols].some((c) => !expected.has(c));
+  if (!hasLegacy) {
     logDebug(
       "Migration",
-      "attendees.event_id already dropped, skipping table recreation",
+      "attendees has no legacy columns, skipping table recreation",
     );
     return;
   }
