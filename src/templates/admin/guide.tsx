@@ -97,7 +97,8 @@ export const adminGuidePage = (
       <h2>Guide</h2>
 
       <p class="search-hint">
-        Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
+        Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>
+        {" "}
         on Mac) to search this page.
       </p>
 
@@ -116,10 +117,11 @@ export const adminGuidePage = (
 
         <Q q="How do I set up payments?">
           <p>
-            Go to <strong>Settings</strong> and choose Stripe or Square as your
-            payment provider. Paste in your API key and save. For Stripe, the
-            webhook is configured automatically. For Square, you'll need to copy
-            the webhook URL shown and add it in your Square Developer Dashboard.
+            Go to <strong>Settings</strong>{" "}
+            and choose Stripe or Square as your payment provider. Paste in your
+            API key and save. For Stripe, the webhook is configured
+            automatically. For Square, you'll need to copy the webhook URL shown
+            and add it in your Square Developer Dashboard.
           </p>
         </Q>
       </Section>
@@ -127,11 +129,12 @@ export const adminGuidePage = (
       <Section title="Dashboard">
         <Q q="What is the dashboard?">
           <p>
-            The <strong>Events</strong> page is your dashboard. It lists all
-            your events with attendee counts, booking links, and quick actions.
-            At the top, the <strong>Active Event Statistics</strong> section
-            shows totals across all active events: total income, number of
-            ticket rows, and total attendee quantity. Click the heading to
+            The <strong>Events</strong>{" "}
+            page is your dashboard. It lists all your events with attendee
+            counts, booking links, and quick actions. At the top, the{" "}
+            <strong>Active Event Statistics</strong>{" "}
+            section shows totals across all active events: total income, number
+            of ticket rows, and total attendee quantity. Click the heading to
             expand or collapse it.
           </p>
         </Q>
@@ -153,9 +156,9 @@ export const adminGuidePage = (
             This project is early in development (started January 2026) and bugs
             are expected. If you find something that doesn&apos;t work
             correctly, please email{" "}
-            <a href="mailto:hello@chobble.com">hello@chobble.com</a> with a
-            description of what happened and what you expected. The more detail
-            you can provide, the faster it can be fixed.
+            <a href="mailto:hello@chobble.com">hello@chobble.com</a>{" "}
+            with a description of what happened and what you expected. The more
+            detail you can provide, the faster it can be fixed.
           </p>
         </Q>
       </Section>
@@ -163,11 +166,12 @@ export const adminGuidePage = (
       <Section title="Events">
         <Q q="What's the difference between standard and daily events?">
           <p>
-            A <strong>standard event</strong> is a one-off &mdash; attendees
-            book a place and the capacity applies to the whole event. A{" "}
-            <strong>daily event</strong> lets attendees pick a specific date
-            when booking. The capacity limit applies separately to each date, so
-            you can run the same event every day with a fresh allocation.
+            A <strong>standard event</strong>{" "}
+            is a one-off &mdash; attendees book a place and the capacity applies
+            to the whole event. A <strong>daily event</strong>{" "}
+            lets attendees pick a specific date when booking. The capacity limit
+            applies separately to each date, so you can run the same event every
+            day with a fresh allocation.
           </p>
         </Q>
 
@@ -184,23 +188,25 @@ export const adminGuidePage = (
             admin, they appear as one attendee linked to multiple events.
           </p>
           <p>
-            To generate the link, open the <strong>Multi-booking link</strong>{" "}
-            section on the <strong>Events</strong> page and tick the events you
-            want to combine. The link updates as you select, and events appear
-            in the order you tick them.
+            To generate the link, open the <strong>Multi-booking link</strong>
+            {" "}
+            section on the <strong>Events</strong>{" "}
+            page and tick the events you want to combine. The link updates as
+            you select, and events appear in the order you tick them.
           </p>
         </Q>
 
         <Q q="What are groups?">
           <p>
             Groups let you bundle related events under a single URL. Create a
-            group from the <strong>Groups</strong> page, then assign events to
-            it using the group dropdown on the event form. Share{" "}
-            <code>/ticket/your-group-slug</code> and attendees see all active
-            events in the group on one page. You can optionally set a maximum
-            attendee limit on the group to cap total bookings across all events
-            in it. If you add terms and conditions to a group, they replace the
-            global T&amp;Cs for that page.
+            group from the <strong>Groups</strong>{" "}
+            page, then assign events to it using the group dropdown on the event
+            form. Share <code>/ticket/your-group-slug</code>{" "}
+            and attendees see all active events in the group on one page. You
+            can optionally set a maximum attendee limit on the group to cap
+            total bookings across all events in it. If you add terms and
+            conditions to a group, they replace the global T&amp;Cs for that
+            page.
           </p>
         </Q>
 
@@ -228,20 +234,22 @@ export const adminGuidePage = (
           <p>
             When enabled, attendees can choose their own price instead of paying
             a fixed amount. The ticket price becomes a minimum. You can set a
-            maximum price using the "Maximum Price" field — it must be at least{" "}
-            {formatCurrency(100)} more than the ticket price. If the ticket
-            price is zero, it becomes a pay-what-you-want event where attendees
-            can optionally enter any amount up to the configured maximum.
+            maximum price using the "Maximum Price" field — it must be at least
+            {" "}
+            {formatCurrency(100)}{" "}
+            more than the ticket price. If the ticket price is zero, it becomes
+            a pay-what-you-want event where attendees can optionally enter any
+            amount up to the configured maximum.
           </p>
         </Q>
 
         <Q q="What is 'Purchase Only' mode?">
           <p>
-            When you enable <strong>Purchase Only</strong> on an event, it
-            becomes a non-attendance purchase &mdash; ideal for raffles,
-            fundraisers, donations, or merchandise. The booking button changes
-            from &ldquo;Reserve&rdquo; to &ldquo;Buy now&rdquo;, and after
-            purchase attendees see &ldquo;Your Purchase&rdquo; instead of
+            When you enable <strong>Purchase Only</strong>{" "}
+            on an event, it becomes a non-attendance purchase &mdash; ideal for
+            raffles, fundraisers, donations, or merchandise. The booking button
+            changes from &ldquo;Reserve&rdquo; to &ldquo;Buy now&rdquo;, and
+            after purchase attendees see &ldquo;Your Purchase&rdquo; instead of
             &ldquo;Your Tickets&rdquo;.
           </p>
           <p>
@@ -263,23 +271,26 @@ export const adminGuidePage = (
 
         <Q q="How do I embed the booking form on my website?">
           <p>
-            You only need <strong>one</strong> of the two embed codes shown on
-            your event page &mdash; not both:
+            You only need <strong>one</strong>{" "}
+            of the two embed codes shown on your event page &mdash; not both:
           </p>
           <ul>
             <li>
-              <strong>Embed Script</strong> (recommended) &mdash; paste a single{" "}
-              <code>&lt;script&gt;</code> tag and it creates the iframe for you
-              with automatic resizing.
+              <strong>Embed Script</strong> (recommended) &mdash; paste a single
+              {" "}
+              <code>&lt;script&gt;</code>{" "}
+              tag and it creates the iframe for you with automatic resizing.
             </li>
             <li>
-              <strong>Embed Iframe</strong> &mdash; use this if your hosting
-              platform blocks third-party scripts or if you want full control
-              over the iframe styling yourself.
+              <strong>Embed Iframe</strong>{" "}
+              &mdash; use this if your hosting platform blocks third-party
+              scripts or if you want full control over the iframe styling
+              yourself.
             </li>
           </ul>
           <p>
-            In <strong>Settings</strong>, add your website's domain to the embed
+            In{" "}
+            <strong>Settings</strong>, add your website's domain to the embed
             hosts list to restrict which sites can embed your forms. If no hosts
             are listed, embedding is allowed from any site.
           </p>
@@ -335,39 +346,43 @@ export const adminGuidePage = (
 
         <Q q="Where can I find the event QR code?">
           <p>
-            On the admin event page, click the <strong>QR code</strong> link
-            next to the public URL. This opens an SVG image of the QR code that
-            links to your event's registration page. You can save or print it
-            for posters, flyers, or other materials.
+            On the admin event page, click the <strong>QR code</strong>{" "}
+            link next to the public URL. This opens an SVG image of the QR code
+            that links to your event's registration page. You can save or print
+            it for posters, flyers, or other materials.
           </p>
         </Q>
 
         <Q q="How do I duplicate an event?">
           <p>
-            Open the event and click <strong>Duplicate</strong>. This creates a
-            new event pre-filled with the same capacity, price, fields, group,
-            and other settings so you can adjust what you need without starting
-            from scratch. The name is left blank for you to fill in, and the
-            image, attachment, and assigned questions are not copied.
+            Open the event and click{" "}
+            <strong>Duplicate</strong>. This creates a new event pre-filled with
+            the same capacity, price, fields, group, and other settings so you
+            can adjust what you need without starting from scratch. The name is
+            left blank for you to fill in, and the image, attachment, and
+            assigned questions are not copied.
           </p>
         </Q>
 
         <Q q="How do I deactivate an event?">
           <p>
-            Open the event and click <strong>Deactivate</strong>. Deactivated
-            events no longer accept bookings and are hidden from the public
-            events listing, but all existing attendee data is kept. Click{" "}
-            <strong>Reactivate</strong> to make the event bookable again.
+            Open the event and click{" "}
+            <strong>Deactivate</strong>. Deactivated events no longer accept
+            bookings and are hidden from the public events listing, but all
+            existing attendee data is kept. Click <strong>Reactivate</strong>
+            {" "}
+            to make the event bookable again.
           </p>
         </Q>
 
         <Q q="What are non-transferable tickets?">
           <p>
-            When you enable <strong>Non-Transferable</strong> on an event,
-            attendees see a notice on their ticket saying "Non-transferable — ID
-            required at entry". At check-in, the QR scanner prompts door staff
-            to verify the attendee's ID matches the name on the ticket before
-            completing check-in. This helps prevent ticket touting.
+            When you enable <strong>Non-Transferable</strong>{" "}
+            on an event, attendees see a notice on their ticket saying
+            "Non-transferable — ID required at entry". At check-in, the QR
+            scanner prompts door staff to verify the attendee's ID matches the
+            name on the ticket before completing check-in. This helps prevent
+            ticket touting.
           </p>
         </Q>
 
@@ -378,20 +393,21 @@ export const adminGuidePage = (
           </p>
           <ul>
             <li>
-              <strong>Contact Information</strong> &mdash; name, email, phone,
-              address, special instructions, and custom question answers. These
-              are shared across all the attendee's event registrations.
+              <strong>Contact Information</strong>{" "}
+              &mdash; name, email, phone, address, special instructions, and
+              custom question answers. These are shared across all the
+              attendee's event registrations.
             </li>
             <li>
-              <strong>Event Registrations</strong> &mdash; a table showing each
-              event the attendee is registered for, with their quantity,
-              check-in status, and refund status. You can update the quantity
-              per event or remove a registration.
+              <strong>Event Registrations</strong>{" "}
+              &mdash; a table showing each event the attendee is registered for,
+              with their quantity, check-in status, and refund status. You can
+              update the quantity per event or remove a registration.
             </li>
             <li>
-              <strong>Add to Event</strong> &mdash; link the attendee to an
-              additional event. For daily events, you also pick a date. Capacity
-              is checked when adding.
+              <strong>Add to Event</strong>{" "}
+              &mdash; link the attendee to an additional event. For daily
+              events, you also pick a date. Capacity is checked when adding.
             </li>
           </ul>
         </Q>
@@ -399,9 +415,10 @@ export const adminGuidePage = (
         <Q q="How do I add an attendee to another event?">
           <p>
             Open the attendee's edit page and use the{" "}
-            <strong>Add to Event</strong> section at the bottom. Select the
-            event, choose a quantity, and for daily events pick a date. If the
-            event has enough capacity the attendee is linked immediately.
+            <strong>Add to Event</strong>{" "}
+            section at the bottom. Select the event, choose a quantity, and for
+            daily events pick a date. If the event has enough capacity the
+            attendee is linked immediately.
           </p>
         </Q>
 
@@ -417,17 +434,18 @@ export const adminGuidePage = (
 
         <Q q="How do I delete an attendee?">
           <p>
-            Open the event's attendee list and click <strong>Delete</strong>{" "}
+            Open the event's attendee list and click <strong>Delete</strong>
+            {" "}
             next to the attendee. You'll see a confirmation page showing their
             name, email, quantity, and registration date. Type the attendee's
-            exact name to confirm, then click <strong>Delete Attendee</strong>.
-            This permanently removes the attendee and any associated payment
-            records.
+            exact name to confirm, then click{" "}
+            <strong>Delete Attendee</strong>. This permanently removes the
+            attendee and any associated payment records.
           </p>
           <p>
-            If the attendee has paid, <strong>refund them first</strong> before
-            deleting &mdash; once deleted, there is no payment record to refund
-            against. See the <strong>Refunds</strong> section below.
+            If the attendee has paid, <strong>refund them first</strong>{" "}
+            before deleting &mdash; once deleted, there is no payment record to
+            refund against. See the <strong>Refunds</strong> section below.
           </p>
         </Q>
 
@@ -435,8 +453,8 @@ export const adminGuidePage = (
           <p>
             If the same person booked separately and ended up with two attendee
             records, you can merge them. Open one attendee's edit page and find
-            the <strong>Merge</strong> section. Enter the other attendee's
-            ticket token to start the merge.
+            the <strong>Merge</strong>{" "}
+            section. Enter the other attendee's ticket token to start the merge.
           </p>
           <p>
             You'll see a comparison of their contact details, custom question
@@ -451,17 +469,19 @@ export const adminGuidePage = (
         <Q q="How do I resend a confirmation email?">
           <p>
             In the event's attendee list, click{" "}
-            <strong>Re-send Notification</strong> next to the attendee. You'll
-            be asked to type their name to confirm. This re-sends both the
-            attendee confirmation email (with their ticket link) and the admin
-            notification email. If email is not configured or the attendee has
-            no email address, the action completes silently without sending.
+            <strong>Re-send Notification</strong>{" "}
+            next to the attendee. You'll be asked to type their name to confirm.
+            This re-sends both the attendee confirmation email (with their
+            ticket link) and the admin notification email. If email is not
+            configured or the attendee has no email address, the action
+            completes silently without sending.
           </p>
         </Q>
 
         <Q q="How do I add terms and conditions?">
           <p>
-            In <strong>Settings</strong>, enter your terms in the "Terms and
+            In{" "}
+            <strong>Settings</strong>, enter your terms in the "Terms and
             Conditions" box. When set, attendees must tick an agreement checkbox
             before they can reserve tickets. Clear the box to remove the
             requirement.
@@ -481,11 +501,13 @@ export const adminGuidePage = (
 
         <Q q="How do I create a question?">
           <p>
-            Open any event and click <strong>Questions</strong> in the event
-            menu, then follow the <strong>Manage Questions</strong> link. Type
-            your question text and click <strong>Add Question</strong>. Then
-            open the question and add your answer options. You can reorder
-            answers using the move-up and move-down buttons.
+            Open any event and click <strong>Questions</strong>{" "}
+            in the event menu, then follow the <strong>Manage Questions</strong>
+            {" "}
+            link. Type your question text and click{" "}
+            <strong>Add Question</strong>. Then open the question and add your
+            answer options. You can reorder answers using the move-up and
+            move-down buttons.
           </p>
         </Q>
 
@@ -531,9 +553,9 @@ export const adminGuidePage = (
             <a href="https://developers.facebook.com/tools/debug/">
               Facebook Sharing Debugger
             </a>{" "}
-            and click <strong>Scrape Again</strong> if the result looks wrong.
-            Once Facebook has successfully scraped the URL, future shares should
-            work normally.
+            and click <strong>Scrape Again</strong>{" "}
+            if the result looks wrong. Once Facebook has successfully scraped
+            the URL, future shares should work normally.
           </p>
         </Q>
       </Section>
@@ -541,35 +563,37 @@ export const adminGuidePage = (
       <Section title="Public Site">
         <Q q="What is the public site?">
           <p>
-            When enabled in <strong>Settings</strong>, your domain shows a
-            public website with navigation for Home and Events, plus T&amp;Cs
-            and Contact links if you've set those up. The{" "}
-            <strong>Events</strong> page lists all active events with booking
-            links. Visitors can browse event details and book directly. If the
-            public site is disabled, visitors can still book via direct ticket
-            links.
+            When enabled in{" "}
+            <strong>Settings</strong>, your domain shows a public website with
+            navigation for Home and Events, plus T&amp;Cs and Contact links if
+            you've set those up. The <strong>Events</strong>{" "}
+            page lists all active events with booking links. Visitors can browse
+            event details and book directly. If the public site is disabled,
+            visitors can still book via direct ticket links.
           </p>
         </Q>
 
         <Q q="Can I hide an event from the public list?">
           <p>
-            Yes. When editing an event, tick the <strong>Hidden Event</strong>{" "}
+            Yes. When editing an event, tick the <strong>Hidden Event</strong>
+            {" "}
             checkbox. Hidden events won&apos;t appear on the public Events page
             and their ticket pages will be marked as{" "}
-            <code>noindex, nofollow</code> for search engines. The event is
-            still fully bookable via its direct link or when embedded in an
-            iframe.
+            <code>noindex, nofollow</code>{" "}
+            for search engines. The event is still fully bookable via its direct
+            link or when embedded in an iframe.
           </p>
         </Q>
 
         <Q q="How do I edit the homepage and contact page?">
           <p>
-            Enable the public site in <strong>Settings</strong>, then open the{" "}
-            <strong>Site</strong> section from the admin navigation. The
-            homepage editor lets you set a website title (shown as the heading
-            on all public pages) and homepage text. The contact page editor lets
-            you set contact information. Both fields support Markdown
-            formatting.
+            Enable the public site in <strong>Settings</strong>, then open the
+            {" "}
+            <strong>Site</strong>{" "}
+            section from the admin navigation. The homepage editor lets you set
+            a website title (shown as the heading on all public pages) and
+            homepage text. The contact page editor lets you set contact
+            information. Both fields support Markdown formatting.
           </p>
         </Q>
       </Section>
@@ -579,17 +603,19 @@ export const adminGuidePage = (
           <p>
             Event descriptions, terms and conditions, homepage text, and contact
             page text all support{" "}
-            <a href="https://www.markdownguide.org/cheat-sheet/">Markdown</a>{" "}
+            <a href="https://www.markdownguide.org/cheat-sheet/">Markdown</a>
+            {" "}
             formatting.
           </p>
         </Q>
 
         <Q q="What formatting can I use?">
           <p>
-            <strong>Bold</strong> with <code>**bold**</code>, <em>italic</em>{" "}
+            <strong>Bold</strong> with <code>**bold**</code>, <em>italic</em>
+            {" "}
             with <code>*italic*</code>, links with{" "}
-            <code>[text](https://...)</code>, and lists with <code>-</code> at
-            the start of a line. See the{" "}
+            <code>[text](https://...)</code>, and lists with <code>-</code>{" "}
+            at the start of a line. See the{" "}
             <a href="https://www.markdownguide.org/cheat-sheet/">
               Markdown cheat sheet
             </a>{" "}
@@ -601,9 +627,9 @@ export const adminGuidePage = (
       <Section title="Payments">
         <Q q="Which payment providers are supported?">
           <p>
-            <strong>Stripe</strong> and <strong>Square</strong>. Choose one in
-            Settings and enter your API credentials. You can switch between them
-            at any time.
+            <strong>Stripe</strong> and{" "}
+            <strong>Square</strong>. Choose one in Settings and enter your API
+            credentials. You can switch between them at any time.
           </p>
         </Q>
 
@@ -646,8 +672,9 @@ export const adminGuidePage = (
 
         <Q q="How do refunds work?">
           <p>
-            See the <strong>Refunds</strong> section below for full details on
-            automatic refunds, admin-issued refunds, and bulk refunds.
+            See the <strong>Refunds</strong>{" "}
+            section below for full details on automatic refunds, admin-issued
+            refunds, and bulk refunds.
           </p>
         </Q>
 
@@ -660,10 +687,11 @@ export const adminGuidePage = (
           </p>
           <p>
             Configure it in <a href="/admin/settings">Settings</a> under{" "}
-            <strong>Booking Fee</strong> (only visible when a payment provider
-            is set up). Enter a percentage between 0 and 10. Set it to 0 or
-            leave it blank to disable. The fee is calculated on the subtotal and
-            added automatically during checkout.
+            <strong>Booking Fee</strong>{" "}
+            (only visible when a payment provider is set up). Enter a percentage
+            between 0 and 10. Set it to 0 or leave it blank to disable. The fee
+            is calculated on the subtotal and added automatically during
+            checkout.
           </p>
         </Q>
       </Section>
@@ -686,8 +714,8 @@ export const adminGuidePage = (
               <strong>Secret key</strong> row and click <strong>Reveal</strong>
             </li>
             <li>
-              Copy the key &mdash; it starts with <code>sk_live_</code> for live
-              mode or <code>sk_test_</code> for test mode
+              Copy the key &mdash; it starts with <code>sk_live_</code>{" "}
+              for live mode or <code>sk_test_</code> for test mode
             </li>
             <li>
               Paste it into the Stripe Secret Key field on the{" "}
@@ -695,9 +723,9 @@ export const adminGuidePage = (
             </li>
           </ol>
           <p>
-            <strong>Tip:</strong> Use a <code>sk_test_</code> key first to
-            verify everything works before switching to your live key. Test mode
-            lets you make bookings without real charges.
+            <strong>Tip:</strong> Use a <code>sk_test_</code>{" "}
+            key first to verify everything works before switching to your live
+            key. Test mode lets you make bookings without real charges.
           </p>
         </Q>
 
@@ -707,8 +735,8 @@ export const adminGuidePage = (
             <a href="/admin/settings">Settings</a>, the system automatically
             creates a webhook endpoint in your Stripe account and stores the
             signing secret. You can verify it's working by clicking the{" "}
-            <strong>Test Connection</strong> button that appears after saving
-            your key.
+            <strong>Test Connection</strong>{" "}
+            button that appears after saving your key.
           </p>
         </Q>
 
@@ -730,7 +758,8 @@ export const adminGuidePage = (
               Click the <strong>+</strong> button to create a new application
             </li>
             <li>
-              Give it a name (e.g. your organisation or event name) and click{" "}
+              Give it a name (e.g. your organisation or event name) and click
+              {" "}
               <strong>Save</strong>
             </li>
           </ol>
@@ -753,8 +782,9 @@ export const adminGuidePage = (
               Open the <strong>Credentials</strong> page
             </li>
             <li>
-              Copy the <strong>Access token</strong> for the environment you
-              want (Sandbox for testing, Production for real payments)
+              Copy the <strong>Access token</strong>{" "}
+              for the environment you want (Sandbox for testing, Production for
+              real payments)
             </li>
             <li>
               Paste it into the Square Access Token field on the{" "}
@@ -776,13 +806,14 @@ export const adminGuidePage = (
               Open the <strong>Locations</strong> page in the sidebar
             </li>
             <li>
-              Copy the <strong>Location ID</strong> for the location you want to
-              accept payments at
+              Copy the <strong>Location ID</strong>{" "}
+              for the location you want to accept payments at
             </li>
           </ol>
           <p>
             You can also find your location ID in the main{" "}
-            <a href="https://squareup.com/dashboard">Square Dashboard</a> under{" "}
+            <a href="https://squareup.com/dashboard">Square Dashboard</a> under
+            {" "}
             <strong>Account &amp; Settings</strong> &rarr;{" "}
             <strong>Business information</strong> &rarr;{" "}
             <strong>Locations</strong>.
@@ -809,8 +840,9 @@ export const adminGuidePage = (
               Click <strong>Add Subscription</strong>
             </li>
             <li>
-              Set the <strong>Notification URL</strong> to the webhook URL shown
-              on your <a href="/admin/settings">Settings</a> page
+              Set the <strong>Notification URL</strong>{" "}
+              to the webhook URL shown on your{" "}
+              <a href="/admin/settings">Settings</a> page
             </li>
             <li>
               Subscribe to the <strong>payment.updated</strong> event
@@ -855,8 +887,8 @@ export const adminGuidePage = (
           </ul>
           <p>
             The system detects which mode you are in based on the key prefix and
-            shows it on the <a href="/admin/settings">Settings</a> page. Only
-            keys with a valid prefix (<code>sk_test_</code> or{" "}
+            shows it on the <a href="/admin/settings">Settings</a>{" "}
+            page. Only keys with a valid prefix (<code>sk_test_</code> or{" "}
             <code>sk_live_</code>) are accepted.
           </p>
         </Q>
@@ -874,13 +906,15 @@ export const adminGuidePage = (
               <a href="https://docs.stripe.com/testing#cards">
                 Stripe&apos;s test card numbers
               </a>
-              . The Settings page will show a <strong>Test mode</strong> badge
-              so you always know which environment is active.
+              . The Settings page will show a <strong>Test mode</strong>{" "}
+              badge so you always know which environment is active.
             </li>
             <li>
-              <strong>Square:</strong> Use your Sandbox access token and
-              location, and tick the <strong>Sandbox mode</strong> checkbox on
-              the Settings page. You can make test payments with{" "}
+              <strong>Square:</strong>{" "}
+              Use your Sandbox access token and location, and tick the{" "}
+              <strong>Sandbox mode</strong>{" "}
+              checkbox on the Settings page. You can make test payments with
+              {" "}
               <a href="https://developer.squareup.com/docs/devtools/sandbox/payments">
                 Square&apos;s sandbox test values
               </a>
@@ -927,11 +961,11 @@ export const adminGuidePage = (
 
         <Q q="How do I refund all attendees for an event?">
           <p>
-            On the event page, click <strong>Refund All</strong> in the
-            navigation bar. Type the event name to confirm. Each attendee with a
-            recorded payment is refunded one by one. If some refunds fail (e.g.
-            a payment was already refunded via the provider dashboard), you'll
-            see a summary of how many succeeded and how many failed.
+            On the event page, click <strong>Refund All</strong>{" "}
+            in the navigation bar. Type the event name to confirm. Each attendee
+            with a recorded payment is refunded one by one. If some refunds fail
+            (e.g. a payment was already refunded via the provider dashboard),
+            you'll see a summary of how many succeeded and how many failed.
           </p>
         </Q>
 
@@ -945,10 +979,11 @@ export const adminGuidePage = (
 
         <Q q="What happens to the attendee after a refund?">
           <p>
-            The attendee <strong>remains registered</strong>. A refund only
-            clears their payment record &mdash; it does not remove them from the
-            event. If you also want to remove them, delete the attendee
-            separately after refunding.
+            The attendee{" "}
+            <strong>remains registered</strong>. A refund only clears their
+            payment record &mdash; it does not remove them from the event. If
+            you also want to remove them, delete the attendee separately after
+            refunding.
           </p>
           <p>
             Refunds are per-event. If the attendee is registered for multiple
@@ -1007,9 +1042,9 @@ export const adminGuidePage = (
         <Q q="What are holidays?">
           <p>
             Holidays are date ranges when no daily events can be booked. Add
-            them from the <strong>Holidays</strong> page. Any dates falling
-            within a holiday range are removed from the booking calendar for all
-            daily events.
+            them from the <strong>Holidays</strong>{" "}
+            page. Any dates falling within a holiday range are removed from the
+            booking calendar for all daily events.
           </p>
         </Q>
       </Section>
@@ -1042,10 +1077,10 @@ export const adminGuidePage = (
         <Q q="How do I use the QR scanner?">
           <p>
             Open an event and click <strong>Scanner</strong>. Tap{" "}
-            <strong>Start Camera</strong> to begin (grants camera permission on
-            first use). Point the camera at an attendee's QR code and check-in
-            happens automatically. The scanner works best with the rear camera
-            on mobile devices.
+            <strong>Start Camera</strong>{" "}
+            to begin (grants camera permission on first use). Point the camera
+            at an attendee's QR code and check-in happens automatically. The
+            scanner works best with the rear camera on mobile devices.
           </p>
         </Q>
 
@@ -1070,28 +1105,32 @@ export const adminGuidePage = (
 
         <Q q="What do the scanner status messages mean?">
           <p>
-            <strong>Checked in</strong> &mdash; shows the attendee's name and
-            ticket count (e.g. "Jo checked in (2 tickets)").{" "}
-            <strong>Already checked in</strong> &mdash; they were already marked
-            as arrived. <strong>Refunded</strong> &mdash; the attendee has been
-            refunded and cannot be checked in. <strong>Ticket not found</strong>{" "}
+            <strong>Checked in</strong>{" "}
+            &mdash; shows the attendee's name and ticket count (e.g. "Jo checked
+            in (2 tickets)"). <strong>Already checked in</strong>{" "}
+            &mdash; they were already marked as arrived.{" "}
+            <strong>Refunded</strong>{" "}
+            &mdash; the attendee has been refunded and cannot be checked in.
+            {" "}
+            <strong>Ticket not found</strong>{" "}
             &mdash; the QR code doesn't match any registration.{" "}
-            <strong>Different event</strong> &mdash; a confirmation dialogue
-            asks whether to check them in anyway.{" "}
-            <strong>ID verification</strong> &mdash; for non-transferable
-            events, staff are asked to confirm the attendee's ID matches the
-            ticket name before check-in proceeds.
+            <strong>Different event</strong>{" "}
+            &mdash; a confirmation dialogue asks whether to check them in
+            anyway. <strong>ID verification</strong>{" "}
+            &mdash; for non-transferable events, staff are asked to confirm the
+            attendee's ID matches the ticket name before check-in proceeds.
           </p>
         </Q>
 
         <Q q="What if someone doesn't have their QR code?">
           <p>
             Below the camera on the Scanner page there is a{" "}
-            <strong>Manual Check-in</strong> section. Start typing the
-            attendee's name or ticket token and a dropdown shows matching
-            tickets that haven't been checked in yet. Select the right person
-            and click <strong>Check In</strong>. This is useful for walk-ins or
-            when an attendee can't pull up their ticket on their phone.
+            <strong>Manual Check-in</strong>{" "}
+            section. Start typing the attendee's name or ticket token and a
+            dropdown shows matching tickets that haven't been checked in yet.
+            Select the right person and click{" "}
+            <strong>Check In</strong>. This is useful for walk-ins or when an
+            attendee can't pull up their ticket on their phone.
           </p>
         </Q>
 
@@ -1112,11 +1151,12 @@ export const adminGuidePage = (
         <Q q="What is Apple Wallet integration?">
           <p>
             When configured, attendees see an{" "}
-            <strong>Add to Apple Wallet</strong> button on their ticket page.
-            Tapping it downloads a <code>.pkpass</code> file that adds the
-            ticket to their iPhone Wallet and Apple Watch. The pass shows the
-            event name, date, location, ticket quantity, price paid, and a QR
-            code for check-in.
+            <strong>Add to Apple Wallet</strong>{" "}
+            button on their ticket page. Tapping it downloads a{" "}
+            <code>.pkpass</code>{" "}
+            file that adds the ticket to their iPhone Wallet and Apple Watch.
+            The pass shows the event name, date, location, ticket quantity,
+            price paid, and a QR code for check-in.
           </p>
         </Q>
 
@@ -1127,15 +1167,16 @@ export const adminGuidePage = (
               using pass type{" "}
               <code>{hostConfig.hostAppleWalletPassTypeId}</code>. The Add to
               Apple Wallet button should appear automatically on all ticket
-              pages. You can override this by entering your own credentials in{" "}
+              pages. You can override this by entering your own credentials in
+              {" "}
               <a href="/admin/settings">Settings</a>.
             </p>
           )}
           <p>
             Go to <a href="/admin/settings">Settings</a>, click{" "}
             <strong>Advanced Settings</strong>, and find the{" "}
-            <strong>Apple Wallet</strong> section. You need five values from
-            your Apple Developer account:
+            <strong>Apple Wallet</strong>{" "}
+            section. You need five values from your Apple Developer account:
           </p>
           <ol>
             <li>
@@ -1146,16 +1187,17 @@ export const adminGuidePage = (
               <strong>Team ID</strong> &mdash; your Apple Developer Team ID
             </li>
             <li>
-              <strong>Signing Certificate</strong> &mdash; PEM-encoded
-              certificate for your Pass Type ID
+              <strong>Signing Certificate</strong>{" "}
+              &mdash; PEM-encoded certificate for your Pass Type ID
             </li>
             <li>
-              <strong>Signing Key</strong> &mdash; PEM-encoded private key for
-              the certificate
+              <strong>Signing Key</strong>{" "}
+              &mdash; PEM-encoded private key for the certificate
             </li>
             <li>
-              <strong>WWDR Certificate</strong> &mdash; Apple's intermediate
-              certificate (download from the Apple Developer portal)
+              <strong>WWDR Certificate</strong>{" "}
+              &mdash; Apple's intermediate certificate (download from the Apple
+              Developer portal)
             </li>
           </ol>
           <p>
@@ -1180,10 +1222,11 @@ export const adminGuidePage = (
         <Q q="What is Google Wallet integration?">
           <p>
             When configured, attendees see an{" "}
-            <strong>Add to Google Wallet</strong> button on their ticket page.
-            Tapping it adds the ticket to their Android device's Google Wallet
-            app. The pass shows the event name, date, location, ticket quantity,
-            price paid, and a QR code for check-in.
+            <strong>Add to Google Wallet</strong>{" "}
+            button on their ticket page. Tapping it adds the ticket to their
+            Android device's Google Wallet app. The pass shows the event name,
+            date, location, ticket quantity, price paid, and a QR code for
+            check-in.
           </p>
         </Q>
 
@@ -1200,8 +1243,8 @@ export const adminGuidePage = (
           <p>
             Go to <a href="/admin/settings">Settings</a>, click{" "}
             <strong>Advanced Settings</strong>, and find the{" "}
-            <strong>Google Wallet</strong> section. You need three values from
-            your Google Cloud account:
+            <strong>Google Wallet</strong>{" "}
+            section. You need three values from your Google Cloud account:
           </p>
           <ol>
             <li>
@@ -1211,12 +1254,13 @@ export const adminGuidePage = (
               </a>
             </li>
             <li>
-              <strong>Service Account Email</strong> &mdash; a Google Cloud
-              service account with the Google Wallet API enabled
+              <strong>Service Account Email</strong>{" "}
+              &mdash; a Google Cloud service account with the Google Wallet API
+              enabled
             </li>
             <li>
-              <strong>Service Account Private Key</strong> &mdash; PEM-encoded
-              RSA private key for the service account
+              <strong>Service Account Private Key</strong>{" "}
+              &mdash; PEM-encoded RSA private key for the service account
             </li>
           </ol>
           <p>
@@ -1240,19 +1284,21 @@ export const adminGuidePage = (
       <Section id="user-classes" title="Users &amp; Permissions">
         <Q q="What's the difference between an owner and a manager?">
           <p>
-            <strong>Owners</strong> have full access: events, calendar, groups,
-            questions, holidays, users, site pages, settings, API keys,
-            sessions, and the activity log. <strong>Managers</strong> can manage
-            events, view the calendar, manage groups, issue refunds, and view
-            the activity log. They cannot change settings, manage users, manage
-            questions or holidays, create API keys, edit site pages, or view
-            sessions.
+            <strong>Owners</strong>{" "}
+            have full access: events, calendar, groups, questions, holidays,
+            users, site pages, settings, API keys, sessions, and the activity
+            log. <strong>Managers</strong>{" "}
+            can manage events, view the calendar, manage groups, issue refunds,
+            and view the activity log. They cannot change settings, manage
+            users, manage questions or holidays, create API keys, edit site
+            pages, or view sessions.
           </p>
         </Q>
 
         <Q q="How do I invite another admin?">
           <p>
-            Go to <strong>Users</strong>, enter a username and choose their role
+            Go to{" "}
+            <strong>Users</strong>, enter a username and choose their role
             (owner or manager). You'll receive an invite link to send them. They
             use the link to set their password and activate their account.
           </p>
@@ -1260,9 +1306,9 @@ export const adminGuidePage = (
 
         <Q q="How long do invite links last?">
           <p>
-            Invite links expire after <strong>7 days</strong>. If the link
-            expires before the person uses it, you'll need to delete the pending
-            user and create a new invite.
+            Invite links expire after{" "}
+            <strong>7 days</strong>. If the link expires before the person uses
+            it, you'll need to delete the pending user and create a new invite.
           </p>
         </Q>
       </Section>
@@ -1270,8 +1316,8 @@ export const adminGuidePage = (
       <Section id="login-security" title="Login &amp; Security">
         <Q q="What happens if I enter the wrong password?">
           <p>
-            After <strong>5 failed login attempts</strong> from the same IP
-            address, the system locks out that IP for{" "}
+            After <strong>5 failed login attempts</strong>{" "}
+            from the same IP address, the system locks out that IP for{" "}
             <strong>15 minutes</strong>. During the lockout, all login attempts
             from that IP are rejected &mdash; even with the correct password.
             Wait for the lockout period to pass and try again.
@@ -1289,22 +1335,24 @@ export const adminGuidePage = (
 
         <Q q="Is there a way to recover a lost password?">
           <p>
-            No. There is <strong>no password recovery</strong> mechanism. All
-            attendee data is encrypted with keys derived from admin passwords,
-            so a reset would make existing data unreadable. If you lose your
-            password, another owner can delete your account and send a fresh
-            invite &mdash; all existing attendee data remains accessible to
-            other admins. Keep your password somewhere safe.
+            No. There is <strong>no password recovery</strong>{" "}
+            mechanism. All attendee data is encrypted with keys derived from
+            admin passwords, so a reset would make existing data unreadable. If
+            you lose your password, another owner can delete your account and
+            send a fresh invite &mdash; all existing attendee data remains
+            accessible to other admins. Keep your password somewhere safe.
           </p>
         </Q>
 
         <Q q="How are admin sessions secured?">
           <p>
             Sessions use HttpOnly cookies that cannot be read by JavaScript.
-            Each session expires after <strong>24 hours</strong>, after which
-            you must log in again. You can view all active sessions and log out
-            all other sessions from the <strong>Sessions</strong> page if you
-            suspect your account has been compromised.
+            Each session expires after{" "}
+            <strong>24 hours</strong>, after which you must log in again. You
+            can view all active sessions and log out all other sessions from the
+            {" "}
+            <strong>Sessions</strong>{" "}
+            page if you suspect your account has been compromised.
           </p>
         </Q>
       </Section>
@@ -1322,10 +1370,11 @@ export const adminGuidePage = (
 
         <Q q="What happens if I lose my password?">
           <p>
-            There is <strong>no password recovery</strong>. If you lose your
-            password, you cannot log in or decrypt any data. Keep your password
-            safe. Another owner can delete your account and send a fresh invite,
-            and all existing attendee data remains accessible to other admins.
+            There is{" "}
+            <strong>no password recovery</strong>. If you lose your password,
+            you cannot log in or decrypt any data. Keep your password safe.
+            Another owner can delete your account and send a fresh invite, and
+            all existing attendee data remains accessible to other admins.
           </p>
         </Q>
 
@@ -1343,11 +1392,12 @@ export const adminGuidePage = (
 
         <Q q="What does 'reset database' do?">
           <p>
-            It permanently deletes <strong>everything</strong>: all events,
-            attendees, groups, questions, users, holidays, API keys, activity
-            logs, payment configuration, and sessions. The system returns to its
-            initial setup state. You must type a confirmation phrase to proceed.
-            This cannot be undone.
+            It permanently deletes{" "}
+            <strong>everything</strong>: all events, attendees, groups,
+            questions, users, holidays, API keys, activity logs, payment
+            configuration, and sessions. The system returns to its initial setup
+            state. You must type a confirmation phrase to proceed. This cannot
+            be undone.
           </p>
         </Q>
       </Section>
@@ -1381,9 +1431,12 @@ export const adminGuidePage = (
           </pre>
           <p>
             Prices are in the smallest currency unit (e.g. pence for GBP, cents
-            for USD). The <code>ticket_url</code> links to the attendee's ticket
-            page. For multi-event bookings the <code>tickets</code> array
-            contains one entry per event, all sharing the same ticket token.
+            for USD). The <code>ticket_url</code>{" "}
+            links to the attendee's ticket page. For multi-event bookings the
+            {" "}
+            <code>tickets</code>{" "}
+            array contains one entry per event, all sharing the same ticket
+            token.
           </p>
         </Q>
       </Section>
@@ -1399,7 +1452,8 @@ export const adminGuidePage = (
 
         <Q q="What happens when I change my password?">
           <p>
-            Changing your password <strong>ends every active session</strong>{" "}
+            Changing your password <strong>ends every active session</strong>
+            {" "}
             for your account &mdash; you and anyone else signed in as you will
             be logged out and must sign in again with the new password.
           </p>
@@ -1412,18 +1466,19 @@ export const adminGuidePage = (
 
         <Q q="How do I log out other users?">
           <p>
-            On the <strong>Sessions</strong> page, click "Log out of all other
-            sessions". This ends every session except your own, forcing all
-            other admins to log in again. Useful if you suspect an account has
-            been compromised.
+            On the <strong>Sessions</strong>{" "}
+            page, click "Log out of all other sessions". This ends every session
+            except your own, forcing all other admins to log in again. Useful if
+            you suspect an account has been compromised.
           </p>
         </Q>
 
         <Q q="What happens after too many failed login attempts?">
           <p>
             The login form is protected by per-IP rate limiting. After{" "}
-            <strong>{MAX_LOGIN_ATTEMPTS} failed attempts</strong> from the same
-            IP address, further login attempts from that IP are blocked for{" "}
+            <strong>{MAX_LOGIN_ATTEMPTS} failed attempts</strong>{" "}
+            from the same IP address, further login attempts from that IP are
+            blocked for{" "}
             <strong>{LOGIN_LOCKOUT_MS / 60_000} minutes</strong>. A successful
             login clears the counter immediately. This defends against password
             guessing and credential stuffing.
@@ -1442,11 +1497,11 @@ export const adminGuidePage = (
       <Section id="calendar" title="Calendar">
         <Q q="What is the calendar page?">
           <p>
-            The <strong>Calendar</strong> page lets you pick a date and see
-            every attendee booked across all events on that day. This is
-            especially useful for daily events. You can export a CSV of the
-            day's attendees and manage check-ins, edits, and deletions from the
-            same view.
+            The <strong>Calendar</strong>{" "}
+            page lets you pick a date and see every attendee booked across all
+            events on that day. This is especially useful for daily events. You
+            can export a CSV of the day's attendees and manage check-ins, edits,
+            and deletions from the same view.
           </p>
         </Q>
       </Section>
@@ -1454,11 +1509,12 @@ export const adminGuidePage = (
       <Section id="activity-log" title="Activity Log">
         <Q q="What is the activity log?">
           <p>
-            The <strong>Log</strong> page shows a chronological list of admin
-            actions such as event creation, event updates, attendee changes, and
-            question changes. Both owners and managers can view the log. Each
-            event also has its own log, accessible from the event page, showing
-            only actions related to that event.
+            The <strong>Log</strong>{" "}
+            page shows a chronological list of admin actions such as event
+            creation, event updates, attendee changes, and question changes.
+            Both owners and managers can view the log. Each event also has its
+            own log, accessible from the event page, showing only actions
+            related to that event.
           </p>
         </Q>
       </Section>
@@ -1467,12 +1523,13 @@ export const adminGuidePage = (
         <Q q="What are email notifications?">
           <p>
             When configured, the system can send up to two emails after each
-            successful registration: a <strong>confirmation email</strong> to
-            the attendee (if they provided an email address) with their ticket
-            details and link, and a <strong>notification email</strong> to the
-            business email address (if one is set) letting you know someone has
-            booked. Emails are sent in the background and won't delay the
-            booking process.
+            successful registration: a <strong>confirmation email</strong>{" "}
+            to the attendee (if they provided an email address) with their
+            ticket details and link, and a <strong>notification email</strong>
+            {" "}
+            to the business email address (if one is set) letting you know
+            someone has booked. Emails are sent in the background and won't
+            delay the booking process.
           </p>
         </Q>
 
@@ -1508,8 +1565,10 @@ export const adminGuidePage = (
         <Q q="How do I set up email?">
           {hostConfig?.hostEmailProvider && (
             <p>
-              Email is already configured by your server administrator using{" "}
-              <strong>{hostConfig.hostEmailProvider}</strong> with from address{" "}
+              Email is already configured by your server administrator using
+              {" "}
+              <strong>{hostConfig.hostEmailProvider}</strong> with from address
+              {" "}
               <code>{hostConfig.hostEmailFromAddress}</code>. You can override
               this by entering your own provider and API key in{" "}
               <a href="/admin/settings">Settings</a>. If you provide your own
@@ -1523,13 +1582,14 @@ export const adminGuidePage = (
             </li>
             <li>Choose your email provider from the dropdown</li>
             <li>
-              Paste your provider's API key into the <strong>API Key</strong>{" "}
+              Paste your provider's API key into the <strong>API Key</strong>
+              {" "}
               field
             </li>
             <li>
-              Enter a <strong>From Address</strong> &mdash; this is the sender
-              address that appears on outgoing emails. If left blank, the
-              business email address is used instead
+              Enter a <strong>From Address</strong>{" "}
+              &mdash; this is the sender address that appears on outgoing
+              emails. If left blank, the business email address is used instead
             </li>
             <li>Save the settings</li>
           </ol>
@@ -1542,7 +1602,8 @@ export const adminGuidePage = (
 
         <Q q="How do I test that email is working?">
           <p>
-            After saving your email settings, a <strong>Send Test Email</strong>{" "}
+            After saving your email settings, a <strong>Send Test Email</strong>
+            {" "}
             button appears. Click it to send a test email to your business email
             address. If the test fails, you'll see an error with the HTTP status
             code from your provider &mdash; check that your API key is correct
@@ -1564,11 +1625,11 @@ export const adminGuidePage = (
             price paid, and a clickable link to their ticket page. Each email
             also includes an SVG ticket image as an attachment &mdash; one per
             event, with a QR code for check-in. For{" "}
-            <strong>Purchase Only</strong> events the QR code is omitted since
-            there is no check-in. For multi-event bookings, all events are
-            listed in a single email with numbered ticket attachments. The
-            business email is set as the reply-to address so attendees can reply
-            directly to you.
+            <strong>Purchase Only</strong>{" "}
+            events the QR code is omitted since there is no check-in. For
+            multi-event bookings, all events are listed in a single email with
+            numbered ticket attachments. The business email is set as the
+            reply-to address so attendees can reply directly to you.
           </p>
         </Q>
 
@@ -1585,23 +1646,26 @@ export const adminGuidePage = (
       <Section id="email-templates" title="Email Templates">
         <Q q="Can I customise the emails that are sent?">
           <p>
-            Yes. In <a href="/admin/settings">Settings</a>, scroll to the email
-            template sections. You can customise both the{" "}
-            <strong>confirmation email</strong> (sent to the attendee) and the{" "}
-            <strong>admin notification email</strong> (sent to you). Each has
-            three parts: subject line, HTML body, and plain text body.
+            Yes. In{" "}
+            <a href="/admin/settings">Settings</a>, scroll to the email template
+            sections. You can customise both the{" "}
+            <strong>confirmation email</strong> (sent to the attendee) and the
+            {" "}
+            <strong>admin notification email</strong>{" "}
+            (sent to you). Each has three parts: subject line, HTML body, and
+            plain text body.
           </p>
           <p>
-            Templates use <a href="https://liquidjs.com/">Liquid</a> syntax.
-            Clear any field to revert to the built-in default.
+            Templates use <a href="https://liquidjs.com/">Liquid</a>{" "}
+            syntax. Clear any field to revert to the built-in default.
           </p>
         </Q>
 
         <Q q="What variables can I use in templates?">
           <ul>
             <li>
-              <code>{"{{ event_names }}"}</code> &mdash; all event names joined
-              with &ldquo;and&rdquo;
+              <code>{"{{ event_names }}"}</code>{" "}
+              &mdash; all event names joined with &ldquo;and&rdquo;
             </li>
             <li>
               <code>{"{{ ticket_url }}"}</code> &mdash; link to view tickets
@@ -1624,8 +1688,10 @@ export const adminGuidePage = (
           </ul>
           <p>
             For multi-event bookings, loop through the <code>entries</code>{" "}
-            array: <code>{"{% for entry in entries %}"}</code>. Each entry has{" "}
-            <code>entry.event.name</code>, <code>entry.attendee.quantity</code>,{" "}
+            array: <code>{"{% for entry in entries %}"}</code>. Each entry has
+            {" "}
+            <code>entry.event.name</code>, <code>entry.attendee.quantity</code>,
+            {" "}
             <code>entry.attendee.date</code>, etc. The quantity and date are
             per-event &mdash; each entry shows the values for that specific
             event registration.
@@ -1636,8 +1702,8 @@ export const adminGuidePage = (
           <p>Two custom filters are built in:</p>
           <ul>
             <li>
-              <code>{"{{ amount | currency }}"}</code> &mdash; formats a number
-              as currency (e.g. &pound;15.00)
+              <code>{"{{ amount | currency }}"}</code>{" "}
+              &mdash; formats a number as currency (e.g. &pound;15.00)
             </li>
             <li>
               <code>{'{{ count | pluralize: "ticket", "tickets" }}'}</code>{" "}
@@ -1664,7 +1730,8 @@ export const adminGuidePage = (
               my-business
               {hostConfig?.bunnyDnsSubdomainSuffix || ".example.com"}
             </code>
-            ) instead of using the default CDN hostname. The option appears in{" "}
+            ) instead of using the default CDN hostname. The option appears in
+            {" "}
             <strong>Advanced Settings</strong> under{" "}
             <strong>Host Subdomain</strong>.
           </p>
@@ -1673,8 +1740,9 @@ export const adminGuidePage = (
         <Q q="How do I register a subdomain?">
           <ol>
             <li>
-              Go to <a href="/admin/settings-advanced">Advanced Settings</a> and
-              find the <strong>Host Subdomain</strong> section
+              Go to <a href="/admin/settings-advanced">Advanced Settings</a>
+              {" "}
+              and find the <strong>Host Subdomain</strong> section
             </li>
             <li>
               Enter your preferred subdomain name (lowercase letters, numbers,
@@ -1682,7 +1750,8 @@ export const adminGuidePage = (
             </li>
             <li>
               Click{" "}
-              <strong>Check Availability &amp; Preview Complete Domain</strong>{" "}
+              <strong>Check Availability &amp; Preview Complete Domain</strong>
+              {" "}
               to see the full URL and verify it's available
             </li>
             <li>
@@ -1708,13 +1777,15 @@ export const adminGuidePage = (
       <Section id="custom-domain" title="Custom Domain">
         <Q q="How do I set up a custom domain?">
           <p>
-            If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>{" "}
-            and <code>BUNNY_SCRIPT_ID</code> environment variables are
-            configured, you'll see a <strong>Custom Domain</strong> section in{" "}
+            If your site runs on Bunny CDN and the <code>BUNNY_API_KEY</code>
+            {" "}
+            and <code>BUNNY_SCRIPT_ID</code>{" "}
+            environment variables are configured, you'll see a{" "}
+            <strong>Custom Domain</strong> section in{" "}
             <a href="/admin/settings-advanced">Advanced Settings</a>. Enter your
-            domain (e.g. <code>tickets.yourdomain.com</code>) and save, then
-            follow the CNAME instructions shown and click{" "}
-            <strong>Validate</strong>.
+            domain (e.g.{" "}
+            <code>tickets.yourdomain.com</code>) and save, then follow the CNAME
+            instructions shown and click <strong>Validate</strong>.
           </p>
         </Q>
 
@@ -1732,8 +1803,8 @@ export const adminGuidePage = (
             it fails &mdash; usually because DNS hasn't propagated yet &mdash;
             your domain is still saved and you'll see a warning. Create the
             CNAME record shown on the page, wait a few minutes for DNS to
-            propagate, then click <strong>Validate Custom Domain</strong> to try
-            again.
+            propagate, then click <strong>Validate Custom Domain</strong>{" "}
+            to try again.
           </p>
         </Q>
       </Section>
@@ -1745,36 +1816,37 @@ export const adminGuidePage = (
           </p>
           <ul>
             <li>
-              <strong>Country</strong> &mdash; sets your timezone, currency, and
-              phone prefix in one step
+              <strong>Country</strong>{" "}
+              &mdash; sets your timezone, currency, and phone prefix in one step
             </li>
             <li>
-              <strong>Business email</strong> &mdash; receives admin
-              notification emails, used as reply-to on attendee confirmations,
-              and included in webhook payloads
+              <strong>Business email</strong>{" "}
+              &mdash; receives admin notification emails, used as reply-to on
+              attendee confirmations, and included in webhook payloads
             </li>
             <li>
               <strong>Payment provider</strong> &mdash; Stripe, Square, or none
             </li>
             <li>
-              <strong>Booking fee</strong> &mdash; percentage-based fee added to
-              ticket prices (requires a payment provider)
+              <strong>Booking fee</strong>{" "}
+              &mdash; percentage-based fee added to ticket prices (requires a
+              payment provider)
             </li>
             <li>
-              <strong>Header image</strong> &mdash; upload a logo or banner
-              shown at the top of every page
+              <strong>Header image</strong>{" "}
+              &mdash; upload a logo or banner shown at the top of every page
             </li>
             <li>
-              <strong>Embed hosts</strong> &mdash; restrict which websites can
-              embed your booking forms
+              <strong>Embed hosts</strong>{" "}
+              &mdash; restrict which websites can embed your booking forms
             </li>
             <li>
-              <strong>Terms and conditions</strong> &mdash; attendees must agree
-              before booking
+              <strong>Terms and conditions</strong>{" "}
+              &mdash; attendees must agree before booking
             </li>
             <li>
-              <strong>Show public site</strong> &mdash; enable or disable the
-              public-facing website
+              <strong>Show public site</strong>{" "}
+              &mdash; enable or disable the public-facing website
             </li>
             <li>
               <strong>Site theme</strong> &mdash; light or dark
@@ -1788,70 +1860,97 @@ export const adminGuidePage = (
         <Q q="What are Advanced Settings?">
           <p>
             The main Settings page has a link to{" "}
-            <strong>Advanced Settings</strong> for less common configuration.
-            Advanced settings include:
+            <strong>Advanced Settings</strong>{" "}
+            for less common configuration. Advanced settings include:
           </p>
           <ul>
             <li>
-              <strong>Public API</strong> &mdash; enable the JSON API for
-              external integrations
+              <strong>Public API</strong>{" "}
+              &mdash; enable the JSON API for external integrations
             </li>
             <li>
-              <strong>Apple Wallet</strong> &mdash; configure pass signing
-              certificates for Add to Apple Wallet
+              <strong>Apple Wallet</strong>{" "}
+              &mdash; configure pass signing certificates for Add to Apple
+              Wallet
             </li>
             <li>
-              <strong>Google Wallet</strong> &mdash; configure service account
-              credentials for Add to Google Wallet
+              <strong>Google Wallet</strong>{" "}
+              &mdash; configure service account credentials for Add to Google
+              Wallet
             </li>
             <li>
-              <strong>Email provider</strong> &mdash; choose and configure your
-              email sending service
+              <strong>Email provider</strong>{" "}
+              &mdash; choose and configure your email sending service
             </li>
             <li>
-              <strong>Email templates</strong> &mdash; customise confirmation
-              and admin notification emails using Liquid syntax
+              <strong>Email templates</strong>{" "}
+              &mdash; customise confirmation and admin notification emails using
+              Liquid syntax
             </li>
             <li>
-              <strong>Host subdomain</strong> &mdash; register a pretty
-              subdomain for your site (when enabled by server administrator)
+              <strong>Host subdomain</strong>{" "}
+              &mdash; register a pretty subdomain for your site (when enabled by
+              server administrator)
             </li>
             <li>
-              <strong>Custom domain</strong> &mdash; set up a custom domain for
-              your site (Bunny CDN only)
+              <strong>Custom domain</strong>{" "}
+              &mdash; set up a custom domain for your site (Bunny CDN only)
             </li>
             <li>
-              <strong>Backups</strong> &mdash; create, download, and restore
-              full database backups (requires CDN storage)
+              <strong>Backups</strong>{" "}
+              &mdash; create, download, and restore full database backups
+              (requires CDN storage)
             </li>
             <li>
-              <strong>Software updates</strong> &mdash; check for and install
-              new versions
+              <strong>Software updates</strong>{" "}
+              &mdash; check for and install new versions
             </li>
             <li>
-              <strong>Database reset</strong> &mdash; permanently delete all
-              data
+              <strong>Database reset</strong>{" "}
+              &mdash; permanently delete all data
             </li>
           </ul>
         </Q>
 
         <Q q="What is the debug page?">
           <p>
-            The debug page at <code>/admin/debug</code> shows the configuration
-            status of all integrated services (payments, email, Apple Wallet,
-            Google Wallet, storage, CDN, notifications, database) without
-            revealing any secrets or API keys. It's useful for troubleshooting
-            setup issues &mdash; you can quickly see which services are
-            configured and which are missing.
+            The debug page at <code>/admin/debug</code>{" "}
+            shows the configuration status of all integrated services (payments,
+            email, Apple Wallet, Google Wallet, storage, CDN, notifications,
+            database) without revealing any secrets or API keys. It's useful for
+            troubleshooting setup issues &mdash; you can quickly see which
+            services are configured and which are missing.
           </p>
           <p>
             The page also lists every tunable system limit (file-size caps,
             session and URL expiry windows, login lockout, database pruning
-            retention) alongside its default and current value. Any limit can
-            be overridden by setting the matching environment variable to a
+            retention) alongside its default and current value. Any limit can be
+            overridden by setting the matching environment variable to a
             positive integer; overridden values are highlighted. A
             &quot;Database pruning&quot; table at the bottom shows when each
             short-lived table was last cleaned up.
+          </p>
+        </Q>
+
+        <Q q="What is the debug footer?">
+          <p>
+            The debug footer appears at the bottom of every admin page you view
+            while signed in. It reports how long the page took to render and
+            summarises the database work done for that request: the total number
+            of SQL queries, the time they consumed, and how many of them were
+            served from the in-memory query cache.
+          </p>
+          <p>
+            Click the summary line to expand it. The details panel lists every
+            SQL statement that ran to build the page (with its execution time)
+            and, where relevant, the current cache contents. The footer is only
+            injected into authenticated admin page loads &mdash; it never
+            appears on the public site, on form submissions, or on file
+            downloads such as CSV exports, and signed-out visitors never see it.
+          </p>
+          <p>
+            Use it to spot slow pages or unexpectedly large numbers of queries
+            without leaving the page you're debugging.
           </p>
         </Q>
       </Section>
@@ -1860,22 +1959,23 @@ export const adminGuidePage = (
         <Section id="built-sites" title="Built Sites">
           <Q q="What are built sites?">
             <p>
-              The <strong>Built Sites</strong> page (owners only) keeps a
-              registry of Tickets instances you've deployed. Each entry records
-              the site name and its Bunny CDN URL. You can add, edit, and delete
-              entries to keep track of all the instances you manage.
+              The <strong>Built Sites</strong>{" "}
+              page (owners only) keeps a registry of Tickets instances you've
+              deployed. Each entry records the site name and its Bunny CDN URL.
+              You can add, edit, and delete entries to keep track of all the
+              instances you manage.
             </p>
           </Q>
 
           <Q q="How do I create a new Tickets instance?">
             <p>
-              Visit <code>/admin/builder</code> to deploy a new instance. Enter
-              a site name, database URL (libsql format), and database token. The
-              builder will fetch the latest release code from GitHub, create a
-              Bunny edge script, configure secrets (including a generated
-              encryption key), test the database connection, and publish the
-              site. Host-level configuration such as email, wallet, and storage
-              settings are copied automatically.
+              Visit <code>/admin/builder</code>{" "}
+              to deploy a new instance. Enter a site name, database URL (libsql
+              format), and database token. The builder will fetch the latest
+              release code from GitHub, create a Bunny edge script, configure
+              secrets (including a generated encryption key), test the database
+              connection, and publish the site. Host-level configuration such as
+              email, wallet, and storage settings are copied automatically.
             </p>
           </Q>
 
@@ -1883,17 +1983,17 @@ export const adminGuidePage = (
             <p>
               You need a libsql database (e.g. from{" "}
               <a href="https://turso.tech">Turso</a>) with its URL and auth
-              token. The server must have <code>BUNNY_API_KEY</code> configured.
-              The builder is owner-only.
+              token. The server must have <code>BUNNY_API_KEY</code>{" "}
+              configured. The builder is owner-only.
             </p>
           </Q>
 
           <Q q="Can I add a site record without using the builder?">
             <p>
               Yes. On the <strong>Built Sites</strong> page, click{" "}
-              <strong>Add Built Site</strong> to manually record a site name and
-              URL. This is useful for tracking instances you deployed by other
-              means.
+              <strong>Add Built Site</strong>{" "}
+              to manually record a site name and URL. This is useful for
+              tracking instances you deployed by other means.
             </p>
           </Q>
         </Section>
@@ -1908,11 +2008,13 @@ export const adminGuidePage = (
           <ul>
             <li>
               <strong>ICS calendar</strong> &mdash;{" "}
-              <code>/feeds/events.ics</code> &mdash; subscribe from any calendar
-              app (Google Calendar, Apple Calendar, Thunderbird, etc.)
+              <code>/feeds/events.ics</code>{" "}
+              &mdash; subscribe from any calendar app (Google Calendar, Apple
+              Calendar, Thunderbird, etc.)
             </li>
             <li>
-              <strong>RSS feed</strong> &mdash; <code>/feeds/events.rss</code>{" "}
+              <strong>RSS feed</strong> &mdash; <code>/feeds/events.rss</code>
+              {" "}
               &mdash; subscribe from any RSS reader
             </li>
           </ul>
@@ -1925,9 +2027,9 @@ export const adminGuidePage = (
 
         <Q q="How do I connect to Mobilizon?">
           <p>
-            <a href="https://mobilizon.org/">Mobilizon</a> is a federated event
-            platform. You can use its built-in importer to pull events from your
-            ICS feed:
+            <a href="https://mobilizon.org/">Mobilizon</a>{" "}
+            is a federated event platform. You can use its built-in importer to
+            pull events from your ICS feed:
           </p>
           <ol>
             <li>
@@ -1940,8 +2042,8 @@ export const adminGuidePage = (
               <code>https://{getEffectiveDomain()}/feeds/events.ics</code>
             </li>
             <li>
-              Set <strong>joinMode</strong> to <strong>external</strong> so the
-              &ldquo;Join&rdquo; button on Mobilizon links back to your
+              Set <strong>joinMode</strong> to <strong>external</strong>{" "}
+              so the &ldquo;Join&rdquo; button on Mobilizon links back to your
               registration page
             </li>
           </ol>
@@ -1959,7 +2061,8 @@ export const adminGuidePage = (
             booking functionality as the web interface. It lets you build custom
             frontends, integrate with other services, or automate bookings. The
             public endpoints below need no authentication. There is also an
-            admin API for managing events, groups, and holidays &mdash; see the{" "}
+            admin API for managing events, groups, and holidays &mdash; see the
+            {" "}
             <a href="#admin-api">Admin API</a> section below for details.
           </p>
         </Q>
@@ -1972,12 +2075,13 @@ export const adminGuidePage = (
           </p>
           <ul>
             <li>
-              <code>GET /api/events</code> &mdash; list all active, non-hidden
-              events
+              <code>GET /api/events</code>{" "}
+              &mdash; list all active, non-hidden events
             </li>
             <li>
-              <code>GET /api/events/:slug</code> &mdash; get a single event by
-              its slug (hidden events are accessible if you know the slug)
+              <code>GET /api/events/:slug</code>{" "}
+              &mdash; get a single event by its slug (hidden events are
+              accessible if you know the slug)
             </li>
             <li>
               <code>
@@ -2002,8 +2106,8 @@ export const adminGuidePage = (
           </pre>
           <p>
             Prices are in the smallest currency unit (e.g. pence for GBP, cents
-            for USD). <code>maxPurchasable</code> is 0 when the event is sold
-            out or registration is closed.
+            for USD). <code>maxPurchasable</code>{" "}
+            is 0 when the event is sold out or registration is closed.
           </p>
         </Q>
 
@@ -2012,9 +2116,10 @@ export const adminGuidePage = (
             <code>{`GET /api/events/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code>
           </pre>
           <p>
-            The <code>availableDates</code> field is only included for daily
-            events. Returns <code>{'{ "error": "Event not found" }'}</code> with
-            status 404 if the event doesn&apos;t exist or is inactive.
+            The <code>availableDates</code>{" "}
+            field is only included for daily events. Returns{" "}
+            <code>{'{ "error": "Event not found" }'}</code>{" "}
+            with status 404 if the event doesn&apos;t exist or is inactive.
           </p>
         </Q>
 
@@ -2023,8 +2128,9 @@ export const adminGuidePage = (
             <code>{`GET /api/events/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code>
           </pre>
           <p>
-            For daily events, add <code>&amp;date=YYYY-MM-DD</code> to check a
-            specific date. The <code>quantity</code> parameter defaults to 1.
+            For daily events, add <code>&amp;date=YYYY-MM-DD</code>{" "}
+            to check a specific date. The <code>quantity</code>{" "}
+            parameter defaults to 1.
           </p>
         </Q>
 
@@ -2033,11 +2139,12 @@ export const adminGuidePage = (
             <code>{`POST /api/events/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code>
           </pre>
           <p>
-            Which fields are required depends on the event's field settings. The{" "}
-            <code>name</code> field is always required. <code>date</code> is
-            required for daily events (use a date from{" "}
-            <code>availableDates</code>). <code>customPrice</code> is for
-            pay-more events only (in major currency units, e.g. 10.00 for
+            Which fields are required depends on the event's field settings. The
+            {" "}
+            <code>name</code> field is always required. <code>date</code>{" "}
+            is required for daily events (use a date from{" "}
+            <code>availableDates</code>). <code>customPrice</code>{" "}
+            is for pay-more events only (in major currency units, e.g. 10.00 for
             &pound;10).
           </p>
           <p>
@@ -2053,28 +2160,29 @@ export const adminGuidePage = (
             <code>{API_BOOK_PAID_EXAMPLE_JSON}</code>
           </pre>
           <p>
-            Redirect the user to <code>checkoutUrl</code> to complete payment.
-            Possible error responses: 400 (validation error or registration
-            closed), 404 (event not found), 409 (not enough spots available).
+            Redirect the user to <code>checkoutUrl</code>{" "}
+            to complete payment. Possible error responses: 400 (validation error
+            or registration closed), 404 (event not found), 409 (not enough
+            spots available).
           </p>
         </Q>
 
         <Q q="What data does the API expose?">
           <p>
-            The API exposes <strong>exactly the same data</strong> as the public
-            booking pages &mdash; no more. Internal fields like capacity limits,
-            attendee counts, close times, and webhook URLs are never included.
-            The <code>isSoldOut</code>, <code>isClosed</code>, and{" "}
-            <code>maxPurchasable</code> fields are derived values, not raw
-            database fields.
+            The API exposes <strong>exactly the same data</strong>{" "}
+            as the public booking pages &mdash; no more. Internal fields like
+            capacity limits, attendee counts, close times, and webhook URLs are
+            never included. The <code>isSoldOut</code>,{" "}
+            <code>isClosed</code>, and <code>maxPurchasable</code>{" "}
+            fields are derived values, not raw database fields.
           </p>
         </Q>
 
         <Q q="Where can I find the full API reference?">
           <p>
-            The <a href="/admin/api-keys/docs">API documentation page</a> has a
-            complete reference for both public and admin API endpoints, with
-            example request and response payloads for each.
+            The <a href="/admin/api-keys/docs">API documentation page</a>{" "}
+            has a complete reference for both public and admin API endpoints,
+            with example request and response payloads for each.
           </p>
         </Q>
       </Section>
@@ -2093,31 +2201,32 @@ export const adminGuidePage = (
         <Q q="How do I create an API key?">
           <p>
             Open <a href="/admin/api-keys">API Keys</a> (under{" "}
-            <strong>Users</strong> in the navigation), enter a descriptive name
-            for the key (e.g. "CI pipeline" or "Zapier integration"), and click{" "}
+            <strong>Users</strong>{" "}
+            in the navigation), enter a descriptive name for the key (e.g. "CI
+            pipeline" or "Zapier integration"), and click{" "}
             <strong>Create key</strong>.
           </p>
           <p>
-            <strong>The full key is shown only once.</strong> Copy it
-            immediately and store it somewhere secure &mdash; once you leave the
-            page there is no way to retrieve it again. If you lose a key, delete
-            it and create a new one.
+            <strong>The full key is shown only once.</strong>{" "}
+            Copy it immediately and store it somewhere secure &mdash; once you
+            leave the page there is no way to retrieve it again. If you lose a
+            key, delete it and create a new one.
           </p>
         </Q>
 
         <Q q="How do I authenticate?">
           <p>
-            Send the key in the <code>Authorization</code> header on every
-            request:
+            Send the key in the <code>Authorization</code>{" "}
+            header on every request:
           </p>
           <pre>
             <code>Authorization: Bearer YOUR_API_KEY</code>
           </pre>
           <p>
             Bearer-authenticated requests do not need a CSRF token. Send JSON
-            request bodies with <code>Content-Type: application/json</code>.
-            Requests without a valid key receive a{" "}
-            <code>401 Invalid API key</code> response.
+            request bodies with{" "}
+            <code>Content-Type: application/json</code>. Requests without a
+            valid key receive a <code>401 Invalid API key</code> response.
           </p>
         </Q>
 
@@ -2152,27 +2261,30 @@ export const adminGuidePage = (
             </li>
           </ul>
           <p>
-            Delete requests must include a <code>confirm_identifier</code> field
-            that matches the resource name &mdash; the same way the web UI
+            Delete requests must include a <code>confirm_identifier</code>{" "}
+            field that matches the resource name &mdash; the same way the web UI
             requires you to type the name to confirm a delete. The{" "}
-            <a href="/admin/api-keys/docs">API documentation page</a> shows the
-            full request and response shape for every endpoint.
+            <a href="/admin/api-keys/docs">API documentation page</a>{" "}
+            shows the full request and response shape for every endpoint.
           </p>
         </Q>
 
         <Q q="How do I revoke an API key?">
           <p>
-            Open <a href="/admin/api-keys">API Keys</a>, find the key in the
-            list, and click <strong>Delete</strong>. You'll be asked to type the
-            key's name to confirm. Revocation is immediate &mdash; any
-            integration using that key will start receiving{" "}
-            <code>401 Invalid API key</code> on its next request, so switch
-            integrations over to a new key before deleting the old one.
+            Open{" "}
+            <a href="/admin/api-keys">API Keys</a>, find the key in the list,
+            and click{" "}
+            <strong>Delete</strong>. You'll be asked to type the key's name to
+            confirm. Revocation is immediate &mdash; any integration using that
+            key will start receiving <code>401 Invalid API key</code>{" "}
+            on its next request, so switch integrations over to a new key before
+            deleting the old one.
           </p>
           <p>
-            The <strong>Last used</strong> column on the API Keys page shows
-            when each key was most recently accepted. Use it to spot keys that
-            are no longer in use before deleting them.
+            The <strong>Last used</strong>{" "}
+            column on the API Keys page shows when each key was most recently
+            accepted. Use it to spot keys that are no longer in use before
+            deleting them.
           </p>
         </Q>
 
@@ -2180,10 +2292,11 @@ export const adminGuidePage = (
           <p>
             Each API key is tied to the owner who created it, because the key
             wraps that owner's data encryption key. When you delete an owner
-            from the <strong>Users</strong> page, all of their API keys are
-            deleted at the same time and any integration using one of those keys
-            will stop working immediately. If a previous owner had keys in use,
-            create new keys under another owner before removing the old account.
+            from the <strong>Users</strong>{" "}
+            page, all of their API keys are deleted at the same time and any
+            integration using one of those keys will stop working immediately.
+            If a previous owner had keys in use, create new keys under another
+            owner before removing the old account.
           </p>
         </Q>
       </Section>
@@ -2214,27 +2327,28 @@ export const adminGuidePage = (
             On the Backups page, upload a .zip backup file using the restore
             form. You'll see a summary of how many SQL statements it contains
             and whether the schema version matches. Type the full confirmation
-            phrase to proceed. <strong>Warning:</strong> restoring drops all
-            existing tables and replaces them with the backup contents. This
-            cannot be undone.
+            phrase to proceed. <strong>Warning:</strong>{" "}
+            restoring drops all existing tables and replaces them with the
+            backup contents. This cannot be undone.
           </p>
         </Q>
 
         <Q q="What is the encryption key shown on the backup page?">
           <p>
             The encryption key is needed if you ever restore a backup to a{" "}
-            <strong>different</strong> site. All personal data in the database
-            is encrypted at the field level, so you need the same encryption key
-            to read it. Store this key securely &mdash; it cannot be recovered
-            if lost.
+            <strong>different</strong>{" "}
+            site. All personal data in the database is encrypted at the field
+            level, so you need the same encryption key to read it. Store this
+            key securely &mdash; it cannot be recovered if lost.
           </p>
         </Q>
 
         <Q q="Do backups require any special configuration?">
           <p>
             Yes. Backups require CDN storage to be configured (
-            <code>STORAGE_ZONE_NAME</code> and <code>STORAGE_ZONE_KEY</code>).
-            The feature is designed for remote databases (<code>libsql://</code>
+            <code>STORAGE_ZONE_NAME</code> and{" "}
+            <code>STORAGE_ZONE_KEY</code>). The feature is designed for remote
+            databases (<code>libsql://</code>
             ). If storage is not configured, the backup page will show a message
             explaining this.
           </p>
@@ -2258,10 +2372,11 @@ export const adminGuidePage = (
       <Section title="Software Updates">
         <Q q="How do I check for updates?">
           <p>
-            Go to <code>/admin/update</code> to see your current build date and
-            commit. Click <strong>Check for Updates</strong> to query GitHub for
-            the latest release. If a newer version is available, you'll see its
-            name and version number.
+            Go to <code>/admin/update</code>{" "}
+            to see your current build date and commit. Click{" "}
+            <strong>Check for Updates</strong>{" "}
+            to query GitHub for the latest release. If a newer version is
+            available, you'll see its name and version number.
           </p>
         </Q>
 
@@ -2269,10 +2384,11 @@ export const adminGuidePage = (
           <p>
             If an update is available and your server has{" "}
             <code>BUNNY_API_KEY</code> and <code>BUNNY_SCRIPT_ID</code>{" "}
-            configured, an <strong>Update Now</strong> button appears. Click it
-            to download and deploy the new version automatically via Bunny CDN.
-            The update is logged in the activity log. If the Bunny environment
-            variables are not set, you'll need to deploy the update manually.
+            configured, an <strong>Update Now</strong>{" "}
+            button appears. Click it to download and deploy the new version
+            automatically via Bunny CDN. The update is logged in the activity
+            log. If the Bunny environment variables are not set, you'll need to
+            deploy the update manually.
           </p>
         </Q>
 
@@ -2303,9 +2419,10 @@ export const adminGuidePage = (
 
         <Q q="Can you customise it for me?">
           <p>
-            Yes. I offer customisation at a transparent flat rate &mdash; see{" "}
-            <a href="https://chobble.com/prices">chobble.com/prices</a> for
-            current pricing. I can help you with custom features, branding,
+            Yes. I offer customisation at a transparent flat rate &mdash; see
+            {" "}
+            <a href="https://chobble.com/prices">chobble.com/prices</a>{" "}
+            for current pricing. I can help you with custom features, branding,
             event image design, hosting setup, or whatever you need. You'll own
             the code outright, and I can show you how to maintain it yourself or
             handle updates for you. Over 20 years building web systems means I
@@ -2327,9 +2444,9 @@ export const adminGuidePage = (
           <p>
             Go to <strong>Advanced Settings</strong> and find the{" "}
             <strong>Event Table Columns</strong> or{" "}
-            <strong>Attendee Table Columns</strong> section. Enter a
-            comma-separated list of Liquid-style tags to control which columns
-            appear and in what order.
+            <strong>Attendee Table Columns</strong>{" "}
+            section. Enter a comma-separated list of Liquid-style tags to
+            control which columns appear and in what order.
           </p>
           <p>
             For example, to show only the name and status on the events table:
@@ -2357,7 +2474,8 @@ export const adminGuidePage = (
             <code>{buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER)}</code>
           </p>
           <p>
-            Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
+            Columns referencing absent data (e.g. <code>{"{{email}}"}</code>
+            {" "}
             when no attendees have an email) are hidden automatically even when
             included in the template.
           </p>
@@ -2391,8 +2509,8 @@ export const adminGuidePage = (
               <code>%B</code> full month name, <code>%b</code> abbreviated
             </li>
             <li>
-              <code>%d</code> zero-padded day, <code>%e</code> day without
-              padding
+              <code>%d</code> zero-padded day, <code>%e</code>{" "}
+              day without padding
             </li>
             <li>
               <code>%A</code> full weekday, <code>%a</code> abbreviated
@@ -2403,12 +2521,14 @@ export const adminGuidePage = (
             </li>
           </ul>
           <p>
-            The <code>currency</code> filter formats a number as your configured
-            currency (e.g. <code>2500</code> &rarr; &pound;25.00).
+            The <code>currency</code>{" "}
+            filter formats a number as your configured currency (e.g.{" "}
+            <code>2500</code> &rarr; &pound;25.00).
           </p>
           <p>
-            Columns without a <code>rawValue</code> (like name or email) ignore
-            filters &mdash; they always render their default content.
+            Columns without a <code>rawValue</code>{" "}
+            (like name or email) ignore filters &mdash; they always render their
+            default content.
           </p>
         </Q>
       </Section>
