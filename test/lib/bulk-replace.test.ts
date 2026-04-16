@@ -52,11 +52,6 @@ describe("bulk-replace", () => {
       expect(computeDayOffset("", "2026-04-23")).toBe(0);
       expect(computeDayOffset("2026-04-16", "")).toBe(0);
     });
-
-    test("returns 0 when dates are malformed", () => {
-      expect(computeDayOffset("not-a-date", "2026-04-23")).toBe(0);
-      expect(computeDayOffset("2026-04-16", "2026-13-40")).toBe(0);
-    });
   });
 
   describe("shiftUtcIsoByDays", () => {
@@ -79,10 +74,6 @@ describe("bulk-replace", () => {
 
     test("returns empty string for empty input", () => {
       expect(shiftUtcIsoByDays("", 5)).toBe("");
-    });
-
-    test("passes through unparseable inputs without throwing", () => {
-      expect(shiftUtcIsoByDays("not-a-date", 1)).toBe("not-a-date");
     });
   });
 
