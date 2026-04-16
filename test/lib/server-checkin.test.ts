@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLabel } from "#lib/dates.ts";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
 import {
   adminGet,
   awaitTestRequest,
+  bookAttendee,
   createDailyTestAttendee,
   createTestAttendeeWithToken,
   createTestEvent,
@@ -219,8 +219,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
 
     test("renders empty email and phone for attendee without contact details", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      const result = await bookAttendee(event, {
         email: "",
         name: "NoContact",
       });

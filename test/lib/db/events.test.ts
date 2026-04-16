@@ -32,6 +32,7 @@ import {
   reserveSession,
 } from "#lib/db/processed-payments.ts";
 import {
+  bookAttendee,
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
@@ -394,8 +395,7 @@ describeWithEnv("db > events", { db: true }, () => {
     test("deletes orphaned attendee", async () => {
       const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 50 });
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      const result = await bookAttendee(event, {
         email: "orphan@example.com",
         name: "Orphan",
       });

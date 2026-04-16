@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { addDays } from "#lib/dates.ts";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { insertBuiltSite } from "#lib/db/built-sites.ts";
 import {
   answersTable,
@@ -20,6 +19,7 @@ import {
   assertJson,
   assertPublicHtml,
   awaitTestRequest,
+  bookAttendee,
   createTestEvent,
   createTestGroup,
   createTestHoliday,
@@ -324,10 +324,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 1,
         name: "Full Event",
       });
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, quantity: 1 }],
+      await bookAttendee(event, {
         email: "a@test.com",
         name: "Attendee",
+        quantity: 1,
       });
       const html = await assertPublicHtml("/events", "Sold Out");
       expect(html).not.toContain(`href="/ticket/${event.slug}"`);
@@ -1494,10 +1494,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Multi Full",
       });
       // Fill up event2
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event2.id, quantity: 1 }],
+      await bookAttendee(event2, {
         email: "john@example.com",
         name: "John",
+        quantity: 1,
       });
 
       await assertPublicHtml(
@@ -1517,10 +1517,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 1,
         name: "Multi Full Desc",
       });
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event2.id, quantity: 1 }],
+      await bookAttendee(event2, {
         email: "jane@example.com",
         name: "Jane",
+        quantity: 1,
       });
 
       await assertPublicHtml(
@@ -2158,10 +2158,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
 
       // Fill up event1 to make it sold out
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id, quantity: 1 }],
+      await bookAttendee(event1, {
         email: "first@example.com",
         name: "First",
+        quantity: 1,
       });
 
       // GET the ticket page (sold-out event will show Sold Out label)
@@ -2249,8 +2249,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
 
       // Fill event1
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id }],
+      await bookAttendee(event1, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -2573,10 +2572,10 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
 
       // Fill event1 to capacity
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id, quantity: 1 }],
+      await bookAttendee(event1, {
         email: "first@example.com",
         name: "First",
+        quantity: 1,
       });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;

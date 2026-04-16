@@ -23,7 +23,7 @@ import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
 } from "#lib/merge/attendee-merge-types.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 /** Create a test attendee directly via the DB */
 const createAttendee = async (
@@ -37,8 +37,9 @@ const createAttendee = async (
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
   });
-  if (!result.success)
+  if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
+  }
   return result.attendees[0]!;
 };
 
@@ -345,11 +346,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const target = await createAttendee(event1.id, "Alice");
       const source = await createAttendee(event1.id, "Bob");
       // Add source to event2 as well
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event2.id }],
-        email: "bob@test.com",
-        name: "Bob",
-      });
+      await bookAttendee(event2, { email: "bob@test.com", name: "Bob" });
       // But for this test, let's use direct attendees
       // target is on event1, source is on event1 (duplicate) and event2 (moveable)
 

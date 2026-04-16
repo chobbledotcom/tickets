@@ -929,11 +929,13 @@ const createDirectAdminSession = async (): Promise<{
   const { nowMs } = await import("#lib/now.ts");
 
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user?.wrapped_data_key)
+  if (!user?.wrapped_data_key) {
     throw new Error("Admin user not found after setup");
+  }
   const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
-  if (!passwordHash)
+  if (!passwordHash) {
     throw new Error("Admin password verification failed after setup");
+  }
   const kek = await deriveKEK(passwordHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
@@ -2378,6 +2380,47 @@ export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
 
 export type { BuiltSiteFormInput };
 
+import type {
+  CreateAttendeeResult,
+  EventBooking,
+} from "#lib/db/attendee-types.ts";
+
+export type BookAttendeeOpts = Partial<Omit<EventBooking, "eventId">> & {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  special_instructions?: string;
+  paymentId?: string;
+};
+
+/**
+ * Book a single attendee onto an event via createAttendeeAtomic.
+ * One-liner wrapper for the common test pattern with sensible defaults
+ * (name "X", email "x@example.com").
+ */
+export const bookAttendee = async (
+  event: Pick<Event, "id">,
+  opts: BookAttendeeOpts = {},
+): Promise<CreateAttendeeResult> => {
+  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const booking: EventBooking = { eventId: event.id };
+  if (opts.date !== undefined) booking.date = opts.date;
+  if (opts.quantity !== undefined) booking.quantity = opts.quantity;
+  if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
+  return createAttendeeAtomic({
+    bookings: [booking],
+    email: opts.email ?? "x@example.com",
+    name: opts.name ?? "X",
+    ...(opts.phone !== undefined && { phone: opts.phone }),
+    ...(opts.address !== undefined && { address: opts.address }),
+    ...(opts.special_instructions !== undefined && {
+      special_instructions: opts.special_instructions,
+    }),
+    ...(opts.paymentId !== undefined && { paymentId: opts.paymentId }),
+  });
+};
+
 /**
  * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).
  * Returns the plaintext token just like production code receives it.
@@ -2627,8 +2670,9 @@ export const createTestManagerSession = async (
   const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
   if (!passwordHash) throw new Error("Admin password verification failed");
   const kek = await deriveKEK(passwordHash);
-  if (!user.wrapped_data_key)
+  if (!user.wrapped_data_key) {
     throw new Error("Admin user has no wrapped data key");
+  }
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   // Create manager user with a properly wrapped data key
