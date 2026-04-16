@@ -5,7 +5,6 @@ import {
   hasAvailableSpots,
 } from "#lib/db/attendees.ts";
 import {
-  createDailyTestEvent,
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
@@ -50,7 +49,21 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
   });
 
   test("checks per-date capacity for daily events", async () => {
-    const event = await createDailyTestEvent({ maxAttendees: 1 });
+    const event = await createTestEvent({
+      bookableDays: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ],
+      eventType: "daily",
+      maxAttendees: 1,
+      maximumDaysAfter: 14,
+      minimumDaysBefore: 0,
+    });
 
     await createAttendeeAtomic({
       bookings: [{ date: "2026-02-10", eventId: event.id }],

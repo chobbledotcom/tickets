@@ -11,7 +11,6 @@ import {
   adminGet,
   assertAdminHtml,
   awaitTestRequest,
-  createDailyTestEvent,
   createTestAttendee,
   createTestEvent,
   createTestGroup,
@@ -857,7 +856,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         groupId: group.id,
         name: "Standard In Group",
       });
-      const dailyEvent = await createDailyTestEvent({
+      const dailyEvent = await createTestEvent({
+        eventType: "daily",
         name: "Daily Ungrouped",
       });
 

@@ -17,7 +17,6 @@ import {
   assertAdminHtml,
   assertAdminHtmlWithCookie,
   awaitTestRequest,
-  createDailyTestEvent,
   createTestAttendee,
   createTestEvent,
   createTestGroup,
@@ -917,7 +916,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         name: "Daily Group",
         slug: "daily-group",
       });
-      await createDailyTestEvent({
+      await createTestEvent({
+        eventType: "daily",
         groupId: group.id,
         maxAttendees: 50,
         name: "Daily Event",
@@ -2683,8 +2683,9 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
 
     test("updates event from daily to standard", async () => {
-      const event = await createDailyTestEvent({
+      const event = await createTestEvent({
         bookableDays: ["Monday"],
+        eventType: "daily",
         maximumDaysAfter: 365,
         minimumDaysBefore: 7,
       });
@@ -2846,7 +2847,20 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     const validDate2 = addDays(todayInTz("UTC"), 2);
 
     const createDailyEventWithAttendees = async () => {
-      const event = await createDailyTestEvent();
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       // Create attendees on two different dates via the public form
       await submitTicketForm(event.slug, {
         date: validDate1,

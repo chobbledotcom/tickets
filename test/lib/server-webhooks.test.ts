@@ -13,7 +13,6 @@ import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
   assertJson,
-  createDailyTestEvent,
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
@@ -2896,8 +2895,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket webhook passes date to daily events only", async () => {
       await setupStripe();
 
-      const event1 = await createDailyTestEvent({
+      const event1 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
         maxAttendees: 50,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         name: "Multi WH Daily",
         unitPrice: 500,
       });

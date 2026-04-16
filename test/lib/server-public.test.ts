@@ -20,7 +20,6 @@ import {
   assertJson,
   assertPublicHtml,
   awaitTestRequest,
-  createDailyTestEvent,
   createTestEvent,
   createTestGroup,
   createTestHoliday,
@@ -1064,14 +1063,22 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Daily Group",
         slug: "daily-group",
       });
-      await createDailyTestEvent({
+      await createTestEvent({
         bookableDays: ["Monday"],
+        eventType: "daily",
         groupId: group.id,
+        maxAttendees: 10,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         name: "Daily A",
       });
-      await createDailyTestEvent({
+      await createTestEvent({
         bookableDays: ["Monday", "Tuesday"],
+        eventType: "daily",
         groupId: group.id,
+        maxAttendees: 10,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         name: "Daily B",
       });
 
@@ -3064,7 +3071,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     const validDate = addDays(todayInTz("UTC"), 1);
 
     test("GET shows date selector for daily event", async () => {
-      const event = await createDailyTestEvent();
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       await assertPublicHtml(
         `/ticket/${event.slug}`,
         "Select Date",
@@ -3075,8 +3095,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("GET shows no-dates message when no dates available", async () => {
       // Create a daily event where minimum_days_before > maximum_days_after
       // so the date range is empty (start > end)
-      const event = await createDailyTestEvent({
+      const event = await createTestEvent({
         bookableDays: ["Monday"],
+        eventType: "daily",
         maximumDaysAfter: 7,
         minimumDaysBefore: 30,
       });
@@ -3087,7 +3108,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST succeeds for free daily event with valid date", async () => {
-      const event = await createDailyTestEvent();
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       const response = await submitTicketForm(event.slug, {
         date: validDate,
         email: "daily@example.com",
@@ -3097,7 +3131,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST rejects daily event with missing date", async () => {
-      const event = await createDailyTestEvent();
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       const response = await submitTicketForm(event.slug, {
         email: "daily@example.com",
         name: "Daily User",
@@ -3111,7 +3158,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST rejects daily event with invalid date", async () => {
-      const event = await createDailyTestEvent();
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       const response = await submitTicketForm(event.slug, {
         date: "2099-01-01",
         email: "daily@example.com",
@@ -3126,8 +3186,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST checks per-date capacity for daily events", async () => {
-      const event = await createDailyTestEvent({
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
         maxAttendees: 1,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       // Fill up the date
@@ -3152,8 +3224,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST allows booking different dates at capacity", async () => {
-      const event = await createDailyTestEvent({
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
         maxAttendees: 1,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       // Book first date
@@ -3177,7 +3261,19 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST redirects to checkout for paid daily event", async () => {
       await setupStripe();
 
-      const event = await createDailyTestEvent({
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         unitPrice: 500,
       });
 
@@ -3214,7 +3310,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         startDate: validDate,
       });
 
-      const event = await createDailyTestEvent();
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       const html = await assertPublicHtml(`/ticket/${event.slug}`);
       // The holiday date should not appear as an option
       expect(html).not.toContain(`value="${validDate}"`);
@@ -3225,8 +3334,34 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     const validDate = addDays(todayInTz("UTC"), 1);
 
     test("GET shows date selector for ticket with daily events", async () => {
-      const event1 = await createDailyTestEvent();
-      const event2 = await createDailyTestEvent();
+      const event1 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
+      const event2 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
         "Select Date",
@@ -3235,8 +3370,34 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST rejects ticket daily event without date", async () => {
-      const event1 = await createDailyTestEvent();
-      const event2 = await createDailyTestEvent();
+      const event1 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
+      const event2 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -3265,8 +3426,34 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
 
     test("POST succeeds for free ticket daily events with valid date", async () => {
-      const event1 = await createDailyTestEvent();
-      const event2 = await createDailyTestEvent();
+      const event1 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
+      const event2 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -3293,10 +3480,34 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("POST redirects to checkout for paid ticket daily events", async () => {
       await setupStripe();
 
-      const event1 = await createDailyTestEvent({
+      const event1 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         unitPrice: 500,
       });
-      const event2 = await createDailyTestEvent({
+      const event2 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         unitPrice: 300,
       });
 
@@ -3348,10 +3559,26 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("computes shared dates across daily events", async () => {
       // event1: only bookable on Monday, event2: bookable all days
       // Shared dates should only be Mondays
-      const event1 = await createDailyTestEvent({
+      const event1 = await createTestEvent({
         bookableDays: ["Monday"],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
-      const event2 = await createDailyTestEvent();
+      const event2 = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
       // Should contain Monday dates but not Tuesday dates
       const html = await assertPublicHtml(
         `/ticket/${event1.slug}+${event2.slug}`,
@@ -4124,8 +4351,20 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("daily event parses date after question validation", async () => {
       const today = todayInTz("UTC");
       const validDate = addDays(today, 1);
-      const event = await createDailyTestEvent({
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
         maxAttendees: 50,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
         thankYouUrl: "",
       });
       const { question, answer1 } = await setupQuestionForEvent(event.id);

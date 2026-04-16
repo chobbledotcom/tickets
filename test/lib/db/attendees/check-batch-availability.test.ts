@@ -4,7 +4,7 @@ import {
   checkBatchAvailability,
   createAttendeeAtomic,
 } from "#lib/db/attendees.ts";
-import { createDailyTestEvent, describeWithEnv } from "#test-utils";
+import { createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv(
   "db > attendees > checkBatchAvailability",
@@ -21,7 +21,21 @@ describeWithEnv(
     });
 
     test("checks per-date capacity for daily events", async () => {
-      const event = await createDailyTestEvent({ maxAttendees: 2 });
+      const event = await createTestEvent({
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        eventType: "daily",
+        maxAttendees: 2,
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
+      });
 
       await createAttendeeAtomic({
         bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 2 }],
