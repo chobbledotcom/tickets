@@ -264,6 +264,9 @@ export const adminGroupDetailPage = (
         {!isReadOnly() && (
           <>
             <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>{" "}
+            <a href={`/admin/groups/${group.id}/bulk-actions`}>
+              Bulk Actions
+            </a>{" "}
           </>
         )}
         <a href={`/admin/groups/${group.id}/delete`}>Delete Group</a>
