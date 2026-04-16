@@ -1247,13 +1247,11 @@ describeWithEnv("db > attendees", { db: true }, () => {
       ).toBe(true);
     });
 
-    test("updateEventLink overlap-sum behaviour on multi-day event", async () => {
-      // Documents a known over-rejection in the SQL overlap-sum path used
-      // by admin updates. If a 2-day event has max=2 and two non-overlapping
-      // 1-day bookings of qty=1 exist, updating one of them to a new 1-day
-      // slot triggers overlap-sum=2 inside the old range; since the
-      // update excludes the row being edited, it still succeeds. This test
-      // nails down the "excludes self" guarantee.
+    test("updateEventLink moving own booking to a new date does not self-collide at capacity", async () => {
+      // Self-exclusion guarantee: when the row being updated already
+      // occupies the entire event capacity, moving it to a different date
+      // must succeed because the SQL capacity check filters out the
+      // attendee's own row from the count.
       const { updateEventLink } = await import("#lib/db/attendees.ts");
       const event = await createTestEvent({
         durationDays: 1,

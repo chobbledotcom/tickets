@@ -985,7 +985,11 @@ export const adminEventEditPage = (
         {storageEnabled && event.image_url && (
           <Raw html={renderEventImage(event, "event-image-full")} />
         )}
-        <div id="duration-warning" hidden>
+        <div
+          id="duration-warning"
+          data-duration-original={event.duration_days}
+          hidden
+        >
           <p>
             <strong>Warning:</strong> Changing booking duration will update
             existing bookings for this event.
@@ -998,9 +1002,6 @@ export const adminEventEditPage = (
           Save Changes
         </button>
       </CsrfForm>
-      <Raw
-        html={`<script>(function(){var form=document.getElementById('event-edit-form');if(!form)return;var input=form.querySelector('[name="duration_days"]');var warn=document.getElementById('duration-warning');var confirm=document.getElementById('duration-warning-confirm');var submit=document.getElementById('event-edit-submit');if(!input||!warn||!confirm||!submit)return;var original=${event.duration_days};function update(){var changed=String(input.value)!==String(original);warn.hidden=!changed;submit.disabled=changed&&!confirm.checked;}input.addEventListener('input',update);confirm.addEventListener('change',update);update();})();</script>`}
-      />
       {storageEnabled && event.image_url && (
         <CsrfForm action={`/admin/event/${event.id}/image/delete`}>
           <button type="submit" class="secondary">

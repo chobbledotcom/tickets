@@ -44,7 +44,7 @@ describe("adminEventEditPage group select", () => {
 });
 
 describe("adminEventEditPage duration warning", () => {
-  test("includes duration warning + confirmation gate", () => {
+  test("includes duration warning + confirmation gate with current duration", () => {
     const event = testEventWithCount({
       duration_days: 3,
       event_type: "daily",
@@ -55,6 +55,9 @@ describe("adminEventEditPage duration warning", () => {
     );
     expect(html).toContain('id="duration-warning"');
     expect(html).toContain('id="duration-warning-confirm"');
+    // The current duration is exposed via a data attribute so the bundled
+    // admin script can compare against the form's input.
+    expect(html).toContain('data-duration-original="3"');
   });
 });
 
