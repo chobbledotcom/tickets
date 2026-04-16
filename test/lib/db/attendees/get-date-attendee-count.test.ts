@@ -4,38 +4,17 @@ import {
   createAttendeeAtomic,
   getDateAttendeeCount,
 } from "#lib/db/attendees.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { createDailyTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > getDateAttendeeCount", { db: true }, () => {
-  const dailyOpts = {
-    bookableDays: [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ],
-    eventType: "daily" as const,
-    maximumDaysAfter: 14,
-    minimumDaysBefore: 0,
-  };
-
   test("returns 0 when no attendees for date", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 10,
-      ...dailyOpts,
-    });
+    const event = await createDailyTestEvent();
     const count = await getDateAttendeeCount(event.id, "2026-02-10");
     expect(count).toBe(0);
   });
 
   test("returns correct count for date with attendees", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 10,
-      ...dailyOpts,
-    });
+    const event = await createDailyTestEvent();
 
     await createAttendeeAtomic({
       bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 2 }],
@@ -53,10 +32,7 @@ describeWithEnv("db > attendees > getDateAttendeeCount", { db: true }, () => {
   });
 
   test("does not count attendees on different dates", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 10,
-      ...dailyOpts,
-    });
+    const event = await createDailyTestEvent();
 
     await createAttendeeAtomic({
       bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 2 }],

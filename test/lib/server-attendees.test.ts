@@ -15,6 +15,7 @@ import {
   adminFormPost,
   assertAdminHtml,
   awaitTestRequest,
+  createDailyTestEvent,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
@@ -1090,8 +1091,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("edit page loads available dates for daily events", async () => {
-      const event = await createTestEvent({
-        eventType: "daily",
+      const event = await createDailyTestEvent({
         maxAttendees: 100,
         name: "Daily Dates Event",
       });
@@ -2446,8 +2446,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("POST /admin/attendees/:id/link handles daily event without date", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({
-        eventType: "daily",
+      const event2 = await createDailyTestEvent({
         maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
@@ -2465,8 +2464,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("POST /admin/attendees/:id/link handles daily event with date", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({
-        eventType: "daily",
+      const event2 = await createDailyTestEvent({
         maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
@@ -2521,8 +2519,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST /admin/attendees/:id/event/:eventId handles daily event without date", async () => {
-      const event = await createTestEvent({
-        eventType: "daily",
+      const event = await createDailyTestEvent({
         maxAttendees: 50,
       });
       const { createAttendeeAtomic: create } = await import(
@@ -2543,8 +2540,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST /admin/attendees/:id/event/:eventId handles daily event date", async () => {
-      const event = await createTestEvent({
-        eventType: "daily",
+      const event = await createDailyTestEvent({
         maxAttendees: 50,
       });
       const { createAttendeeAtomic: create } = await import(
@@ -3043,8 +3039,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Jane Doe",
         "jane@example.com",
       );
-      const dailyEvent = await createTestEvent({
-        eventType: "daily",
+      const dailyEvent = await createDailyTestEvent({
         maxAttendees: 50,
         name: "Daily E",
       });

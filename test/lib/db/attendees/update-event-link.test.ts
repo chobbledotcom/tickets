@@ -4,7 +4,11 @@ import {
   createAttendeeAtomic,
   getAttendeesRaw,
 } from "#lib/db/attendees.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import {
+  createDailyTestEvent,
+  createTestEvent,
+  describeWithEnv,
+} from "#test-utils";
 
 describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   test("updates quantity with capacity guard", async () => {
@@ -48,10 +52,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
 
   test("updates date for daily event link", async () => {
     const { updateEventLink } = await import("#lib/db/attendees.ts");
-    const event = await createTestEvent({
-      eventType: "daily",
-      maxAttendees: 10,
-    });
+    const event = await createDailyTestEvent();
     const result = await createAttendeeAtomic({
       bookings: [{ date: "2026-04-07", eventId: event.id }],
       email: "daily@test.com",
