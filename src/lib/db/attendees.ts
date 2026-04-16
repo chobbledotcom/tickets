@@ -641,8 +641,9 @@ const checkEventAvailability = async (
 };
 
 /**
- * Build a single-day capacity clause (event-cap + optional group-cap).
- * `dayRange` is null for non-daily bookings (date-less total check).
+ * Build a single-day capacity clause (event-cap + group-cap when applicable).
+ * `dayRange` is null for non-daily / date-less bookings; use `? IS NULL OR …`
+ * to elide the time filter in one branch rather than two SQL shapes.
  */
 const buildDayCapacitySql = (
   eventId: number,
@@ -650,60 +651,54 @@ const buildDayCapacitySql = (
   dayRange: { startAt: string; endAt: string } | null,
   excludeAttendeeId?: number,
 ): { sql: string; args: InValue[] } => {
-  const excludeClause = excludeAttendeeId ? " AND ea2.attendee_id != ?" : "";
-  const capacityFilter = dayRange
-    ? `SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause} AND ea2.start_at < ? AND ea2.end_at > ?`
-    : `SELECT COALESCE(SUM(ea2.quantity), 0) FROM event_attendees ea2 WHERE ea2.event_id = ?${excludeClause}`;
-  const capacityArgs: InValue[] = dayRange
-    ? excludeAttendeeId
-      ? [eventId, excludeAttendeeId, dayRange.endAt, dayRange.startAt]
-      : [eventId, dayRange.endAt, dayRange.startAt]
-    : excludeAttendeeId
-      ? [eventId, excludeAttendeeId]
-      : [eventId];
-
-  const groupExclude = excludeAttendeeId
-    ? "AND ea3.attendee_id != ?\n                  "
-    : "";
-  const groupCapacityCheck = `
-          AND (
-            SELECT CASE
-              WHEN ev.group_id = 0 THEN 1
-              WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
-              WHEN (
-                SELECT COALESCE(SUM(ea3.quantity), 0)
-                FROM event_attendees ea3
-                JOIN events e2 ON e2.id = ea3.event_id
-                WHERE e2.group_id = ev.group_id
-                  ${groupExclude}AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
-              ) + ? <= g.max_attendees THEN 1
-              ELSE 0
-            END
-            FROM events ev
-            LEFT JOIN groups g ON g.id = ev.group_id
-            WHERE ev.id = ?
-          ) = 1`;
   const dayDate = dayRange?.startAt.slice(0, 10) ?? null;
-  const groupCapacityArgs: InValue[] = excludeAttendeeId
-    ? [
-        excludeAttendeeId,
-        dayDate,
-        dayRange?.endAt ?? null,
-        dayRange?.startAt ?? null,
-        qty,
-        eventId,
-      ]
-    : [
-        dayDate,
-        dayRange?.endAt ?? null,
-        dayRange?.startAt ?? null,
-        qty,
-        eventId,
-      ];
+  const startAt = dayRange?.startAt ?? null;
+  const endAt = dayRange?.endAt ?? null;
+  const excludeEa2 = excludeAttendeeId ? "AND ea2.attendee_id != ? " : "";
+  const excludeEa3 = excludeAttendeeId ? "AND ea3.attendee_id != ? " : "";
+  const excludeArg: InValue[] = excludeAttendeeId ? [excludeAttendeeId] : [];
+
+  const sql = `(
+    SELECT COALESCE(SUM(ea2.quantity), 0)
+    FROM event_attendees ea2
+    WHERE ea2.event_id = ? ${excludeEa2}
+    AND (? IS NULL OR (ea2.start_at < ? AND ea2.end_at > ?))
+  ) + ? <= (SELECT max_attendees FROM events WHERE id = ?)
+  AND (
+    SELECT CASE
+      WHEN ev.group_id = 0 THEN 1
+      WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
+      WHEN (
+        SELECT COALESCE(SUM(ea3.quantity), 0)
+        FROM event_attendees ea3
+        JOIN events e2 ON e2.id = ea3.event_id
+        WHERE e2.group_id = ev.group_id ${excludeEa3}
+        AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
+      ) + ? <= g.max_attendees THEN 1
+      ELSE 0
+    END
+    FROM events ev
+    LEFT JOIN groups g ON g.id = ev.group_id
+    WHERE ev.id = ?
+  ) = 1`;
 
   return {
-    args: [...capacityArgs, qty, eventId, ...groupCapacityArgs],
-    sql: `(${capacityFilter}) + ? <= (SELECT max_attendees FROM events WHERE id = ?)${groupCapacityCheck}`,
+    args: [
+      eventId,
+      ...excludeArg,
+      startAt,
+      endAt,
+      startAt,
+      qty,
+      eventId,
+      ...excludeArg,
+      dayDate,
+      endAt,
+      startAt,
+      qty,
+      eventId,
+    ],
+    sql,
   };
 };
 
@@ -727,26 +722,15 @@ const buildCapacityCondition = (
   excludeAttendeeId?: number,
   durationDays = 1,
 ): { sql: string; args: InValue[] } => {
-  if (!date) {
-    return buildDayCapacitySql(eventId, qty, null, excludeAttendeeId);
-  }
+  if (!date) return buildDayCapacitySql(eventId, qty, null, excludeAttendeeId);
   const duration = Math.max(1, Math.floor(durationDays));
-  if (duration === 1) {
-    return buildDayCapacitySql(
-      eventId,
-      qty,
-      dateToRange(date, 1),
-      excludeAttendeeId,
-    );
-  }
   const clauses: string[] = [];
   const args: InValue[] = [];
   for (let i = 0; i < duration; i++) {
-    const day = addDaysStr(date, i);
     const daily = buildDayCapacitySql(
       eventId,
       qty,
-      dateToRange(day, 1),
+      dateToRange(addDaysStr(date, i), 1),
       excludeAttendeeId,
     );
     clauses.push(`(${daily.sql})`);

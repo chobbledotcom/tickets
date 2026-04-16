@@ -198,29 +198,27 @@ describeWithEnv("dates", { db: true }, () => {
   });
 
   describe("formatDateRangeLabelCompactEn", () => {
-    test("same day: single date with full year", () => {
-      expect(formatDateRangeLabelCompactEn("2027-02-02", "2027-02-02")).toBe(
-        "2 February 2027",
-      );
-    });
-
-    test("same month same year: joins days with en dash", () => {
-      expect(formatDateRangeLabelCompactEn("2027-02-02", "2027-02-03")).toBe(
-        "2–3 February 2027",
-      );
-    });
-
-    test("different month same year: keeps both months + trailing year", () => {
-      expect(formatDateRangeLabelCompactEn("2027-02-02", "2027-03-03")).toBe(
+    const cases: [label: string, start: string, end: string, out: string][] = [
+      ["same day", "2027-02-02", "2027-02-02", "2 February 2027"],
+      ["same month + year", "2027-02-02", "2027-02-03", "2–3 February 2027"],
+      [
+        "cross-month, same year",
+        "2027-02-02",
+        "2027-03-03",
         "2 February – 3 March 2027",
-      );
-    });
-
-    test("different year: both years rendered", () => {
-      expect(formatDateRangeLabelCompactEn("2027-02-02", "2028-02-03")).toBe(
+      ],
+      [
+        "cross-year",
+        "2027-02-02",
+        "2028-02-03",
         "2 February 2027 – 3 February 2028",
-      );
-    });
+      ],
+    ];
+    for (const [label, start, end, out] of cases) {
+      test(label, () => {
+        expect(formatDateRangeLabelCompactEn(start, end)).toBe(out);
+      });
+    }
   });
 
   describe("formatDateRangeLabel", () => {

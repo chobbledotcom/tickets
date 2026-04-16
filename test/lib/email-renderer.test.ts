@@ -107,46 +107,38 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(data.entries[0]!.attendee.date).toBe("2026-04-15");
     });
 
-    test("formats date_range_label for single-day daily booking", () => {
-      const entries = [
-        makeEntry(
+    // Helper for the date_range_label tests — every case follows the same
+    // makeEntry → buildTemplateData → read label flow.
+    const dateRangeLabelFor = (
+      event: Partial<Parameters<typeof makeEntry>[0]>,
+      attendee: Partial<Parameters<typeof makeEntry>[1]>,
+    ): string =>
+      buildTemplateData(
+        [makeEntry(event, attendee)],
+        "GBP",
+        "https://example.com/t/ABC",
+      ).entries[0]!.attendee.date_range_label;
+
+    test("date_range_label: single-day daily booking formats as a date", () => {
+      expect(
+        dateRangeLabelFor(
           { duration_days: 1, event_type: "daily" },
           { date: "2026-04-15" },
         ),
-      ];
-      const data = buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-      expect(data.entries[0]!.attendee.date_range_label).toContain("15 April");
+      ).toContain("15 April");
     });
 
-    test("formats date_range_label for multi-day booking with en dash", () => {
-      const entries = [
-        makeEntry(
+    test("date_range_label: multi-day booking uses en dash", () => {
+      expect(
+        dateRangeLabelFor(
           { duration_days: 3, event_type: "daily" },
           { date: "2026-04-15" },
         ),
-      ];
-      const data = buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-      expect(data.entries[0]!.attendee.date_range_label).toBe(
-        "15\u201317 April 2026",
-      );
+      ).toBe("15\u201317 April 2026");
     });
 
-    test("date_range_label is empty string when no booking date", () => {
-      const entries = [makeEntry({}, { date: null })];
-      const data = buildTemplateData(
-        entries,
-        "GBP",
-        "https://example.com/t/ABC",
-      );
-      expect(data.entries[0]!.attendee.date_range_label).toBe("");
+    test("date_range_label: empty when no booking date", () => {
+      expect(dateRangeLabelFor({}, { date: null })).toBe("");
     });
   });
 

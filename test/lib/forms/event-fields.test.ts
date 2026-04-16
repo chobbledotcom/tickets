@@ -128,45 +128,22 @@ describe("eventFields — event_type", () => {
 });
 
 describe("eventFields — duration_days", () => {
-  test("accepts missing duration_days (optional)", () => {
-    expectValid(eventFields, eventForm({ duration_days: "" }));
-  });
-
-  test("accepts duration_days = 1", () => {
-    expectValid(eventFields, eventForm({ duration_days: "1" }));
-  });
-
-  test("accepts duration_days = 90", () => {
-    expectValid(eventFields, eventForm({ duration_days: "90" }));
-  });
-
-  test("rejects duration_days = 0", () => {
-    expectInvalid("Booking Duration (days) must be at least 1")(
-      eventFields,
-      eventForm({ duration_days: "0" }),
-    );
-  });
-
-  test("rejects negative duration_days", () => {
-    expectInvalid("Booking Duration (days) must be at least 1")(
-      eventFields,
-      eventForm({ duration_days: "-5" }),
-    );
-  });
-
-  test("rejects duration_days above 90", () => {
-    expectInvalid("Booking Duration (days) must be at most 90")(
-      eventFields,
-      eventForm({ duration_days: "91" }),
-    );
-  });
-
-  test("rejects fractional duration_days", () => {
-    expectInvalid("Booking Duration (days) must be a whole number")(
-      eventFields,
-      eventForm({ duration_days: "1.5" }),
-    );
-  });
+  for (const value of ["", "1", "90"]) {
+    test(`accepts ${JSON.stringify(value)}`, () => {
+      expectValid(eventFields, eventForm({ duration_days: value }));
+    });
+  }
+  const invalid: [value: string, error: string][] = [
+    ["0", "Booking Duration (days) must be at least 1"],
+    ["-5", "Booking Duration (days) must be at least 1"],
+    ["91", "Booking Duration (days) must be at most 90"],
+    ["1.5", "Booking Duration (days) must be a whole number"],
+  ];
+  for (const [value, error] of invalid) {
+    test(`rejects ${JSON.stringify(value)}`, () => {
+      expectInvalid(error)(eventFields, eventForm({ duration_days: value }));
+    });
+  }
 });
 
 describe("eventFields — bookable_days", () => {
