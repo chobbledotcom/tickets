@@ -428,7 +428,7 @@ export const CsrfForm = ({
   id?: string;
   class?: string;
   enctype?: string;
-}): JSX.Element => (
+} & { [key: `data-${string}`]: string | boolean | undefined }): JSX.Element => (
   <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && (
