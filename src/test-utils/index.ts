@@ -2483,7 +2483,8 @@ export const createDailyTestEvent = (
   createTestEvent({
     bookableDays: allDays,
     eventType: "daily",
-    maximumDaysAfter: 14,
+    maxAttendees: 10,
+    maximumDaysAfter: 60,
     minimumDaysBefore: 0,
     ...overrides,
   });
@@ -2767,11 +2768,7 @@ export const createDailyTestAttendee = async (
   eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
 ): Promise<{ event: Event; attendee: Attendee; token: string }> => {
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-  const event = await createDailyTestEvent({
-    maxAttendees: 10,
-    maximumDaysAfter: 30,
-    ...eventOverrides,
-  });
+  const event = await createDailyTestEvent(eventOverrides);
   const result = await createAttendeeAtomic({
     bookings: [{ date, eventId: event.id }],
     email,
