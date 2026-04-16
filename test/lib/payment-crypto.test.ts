@@ -211,13 +211,13 @@ describe("payment-crypto", () => {
       const payload = '{"type":"payment.updated"}';
       const sigReal = hmacToBase64(
         await computeHmacSha256(
-          encode("https://example.com/webhook" + payload),
+          encode(`https://example.com/webhook${payload}`),
           secret,
         ),
       );
       const sigReplayed = hmacToBase64(
         await computeHmacSha256(
-          encode("https://evil.example.com/webhook" + payload),
+          encode(`https://evil.example.com/webhook${payload}`),
           secret,
         ),
       );

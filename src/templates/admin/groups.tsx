@@ -260,14 +260,27 @@ export const adminGroupDetailPage = (
     <Layout title={group.name}>
       <AdminNav session={session} active="/admin/groups" />
       <Flash success={successMessage} />
-      <p>
-        {!isReadOnly() && (
-          <>
-            <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>{" "}
-          </>
-        )}
-        <a href={`/admin/groups/${group.id}/delete`}>Delete Group</a>
-      </p>
+      <nav>
+        <ul>
+          {!isReadOnly() && (
+            <>
+              <li>
+                <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>
+              </li>
+              <li>
+                <a href={`/admin/groups/${group.id}/bulk-actions`}>
+                  Bulk Actions
+                </a>
+              </li>
+            </>
+          )}
+          <li>
+            <a href={`/admin/groups/${group.id}/delete`} class="danger">
+              Delete Group
+            </a>
+          </li>
+        </ul>
+      </nav>
 
       <article>
         <div class="table-scroll">

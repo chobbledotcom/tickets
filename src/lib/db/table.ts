@@ -150,6 +150,14 @@ export interface Table<Row, Input> {
   toDbValues: (
     input: Input | Partial<Input>,
   ) => Promise<Record<string, InValue>>;
+
+  /**
+   * Build an Input object from an existing Row by copying the input-eligible
+   * columns and translating keys through `inputKeyMap`. Lets callers spread
+   * a row into a new insert without restating every field. Columns named in
+   * `exclude` are skipped — useful for auto-stamped fields like `created`.
+   */
+  rowToInput: (row: Row, exclude?: readonly string[]) => Partial<Input>;
 }
 
 /** Get value for a column with default applied */
@@ -338,6 +346,28 @@ export const defineTable = <Row, Input = Row>(config: {
     return mapParallel(fromDb)(rows);
   };
 
+  // Row → Input: copy input-eligible columns from a row, translating
+  // snake_case DB column names to camelCase input keys via inputKeyMap.
+  // `exclude` lets callers drop columns that shouldn't carry forward
+  // (e.g. auto-stamped `created` timestamps when duplicating a row).
+  const rowToInput = (
+    row: Row,
+    exclude: readonly string[] = [],
+  ): Partial<Input> => {
+    const skip = new Set<string>(exclude);
+    return reduce(
+      (acc: Record<string, unknown>, col: string) => {
+        if (skip.has(col)) return acc;
+        const value = (row as Record<string, unknown>)[col];
+        if (value !== undefined) {
+          acc[inputKeyMap[col] as string] = value;
+        }
+        return acc;
+      },
+      {} as Record<string, unknown>,
+    )(inputColumns) as Partial<Input>;
+  };
+
   return {
     deleteById,
     findAll,
@@ -347,6 +377,7 @@ export const defineTable = <Row, Input = Row>(config: {
     insert,
     name,
     primaryKey,
+    rowToInput,
     schema,
     toDbValues,
     update,

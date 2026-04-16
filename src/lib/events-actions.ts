@@ -18,7 +18,7 @@ import {
 import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
 import { generateUniqueSlug } from "#lib/slug.ts";
 import { deleteEventStorageFiles } from "#lib/storage.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { Event, EventWithCount } from "#lib/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
 export const generateUniqueEventSlug = (excludeEventId?: number) =>
@@ -75,6 +75,28 @@ export const performEventDelete = async (
     `Event '${event.name}' deleted (${event.attendee_count} attendee(s) removed)`,
   );
 };
+
+/**
+ * Build an `EventInput` from an existing event, with optional overrides.
+ *
+ * Uses the table's `rowToInput` to carry every column across — no manual
+ * snake_case→camelCase translation. A fresh unique slug is generated so
+ * the returned input is safe to insert. Image and attachment URLs are
+ * cleared because they reference files owned by the source event.
+ * Callers can override any field (e.g. `name`, `date`, `groupId`) via
+ * `overrides`.
+ */
+export const buildDuplicateEventInput = async (
+  source: Event,
+  overrides: Partial<EventInput> = {},
+): Promise<EventInput> => ({
+  ...(eventsTable.rowToInput(source, ["created"]) as EventInput),
+  ...(await generateUniqueEventSlug()),
+  attachmentName: "",
+  attachmentUrl: "",
+  imageUrl: "",
+  ...overrides,
+});
 
 /**
  * Toggle event active state, log activity, and return the updated event.
