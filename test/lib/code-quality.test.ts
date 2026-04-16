@@ -343,6 +343,8 @@ describe("code quality", () => {
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
       "routes/api.ts:apiRoutes",
       "routes/admin/api.ts:adminApiRoutes",
+      // Clear token rate-limit state between integration tests; production only records failures
+      "lib/db/token-attempts.ts:clearTokenAttempts",
     ];
 
     /**

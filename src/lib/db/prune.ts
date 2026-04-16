@@ -23,6 +23,7 @@ import {
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
+  PRUNE_TOKENS_RETENTION_MS,
   parsePositiveInt,
 } from "#lib/limits.ts";
 import { logDebug } from "#lib/logger.ts";
@@ -72,6 +73,20 @@ export const pruneLoginAttempts = async (): Promise<number> => {
 };
 
 /**
+ * Delete token_attempts rows whose lockout expired more than the retention
+ * window ago. Rows with NULL `locked_until` have no timestamp and are left
+ * alone (they will be overwritten on the next attempt from that IP).
+ */
+export const pruneTokenAttempts = async (): Promise<number> => {
+  const cutoffMs = nowMs() - PRUNE_TOKENS_RETENTION_MS;
+  const result = await getDb().execute({
+    args: [cutoffMs],
+    sql: "DELETE FROM token_attempts WHERE locked_until IS NOT NULL AND locked_until < ?",
+  });
+  return result.rowsAffected;
+};
+
+/**
  * Parse a `last_pruned_*` setting (stored as ms-epoch string) to a number.
  * Empty string / unparseable => 0, meaning "never run, due immediately".
  */
@@ -106,6 +121,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "login_attempts",
     run: pruneLoginAttempts,
     writeLast: settings.update.lastPrunedLogins,
+  },
+  {
+    lastRaw: settings.lastPrunedTokens,
+    name: "token_attempts",
+    run: pruneTokenAttempts,
+    writeLast: settings.update.lastPrunedTokens,
   },
 ];
 

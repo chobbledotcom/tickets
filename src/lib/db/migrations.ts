@@ -33,8 +33,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE =
-  "drop PII columns from attendees (now in pii_blob)";
+export const LATEST_UPDATE = "add token_attempts table for 404 rate limiting";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -139,6 +138,17 @@ const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["ip", "TEXT PRIMARY KEY"],
         ["attempts", "INTEGER NOT NULL DEFAULT 0"],
+        ["locked_until", "INTEGER"],
+      ],
+    },
+  ],
+
+  [
+    "token_attempts",
+    {
+      columns: [
+        ["ip", "TEXT PRIMARY KEY"],
+        ["recent_tokens", "TEXT NOT NULL DEFAULT '[]'"],
         ["locked_until", "INTEGER"],
       ],
     },

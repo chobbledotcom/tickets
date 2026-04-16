@@ -3,6 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
 import { eventsTable } from "#lib/db/events.ts";
+import { clearTokenAttempts } from "#lib/db/token-attempts.ts";
+import { MAX_TOKEN_404S } from "#lib/limits.ts";
 import {
   awaitTestRequest,
   createDailyTestAttendee,
@@ -352,5 +354,55 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     const body = await response.text();
     expect(body).not.toContain("attachment-link");
     expect(body).not.toContain("Download:");
+  });
+
+  test("returns 429 after hitting MAX_TOKEN_404S distinct invalid tokens", async () => {
+    // Tests use "direct" as the fallback IP — clear any prior state.
+    await clearTokenAttempts("direct");
+
+    for (let i = 0; i < MAX_TOKEN_404S; i++) {
+      const res = await awaitTestRequest(`/t/bad-token-${i}`);
+      expect(res.status).toBe(404);
+    }
+
+    const locked = await awaitTestRequest("/t/any-token");
+    expect(locked.status).toBe(429);
+  });
+
+  test("successful lookups do not count toward rate limit", async () => {
+    await clearTokenAttempts("direct");
+    const { token } = await createTestAttendeeWithToken("Hal", "hal@test.com");
+
+    for (let i = 0; i < MAX_TOKEN_404S * 2; i++) {
+      const res = await awaitTestRequest(`/t/${token}`);
+      expect(res.status).toBe(200);
+    }
+
+    const stillOk = await awaitTestRequest(`/t/${token}`);
+    expect(stillOk.status).toBe(200);
+  });
+
+  test("repeated hits on the same invalid token don't lock out", async () => {
+    await clearTokenAttempts("direct");
+
+    for (let i = 0; i < MAX_TOKEN_404S * 3; i++) {
+      const res = await awaitTestRequest("/t/same-invalid-token");
+      expect(res.status).toBe(404);
+    }
+
+    const stillAllowed = await awaitTestRequest("/t/other-invalid");
+    expect(stillAllowed.status).toBe(404);
+  });
+
+  test("rate limit applies to SVG endpoint too", async () => {
+    await clearTokenAttempts("direct");
+
+    for (let i = 0; i < MAX_TOKEN_404S; i++) {
+      const res = await awaitTestRequest(`/t/bad-svg-${i}/svg`);
+      expect(res.status).toBe(404);
+    }
+
+    const locked = await awaitTestRequest("/t/some-token/svg");
+    expect(locked.status).toBe(429);
   });
 });

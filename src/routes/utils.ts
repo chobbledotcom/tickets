@@ -28,7 +28,11 @@ import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
-import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
+import {
+  notFoundPage,
+  rateLimitedPage,
+  temporaryErrorPage,
+} from "#templates/public.tsx";
 
 // Re-export for use by other route modules
 export { generateSecureToken };
@@ -251,6 +255,12 @@ export const htmlResponse = (html: string, status = 200): Response =>
  */
 export const notFoundResponse = (): Response =>
   htmlResponse(notFoundPage(), 404);
+
+/**
+ * Create 429 rate limited response for token URLs
+ */
+export const rateLimitedResponse = (): Response =>
+  htmlResponse(rateLimitedPage(), 429);
 
 /**
  * Create payment error response

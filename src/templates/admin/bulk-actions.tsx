@@ -167,8 +167,8 @@ export const adminDuplicateGroupPage = (
         <p>
           <small>
             Enter a reference date that appears in the current events and the
-            date you want it to become. All event dates (and closing times)
-            will be shifted by the same number of days.
+            date you want it to become. All event dates (and closing times) will
+            be shifted by the same number of days.
           </small>
         </p>
         <label>

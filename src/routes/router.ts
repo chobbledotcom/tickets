@@ -3,7 +3,7 @@
  */
 
 import { reduce } from "#fp";
-import type { ServerContext } from "#routes/types.ts";
+import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 
 // =============================================================================
 // Type-level route param inference
@@ -221,12 +221,7 @@ const matchRequest = (
  */
 export const createRouter = (
   routes: Record<string, RouteHandlerFn>,
-): ((
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
-) => Promise<Response | null>) => {
+): PathMethodRoute => {
   const compiled = compileRoutes(routes);
 
   return (request, path, method, server) => {
