@@ -3,6 +3,8 @@
  * Uses lazy loading to minimize startup time for edge scripts
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { lazyRef, once, reduce } from "#fp";
 import { loadEffectiveDomain } from "#lib/config.ts";
 import {
@@ -68,6 +70,27 @@ const [getRethrowErrors, setRethrowErrors] = lazyRef<boolean | null>(
 /** Explicitly enable/disable test error rethrowing without env var races */
 export const setRethrowErrorsForTest = (rethrow: boolean | null): void =>
   setRethrowErrors(rethrow);
+
+/**
+ * Per-async-context flag set by `runWithExpectedError` so a specific call site
+ * can opt out of the test rethrow guard without touching process-wide state
+ * (which would race with concurrent tests in other files).
+ */
+const expectedErrorContext = new AsyncLocalStorage<true>();
+
+/** True when the current async context is inside a `runWithExpectedError` scope. */
+const isExpectedErrorActive = (): boolean =>
+  expectedErrorContext.getStore() === true;
+
+/**
+ * Run a callback inside a scope where `handleRequest` treats thrown errors as
+ * responses (via `handleRoutingError`) instead of rethrowing them. Scope is
+ * per-async-context, so concurrent tests don't interfere.
+ */
+export const runWithExpectedError = <T>(
+  fn: () => T | Promise<T>,
+): Promise<T> =>
+  expectedErrorContext.run(true, async (): Promise<T> => await fn());
 
 /** Lazy-load admin routes (only needed for authenticated admin requests) */
 const loadAdminRoutes = once(async () => {
@@ -342,7 +365,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (
     (await prefixHandlers[prefix]?.(request, path, method, server)) ??
-    notFoundResponse()
+      notFoundResponse()
   );
 };
 
@@ -404,8 +427,7 @@ const logAndReturn = (
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   const { pathname } = new URL(request.url);
   const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer =
-    request.method === "POST" &&
+  const needsBodyBuffer = request.method === "POST" &&
     (isWebhookPath(normalizePath(pathname)) ||
       contentType.startsWith("multipart/form-data"));
   if (!needsBodyBuffer) return request;
@@ -501,7 +523,7 @@ const handleRoutingError = (
   if (
     getRethrowErrors() &&
     !(error instanceof SessionKeyError) &&
-    !Deno.env.get("TEST_EXPECT_ERROR")
+    !isExpectedErrorActive()
   ) {
     throw error;
   }
@@ -578,9 +600,9 @@ export const handleRequest = async (
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
         runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server)),
-        ),
-      ),
-    ),
+          runWithSessionContext(() => processRequest(effectiveRequest, server))
+        )
+      )
+    )
   );
 };

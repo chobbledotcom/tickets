@@ -43,7 +43,10 @@ import { setSuppressDebugLogs, setSuppressRequestLogs } from "#lib/logger.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
-import { setRethrowErrorsForTest } from "#routes/index.ts";
+import {
+  runWithExpectedError,
+  setRethrowErrorsForTest,
+} from "#routes/index.ts";
 
 /**
  * Default test admin username
@@ -361,17 +364,12 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
 
 /**
  * Run a callback that intentionally triggers an error caught by handleRequest.
- * Temporarily sets TEST_EXPECT_ERROR so the error is returned as a response
- * instead of being rethrown by the TEST_RETHROW_ERRORS guard.
+ * The scope is per-async-context (via AsyncLocalStorage inside the routes
+ * module), so concurrent tests in other files can't flip the flag mid-request.
  */
-export const withExpectedError = bracket(
-  () => {
-    Deno.env.set("TEST_EXPECT_ERROR", "1");
-  },
-  () => {
-    Deno.env.delete("TEST_EXPECT_ERROR");
-  },
-);
+export const withExpectedError = <T>(
+  fn: () => T | Promise<T>,
+): Promise<T> => runWithExpectedError(fn);
 
 /**
  * Swap globalThis.fetch for the duration of a callback, using bracket for safe restore.

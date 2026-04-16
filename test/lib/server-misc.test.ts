@@ -354,7 +354,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         const flashId = url.searchParams.get("flash")!;
         const cookies = response.headers.getSetCookie();
         const flashCookie = cookies.find((c) =>
-          c.startsWith(`flash_${flashId}=`),
+          c.startsWith(`flash_${flashId}=`)
         );
         expect(flashCookie).toBeDefined();
       }));
@@ -619,10 +619,6 @@ describeWithEnv("server (misc)", { db: true }, () => {
       // resolve from cache; the stub then only affects route-handler queries
       // inside the inner try/catch.
       await s.loadAll();
-      // Ensure TEST_EXPECT_ERROR is not set (concurrent tests may set it),
-      // otherwise handleRequest swallows the error instead of rethrowing.
-      const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
-      Deno.env.delete("TEST_EXPECT_ERROR");
       const executeStub = stub(db, "execute", () => {
         throw new Error("synthetic db failure");
       });
@@ -632,7 +628,6 @@ describeWithEnv("server (misc)", { db: true }, () => {
         ).rejects.toThrow("synthetic db failure");
       } finally {
         executeStub.restore();
-        if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
       }
     });
 
