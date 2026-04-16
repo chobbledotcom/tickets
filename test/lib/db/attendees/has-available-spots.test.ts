@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createAttendeeAtomic,
-  hasAvailableSpots,
-} from "#lib/db/attendees.ts";
+import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import {
   createTestAttendee,
   createTestEvent,

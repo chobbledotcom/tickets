@@ -2185,7 +2185,6 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     });
   });
 
-
   describe("edit event notFound race condition", () => {
     test("returns 404 when event is deleted during edit update", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({

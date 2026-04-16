@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
+import {
+  eventsTable,
+  getAllEvents,
+  getEventWithCount,
+} from "#lib/db/events.ts";
 import { getAllGroups, getEventsByGroupId } from "#lib/db/groups.ts";
 import { handleRequest } from "#routes";
 import {
@@ -209,6 +213,263 @@ describeWithEnv("Admin bulk actions", { db: true }, () => {
         { new_name: "Orphan" },
       );
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("GET /admin/groups/:id/bulk-actions — conditional links", () => {
+    test("shows deactivate link and hides reactivate when all events are active", async () => {
+      const group = await createTestGroup({ name: "All Active" });
+      await createTestEvent({ groupId: group.id, name: "Active Event" });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions`,
+      );
+      const html = await response.text();
+
+      expect(html).toContain(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+      expect(html).not.toContain(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+    });
+
+    test("shows reactivate link and hides deactivate when all events are deactivated", async () => {
+      const group = await createTestGroup({ name: "All Off" });
+      const event = await createTestEvent({
+        groupId: group.id,
+        name: "Off Event",
+      });
+      await eventsTable.update(event.id, { active: false });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions`,
+      );
+      const html = await response.text();
+
+      expect(html).toContain(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+      expect(html).not.toContain(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+    });
+
+    test("shows only deactivate link when group is mixed (some active, some inactive)", async () => {
+      const group = await createTestGroup({ name: "Mixed" });
+      await createTestEvent({ groupId: group.id, name: "Still Active" });
+      const inactive = await createTestEvent({
+        groupId: group.id,
+        name: "Gone",
+      });
+      await eventsTable.update(inactive.id, { active: false });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions`,
+      );
+      const html = await response.text();
+
+      expect(html).toContain(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+      expect(html).not.toContain(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+    });
+
+    test("hides both deactivate and reactivate for an empty group", async () => {
+      const group = await createTestGroup({ name: "Empty Group" });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions`,
+      );
+      const html = await response.text();
+
+      expect(html).not.toContain(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+      expect(html).not.toContain(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+    });
+  });
+
+  describe("GET /admin/groups/:id/bulk-actions/deactivate", () => {
+    test("renders the deactivate confirmation form with singular event count", async () => {
+      const group = await createTestGroup({ name: "To Deactivate" });
+      await createTestEvent({ groupId: group.id, name: "Event" });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Deactivate Group");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain("deactivate 1 active event");
+      expect(html).not.toContain("deactivate 1 active events");
+    });
+
+    test("renders the deactivate form with plural event count", async () => {
+      const group = await createTestGroup({ name: "Multi Deact" });
+      await createTestEvent({ groupId: group.id, name: "A" });
+      await createTestEvent({ groupId: group.id, name: "B" });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("deactivate 2 active events");
+    });
+
+    test("returns 404 when the group does not exist", async () => {
+      const { response } = await adminGet(
+        "/admin/groups/999999/bulk-actions/deactivate",
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /admin/groups/:id/bulk-actions/deactivate", () => {
+    test("deactivates every event in the group when the name is confirmed", async () => {
+      const group = await createTestGroup({ name: "Shutdown" });
+      const a = await createTestEvent({ groupId: group.id, name: "A" });
+      const b = await createTestEvent({ groupId: group.id, name: "B" });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+        { confirm_identifier: "Shutdown" },
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/groups/${group.id}`,
+      );
+      expect((await getEventWithCount(a.id))?.active).toBe(false);
+      expect((await getEventWithCount(b.id))?.active).toBe(false);
+    });
+
+    test("rejects when the group name does not match and leaves events active", async () => {
+      const group = await createTestGroup({ name: "Keep Active" });
+      const event = await createTestEvent({
+        groupId: group.id,
+        name: "Event",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+        { confirm_identifier: "Wrong Name" },
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+      );
+      expect((await getEventWithCount(event.id))?.active).toBe(true);
+    });
+
+    test("does not touch events outside the target group", async () => {
+      const target = await createTestGroup({ name: "Target" });
+      const other = await createTestGroup({ name: "Other" });
+      await createTestEvent({ groupId: target.id, name: "Target Event" });
+      const outsider = await createTestEvent({
+        groupId: other.id,
+        name: "Outsider Event",
+      });
+
+      await adminFormPost(
+        `/admin/groups/${target.id}/bulk-actions/deactivate`,
+        { confirm_identifier: "Target" },
+      );
+
+      expect((await getEventWithCount(outsider.id))?.active).toBe(true);
+    });
+  });
+
+  describe("GET /admin/groups/:id/bulk-actions/reactivate", () => {
+    test("renders the reactivate confirmation form with a singular event count", async () => {
+      const group = await createTestGroup({ name: "Solo Off" });
+      const event = await createTestEvent({
+        groupId: group.id,
+        name: "Only",
+      });
+      await eventsTable.update(event.id, { active: false });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Reactivate Group");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain("reactivate 1 event");
+      expect(html).not.toContain("reactivate 1 events");
+    });
+
+    test("renders the reactivate form with a plural event count", async () => {
+      const group = await createTestGroup({ name: "Many Off" });
+      const a = await createTestEvent({ groupId: group.id, name: "A" });
+      const b = await createTestEvent({ groupId: group.id, name: "B" });
+      await eventsTable.update(a.id, { active: false });
+      await eventsTable.update(b.id, { active: false });
+
+      const { response } = await adminGet(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("reactivate 2 events");
+    });
+
+    test("returns 404 when the group does not exist", async () => {
+      const { response } = await adminGet(
+        "/admin/groups/999999/bulk-actions/reactivate",
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /admin/groups/:id/bulk-actions/reactivate", () => {
+    test("reactivates every event in the group when the name is confirmed", async () => {
+      const group = await createTestGroup({ name: "Bring Back" });
+      const a = await createTestEvent({ groupId: group.id, name: "A" });
+      const b = await createTestEvent({ groupId: group.id, name: "B" });
+      await eventsTable.update(a.id, { active: false });
+      await eventsTable.update(b.id, { active: false });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+        { confirm_identifier: "Bring Back" },
+      );
+
+      expect(response.status).toBe(302);
+      expect((await getEventWithCount(a.id))?.active).toBe(true);
+      expect((await getEventWithCount(b.id))?.active).toBe(true);
+    });
+
+    test("rejects when the group name does not match and leaves events inactive", async () => {
+      const group = await createTestGroup({ name: "Stay Off" });
+      const event = await createTestEvent({
+        groupId: group.id,
+        name: "Event",
+      });
+      await eventsTable.update(event.id, { active: false });
+
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+        { confirm_identifier: "Different" },
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      );
+      expect((await getEventWithCount(event.id))?.active).toBe(false);
     });
   });
 });

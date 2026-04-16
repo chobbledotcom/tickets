@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createAttendeeAtomic,
-  getAttendeesRaw,
-} from "#lib/db/attendees.ts";
+import { createAttendeeAtomic, getAttendeesRaw } from "#lib/db/attendees.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
