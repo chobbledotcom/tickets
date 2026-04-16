@@ -205,6 +205,20 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   },
   name: "built_sites",
   primaryKey: "id",
+  // The CRUD adapter is a façade over the raw table — the built-site blob
+  // is always reconstructed from BuiltSiteFormInput, so rowToInput just picks
+  // the exposed camelCase fields off an already-decrypted BuiltSite.
+  rowToInput: (
+    row: BuiltSite,
+    _exclude?: readonly string[],
+  ): Partial<BuiltSiteFormInput> => ({
+    assignable: row.assignable,
+    bunnyScriptId: row.bunnyScriptId,
+    bunnyUrl: row.bunnyUrl,
+    dbToken: row.dbToken,
+    dbUrl: row.dbUrl,
+    name: row.name,
+  }),
   schema: {
     assignable: {} as ColumnDef<boolean>,
     assignedAttendeeId: {} as ColumnDef<number | null>,

@@ -17,6 +17,7 @@ import { authRoutes } from "#routes/admin/auth.ts";
 import { backupRoutes } from "#routes/admin/backup.ts";
 import { builderRoutes } from "#routes/admin/builder.ts";
 import { builtSitesRoutes } from "#routes/admin/built-sites.ts";
+import { bulkActionsRoutes } from "#routes/admin/bulk-actions.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
@@ -51,6 +52,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   usersRoutes,
   guideRoutes,
   groupsRoutes,
+  bulkActionsRoutes,
   holidaysRoutes,
   questionsRoutes,
   scannerRoutes,

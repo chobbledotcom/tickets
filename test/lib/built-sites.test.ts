@@ -170,6 +170,29 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(result).toEqual(site);
     });
 
+    test("rowToInput exposes form-input fields for reuse", () => {
+      const site = {
+        assignable: true,
+        assignedAttendeeId: null,
+        assignedEventId: null,
+        bunnyScriptId: "script-123",
+        bunnyUrl: "example.bunny.run",
+        created: "2026-01-01",
+        dbToken: "token",
+        dbUrl: "libsql://db",
+        id: 42,
+        name: "Mirror",
+      };
+      expect(builtSitesCrudTable.rowToInput(site)).toEqual({
+        assignable: true,
+        bunnyScriptId: "script-123",
+        bunnyUrl: "example.bunny.run",
+        dbToken: "token",
+        dbUrl: "libsql://db",
+        name: "Mirror",
+      });
+    });
+
     test("toDbValues builds encrypted blob from input", async () => {
       const values = await builtSitesCrudTable.toDbValues({
         assignable: false,

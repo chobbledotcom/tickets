@@ -23,6 +23,7 @@ import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { settings } from "#lib/db/settings.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
 import { getFlash } from "#lib/flash-context.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
@@ -144,10 +145,24 @@ const crud = createCrudHandlers({
 });
 
 /** Look up group by id, return 404 if not found */
-const withGroup = (
+export const withGroup = (
   id: number,
   handler: (group: Group) => Response | Promise<Response>,
 ): Promise<Response> => orNotFound(groupsTable.findById(id), handler);
+
+/**
+ * POST handler factory: CSRF-validated form + loaded group.
+ * Callers receive the group and the parsed form; a missing session or
+ * missing group short-circuits with the appropriate response.
+ */
+export const groupFormPost =
+  (
+    handler: (group: Group, form: FormParams) => Response | Promise<Response>,
+  ): TypedRouteHandler<"POST /admin/groups/:id"> =>
+  (request, { id }) =>
+    withAuth(request, AUTH_FORM, (_session, form) =>
+      withGroup(id, (group) => handler(group, form)),
+    );
 
 /** Handle GET /admin/groups/:id - group detail page */
 const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
@@ -218,28 +233,23 @@ const validateEventTypesForGroup = async (
 };
 
 /** Handle POST /admin/groups/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup: TypedRouteHandler<
-  "POST /admin/groups/:id/add-events"
-> = (request, { id }) =>
-  withAuth(request, AUTH_FORM, (_session, form) =>
-    withGroup(id, async (group) => {
-      const eventIds = form
-        .getAll("event_ids")
-        .map(Number)
-        .filter((n) => n > 0);
-      if (eventIds.length > 0) {
-        const typeError = await validateEventTypesForGroup(id, eventIds);
-        if (typeError) {
-          return redirect(`/admin/groups/${id}`, typeError, false);
-        }
-        await assignEventsToGroup(eventIds, id);
-        await logActivity(
-          `${eventIds.length} event(s) added to group '${group.name}'`,
-        );
-      }
-      return redirect(`/admin/groups/${id}`, "Events added to group", true);
-    }),
-  );
+const handleAddEventsToGroup = groupFormPost(async (group, form) => {
+  const eventIds = form
+    .getAll("event_ids")
+    .map(Number)
+    .filter((n) => n > 0);
+  if (eventIds.length > 0) {
+    const typeError = await validateEventTypesForGroup(group.id, eventIds);
+    if (typeError) {
+      return redirect(`/admin/groups/${group.id}`, typeError, false);
+    }
+    await assignEventsToGroup(eventIds, group.id);
+    await logActivity(
+      `${eventIds.length} event(s) added to group '${group.name}'`,
+    );
+  }
+  return redirect(`/admin/groups/${group.id}`, "Events added to group", true);
+});
 
 /** Group routes */
 export const groupsRoutes = {
