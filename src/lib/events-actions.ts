@@ -18,7 +18,7 @@ import {
 import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
 import { generateUniqueSlug } from "#lib/slug.ts";
 import { deleteEventStorageFiles } from "#lib/storage.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { Event, EventWithCount } from "#lib/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
 export const generateUniqueEventSlug = (excludeEventId?: number) =>
@@ -74,6 +74,56 @@ export const performEventDelete = async (
   await logActivity(
     `Event '${event.name}' deleted (${event.attendee_count} attendee(s) removed)`,
   );
+};
+
+/**
+ * Build an `EventInput` from an existing event, with optional overrides.
+ *
+ * Produces a fresh unique slug (so the returned input is safe to insert).
+ * Image and attachment URLs are cleared by default: they reference files
+ * owned by the source event and would break if the original were deleted.
+ * Callers can override any field (e.g. `name`, `date`, `groupId`) via
+ * `overrides`.
+ *
+ * Used by both the per-event duplicate form and the group-bulk duplicate
+ * flow so the set of carried-over fields stays in one place.
+ */
+export const buildDuplicateEventInput = async (
+  source: Event,
+  overrides: Partial<EventInput> = {},
+): Promise<EventInput> => {
+  const { slug, slugIndex } = await generateUniqueEventSlug();
+  const base: EventInput = {
+    active: source.active,
+    assignBuiltSite: source.assign_built_site,
+    attachmentName: "",
+    attachmentUrl: "",
+    bookableDays: [...source.bookable_days],
+    canPayMore: source.can_pay_more,
+    closesAt: source.closes_at ?? "",
+    date: source.date,
+    description: source.description,
+    eventType: source.event_type,
+    fields: source.fields,
+    groupId: source.group_id,
+    hidden: source.hidden,
+    imageUrl: "",
+    location: source.location,
+    maxAttendees: source.max_attendees,
+    maximumDaysAfter: source.maximum_days_after,
+    maxPrice: source.max_price,
+    maxQuantity: source.max_quantity,
+    minimumDaysBefore: source.minimum_days_before,
+    name: source.name,
+    nonTransferable: source.non_transferable,
+    purchaseOnly: source.purchase_only,
+    slug,
+    slugIndex,
+    thankYouUrl: source.thank_you_url,
+    unitPrice: source.unit_price,
+    webhookUrl: source.webhook_url,
+  };
+  return { ...base, ...overrides };
 };
 
 /**

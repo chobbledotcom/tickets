@@ -9,6 +9,7 @@
 import { initCharCounters } from "./admin/char-counter.ts";
 import { initCheckoutPopup } from "./admin/checkout-popup.ts";
 import { initClosesAtAutofill } from "./admin/closes-at-autofill.ts";
+import { initDuplicatePreview } from "./admin/duplicate-preview.ts";
 import { initEventDatePicker } from "./admin/event-date-picker.ts";
 import { initFillDefaultTemplate } from "./admin/fill-default-template.ts";
 import { initFormSubmitDisable } from "./admin/form-submit-disable.ts";
@@ -37,3 +38,4 @@ initManualCheckin();
 initFormSubmitDisable();
 initQuestionVisibility();
 initEventDatePicker();
+initDuplicatePreview();

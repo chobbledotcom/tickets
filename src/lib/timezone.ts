@@ -12,6 +12,7 @@ import {
   parseDateTime,
   toZoned,
 } from "@internationalized/date";
+import { formatIsoForPreview } from "#lib/bulk-replace.ts";
 
 /** Default timezone when none is configured */
 export const DEFAULT_TIMEZONE = "Europe/London";
@@ -68,21 +69,11 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
 
 /**
  * Compact format for table cells: "yyyy-MM-dd HH:mm" in the given timezone.
+ * Delegates to the browser-compatible `formatIsoForPreview` helper so the
+ * same formatting runs on the server and in the admin JS bundle.
  */
-export const formatDatetimeShortInTz = (utcIso: string, tz: string): string => {
-  // sv-SE renders dates in ISO-8601 form (yyyy-MM-dd HH:mm), which is
-  // unambiguous and locale-independent.
-  const formatted = new Date(utcIso).toLocaleString("sv-SE", {
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-    minute: "2-digit",
-    month: "2-digit",
-    timeZone: tz,
-    year: "numeric",
-  });
-  return formatted.replace(/^(\d{4}-\d{2}-\d{2}) 24:/, "$1 00:");
-};
+export const formatDatetimeShortInTz = (utcIso: string, tz: string): string =>
+  formatIsoForPreview(utcIso, tz);
 
 /**
  * Convert a UTC ISO datetime string to a datetime-local input value
