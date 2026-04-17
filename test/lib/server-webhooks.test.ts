@@ -921,6 +921,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 1000,
           id: "cs_db_error",
           metadata: {
             email: "dberror@example.com",
