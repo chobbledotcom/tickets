@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
+import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import {
+  bookAttendee,
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
@@ -62,8 +63,8 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       minimumDaysBefore: 0,
     });
 
-    await createAttendeeAtomic({
-      bookings: [{ date: "2026-02-10", eventId: event.id }],
+    await bookAttendee(event, {
+      date: "2026-02-10",
       email: "day@example.com",
       name: "Day User",
     });

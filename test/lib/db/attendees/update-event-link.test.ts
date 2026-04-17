@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic, getAttendeesRaw } from "#lib/db/attendees.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { getAttendeesRaw } from "#lib/db/attendees.ts";
+import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   test("updates quantity with capacity guard", async () => {
     const { updateEventLink } = await import("#lib/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 5 });
-    const result = await createAttendeeAtomic({
-      bookings: [{ eventId: event.id, quantity: 2 }],
+    const result = await bookAttendee(event, {
       email: "link@test.com",
       name: "Link",
+      quantity: 2,
     });
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -28,10 +28,10 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   test("rejects update that would exceed capacity", async () => {
     const { updateEventLink } = await import("#lib/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 3 });
-    const result = await createAttendeeAtomic({
-      bookings: [{ eventId: event.id, quantity: 2 }],
+    const result = await bookAttendee(event, {
       email: "cap@test.com",
       name: "Cap",
+      quantity: 2,
     });
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -49,8 +49,8 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
       eventType: "daily",
       maxAttendees: 10,
     });
-    const result = await createAttendeeAtomic({
-      bookings: [{ date: "2026-04-07", eventId: event.id }],
+    const result = await bookAttendee(event, {
+      date: "2026-04-07",
       email: "daily@test.com",
       name: "Daily",
     });

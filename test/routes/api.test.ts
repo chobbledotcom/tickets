@@ -450,7 +450,7 @@ describeWithEnv("Public API", { db: true }, () => {
     });
 
     test("books daily event with valid date", async () => {
-      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const event = await createDailyTestEvent();
       // Get available dates
       const { body: detail } = await fetchEventBySlug(event.slug);
       const dates = (detail.event as Record<string, unknown>)
@@ -467,14 +467,14 @@ describeWithEnv("Public API", { db: true }, () => {
     });
 
     test("returns 400 for daily event without date", async () => {
-      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const event = await createDailyTestEvent();
       const { response, body } = await bookEvent(event.slug);
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/valid date/i);
     });
 
     test("returns 400 for daily event with invalid date", async () => {
-      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const event = await createDailyTestEvent();
       const { response, body } = await bookEvent(event.slug, {
         date: "1999-01-01",
         email: "alice@test.com",

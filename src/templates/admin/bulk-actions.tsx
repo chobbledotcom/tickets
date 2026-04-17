@@ -150,101 +150,93 @@ export const adminDuplicateGroupPage = (
       <CsrfForm
         action={`/admin/groups/${group.id}/bulk-actions/duplicate`}
         id="duplicate-group-form"
+        data-duplicate-preview
+        data-timezone={tz}
       >
-        <div data-duplicate-preview data-timezone={tz}>
-          <label>
-            New group name
-            <input
-              type="text"
-              name="new_name"
-              value={values.newName}
-              required
-              autofocus
-              data-duplicate-field
-            />
-          </label>
+        <label>
+          New group name
+          <input
+            type="text"
+            name="new_name"
+            value={values.newName}
+            required
+            autofocus
+            data-duplicate-field
+          />
+        </label>
+        <label>
+          Find in event names
+          <input
+            type="text"
+            name="name_find"
+            value={values.nameFind || undefined}
+            placeholder="(leave blank to keep names unchanged)"
+            data-duplicate-field="name_find"
+          />
+        </label>
+        <label>
+          Replace with
+          <input
+            type="text"
+            name="name_replace"
+            value={values.nameReplace || undefined}
+            data-duplicate-field="name_replace"
+          />
+        </label>
+        <p>
+          <small>
+            Enter a reference date that appears in the current events and the
+            date you want it to become. All event dates (and closing times)
+            will be shifted by the same number of days.
+          </small>
+        </p>
+        <label>
+          Reference date
+          <input
+            type="date"
+            name="date_find"
+            value={values.dateFind || undefined}
+            data-duplicate-field="date_find"
+          />
+        </label>
+        <label>
+          Target date
+          <input
+            type="date"
+            name="date_replace"
+            value={values.dateReplace || undefined}
+            data-duplicate-field="date_replace"
+          />
+        </label>
 
-          <fieldset>
-            <legend>Event name replacement</legend>
-            <label>
-              Find
-              <input
-                type="text"
-                name="name_find"
-                value={values.nameFind || undefined}
-                placeholder="(leave blank to keep names unchanged)"
-                data-duplicate-field="name_find"
-              />
-            </label>
-            <label>
-              Replace with
-              <input
-                type="text"
-                name="name_replace"
-                value={values.nameReplace || undefined}
-                data-duplicate-field="name_replace"
-              />
-            </label>
-          </fieldset>
+        <h2>Preview</h2>
+        {events.length === 0 ? (
+          <p>
+            <em>This group has no events — the new group will be empty.</em>
+          </p>
+        ) : (
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Original name</th>
+                  <th>New name</th>
+                  <th>Original date</th>
+                  <th>New date</th>
+                </tr>
+              </thead>
+              <tbody data-duplicate-preview-rows>
+                {initialRows.map((row) => (
+                  <PreviewRow row={row} tz={tz} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-          <fieldset>
-            <legend>Date shift</legend>
-            <p>
-              <small>
-                Enter a reference date that appears in the current events and
-                the date you want it to become. All event dates (and closing
-                times) will be shifted by the same number of days.
-              </small>
-            </p>
-            <label>
-              Reference date
-              <input
-                type="date"
-                name="date_find"
-                value={values.dateFind || undefined}
-                data-duplicate-field="date_find"
-              />
-            </label>
-            <label>
-              Target date
-              <input
-                type="date"
-                name="date_replace"
-                value={values.dateReplace || undefined}
-                data-duplicate-field="date_replace"
-              />
-            </label>
-          </fieldset>
-
-          <h2>Preview</h2>
-          {events.length === 0 ? (
-            <p>
-              <em>This group has no events — the new group will be empty.</em>
-            </p>
-          ) : (
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Original name</th>
-                    <th>New name</th>
-                    <th>Original date</th>
-                    <th>New date</th>
-                  </tr>
-                </thead>
-                <tbody data-duplicate-preview-rows>
-                  {initialRows.map((row) => (
-                    <PreviewRow row={row} tz={tz} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <script type="application/json" id="duplicate-preview-events">
-            <Raw html={eventsJson} />
-          </script>
-        </div>
+        <script type="application/json" id="duplicate-preview-events">
+          <Raw html={eventsJson} />
+        </script>
 
         <button type="submit">Duplicate Group</button>
       </CsrfForm>

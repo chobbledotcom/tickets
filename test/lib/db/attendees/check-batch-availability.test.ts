@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  checkBatchAvailability,
-  createAttendeeAtomic,
-} from "#lib/db/attendees.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { checkBatchAvailability } from "#lib/db/attendees.ts";
+import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   test("returns true for empty items", async () => {
@@ -34,10 +31,11 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       minimumDaysBefore: 0,
     });
 
-    await createAttendeeAtomic({
-      bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 2 }],
+    await bookAttendee(event, {
+      date: "2026-05-01",
       email: "filled@example.com",
       name: "Filled",
+      quantity: 2,
     });
 
     // Same date is full
