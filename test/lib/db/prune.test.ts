@@ -16,6 +16,7 @@ import {
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
+  pruneTokenAttempts,
 } from "#lib/db/prune.ts";
 import { createSession, getAllSessions } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
@@ -24,6 +25,7 @@ import {
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
+  PRUNE_TOKENS_RETENTION_MS,
 } from "#lib/limits.ts";
 import { nowMs } from "#lib/now.ts";
 import { describeWithEnv } from "#test-utils";
@@ -75,6 +77,29 @@ const insertLoginAttempt = async (
   return ipHash;
 };
 
+/** Insert a token_attempts row with the given lockout and last_attempt timestamp. */
+const insertTokenAttempt = async (
+  ipPlain: string,
+  lockedUntil: number | null,
+  lastAttempt: number,
+): Promise<string> => {
+  const ipHash = await hmacHash(ipPlain);
+  await getDb().execute({
+    args: [ipHash, "[]", lockedUntil, lastAttempt, lastAttempt],
+    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
+  });
+  return ipHash;
+};
+
+/** Is a token_attempts row with this ip hash still in the DB? */
+const tokenAttemptExists = async (ipHash: string): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [ipHash],
+    sql: "SELECT 1 FROM token_attempts WHERE ip = ?",
+  });
+  return rows.length > 0;
+};
+
 /** Is a processed_payments row with this session ID still in the DB? */
 const paymentExists = async (sessionId: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
@@ -98,6 +123,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedPayments("");
   await settings.update.lastPrunedSessions("");
   await settings.update.lastPrunedLogins("");
+  await settings.update.lastPrunedTokens("");
 };
 
 /** Set all last_pruned_* timestamps to the same value. */
@@ -105,6 +131,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedPayments(value);
   await settings.update.lastPrunedSessions(value);
   await settings.update.lastPrunedLogins(value);
+  await settings.update.lastPrunedTokens(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -219,6 +246,38 @@ describeWithEnv("db > prune", { db: true }, () => {
     });
   });
 
+  describe("pruneTokenAttempts", () => {
+    test("deletes rows untouched past the retention window", async () => {
+      const stale = nowMs() - PRUNE_TOKENS_RETENTION_MS - 60_000;
+      const ipHash = await insertTokenAttempt("13.14.15.16", null, stale);
+
+      await pruneTokenAttempts();
+
+      expect(await tokenAttemptExists(ipHash)).toBe(false);
+    });
+
+    test("keeps rows with a recent last_attempt", async () => {
+      const ipHash = await insertTokenAttempt("17.18.19.20", null, nowMs());
+
+      await pruneTokenAttempts();
+
+      expect(await tokenAttemptExists(ipHash)).toBe(true);
+    });
+
+    test("deletes stale rows even when a lockout is still active", async () => {
+      const stale = nowMs() - PRUNE_TOKENS_RETENTION_MS - 60_000;
+      const ipHash = await insertTokenAttempt(
+        "21.22.23.24",
+        nowMs() + 60_000,
+        stale,
+      );
+
+      await pruneTokenAttempts();
+
+      expect(await tokenAttemptExists(ipHash)).toBe(false);
+    });
+  });
+
   describe("maybeRunPrunes scheduler", () => {
     test("records fresh payments timestamp after running", async () => {
       await clearAllLastPruned();
@@ -249,6 +308,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedLogins, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh tokens timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedTokens, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
     });

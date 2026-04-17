@@ -97,9 +97,13 @@ describe("limits", () => {
         "STALE_RESERVATION_MS",
         "MAX_LOGIN_ATTEMPTS",
         "LOGIN_LOCKOUT_MS",
+        "MAX_TOKEN_404S",
+        "TOKEN_WINDOW_MS",
+        "TOKEN_LOCKOUT_MS",
         "PRUNE_PAYMENTS_RETENTION_DAYS",
         "PRUNE_SESSIONS_RETENTION_DAYS",
         "PRUNE_LOGINS_RETENTION_DAYS",
+        "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_INTERVAL_HOURS",
       ].sort();
       const entryKeys = LIMIT_ENTRIES.map((e) => e.envKey).sort();

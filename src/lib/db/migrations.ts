@@ -34,7 +34,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "drop any legacy columns from attendees (event_id + pre-pii_blob PII)";
+  "add token rate-limit table with window_start/last_attempt";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -140,6 +140,31 @@ const SCHEMA: [name: string, table: Table][] = [
         ["ip", "TEXT PRIMARY KEY"],
         ["attempts", "INTEGER NOT NULL DEFAULT 0"],
         ["locked_until", "INTEGER"],
+      ],
+      indexes: [
+        {
+          columns: ["locked_until"],
+          name: "idx_login_attempts_locked_until",
+        },
+      ],
+    },
+  ],
+
+  [
+    "token_attempts",
+    {
+      columns: [
+        ["ip", "TEXT PRIMARY KEY"],
+        ["recent_tokens", "TEXT NOT NULL DEFAULT '[]'"],
+        ["locked_until", "INTEGER"],
+        ["window_start", "INTEGER NOT NULL DEFAULT 0"],
+        ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["last_attempt"],
+          name: "idx_token_attempts_last_attempt",
+        },
       ],
     },
   ],

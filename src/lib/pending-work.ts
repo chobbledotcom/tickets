@@ -10,7 +10,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-const pendingWork = new AsyncLocalStorage<Promise<void>[]>();
+const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
 
 /** Run a function within a pending-work scope */
 export const runWithPendingWork = <T>(fn: () => T): T =>
@@ -21,7 +21,7 @@ export const hasPendingWorkScope = (): boolean =>
   pendingWork.getStore() !== undefined;
 
 /** Queue a promise that must complete before the response is sent */
-export const addPendingWork = (p: Promise<void>): void => {
+export const addPendingWork = (p: Promise<unknown>): void => {
   const pending = pendingWork.getStore();
   if (pending) pending.push(p);
 };

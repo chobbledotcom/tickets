@@ -12,9 +12,20 @@ import {
 } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
+import {
+  clearTokenAttempts,
+  isTokenRateLimited,
+  recordTokenFailure,
+} from "#lib/db/token-attempts.ts";
+import { addPendingWork } from "#lib/pending-work.ts";
 import { buildCheckinUrl } from "#lib/ticket-url.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { notFoundResponse } from "#routes/utils.ts";
+import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import {
+  getClientIp,
+  notFoundResponse,
+  rateLimitedResponse,
+} from "#routes/utils.ts";
 
 /** Attendee paired with its event */
 export type TokenEntry = {
@@ -84,11 +95,7 @@ export const lookupSingleTokenPassData = async (
 };
 
 /** Route function signature for token-based routes */
-export type TokenRouteFn = (
-  request: Request,
-  path: string,
-  method: string,
-) => Promise<Response | null>;
+export type TokenRouteFn = PathMethodRoute;
 
 /** Handler type for token-based route methods */
 type TokenMethodHandler = (
@@ -203,17 +210,45 @@ export const lookupAttendees = async (
 };
 
 /**
+ * Run a token handler under rate-limit protection: returns 429 if the IP is
+ * currently locked out, otherwise runs the handler, recording a failure on
+ * 404 or clearing prior failure state on 2xx (successful token lookups don't
+ * contribute to the limit and also wipe the IP's fat-finger history).
+ */
+export const withTokenRateLimit = async (
+  request: Request,
+  server: ServerContext | undefined,
+  tokens: string[],
+  run: () => Response | Promise<Response>,
+): Promise<Response> => {
+  const ip = getClientIp(request, server);
+  if (await isTokenRateLimited(ip)) return rateLimitedResponse();
+
+  const response = await run();
+  if (response.status === 404 && tokens.length > 0) {
+    addPendingWork(recordTokenFailure(ip, tokens));
+  } else if (response.ok) {
+    addPendingWork(clearTokenAttempts(ip));
+  }
+  return response;
+};
+
+/**
  * Create a token-based route handler for a given URL prefix.
- * Extracts tokens from the path, dispatches to method handlers.
+ * Extracts tokens from the path, dispatches to method handlers, and applies
+ * 404-based rate limiting per client IP.
  */
 export const createTokenRoute =
   (prefix: string, methods: TokenMethodMap): TokenRouteFn =>
-  async (request, path, method) => {
+  (request, path, method, server) => {
     const tokensStr = extractTokenSegment(prefix, path);
-    if (!tokensStr) return null;
+    if (!tokensStr) return Promise.resolve(null);
 
     const handler = methods[method];
-    if (!handler) return null;
+    if (!handler) return Promise.resolve(null);
 
-    return await handler(request, parseTokens(tokensStr));
+    const tokens = parseTokens(tokensStr);
+    return withTokenRateLimit(request, server, tokens, () =>
+      handler(request, tokens),
+    );
   };

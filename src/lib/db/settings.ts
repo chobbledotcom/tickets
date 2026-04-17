@@ -80,6 +80,7 @@ export const CONFIG_KEYS = {
   LAST_PRUNED_LOGINS: "last_pruned_logins",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
   LAST_PRUNED_SESSIONS: "last_pruned_sessions",
+  LAST_PRUNED_TOKENS: "last_pruned_tokens",
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
   PAYMENT_PROVIDER: "payment_provider",
@@ -170,6 +171,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
+  CONFIG_KEYS.LAST_PRUNED_TOKENS,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -653,6 +655,9 @@ export const settings = {
   get lastPrunedSessions(): string {
     return snap("last_pruned_sessions");
   },
+  get lastPrunedTokens(): string {
+    return snap("last_pruned_tokens");
+  },
   get latestScriptVersion(): string {
     return snap("latest_script_version");
   },
@@ -806,6 +811,7 @@ export const settings = {
     lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
     lastPrunedPayments: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_PAYMENTS),
     lastPrunedSessions: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_SESSIONS),
+    lastPrunedTokens: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_TOKENS),
     latestScriptVersion: plaintextUpdate(CONFIG_KEYS.LATEST_SCRIPT_VERSION),
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
