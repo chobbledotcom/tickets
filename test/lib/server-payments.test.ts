@@ -162,7 +162,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
           await expectHtmlResponse(
             response,
-            400,
+            410,
             "no longer accepting registrations",
           );
 
@@ -221,7 +221,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
           await expectHtmlResponse(
             response,
-            400,
+            409,
             "sold out",
             "automatically refunded",
           );
@@ -861,7 +861,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
           await expectHtmlResponse(
             response,
-            400,
+            500,
             "Registration failed",
             "refunded",
           );
@@ -1040,7 +1040,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         );
         await expectHtmlResponse(
           response,
-          400,
+          410,
           "no longer accepting registrations",
           "refunded",
         );
@@ -1090,7 +1090,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_refund_fail"),
         );
-        await expectHtmlResponse(response, 400, "sold out", "contact support");
+        await expectHtmlResponse(response, 409, "sold out", "contact support");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -1148,7 +1148,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_rollback"),
         );
-        await expectHtmlResponse(response, 400, "sold out", "refunded");
+        await expectHtmlResponse(response, 409, "sold out", "refunded");
 
         // Verify rollback: event1 should have no attendees since they were rolled back
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
