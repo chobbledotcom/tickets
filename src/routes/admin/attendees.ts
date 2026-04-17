@@ -153,14 +153,21 @@ const handleAttendeeCheckin = attendeeFormAction(
 /** Build create-attendee input from validated form values */
 const buildCreateAttendeeInput = (
   values: AddAttendeeFormValues,
-  eventId: number,
-  isDaily: boolean,
+  event: { id: number; event_type: string; duration_days: number },
 ) => {
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
+  const isDaily = event.event_type === "daily";
   return {
     address: address || "",
-    bookings: [{ date: isDaily ? date : null, eventId, quantity }],
+    bookings: [
+      {
+        date: isDaily ? date : null,
+        durationDays: isDaily ? event.duration_days : undefined,
+        eventId: event.id,
+        quantity,
+      },
+    ],
     email: email || "",
     name,
     phone: phone || "",
@@ -206,7 +213,7 @@ const handleAddAttendee = (
     }
 
     const result = await createAttendeeAtomic(
-      buildCreateAttendeeInput(validation.values, eventId, isDaily),
+      buildCreateAttendeeInput(validation.values, event),
     );
 
     if (!result.success) {

@@ -13,20 +13,23 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAvailableDates } from "#lib/dates.ts";
 import {
   checkBatchAvailability,
+  getAttendeesRaw,
   hasAvailableSpots,
-  recomputeEventBookingRanges,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { buildTemplateData } from "#lib/email-renderer.ts";
 import {
+  adminFormPost,
   bookAttendee,
   createDailyTestEvent,
   createTestGroup,
   createTestHoliday,
   describeWithEnv,
   makeTestEntry,
+  mockFormRequest,
   rawEventRange,
+  setupEventAndLogin,
   updateTestEvent,
 } from "#test-utils";
 
@@ -375,4 +378,130 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       ).toBe(true);
     });
   });
+
+  describe("HTTP layer: admin add attendee", () => {
+    test("admin-added attendee on a 3-day event stores a 3-day range", async () => {
+      // This would have caught the bug where buildCreateAttendeeInput
+      // omitted durationDays — the booking would silently store a 1-day
+      // range regardless of the event's duration_days setting.
+      const { handleRequest } = await import("#routes");
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 5,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            csrf_token: csrfToken,
+            date: "2026-08-10",
+            email: "admin-added@example.com",
+            name: "Admin Added",
+            quantity: "1",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      // Verify the stored range spans 3 days, not 1.
+      const range = await rawEventRange(event.id);
+      expect(range).not.toBeNull();
+      expect(range!.start_at).toBe("2026-08-10T00:00:00Z");
+      expect(range!.end_at).toBe("2026-08-13T00:00:00.000Z");
+    });
+
+    test("admin-added attendee respects multi-day capacity", async () => {
+      const { handleRequest } = await import("#routes");
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 1,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      });
+
+      // Fill day 11 with a 1-day booking.
+      await bookAttendee(event, { date: "2026-08-11", durationDays: 1 });
+
+      // Admin tries to add an attendee starting day 10 (3-day → 10,11,12).
+      // Day 11 is full → must reject.
+      await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            csrf_token: csrfToken,
+            date: "2026-08-10",
+            email: "blocked@example.com",
+            name: "Blocked",
+            quantity: "1",
+          },
+          cookie,
+        ),
+      );
+      // Rejected — redirects with error flash, no new attendee.
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+    });
+  });
+
+  describe("HTTP layer: admin event link management", () => {
+    test("admin add-event-link stores multi-day range", async () => {
+      // Admin attaches an attendee to a second multi-day event via the
+      // link form. The new event_attendees row must use the event's
+      // duration, not default to 1.
+      const event1 = await createDailyTestEvent({ maxAttendees: 5 });
+      const event2 = await createDailyTestEvent({
+        durationDays: 4,
+        maxAttendees: 5,
+      });
+
+      const result = await bookAttendee(event1, { date: "2026-07-01" });
+      if (!result.success) throw new Error("setup");
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${result.attendees[0]!.id}/link`,
+        {
+          date: "2026-07-10",
+          event_id: String(event2.id),
+          quantity: "1",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const range = await rawEventRange(event2.id);
+      expect(range).not.toBeNull();
+      expect(range!.end_at).toBe("2026-07-14T00:00:00.000Z");
+    });
+
+    test("admin update-event-link preserves multi-day range on date move", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 5,
+      });
+      const result = await bookAttendee(event, {
+        date: "2026-07-01",
+        durationDays: 3,
+      });
+      if (!result.success) throw new Error("setup");
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
+        {
+          date: "2026-07-10",
+          quantity: "1",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const range = await rawEventRange(event.id);
+      expect(range!.start_at).toBe("2026-07-10T00:00:00Z");
+      expect(range!.end_at).toBe("2026-07-13T00:00:00.000Z");
+    });
+  });
+
 });
