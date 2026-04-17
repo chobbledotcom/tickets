@@ -1622,7 +1622,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          200,
+          404,
           (json) => {
             expect(json.error).toContain("Event not found");
           },
@@ -1768,7 +1768,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          200,
+          404,
           (json) => {
             expect(json.error).toContain("Event not found");
           },
@@ -2004,7 +2004,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          200,
+          404,
           (json) => {
             expect(json.error).toContain("Event not found");
           },
