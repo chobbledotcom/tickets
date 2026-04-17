@@ -12,13 +12,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-
-/** Add N calendar days to a YYYY-MM-DD date string (UTC-based). */
-export const addDaysStr = (dateStr: string, days: number): string => {
-  const date = new Date(`${dateStr}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-};
+import { addDays } from "#lib/dates.ts";
 
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
  * With `durationDays > 1` the range spans multiple calendar days. */
@@ -112,7 +106,7 @@ export const buildCapacityCondition = (
     const daily = buildDayCapacitySql(
       eventId,
       qty,
-      dateToRange(addDaysStr(date, i), 1),
+      dateToRange(addDays(date, i), 1),
       excludeAttendeeId,
     );
     clauses.push(`(${daily.sql})`);

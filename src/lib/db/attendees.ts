@@ -20,11 +20,8 @@ import type {
   EncryptedAttendeeData,
   EncryptInput,
 } from "#lib/db/attendee-types.ts";
-import {
-  addDaysStr,
-  buildCapacityCondition,
-  dateToRange,
-} from "#lib/db/capacity.ts";
+import { addDays } from "#lib/dates.ts";
+import { buildCapacityCondition, dateToRange } from "#lib/db/capacity.ts";
 import {
   executeBatch,
   executeBatchWithResults,
@@ -507,7 +504,7 @@ const capacityCheckDays = (
 ): (string | null)[] => {
   if (!isDaily || !date) return [null];
   const duration = Math.max(1, Math.floor(durationDays));
-  return Array.from({ length: duration }, (_, i) => addDaysStr(date, i));
+  return Array.from({ length: duration }, (_, i) => addDays(date, i));
 };
 
 const loadForDay = async (
@@ -641,7 +638,7 @@ export const attendeesApi = {
     const daysOfRange = (startDate: string, durationDays: number): string[] => {
       const days: string[] = [];
       for (let i = 0; i < durationDays; i++) {
-        days.push(addDaysStr(startDate, i));
+        days.push(addDays(startDate, i));
       }
       return days;
     };
