@@ -23,6 +23,9 @@ import { buildTemplateData } from "#lib/email-renderer.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   adminFormPost,
+  apiRequest,
+  assertJson,
+  awaitTestRequest,
   bookAttendee,
   createDailyTestEvent,
   createTestGroup,
@@ -629,6 +632,199 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         slugs: [event.slug],
       });
       expect(html).not.toContain("each booking reserves");
+    });
+  });
+
+  describe("admin event detail page", () => {
+    test("shows booking duration row for daily events with duration > 1", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        durationDays: 3,
+        eventType: "daily",
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Booking Duration");
+      expect(html).toContain("3 day(s)");
+    });
+
+    test("does not show booking duration for standard events", async () => {
+      const { event, cookie } = await setupEventAndLogin();
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).not.toContain("Booking Duration");
+    });
+  });
+
+  describe("admin event edit page", () => {
+    test("edit form pre-fills duration_days and includes warning UI", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        durationDays: 5,
+        eventType: "daily",
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 0,
+      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain('name="duration_days"');
+      expect(html).toContain('id="duration-warning"');
+      expect(html).toContain('data-duration-original="5"');
+    });
+  });
+
+  describe("admin event edit POST", () => {
+    test("changing duration via form updates event and reconciles bookings", async () => {
+      const event = await createDailyTestEvent({
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(event, { date: "2026-09-10" });
+
+      await updateTestEvent(event.id, { durationDays: 4 });
+
+      const fresh = await getEvent(event.id);
+      expect(fresh?.duration_days).toBe(4);
+
+      const range = await rawEventRange(event.id);
+      expect(range!.end_at).toBe("2026-09-14T00:00:00.000Z");
+    });
+  });
+
+  describe("admin REST API", () => {
+    test("POST /api/admin/events creates event with duration_days", async () => {
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          body: {
+            duration_days: 3,
+            event_type: "daily",
+            max_attendees: 50,
+            name: "API Multi-Day",
+          },
+          method: "POST",
+        }),
+        201,
+        (body: { event: { duration_days: number; event_type: string } }) => {
+          expect(body.event.duration_days).toBe(3);
+          expect(body.event.event_type).toBe("daily");
+        },
+      );
+    });
+
+    test("PUT /api/admin/events/:id updates duration_days", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          body: { duration_days: 7 },
+          method: "PUT",
+        }),
+        200,
+        (body: { event: { duration_days: number } }) => {
+          expect(body.event.duration_days).toBe(7);
+        },
+      );
+    });
+
+    test("PUT /api/admin/events/:id defaults duration_days to 1 when omitted", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 5,
+        maxAttendees: 10,
+      });
+      await assertJson(
+        apiRequest(`/api/admin/events/${event.id}`, {
+          body: { name: "Renamed" },
+          method: "PUT",
+        }),
+        200,
+        (body: { event: { duration_days: number; name: string } }) => {
+          expect(body.event.name).toBe("Renamed");
+          expect(body.event.duration_days).toBe(5);
+        },
+      );
+    });
+  });
+
+  describe("admin CSV export via HTTP", () => {
+    test("GET /admin/event/:id/export includes date range for multi-day", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        durationDays: 3,
+        eventType: "daily",
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      });
+      await bookAttendee(event, { date: "2026-06-12", durationDays: 3 });
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const csv = await response.text();
+      expect(csv).toContain("2026-06-12 to 2026-06-14");
+    });
+  });
+
+  describe("admin attendee detail page", () => {
+    test("shows date range for multi-day booking in event links table", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 10,
+      });
+      const result = await bookAttendee(event, {
+        date: "2026-07-15",
+        durationDays: 3,
+      });
+      if (!result.success) throw new Error("setup");
+
+      const { cookie } = await setupEventAndLogin();
+      const response = await awaitTestRequest(
+        `/admin/attendees/${result.attendees[0]!.id}`,
+        { cookie },
+      );
+      const html = await response.text();
+      // Should show the range label, not just the start date.
+      expect(html).toContain("15");
+      expect(html).toContain("17");
+      expect(html).toContain("July");
+    });
+  });
+
+  describe("admin attendee check-in on multi-day booking", () => {
+    test("check-in works for attendee with multi-day booking", async () => {
+      const { handleRequest } = await import("#routes");
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        durationDays: 3,
+        eventType: "daily",
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      });
+      const result = await bookAttendee(event, {
+        date: "2026-08-01",
+        durationDays: 3,
+      });
+      if (!result.success) throw new Error("setup");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${result.attendees[0]!.id}/checkin`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const attendees = await getAttendeesRaw(event.id);
+      const checkedIn = attendees.find(
+        (a) => a.id === result.attendees[0]!.id,
+      );
+      expect(Boolean(checkedIn?.checked_in)).toBe(true);
     });
   });
 });
