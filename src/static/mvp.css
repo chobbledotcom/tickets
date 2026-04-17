@@ -534,10 +534,10 @@ form {
 }
 
 form.one-button {
-  border: none;
-  box-shadow: none;
-  padding-left: 0;
-  padding-right: 0;
+  border: none !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 
 form.no-bg {
@@ -998,17 +998,17 @@ button.bulk-checkout:hover {
 
 .inline {
   display: inline;
-  box-shadow: none;
-  padding: 0;
-  border: none;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border: none !important;
 }
 
 .inline button {
   background-color: transparent;
   color: var(--color-link);
   text-decoration: underline;
-  padding: 0;
-  border: none;
+  padding: 0 !important;
+  border: none !important;
   margin: 0;
   box-shadow: none !important;
 }
