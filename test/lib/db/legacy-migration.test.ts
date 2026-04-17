@@ -322,6 +322,17 @@ describe("db > event_attendees migration from legacy schema", () => {
       price_paid TEXT
     )`);
 
+    await client.execute(
+      insert("attendees", {
+        created: "2024-03-01T00:00:00Z",
+        email: "alice@example.com",
+        id: 1,
+        name: "Alice",
+        pii_blob: "encrypted-data",
+        ticket_token_index: "tok_abc",
+      }),
+    );
+
     await initDb();
 
     const cols = await client.execute("PRAGMA table_info(attendees)");
@@ -333,5 +344,47 @@ describe("db > event_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("payment_id");
     expect(colNames).toContain("pii_blob");
     expect(colNames).toContain("ticket_token_index");
+
+    const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0]!.created).toBe("2024-03-01T00:00:00Z");
+    expect(rows.rows[0]!.pii_blob).toBe("encrypted-data");
+    expect(rows.rows[0]!.ticket_token_index).toBe("tok_abc");
+  });
+
+  test("skips table recreation when attendees already matches schema", async () => {
+    setupTestEncryptionKey();
+    const client = createClient({ url: ":memory:" });
+    setDb(client);
+
+    // Run initDb on a fresh DB so everything is created and up to date
+    await initDb();
+
+    // Insert a row so we can verify it's untouched (not lost to a spurious recreation)
+    await client.execute(
+      insert("attendees", {
+        created: "2024-05-01T00:00:00Z",
+        id: 1,
+        pii_blob: "blob-data",
+        ticket_token_index: "tok_skip",
+      }),
+    );
+
+    // Force a re-run by clearing the version marker
+    await client.execute(
+      "DELETE FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
+    );
+    await initDb();
+
+    const cols = await client.execute("PRAGMA table_info(attendees)");
+    const colNames = cols.rows.map((r) => r.name);
+    expect(colNames).toContain("id");
+    expect(colNames).toContain("pii_blob");
+    expect(colNames).toContain("created");
+
+    const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0]!.pii_blob).toBe("blob-data");
+    expect(rows.rows[0]!.ticket_token_index).toBe("tok_skip");
   });
 });

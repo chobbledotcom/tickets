@@ -300,6 +300,20 @@ export const notFoundPage = (): string =>
   );
 
 /**
+ * Rate limit page shown on 429 responses for token URLs
+ */
+export const rateLimitedPage = (): string =>
+  String(
+    <Layout title="Too Many Requests">
+      <h1>Too Many Requests</h1>
+      <p>
+        You've hit too many invalid ticket links. Please wait a few minutes and
+        try again.
+      </p>
+    </Layout>,
+  );
+
+/**
  * Temporary error page with auto-refresh
  * Used when a transient CDN or network error occurs
  */

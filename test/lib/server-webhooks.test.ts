@@ -496,7 +496,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        // Webhook returns 200 even for business logic failures to prevent retries
         await assertJson(
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
@@ -511,6 +510,48 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       } finally {
         mockVerify.restore();
         mockRefund.restore();
+      }
+    });
+
+    test("webhook returns 409 when session is being processed concurrently", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Pre-reserve the session to simulate concurrent processing
+      const { reserveSession: reserveSessionFn } = await import(
+        "#lib/db/processed-payments.ts"
+      );
+      await reserveSessionFn("cs_webhook_concurrent");
+
+      const mockVerify = await stubWebhookVerify({
+        data: {
+          object: {
+            amount_total: 1000,
+            id: "cs_webhook_concurrent",
+            metadata: webhookMeta({
+              email: "concurrent@example.com",
+              items: singleItem(event.id, 1, 1000),
+              name: "Concurrent Webhook",
+            }),
+            payment_intent: "pi_webhook_concurrent",
+            payment_status: "paid",
+          },
+        },
+        id: "evt_concurrent",
+        type: "checkout.session.completed",
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(409);
+      } finally {
+        mockVerify.restore();
       }
     });
 
@@ -674,7 +715,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         const html = await expectHtmlResponse(
           response,
-          400,
+          410,
           "no longer accepting registrations",
         );
         // Should show "contact support" since refund failed (no payment reference)
@@ -1089,7 +1130,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         await expectHtmlResponse(
           response,
-          400,
+          500,
           "Registration failed",
           "refunded",
         );
@@ -2229,7 +2270,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_no_att"),
         );
-        await expectHtmlResponse(response, 400, "sold out");
+        await expectHtmlResponse(response, 409, "sold out");
       } finally {
         mockAtomic.restore();
         mockRetrieve.restore();
@@ -2280,7 +2321,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_single_cap"),
         );
-        await expectHtmlResponse(response, 400, "sold out");
+        await expectHtmlResponse(response, 409, "sold out");
       } finally {
         mockAtomic.restore();
         mockRetrieve.restore();
@@ -2583,7 +2624,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_redirect_mismatch"),
         );
-        await expectHtmlResponse(response, 400, "price", "changed", "refunded");
+        await expectHtmlResponse(response, 409, "price", "changed", "refunded");
 
         // Verify no attendee was created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2749,7 +2790,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         await expectHtmlResponse(
           response,
-          400,
+          410,
           "registration closed",
           "refunded",
         );

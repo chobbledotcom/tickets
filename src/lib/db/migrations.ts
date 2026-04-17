@@ -33,7 +33,8 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add duration_days to events";
+export const LATEST_UPDATE =
+  "add token rate-limit table with window_start/last_attempt";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -140,6 +141,31 @@ const SCHEMA: [name: string, table: Table][] = [
         ["ip", "TEXT PRIMARY KEY"],
         ["attempts", "INTEGER NOT NULL DEFAULT 0"],
         ["locked_until", "INTEGER"],
+      ],
+      indexes: [
+        {
+          columns: ["locked_until"],
+          name: "idx_login_attempts_locked_until",
+        },
+      ],
+    },
+  ],
+
+  [
+    "token_attempts",
+    {
+      columns: [
+        ["ip", "TEXT PRIMARY KEY"],
+        ["recent_tokens", "TEXT NOT NULL DEFAULT '[]'"],
+        ["locked_until", "INTEGER"],
+        ["window_start", "INTEGER NOT NULL DEFAULT 0"],
+        ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["last_attempt"],
+          name: "idx_token_attempts_last_attempt",
+        },
       ],
     },
   ],
@@ -491,9 +517,7 @@ const recreateTable = async (tableName: string): Promise<void> => {
 
 /** Get the set of columns declared by SCHEMA for a given table */
 const getSchemaColumns = (tableName: string): Set<string> =>
-  new Set(
-    SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c),
-  );
+  new Set(SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c));
 
 /**
  * Drop any legacy columns from attendees that aren't in the current schema
@@ -632,7 +656,10 @@ export const initDb = async (): Promise<void> => {
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
-  // Also copies per-event status columns to event_attendees
+  // Also copies per-event status columns to event_attendees.
+  // NOTE: On DBs where event_id was already dropped (intermediate state),
+  // this SELECT fails with "no such column" — runMigration swallows that
+  // error, making the backfill a safe no-op before dropDeprecatedAttendeeColumns.
   logDebug("Migration", "Step 3: backfilling event_attendees...");
   await runMigration(
     `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)

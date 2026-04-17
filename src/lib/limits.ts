@@ -77,6 +77,19 @@ export const MAX_LOGIN_ATTEMPTS = readLimit("MAX_LOGIN_ATTEMPTS", 5);
 export const LOGIN_LOCKOUT_MS = readLimit("LOGIN_LOCKOUT_MS", 15 * 60 * 1000);
 
 // ---------------------------------------------------------------------------
+// Token 404 rate limiting
+// ---------------------------------------------------------------------------
+
+/** Max distinct 404s on token URLs within the window before lockout (default: 5) */
+export const MAX_TOKEN_404S = readLimit("MAX_TOKEN_404S", 5);
+
+/** Sliding window for counting distinct 404s in ms (default: 60000 = 1 min) */
+export const TOKEN_WINDOW_MS = readLimit("TOKEN_WINDOW_MS", 60 * 1000);
+
+/** Lockout duration after max token 404s in ms (default: 300000 = 5 min) */
+export const TOKEN_LOCKOUT_MS = readLimit("TOKEN_LOCKOUT_MS", 5 * 60 * 1000);
+
+// ---------------------------------------------------------------------------
 // Database pruning
 // ---------------------------------------------------------------------------
 
@@ -100,6 +113,17 @@ export const PRUNE_LOGINS_RETENTION_DAYS = readLimit(
   90,
 );
 
+/**
+ * Retention (days) past last attempt for token_attempts rows (default: 7).
+ * Kept short because the row is pure rate-limit bookkeeping — once the lockout
+ * window has passed, retaining hashed-IP / hashed-token fingerprints serves
+ * no anti-abuse purpose.
+ */
+export const PRUNE_TOKENS_RETENTION_DAYS = readLimit(
+  "PRUNE_TOKENS_RETENTION_DAYS",
+  7,
+);
+
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
@@ -112,6 +136,7 @@ export const PRUNE_PAYMENTS_RETENTION_MS =
 export const PRUNE_SESSIONS_RETENTION_MS =
   PRUNE_SESSIONS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
+export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
 
 // ---------------------------------------------------------------------------
 // Metadata for debug page display
@@ -235,6 +260,27 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     unit: "ms",
   },
   {
+    current: MAX_TOKEN_404S,
+    defaultValue: 5,
+    envKey: "MAX_TOKEN_404S",
+    label: "Max token 404s before lockout",
+    unit: "attempts",
+  },
+  {
+    current: TOKEN_WINDOW_MS,
+    defaultValue: 60 * 1000,
+    envKey: "TOKEN_WINDOW_MS",
+    label: "Token 404 window",
+    unit: "ms",
+  },
+  {
+    current: TOKEN_LOCKOUT_MS,
+    defaultValue: 5 * 60 * 1000,
+    envKey: "TOKEN_LOCKOUT_MS",
+    label: "Token lockout duration",
+    unit: "ms",
+  },
+  {
     current: PRUNE_PAYMENTS_RETENTION_DAYS,
     defaultValue: 90,
     envKey: "PRUNE_PAYMENTS_RETENTION_DAYS",
@@ -253,6 +299,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 90,
     envKey: "PRUNE_LOGINS_RETENTION_DAYS",
     label: "Prune: login-attempts retention",
+    unit: "days",
+  },
+  {
+    current: PRUNE_TOKENS_RETENTION_DAYS,
+    defaultValue: 7,
+    envKey: "PRUNE_TOKENS_RETENTION_DAYS",
+    label: "Prune: token-attempts retention",
     unit: "days",
   },
   {

@@ -2,65 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
 import { getAllGroups, getEventsByGroupId } from "#lib/db/groups.ts";
-import { handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
   createTestEvent,
   createTestGroup,
   describeWithEnv,
-  mockRequest,
 } from "#test-utils";
 
-describeWithEnv("Admin bulk actions", { db: true }, () => {
-  describe("GET /admin/groups/:id/bulk-actions", () => {
-    test("renders the bulk-actions landing page with a duplicate link", async () => {
-      const group = await createTestGroup({ name: "My Group" });
-      await createTestEvent({ groupId: group.id, name: "Event A" });
-      await createTestEvent({ groupId: group.id, name: "Event B" });
-
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions`,
-      );
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("Bulk Actions");
-      expect(html).toContain("Duplicate Group");
-      expect(html).toContain(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
-      );
-      // Plural noun is used when the group has multiple events.
-      expect(html).toContain("all 2 events");
-    });
-
-    test("uses singular 'event' when the group has exactly one", async () => {
-      const group = await createTestGroup({ name: "Solo Group" });
-      await createTestEvent({ groupId: group.id, name: "Only Event" });
-
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions`,
-      );
-      const html = await response.text();
-
-      expect(html).toContain("all 1 event");
-      // Guard against the plural-suffix "events" slipping through
-      expect(html).not.toContain("1 events");
-    });
-
-    test("returns 404 for a non-existent group", async () => {
-      const { response } = await adminGet("/admin/groups/999999/bulk-actions");
-      expect(response.status).toBe(404);
-    });
-
-    test("redirects to login when unauthenticated", async () => {
-      const response = await handleRequest(
-        mockRequest("/admin/groups/1/bulk-actions"),
-      );
-      expect(response.status).toBe(302);
-    });
-  });
-
+describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/duplicate", () => {
     test("renders the duplicate form with event preview data", async () => {
       const group = await createTestGroup({ name: "Original" });

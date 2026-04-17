@@ -1847,8 +1847,8 @@ export const adminGuidePage = (
           <p>
             The page also lists every tunable system limit (file-size caps,
             session and URL expiry windows, login lockout, database pruning
-            retention) alongside its default and current value. Any limit can
-            be overridden by setting the matching environment variable to a
+            retention) alongside its default and current value. Any limit can be
+            overridden by setting the matching environment variable to a
             positive integer; overridden values are highlighted. A
             &quot;Database pruning&quot; table at the bottom shows when each
             short-lived table was last cleaned up.
@@ -2262,6 +2262,18 @@ export const adminGuidePage = (
             commit. Click <strong>Check for Updates</strong> to query GitHub for
             the latest release. If a newer version is available, you'll see its
             name and version number.
+          </p>
+        </Q>
+
+        <Q q="What does the version number mean?">
+          <p>
+            Versions use the format <code>vYYYY-MM-DD-HHMMSS</code> &mdash; the
+            UTC date and time the release was built, to the second. Larger
+            timestamps are newer, and your installation compares its own build
+            time against the latest release tag to decide whether an update is
+            available. Because the tag is generated at build time and pushed as
+            the git tag, the version on the update page always matches the
+            release on GitHub.
           </p>
         </Q>
 
