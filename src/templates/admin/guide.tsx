@@ -2265,6 +2265,18 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="What does the version number mean?">
+          <p>
+            Versions use the format <code>vYYYY-MM-DD-HHMMSS</code> &mdash; the
+            UTC date and time the release was built, to the second. Larger
+            timestamps are newer, and your installation compares its own build
+            time against the latest release tag to decide whether an update is
+            available. Because the tag is generated at build time and pushed as
+            the git tag, the version on the update page always matches the
+            release on GitHub.
+          </p>
+        </Q>
+
         <Q q="How do I install an update?">
           <p>
             If an update is available and your server has{" "}
