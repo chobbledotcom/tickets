@@ -924,6 +924,13 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       eventId: eventIdForLog,
     });
     logDebug("Webhook", `Failed payload: ${payload}`);
+
+    // If another request holds the reservation (no refund attempted,
+    // just a transient lock), return 409 so the provider retries the webhook.
+    // Handled outcomes (refund issued) keep the 200 ack — retrying wouldn't help.
+    if (result.status === 409 && result.refunded === undefined) {
+      return plainResponse(result.error, 409);
+    }
   }
 
   return webhookAckResponse({

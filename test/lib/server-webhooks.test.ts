@@ -513,7 +513,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook returns error when session is being processed concurrently", async () => {
+    test("webhook returns 409 when session is being processed concurrently", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -546,17 +546,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBe(false);
-            expect(json.error).toContain("being processed");
-          },
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
+        expect(response.status).toBe(409);
       } finally {
         mockVerify.restore();
       }
