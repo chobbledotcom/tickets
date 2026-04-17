@@ -77,6 +77,12 @@ html[data-theme="dark"] {
   box-shadow: 0 0 12px rgba(189, 147, 249, 0.3),
               0 0 24px rgba(189, 147, 249, 0.15);
 }
+[data-theme="dark"] .inline,
+[data-theme="dark"] .inline button,
+[data-theme="dark"] .one-button {
+  box-shadow: none;
+  border: none;
+}
 [data-theme="dark"] input[type="text"],
 [data-theme="dark"] input[type="password"],
 [data-theme="dark"] input[type="email"],
@@ -1010,7 +1016,7 @@ button.bulk-checkout:hover {
   padding: 0;
   border: none;
   margin: 0;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 button.link-button {
