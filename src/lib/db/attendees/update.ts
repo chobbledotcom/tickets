@@ -24,8 +24,7 @@ const updateEventAttendeeField =
   async (attendeeId: number, eventId: number, value: number): Promise<void> => {
     await getDb().execute({
       args: [value, attendeeId, eventId],
-      sql:
-        `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
+      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
     });
   };
 
@@ -61,8 +60,7 @@ export const incrementAttachmentDownloads = async (
 ): Promise<void> => {
   await getDb().execute({
     args: [attendeeId, eventId],
-    sql:
-      "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
+    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
   });
 };
 

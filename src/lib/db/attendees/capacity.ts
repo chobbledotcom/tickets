@@ -90,8 +90,7 @@ export const buildCapacityCheckedInsert = (
 
   return {
     args,
-    sql:
-      `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
+    sql: `INSERT INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, price_paid)
           SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?
           WHERE ${condition.sql}`,
   };

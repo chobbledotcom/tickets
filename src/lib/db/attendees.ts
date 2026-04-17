@@ -34,32 +34,6 @@ export type {
   UpdateEventLinkInput,
   UpdateEventLinkResult,
 } from "#lib/db/attendee-types.ts";
-
-export {
-  buildPiiBlob,
-  contactFields,
-  decryptAttendeeFields,
-  decryptAttendeeOrNull,
-  decryptAttendees,
-  decryptPiiBlob,
-  encryptAttendeeFields,
-  encryptPiiBlob,
-  parsePiiBlob,
-  PII_BLOB_VERSION,
-} from "#lib/db/attendees/pii.ts";
-
-export {
-  ATTENDEE_JOIN_SELECT,
-  ATTENDEE_LEFT_JOIN_SELECT,
-  getAttendee,
-  getAttendeeRaw,
-  getAttendeesByTokens,
-  getAttendeesRaw,
-  getNewestAttendeesRaw,
-} from "#lib/db/attendees/queries.ts";
-
-export { getActiveEventStats } from "#lib/db/attendees/stats.ts";
-
 export {
   buildCapacityCheckedInsert,
   CAPACITY_EXCEEDED,
@@ -69,13 +43,33 @@ export {
   getGroupAttendeeCount,
   getGroupMaxAttendees,
 } from "#lib/db/attendees/capacity.ts";
-
 export { buildAttendeeInsert } from "#lib/db/attendees/create.ts";
-
 export {
   deleteAttendee,
   unlinkAttendeeFromEvent,
 } from "#lib/db/attendees/delete.ts";
+export {
+  buildPiiBlob,
+  contactFields,
+  decryptAttendeeFields,
+  decryptAttendeeOrNull,
+  decryptAttendees,
+  decryptPiiBlob,
+  encryptAttendeeFields,
+  encryptPiiBlob,
+  PII_BLOB_VERSION,
+  parsePiiBlob,
+} from "#lib/db/attendees/pii.ts";
+export {
+  ATTENDEE_JOIN_SELECT,
+  ATTENDEE_LEFT_JOIN_SELECT,
+  getAttendee,
+  getAttendeeRaw,
+  getAttendeesByTokens,
+  getAttendeesRaw,
+  getNewestAttendeesRaw,
+} from "#lib/db/attendees/queries.ts";
+export { getActiveEventStats } from "#lib/db/attendees/stats.ts";
 
 export {
   addEventLink,

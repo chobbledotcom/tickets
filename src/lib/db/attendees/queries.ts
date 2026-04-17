@@ -29,8 +29,7 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing event_attendees linkage still appear in results
  * (with event_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT =
-  `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, COALESCE(ea.refunded, 0) as refunded, COALESCE(ea.price_paid, 0) as price_paid, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, COALESCE(ea.refunded, 0) as refunded, COALESCE(ea.price_paid, 0) as price_paid, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
 
 /**
  * Get attendees for an event without decrypting PII
@@ -110,9 +109,9 @@ export const getAttendeesByTokens = async (
   };
   const attendeeRows = await queryAll<AttendeeBase>(
     `SELECT id, created, ticket_token_index, pii_blob
-     FROM attendees WHERE ticket_token_index IN (${
-      inPlaceholders(tokenIndexes)
-    })`,
+     FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
+       tokenIndexes,
+     )})`,
     tokenIndexes,
   );
 

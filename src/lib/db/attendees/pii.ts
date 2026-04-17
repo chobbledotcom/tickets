@@ -25,18 +25,16 @@ export const PII_BLOB_VERSION = 1;
 export const buildPiiBlob = (
   info: ContactInfo & { payment_id: string; ticket_token: string },
 ): string =>
-  JSON.stringify(
-    {
-      a: info.address,
-      e: info.email,
-      n: info.name,
-      p: info.phone,
-      pi: info.payment_id,
-      s: info.special_instructions,
-      t: info.ticket_token,
-      v: PII_BLOB_VERSION,
-    } satisfies PiiBlob,
-  );
+  JSON.stringify({
+    a: info.address,
+    e: info.email,
+    n: info.name,
+    p: info.phone,
+    pi: info.payment_id,
+    s: info.special_instructions,
+    t: info.ticket_token,
+    v: PII_BLOB_VERSION,
+  } satisfies PiiBlob);
 
 /** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
 export const parsePiiBlob = (json: string): PiiBlob => {
