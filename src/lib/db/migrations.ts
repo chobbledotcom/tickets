@@ -632,7 +632,10 @@ export const initDb = async (): Promise<void> => {
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
-  // Also copies per-event status columns to event_attendees
+  // Also copies per-event status columns to event_attendees.
+  // NOTE: On DBs where event_id was already dropped (intermediate state),
+  // this SELECT fails with "no such column" — runMigration swallows that
+  // error, making the backfill a safe no-op before dropDeprecatedAttendeeColumns.
   logDebug("Migration", "Step 3: backfilling event_attendees...");
   await runMigration(
     `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
