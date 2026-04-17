@@ -73,15 +73,15 @@ export const pruneLoginAttempts = async (): Promise<number> => {
 };
 
 /**
- * Delete token_attempts rows whose lockout expired more than the retention
- * window ago. Rows with NULL `locked_until` have no timestamp and are left
- * alone (they will be overwritten on the next attempt from that IP).
+ * Delete token_attempts rows untouched for longer than the retention window.
+ * `last_attempt` is set on every failure record, so this covers both
+ * expired-lockout rows and stale counter-only rows.
  */
 export const pruneTokenAttempts = async (): Promise<number> => {
   const cutoffMs = nowMs() - PRUNE_TOKENS_RETENTION_MS;
   const result = await getDb().execute({
     args: [cutoffMs],
-    sql: "DELETE FROM token_attempts WHERE locked_until IS NOT NULL AND locked_until < ?",
+    sql: "DELETE FROM token_attempts WHERE last_attempt < ?",
   });
   return result.rowsAffected;
 };

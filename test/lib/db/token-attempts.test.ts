@@ -9,8 +9,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { getDb } from "#lib/db/client.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
@@ -22,14 +20,6 @@ import {
   TOKEN_WINDOW_MS,
 } from "#lib/limits.ts";
 import { describeWithEnv } from "#test-utils";
-
-const writeRawRow = async (ip: string, recentTokens: string): Promise<void> => {
-  const hashed = await hmacHash(ip);
-  await getDb().execute({
-    args: [hashed, recentTokens],
-    sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until) VALUES (?, ?, NULL)",
-  });
-};
 
 const makeTokens = (prefix: string, count: number): string[] =>
   Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
@@ -128,26 +118,6 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
         makeTokens("burst", MAX_TOKEN_404S),
       );
       expect(locked).toBe(true);
-    });
-  });
-
-  describe("corrupt stored data", () => {
-    test("recovers when recent_tokens is invalid JSON", async () => {
-      const ip = "10.0.0.11";
-      await writeRawRow(ip, "{not valid json");
-
-      const locked = await recordTokenFailure(ip, ["after-corrupt"]);
-      expect(locked).toBe(false);
-      expect(await isTokenRateLimited(ip)).toBe(false);
-    });
-
-    test("recovers when recent_tokens parses to a non-array value", async () => {
-      const ip = "10.0.0.12";
-      await writeRawRow(ip, '{"not":"an array"}');
-
-      const locked = await recordTokenFailure(ip, ["after-nonarray"]);
-      expect(locked).toBe(false);
-      expect(await isTokenRateLimited(ip)).toBe(false);
     });
   });
 

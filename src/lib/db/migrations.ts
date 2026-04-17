@@ -33,7 +33,8 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add token_attempts table for 404 rate limiting";
+export const LATEST_UPDATE =
+  "index locked_until on login_attempts; add last_attempt to token_attempts";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -140,6 +141,12 @@ const SCHEMA: [name: string, table: Table][] = [
         ["attempts", "INTEGER NOT NULL DEFAULT 0"],
         ["locked_until", "INTEGER"],
       ],
+      indexes: [
+        {
+          columns: ["locked_until"],
+          name: "idx_login_attempts_locked_until",
+        },
+      ],
     },
   ],
 
@@ -150,6 +157,13 @@ const SCHEMA: [name: string, table: Table][] = [
         ["ip", "TEXT PRIMARY KEY"],
         ["recent_tokens", "TEXT NOT NULL DEFAULT '[]'"],
         ["locked_until", "INTEGER"],
+        ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["last_attempt"],
+          name: "idx_token_attempts_last_attempt",
+        },
       ],
     },
   ],

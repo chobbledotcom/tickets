@@ -77,15 +77,16 @@ const insertLoginAttempt = async (
   return ipHash;
 };
 
-/** Insert a token_attempts row with the given lockout (or NULL). */
+/** Insert a token_attempts row with the given lockout and last_attempt timestamp. */
 const insertTokenAttempt = async (
   ipPlain: string,
   lockedUntil: number | null,
+  lastAttempt: number,
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
   await getDb().execute({
-    args: [ipHash, "[]", lockedUntil],
-    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until) VALUES (?, ?, ?)",
+    args: [ipHash, "[]", lockedUntil, lastAttempt],
+    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until, last_attempt) VALUES (?, ?, ?, ?)",
   });
   return ipHash;
 };
@@ -246,31 +247,34 @@ describeWithEnv("db > prune", { db: true }, () => {
   });
 
   describe("pruneTokenAttempts", () => {
-    test("deletes rows with lockouts past retention window", async () => {
-      const ipHash = await insertTokenAttempt(
-        "13.14.15.16",
-        nowMs() - PRUNE_TOKENS_RETENTION_MS - 60_000,
-      );
+    test("deletes rows untouched past the retention window", async () => {
+      const stale = nowMs() - PRUNE_TOKENS_RETENTION_MS - 60_000;
+      const ipHash = await insertTokenAttempt("13.14.15.16", null, stale);
 
       await pruneTokenAttempts();
 
       expect(await tokenAttemptExists(ipHash)).toBe(false);
     });
 
-    test("keeps counter-only rows (locked_until IS NULL)", async () => {
-      const ipHash = await insertTokenAttempt("17.18.19.20", null);
+    test("keeps rows with a recent last_attempt", async () => {
+      const ipHash = await insertTokenAttempt("17.18.19.20", null, nowMs());
 
       await pruneTokenAttempts();
 
       expect(await tokenAttemptExists(ipHash)).toBe(true);
     });
 
-    test("keeps rows with currently-active lockouts", async () => {
-      const ipHash = await insertTokenAttempt("21.22.23.24", nowMs() + 60_000);
+    test("deletes stale rows even when a lockout is still active", async () => {
+      const stale = nowMs() - PRUNE_TOKENS_RETENTION_MS - 60_000;
+      const ipHash = await insertTokenAttempt(
+        "21.22.23.24",
+        nowMs() + 60_000,
+        stale,
+      );
 
       await pruneTokenAttempts();
 
-      expect(await tokenAttemptExists(ipHash)).toBe(true);
+      expect(await tokenAttemptExists(ipHash)).toBe(false);
     });
   });
 

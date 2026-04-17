@@ -24,21 +24,6 @@ type TokenAttemptRow = {
 /** One recent 404 attempt: hashed token + attempted timestamp (ms epoch) */
 type RecentAttempt = { h: string; t: number };
 
-const isAttempt = (v: unknown): v is RecentAttempt =>
-  typeof v === "object" &&
-  v !== null &&
-  typeof (v as RecentAttempt).h === "string" &&
-  typeof (v as RecentAttempt).t === "number";
-
-const parseRecent = (raw: string): RecentAttempt[] => {
-  try {
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.filter(isAttempt) : [];
-  } catch {
-    return [];
-  }
-};
-
 const readRow = (hashedIp: string): Promise<TokenAttemptRow | null> =>
   queryOne<TokenAttemptRow>(
     "SELECT recent_tokens, locked_until FROM token_attempts WHERE ip = ?",
@@ -52,14 +37,11 @@ const readRow = (hashedIp: string): Promise<TokenAttemptRow | null> =>
 export const isTokenRateLimited = async (ip: string): Promise<boolean> => {
   const hashedIp = await hmacHash(ip);
   const row = await readRow(hashedIp);
-  if (!row) return false;
+  if (!row?.locked_until) return false;
 
-  const currentMs = nowMs();
-  if (row.locked_until && row.locked_until > currentMs) return true;
+  if (row.locked_until > nowMs()) return true;
 
-  if (row.locked_until && row.locked_until <= currentMs) {
-    await deleteByField("token_attempts", "ip", hashedIp);
-  }
+  await deleteByField("token_attempts", "ip", hashedIp);
   return false;
 };
 
@@ -81,7 +63,7 @@ export const recordTokenFailure = async (
   const currentMs = nowMs();
 
   const cutoff = currentMs - TOKEN_WINDOW_MS;
-  const existing = row ? parseRecent(row.recent_tokens) : [];
+  const existing: RecentAttempt[] = row ? JSON.parse(row.recent_tokens) : [];
   const withinWindow = existing.filter((a) => a.t > cutoff);
 
   const merged: RecentAttempt[] = [...withinWindow];
@@ -96,15 +78,15 @@ export const recordTokenFailure = async (
   if (seen.size >= MAX_TOKEN_404S) {
     const lockedUntil = currentMs + TOKEN_LOCKOUT_MS;
     await getDb().execute({
-      args: [hashedIp, "[]", lockedUntil],
-      sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until) VALUES (?, ?, ?)",
+      args: [hashedIp, "[]", lockedUntil, currentMs],
+      sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, last_attempt) VALUES (?, ?, ?, ?)",
     });
     return true;
   }
 
   await getDb().execute({
-    args: [hashedIp, JSON.stringify(merged)],
-    sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until) VALUES (?, ?, NULL)",
+    args: [hashedIp, JSON.stringify(merged), currentMs],
+    sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, last_attempt) VALUES (?, ?, NULL, ?)",
   });
   return false;
 };

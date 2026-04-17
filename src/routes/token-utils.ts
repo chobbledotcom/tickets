@@ -16,6 +16,7 @@ import {
   isTokenRateLimited,
   recordTokenFailure,
 } from "#lib/db/token-attempts.ts";
+import { addPendingWork } from "#lib/pending-work.ts";
 import { buildCheckinUrl } from "#lib/ticket-url.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
@@ -223,7 +224,7 @@ export const withTokenRateLimit = async (
 
   const response = await run();
   if (response.status === 404 && tokens.length > 0) {
-    await recordTokenFailure(ip, tokens);
+    addPendingWork(recordTokenFailure(ip, tokens));
   }
   return response;
 };
