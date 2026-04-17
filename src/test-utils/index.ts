@@ -2431,6 +2431,7 @@ export const bookAttendee = async (
   if (opts.date !== undefined) booking.date = opts.date;
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
   if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
+  if (opts.durationDays !== undefined) booking.durationDays = opts.durationDays;
   return createAttendeeAtomic({
     bookings: [booking],
     email: opts.email ?? "x@example.com",
