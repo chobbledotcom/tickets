@@ -247,6 +247,7 @@ const validateEventForPayment = async (
         ? `${name} is no longer accepting registrations.`
         : "This event is no longer accepting registrations.",
       ok: false,
+      status: 410,
     };
   }
   if (isRegistrationClosed(event)) {
@@ -255,6 +256,7 @@ const validateEventForPayment = async (
         ? `Sorry, registration for ${name} closed while you were completing payment.`
         : "Sorry, registration closed while you were completing payment.",
       ok: false,
+      status: 410,
     };
   }
   return { event, ok: true };
@@ -401,7 +403,13 @@ const priceMismatchRefund = async (
   eventId: number,
 ): Promise<PaymentResult> => {
   const refunded = await refundAndLog(session, PRICE_CHANGED_MESSAGE, eventId);
-  return { detail, error: PRICE_CHANGED_MESSAGE, refunded, success: false };
+  return {
+    detail,
+    error: PRICE_CHANGED_MESSAGE,
+    refunded,
+    status: 409,
+    success: false,
+  };
 };
 
 type ValidatedItem = {
@@ -529,6 +537,7 @@ const createAttendeeForSession = async (
     return {
       error,
       refunded: await refundAndLog(session, error, validatedItems[0]!.event.id),
+      status: bookingCheck.reason === "encryption_error" ? 500 : 409,
       success: false,
     };
   }
@@ -774,7 +783,9 @@ const handlePaymentCancel = withSessionId(async (sid) => {
  * Handles events directly from payment providers with signature verification.
  */
 
-/** JSON response acknowledging a webhook event without processing */
+/** JSON response acknowledging a webhook event.
+ * Always returns 200 so payment providers don't retry — we've already
+ * handled the outcome (logged, refunded, etc.). Error details are in the body. */
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
   jsonResponse({ received: true, ...extra });
 
@@ -914,8 +925,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     });
     logDebug("Webhook", `Failed payload: ${payload}`);
 
-    // Return non-200 for conflicts so the payment provider retries the webhook
-    if (result.status === 409) {
+    // If another request holds the reservation (no refund attempted,
+    // just a transient lock), return 409 so the provider retries the webhook.
+    // Handled outcomes (refund issued) keep the 200 ack — retrying wouldn't help.
+    if (result.status === 409 && result.refunded === undefined) {
       return plainResponse(result.error, 409);
     }
   }
