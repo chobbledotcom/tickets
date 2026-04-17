@@ -34,7 +34,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "index locked_until on login_attempts; add last_attempt to token_attempts";
+  "add token rate-limit table with window_start/last_attempt";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -157,6 +157,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["ip", "TEXT PRIMARY KEY"],
         ["recent_tokens", "TEXT NOT NULL DEFAULT '[]'"],
         ["locked_until", "INTEGER"],
+        ["window_start", "INTEGER NOT NULL DEFAULT 0"],
         ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [

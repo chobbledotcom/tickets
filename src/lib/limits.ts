@@ -113,10 +113,15 @@ export const PRUNE_LOGINS_RETENTION_DAYS = readLimit(
   90,
 );
 
-/** Retention (days) past lockout for token_attempts rows (default: 90) */
+/**
+ * Retention (days) past last attempt for token_attempts rows (default: 7).
+ * Kept short because the row is pure rate-limit bookkeeping — once the lockout
+ * window has passed, retaining hashed-IP / hashed-token fingerprints serves
+ * no anti-abuse purpose.
+ */
 export const PRUNE_TOKENS_RETENTION_DAYS = readLimit(
   "PRUNE_TOKENS_RETENTION_DAYS",
-  90,
+  7,
 );
 
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
@@ -298,7 +303,7 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
   },
   {
     current: PRUNE_TOKENS_RETENTION_DAYS,
-    defaultValue: 90,
+    defaultValue: 7,
     envKey: "PRUNE_TOKENS_RETENTION_DAYS",
     label: "Prune: token-attempts retention",
     unit: "days",

@@ -13,6 +13,7 @@ import {
 import { getEventWithCount } from "#lib/db/events.ts";
 import { settings } from "#lib/db/settings.ts";
 import {
+  clearTokenAttempts,
   isTokenRateLimited,
   recordTokenFailure,
 } from "#lib/db/token-attempts.ts";
@@ -210,8 +211,9 @@ export const lookupAttendees = async (
 
 /**
  * Run a token handler under rate-limit protection: returns 429 if the IP is
- * currently locked out, otherwise runs the handler and records a failure if
- * the handler produced a 404 (so successful lookups never contribute).
+ * currently locked out, otherwise runs the handler, recording a failure on
+ * 404 or clearing prior failure state on 2xx (successful token lookups don't
+ * contribute to the limit and also wipe the IP's fat-finger history).
  */
 export const withTokenRateLimit = async (
   request: Request,
@@ -225,6 +227,8 @@ export const withTokenRateLimit = async (
   const response = await run();
   if (response.status === 404 && tokens.length > 0) {
     addPendingWork(recordTokenFailure(ip, tokens));
+  } else if (response.ok) {
+    addPendingWork(clearTokenAttempts(ip));
   }
   return response;
 };

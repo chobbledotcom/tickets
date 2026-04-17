@@ -405,4 +405,24 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     const locked = await awaitTestRequest("/t/some-token/svg");
     expect(locked.status).toBe(429);
   });
+
+  test("successful lookup clears prior fat-finger failures", async () => {
+    await clearTokenAttempts("direct");
+    const { token } = await createTestAttendeeWithToken("Ivy", "ivy@test.com");
+
+    for (let i = 0; i < MAX_TOKEN_404S - 1; i++) {
+      const bad = await awaitTestRequest(`/t/fatfinger-${i}`);
+      expect(bad.status).toBe(404);
+    }
+
+    const good = await awaitTestRequest(`/t/${token}`);
+    expect(good.status).toBe(200);
+
+    for (let i = 0; i < MAX_TOKEN_404S - 1; i++) {
+      const res = await awaitTestRequest(`/t/after-reset-${i}`);
+      expect(res.status).toBe(404);
+    }
+    const notLocked = await awaitTestRequest("/t/probe");
+    expect(notLocked.status).toBe(404);
+  });
 });

@@ -85,8 +85,8 @@ const insertTokenAttempt = async (
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
   await getDb().execute({
-    args: [ipHash, "[]", lockedUntil, lastAttempt],
-    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until, last_attempt) VALUES (?, ?, ?, ?)",
+    args: [ipHash, "[]", lockedUntil, lastAttempt, lastAttempt],
+    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
   });
   return ipHash;
 };

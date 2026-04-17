@@ -22,7 +22,6 @@ import { getFlash } from "#lib/flash-context.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, setSavedFormData } from "#lib/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
-import { TOKEN_LOCKOUT_MS } from "#lib/limits.ts";
 import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
 import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
@@ -259,16 +258,11 @@ export const notFoundResponse = (): Response =>
 
 /**
  * Create 429 rate limited response for token URLs.
- * Retry-After gives an upper bound — the actual lockout for this IP may be shorter.
+ * No Retry-After: exposing the lockout duration would give brute-force
+ * clients a ready-made backoff schedule.
  */
 export const rateLimitedResponse = (): Response =>
-  new Response(encodeBody(rateLimitedPage()), {
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "retry-after": String(Math.ceil(TOKEN_LOCKOUT_MS / 1000)),
-    },
-    status: 429,
-  });
+  htmlResponse(rateLimitedPage(), 429);
 
 /**
  * Create payment error response
