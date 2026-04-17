@@ -15,7 +15,7 @@ import {
   type PreviewableEvent,
 } from "#lib/bulk-replace.ts";
 import { settings } from "#lib/db/settings.ts";
-import { CsrfForm, Flash } from "#lib/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -39,8 +39,10 @@ export const adminBulkActionsPage = (
   group: Group,
   events: EventWithCount[],
   session: AdminSession,
-): string =>
-  String(
+): string => {
+  const hasActive = events.some((e) => e.active);
+  const allDeactivated = events.length > 0 && !hasActive;
+  return String(
     <Layout title={`Bulk Actions: ${group.name}`}>
       <AdminNav session={session} active="/admin/groups" />
       <p>
@@ -61,9 +63,26 @@ export const adminBulkActionsPage = (
           replacing a substring in event names and shifting event dates by a
           fixed number of days.
         </li>
+        {hasActive && (
+          <li>
+            <a href={`/admin/groups/${group.id}/bulk-actions/deactivate`}>
+              Deactivate Group
+            </a>
+            {" — "}Deactivate every active event in this group.
+          </li>
+        )}
+        {allDeactivated && (
+          <li>
+            <a href={`/admin/groups/${group.id}/bulk-actions/reactivate`}>
+              Reactivate Group
+            </a>
+            {" — "}Reactivate every event in this group.
+          </li>
+        )}
       </ul>
     </Layout>,
   );
+};
 
 /** Preview row component: one table row per source event. */
 const PreviewRow = ({
@@ -167,8 +186,8 @@ export const adminDuplicateGroupPage = (
         <p>
           <small>
             Enter a reference date that appears in the current events and the
-            date you want it to become. All event dates (and closing times)
-            will be shifted by the same number of days.
+            date you want it to become. All event dates (and closing times) will
+            be shifted by the same number of days.
           </small>
         </p>
         <label>
@@ -221,6 +240,92 @@ export const adminDuplicateGroupPage = (
 
         <button type="submit">Duplicate Group</button>
       </CsrfForm>
+    </Layout>,
+  );
+};
+
+/** Admin deactivate-group confirmation page */
+export const adminDeactivateGroupPage = (
+  group: Group,
+  events: EventWithCount[],
+  session: AdminSession,
+  error?: string,
+): string => {
+  const activeCount = events.filter((e) => e.active).length;
+  return String(
+    <Layout title={`Deactivate Group: ${group.name}`}>
+      <AdminNav session={session} active="/admin/groups" />
+      <p>
+        <a href={`/admin/groups/${group.id}/bulk-actions`}>
+          &larr; Bulk Actions
+        </a>
+      </p>
+      <Flash error={error} />
+
+      <ConfirmForm
+        action={`/admin/groups/${group.id}/bulk-actions/deactivate`}
+        name={group.name}
+        label="Group name"
+        buttonText="Deactivate Group"
+      >
+        <p>
+          <strong>Warning:</strong> Deactivating this group will deactivate{" "}
+          {activeCount} active event{activeCount === 1 ? "" : "s"} in{" "}
+          <strong>{group.name}</strong>. For each deactivated event:
+        </p>
+        <ul>
+          <li>The public ticket page will return a 404 error</li>
+          <li>New registrations will be prevented</li>
+          <li>Any pending payments will be rejected</li>
+        </ul>
+        <p>Existing attendees will not be affected.</p>
+        <p>
+          To deactivate this group, type its name "{group.name}" into the box
+          below:
+        </p>
+      </ConfirmForm>
+    </Layout>,
+  );
+};
+
+/** Admin reactivate-group confirmation page */
+export const adminReactivateGroupPage = (
+  group: Group,
+  events: EventWithCount[],
+  session: AdminSession,
+  error?: string,
+): string => {
+  const inactiveCount = events.filter((e) => !e.active).length;
+  return String(
+    <Layout title={`Reactivate Group: ${group.name}`}>
+      <AdminNav session={session} active="/admin/groups" />
+      <p>
+        <a href={`/admin/groups/${group.id}/bulk-actions`}>
+          &larr; Bulk Actions
+        </a>
+      </p>
+      <Flash error={error} />
+
+      <ConfirmForm
+        action={`/admin/groups/${group.id}/bulk-actions/reactivate`}
+        name={group.name}
+        label="Group name"
+        buttonText="Reactivate Group"
+        danger={false}
+      >
+        <p>
+          Reactivating this group will reactivate {inactiveCount} event
+          {inactiveCount === 1 ? "" : "s"} in <strong>{group.name}</strong>.
+        </p>
+        <p>
+          Their public ticket pages will be accessible and new attendees can
+          register again.
+        </p>
+        <p>
+          To reactivate this group, type its name "{group.name}" into the box
+          below:
+        </p>
+      </ConfirmForm>
     </Layout>,
   );
 };

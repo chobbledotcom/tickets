@@ -1847,8 +1847,8 @@ export const adminGuidePage = (
           <p>
             The page also lists every tunable system limit (file-size caps,
             session and URL expiry windows, login lockout, database pruning
-            retention) alongside its default and current value. Any limit can
-            be overridden by setting the matching environment variable to a
+            retention) alongside its default and current value. Any limit can be
+            overridden by setting the matching environment variable to a
             positive integer; overridden values are highlighted. A
             &quot;Database pruning&quot; table at the bottom shows when each
             short-lived table was last cleaned up.

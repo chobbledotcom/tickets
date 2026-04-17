@@ -15,8 +15,13 @@ import {
 } from "#lib/bulk-replace.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { eventsTable } from "#lib/db/events.ts";
-import { getEventsByGroupId, groupsTable } from "#lib/db/groups.ts";
+import {
+  getEventsByGroupId,
+  groupsTable,
+  setGroupEventsActive,
+} from "#lib/db/groups.ts";
 import { buildDuplicateEventInput } from "#lib/events-actions.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
 import {
@@ -24,6 +29,7 @@ import {
   groupFormPost,
   withGroup,
 } from "#routes/admin/groups.ts";
+import { verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   errorRedirect,
@@ -33,7 +39,9 @@ import {
 } from "#routes/utils.ts";
 import {
   adminBulkActionsPage,
+  adminDeactivateGroupPage,
   adminDuplicateGroupPage,
+  adminReactivateGroupPage,
 } from "#templates/admin/bulk-actions.tsx";
 
 /** Render a bulk-actions sub-page for an authenticated group detail view. */
@@ -43,13 +51,15 @@ const groupEventsPage =
       group: Group,
       events: EventWithCount[],
       session: AdminSession,
+      error?: string,
     ) => string,
   ): TypedRouteHandler<"GET /admin/groups/:id/bulk-actions"> =>
   (request, { id }) =>
     requireSessionOr(request, (session) =>
       withGroup(id, async (group) => {
         const events = sortEvents(await getEventsByGroupId(group.id), []);
-        return htmlResponse(render(group, events, session));
+        const flash = getFlash();
+        return htmlResponse(render(group, events, session, flash.error));
       }),
     );
 
@@ -58,6 +68,48 @@ const handleBulkActionsGet = groupEventsPage(adminBulkActionsPage);
 
 /** GET /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupGet = groupEventsPage(adminDuplicateGroupPage);
+
+/** GET /admin/groups/:id/bulk-actions/deactivate */
+const handleDeactivateGroupGet = groupEventsPage(adminDeactivateGroupPage);
+
+/** GET /admin/groups/:id/bulk-actions/reactivate */
+const handleReactivateGroupGet = groupEventsPage(adminReactivateGroupPage);
+
+/** Factory for group-level bulk toggle handlers (deactivate/reactivate). */
+const groupTogglePost = (opts: { active: boolean; action: string }) =>
+  groupFormPost(async (group, form) => {
+    const formUrl = `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
+    const error = verifyOrRedirect(
+      form,
+      group.name,
+      formUrl,
+      "Group name",
+      `${opts.action}ion`,
+    );
+    if (error) return error;
+
+    const affected = await setGroupEventsActive(group.id, opts.active);
+    await logActivity(
+      `Group '${group.name}' ${opts.action}d (${affected} event(s))`,
+    );
+    return redirect(
+      `/admin/groups/${group.id}`,
+      `Group ${opts.action}d (${affected} event(s))`,
+      true,
+    );
+  });
+
+/** POST /admin/groups/:id/bulk-actions/deactivate */
+const handleDeactivateGroupPost = groupTogglePost({
+  action: "deactivate",
+  active: false,
+});
+
+/** POST /admin/groups/:id/bulk-actions/reactivate */
+const handleReactivateGroupPost = groupTogglePost({
+  action: "reactivate",
+  active: true,
+});
 
 /** POST /admin/groups/:id/bulk-actions/duplicate */
 const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
@@ -109,6 +161,10 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 /** Bulk actions routes */
 export const bulkActionsRoutes = defineRoutes({
   "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
+  "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,
   "GET /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupGet,
+  "GET /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupGet,
+  "POST /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupPost,
   "POST /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupPost,
+  "POST /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupPost,
 });

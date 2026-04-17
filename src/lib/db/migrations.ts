@@ -491,9 +491,7 @@ const recreateTable = async (tableName: string): Promise<void> => {
 
 /** Get the set of columns declared by SCHEMA for a given table */
 const getSchemaColumns = (tableName: string): Set<string> =>
-  new Set(
-    SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c),
-  );
+  new Set(SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c));
 
 /**
  * Drop any legacy columns from attendees that aren't in the current schema
