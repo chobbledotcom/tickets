@@ -77,12 +77,6 @@ html[data-theme="dark"] {
   box-shadow: 0 0 12px rgba(189, 147, 249, 0.3),
               0 0 24px rgba(189, 147, 249, 0.15);
 }
-[data-theme="dark"] .inline,
-[data-theme="dark"] .inline button,
-[data-theme="dark"] .one-button {
-  box-shadow: none;
-  border: none;
-}
 [data-theme="dark"] input[type="text"],
 [data-theme="dark"] input[type="password"],
 [data-theme="dark"] input[type="email"],
@@ -540,8 +534,8 @@ form {
 }
 
 form.one-button {
-  border: none;
-  box-shadow: none;
+  border: none !important;
+  box-shadow: none !important;
   padding-left: 0;
   padding-right: 0;
 }
@@ -1004,9 +998,9 @@ button.bulk-checkout:hover {
 
 .inline {
   display: inline;
-  box-shadow: none;
+  box-shadow: none !important;
   padding: 0;
-  border: none;
+  border: none !important;
 }
 
 .inline button {
@@ -1014,9 +1008,9 @@ button.bulk-checkout:hover {
   color: var(--color-link);
   text-decoration: underline;
   padding: 0;
-  border: none;
+  border: none !important;
   margin: 0;
-  box-shadow: none;
+  box-shadow: none !important;
 }
 
 button.link-button {
