@@ -514,6 +514,55 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("webhook returns 409 when session is being processed concurrently", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Pre-reserve the session to simulate concurrent processing
+      const { reserveSession: reserveSessionFn } = await import(
+        "#lib/db/processed-payments.ts"
+      );
+      await reserveSessionFn("cs_webhook_concurrent");
+
+      const mockVerify = await stubWebhookVerify({
+        data: {
+          object: {
+            amount_total: 1000,
+            id: "cs_webhook_concurrent",
+            metadata: webhookMeta({
+              email: "concurrent@example.com",
+              items: singleItem(event.id, 1, 1000),
+              name: "Concurrent Webhook",
+            }),
+            payment_intent: "pi_webhook_concurrent",
+            payment_status: "paid",
+          },
+        },
+        id: "evt_concurrent",
+        type: "checkout.session.completed",
+      });
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          409,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBe(false);
+            expect(json.error).toContain("being processed");
+          },
+        );
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("webhook rejects POST with wrong content-type", async () => {
       const response = await handleRequest(
         new Request("http://localhost/payment/webhook", {
