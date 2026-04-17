@@ -14,8 +14,10 @@ import { getAvailableDates } from "#lib/dates.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
+  createAttendeeAtomic,
   getAttendeesRaw,
   hasAvailableSpots,
+  unlinkAttendeeFromEvent,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
@@ -825,6 +827,259 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         (a) => a.id === result.attendees[0]!.id,
       );
       expect(Boolean(checkedIn?.checked_in)).toBe(true);
+    });
+  });
+
+  describe("edge cases: realistic unusual scenarios", () => {
+    test("1: qty > 1 over multi-day correctly aggregates per-day demand", async () => {
+      // Two bookings of qty=2 on a 3-day event (cap 5). Each day sees 2+2=4 ≤ 5.
+      const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 5 });
+      await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
+      // Second booking of qty=2 should succeed (4 ≤ 5 per day).
+      const b = await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
+      expect(b.success).toBe(true);
+      // Third booking of qty=2 should fail (6 > 5 on every day).
+      const c = await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
+      expect(c.success).toBe(false);
+    });
+
+    test("2: bookable_days change does not corrupt existing bookings", async () => {
+      // Book a 3-day range Mon-Tue-Wed, then admin removes Tuesday from bookable_days.
+      // Existing booking stays in the DB. New bookings covering Tuesday are blocked.
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+      });
+      // Book starting 2026-06-08 (Mon) → covers Mon, Tue, Wed.
+      await bookAttendee(event, { date: "2026-06-08", durationDays: 3 });
+
+      // Admin removes Tuesday from bookable days.
+      await updateTestEvent(event.id, {
+        bookableDays: ["Monday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      });
+
+      // The old booking still occupies those days in the DB.
+      const range = await rawEventRange(event.id);
+      expect(range).not.toBeNull();
+
+      // New bookings starting on Monday should be blocked because the range
+      // would include Tuesday (now non-bookable).
+      const fresh = (await getEventWithCount(event.id))!;
+      const holidays = await getActiveHolidays();
+      const dates = getAvailableDates(fresh, holidays);
+      // A start date that would require Tuesday should not appear.
+      // 2026-06-08 is Monday → 3-day range hits Tuesday → excluded.
+      expect(dates).not.toContain("2026-06-08");
+    });
+
+    test("3: duration increase extends booking past maximum_days_after (allowed, existing booking)", async () => {
+      // An existing booking was valid when created. Admin extends duration.
+      // The stored end_at now extends past the booking window — the system
+      // allows this for existing bookings (they were booked in good faith).
+      const event = await createDailyTestEvent({
+        durationDays: 1,
+        maxAttendees: 5,
+        maximumDaysAfter: 10,
+      });
+      // Book on day 9 (within the 10-day window).
+      await bookAttendee(event, { date: "2026-06-09" });
+      // Extend to 5 days → end_at is now day 14, past the window.
+      await updateTestEvent(event.id, { durationDays: 5 });
+      const range = await rawEventRange(event.id);
+      expect(range!.end_at).toBe("2026-06-14T00:00:00.000Z");
+      // But no new bookings should be offered on day 9 since the range
+      // would extend to day 14, past the window.
+      const fresh = (await getEventWithCount(event.id))!;
+      const dates = getAvailableDates(fresh, await getActiveHolidays());
+      expect(dates).not.toContain("2026-06-09");
+    });
+
+    test("4: concurrent at-capacity multi-day bookings — only one wins", async () => {
+      const event = await createDailyTestEvent({ durationDays: 2, maxAttendees: 1 });
+      const [a, b] = await Promise.all([
+        bookAttendee(event, { date: "2026-06-12", durationDays: 2, email: "a@test.com" }),
+        bookAttendee(event, { date: "2026-06-12", durationDays: 2, email: "b@test.com" }),
+      ]);
+      const winners = [a.success, b.success].filter(Boolean);
+      expect(winners.length).toBe(1);
+    });
+
+    test("5: unlink multi-day booking and re-add on same event/date", async () => {
+      const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 5 });
+      const event2 = await createDailyTestEvent({ maxAttendees: 5 });
+
+      // Book attendee on two events (so unlinking one doesn't delete attendee).
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { date: "2026-07-01", durationDays: 3, eventId: event.id, quantity: 1 },
+          { date: "2026-07-01", eventId: event2.id, quantity: 1 },
+        ],
+        email: "relink@test.com",
+        name: "Relink",
+      });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.attendees[0]!.id;
+
+      // Unlink from the multi-day event.
+      const { addEventLink } = await import("#lib/db/attendees.ts");
+      await unlinkAttendeeFromEvent(attendeeId, event.id);
+      expect((await getAttendeesRaw(event.id)).length).toBe(0);
+
+      // Re-add same event/date — should succeed (old row is deleted).
+      const relink = await addEventLink(attendeeId, {
+        date: "2026-07-01",
+        durationDays: 3,
+        eventId: event.id,
+        quantity: 1,
+      });
+      expect(relink.success).toBe(true);
+      const range = await rawEventRange(event.id);
+      expect(range!.end_at).toBe("2026-07-04T00:00:00.000Z");
+    });
+
+    test("6: multi-event group cart with mismatched durations", async () => {
+      // EventA is 2-day, EventB is 4-day. Both in same group with cap=3.
+      // Booking both on the same date with qty=2 each → group sees 4 on
+      // days where both overlap.
+      const group = await createTestGroup({ maxAttendees: 3 });
+      const eventA = await createDailyTestEvent({
+        durationDays: 2,
+        groupId: group.id,
+        maxAttendees: 100,
+      });
+      const eventB = await createDailyTestEvent({
+        durationDays: 4,
+        groupId: group.id,
+        maxAttendees: 100,
+      });
+
+      // Cart: qty=2 on each event, same date. Overlap on days 1-2 = 4 > 3.
+      expect(
+        await checkBatchAvailability(
+          [
+            { durationDays: 2, eventId: eventA.id, quantity: 2 },
+            { durationDays: 4, eventId: eventB.id, quantity: 2 },
+          ],
+          "2026-08-01",
+        ),
+      ).toBe(false);
+
+      // Lower qty to 1 each → overlap days see 2 ≤ 3. Should pass.
+      expect(
+        await checkBatchAvailability(
+          [
+            { durationDays: 2, eventId: eventA.id, quantity: 1 },
+            { durationDays: 4, eventId: eventB.id, quantity: 1 },
+          ],
+          "2026-08-01",
+        ),
+      ).toBe(true);
+    });
+
+    test("7: admin qty increase on multi-day booking blocked by one full day", async () => {
+      const event = await createDailyTestEvent({ durationDays: 2, maxAttendees: 5 });
+      // Attendee X: qty=2 on days 12-13.
+      const x = await bookAttendee(event, {
+        date: "2026-06-12",
+        durationDays: 2,
+        email: "x@test.com",
+        quantity: 2,
+      });
+      if (!x.success) throw new Error("setup");
+      // Other attendee: qty=2 on day 12 only (1-day booking).
+      await bookAttendee(event, {
+        date: "2026-06-12",
+        durationDays: 1,
+        email: "other@test.com",
+        quantity: 2,
+      });
+      // Day 12: X(2) + other(2) = 4. Day 13: X(2) = 2.
+      // Admin tries to bump X to qty=4. Day 12: 4+2=6 > 5 → reject.
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const result = await updateEventLink(x.attendees[0]!.id, event.id, {
+        date: "2026-06-12",
+        durationDays: 2,
+        quantity: 4,
+      });
+      expect(result.success).toBe(false);
+
+      // But qty=3 should work: day 12: 3+2=5 ≤ 5, day 13: 3 ≤ 5.
+      const ok = await updateEventLink(x.attendees[0]!.id, event.id, {
+        date: "2026-06-12",
+        durationDays: 2,
+        quantity: 3,
+      });
+      expect(ok.success).toBe(true);
+    });
+
+    test("8: admin date move where old and new ranges do not overlap", async () => {
+      // Booking at cap on days 1-2. Move to days 10-11 (completely disjoint).
+      // Self-exclusion must remove the old row from both old and new capacity.
+      const event = await createDailyTestEvent({ durationDays: 2, maxAttendees: 1 });
+      const result = await bookAttendee(event, {
+        date: "2026-06-01",
+        durationDays: 2,
+      });
+      if (!result.success) throw new Error("setup");
+
+      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const moved = await updateEventLink(result.attendees[0]!.id, event.id, {
+        date: "2026-06-10",
+        durationDays: 2,
+        quantity: 1,
+      });
+      expect(moved.success).toBe(true);
+
+      // Old dates free, new dates occupied.
+      expect(await hasAvailableSpots(event.id, 1, "2026-06-01", 2)).toBe(true);
+      expect(await hasAvailableSpots(event.id, 1, "2026-06-10", 2)).toBe(false);
+    });
+
+    test("9: event type switch from standard to daily preserves existing attendees", async () => {
+      // Standard event gets attendees, then admin switches to daily.
+      // Existing attendees have null start_at/end_at (no date).
+      // They should still count toward total capacity.
+      const event = await createDailyTestEvent({
+        eventType: "standard",
+        maxAttendees: 2,
+        maximumDaysAfter: 30,
+      });
+      await bookAttendee(event, { quantity: 2 });
+
+      // Switch to daily + duration 2.
+      await updateTestEvent(event.id, { durationDays: 2, eventType: "daily" });
+
+      // The 2 existing attendees (no date) should still block capacity.
+      // hasAvailableSpots with no date checks total.
+      expect(await hasAvailableSpots(event.id, 1)).toBe(false);
+    });
+
+    test("10: getNextBookableDate skips dates whose range extends past the window", async () => {
+      // duration=5, maximum_days_after=7. Only dates where start + 5 ≤ end
+      // of window are bookable. That's days 1-2 (day 3 would end at day 8,
+      // which is past the 7-day window).
+      const { getNextBookableDate } = await import("#lib/dates.ts");
+      const event = await createDailyTestEvent({
+        durationDays: 5,
+        maxAttendees: 10,
+        maximumDaysAfter: 7,
+      });
+      const fresh = (await getEventWithCount(event.id))!;
+      const holidays = await getActiveHolidays();
+      const next = getNextBookableDate(fresh, holidays);
+      if (next) {
+        const dates = getAvailableDates(fresh, holidays);
+        // Every available date's range must fit within the window.
+        const today = new Date();
+        today.setUTCDate(today.getUTCDate() + fresh.maximum_days_after);
+        const windowEnd = today.toISOString().slice(0, 10);
+        for (const d of dates) {
+          const rangeEnd = (await import("#lib/dates.ts")).addDays(d, fresh.duration_days - 1);
+          expect(rangeEnd <= windowEnd).toBe(true);
+        }
+      }
     });
   });
 });
