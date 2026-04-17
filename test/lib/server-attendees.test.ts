@@ -15,6 +15,7 @@ import {
   adminFormPost,
   assertAdminHtml,
   awaitTestRequest,
+  bookAttendee,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
@@ -966,13 +967,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows edit form with prefilled attendee data", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
+      const result = await bookAttendee(event, {
         address: "123 Main St",
-        bookings: [{ eventId: event.id, quantity: 1 }],
         email: "john@example.com",
         name: "John Doe",
         phone: "555-1234",
+        quantity: 1,
         special_instructions: "VIP guest",
       });
       if (!result.success) throw new Error("Failed to create attendee");
@@ -1095,9 +1095,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         name: "Daily Dates Event",
       });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ date: "2026-04-07", eventId: event.id }],
+      const result = await bookAttendee(event, {
+        date: "2026-04-07",
         email: "daily@example.com",
         name: "Daily User",
       });
@@ -1443,11 +1442,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         name: "Event 2",
       });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id, quantity: 1 }],
+      const result = await bookAttendee(event1, {
         email: "john@example.com",
         name: "John Doe",
+        quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1467,11 +1465,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows edit form with empty email field", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, quantity: 1 }],
+      const result = await bookAttendee(event, {
         email: "",
         name: "John Doe",
+        quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1489,11 +1486,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         name: "Inactive Event",
       });
 
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: inactiveEvent.id, quantity: 1 }],
+      const result = await bookAttendee(inactiveEvent, {
         email: "john@example.com",
         name: "John Doe",
+        quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1520,11 +1516,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates attendee with empty email", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, quantity: 1 }],
+      const result = await bookAttendee(event, {
         email: "john@example.com",
         name: "John Doe",
+        quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
@@ -1545,13 +1540,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates attendee with all non-empty fields", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
+      const result = await bookAttendee(event, {
         address: "123 Main St",
-        bookings: [{ eventId: event.id, quantity: 1 }],
         email: "john@example.com",
         name: "John Doe",
         phone: "555-1234",
+        quantity: 1,
         special_instructions: "VIP",
       });
       if (!result.success) throw new Error("Failed to create attendee");
@@ -1683,13 +1677,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      // Create attendee with price_paid using createAttendeeAtomic
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, pricePaid: 1000, quantity: 1 }],
+      const result = await bookAttendee(event, {
         email: "jane@example.com",
         name: "Jane Paid",
         paymentId: "pi_test",
+        pricePaid: 1000,
+        quantity: 1,
       });
 
       if (!result.success) {
@@ -1697,7 +1690,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       }
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${result.attendees[0]!.id}/resend-notification`,
+        `/admin/event/${event.id}/attendee/${
+          result.attendees[0]!.id
+        }/resend-notification`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -1824,12 +1819,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, pricePaid: 1000, quantity: 1 }],
+      const result = await bookAttendee(event, {
         email: "paid@example.com",
         name: "Paid User",
         paymentId: "pi_test_123",
+        pricePaid: 1000,
+        quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const response = await awaitTestRequest(
@@ -1851,14 +1846,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const { createAttendeeAtomic, markRefunded } = await import(
-        "#lib/db/attendees.ts"
-      );
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, pricePaid: 1000, quantity: 1 }],
+      const { markRefunded } = await import("#lib/db/attendees.ts");
+      const result = await bookAttendee(event, {
         email: "refunded@example.com",
         name: "Refunded User",
         paymentId: "pi_refunded_123",
+        pricePaid: 1000,
+        quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
       await markRefunded(result.attendees[0]!.id, event.id);
@@ -1881,7 +1875,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${flashCookieHeader("Payment status is up to date")}`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "Payment status is up to date",
+          )}`,
         },
       );
       await expectHtmlResponse(response, 200, "Payment status is up to date");
@@ -2525,11 +2521,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         eventType: "daily",
         maxAttendees: 50,
       });
-      const { createAttendeeAtomic: create } = await import(
-        "#lib/db/attendees.ts"
-      );
-      const result = await create({
-        bookings: [{ date: "2026-04-07", eventId: event.id }],
+      const result = await bookAttendee(event, {
+        date: "2026-04-07",
         email: "dnd@test.com",
         name: "Daily NoDate",
       });
@@ -2547,11 +2540,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         eventType: "daily",
         maxAttendees: 50,
       });
-      const { createAttendeeAtomic: create } = await import(
-        "#lib/db/attendees.ts"
-      );
-      const result = await create({
-        bookings: [{ date: "2026-04-07", eventId: event.id }],
+      const result = await bookAttendee(event, {
+        date: "2026-04-07",
         email: "du@test.com",
         name: "Daily Upd",
       });
@@ -2651,7 +2641,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}/merge?token=${encodeURIComponent(token)}`,
+        `/admin/attendees/${attendee.id}/merge?token=${encodeURIComponent(
+          token,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -2674,7 +2666,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -2694,7 +2688,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     sourceToken: string,
   ): Promise<string> => {
     const page = await awaitTestRequest(
-      `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(sourceToken)}`,
+      `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(
+        sourceToken,
+      )}`,
       { cookie: await testCookie() },
     );
     const html = await page.text();
@@ -2985,7 +2981,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Gluten free",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // Multiline fields (address, special_instructions) differ — exercises renderFieldValue(val, true) with same=false
@@ -3009,7 +3007,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Merge Preview");
@@ -3030,7 +3030,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Merge Preview");
@@ -3048,10 +3050,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 50,
         name: "Daily E",
       });
-      // Create source via createAttendeeAtomic with a daily event date
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        bookings: [{ date: "2026-05-01", eventId: dailyEvent.id }],
+      const result = await bookAttendee(dailyEvent, {
+        date: "2026-05-01",
         email: "john@example.com",
         name: "John Smith",
       });
@@ -3059,7 +3059,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const sourceToken = result.attendees[0]!.ticket_token;
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // start_at is set for daily events — exercises the b.start_at ? `— date` : "" branch
@@ -3082,7 +3084,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // All bookings are moveable (different events) — no Decision column rendered
@@ -3104,7 +3108,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // Same event, same qty/price/checked_in/refunded — classified as "duplicate"
@@ -3155,7 +3161,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await save([sourceData!.id], [a2.id]);
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -3206,7 +3214,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Get merge version from preview page
       const previewPage = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       const previewHtml = await previewPage.text();
@@ -3248,7 +3258,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Get merge version
       const previewPage = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       const html = await previewPage.text();

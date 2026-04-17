@@ -7,6 +7,7 @@
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
 import { buildStaticAssets } from "./build-static-assets.ts";
+import { isoToTag } from "./build-tag.ts";
 import { minifyCss } from "./css-minify.ts";
 
 // --- Step 1: Build client bundles ---
@@ -69,16 +70,6 @@ const EDGE_SUBPATHS: Record<string, string> = {
  * and (formatted) as the release tag in release builds, so the two always match.
  */
 const BUILD_ISO = new Date().toISOString();
-
-/**
- * Format an ISO timestamp as a release-style tag: vYYYY-MM-DD-HHMMSS.
- * Written to .build-tag so the release workflow can read it.
- */
-const isoToTag = (iso: string): string => {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `v${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}-${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
-};
 
 /** Build the inline build-info module with timestamp and commit SHA */
 const buildBuildInfoModule = (): string => {

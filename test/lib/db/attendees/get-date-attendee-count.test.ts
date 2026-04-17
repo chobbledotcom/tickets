@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createAttendeeAtomic,
-  getDateAttendeeCount,
-} from "#lib/db/attendees.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { getDateAttendeeCount } from "#lib/db/attendees.ts";
+import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > getDateAttendeeCount", { db: true }, () => {
   const dailyOpts = {
@@ -37,15 +34,17 @@ describeWithEnv("db > attendees > getDateAttendeeCount", { db: true }, () => {
       ...dailyOpts,
     });
 
-    await createAttendeeAtomic({
-      bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 2 }],
+    await bookAttendee(event, {
+      date: "2026-02-10",
       email: "u1@example.com",
       name: "User 1",
+      quantity: 2,
     });
-    await createAttendeeAtomic({
-      bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 3 }],
+    await bookAttendee(event, {
+      date: "2026-02-10",
       email: "u2@example.com",
       name: "User 2",
+      quantity: 3,
     });
 
     const count = await getDateAttendeeCount(event.id, "2026-02-10");
@@ -58,15 +57,17 @@ describeWithEnv("db > attendees > getDateAttendeeCount", { db: true }, () => {
       ...dailyOpts,
     });
 
-    await createAttendeeAtomic({
-      bookings: [{ date: "2026-02-10", eventId: event.id, quantity: 2 }],
+    await bookAttendee(event, {
+      date: "2026-02-10",
       email: "u1@example.com",
       name: "User 1",
+      quantity: 2,
     });
-    await createAttendeeAtomic({
-      bookings: [{ date: "2026-02-11", eventId: event.id, quantity: 1 }],
+    await bookAttendee(event, {
+      date: "2026-02-11",
       email: "u2@example.com",
       name: "User 2",
+      quantity: 1,
     });
 
     expect(await getDateAttendeeCount(event.id, "2026-02-10")).toBe(2);

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#lib/crypto/encryption.ts";
 import { deriveKEK, importPrivateKey, unwrapKey } from "#lib/crypto/keys.ts";
-import { createAttendeeAtomic, getAttendee } from "#lib/db/attendees.ts";
+import { getAttendee } from "#lib/db/attendees.ts";
 import { getDb, insert } from "#lib/db/client.ts";
 import {
   clearLoginAttempts,
@@ -13,6 +13,7 @@ import { createSession, getSession } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import {
+  bookAttendee,
   createTestEvent,
   describeWithEnv,
   TEST_ADMIN_PASSWORD,
@@ -93,8 +94,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       });
 
       // Create an attendee BEFORE password change
-      const beforeResult = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      const beforeResult = await bookAttendee(event, {
         email: "alice@example.com",
         name: "Alice Before",
         paymentId: "pi_before_change",
@@ -117,8 +117,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
-      const afterResult = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      const afterResult = await bookAttendee(event, {
         email: "bob@example.com",
         name: "Bob After",
         paymentId: "pi_after_change",

@@ -14,6 +14,7 @@ import {
   resolveEntries,
   type TokenEntry,
   type TokenRouteFn,
+  withTokenRateLimit,
 } from "#routes/token-utils.ts";
 import { htmlResponse } from "#routes/utils.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
@@ -84,10 +85,19 @@ const matchSvgPath = (path: string): string | null => {
 const tokenRoute = createTokenRoute("t", { GET: handleTicketView });
 
 /** Route ticket view and SVG requests */
-export const routeTicketView: TokenRouteFn = (request, path, method) => {
+export const routeTicketView: TokenRouteFn = (
+  request,
+  path,
+  method,
+  server,
+) => {
   if (method === "GET") {
     const svgToken = matchSvgPath(path);
-    if (svgToken) return Promise.resolve(handleTicketSvg(svgToken));
+    if (svgToken) {
+      return withTokenRateLimit(request, server, [svgToken], () =>
+        handleTicketSvg(svgToken),
+      );
+    }
   }
-  return tokenRoute(request, path, method);
+  return tokenRoute(request, path, method, server);
 };

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
   assertPublicHtml,
   awaitTestRequest,
+  bookAttendee,
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
@@ -162,7 +162,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
           await expectHtmlResponse(
             response,
-            400,
+            410,
             "no longer accepting registrations",
           );
 
@@ -186,8 +186,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Fill the event with another attendee (using atomic to simulate production flow)
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      await bookAttendee(event, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -222,7 +221,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
           await expectHtmlResponse(
             response,
-            400,
+            409,
             "sold out",
             "automatically refunded",
           );
@@ -693,8 +692,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Create attendee as if payment was already processed (using atomic to simulate production flow)
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      await bookAttendee(event, {
         email: "john@example.com",
         name: "John",
         paymentId: "pi_test_123",
@@ -794,8 +792,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Fill the event (using atomic to simulate production flow)
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      await bookAttendee(event, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -864,7 +861,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
           await expectHtmlResponse(
             response,
-            400,
+            500,
             "Registration failed",
             "refunded",
           );
@@ -1043,7 +1040,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         );
         await expectHtmlResponse(
           response,
-          400,
+          410,
           "no longer accepting registrations",
           "refunded",
         );
@@ -1062,8 +1059,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Fill the event
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event.id }],
+      await bookAttendee(event, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -1094,7 +1090,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_refund_fail"),
         );
-        await expectHtmlResponse(response, 400, "sold out", "contact support");
+        await expectHtmlResponse(response, 409, "sold out", "contact support");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -1116,8 +1112,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Fill event2
-      await createAttendeeAtomic({
-        bookings: [{ eventId: event2.id }],
+      await bookAttendee(event2, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -1153,7 +1148,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_rollback"),
         );
-        await expectHtmlResponse(response, 400, "sold out", "refunded");
+        await expectHtmlResponse(response, 409, "sold out", "refunded");
 
         // Verify rollback: event1 should have no attendees since they were rolled back
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1455,11 +1450,11 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Create attendee directly (simulates post-payment state)
-      const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event.id, pricePaid: 500 }],
+      const result = await bookAttendee(event, {
         email: "buyer@example.com",
         name: "Email Test",
         paymentId: "pi_email_notice",
+        pricePaid: 500,
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
@@ -1472,7 +1467,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       try {
         const response = await handleRequest(
           mockRequest(
-            `/payment/success?tokens=${encodeURIComponent(result.attendees[0]!.ticket_token)}`,
+            `/payment/success?tokens=${encodeURIComponent(
+              result.attendees[0]!.ticket_token,
+            )}`,
           ),
         );
         const html = await expectHtmlResponse(response, 200, "Junk/Spam");

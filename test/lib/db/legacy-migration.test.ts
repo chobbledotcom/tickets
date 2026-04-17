@@ -284,11 +284,107 @@ describe("db > event_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("event_id");
     expect(colNames).not.toContain("date");
     expect(colNames).not.toContain("quantity");
+    expect(colNames).not.toContain("name");
+    expect(colNames).not.toContain("email");
+    expect(colNames).not.toContain("phone");
+    expect(colNames).not.toContain("address");
+    expect(colNames).not.toContain("payment_id");
     expect(colNames).toContain("id");
     expect(colNames).toContain("pii_blob");
 
     const payments = await client.execute("SELECT * FROM processed_payments");
     expect(payments.rows.length).toBe(1);
     expect(payments.rows[0]!.attendee_id).toBe(1);
+  });
+
+  test("drops PII columns when event_id was dropped in a prior partial run", async () => {
+    setupTestEncryptionKey();
+    const client = createClient({ url: ":memory:" });
+    setDb(client);
+
+    // Simulate a DB in the intermediate state: event_id and its relatives
+    // have already been dropped (e.g. by a partial earlier migration), but
+    // the pre-pii_blob PII columns are still present with NOT NULL.
+    await client.execute(
+      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+    );
+    await client.execute(`CREATE TABLE attendees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      payment_id TEXT,
+      created TEXT NOT NULL,
+      ticket_token_index TEXT,
+      pii_blob TEXT NOT NULL DEFAULT '',
+      checked_in TEXT NOT NULL DEFAULT '',
+      price_paid TEXT
+    )`);
+
+    await client.execute(
+      insert("attendees", {
+        created: "2024-03-01T00:00:00Z",
+        email: "alice@example.com",
+        id: 1,
+        name: "Alice",
+        pii_blob: "encrypted-data",
+        ticket_token_index: "tok_abc",
+      }),
+    );
+
+    await initDb();
+
+    const cols = await client.execute("PRAGMA table_info(attendees)");
+    const colNames = cols.rows.map((r) => r.name);
+    expect(colNames).not.toContain("name");
+    expect(colNames).not.toContain("email");
+    expect(colNames).not.toContain("phone");
+    expect(colNames).not.toContain("address");
+    expect(colNames).not.toContain("payment_id");
+    expect(colNames).toContain("pii_blob");
+    expect(colNames).toContain("ticket_token_index");
+
+    const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0]!.created).toBe("2024-03-01T00:00:00Z");
+    expect(rows.rows[0]!.pii_blob).toBe("encrypted-data");
+    expect(rows.rows[0]!.ticket_token_index).toBe("tok_abc");
+  });
+
+  test("skips table recreation when attendees already matches schema", async () => {
+    setupTestEncryptionKey();
+    const client = createClient({ url: ":memory:" });
+    setDb(client);
+
+    // Run initDb on a fresh DB so everything is created and up to date
+    await initDb();
+
+    // Insert a row so we can verify it's untouched (not lost to a spurious recreation)
+    await client.execute(
+      insert("attendees", {
+        created: "2024-05-01T00:00:00Z",
+        id: 1,
+        pii_blob: "blob-data",
+        ticket_token_index: "tok_skip",
+      }),
+    );
+
+    // Force a re-run by clearing the version marker
+    await client.execute(
+      "DELETE FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
+    );
+    await initDb();
+
+    const cols = await client.execute("PRAGMA table_info(attendees)");
+    const colNames = cols.rows.map((r) => r.name);
+    expect(colNames).toContain("id");
+    expect(colNames).toContain("pii_blob");
+    expect(colNames).toContain("created");
+
+    const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0]!.pii_blob).toBe("blob-data");
+    expect(rows.rows[0]!.ticket_token_index).toBe("tok_skip");
   });
 });

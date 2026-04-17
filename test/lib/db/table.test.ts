@@ -247,6 +247,53 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(map.max_attendees).toBe("maxAttendees");
   });
 
+  test("rowToInput maps snake_case row columns to camelCase input keys", async () => {
+    const event = await createTestEvent({
+      maxAttendees: 42,
+      name: "Row To Input",
+      thankYouUrl: "https://example.com",
+    });
+    const input = eventsTable.rowToInput(event);
+    expect(input.name).toBe("Row To Input");
+    expect(input.maxAttendees).toBe(42);
+    expect(input.thankYouUrl).toBe("https://example.com");
+    // Generated columns are excluded so the output is safe to re-insert
+    expect("id" in input).toBe(false);
+  });
+
+  test("rowToInput excludes columns named in the exclude list", async () => {
+    const event = await createTestEvent({
+      maxAttendees: 10,
+      name: "Excluded",
+      thankYouUrl: "https://example.com",
+    });
+    const input = eventsTable.rowToInput(event, ["created"]);
+    expect("created" in input).toBe(false);
+    expect(input.name).toBe("Excluded");
+  });
+
+  test("rowToInput skips undefined row fields", async () => {
+    const { col, defineTable } = await import("#lib/db/table.ts");
+    type Row = { id: number; max_attendees: number; thank_you_url: string };
+    type Input = { maxAttendees: number; thankYouUrl?: string };
+    const table = defineTable<Row, Input>({
+      name: "events",
+      primaryKey: "id",
+      schema: {
+        id: col.generated<number>(),
+        max_attendees: col.simple<number>(),
+        thank_you_url: col.withDefault(() => "default-url"),
+      },
+    });
+    const input = table.rowToInput({
+      id: 1,
+      max_attendees: 5,
+      thank_you_url: undefined as unknown as string,
+    });
+    expect(input.maxAttendees).toBe(5);
+    expect("thankYouUrl" in input).toBe(false);
+  });
+
   test("getProvidedColumns uses inputKeyMap fallback for single-word keys", async () => {
     const event = await createTestEvent({
       maxAttendees: 10,
