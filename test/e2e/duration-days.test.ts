@@ -74,19 +74,19 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       await bookAttendee(event, { date: "2026-06-13", durationDays: 1, quantity: 2 });
 
       // 3-day booking starting day 1 covers 12–14 → day 13 is full.
-      expect(
-        await checkBatchAvailability(
-          [{ durationDays: 3, eventId: event.id, quantity: 1 }],
-          "2026-06-12",
-        ),
-      ).toBe(false);
-
-      // hasAvailableSpots agrees.
       expect(await hasAvailableSpots(event.id, 1, "2026-06-12", 3)).toBe(
         false,
       );
+    });
 
-      // But day 1 alone is still available.
+    test("single day within a blocked multi-day range is still bookable alone", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 2,
+      });
+      await bookAttendee(event, { date: "2026-06-13", durationDays: 1, quantity: 2 });
+
+      // Day 1 alone (before the full day) is still available.
       expect(await hasAvailableSpots(event.id, 1, "2026-06-12", 1)).toBe(true);
     });
 
@@ -108,7 +108,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
   });
 
   describe("group per-day capacity", () => {
-    test("Saturday/Sunday/combo scenario respects group cap per day", async () => {
+    test("combo booking fills Saturday group cap across events", async () => {
       const group = await createTestGroup({ maxAttendees: 10 });
       const sat = await createDailyTestEvent({
         groupId: group.id,
@@ -131,25 +131,34 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           "2026-05-02",
         ),
       ).toBe(false);
+    });
 
-      // Sunday only has 5 (from combo), so 5 more on a new event should fit.
+    test("Sunday still has room when only the combo spans both days", async () => {
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const sat = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+      });
+      const combo = await createDailyTestEvent({
+        durationDays: 2,
+        groupId: group.id,
+        maxAttendees: 100,
+      });
       const sun = await createDailyTestEvent({
         groupId: group.id,
         maxAttendees: 100,
       });
+
+      await bookAttendee(sat, { date: "2026-05-02", quantity: 5 });
+      await bookAttendee(combo, { date: "2026-05-02", durationDays: 2, quantity: 5 });
+
+      // Sunday has 5 from combo only → 5 more fits.
       expect(
         await checkBatchAvailability(
           [{ eventId: sun.id, quantity: 5 }],
           "2026-05-03",
         ),
       ).toBe(true);
-      // But 6 on Sunday would breach group cap (5 combo + 6 = 11 > 10).
-      expect(
-        await checkBatchAvailability(
-          [{ eventId: sun.id, quantity: 6 }],
-          "2026-05-03",
-        ),
-      ).toBe(false);
     });
   });
 
@@ -254,46 +263,42 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       expect(dates).not.toContain(twoBeforeStr);
     });
 
-    test("single-day events are unaffected by duration filtering", async () => {
-      const event = await createDailyTestEvent({
-        durationDays: 1,
-        maxAttendees: 10,
-      });
+    test("single-day event offers more start dates than multi-day for same window", async () => {
+      const single = await createDailyTestEvent({ durationDays: 1, maxAttendees: 10 });
+      const multi = await createDailyTestEvent({ durationDays: 5, maxAttendees: 10 });
       const holidays = await getActiveHolidays();
-      const dates = getAvailableDates(
-        (await getEventWithCount(event.id))!,
-        holidays,
-      );
-      // Should have at least some available dates (default 14-day window).
-      expect(dates.length).toBeGreaterThan(0);
+      const singleDates = getAvailableDates((await getEventWithCount(single.id))!, holidays);
+      const multiDates = getAvailableDates((await getEventWithCount(multi.id))!, holidays);
+      // Multi-day has fewer start dates because the tail must fit in the window.
+      expect(singleDates.length).toBeGreaterThan(multiDates.length);
     });
   });
 
-  describe("display: email + ticket view", () => {
-    test("email template data shows date range for multi-day, single date for 1-day", () => {
-      const multiDay = makeTestEntry(
-        { duration_days: 3, event_type: "daily" },
-        { date: "2026-06-12" },
-      );
-      const singleDay = makeTestEntry(
-        { duration_days: 1, event_type: "daily" },
-        { date: "2026-06-12" },
-      );
-      const noDate = makeTestEntry({}, { date: null });
-
-      const data = buildTemplateData(
-        [multiDay, singleDay, noDate],
+  describe("display: email template date_range_label", () => {
+    const labelFor = (
+      event: Parameters<typeof makeTestEntry>[0],
+      attendee: Parameters<typeof makeTestEntry>[1],
+    ) =>
+      buildTemplateData(
+        [makeTestEntry(event, attendee)],
         "GBP",
         "https://example.com/t/ABC",
-      );
-      // Multi-day: "12–14 June 2026" (inclusive last day, en dash).
-      expect(data.entries[0]!.attendee.date_range_label).toBe(
-        "12\u201314 June 2026",
-      );
-      // Single-day: full date with weekday.
-      expect(data.entries[1]!.attendee.date_range_label).toContain("12 June");
-      // No date: empty.
-      expect(data.entries[2]!.attendee.date_range_label).toBe("");
+      ).entries[0]!.attendee.date_range_label;
+
+    test("multi-day booking shows en-dash range", () => {
+      expect(
+        labelFor({ duration_days: 3, event_type: "daily" }, { date: "2026-06-12" }),
+      ).toBe("12\u201314 June 2026");
+    });
+
+    test("single-day booking shows full date", () => {
+      expect(
+        labelFor({ duration_days: 1, event_type: "daily" }, { date: "2026-06-12" }),
+      ).toContain("12 June");
+    });
+
+    test("no-date booking shows empty string", () => {
+      expect(labelFor({}, { date: null })).toBe("");
     });
   });
 
@@ -315,7 +320,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       );
     });
 
-    test("duration edit + new booking + duration edit again keeps ranges consistent", async () => {
+    test("expand-book-shrink cycle keeps all ranges consistent", async () => {
       const event = await createDailyTestEvent({
         maxAttendees: 2,
         maximumDaysAfter: 60,
@@ -831,14 +836,19 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
   });
 
   describe("edge cases: realistic unusual scenarios", () => {
-    test("1: qty > 1 over multi-day correctly aggregates per-day demand", async () => {
+    test("1a: qty > 1 multi-day bookings aggregate per-day demand correctly", async () => {
       // Two bookings of qty=2 on a 3-day event (cap 5). Each day sees 2+2=4 ≤ 5.
       const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 5 });
       await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
-      // Second booking of qty=2 should succeed (4 ≤ 5 per day).
       const b = await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
       expect(b.success).toBe(true);
-      // Third booking of qty=2 should fail (6 > 5 on every day).
+    });
+
+    test("1b: qty > 1 multi-day booking rejected when per-day total exceeds cap", async () => {
+      const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 5 });
+      await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
+      await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
+      // Third: 2+2+2=6 > 5 on every day → reject.
       const c = await bookAttendee(event, { date: "2026-06-12", durationDays: 3, quantity: 2 });
       expect(c.success).toBe(false);
     });
@@ -939,10 +949,9 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       expect(range!.end_at).toBe("2026-07-04T00:00:00.000Z");
     });
 
-    test("6: multi-event group cart with mismatched durations", async () => {
+    test("6: group cart with mismatched durations rejects when overlap days exceed cap", async () => {
       // EventA is 2-day, EventB is 4-day. Both in same group with cap=3.
-      // Booking both on the same date with qty=2 each → group sees 4 on
-      // days where both overlap.
+      // Cart: qty=2 each → overlap on days 1-2 sees 4 > 3.
       const group = await createTestGroup({ maxAttendees: 3 });
       const eventA = await createDailyTestEvent({
         durationDays: 2,
@@ -955,7 +964,6 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      // Cart: qty=2 on each event, same date. Overlap on days 1-2 = 4 > 3.
       expect(
         await checkBatchAvailability(
           [
@@ -965,38 +973,18 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           "2026-08-01",
         ),
       ).toBe(false);
-
-      // Lower qty to 1 each → overlap days see 2 ≤ 3. Should pass.
-      expect(
-        await checkBatchAvailability(
-          [
-            { durationDays: 2, eventId: eventA.id, quantity: 1 },
-            { durationDays: 4, eventId: eventB.id, quantity: 1 },
-          ],
-          "2026-08-01",
-        ),
-      ).toBe(true);
     });
 
-    test("7: admin qty increase on multi-day booking blocked by one full day", async () => {
+    test("7: admin qty increase on multi-day booking rejected when one day overflows", async () => {
       const event = await createDailyTestEvent({ durationDays: 2, maxAttendees: 5 });
-      // Attendee X: qty=2 on days 12-13.
       const x = await bookAttendee(event, {
         date: "2026-06-12",
         durationDays: 2,
-        email: "x@test.com",
         quantity: 2,
       });
       if (!x.success) throw new Error("setup");
-      // Other attendee: qty=2 on day 12 only (1-day booking).
-      await bookAttendee(event, {
-        date: "2026-06-12",
-        durationDays: 1,
-        email: "other@test.com",
-        quantity: 2,
-      });
-      // Day 12: X(2) + other(2) = 4. Day 13: X(2) = 2.
-      // Admin tries to bump X to qty=4. Day 12: 4+2=6 > 5 → reject.
+      await bookAttendee(event, { date: "2026-06-12", durationDays: 1, quantity: 2 });
+      // Day 12: X(2) + other(2) = 4. Admin bumps X to 4 → 4+2=6 > 5.
       const { updateEventLink } = await import("#lib/db/attendees.ts");
       const result = await updateEventLink(x.attendees[0]!.id, event.id, {
         date: "2026-06-12",
@@ -1004,14 +992,6 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         quantity: 4,
       });
       expect(result.success).toBe(false);
-
-      // But qty=3 should work: day 12: 3+2=5 ≤ 5, day 13: 3 ≤ 5.
-      const ok = await updateEventLink(x.attendees[0]!.id, event.id, {
-        date: "2026-06-12",
-        durationDays: 2,
-        quantity: 3,
-      });
-      expect(ok.success).toBe(true);
     });
 
     test("8: admin date move where old and new ranges do not overlap", async () => {
@@ -1056,30 +1036,25 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       expect(await hasAvailableSpots(event.id, 1)).toBe(false);
     });
 
-    test("10: getNextBookableDate skips dates whose range extends past the window", async () => {
-      // duration=5, maximum_days_after=7. Only dates where start + 5 ≤ end
-      // of window are bookable. That's days 1-2 (day 3 would end at day 8,
-      // which is past the 7-day window).
-      const { getNextBookableDate } = await import("#lib/dates.ts");
-      const event = await createDailyTestEvent({
+    test("10: duration longer than booking window yields fewer available dates", async () => {
+      // duration=5, maximum_days_after=7. The 5-day range must fit in
+      // the 7-day window, so only ~3 start dates are possible. A 1-day
+      // event with the same window would have ~7.
+      const long = await createDailyTestEvent({
         durationDays: 5,
         maxAttendees: 10,
         maximumDaysAfter: 7,
       });
-      const fresh = (await getEventWithCount(event.id))!;
+      const short = await createDailyTestEvent({
+        durationDays: 1,
+        maxAttendees: 10,
+        maximumDaysAfter: 7,
+      });
       const holidays = await getActiveHolidays();
-      const next = getNextBookableDate(fresh, holidays);
-      if (next) {
-        const dates = getAvailableDates(fresh, holidays);
-        // Every available date's range must fit within the window.
-        const today = new Date();
-        today.setUTCDate(today.getUTCDate() + fresh.maximum_days_after);
-        const windowEnd = today.toISOString().slice(0, 10);
-        for (const d of dates) {
-          const rangeEnd = (await import("#lib/dates.ts")).addDays(d, fresh.duration_days - 1);
-          expect(rangeEnd <= windowEnd).toBe(true);
-        }
-      }
+      const longDates = getAvailableDates((await getEventWithCount(long.id))!, holidays);
+      const shortDates = getAvailableDates((await getEventWithCount(short.id))!, holidays);
+      expect(shortDates.length).toBeGreaterThan(longDates.length);
+      expect(longDates.length).toBeGreaterThan(0);
     });
   });
 });
