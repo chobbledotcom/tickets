@@ -211,3 +211,19 @@ export const resetGroupEvents = async (groupId: number): Promise<void> => {
   });
   invalidateEventsCache();
 };
+
+/**
+ * Set the `active` flag on every event in a group.
+ * Returns the number of events affected.
+ */
+export const setGroupEventsActive = async (
+  groupId: number,
+  active: boolean,
+): Promise<number> => {
+  const result = await getDb().execute({
+    args: [active ? 1 : 0, groupId],
+    sql: "UPDATE events SET active = ? WHERE group_id = ?",
+  });
+  invalidateEventsCache();
+  return result.rowsAffected;
+};

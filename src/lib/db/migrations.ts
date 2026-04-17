@@ -514,17 +514,26 @@ const recreateTable = async (tableName: string): Promise<void> => {
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
 };
 
+/** Get the set of columns declared by SCHEMA for a given table */
+const getSchemaColumns = (tableName: string): Set<string> =>
+  new Set(SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c));
+
 /**
- * Drop event_id, date, quantity from attendees table.
- * SQLite can't DROP COLUMN when a FK references the column, so we recreate the table.
- * Only runs if the old columns still exist (idempotent).
+ * Drop any legacy columns from attendees that aren't in the current schema
+ * (event_id, date, quantity, and the pre-pii_blob PII columns: name, email,
+ * phone, address, payment_id, etc).
+ *
+ * SQLite can't DROP COLUMN when a FK references the column, so we recreate
+ * the table. Idempotent: if every existing column matches the schema, skip.
  */
 const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   const cols = await getExistingColumns("attendees");
-  if (!cols.has("event_id")) {
+  const expected = getSchemaColumns("attendees");
+  const hasLegacy = [...cols].some((c) => !expected.has(c));
+  if (!hasLegacy) {
     logDebug(
       "Migration",
-      "attendees.event_id already dropped, skipping table recreation",
+      "attendees has no legacy columns, skipping table recreation",
     );
     return;
   }
@@ -646,7 +655,10 @@ export const initDb = async (): Promise<void> => {
 
   // 4. Backfill event_attendees from existing attendees data (idempotent)
   // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
-  // Also copies per-event status columns to event_attendees
+  // Also copies per-event status columns to event_attendees.
+  // NOTE: On DBs where event_id was already dropped (intermediate state),
+  // this SELECT fails with "no such column" — runMigration swallows that
+  // error, making the backfill a safe no-op before dropDeprecatedAttendeeColumns.
   logDebug("Migration", "Step 3: backfilling event_attendees...");
   await runMigration(
     `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)

@@ -37,6 +37,7 @@ import {
   mockRequest,
   mockWebhookRequest,
   randomString,
+  rawEventRange,
   requireJoinCsrfToken,
   resetDb,
   resetTestSession,
@@ -696,6 +697,35 @@ describe("test-utils", () => {
       await expect(
         createTestAttendeeDirect(event.id, "Second", "second@example.com"),
       ).rejects.toThrow("Failed to create attendee");
+    });
+  });
+
+  describe("rawEventRange", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("returns start_at/end_at/quantity for the first booking", async () => {
+      const { createDailyTestEvent } = await import("#test-utils");
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 3 }],
+        email: "alice@test.com",
+        name: "Alice",
+      });
+      if (!result.success) throw new Error("create failed");
+
+      const range = await rawEventRange(event.id);
+      expect(range).not.toBeNull();
+      expect(range!.start_at).toBe("2026-05-01T00:00:00Z");
+      expect(range!.end_at).toBe("2026-05-02T00:00:00.000Z");
+      expect(range!.quantity).toBe(3);
+    });
+
+    test("returns null when no bookings exist for the event", async () => {
+      const event = await createTestEvent();
+      expect(await rawEventRange(event.id)).toBeNull();
     });
   });
 

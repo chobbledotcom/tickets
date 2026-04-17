@@ -23,7 +23,7 @@ import { generateSecureToken } from "#lib/crypto/utils.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
 import { createApiKey } from "#lib/db/api-keys.ts";
-import { getDb, insert, setDb } from "#lib/db/client.ts";
+import { getDb, insert, queryOne, setDb } from "#lib/db/client.ts";
 import {
   type EventInput,
   getEventWithCount,
@@ -1411,6 +1411,24 @@ export const createTestAttendee = async (
  * This is used in production by getAttendees, so not a test-only export
  */
 export { getAttendeesRaw };
+
+/** Range fields from event_attendees that aren't on the Attendee type. */
+export type RawEventRange = {
+  start_at: string | null;
+  end_at: string | null;
+  quantity: number;
+};
+
+/**
+ * Fetch raw start_at/end_at/quantity for the first event_attendees row
+ * matching an event. Useful for tests that need the full timestamps
+ * (getAttendeesRaw only exposes the truncated `date` field).
+ */
+export const rawEventRange = (eventId: number): Promise<RawEventRange | null> =>
+  queryOne<RawEventRange>(
+    "SELECT start_at, end_at, quantity FROM event_attendees WHERE event_id = ? ORDER BY attendee_id LIMIT 1",
+    [eventId],
+  );
 
 // ---------------------------------------------------------------------------
 // FP-style curried assertion helpers
