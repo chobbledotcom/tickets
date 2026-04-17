@@ -31,7 +31,7 @@ export type ReleaseInfo = {
  * Parse a release tag (vYYYY-MM-DD-HHMMSS) to a Date.
  * Returns null if the tag doesn't match the expected format.
  */
-const parseReleaseTag = (tag: string): Date | null => {
+export const parseReleaseTag = (tag: string): Date | null => {
   const match = tag.match(/^v(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})$/);
   if (!match) return null;
   const [, year, month, day, hour, min, sec] = match;

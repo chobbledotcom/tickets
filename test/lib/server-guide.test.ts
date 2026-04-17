@@ -406,6 +406,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       }
     });
 
+    test("documents the release tag format shared with the update checker", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Software Updates",
+        "vYYYY-MM-DD-HHMMSS",
+        "UTC date and time",
+      );
+    });
+
     test("contains read-only mode explanation aimed at end users", async () => {
       await assertAdminHtml(
         "/admin/guide",
