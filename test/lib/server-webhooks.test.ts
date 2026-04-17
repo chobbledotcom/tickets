@@ -514,6 +514,47 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("webhook returns 409 when session is reserved by another request", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { reserveSession: reserveSessionFn } = await import(
+        "#lib/db/processed-payments.ts"
+      );
+      await reserveSessionFn("cs_wh_conflict");
+
+      const mockVerify = await stubWebhookVerify({
+        data: {
+          object: {
+            amount_total: 1000,
+            id: "cs_wh_conflict",
+            metadata: webhookMeta({
+              email: "conflict@example.com",
+              items: singleItem(event.id, 1, 1000),
+              name: "Conflict",
+            }),
+            payment_intent: "pi_wh_conflict",
+            payment_status: "paid",
+          },
+        },
+        id: "evt_wh_conflict",
+        type: "checkout.session.completed",
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(409);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("webhook rejects POST with wrong content-type", async () => {
       const response = await handleRequest(
         new Request("http://localhost/payment/webhook", {

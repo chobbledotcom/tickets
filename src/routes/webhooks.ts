@@ -924,6 +924,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       eventId: eventIdForLog,
     });
     logDebug("Webhook", `Failed payload: ${payload}`);
+
+    // Return non-200 for conflicts so the payment provider retries the webhook
+    if (result.status === 409) {
+      return plainResponse(result.error, 409);
+    }
   }
 
   return webhookAckResponse({
