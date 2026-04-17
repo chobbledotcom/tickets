@@ -783,11 +783,11 @@ const handlePaymentCancel = withSessionId(async (sid) => {
  * Handles events directly from payment providers with signature verification.
  */
 
-/** JSON response acknowledging a webhook event without processing */
-const webhookAckResponse = (
-  extra?: Record<string, unknown>,
-  status?: number,
-): Response => jsonResponse({ received: true, ...extra }, status);
+/** JSON response acknowledging a webhook event.
+ * Always returns 200 so payment providers don't retry — we've already
+ * handled the outcome (logged, refunded, etc.). Error details are in the body. */
+const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
+  jsonResponse({ received: true, ...extra });
 
 /** Detect which provider sent the webhook based on request headers */
 const getWebhookSignatureHeader = (request: Request): string | null =>
@@ -926,13 +926,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     logDebug("Webhook", `Failed payload: ${payload}`);
   }
 
-  return webhookAckResponse(
-    {
-      error: result.success ? undefined : result.error,
-      processed: result.success,
-    },
-    result.success ? undefined : result.status,
-  );
+  return webhookAckResponse({
+    error: result.success ? undefined : result.error,
+    processed: result.success,
+  });
 };
 
 /** Payment routes definition */

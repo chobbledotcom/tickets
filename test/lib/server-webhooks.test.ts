@@ -500,7 +500,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.received).toBe(true);
             expect(json.processed).toBe(false);
@@ -513,7 +513,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook returns 409 when session is being processed concurrently", async () => {
+    test("webhook returns error when session is being processed concurrently", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -550,7 +550,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.received).toBe(true);
             expect(json.processed).toBe(false);
@@ -1316,7 +1316,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          410,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("no longer accepting");
@@ -1393,7 +1393,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("sold out");
@@ -1621,7 +1621,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          404,
+          200,
           (json) => {
             expect(json.error).toContain("Event not found");
           },
@@ -1698,7 +1698,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.error).toContain("sold out");
           },
@@ -1767,7 +1767,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          404,
+          200,
           (json) => {
             expect(json.error).toContain("Event not found");
           },
@@ -1818,7 +1818,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          410,
+          200,
           (json) => {
             expect(json.error).toContain("no longer accepting");
           },
@@ -1945,7 +1945,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          410,
+          200,
           (json) => {
             expect(json.error).toContain("no longer accepting");
           },
@@ -2003,7 +2003,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          404,
+          200,
           (json) => {
             expect(json.error).toContain("Event not found");
           },
@@ -2494,7 +2494,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -2572,7 +2572,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -2855,7 +2855,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_closed" }),
           ),
-          410,
+          200,
           (json) => {
             expect(json.error).toContain("registration closed");
           },
@@ -2922,7 +2922,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_multi_closed" }),
           ),
-          410,
+          200,
           (json) => {
             expect(json.error).toContain("registration for");
             expect(json.error).toContain("closed");
@@ -3252,7 +3252,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(410);
+        expect(response.status).toBe(200);
         expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
 
         // Verify refund success was logged to console
@@ -3325,7 +3325,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        expect(response.status).toBe(409);
+        expect(response.status).toBe(200);
 
         const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
         const entries = await getEventActivityLog(event.id);
@@ -3531,7 +3531,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -3590,7 +3590,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -3649,7 +3649,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -3804,7 +3804,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -3864,7 +3864,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
@@ -3986,7 +3986,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
-          409,
+          200,
           (json) => {
             expect(json.processed).toBe(false);
             expect(json.error).toContain("price");
