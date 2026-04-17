@@ -602,7 +602,12 @@ const MergeBookingsDecisionTable = ({
             {diff.bookingItems.map((item) => {
               const key = bookingKey(item.eventId, item.startAt);
               const name = `booking_${key}`;
-              const dateStr = item.startAt ? item.startAt.slice(0, 10) : "—";
+              const dateStr = item.startAt
+                ? formatDateRangeLabel(
+                    item.startAt,
+                    item.sourceBooking.end_at,
+                  )
+                : "—";
 
               if (item.conflictClass === "moveable") {
                 return (

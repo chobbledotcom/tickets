@@ -437,6 +437,39 @@ export const recomputeEventBookingRanges = async (
   invalidateEventsCache();
 };
 
+/**
+ * After a duration change on a grouped event, check whether any day in any
+ * existing booking's new range now exceeds the group cap. Returns the first
+ * over-capacity day, or null if everything fits.
+ *
+ * Call AFTER recomputeEventBookingRanges so end_at is already updated.
+ */
+export const checkGroupCapAfterDurationChange = async (
+  eventId: number,
+  groupId: number,
+): Promise<string | null> => {
+  if (groupId <= 0) return null;
+  const groupLimit = await getGroupMaxAttendees(groupId);
+  if (groupLimit <= 0) return null;
+
+  const rows = await queryAll<{ start_at: string; end_at: string }>(
+    "SELECT DISTINCT start_at, end_at FROM event_attendees WHERE event_id = ? AND start_at IS NOT NULL",
+    [eventId],
+  );
+  for (const row of rows) {
+    const startDate = row.start_at.slice(0, 10);
+    const endMs = new Date(row.end_at).getTime();
+    const startMs = new Date(row.start_at).getTime();
+    const days = Math.round((endMs - startMs) / 86_400_000);
+    for (let i = 0; i < days; i++) {
+      const day = addDays(startDate, i);
+      const count = await getGroupAttendeeCount(groupId, day);
+      if (count > groupLimit) return day;
+    }
+  }
+  return null;
+};
+
 export const getDateAttendeeCount = async (
   eventId: number,
   date: string,

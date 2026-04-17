@@ -5,11 +5,13 @@
 import { map, pipe, reduce } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { toMajorUnits } from "#lib/currency.ts";
+import { addDays } from "#lib/dates.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import type { Attendee } from "#lib/types.ts";
 
 /** Attendee with associated event info for calendar CSV */
 export type CalendarAttendee = Attendee & {
+  durationDays: number;
   eventName: string;
   eventDate: string;
   eventLocation: string;
@@ -109,6 +111,14 @@ export type CsvQuestionData = {
   attendeeAnswerMap: Map<number, number[]>;
 };
 
+/** Format the booking date for CSV: "YYYY-MM-DD" for single-day,
+ * "YYYY-MM-DD to YYYY-MM-DD" for multi-day. */
+const csvDateRange = (date: string | null, durationDays: number): string => {
+  if (!date) return "";
+  if (durationDays <= 1) return date;
+  return `${date} to ${addDays(date, durationDays - 1)}`;
+};
+
 /**
  * Generate CSV content from attendees.
  * Always includes both Email and Phone columns regardless of event settings.
@@ -121,6 +131,7 @@ export const generateAttendeesCsv = (
   includeDate = false,
   eventInfo?: CsvEventInfo,
   questionData?: CsvQuestionData,
+  durationDays = 1,
 ): string => {
   const showEventDate = !!eventInfo?.eventDate;
   const showEventLocation = !!eventInfo?.eventLocation;
@@ -145,7 +156,9 @@ export const generateAttendeesCsv = (
   return buildCsv(
     headerParts.join(","),
     (a: Attendee, domain) => [
-      ...(includeDate ? [escapeCsvValue(a.date ?? "")] : []),
+      ...(includeDate
+        ? [escapeCsvValue(csvDateRange(a.date, durationDays))]
+        : []),
       ...eventInfoCols(
         showEventDate,
         showEventLocation,
@@ -181,7 +194,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
         a.eventDate,
         a.eventLocation,
       ),
-      escapeCsvValue(a.date ?? ""),
+      escapeCsvValue(csvDateRange(a.date, a.durationDays)),
       ...attendeeCols(a, domain),
     ],
     attendees,

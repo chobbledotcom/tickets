@@ -21,6 +21,7 @@ const calendarAttendee = (
 ): CalendarAttendeeRow => ({
   ...testAttendee(),
   date: "2026-03-15",
+  durationDays: 1,
   eventDate: "",
   eventId: 1,
   eventLocation: "",

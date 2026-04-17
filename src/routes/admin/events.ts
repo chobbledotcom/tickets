@@ -7,7 +7,10 @@ import { getEffectiveDomain } from "#lib/config.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
-import { recomputeEventBookingRanges } from "#lib/db/attendees.ts";
+import {
+  checkGroupCapAfterDurationChange,
+  recomputeEventBookingRanges,
+} from "#lib/db/attendees.ts";
 import {
   computeSlugIndex,
   type EventInput,
@@ -495,6 +498,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
     if (result.ok) {
       // If duration changed on a daily event, reconcile existing booking ranges
       // so stored end_at values match the event's current policy.
+      let durationWarning = "";
       if (
         result.row.event_type === "daily" &&
         result.row.duration_days !== existing.duration_days
@@ -507,13 +511,24 @@ const handleAdminEventEditPost: TypedRouteHandler<
           `Event '${result.row.name}' duration changed to ${result.row.duration_days} day(s)`,
           result.row,
         );
+        const overDay = await checkGroupCapAfterDurationChange(
+          result.row.id,
+          result.row.group_id,
+        );
+        if (overDay) {
+          durationWarning = ` Warning: group capacity exceeded on ${overDay}`;
+          await logActivity(
+            `Duration change caused group capacity overflow on ${overDay}`,
+            result.row,
+          );
+        }
       }
       await logActivity(`Event '${result.row.name}' updated`, result.row);
       return processUploadsAndRedirect(
         formData,
         id,
         `/admin/event/${result.row.id}`,
-        "Event updated",
+        `Event updated${durationWarning}`,
         existing.image_url,
         existing.attachment_url,
       );
@@ -560,6 +575,7 @@ const handleAdminEventExport: TypedRouteHandler<
         eventLocation: event.location,
       },
       questionData,
+      event.duration_days,
     );
     const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = dateFilter

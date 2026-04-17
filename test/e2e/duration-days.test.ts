@@ -13,12 +13,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAvailableDates } from "#lib/dates.ts";
 import {
   checkBatchAvailability,
+  checkGroupCapAfterDurationChange,
   getAttendeesRaw,
   hasAvailableSpots,
 } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { buildTemplateData } from "#lib/email-renderer.ts";
+import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   adminFormPost,
   bookAttendee,
@@ -504,4 +506,129 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     });
   });
 
+  describe("CSV export", () => {
+    test("date column shows range for multi-day bookings", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 5,
+      });
+      await bookAttendee(event, { date: "2026-06-12", durationDays: 3 });
+      const attendees = await getAttendeesRaw(event.id);
+      const csv = generateAttendeesCsv(attendees, true, undefined, undefined, 3);
+      expect(csv).toContain("2026-06-12 to 2026-06-14");
+    });
+
+    test("date column shows single date for 1-day bookings", async () => {
+      const event = await createDailyTestEvent({ maxAttendees: 5 });
+      await bookAttendee(event, { date: "2026-06-12" });
+      const attendees = await getAttendeesRaw(event.id);
+      const csv = generateAttendeesCsv(attendees, true);
+      expect(csv).toContain("2026-06-12");
+      expect(csv).not.toContain("to");
+    });
+  });
+
+  describe("group cap + duration change interaction", () => {
+    test("no-limit group returns null (no cap to violate)", async () => {
+      const group = await createTestGroup({ maxAttendees: 0 });
+      const event = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+      });
+      await bookAttendee(event, { date: "2026-10-01", quantity: 50 });
+      expect(
+        await checkGroupCapAfterDurationChange(event.id, group.id),
+      ).toBeNull();
+    });
+
+    test("checkGroupCapAfterDurationChange detects overflow", async () => {
+      // Two events in a group with cap 10. Each has 5 attendees on
+      // separate days. Extending event A's duration to span event B's
+      // day pushes the group total to 10 — at the limit but not over.
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const eventA = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      const eventB = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(eventA, { date: "2026-10-01", quantity: 6 });
+      await bookAttendee(eventB, { date: "2026-10-02", quantity: 6 });
+
+      // Before extending: no overlap, group fine.
+      expect(await checkGroupCapAfterDurationChange(eventA.id, group.id)).toBeNull();
+
+      // Extend event A to 2 days → A now spans day 1+2. Day 2 has
+      // A(6) + B(6) = 12 > group cap 10.
+      await updateTestEvent(eventA.id, { durationDays: 2 });
+      const overDay = await checkGroupCapAfterDurationChange(
+        eventA.id,
+        group.id,
+      );
+      expect(overDay).toBe("2026-10-02");
+    });
+
+    test("duration change that causes group overflow is detectable", async () => {
+      // Use updateTestEvent (full admin form) to change duration, then
+      // verify checkGroupCapAfterDurationChange flags the overflow day.
+      const group = await createTestGroup({ maxAttendees: 5 });
+      const eventA = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      const eventB = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(eventA, { date: "2026-11-01", quantity: 3 });
+      await bookAttendee(eventB, { date: "2026-11-02", quantity: 3 });
+
+      // Extend eventA to 2 days → day 2 has A(3) + B(3) = 6 > cap 5.
+      await updateTestEvent(eventA.id, { durationDays: 2 });
+      const overDay = await checkGroupCapAfterDurationChange(
+        eventA.id,
+        group.id,
+      );
+      expect(overDay).toBe("2026-11-02");
+    });
+  });
+
+  describe("public ticket page", () => {
+    test("shows booking duration hint for multi-day daily events", async () => {
+      const { ticketPage, buildTicketEvent } = await import(
+        "#templates/public.tsx"
+      );
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 10,
+      });
+      const fresh = (await getEventWithCount(event.id))!;
+      const html = ticketPage({
+        dates: ["2026-08-10", "2026-08-11"],
+        events: [buildTicketEvent(fresh)],
+        slugs: [event.slug],
+      });
+      expect(html).toContain("each booking reserves 3 days");
+    });
+
+    test("no duration hint for single-day daily events", async () => {
+      const { ticketPage, buildTicketEvent } = await import(
+        "#templates/public.tsx"
+      );
+      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const fresh = (await getEventWithCount(event.id))!;
+      const html = ticketPage({
+        dates: ["2026-08-10"],
+        events: [buildTicketEvent(fresh)],
+        slugs: [event.slug],
+      });
+      expect(html).not.toContain("each booking reserves");
+    });
+  });
 });

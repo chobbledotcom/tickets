@@ -230,10 +230,10 @@ export const buildOgTags = (
 };
 
 /** Render a date selector dropdown for daily events */
-const renderDateSelector = (dates: string[]): string =>
+const renderDateSelector = (dates: string[], durationDays = 1): string =>
   dates.length === 0
     ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
-    : `<label for="date">Select Date</label>
+    : `<label for="date">Select Date${durationDays > 1 ? ` <small>(each booking reserves ${durationDays} days)</small>` : ""}</label>
        <select name="date" id="date" required>
          <option value="">— Select a date —</option>
          ${dates.map((d) => `<option value="${d}">${formatDateLabel(d)}</option>`).join("")}
@@ -498,6 +498,7 @@ const TicketPageForm = ({
   slugs,
   fields,
   hasDaily,
+  durationDays,
   dates,
   eventRows,
   hideQuantity,
@@ -509,6 +510,7 @@ const TicketPageForm = ({
   slugs: string[];
   fields: Field[];
   hasDaily: boolean;
+  durationDays: number;
   dates: string[] | undefined;
   eventRows: string;
   hideQuantity: boolean;
@@ -519,7 +521,9 @@ const TicketPageForm = ({
 }): JSX.Element => (
   <CsrfForm action={`/ticket/${slugs.join("+")}`}>
     <Raw html={renderFields(fields)} />
-    {hasDaily && dates && <Raw html={renderDateSelector(dates)} />}
+    {hasDaily && dates && (
+      <Raw html={renderDateSelector(dates, durationDays)} />
+    )}
 
     {hideQuantity || isSingleEvent ? (
       <Raw html={eventRows} />
@@ -609,6 +613,7 @@ export const ticketPage = ({
           slugs={slugs}
           fields={fields}
           hasDaily={hasDaily}
+          durationDays={singleEvent?.duration_days ?? 1}
           dates={dates}
           eventRows={eventRows}
           hideQuantity={hideQuantity}
