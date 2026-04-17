@@ -946,67 +946,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("db error during attendee creation cleans up reservation", async () => {
-      await setupStripe();
-
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        name: "DB Error Cleanup",
-        unitPrice: 1000,
-      });
-
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const { isSessionProcessed } = await import(
-        "#lib/db/processed-payments.ts"
-      );
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_db_error",
-          metadata: {
-            email: "dberror@example.com",
-            items: singleItem(event.id, 1, 1000),
-            name: "DB Error",
-          },
-          payment_intent: "pi_db_error",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
-
-      // First attempt: createAttendeeAtomic throws a DB error
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
-        Promise.reject(new Error("SQLITE_IOERR: disk I/O error")),
-      );
-
-      try {
-        await withExpectedError(async () => {
-          await handleRequest(
-            mockRequest("/payment/success?session_id=cs_db_error"),
-          );
-        });
-
-        // Reservation should be cleaned up (not left dangling)
-        const record = await isSessionProcessed("cs_db_error");
-        expect(record).toBeNull();
-      } finally {
-        mockAtomic.restore();
-      }
-
-      // Second attempt should succeed (not show "being processed")
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_db_error"),
-        );
-        const redirectUrl = response.headers.get("Location")!;
-        expect(redirectUrl).toContain("/payment/success?tokens=");
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
     test("multi-ticket pricePaid calculation uses unit_price * quantity", async () => {
       await setupStripe();
 

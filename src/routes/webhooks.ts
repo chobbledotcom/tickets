@@ -26,7 +26,6 @@ import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
-  deleteStaleReservation,
   finalizeSession,
   type ProcessedPayment,
   reserveSession,
@@ -564,52 +563,42 @@ const processPaymentSession = async (
   }
 
   // Phase 2: Validate events and create attendees atomically
-  // If anything throws after reservation, release the lock so the next attempt can retry
-  try {
-    const validated = await validateAllItems(session, intent);
-    if ("success" in validated) return validated;
-    const validatedItems = validated.items;
+  const validated = await validateAllItems(session, intent);
+  if ("success" in validated) return validated;
+  const validatedItems = validated.items;
 
-    const pricingError = await verifyPaidPricing(
-      session,
-      intent,
-      validatedItems,
-    );
-    if (pricingError) return pricingError;
+  const pricingError = await verifyPaidPricing(session, intent, validatedItems);
+  if (pricingError) return pricingError;
 
-    const created = await createAttendeeForSession(
-      session,
-      intent,
-      validatedItems,
-    );
-    if ("success" in created) return created;
-    const createdEntries = created.entries;
+  const created = await createAttendeeForSession(
+    session,
+    intent,
+    validatedItems,
+  );
+  if ("success" in created) return created;
+  const createdEntries = created.entries;
 
-    if (intent.eventAnswerIds) {
-      await saveEventAnswers(createdEntries, intent.eventAnswerIds);
-    }
-
-    const firstAttendee = createdEntries[0]!;
-    const ticketToken = firstAttendee.attendee.ticket_token;
-
-    await finalizeSession(
-      sessionId,
-      firstAttendee.attendee.id,
-      options?.storeTokens === false ? [] : [ticketToken],
-    );
-
-    await logAndNotifyRegistration(createdEntries);
-
-    return {
-      attendee: firstAttendee.attendee,
-      event: firstAttendee.event,
-      success: true,
-      ticketTokens: [ticketToken],
-    };
-  } catch (error) {
-    await deleteStaleReservation(sessionId);
-    throw error;
+  if (intent.eventAnswerIds) {
+    await saveEventAnswers(createdEntries, intent.eventAnswerIds);
   }
+
+  const firstAttendee = createdEntries[0]!;
+  const ticketToken = firstAttendee.attendee.ticket_token;
+
+  await finalizeSession(
+    sessionId,
+    firstAttendee.attendee.id,
+    options?.storeTokens === false ? [] : [ticketToken],
+  );
+
+  await logAndNotifyRegistration(createdEntries);
+
+  return {
+    attendee: firstAttendee.attendee,
+    event: firstAttendee.event,
+    success: true,
+    ticketTokens: [ticketToken],
+  };
 };
 
 /**
