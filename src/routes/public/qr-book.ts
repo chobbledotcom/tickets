@@ -59,7 +59,7 @@ const canSkipToCheckout = async (
   payload: QrBookPayload,
 ): Promise<boolean> => {
   if (!payload.n || payload.v < 0) return false;
-  return eventSupportsDirectCheckout(event);
+  return await eventSupportsDirectCheckout(event);
 };
 
 /** Validate a daily-event booking date against available dates (minus holidays) */
