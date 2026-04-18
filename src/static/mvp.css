@@ -1606,4 +1606,10 @@ button.secondary:hover {
   transition: opacity 500ms ease-in-out;
 }
 
+.qr-code svg {
+  max-width: 400px;
+  width: 100%;
+  height: auto;
+}
+
 /* Guide page */
