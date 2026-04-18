@@ -10,9 +10,8 @@
 import { getAvailableDates } from "#lib/dates.ts";
 import { getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getQuestionsForEvent } from "#lib/db/questions.ts";
-import { parseEventFields } from "#lib/event-fields.ts";
 import type { CheckoutIntent } from "#lib/payments.ts";
+import { eventSupportsDirectCheckout } from "#lib/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#lib/qr-token.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { htmlResponse, isRegistrationClosed } from "#routes/utils.ts";
@@ -60,9 +59,7 @@ const canSkipToCheckout = async (
   payload: QrBookPayload,
 ): Promise<boolean> => {
   if (!payload.n || payload.v < 0) return false;
-  if (parseEventFields(event.fields).length > 0) return false;
-  const questions = await getQuestionsForEvent(event.id);
-  return questions.length === 0;
+  return eventSupportsDirectCheckout(event);
 };
 
 /** Validate a daily-event booking date against available dates (minus holidays) */
