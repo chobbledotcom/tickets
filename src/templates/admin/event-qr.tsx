@@ -38,6 +38,7 @@ export type AdminEventQrPageOptions = {
   session: AdminSession;
   bookableDates: string[];
   values: AdminEventQrValues;
+  canDirectCheckout: boolean;
   error?: string;
   result?: AdminEventQrResult;
 };
@@ -147,6 +148,7 @@ export const adminEventQrPage = ({
   session,
   bookableDates,
   values,
+  canDirectCheckout,
   error,
   result,
 }: AdminEventQrPageOptions): string => {
@@ -163,8 +165,14 @@ export const adminEventQrPage = ({
         </h1>
         <p>
           Generate a signed link that pre-fills the booking form. If name and
-          price are both set and the event has no extra required fields, the
-          scanner is taken straight to payment.
+          price are both set and the event has no extra required fields{" "}
+          <span
+            style={`color:${canDirectCheckout ? "green" : "red"}`}
+          >
+            (this <strong>{canDirectCheckout ? "is" : "is not"}</strong> the
+            case)
+          </span>
+          , the scanner is taken straight to payment.
         </p>
         <Flash error={error} />
         <CsrfForm action={formAction}>
