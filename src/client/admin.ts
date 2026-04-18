@@ -20,6 +20,7 @@ import { initMultiBookingBuilder } from "./admin/multi-booking.ts";
 import { initNavSelect } from "./admin/nav-select.ts";
 import { initPaymentResultNotifier } from "./admin/payment-result.ts";
 import { initPaymentTestButtons } from "./admin/payment-test-buttons.ts";
+import { initQrRefresh } from "./admin/qr-refresh.ts";
 import { initScrollHideNav } from "./admin/scroll-hide-nav.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
 
@@ -33,6 +34,7 @@ initCheckoutPopup();
 initScrollHideNav();
 initPaymentResultNotifier();
 initPaymentTestButtons();
+initQrRefresh();
 initCharCounters();
 initManualCheckin();
 initFormSubmitDisable();
