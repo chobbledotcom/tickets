@@ -419,12 +419,11 @@ const resolveQuantity = (
   return Math.max(0, Math.min(prefill.quantity, maxPurchasable));
 };
 
-/** Render quantity selector for an event row */
-const renderEventRow = (
-  info: TicketEvent,
-  hideQuantity = false,
-  prefill?: TicketPrefill,
-): string => {
+/** Render quantity selector for an event row.
+ *
+ * Note: QR pre-fills are single-event only and go through
+ * renderSingleEventControls, so this function has no prefill parameter. */
+const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
   const imageHtml = renderEventImage(event);
@@ -450,10 +449,9 @@ const renderEventRow = (
     `;
   }
 
-  const prefilledQty = resolveQuantity(prefill, maxPurchasable);
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : `<select name="${fieldName}">${quantityOptions(maxPurchasable, prefilledQty)}</select>`;
+    : `<select name="${fieldName}">${quantityOptions(maxPurchasable, 0)}</select>`;
 
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
@@ -463,7 +461,7 @@ const renderEventRow = (
       ${imageHtml}
       <label>${escapeHtml(event.name)}${quantityHtml}</label>
       ${renderEventDescription(event.description)}
-      ${showPayMore ? renderPayMoreInput(event, priceFieldName, prefill?.customPriceMinor) : ""}
+      ${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}
     </div>
   `;
 };
@@ -477,12 +475,13 @@ const renderSingleEventControls = (
   const { event, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
   const prefilledQty = resolveQuantity(prefill, maxPurchasable);
+  const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
     : `<label>Number of Tickets<select name="${fieldName}">${quantityOptions(maxPurchasable, prefilledQty)}</select></label>`;
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
-  return `${quantityHtml}${showPayMore ? renderPayMoreInput(event, priceFieldName, prefill?.customPriceMinor) : ""}`;
+  return `${quantityHtml}${showPayMore ? renderPayMoreInput(event, priceFieldName, prefilledPrice) : ""}`;
 };
 
 /**
@@ -661,17 +660,14 @@ export const ticketPage = ({
     availableEvents.length === 1 && availableEvents[0]?.maxPurchasable === 1;
 
   // For single events, render just the quantity/pay-more controls (event details are in the header).
-  // For multiple events, render full event rows with name, image, and description.
-  const eventPrefill = (id: number) => qrPrefill?.events.get(id);
+  // QR pre-fills only apply to single-event pages, so multi-event rows ignore them.
   const eventRows = isSingleEvent
     ? renderSingleEventControls(
         events[0]!,
         hideQuantity,
-        eventPrefill(events[0]!.event.id),
+        qrPrefill?.events.get(events[0]!.event.id),
       )
-    : events
-        .map((e) => renderEventRow(e, hideQuantity, eventPrefill(e.event.id)))
-        .join("");
+    : events.map((e) => renderEventRow(e, hideQuantity)).join("");
 
   // Unified header: single events use event details, groups use group metadata
   const headerName = singleEvent?.name ?? groupName;
