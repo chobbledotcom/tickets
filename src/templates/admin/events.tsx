@@ -259,6 +259,11 @@ const EventActionNav = ({
         <li>
           <a href={`/admin/event/${event.id}/questions`}>Questions</a>
         </li>
+        {!readOnly && (
+          <li>
+            <a href={`/admin/event/${event.id}/qr`}>Booking QR</a>
+          </li>
+        )}
         <li>
           <a
             href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}

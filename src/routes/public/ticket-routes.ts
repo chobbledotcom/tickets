@@ -11,6 +11,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
+import { handleQrBookGet } from "./qr-book.ts";
 import { handleTicketBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -74,6 +75,7 @@ export const handleTicketQrGet = async (
 const publicRoutes = defineRoutes({
   "GET /ticket/:slug": handleTicketBySlug,
   "GET /ticket/:slug/qr": handleTicketQrGet,
+  "GET /ticket/:slug/qr-book": handleQrBookGet,
   "GET /ticket/reserved": handleReservedGet,
   "POST /ticket/:slug": handleTicketBySlug,
 });
