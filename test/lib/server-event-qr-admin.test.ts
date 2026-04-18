@@ -198,4 +198,82 @@ describeWithEnv("admin event-qr route", { db: true }, () => {
       expect(await verifyQrBookToken(b.slug, token)).toBeNull();
     });
   });
+
+  describe("GET /admin/event/:id/qr.json (client-side refresh)", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const response = await handleRequest(
+        mockRequest(`/admin/event/${event.id}/qr.json?quantity=1`),
+      );
+      expect(response.status).toBe(302);
+      response.body?.cancel();
+    });
+
+    test("returns 404 when the event does not exist", async () => {
+      const { response } = await adminGet("/admin/event/99999/qr.json?quantity=1");
+      expect(response.status).toBe(404);
+      response.body?.cancel();
+    });
+
+    test("returns JSON with a fresh token matching submitted values", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        maxQuantity: 5,
+        unitPrice: 500,
+      });
+      const { response } = await adminGet(
+        `/admin/event/${event.id}/qr.json?customer_name=Ada&value=7.50&quantity=2`,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain(
+        "application/json",
+      );
+      const body = (await response.json()) as {
+        ok: boolean;
+        url: string;
+        svg: string;
+      };
+      expect(body.ok).toBe(true);
+      expect(body.svg).toContain("<svg");
+      const match = body.url.match(/\/qr-book\?t=([^&]+)/);
+      expect(match).not.toBeNull();
+      const token = decodeURIComponent(match![1]!);
+      const payload = await verifyQrBookToken(event.slug, token);
+      expect(payload!.n).toBe("Ada");
+      expect(payload!.v).toBe(750);
+      expect(payload!.q).toBe(2);
+    });
+
+    test("returns 400 JSON on validation failure", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        maxQuantity: 2,
+        unitPrice: 500,
+      });
+      const { response } = await adminGet(
+        `/admin/event/${event.id}/qr.json?quantity=99`,
+      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+      };
+      expect(body.ok).toBe(false);
+      expect(body.error).toContain("Quantity cannot exceed");
+    });
+
+    test("signs a different token each minute (fresh expiry)", async () => {
+      const event = await createTestEvent({ maxAttendees: 10, unitPrice: 500 });
+      const first = await adminGet(
+        `/admin/event/${event.id}/qr.json?customer_name=Ada&value=5.00&quantity=1`,
+      );
+      await new Promise((r) => setTimeout(r, 1100));
+      const second = await adminGet(
+        `/admin/event/${event.id}/qr.json?customer_name=Ada&value=5.00&quantity=1`,
+      );
+      const a = (await first.response.json()) as { url: string };
+      const b = (await second.response.json()) as { url: string };
+      expect(a.url).not.toBe(b.url);
+    });
+  });
 });

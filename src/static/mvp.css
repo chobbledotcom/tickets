@@ -1601,4 +1601,9 @@ button.secondary:hover {
   outline: none;
 }
 
+/* QR result panel — fade transition for client-side auto-refresh */
+.qr-result {
+  transition: opacity 500ms ease-in-out;
+}
+
 /* Guide page */

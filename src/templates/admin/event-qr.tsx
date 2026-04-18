@@ -99,23 +99,44 @@ const DateSelect = ({
   </label>
 );
 
-/** Result panel: QR + copyable URL + expiry note */
+/** Result panel: QR + copyable URL + expiry note.
+ *
+ * Data attributes drive client-side auto-refresh: the panel polls the
+ * `data-qr-refresh` endpoint every minute and fades the new SVG + URL
+ * in/out. See src/client/admin/qr-refresh.ts. */
 const QrResultPanel = ({
   result,
+  refreshUrl,
+  formAction,
 }: {
   result: AdminEventQrResult;
+  refreshUrl: string;
+  formAction: string;
 }): JSX.Element => (
-  <article>
+  <article
+    class="qr-result"
+    data-qr-refresh={refreshUrl}
+    data-qr-refresh-form={formAction}
+  >
     <h2>QR code</h2>
-    <div class="qr-code">
+    <div class="qr-code" data-qr-svg>
       <Raw html={result.svg} />
     </div>
     <p>
-      <small>Expires in {EXPIRY_LABEL} from generation.</small>
+      <small>
+        Refreshes every minute. Each code expires {EXPIRY_LABEL} after it was
+        generated.
+      </small>
     </p>
     <label>
       Link
-      <input type="text" value={result.url} readonly data-select-on-click />
+      <input
+        type="text"
+        value={result.url}
+        readonly
+        data-select-on-click
+        data-qr-link
+      />
     </label>
   </article>
 );
@@ -130,6 +151,8 @@ export const adminEventQrPage = ({
   result,
 }: AdminEventQrPageOptions): string => {
   const isDaily = event.event_type === "daily";
+  const formAction = `/admin/event/${event.id}/qr`;
+  const refreshUrl = `/admin/event/${event.id}/qr.json`;
   return String(
     <Layout title={`QR Code: ${event.name}`}>
       <AdminNav session={session} active="/admin/" />
@@ -144,7 +167,7 @@ export const adminEventQrPage = ({
           scanner is taken straight to payment.
         </p>
         <Flash error={error} />
-        <CsrfForm action={`/admin/event/${event.id}/qr`}>
+        <CsrfForm action={formAction}>
           <label>
             Customer name
             <input
@@ -169,7 +192,13 @@ export const adminEventQrPage = ({
           {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
           <button type="submit">Generate QR code</button>
         </CsrfForm>
-        {result && <QrResultPanel result={result} />}
+        {result && (
+          <QrResultPanel
+            result={result}
+            refreshUrl={refreshUrl}
+            formAction={formAction}
+          />
+        )}
       </article>
     </Layout>,
   );

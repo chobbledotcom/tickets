@@ -3,6 +3,9 @@
  *
  * GET renders the form, POST validates input, signs a URL, and re-renders
  * the page with the generated QR beneath the form.
+ *
+ * GET /admin/event/:id/qr.json returns a fresh token as JSON so the page
+ * can refresh the QR client-side (every minute) without a full reload.
  */
 
 import { getEffectiveDomain } from "#lib/config.ts";
@@ -10,7 +13,7 @@ import { validatePrice } from "#lib/currency.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import type { FormParams } from "#lib/form-data.ts";
+import { FormParams } from "#lib/form-data.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
@@ -19,6 +22,7 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   AUTH_FORM,
   htmlResponse,
+  jsonResponse,
   orNotFound,
   requireSessionOr,
   withAuth,
@@ -148,6 +152,18 @@ const buildQrUrl = (slug: string, token: string): string => {
   }`;
 };
 
+/** Sign a fresh token for the given event and render its QR SVG */
+const signAndRenderQr = async (
+  event: EventWithCount,
+  parsed: ParsedValues,
+): Promise<AdminEventQrResult> => {
+  const payload = buildQrBookPayload(parsed);
+  const token = await signQrBookToken(event.slug, payload);
+  const url = buildQrUrl(event.slug, token);
+  const svg = await generateQrSvg(url);
+  return { svg, url };
+};
+
 /** Process a validated admin QR form submission and render the result panel */
 const generateAndRender = async (
   id: number,
@@ -155,11 +171,8 @@ const generateAndRender = async (
   event: EventWithCount,
   extracted: Extract<ReturnType<typeof extractValues>, { ok: true }>,
 ): Promise<Response> => {
-  const payload = buildQrBookPayload(extracted.parsed);
-  const token = await signQrBookToken(event.slug, payload);
-  const url = buildQrUrl(event.slug, token);
-  const svg = await generateQrSvg(url);
-  return renderPage(id, session, extracted.values, { result: { svg, url } });
+  const result = await signAndRenderQr(event, extracted.parsed);
+  return renderPage(id, session, extracted.values, { result });
 };
 
 /** POST /admin/event/:id/qr */
@@ -181,8 +194,32 @@ const handlePost: TypedRouteHandler<"POST /admin/event/:id/qr"> = (
       }),
   );
 
+/**
+ * GET /admin/event/:id/qr.json
+ *
+ * Used by the admin page's client-side auto-refresh: it reads the current
+ * form values, calls this endpoint, and swaps the rendered QR every minute
+ * so stale links become obvious to any admin watching the screen.
+ */
+const handleJsonGet: TypedRouteHandler<"GET /admin/event/:id/qr.json"> = (
+  request,
+  { id },
+) =>
+  requireSessionOr(request, () =>
+    orNotFound(Promise.resolve(getEventWithCount(id)), async (event) => {
+      const form = new FormParams(new URL(request.url).searchParams);
+      const extracted = extractValues(form, event);
+      if (!extracted.ok) {
+        return jsonResponse({ error: extracted.error, ok: false }, 400);
+      }
+      const result = await signAndRenderQr(event, extracted.parsed);
+      return jsonResponse({ ok: true, ...result });
+    }),
+  );
+
 /** Exported admin routes for the QR generator */
 export const eventQrRoutes = defineRoutes({
   "GET /admin/event/:id/qr": handleGet,
+  "GET /admin/event/:id/qr.json": handleJsonGet,
   "POST /admin/event/:id/qr": handlePost,
 });
