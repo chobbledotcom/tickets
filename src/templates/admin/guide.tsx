@@ -1857,6 +1857,25 @@ export const adminGuidePage = (
           </ul>
         </Q>
 
+        <Q q="How does the header image work?">
+          <p>
+            Upload a logo or banner from <strong>Settings</strong>{" "}
+            and it appears at the top of every admin and public page. The image
+            is encrypted and served through the{" "}
+            <code>/image/</code>{" "}
+            proxy with long-lived immutable cache headers, so browsers only
+            download it once.
+          </p>
+          <p>
+            Supported formats are JPEG, PNG, GIF, and WebP, up to 256&nbsp;KB.
+            Uploading a new image automatically deletes the old one, and the{" "}
+            <strong>Remove Image</strong> button clears it completely. If image
+            storage isn't configured the section is hidden &mdash; see{" "}
+            <strong>Advanced Settings</strong>{" "}
+            to set up a Bunny storage zone.
+          </p>
+        </Q>
+
         <Q q="What are Advanced Settings?">
           <p>
             The main Settings page has a link to{" "}

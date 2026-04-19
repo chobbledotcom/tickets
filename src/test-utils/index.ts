@@ -2936,6 +2936,20 @@ export const withCdnProxy = (
     }),
   );
 
+/** Mock fetch where CDN requests reject (simulates network failure) */
+export const withCdnRejecting = (
+  error: Error,
+  fn: () => Promise<void>,
+): Promise<void> =>
+  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
+    withFetchMock(async (originalFetch) => {
+      installUrlHandler(originalFetch, (url) =>
+        url.includes("storage.bunnycdn.com") ? Promise.reject(error) : null,
+      );
+      await fn();
+    }),
+  );
+
 /**
  * Run a callback with storage explicitly disabled (neither Bunny nor local).
  * Uses AsyncLocalStorage so concurrent tests cannot interfere.
