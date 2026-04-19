@@ -55,6 +55,15 @@ describeWithEnv("admin event-qr route", { db: true }, () => {
       expect(body).toContain('value="1"');
     });
 
+    test("shows green indicator for event with no extra fields, red when extra fields required", async () => {
+      const noFields = await createTestEvent({ fields: "", maxAttendees: 10, unitPrice: 500 });
+      const withFields = await createTestEvent({ fields: "email", maxAttendees: 10, unitPrice: 500 });
+      const { response: r1 } = await adminGet(`/admin/event/${noFields.id}/qr`);
+      const { response: r2 } = await adminGet(`/admin/event/${withFields.id}/qr`);
+      expect(await r1.text()).toContain("color:green");
+      expect(await r2.text()).toContain("color:red");
+    });
+
     test("shows a date selector for daily events", async () => {
       const event = await createDailyTestEvent({ unitPrice: 500 });
       const { response } = await adminGet(`/admin/event/${event.id}/qr`);

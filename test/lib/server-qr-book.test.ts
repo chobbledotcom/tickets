@@ -333,7 +333,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       }
     });
 
-    test("falls through when global terms are configured", async () => {
+    test("skips straight to Stripe even when global terms are configured", async () => {
       const event = await createTestEvent({
         fields: "",
         maxAttendees: 10,
@@ -347,8 +347,9 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       const stripe = stubStripe();
       try {
         const response = await awaitTestRequest(qrBookPath(event.slug, token));
-        expect(response.status).toBe(200);
-        expect(stripe.checkoutStub.calls.length).toBe(0);
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain("stripe.example");
+        expect(stripe.checkoutStub.calls.length).toBe(1);
       } finally {
         await settings.update.terms("");
         stripe.restore();

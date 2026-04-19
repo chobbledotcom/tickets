@@ -3,17 +3,15 @@
  *
  * Verifies a signed token; on success, either skips straight to Stripe
  * checkout (when the token carries a name + value and the event requires
- * no extra fields, questions, or terms) or renders the normal booking page
+ * no extra fields or questions) or renders the normal booking page
  * with the token's values pre-filled.
  */
 
 import { getAvailableDates } from "#lib/dates.ts";
 import { getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getQuestionsForEvent } from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { parseEventFields } from "#lib/event-fields.ts";
 import type { CheckoutIntent } from "#lib/payments.ts";
+import { eventSupportsDirectCheckout } from "#lib/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#lib/qr-token.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { htmlResponse, isRegistrationClosed } from "#routes/utils.ts";
@@ -61,10 +59,7 @@ const canSkipToCheckout = async (
   payload: QrBookPayload,
 ): Promise<boolean> => {
   if (!payload.n || payload.v < 0) return false;
-  if (parseEventFields(event.fields).length > 0) return false;
-  if (settings.terms) return false;
-  const questions = await getQuestionsForEvent(event.id);
-  return questions.length === 0;
+  return await eventSupportsDirectCheckout(event);
 };
 
 /** Validate a daily-event booking date against available dates (minus holidays) */

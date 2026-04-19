@@ -14,7 +14,7 @@ import { getAvailableDates } from "#lib/dates.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { FormParams } from "#lib/form-data.ts";
-import { generateQrSvg } from "#lib/qr.ts";
+import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -55,10 +55,14 @@ const renderPage = (
   extras: { error?: string; result?: AdminEventQrResult } = {},
 ): Promise<Response> =>
   orNotFound(Promise.resolve(getEventWithCount(eventId)), async (event) => {
-    const bookableDates = await loadBookableDates(event);
+    const [bookableDates, canDirectCheckout] = await Promise.all([
+      loadBookableDates(event),
+      eventSupportsDirectCheckout(event),
+    ]);
     return htmlResponse(
       adminEventQrPage({
         bookableDates,
+        canDirectCheckout,
         event,
         session,
         values,
