@@ -936,6 +936,11 @@ input[type="submit"].danger:hover {
   font-weight: bold;
 }
 
+.success-text {
+  color: #006600;
+  font-weight: bold;
+}
+
 .badge-alert {
   font-size: 0.6rem;
   font-weight: bold;
@@ -952,6 +957,9 @@ input[type="submit"].danger:hover {
 }
 [data-theme="dark"] .danger-text {
   color: #ff5555;
+}
+[data-theme="dark"] .success-text {
+  color: #50fa7b;
 }
 [data-theme="dark"] .badge-alert {
   background-color: #991919;

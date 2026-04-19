@@ -166,9 +166,7 @@ export const adminEventQrPage = ({
         <p>
           Generate a signed link that pre-fills the booking form. If name and
           price are both set and the event has no extra required fields{" "}
-          <span
-            style={`color:${canDirectCheckout ? "green" : "red"}`}
-          >
+          <span class={canDirectCheckout ? "success-text" : "danger-text"}>
             (this <strong>{canDirectCheckout ? "is" : "is not"}</strong> the
             case)
           </span>
