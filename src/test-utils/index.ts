@@ -683,6 +683,15 @@ export const hasCheckedInput = (
   );
 };
 
+/** True when `html` contains an `<option value="...">` with the `selected` attribute, in any attribute order. */
+export const hasSelectedOption = (html: string, value: string): boolean => {
+  const tags = html.match(/<option\b[^>]*>/gi) ?? [];
+  return tags.some(
+    (t) =>
+      t.includes(`value="${value}"`) && /\bselected(?=[\s/>])/.test(t),
+  );
+};
+
 /**
  * Extract admin login CSRF token from HTML body
  */
