@@ -375,7 +375,7 @@ export const getAttendeeAnswersBatch = async (
       acc.set(attendee_id, list);
       return acc;
     },
-    new Map<number, number[]>(),
+    new Map(),
   )(rows);
 };
 
@@ -488,7 +488,7 @@ export const getAnswerCountsForQuestion = async (
       acc.set(answer_id, cnt);
       return acc;
     },
-    new Map<number, number>(),
+    new Map(),
   )(rows);
 };
 

@@ -213,7 +213,7 @@ const buildBookingDiffItems = (
       acc.set(bookingKey(b.event_id, b.start_at), b);
       return acc;
     },
-    new Map<string, EventAttendeeRow>(),
+    new Map(),
   )(targetBookings);
 
   return map((sb: EventAttendeeRow): AttendeeMergeDiffBookingItem => {
