@@ -977,6 +977,16 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="Is the booking fee refunded too?">
+          <p>
+            Yes. Refunds reverse the full charge taken from the attendee,
+            including any booking fee that was added at checkout. Your payment
+            provider's own processing fee is a separate matter &mdash; Stripe
+            and Square each have their own policy on whether processing fees
+            are returned on a refund, so check your provider for details.
+          </p>
+        </Q>
+
         <Q q="What happens to the attendee after a refund?">
           <p>
             The attendee{" "}
