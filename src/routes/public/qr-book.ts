@@ -17,8 +17,8 @@ import type { EventWithCount } from "#lib/types.ts";
 import { htmlResponse, isRegistrationClosed } from "#routes/utils.ts";
 import {
   buildTicketEvent,
-  qrBookErrorPage,
   type QrPrefill,
+  qrBookErrorPage,
   type TicketPrefill,
 } from "#templates/public.tsx";
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";

@@ -28,9 +28,9 @@ import {
   withAuth,
 } from "#routes/utils.ts";
 import {
-  adminEventQrPage,
   type AdminEventQrResult,
   type AdminEventQrValues,
+  adminEventQrPage,
 } from "#templates/admin/event-qr.tsx";
 
 const EMPTY_VALUES: AdminEventQrValues = {
@@ -85,10 +85,10 @@ const extractValues = (
 ):
   | { ok: true; parsed: ParsedValues; values: AdminEventQrValues }
   | {
-    ok: false;
-    error: string;
-    values: AdminEventQrValues;
-  } => {
+      ok: false;
+      error: string;
+      values: AdminEventQrValues;
+    } => {
   const values: AdminEventQrValues = {
     customerName: form.getString("customer_name").trim(),
     date: form.getString("date").trim(),
@@ -151,9 +151,9 @@ type ParsedValues = {
 /** Build the absolute URL the QR encodes */
 const buildQrUrl = (slug: string, token: string): string => {
   const domain = getEffectiveDomain();
-  return `https://${domain}/ticket/${slug}/qr-book?t=${
-    encodeURIComponent(token)
-  }`;
+  return `https://${domain}/ticket/${slug}/qr-book?t=${encodeURIComponent(
+    token,
+  )}`;
 };
 
 /** Sign a fresh token for the given event and render its QR SVG */
@@ -184,18 +184,15 @@ const handlePost: TypedRouteHandler<"POST /admin/event/:id/qr"> = (
   request,
   { id },
 ) =>
-  withAuth(
-    request,
-    AUTH_FORM,
-    (session, form) =>
-      orNotFound(Promise.resolve(getEventWithCount(id)), (event) => {
-        const extracted = extractValues(form, event);
-        return extracted.ok
-          ? generateAndRender(id, session, event, extracted)
-          : renderPage(id, session, extracted.values, {
+  withAuth(request, AUTH_FORM, (session, form) =>
+    orNotFound(Promise.resolve(getEventWithCount(id)), (event) => {
+      const extracted = extractValues(form, event);
+      return extracted.ok
+        ? generateAndRender(id, session, event, extracted)
+        : renderPage(id, session, extracted.values, {
             error: extracted.error,
           });
-      }),
+    }),
   );
 
 /**

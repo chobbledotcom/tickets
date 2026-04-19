@@ -14,9 +14,9 @@ const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const write = (s: string) => Deno.stdout.writeSync(encoder.encode(s));
 
 interface Step {
-  name: string;
   cmd: string[];
   filterOutput?: (stdout: string, stderr: string) => string;
+  name: string;
 }
 
 /** True when a line starts an ERRORS or FAILURES section or is a summary line */

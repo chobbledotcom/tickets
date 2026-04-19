@@ -15,7 +15,7 @@ export const CountryForm = (s: SettingsPageState): JSX.Element => (
       <select name="country" required>
         {Object.entries(COUNTRIES).map(
           ([code, data]: [string, CountryData]) => (
-            <option value={code} selected={code === s.country}>
+            <option selected={code === s.country} value={code}>
               {data.name} ({data.currency}, +{data.phonePrefix})
             </option>
           ),

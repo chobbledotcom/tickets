@@ -15,11 +15,11 @@ export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
     <label>
       Hosts (comma-separated)
       <input
-        type="text"
+        autocomplete="off"
         name="embed_hosts"
         placeholder="example.com, *.mysite.org"
+        type="text"
         value={s.embedHosts}
-        autocomplete="off"
       />
     </label>
     <p>

@@ -11,12 +11,12 @@ import { Layout } from "#templates/layout.tsx";
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
-  id: number;
-  username: string;
   adminLevel: AdminLevel;
-  hasPassword: boolean;
   hasDataKey: boolean;
+  hasPassword: boolean;
+  id: number;
   inviteExpired: boolean;
+  username: string;
 }
 
 /** Status label for a user */
@@ -31,10 +31,10 @@ const userStatus = (user: DisplayUser): string => {
  * Admin user management page
  */
 export interface UsersPageOpts {
+  currentUserId: number;
+  error?: string;
   inviteLink: string;
   success?: string;
-  error?: string;
-  currentUserId: number;
 }
 
 export const adminUsersPage = (
@@ -44,7 +44,7 @@ export const adminUsersPage = (
 ): string =>
   String(
     <Layout title="Users">
-      <AdminNav session={session} active="/admin/users" />
+      <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
@@ -85,8 +85,8 @@ export const adminUsersPage = (
                 <td>
                   {user.hasPassword && !user.hasDataKey && (
                     <CsrfForm
-                      class="inline"
                       action={`/admin/users/${user.id}/activate`}
+                      class="inline"
                     >
                       <button type="submit">Activate</button>
                     </CsrfForm>
@@ -115,13 +115,13 @@ export const adminUserDeletePage = (
 ): string =>
   String(
     <Layout title={`Delete User: ${user.username}`}>
-      <AdminNav session={session} active="/admin/users" />
+      <AdminNav active="/admin/users" session={session} />
 
       <ConfirmForm
         action={`/admin/users/${user.id}/delete`}
-        name={user.username}
-        label="Username"
         buttonText="Delete User"
+        label="Username"
+        name={user.username}
       >
         <h1>Delete User</h1>
         <Flash error={error} />
@@ -147,7 +147,7 @@ export const adminUserNewPage = (
 ): string =>
   String(
     <Layout title="Invite User">
-      <AdminNav session={session} active="/admin/users" />
+      <AdminNav active="/admin/users" session={session} />
 
       <CsrfForm action="/admin/users">
         <h1>Invite User</h1>

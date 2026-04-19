@@ -23,41 +23,41 @@ export const AdminEmailTemplateForm = (
     <label>
       Subject
       <input
-        type="text"
+        autocomplete="off"
         name="subject"
         placeholder={DEFAULT_TEMPLATES.admin.subject}
+        type="text"
         value={s.adminTemplates.subject}
-        autocomplete="off"
       />
     </label>
     <label>
       HTML Body
       <textarea
+        data-default-tpl={DEFAULT_TEMPLATES.admin.html}
         id="admin_html"
         name="html"
-        rows="8"
         placeholder="Leave blank to use default template"
-        data-default-tpl={DEFAULT_TEMPLATES.admin.html}
+        rows="8"
       >
         {s.adminTemplates.html}
       </textarea>
     </label>
-    <a href="#" data-fill-default="admin_html">
+    <a data-fill-default="admin_html" href="#">
       <small>Edit default template</small>
     </a>
     <label>
       Plain Text Body
       <textarea
+        data-default-tpl={DEFAULT_TEMPLATES.admin.text}
         id="admin_text"
         name="text"
-        rows="6"
         placeholder="Leave blank to use default template"
-        data-default-tpl={DEFAULT_TEMPLATES.admin.text}
+        rows="6"
       >
         {s.adminTemplates.text}
       </textarea>
     </label>
-    <a href="#" data-fill-default="admin_text">
+    <a data-fill-default="admin_text" href="#">
       <small>Edit default template</small>
     </a>
     <br />

@@ -18,11 +18,11 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
     <label>
       Business Email
       <input
-        type="email"
+        autocomplete="email"
         name="business_email"
         placeholder="contact@example.com"
+        type="email"
         value={s.businessEmail}
-        autocomplete="email"
       />
     </label>
     <button type="submit">Save Business Email</button>

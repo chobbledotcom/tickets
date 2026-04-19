@@ -8,32 +8,32 @@
 
 /** Inputs describing a single find/replace pass over a group's events */
 export interface DuplicateReplacements {
-  /** Substring to find inside event names (empty → no name change) */
-  nameFind: string;
-  /** Substring to substitute for `nameFind` */
-  nameReplace: string;
   /** Reference date (YYYY-MM-DD). Empty → no date shift. */
   dateFind: string;
   /** Target date (YYYY-MM-DD). Empty → no date shift. */
   dateReplace: string;
+  /** Substring to find inside event names (empty → no name change) */
+  nameFind: string;
+  /** Substring to substitute for `nameFind` */
+  nameReplace: string;
 }
 
 /** Preview of what a single event becomes after replacements are applied */
 export interface DuplicatePreviewRow {
   id: number;
-  originalName: string;
+  /** Shifted UTC ISO datetime, or empty string for events with no date */
+  newDate: string;
   newName: string;
   /** Original UTC ISO datetime, or empty string for events with no date */
   originalDate: string;
-  /** Shifted UTC ISO datetime, or empty string for events with no date */
-  newDate: string;
+  originalName: string;
 }
 
 /** Event data needed to compute a preview row */
 export interface PreviewableEvent {
+  date: string;
   id: number;
   name: string;
-  date: string;
 }
 
 const MS_PER_DAY = 86_400_000;

@@ -53,26 +53,26 @@ const PriceInput = ({
   value: string;
 }): JSX.Element => {
   const hint = event.can_pay_more
-    ? `Minimum ${formatCurrency(event.unit_price)}, maximum ${
-      formatCurrency(event.max_price)
-    }`
-    : `Overrides the ticket price of ${
-      formatCurrency(event.unit_price)
-    } for this booking`;
+    ? `Minimum ${formatCurrency(event.unit_price)}, maximum ${formatCurrency(
+        event.max_price,
+      )}`
+    : `Overrides the ticket price of ${formatCurrency(
+        event.unit_price,
+      )} for this booking`;
   const min = event.can_pay_more ? toMajorUnits(event.unit_price) : "0";
   const max = event.can_pay_more ? toMajorUnits(event.max_price) : undefined;
   return (
     <label>
       Price
       <input
-        type="text"
-        name="value"
         inputmode="decimal"
+        max={max}
+        min={min}
+        name="value"
         pattern="\d+(\.\d{1,2})?"
         title="A non-negative number (e.g. 10.00)"
+        type="text"
         value={value}
-        min={min}
-        max={max}
       />
       <small>{hint}</small>
     </label>
@@ -92,7 +92,7 @@ const DateSelect = ({
     <select name="date" required>
       <option value="">— Select a date —</option>
       {dates.map((d) => (
-        <option value={d} selected={d === value}>
+        <option selected={d === value} value={d}>
           {formatDateLabel(d)}
         </option>
       ))}
@@ -132,11 +132,11 @@ const QrResultPanel = ({
     <label>
       Link
       <input
+        data-qr-link
+        data-select-on-click
+        readonly
         type="text"
         value={result.url}
-        readonly
-        data-select-on-click
-        data-qr-link
       />
     </label>
   </article>
@@ -157,7 +157,7 @@ export const adminEventQrPage = ({
   const refreshUrl = `/admin/event/${event.id}/qr.json`;
   return String(
     <Layout title={`QR Code: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <article>
         <h1>
           Booking QR code &mdash;{" "}
@@ -177,8 +177,8 @@ export const adminEventQrPage = ({
           <label>
             Customer name
             <input
-              type="text"
               name="customer_name"
+              type="text"
               value={values.customerName}
             />
             <small>Optional &mdash; pre-fills the name field.</small>
@@ -187,12 +187,12 @@ export const adminEventQrPage = ({
           <label>
             Quantity
             <input
-              type="number"
-              name="quantity"
-              min="1"
               max={event.max_quantity}
-              value={values.quantity}
+              min="1"
+              name="quantity"
               required
+              type="number"
+              value={values.quantity}
             />
           </label>
           {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
@@ -200,9 +200,9 @@ export const adminEventQrPage = ({
         </CsrfForm>
         {result && (
           <QrResultPanel
-            result={result}
-            refreshUrl={refreshUrl}
             formAction={formAction}
+            refreshUrl={refreshUrl}
+            result={result}
           />
         )}
       </article>

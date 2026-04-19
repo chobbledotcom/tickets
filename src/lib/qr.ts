@@ -3,10 +3,10 @@
  * Uses uqr (zero-dep, ESM, ~4KB)
  */
 
+import { renderSVG } from "uqr";
 import { getQuestionsForEvent } from "#lib/db/questions.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { renderSVG } from "uqr";
 
 /**
  * Generate an SVG string for a QR code encoding the given text.

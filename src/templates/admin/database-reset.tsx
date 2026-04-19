@@ -38,13 +38,13 @@ export const ResetDatabaseForm = ({
     </p>
     <label for="confirm_phrase">Confirmation phrase</label>
     <input
-      type="text"
+      autocomplete="off"
       id="confirm_phrase"
       name="confirm_phrase"
-      autocomplete="off"
       required
+      type="text"
     />
-    <button type="submit" class="danger">
+    <button class="danger" type="submit">
       Reset Database
     </button>
   </CsrfForm>

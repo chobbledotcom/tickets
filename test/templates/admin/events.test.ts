@@ -14,6 +14,7 @@ import {
 import { eventFields } from "#templates/fields.ts";
 import {
   describeWithEnv,
+  hasSelectedOption,
   setupTestEncryptionKey,
   testAttendee,
   testEventWithCount,
@@ -38,8 +39,8 @@ describe("adminEventEditPage group select", () => {
     const event = testEventWithCount({ group_id: 2 });
     const html = adminEventEditPage(event, groups, TEST_SESSION);
     expect(html).toContain('name="group_id"');
-    expect(html).toContain('<option value="2" selected');
-    expect(html).not.toContain('<option value="0" selected');
+    expect(hasSelectedOption(html, "2")).toBe(true);
+    expect(hasSelectedOption(html, "0")).toBe(false);
   });
 });
 
@@ -442,8 +443,8 @@ describe("adminEventNewPage", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
     const html = adminEventNewPage(groups, TEST_SESSION);
     expect(html).toContain('name="group_id"');
-    expect(html).toContain('<option value="0" selected>No Group</option>');
-    expect(html).toContain('<option value="2"');
+    expect(hasSelectedOption(html, "0")).toBe(true);
+    expect(html).toContain('value="2"');
     expect(html).toContain("My Group");
   });
 

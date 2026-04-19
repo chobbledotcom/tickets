@@ -137,8 +137,8 @@ export type WebhookSetupResult =
  * Routes call these methods without knowing which provider is active.
  */
 export interface PaymentProvider {
-  /** Provider identifier */
-  readonly type: PaymentProviderType;
+  /** The webhook event type name that indicates a completed checkout */
+  readonly checkoutCompletedEventType: string;
 
   /**
    * Create a checkout session for one or more events.
@@ -150,41 +150,6 @@ export interface PaymentProvider {
   ): Promise<CheckoutSessionResult>;
 
   /**
-   * Retrieve and validate a completed checkout session by ID.
-   * Returns the validated session or null if not found / invalid.
-   */
-  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
-
-  /**
-   * Verify a webhook request's signature and parse the event payload.
-   * @param webhookUrl - The webhook endpoint URL derived from the incoming request
-   * @param payloadBytes - Raw body bytes from request.arrayBuffer()
-   */
-  verifyWebhookSignature(
-    payload: string,
-    signature: string,
-    webhookUrl: string,
-    payloadBytes: Uint8Array,
-  ): Promise<WebhookVerifyResult>;
-
-  /**
-   * Refund a completed payment.
-   * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
-   * @returns true if refund succeeded, false otherwise
-   */
-  refundPayment(paymentReference: string): Promise<boolean>;
-
-  /**
-   * Set up a webhook endpoint for this provider.
-   * Some providers (e.g. Stripe) support programmatic creation.
-   */
-  setupWebhookEndpoint(
-    secretKey: string,
-    webhookUrl: string,
-    existingEndpointId?: string | null,
-  ): Promise<WebhookSetupResult>;
-
-  /**
    * Check if a payment has been refunded via the provider API.
    * Used to refresh refund status from the edit attendee page.
    * @param paymentReference - provider-specific payment reference
@@ -192,8 +157,12 @@ export interface PaymentProvider {
    */
   isPaymentRefunded(paymentReference: string): Promise<boolean>;
 
-  /** The webhook event type name that indicates a completed checkout */
-  readonly checkoutCompletedEventType: string;
+  /**
+   * Refund a completed payment.
+   * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
+   * @returns true if refund succeeded, false otherwise
+   */
+  refundPayment(paymentReference: string): Promise<boolean>;
 
   /**
    * Resolve a validated session from a webhook event.
@@ -206,6 +175,36 @@ export interface PaymentProvider {
   resolveWebhookSession(
     event: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null>;
+
+  /**
+   * Retrieve and validate a completed checkout session by ID.
+   * Returns the validated session or null if not found / invalid.
+   */
+  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
+
+  /**
+   * Set up a webhook endpoint for this provider.
+   * Some providers (e.g. Stripe) support programmatic creation.
+   */
+  setupWebhookEndpoint(
+    secretKey: string,
+    webhookUrl: string,
+    existingEndpointId?: string | null,
+  ): Promise<WebhookSetupResult>;
+  /** Provider identifier */
+  readonly type: PaymentProviderType;
+
+  /**
+   * Verify a webhook request's signature and parse the event payload.
+   * @param webhookUrl - The webhook endpoint URL derived from the incoming request
+   * @param payloadBytes - Raw body bytes from request.arrayBuffer()
+   */
+  verifyWebhookSignature(
+    payload: string,
+    signature: string,
+    webhookUrl: string,
+    payloadBytes: Uint8Array,
+  ): Promise<WebhookVerifyResult>;
 }
 
 /**

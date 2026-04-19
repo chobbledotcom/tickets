@@ -22,29 +22,29 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
     <label>
       Pass Type ID
       <input
-        type="text"
+        autocomplete="off"
         name="apple_wallet_pass_type_id"
         placeholder="pass.com.example.tickets"
+        type="text"
         value={s.appleWalletPassTypeId}
-        autocomplete="off"
       />
     </label>
     <label>
       Team ID
       <input
-        type="text"
+        autocomplete="off"
         name="apple_wallet_team_id"
         placeholder="ABC1234567"
+        type="text"
         value={s.appleWalletTeamId}
-        autocomplete="off"
       />
     </label>
     <label>
       Signing Certificate (PEM)
       <textarea
         name="apple_wallet_signing_cert"
-        rows={4}
         placeholder="-----BEGIN CERTIFICATE-----"
+        rows={4}
       >
         {s.appleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>
@@ -53,8 +53,8 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       Signing Private Key (PEM)
       <textarea
         name="apple_wallet_signing_key"
-        rows={4}
         placeholder="-----BEGIN PRIVATE KEY-----"
+        rows={4}
       >
         {s.appleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>
@@ -63,8 +63,8 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       WWDR Certificate (PEM)
       <textarea
         name="apple_wallet_wwdr_cert"
-        rows={4}
         placeholder="-----BEGIN CERTIFICATE-----"
+        rows={4}
       >
         {s.appleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>

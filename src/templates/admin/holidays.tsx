@@ -19,7 +19,7 @@ export const adminHolidaysPage = (
 ): string =>
   String(
     <Layout title="Holidays">
-      <AdminNav session={session} active="/admin/holidays" />
+      <AdminNav active="/admin/holidays" session={session} />
       <Flash success={successMessage} />
       <p>
         <a href="/admin/holidays/new">Add Holiday</a>
@@ -78,7 +78,7 @@ export const adminHolidayNewPage = (
 ): string =>
   String(
     <Layout title="Add Holiday">
-      <AdminNav session={session} active="/admin/holidays" />
+      <AdminNav active="/admin/holidays" session={session} />
       <CsrfForm action="/admin/holidays">
         <h1>Add Holiday</h1>
         <Flash error={error} />
@@ -98,7 +98,7 @@ export const adminHolidayEditPage = (
 ): string =>
   String(
     <Layout title="Edit Holiday">
-      <AdminNav session={session} active="/admin/holidays" />
+      <AdminNav active="/admin/holidays" session={session} />
       <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
         <h1>Edit Holiday</h1>
         <Flash error={error} />
@@ -120,13 +120,13 @@ export const adminHolidayDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Holiday">
-      <AdminNav session={session} active="/admin/holidays" />
+      <AdminNav active="/admin/holidays" session={session} />
       <ConfirmForm
         action={`/admin/holidays/${holiday.id}/delete`}
-        name={holiday.name}
-        label="Holiday name"
         buttonText="Delete Holiday"
         danger={false}
+        label="Holiday name"
+        name={holiday.name}
       >
         <h1>Delete Holiday</h1>
         <Flash error={error} />

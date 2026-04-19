@@ -59,13 +59,13 @@ export interface Resource<
   Input,
   _Values extends FieldValues = FieldValues,
 > {
-  readonly table: Table<Row, Input>;
+  create: (form: FormParams) => Promise<CreateResult<Row>>;
+  delete: (id: InValue) => Promise<DeleteResult>;
   readonly fields: Field[];
   parseInput: (form: FormParams) => Promise<ParseResult<Input>>;
   parsePartialInput: (form: FormParams) => Promise<ParseResult<Partial<Input>>>;
-  create: (form: FormParams) => Promise<CreateResult<Row>>;
+  readonly table: Table<Row, Input>;
   update: (id: InValue, form: FormParams) => Promise<UpdateResult<Row>>;
-  delete: (id: InValue) => Promise<DeleteResult>;
   verifyName?: (row: Row, confirmName: string) => boolean;
 }
 
@@ -78,12 +78,12 @@ export interface ResourceConfig<
   Id = InValue,
   Values extends FieldValues = FieldValues,
 > {
-  table: Table<Row, Input>;
   fields: Field[];
-  toInput: (values: Values) => Input | Promise<Input>;
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
+  table: Table<Row, Input>;
+  toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
   validate?: ValidateFn<Input, Id>;
 }

@@ -46,9 +46,10 @@ const extractEventIdFromSelect = (
   html: string,
   eventName: string,
 ): string | null => {
+  const escaped = eventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = html.match(
     new RegExp(
-      `<option value="(\\d+)"[^>]*>\\s*${eventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<\\/option>`,
+      `<option[^>]*\\bvalue="(\\d+)"[^>]*>\\s*${escaped}\\s*<\\/option>`,
     ),
   );
   return match?.[1] ?? null;

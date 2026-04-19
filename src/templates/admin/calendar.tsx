@@ -101,7 +101,7 @@ export const adminCalendarPage = (
 
   return String(
     <Layout title="Calendar">
-      <AdminNav session={session} active="/admin/calendar" />
+      <AdminNav active="/admin/calendar" session={session} />
 
       <p>
         <a href="/admin/guide#calendar">Calendar guide</a>

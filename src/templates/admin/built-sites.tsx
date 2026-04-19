@@ -25,7 +25,7 @@ export const adminBuiltSitesPage = (
 
   return String(
     <Layout title="Built Sites">
-      <AdminNav session={session} active="/admin/built-sites" />
+      <AdminNav active="/admin/built-sites" session={session} />
       <Flash success={successMessage} />
       <p>
         <a href="/admin/built-sites/new">Add Built Site</a>{" "}
@@ -50,7 +50,7 @@ export const adminBuiltSitesPage = (
                   <tr>
                     <td>{site.name}</td>
                     <td>
-                      <a href={site.bunnyUrl} target="_blank" rel="noopener">
+                      <a href={site.bunnyUrl} rel="noopener" target="_blank">
                         {site.bunnyUrl}
                       </a>
                     </td>
@@ -102,7 +102,7 @@ export const adminBuiltSiteNewPage = (
 ): string =>
   String(
     <Layout title="Add Built Site">
-      <AdminNav session={session} active="/admin/built-sites" />
+      <AdminNav active="/admin/built-sites" session={session} />
       <CsrfForm action="/admin/built-sites">
         <h1>Add Built Site</h1>
         <Flash error={error} />
@@ -122,7 +122,7 @@ export const adminBuiltSiteEditPage = (
 ): string =>
   String(
     <Layout title="Edit Built Site">
-      <AdminNav session={session} active="/admin/built-sites" />
+      <AdminNav active="/admin/built-sites" session={session} />
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
         <h1>Edit Built Site</h1>
         <Flash error={error} />
@@ -144,13 +144,13 @@ export const adminBuiltSiteDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Built Site">
-      <AdminNav session={session} active="/admin/built-sites" />
+      <AdminNav active="/admin/built-sites" session={session} />
       <ConfirmForm
         action={`/admin/built-sites/${site.id}/delete`}
-        name={site.name}
-        label="Site name"
         buttonText="Delete Built Site"
         danger={false}
+        label="Site name"
+        name={site.name}
       >
         <h1>Delete Built Site</h1>
         <Flash error={error} />

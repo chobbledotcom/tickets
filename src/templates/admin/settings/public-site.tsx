@@ -17,19 +17,19 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
     </p>
     <label>
       <input
-        type="radio"
-        name="show_public_site"
-        value="true"
         checked={s.showPublicSite === true}
+        name="show_public_site"
+        type="radio"
+        value="true"
       />
       Yes
     </label>
     <label>
       <input
-        type="radio"
-        name="show_public_site"
-        value="false"
         checked={s.showPublicSite !== true}
+        name="show_public_site"
+        type="radio"
+        value="false"
       />
       No
     </label>

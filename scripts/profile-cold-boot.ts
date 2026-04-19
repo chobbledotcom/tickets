@@ -9,8 +9,8 @@ import { createClient } from "@libsql/client";
 import { setupTestEncryptionKey } from "#test-utils";
 
 interface Timing {
-  name: string;
   duration: number;
+  name: string;
 }
 
 const timings: Timing[] = [];

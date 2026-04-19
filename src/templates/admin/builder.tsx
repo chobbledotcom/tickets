@@ -27,38 +27,38 @@ const BuilderForm = (): JSX.Element => (
       <label for="site_name">
         Site Name
         <input
-          type="text"
           id="site_name"
-          name="site_name"
-          required
-          placeholder="My Event Site"
-          minlength={1}
           maxlength={64}
+          minlength={1}
+          name="site_name"
+          placeholder="My Event Site"
+          required
+          type="text"
         />
       </label>
       <label for="db_url">
         Database URL
         <input
-          type="url"
           id="db_url"
           name="db_url"
-          required
           placeholder="libsql://your-db.turso.io"
+          required
+          type="url"
         />
       </label>
       <label for="db_token">
         Database Token
         <input
-          type="password"
           id="db_token"
           name="db_token"
-          required
           placeholder="Token for the database"
+          required
+          type="password"
         />
       </label>
       <fieldset>
         <label>
-          <input type="checkbox" name="assignable" value="1" />
+          <input name="assignable" type="checkbox" value="1" />
           Available for assignment
         </label>
         <small>
@@ -95,7 +95,7 @@ const BuiltSitesTable = ({
           <tr>
             <td>{site.name}</td>
             <td>
-              <a href={site.bunnyUrl} target="_blank" rel="noopener">
+              <a href={site.bunnyUrl} rel="noopener" target="_blank">
                 {site.bunnyUrl}
               </a>
             </td>
@@ -114,7 +114,7 @@ export const adminBuilderPage = (
 ): string =>
   String(
     <Layout title="Site Builder">
-      <AdminNav session={session} active="/admin/settings" />
+      <AdminNav active="/admin/settings" session={session} />
 
       <Flash error={error} success={success} />
 

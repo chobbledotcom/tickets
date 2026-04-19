@@ -563,12 +563,12 @@ export const setTestEnv = (
 
 /** Options for {@link describeWithEnv}. */
 interface DescribeEnvOptions {
-  /** Environment variables to set before each test and restore after. */
-  env?: Record<string, string | undefined>;
   /** Reset slug counter, create test DB in beforeEach; resetDb in afterEach. */
   db?: boolean;
   /** Call setupTestEncryptionKey in beforeEach. */
   encryptionKey?: boolean;
+  /** Environment variables to set before each test and restore after. */
+  env?: Record<string, string | undefined>;
 }
 
 /**
@@ -646,8 +646,50 @@ export const getCsrfTokenFromCookie = async (
  */
 export const extractCsrfToken = (html: string | null): string | null => {
   if (!html) return null;
-  const match = html.match(/name="csrf_token"\s+value="([^"]+)"/);
-  return match?.[1] ?? null;
+  return extractInputValue(html, "csrf_token");
+};
+
+/** Extract the `value` of an `<input>` with the given `name`, regardless of attribute order. */
+export const extractInputValue = (
+  html: string,
+  name: string,
+): string | null => {
+  const tags = html.match(/<input\b[^>]*>/gi) ?? [];
+  const needle = `name="${name}"`;
+  const tag = tags.find((t) => t.includes(needle));
+  return tag?.match(/\bvalue="([^"]*)"/)?.[1] ?? null;
+};
+
+/** True when `html` contains an `<input>` with the given `name` and `value`, in any attribute order. */
+export const hasInputWithValue = (
+  html: string,
+  name: string,
+  value: string,
+): boolean => extractInputValue(html, name) === value;
+
+/** True when `html` contains a `checked` `<input>` with the given `name` and `value`. */
+export const hasCheckedInput = (
+  html: string,
+  name: string,
+  value: string,
+): boolean => {
+  const tags = html.match(/<input\b[^>]*>/gi) ?? [];
+  const needle = `name="${name}"`;
+  return tags.some(
+    (t) =>
+      t.includes(needle) &&
+      t.includes(`value="${value}"`) &&
+      /\bchecked(?=[\s/>])/.test(t),
+  );
+};
+
+/** True when `html` contains an `<option value="...">` with the `selected` attribute, in any attribute order. */
+export const hasSelectedOption = (html: string, value: string): boolean => {
+  const tags = html.match(/<option\b[^>]*>/gi) ?? [];
+  return tags.some(
+    (t) =>
+      t.includes(`value="${value}"`) && /\bselected(?=[\s/>])/.test(t),
+  );
 };
 
 /**
@@ -715,10 +757,10 @@ export const mockTicketFormRequest = (
 interface TestRequestOptions {
   /** Full cookie string (use when you have raw set-cookie value) */
   cookie?: string;
-  /** HTTP method (defaults to GET, or POST if data is provided) */
-  method?: string;
   /** Form data for POST requests */
   data?: Record<string, string>;
+  /** HTTP method (defaults to GET, or POST if data is provided) */
+  method?: string;
 }
 
 /**
@@ -1764,8 +1806,8 @@ export const errorResponse =
 // ---------------------------------------------------------------------------
 
 export interface FetchCall {
-  url: string;
   init: RequestInit | undefined;
+  url: string;
 }
 
 /** Stub fetch to return a JSON response with given body. */

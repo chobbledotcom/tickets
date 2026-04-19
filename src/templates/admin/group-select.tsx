@@ -18,12 +18,12 @@ export const EventGroupSelect = ({
   return (
     <label>
       Group
-      <select name="group_id" id="group_id">
-        <option value="0" selected={selectedGroupId === 0}>
+      <select id="group_id" name="group_id">
+        <option selected={selectedGroupId === 0} value="0">
           No Group
         </option>
         {groups.map((g) => (
-          <option value={String(g.id)} selected={g.id === selectedGroupId}>
+          <option selected={g.id === selectedGroupId} value={String(g.id)}>
             {g.name}
           </option>
         ))}

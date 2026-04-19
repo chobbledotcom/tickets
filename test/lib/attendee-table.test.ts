@@ -9,7 +9,11 @@ import {
   sortAttendeeRows,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import {
+  hasInputWithValue,
+  setupTestEncryptionKey,
+  testAttendee,
+} from "#test-utils";
 
 const ALLOWED_DOMAIN = "example.com";
 
@@ -312,7 +316,7 @@ describe("AttendeeTable", () => {
 
     test("includes activeFilter as return_filter", () => {
       const html = AttendeeTable(makeOpts({ activeFilter: "in" }));
-      expect(html).toContain('name="return_filter" value="in"');
+      expect(hasInputWithValue(html, "return_filter", "in")).toBe(true);
     });
   });
 
@@ -379,7 +383,7 @@ describe("AttendeeTable", () => {
 
     test("includes return_url as hidden form field in check-in form", () => {
       const html = AttendeeTable(makeOpts({ returnUrl: "/checkin/abc" }));
-      expect(html).toContain('name="return_url" value="/checkin/abc"');
+      expect(hasInputWithValue(html, "return_url", "/checkin/abc")).toBe(true);
     });
 
     test("does not include return_url when not provided", () => {

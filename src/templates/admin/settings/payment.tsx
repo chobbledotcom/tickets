@@ -21,28 +21,28 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
     <p>Choose which payment provider to use for paid events.</p>
     <label>
       <input
-        type="radio"
-        name="payment_provider"
-        value="none"
         checked={!s.paymentProvider}
+        name="payment_provider"
+        type="radio"
+        value="none"
       />
       None (payments disabled)
     </label>
     <label>
       <input
-        type="radio"
-        name="payment_provider"
-        value="stripe"
         checked={s.paymentProvider === "stripe"}
+        name="payment_provider"
+        type="radio"
+        value="stripe"
       />
       Stripe
     </label>
     <label>
       <input
-        type="radio"
-        name="payment_provider"
-        value="square"
         checked={s.paymentProvider === "square"}
+        name="payment_provider"
+        type="radio"
+        value="square"
       />
       Square
     </label>
@@ -87,12 +87,12 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
       <footer>
         <button type="submit">Update Stripe Key</button>
         {s.stripeKeyConfigured && (
-          <button type="button" id="stripe-test-btn" class="secondary">
+          <button class="secondary" id="stripe-test-btn" type="button">
             Test Connection
           </button>
         )}
       </footer>
-      <div id="stripe-test-result" class="hidden"></div>
+      <div class="hidden" id="stripe-test-result"></div>
     </CsrfForm>
   ) : null;
 
@@ -118,21 +118,21 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
       />
       <label>
         <input
-          type="checkbox"
-          name="square_sandbox"
           checked={s.squareSandbox}
+          name="square_sandbox"
+          type="checkbox"
         />
         Sandbox mode (use Square's test environment)
       </label>
       <footer>
         <button type="submit">Update Square Credentials</button>
         {s.squareTokenConfigured && (
-          <button type="button" id="square-test-btn" class="secondary">
+          <button class="secondary" id="square-test-btn" type="button">
             Test Connection
           </button>
         )}
       </footer>
-      <div id="square-test-result" class="hidden"></div>
+      <div class="hidden" id="square-test-result"></div>
     </CsrfForm>
   ) : null;
 
@@ -206,13 +206,13 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
       <label>
         Booking Fee (%)
         <input
-          type="number"
-          name="booking_fee"
-          step="0.1"
-          min="0"
           max="10"
-          value={s.bookingFee}
+          min="0"
+          name="booking_fee"
           required
+          step="0.1"
+          type="number"
+          value={s.bookingFee}
         />
       </label>
       <button type="submit">Save Booking Fee</button>

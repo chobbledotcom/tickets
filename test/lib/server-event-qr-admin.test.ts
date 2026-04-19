@@ -56,10 +56,20 @@ describeWithEnv("admin event-qr route", { db: true }, () => {
     });
 
     test("shows green indicator for event with no extra fields, red when extra fields required", async () => {
-      const noFields = await createTestEvent({ fields: "", maxAttendees: 10, unitPrice: 500 });
-      const withFields = await createTestEvent({ fields: "email", maxAttendees: 10, unitPrice: 500 });
+      const noFields = await createTestEvent({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const withFields = await createTestEvent({
+        fields: "email",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
       const { response: r1 } = await adminGet(`/admin/event/${noFields.id}/qr`);
-      const { response: r2 } = await adminGet(`/admin/event/${withFields.id}/qr`);
+      const { response: r2 } = await adminGet(
+        `/admin/event/${withFields.id}/qr`,
+      );
       expect(await r1.text()).toContain('class="success-text"');
       expect(await r2.text()).toContain('class="danger-text"');
     });
@@ -219,7 +229,9 @@ describeWithEnv("admin event-qr route", { db: true }, () => {
     });
 
     test("returns 404 when the event does not exist", async () => {
-      const { response } = await adminGet("/admin/event/99999/qr.json?quantity=1");
+      const { response } = await adminGet(
+        "/admin/event/99999/qr.json?quantity=1",
+      );
       expect(response.status).toBe(404);
       response.body?.cancel();
     });
