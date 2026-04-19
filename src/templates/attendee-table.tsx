@@ -162,7 +162,7 @@ const buildAnswerTextMap = (
     reduce((m: Map<number, string>, a: Answer) => {
       m.set(a.id, a.text);
       return m;
-    }, new Map<number, string>()),
+    }, new Map()),
   )(questions);
 
 /** Build answer question map (answer ID → question text) */

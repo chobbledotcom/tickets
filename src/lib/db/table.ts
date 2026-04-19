@@ -111,13 +111,10 @@ export const toSnakeCase = (s: string): string =>
  * snake_case DB column → camelCase input key
  */
 export const buildInputKeyMap = (columns: string[]): Record<string, string> =>
-  reduce(
-    (acc: Record<string, string>, col: string) => {
-      acc[col] = toCamelCase(col);
-      return acc;
-    },
-    {} as Record<string, string>,
-  )(columns);
+  reduce((acc: Record<string, string>, col: string) => {
+    acc[col] = toCamelCase(col);
+    return acc;
+  }, {})(columns);
 
 /**
  * Table definition with CRUD operations
@@ -354,18 +351,15 @@ export const defineTable = <Row, Input = Row>(config: {
     row: Row,
     exclude: readonly string[] = [],
   ): Partial<Input> => {
-    const skip = new Set<string>(exclude);
-    return reduce(
-      (acc: Record<string, unknown>, col: string) => {
-        if (skip.has(col)) return acc;
-        const value = (row as Record<string, unknown>)[col];
-        if (value !== undefined) {
-          acc[inputKeyMap[col] as string] = value;
-        }
-        return acc;
-      },
-      {} as Record<string, unknown>,
-    )(inputColumns) as Partial<Input>;
+    const skip = new Set(exclude);
+    return reduce((acc: Record<string, unknown>, col: string) => {
+      if (skip.has(col)) return acc;
+      const value = (row as Record<string, unknown>)[col];
+      if (value !== undefined) {
+        acc[inputKeyMap[col] as string] = value;
+      }
+      return acc;
+    }, {})(inputColumns) as Partial<Input>;
   };
 
   return {

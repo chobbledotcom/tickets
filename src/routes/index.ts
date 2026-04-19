@@ -290,7 +290,7 @@ const publicPageHandlers = reduce(
     };
     return acc;
   },
-  {} as Record<string, RouterFn>,
+  {},
 )(PUBLIC_GET_PAGES);
 
 /** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */

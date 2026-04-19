@@ -159,7 +159,7 @@ const compileRoutes = (
       compiled.set(method, methodRoutes);
       return compiled;
     },
-    new Map<string, CompiledRoute[]>(),
+    new Map(),
   )(sortedEntries);
 };
 

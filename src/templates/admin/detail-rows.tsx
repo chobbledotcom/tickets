@@ -113,7 +113,7 @@ const countAnswers = (answerMap: Map<number, number[]>): Map<number, number> =>
   reduce((counts: Map<number, number>, ids: number[]) => {
     for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
     return counts;
-  }, new Map<number, number>())([...answerMap.values()]);
+  }, new Map())([...answerMap.values()]);
 
 /** Format answers as "text (count), text (count), ..." */
 const formatAnswerSummary = (

@@ -198,7 +198,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       const successMessage = getFlash().success;
       const questionData = await loadQuestionData(
         eventIds,
-        attendees.map((a: Attendee) => a.id),
+        attendees.map((a) => a.id),
       );
 
       return htmlResponse(

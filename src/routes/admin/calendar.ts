@@ -53,7 +53,7 @@ const buildStandardEventDateMap = (
       acc.set(calDate, ids);
     }
     return acc;
-  }, new Map<string, number[]>())(events);
+  }, new Map())(events);
 
 /** Compile all possible dates from events (available + existing attendee dates + standard event dates) */
 const compileDateOptions = (
@@ -109,7 +109,7 @@ const buildCalendarAttendees = (
       acc.set(e.id, e);
       return acc;
     },
-    new Map<number, EventWithCount>(),
+    new Map(),
   )(events);
 
   return map((a: Attendee): CalendarAttendeeRow => {

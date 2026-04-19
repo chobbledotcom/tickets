@@ -98,7 +98,7 @@ export const adminQuestionPage = (
         </p>
       ) : (
         <ul class="answer-list">
-          {question.answers.map((a: Answer, i: number) => (
+          {question.answers.map((a, i) => (
             <li>
               {a.text}
               {answerCounts && <small> ({answerCounts.get(a.id)})</small>}{" "}
