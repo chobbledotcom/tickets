@@ -56,7 +56,7 @@ const UpdateAvailable = ({
       </p>
     </div>
     {state.bunnyConfigured ? (
-      <CsrfForm action="/admin/update" id="update-deploy" class="no-bg">
+      <CsrfForm action="/admin/update" class="no-bg" id="update-deploy">
         <button type="submit">Update Now</button>
       </CsrfForm>
     ) : (
@@ -92,7 +92,7 @@ export const adminUpdatePage = (
 ): string =>
   String(
     <Layout title="Update">
-      <AdminNav session={session} active="/admin/settings" />
+      <AdminNav active="/admin/settings" session={session} />
 
       <Flash error={error} success={success} />
 

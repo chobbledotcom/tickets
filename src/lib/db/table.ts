@@ -123,33 +123,23 @@ export const buildInputKeyMap = (columns: string[]): Record<string, string> =>
  * Table definition with CRUD operations
  */
 export interface Table<Row, Input> {
-  name: string;
-  primaryKey: keyof Row & string;
-  schema: TableSchema<Row>;
-  inputKeyMap: Record<string, string>;
-
-  /** Insert a new row, returns the created row */
-  insert: (input: Input) => Promise<Row>;
-
-  /** Update a row by primary key, returns updated row or null if not found */
-  update: (id: InValue, input: Partial<Input>) => Promise<Row | null>;
-
-  /** Find a row by primary key */
-  findById: (id: InValue) => Promise<Row | null>;
-
   /** Delete a row by primary key */
   deleteById: (id: InValue) => Promise<void>;
 
   /** Find all rows */
   findAll: () => Promise<Row[]>;
 
+  /** Find a row by primary key */
+  findById: (id: InValue) => Promise<Row | null>;
+
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
+  inputKeyMap: Record<string, string>;
 
-  /** Transform input to DB values (apply write transforms and defaults) */
-  toDbValues: (
-    input: Input | Partial<Input>,
-  ) => Promise<Record<string, InValue>>;
+  /** Insert a new row, returns the created row */
+  insert: (input: Input) => Promise<Row>;
+  name: string;
+  primaryKey: keyof Row & string;
 
   /**
    * Build an Input object from an existing Row by copying the input-eligible
@@ -158,6 +148,15 @@ export interface Table<Row, Input> {
    * `exclude` are skipped — useful for auto-stamped fields like `created`.
    */
   rowToInput: (row: Row, exclude?: readonly string[]) => Partial<Input>;
+  schema: TableSchema<Row>;
+
+  /** Transform input to DB values (apply write transforms and defaults) */
+  toDbValues: (
+    input: Input | Partial<Input>,
+  ) => Promise<Record<string, InValue>>;
+
+  /** Update a row by primary key, returns updated row or null if not found */
+  update: (id: InValue, input: Partial<Input>) => Promise<Row | null>;
 }
 
 /** Get value for a column with default applied */

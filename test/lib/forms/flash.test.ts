@@ -10,7 +10,7 @@ import {
   setFormSuccess,
 } from "#lib/forms.tsx";
 import { detectIframeMode } from "#lib/iframe.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { hasInputWithValue, setupTestEncryptionKey } from "#test-utils";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -104,9 +104,10 @@ describe("CsrfForm", () => {
 
   test("renders POST form with action and CSRF token", () => {
     const html = String(CsrfForm({ action: "/submit" }));
-    expect(html).toContain('<form method="POST" action="/submit"');
-    expect(html).toContain(
-      `<input type="hidden" name="csrf_token" value="${getCurrentCsrfToken()}"`,
+    expect(html).toContain('action="/submit"');
+    expect(html).toContain('method="POST"');
+    expect(hasInputWithValue(html, "csrf_token", getCurrentCsrfToken())).toBe(
+      true,
     );
   });
 

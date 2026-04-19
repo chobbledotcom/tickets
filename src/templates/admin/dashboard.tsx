@@ -56,9 +56,9 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
     <li>
       <label>
         <input
-          type="checkbox"
-          data-multi-booking-slug={e.slug}
           data-fields={e.fields}
+          data-multi-booking-slug={e.slug}
+          type="checkbox"
         />
         {` ${e.name}`}
       </label>
@@ -81,31 +81,31 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
       </ul>
       <label for="multi-booking-url">Booking link</label>
       <input
-        type="text"
-        id="multi-booking-url"
-        readonly
-        data-select-on-click
-        data-multi-booking-url
         data-domain={getEffectiveDomain()}
+        data-multi-booking-url
+        data-select-on-click
+        id="multi-booking-url"
         placeholder="Select two or more events"
+        readonly
+        type="text"
       />
       <label for="multi-booking-embed-script">Embed Script</label>
       <input
-        type="text"
-        id="multi-booking-embed-script"
-        readonly
-        data-select-on-click
         data-multi-booking-embed-script
+        data-select-on-click
+        id="multi-booking-embed-script"
         placeholder="Select two or more events"
+        readonly
+        type="text"
       />
       <label for="multi-booking-embed-iframe">Embed Iframe</label>
       <input
-        type="text"
-        id="multi-booking-embed-iframe"
-        readonly
-        data-select-on-click
         data-multi-booking-embed-iframe
+        data-select-on-click
+        id="multi-booking-embed-iframe"
         placeholder="Select two or more events"
+        readonly
+        type="text"
       />
     </details>,
   );
@@ -217,9 +217,9 @@ export const adminDashboardPage = (
 
   return String(
     <Layout title="Events">
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
 
-      <Flash success={successMessage} error={imageError} />
+      <Flash error={imageError} success={successMessage} />
 
       {!isReadOnly() && (
         <p>

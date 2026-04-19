@@ -29,26 +29,26 @@ export type FieldType =
   | "file";
 
 export interface Field {
-  name: string;
-  label: string;
-  type: FieldType;
-  required?: boolean;
-  placeholder?: string;
+  accept?: string;
+  autocomplete?: string;
+  autofocus?: boolean;
+  defaultValue?: string;
   hint?: string;
   hintHtml?: string;
-  min?: number;
-  max?: number;
-  minlength?: number;
   inputmode?: string;
+  label: string;
+  max?: number;
   maxlength?: number;
-  pattern?: string;
-  title?: string;
-  accept?: string;
-  autofocus?: boolean;
-  autocomplete?: string;
-  defaultValue?: string;
-  validate?: (value: string) => string | null;
+  min?: number;
+  minlength?: number;
+  name: string;
   options?: { value: string; label: string }[];
+  pattern?: string;
+  placeholder?: string;
+  required?: boolean;
+  title?: string;
+  type: FieldType;
+  validate?: (value: string) => string | null;
 }
 
 export interface FieldValues {
@@ -121,11 +121,11 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "textarea") {
     return (
       <textarea
-        name={field.name}
-        required={field.required}
-        placeholder={field.placeholder}
-        maxlength={field.maxlength}
         autocomplete={field.autocomplete}
+        maxlength={field.maxlength}
+        name={field.name}
+        placeholder={field.placeholder}
+        required={field.required}
       >
         <Raw html={escapeHtml(value)} />
       </textarea>
@@ -155,24 +155,24 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     );
   }
   if (field.type === "file") {
-    return <input type="file" name={field.name} accept={field.accept} />;
+    return <input accept={field.accept} name={field.name} type="file" />;
   }
   return (
     <input
-      type={field.type}
-      name={field.name}
-      value={value || undefined}
-      required={field.required}
-      placeholder={field.placeholder}
-      min={field.min}
-      max={field.max}
-      minlength={field.minlength}
-      inputmode={field.inputmode}
-      maxlength={field.maxlength}
-      pattern={field.pattern}
-      title={field.title}
-      autofocus={field.autofocus}
       autocomplete={field.autocomplete}
+      autofocus={field.autofocus}
+      inputmode={field.inputmode}
+      max={field.max}
+      maxlength={field.maxlength}
+      min={field.min}
+      minlength={field.minlength}
+      name={field.name}
+      pattern={field.pattern}
+      placeholder={field.placeholder}
+      required={field.required}
+      title={field.title}
+      type={field.type}
+      value={value || undefined}
     />
   );
 };
@@ -429,8 +429,8 @@ export const CsrfForm = ({
   class?: string;
   enctype?: string;
 } & { [key: `data-${string}`]: string | boolean }): JSX.Element => (
-  <form method="POST" action={appendIframeParam(action)} {...rest}>
-    <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
+  <form action={appendIframeParam(action)} method="POST" {...rest}>
+    <input name="csrf_token" type="hidden" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && (
       <Flash success={_successStore.message} />
     )}
@@ -479,22 +479,22 @@ export const ConfirmForm = ({
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
     {children && <div class="prose">{children}</div>}
-    {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
     {hiddenFields &&
       Object.entries(hiddenFields).map(([fieldName, value]) => (
-        <input type="hidden" name={fieldName} value={value} />
+        <input name={fieldName} type="hidden" value={value} />
       ))}
     <label>
       {label}
       <input
-        type="text"
+        autocomplete="off"
         name="confirm_identifier"
         placeholder={name}
-        autocomplete="off"
         required
+        type="text"
       />
     </label>
-    <button type="submit" class={danger ? "danger" : undefined}>
+    <button class={danger ? "danger" : undefined} type="submit">
       {buttonText}
     </button>
   </CsrfForm>

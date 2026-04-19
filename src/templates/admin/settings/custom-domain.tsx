@@ -24,11 +24,11 @@ export const CustomDomainForm = (
         <label>
           Domain
           <input
-            type="text"
+            autocomplete="off"
             name="custom_domain"
             placeholder="tickets.yourdomain.com"
+            type="text"
             value={s.customDomain}
-            autocomplete="off"
           />
         </label>
         <button type="submit">Save Custom Domain</button>

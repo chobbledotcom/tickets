@@ -52,11 +52,11 @@ export const EventColumnOrderForm = (
     <label>
       Column order
       <input
-        type="text"
-        name="column_order"
-        value={s.eventColumnOrder || eventDefault}
-        placeholder={eventDefault}
         autocomplete="off"
+        name="column_order"
+        placeholder={eventDefault}
+        type="text"
+        value={s.eventColumnOrder || eventDefault}
       />
     </label>
     <p>
@@ -84,11 +84,11 @@ export const AttendeeColumnOrderForm = (
     <label>
       Column order
       <input
-        type="text"
-        name="column_order"
-        value={s.attendeeColumnOrder || attendeeDefault}
-        placeholder={attendeeDefault}
         autocomplete="off"
+        name="column_order"
+        placeholder={attendeeDefault}
+        type="text"
+        value={s.attendeeColumnOrder || attendeeDefault}
       />
     </label>
     <p>

@@ -14,13 +14,13 @@ export const READ_ONLY_BANNER =
   '<div class="read-only-banner">This site is in read-only mode</div>';
 
 interface AdminNavProps {
-  session: AdminSession;
   active: string;
+  session: AdminSession;
 }
 
 const navLink = (href: string, label: string, active: string): JSX.Element => (
   <li>
-    <a href={href} class={href === active ? "active" : undefined}>
+    <a class={href === active ? "active" : undefined} href={href}>
       {label}
     </a>
   </li>

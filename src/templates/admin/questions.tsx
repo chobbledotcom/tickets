@@ -17,7 +17,7 @@ export const adminQuestionsPage = (
 ): string =>
   String(
     <Layout title="Custom Questions">
-      <AdminNav session={session} active="/admin/questions" />
+      <AdminNav active="/admin/questions" session={session} />
 
       <h1>Custom Questions</h1>
       <p>
@@ -29,10 +29,10 @@ export const adminQuestionsPage = (
         <label>
           New Question
           <input
-            type="text"
             name="text"
-            required
             placeholder="e.g. What is your T-shirt size?"
+            required
+            type="text"
           />
         </label>
         <button type="submit">Add Question</button>
@@ -67,7 +67,7 @@ export const adminQuestionPage = (
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
-      <AdminNav session={session} active="/admin/questions" />
+      <AdminNav active="/admin/questions" session={session} />
 
       <h1>{question.text}</h1>
       <Flash error={error} />
@@ -75,7 +75,7 @@ export const adminQuestionPage = (
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <label>
           Question Text
-          <input type="text" name="text" required value={question.text} />
+          <input name="text" required type="text" value={question.text} />
         </label>
         <button type="submit">Update</button>
       </CsrfForm>
@@ -87,7 +87,7 @@ export const adminQuestionPage = (
       >
         <label>
           New Answer
-          <input type="text" name="text" required placeholder="e.g. Medium" />
+          <input name="text" placeholder="e.g. Medium" required type="text" />
         </label>
         <button type="submit">Add Answer</button>
       </CsrfForm>
@@ -107,7 +107,7 @@ export const adminQuestionPage = (
                   action={`/admin/questions/${question.id}/answers/${a.id}/move-up`}
                   class="inline"
                 >
-                  <button type="submit" class="link-button small">
+                  <button class="link-button small" type="submit">
                     &#9650;
                   </button>
                 </CsrfForm>
@@ -118,15 +118,15 @@ export const adminQuestionPage = (
                   action={`/admin/questions/${question.id}/answers/${a.id}/move-down`}
                   class="inline"
                 >
-                  <button type="submit" class="link-button small">
+                  <button class="link-button small" type="submit">
                     &#9660;
                   </button>
                 </CsrfForm>
               )}
               {i < question.answers.length - 1 && " "}
               <a
-                href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
                 class="danger small"
+                href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
               >
                 Delete
               </a>
@@ -136,7 +136,7 @@ export const adminQuestionPage = (
       )}
 
       <p>
-        <a href={`/admin/questions/${question.id}/delete`} class="danger">
+        <a class="danger" href={`/admin/questions/${question.id}/delete`}>
           Delete Question
         </a>
       </p>
@@ -151,13 +151,13 @@ export const adminQuestionDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Question">
-      <AdminNav session={session} active="/admin/questions" />
+      <AdminNav active="/admin/questions" session={session} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
-        name={question.text}
-        label="Question text"
         buttonText="Delete Question"
+        label="Question text"
+        name={question.text}
       >
         <h1>Delete Question</h1>
         <Flash error={error} />
@@ -182,13 +182,13 @@ export const adminAnswerDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Answer">
-      <AdminNav session={session} active="/admin/questions" />
+      <AdminNav active="/admin/questions" session={session} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
-        name={answer.text}
-        label="Answer text"
         buttonText="Delete Answer"
+        label="Answer text"
+        name={answer.text}
       >
         <h1>Delete Answer</h1>
         <Flash error={error} />
@@ -214,7 +214,7 @@ export const adminEventQuestionsPage = (
 ): string =>
   String(
     <Layout title={`Questions: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
 
       <h1>Questions for {event.name}</h1>
       <Flash error={error} />
@@ -229,10 +229,10 @@ export const adminEventQuestionsPage = (
           {map((q: QuestionWithAnswers) => (
             <label>
               <input
-                type="checkbox"
-                name="question_ids"
-                value={String(q.id)}
                 checked={assignedIds.has(q.id) || undefined}
+                name="question_ids"
+                type="checkbox"
+                value={String(q.id)}
               />
               {` ${q.text}`}
               <small>

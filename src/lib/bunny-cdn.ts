@@ -27,14 +27,14 @@ type CdnHostnameResult =
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
 interface EdgeScriptLinkedPullZone {
+  DefaultHostname: string;
   Id: number;
   PullZoneName: string;
-  DefaultHostname: string;
 }
 
 interface EdgeScriptResponse {
-  Id: number;
   DefaultHostname: string;
+  Id: number;
   LinkedPullZones: EdgeScriptLinkedPullZone[];
 }
 
@@ -215,14 +215,14 @@ const validateCustomDomainImpl = async (
 
 interface BunnyDnsRecord {
   Id: number;
-  Type: number;
   Name: string;
+  Type: number;
   Value: string;
 }
 
 interface BunnyDnsZone {
-  Id: number;
   Domain: string;
+  Id: number;
   Records: BunnyDnsRecord[];
 }
 
@@ -439,10 +439,10 @@ const publishScript = async (
 // ---------------------------------------------------------------------------
 
 interface CreateEdgeScriptResult {
-  ok: true;
-  scriptId: number;
-  pullZoneId: number;
   defaultHostname: string;
+  ok: true;
+  pullZoneId: number;
+  scriptId: number;
 }
 
 /**

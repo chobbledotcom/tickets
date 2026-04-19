@@ -14,19 +14,19 @@ const DEFAULT_MIN_AGE_DAYS = 14;
 const DENO_JSON_PATH = new URL("../deno.json", import.meta.url).pathname;
 
 interface VersionInfo {
-  version: string;
   publishedAt: Date;
+  version: string;
 }
 
 interface UpgradeResult {
-  name: string;
-  registry: "npm" | "jsr";
   currentSpec: string;
   currentVersion: string | null;
-  newVersion: string | null;
-  newPublishedAt: Date | null;
-  skippedNewer: string | null;
   error: string | null;
+  name: string;
+  newPublishedAt: Date | null;
+  newVersion: string | null;
+  registry: "npm" | "jsr";
+  skippedNewer: string | null;
 }
 
 function parseArgs(): { dryRun: boolean; minAgeDays: number } {

@@ -16,7 +16,7 @@ export const adminSeedsPage = (
 ): string =>
   String(
     <Layout title="Seed Data">
-      <AdminNav session={session} active="" />
+      <AdminNav active="" session={session} />
       <CsrfForm action="/admin/seeds">
         <h1>Seed Data</h1>
         <p>
@@ -26,24 +26,24 @@ export const adminSeedsPage = (
         <Flash error={error} success={success} />
         <label for="event_count">Number of events</label>
         <input
-          type="number"
           id="event_count"
-          name="event_count"
-          value="5"
-          min="1"
           max="30"
+          min="1"
+          name="event_count"
           required
+          type="number"
+          value="5"
         />
 
         <label for="attendees_per_event">Attendees per event</label>
         <input
-          type="number"
           id="attendees_per_event"
-          name="attendees_per_event"
-          value="10"
-          min="0"
           max={String(SEED_MAX_ATTENDEES)}
+          min="0"
+          name="attendees_per_event"
           required
+          type="number"
+          value="10"
         />
 
         <button type="submit">Create Seed Data</button>

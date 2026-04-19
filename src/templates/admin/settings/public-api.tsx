@@ -17,19 +17,19 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
     </p>
     <label>
       <input
-        type="radio"
-        name="show_public_api"
-        value="true"
         checked={s.showPublicApi === true}
+        name="show_public_api"
+        type="radio"
+        value="true"
       />
       Yes
     </label>
     <label>
       <input
-        type="radio"
-        name="show_public_api"
-        value="false"
         checked={s.showPublicApi !== true}
+        name="show_public_api"
+        type="radio"
+        value="false"
       />
       No
     </label>

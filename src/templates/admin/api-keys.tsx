@@ -28,7 +28,7 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
           : "Never"}
       </td>
       <td>
-        <a href={`/admin/api-keys/${apiKey.id}/delete`} class="danger small">
+        <a class="danger small" href={`/admin/api-keys/${apiKey.id}/delete`}>
           Delete
         </a>
       </td>
@@ -53,7 +53,7 @@ export const adminApiKeysPage = (
 
   return String(
     <Layout title="API Keys">
-      <AdminNav session={adminSession} active="/admin/users" />
+      <AdminNav active="/admin/users" session={adminSession} />
       <UsersSubNav />
 
       <Flash error={opts.error} success={opts.success} />
@@ -98,11 +98,11 @@ export const adminApiKeysPage = (
         <label>
           Name
           <input
-            type="text"
+            maxLength={100}
             name="name"
             placeholder="e.g. CI Pipeline"
             required
-            maxLength={100}
+            type="text"
           />
         </label>
         <button type="submit">Create key</button>
@@ -120,13 +120,13 @@ export const adminDeleteApiKeyPage = (
 ): string =>
   String(
     <Layout title={`Delete: ${apiKey.name}`}>
-      <AdminNav session={session} active="/admin/users" />
+      <AdminNav active="/admin/users" session={session} />
 
       <ConfirmForm
         action={`/admin/api-keys/${apiKey.id}/delete`}
-        name={apiKey.name}
-        label="API key name"
         buttonText="Delete API Key"
+        label="API key name"
+        name={apiKey.name}
       >
         <p>
           <strong>Warning:</strong> This will permanently delete this API key.
@@ -184,7 +184,7 @@ export const adminApiDocsPage = (
 ): string =>
   String(
     <Layout title="API Documentation">
-      <AdminNav session={session} active="/admin/users" />
+      <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
 
       <div class="stack-md column">

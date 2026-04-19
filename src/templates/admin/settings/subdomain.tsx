@@ -41,16 +41,16 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         <p>
           <strong>{s.subdomainPreviewFullDomain}</strong> is available.
         </p>
-        <input type="hidden" name="subdomain" value={s.subdomainPreview} />
+        <input name="subdomain" type="hidden" value={s.subdomainPreview} />
         <label>
-          <input type="checkbox" name="save" value="1" /> Confirm registration
+          <input name="save" type="checkbox" value="1" /> Confirm registration
           (cannot be undone)
         </label>
         <footer>
           <button type="submit">Register Subdomain</button>
           <a
-            href="/admin/settings-advanced#settings-host-subdomain"
             class="secondary"
+            href="/admin/settings-advanced#settings-host-subdomain"
           >
             <strong>Cancel</strong>
           </a>
@@ -64,11 +64,11 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
       <label>
         Subdomain
         <input
-          type="text"
-          name="subdomain"
-          placeholder="my-business-name"
           autocomplete="off"
+          name="subdomain"
           pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
+          placeholder="my-business-name"
+          type="text"
         />
         <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
       </label>

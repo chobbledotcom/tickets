@@ -14,6 +14,7 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  extractInputValue,
   FLASH_TEST_ID,
   flashCookieHeader,
   followRedirectWithFlash,
@@ -45,7 +46,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     test("shows login page", async () => {
       const html = await assertPublicHtml("/admin/login", "Login");
       // Login page contains a signed CSRF token in the form
-      expect(html).toMatch(/name="csrf_token" value="s1\./);
+      expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
     });
 
     test("redirects to /admin when already authenticated", async () => {

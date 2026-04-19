@@ -20,11 +20,11 @@ export const EmailNotificationsForm = (
       <label>
         Email Provider
         <select name="email_provider">
-          <option value="" selected={!s.emailProvider}>
+          <option selected={!s.emailProvider} value="">
             {s.hostEmailLabel || "None (disabled)"}
           </option>
           {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
-            <option value={p} selected={s.emailProvider === p}>
+            <option selected={s.emailProvider === p} value={p}>
               {EMAIL_PROVIDER_LABELS[p]}
             </option>
           ))}
@@ -33,28 +33,28 @@ export const EmailNotificationsForm = (
       <label>
         API Key
         <input
-          type="password"
+          autocomplete="off"
           name="email_api_key"
           placeholder="Enter API key"
+          type="password"
           value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
-          autocomplete="off"
         />
       </label>
       <label>
         From Address
         <input
-          type="email"
+          autocomplete="off"
           name="email_from_address"
           placeholder={s.businessEmail || "tickets@yourdomain.com"}
+          type="email"
           value={s.emailFromAddress}
-          autocomplete="off"
         />
       </label>
       <button type="submit">Save Email Settings</button>
     </CsrfForm>
     {s.emailProvider && (
       <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
-        <button type="submit" class="secondary">
+        <button class="secondary" type="submit">
           Send Test Email
         </button>
       </CsrfForm>

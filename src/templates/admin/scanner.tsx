@@ -10,9 +10,9 @@ import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Ticket option for the manual check-in autocomplete */
 export interface TicketOption {
-  token: string;
   name: string;
   quantity: number;
+  token: string;
 }
 
 /**
@@ -25,10 +25,10 @@ export const adminScannerPage = (
 ): string =>
   String(
     <Layout
-      title={`Scanner: ${event.name}`}
       headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
+      title={`Scanner: ${event.name}`}
     >
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <h1>Scanner</h1>
       <p>
         <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
@@ -39,20 +39,20 @@ export const adminScannerPage = (
       <article>
         <div id="scanner-container">
           <video
-            id="scanner-video"
-            data-event-id={String(event.id)}
-            playsinline
-            muted
             class="hidden"
+            data-event-id={String(event.id)}
+            id="scanner-video"
+            muted
+            playsinline
           ></video>
-          <div id="scanner-status" class="hidden"></div>
-          <div id="scanner-confirm" class="hidden">
+          <div class="hidden" id="scanner-status"></div>
+          <div class="hidden" id="scanner-confirm">
             <div id="scanner-confirm-backdrop"></div>
             <div id="scanner-confirm-box">
               <button
+                aria-label="Close"
                 id="scanner-confirm-close"
                 type="button"
-                aria-label="Close"
               >
                 &times;
               </button>
@@ -77,56 +77,56 @@ export const adminScannerPage = (
       <article>
         <h2>Manual Check-in</h2>
         <form
+          action={`/admin/event/${event.id}/scan`}
+          data-event-id={String(event.id)}
+          data-manual-checkin
           id="manual-checkin"
           method="POST"
-          action={`/admin/event/${event.id}/scan`}
-          data-manual-checkin
-          data-event-id={String(event.id)}
         >
           <input
-            type="hidden"
             name="csrf_token"
+            type="hidden"
             value={getCurrentCsrfToken()}
           />
           <label for="manual-checkin-input">
             Search by name or ticket token
           </label>
           <div class="combobox">
-            <input type="hidden" name="token" id="manual-checkin-token" />
+            <input id="manual-checkin-token" name="token" type="hidden" />
             <input
-              id="manual-checkin-input"
-              type="text"
-              role="combobox"
-              autocomplete="off"
               aria-autocomplete="list"
-              aria-expanded="false"
               aria-controls="ticket-options"
+              aria-expanded="false"
+              autocomplete="off"
+              id="manual-checkin-input"
               placeholder={
                 uncheckedIn.length > 0
                   ? `${uncheckedIn.length} tickets available`
                   : "No tickets to check in"
               }
               required
+              role="combobox"
+              type="text"
             />
             <div
+              class="combobox-list hidden"
               id="ticket-options"
               role="listbox"
-              class="combobox-list hidden"
             >
               {uncheckedIn.map((t) => (
                 <div
-                  role="option"
-                  tabIndex={0}
-                  data-token={t.token}
                   data-name={escapeHtml(t.name)}
                   data-quantity={String(t.quantity)}
+                  data-token={t.token}
+                  role="option"
+                  tabIndex={0}
                 >
                   {`${escapeHtml(t.name)} (${t.quantity} attendee${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
                 </div>
               ))}
             </div>
           </div>
-          <div id="manual-checkin-status" class="hidden"></div>
+          <div class="hidden" id="manual-checkin-status"></div>
           <button type="submit">Check In</button>
         </form>
       </article>

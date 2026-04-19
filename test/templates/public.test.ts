@@ -17,6 +17,7 @@ import {
 import { ticketViewPage } from "#templates/tickets.tsx";
 import {
   describeWithEnv,
+  hasInputWithValue,
   setupTestEncryptionKey,
   testAttendee,
   testEventWithCount,
@@ -133,9 +134,7 @@ describe("ticketPage (single event)", () => {
   test("hides quantity selector when max_quantity is 1", () => {
     const html = renderTicket(event); // max_quantity is 1
     expect(html).not.toContain("Number of Tickets");
-    expect(html).toContain(
-      `type="hidden" name="quantity_${event.id}" value="1"`,
-    );
+    expect(hasInputWithValue(html, `quantity_${event.id}`, "1")).toBe(true);
     expect(html).toContain("Continue");
   });
 
@@ -522,7 +521,7 @@ describe("ticketPage", () => {
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
-    expect(html).toContain('name="quantity_1" value="1"');
+    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
     expect(html).not.toContain("<select");
     expect(html).not.toContain("Select Tickets");
   });
@@ -543,7 +542,7 @@ describe("ticketPage", () => {
     expect(html).toContain("<select");
     expect(html).toContain('name="quantity_1"');
     expect(html).toContain("Number of Tickets");
-    expect(html).not.toContain('name="quantity_1" value="1"');
+    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(false);
   });
 
   test("shows quantity selector for multiple events even with max quantity 1", () => {
@@ -594,7 +593,7 @@ describe("ticketPage", () => {
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
-    expect(html).toContain('name="quantity_1" value="1"');
+    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
     expect(html).not.toContain("Select Tickets");
   });
 });

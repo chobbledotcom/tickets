@@ -115,7 +115,7 @@ const FailedPaymentRow = ({
           action={`/admin/event/${eventId}/attendee/${attendee.id}/delete-incomplete`}
           class="inline"
         >
-          <button type="submit" class="link-button danger">
+          <button class="link-button danger" type="submit">
             Delete
           </button>
         </CsrfForm>
@@ -273,14 +273,14 @@ const EventActionNav = ({
         </li>
         {hasPaidEvent && (
           <li>
-            <a href={`/admin/event/${event.id}/refund-all`} class="danger">
+            <a class="danger" href={`/admin/event/${event.id}/refund-all`}>
               Refund All
             </a>
           </li>
         )}
         {event.active ? (
           <li>
-            <a href={`/admin/event/${event.id}/deactivate`} class="danger">
+            <a class="danger" href={`/admin/event/${event.id}/deactivate`}>
               Deactivate
             </a>
           </li>
@@ -290,7 +290,7 @@ const EventActionNav = ({
           </li>
         )}
         <li>
-          <a href={`/admin/event/${event.id}/delete`} class="danger">
+          <a class="danger" href={`/admin/event/${event.id}/delete`}>
             Delete
           </a>
         </li>
@@ -381,11 +381,11 @@ const AttendeesSummaryRow = ({
     <th>Attendees{dailySuffix}</th>
     <td>
       <AttendeeCountDisplay
-        event={event}
-        isDaily={isDaily}
-        dateFilter={dateFilter}
         adjustedCount={adjustedCount}
         completeQuantitySum={completeQuantitySum}
+        dateFilter={dateFilter}
+        event={event}
+        isDaily={isDaily}
       />
       {isDaily && !dateFilter && (
         <>
@@ -500,11 +500,11 @@ const EventDetailsTable = ({
               </th>
               <td>
                 <input
-                  type="text"
-                  id={`thank-you-url-${event.id}`}
-                  value={event.thank_you_url}
-                  readonly
                   data-select-on-click
+                  id={`thank-you-url-${event.id}`}
+                  readonly
+                  type="text"
+                  value={event.thank_you_url}
                 />
               </td>
             </tr>
@@ -516,11 +516,11 @@ const EventDetailsTable = ({
               </th>
               <td>
                 <input
-                  type="text"
-                  id={`webhook-url-${event.id}`}
-                  value={event.webhook_url}
-                  readonly
                   data-select-on-click
+                  id={`webhook-url-${event.id}`}
+                  readonly
+                  type="text"
+                  value={event.webhook_url}
                 />
               </td>
             </tr>
@@ -531,11 +531,11 @@ const EventDetailsTable = ({
             </th>
             <td>
               <input
-                type="text"
-                id={`embed-script-${event.id}`}
-                value={embedScriptCode}
-                readonly
                 data-select-on-click
+                id={`embed-script-${event.id}`}
+                readonly
+                type="text"
+                value={embedScriptCode}
               />
             </td>
           </tr>
@@ -545,21 +545,21 @@ const EventDetailsTable = ({
             </th>
             <td>
               <input
-                type="text"
-                id={`embed-iframe-${event.id}`}
-                value={embedIframeCode}
-                readonly
                 data-select-on-click
+                id={`embed-iframe-${event.id}`}
+                readonly
+                type="text"
+                value={embedIframeCode}
               />
             </td>
           </tr>
           <AttendeesSummaryRow
-            event={event}
-            isDaily={isDaily}
-            dateFilter={dateFilter}
-            dailySuffix={dailySuffix}
             adjustedCount={adjustedCount}
             completeQuantitySum={completeQuantitySum}
+            dailySuffix={dailySuffix}
+            dateFilter={dateFilter}
+            event={event}
+            isDaily={isDaily}
           />
           <Raw html={sharedRowsHtml} />
         </tbody>
@@ -642,7 +642,7 @@ const AttendeesSection = ({
     <article>
       <h2 id="attendees">Attendees</h2>
       {checkinMessage && (
-        <p id="message" class={checkedInClass}>
+        <p class={checkedInClass} id="message">
           Checked {checkinMessage.name} {checkedInLabel}
         </p>
       )}
@@ -657,9 +657,9 @@ const AttendeesSection = ({
         />
       )}
       <AttendeesFilterLinks
+        activeFilter={activeFilter}
         basePath={basePath}
         dateQs={dateQs}
-        activeFilter={activeFilter}
       />
       <div class="table-scroll">
         <Raw
@@ -800,10 +800,10 @@ export const adminEventPage = ({
 
   return String(
     <Layout title={`Event: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <EventActionNav
-        event={event}
         dateFilter={dateFilter}
+        event={event}
         hasPaidEvent={hasPaidEvent}
       />
       <Flash success={successMessage} />
@@ -814,31 +814,31 @@ export const adminEventPage = ({
       )}
       <Flash error={errorMessage} />
       <EventDetailsTable
-        event={event}
-        allowedDomain={allowedDomain}
-        ticketUrl={ticketUrl}
-        embedScriptCode={embedScriptCode}
-        embedIframeCode={embedIframeCode}
-        isDaily={isDaily}
-        dateFilter={dateFilter}
-        dailySuffix={dailySuffix}
         adjustedCount={adjustedCount}
+        allowedDomain={allowedDomain}
         completeQuantitySum={completeQuantitySum}
+        dailySuffix={dailySuffix}
+        dateFilter={dateFilter}
+        embedIframeCode={embedIframeCode}
+        embedScriptCode={embedScriptCode}
+        event={event}
+        isDaily={isDaily}
         sharedRowsHtml={renderDetailRows(sharedRows)}
+        ticketUrl={ticketUrl}
       />
       <AttendeesSection
-        allowedDomain={allowedDomain}
-        checkinMessage={checkinMessage}
-        isDaily={isDaily}
-        availableDates={availableDates}
         activeFilter={activeFilter}
-        dateFilter={dateFilter}
+        allowedDomain={allowedDomain}
+        availableDates={availableDates}
         basePath={basePath}
+        checkinMessage={checkinMessage}
+        dateFilter={dateFilter}
         dateQs={dateQs}
+        isDaily={isDaily}
+        phonePrefix={phonePrefix}
+        questionData={questionData}
         returnUrl={returnUrl}
         tableRows={tableRows}
-        questionData={questionData}
-        phonePrefix={phonePrefix}
       />
       {incompleteAttendees.length > 0 && (
         <FailedPaymentsSection
@@ -907,7 +907,7 @@ export const adminEventNewPage = (
   ];
   return String(
     <Layout title="Add Event">
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
 
       <CsrfForm action="/admin/event" enctype="multipart/form-data">
         <h1>Add Event</h1>
@@ -940,7 +940,7 @@ export const adminDuplicateEventPage = (
 
   return String(
     <Layout title={`Duplicate: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <h2>Duplicate Event</h2>
       <p>
         Creating a new event based on <strong>{event.name}</strong>.
@@ -972,7 +972,7 @@ export const adminEventEditPage = (
   ];
   return String(
     <Layout title={`Edit: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
       <CsrfForm
         action={`/admin/event/${event.id}/edit`}
@@ -988,7 +988,7 @@ export const adminEventEditPage = (
       </CsrfForm>
       {storageEnabled && event.image_url && (
         <CsrfForm action={`/admin/event/${event.id}/image/delete`}>
-          <button type="submit" class="secondary">
+          <button class="secondary" type="submit">
             Remove Image
           </button>
         </CsrfForm>
@@ -999,7 +999,7 @@ export const adminEventEditPage = (
             Current attachment: <strong>{event.attachment_name}</strong>
           </p>
           <CsrfForm action={`/admin/event/${event.id}/attachment/delete`}>
-            <button type="submit" class="secondary">
+            <button class="secondary" type="submit">
               Remove Attachment
             </button>
           </CsrfForm>
@@ -1019,14 +1019,14 @@ export const adminDeleteEventPage = (
 ): string =>
   String(
     <Layout title={`Delete: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/delete`}
-        name={event.name}
-        label="Event name"
         buttonText="Delete Event"
+        label="Event name"
+        name={event.name}
       >
         <p>
           <strong>Warning:</strong> This will permanently delete the event, all{" "}
@@ -1050,14 +1050,14 @@ export const adminDeactivateEventPage = (
 ): string =>
   String(
     <Layout title={`Deactivate: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/deactivate`}
-        name={event.name}
-        label="Event name"
         buttonText="Deactivate Event"
+        label="Event name"
+        name={event.name}
       >
         <p>
           <strong>Warning:</strong> Deactivating this event will:
@@ -1086,15 +1086,15 @@ export const adminReactivateEventPage = (
 ): string =>
   String(
     <Layout title={`Reactivate: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/reactivate`}
-        name={event.name}
-        label="Event name"
         buttonText="Reactivate Event"
         danger={false}
+        label="Event name"
+        name={event.name}
       >
         <p>
           Reactivating this event will make it available for registrations

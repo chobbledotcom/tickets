@@ -23,29 +23,29 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
     <label>
       Issuer ID
       <input
-        type="text"
+        autocomplete="off"
         name="google_wallet_issuer_id"
         placeholder="3388000000012345678"
+        type="text"
         value={s.googleWalletIssuerId}
-        autocomplete="off"
       />
     </label>
     <label>
       Service Account Email
       <input
-        type="email"
+        autocomplete="off"
         name="google_wallet_service_account_email"
         placeholder="wallet@project.iam.gserviceaccount.com"
+        type="email"
         value={s.googleWalletServiceAccountEmail}
-        autocomplete="off"
       />
     </label>
     <label>
       Service Account Private Key (PEM)
       <textarea
         name="google_wallet_service_account_key"
-        rows={4}
         placeholder="-----BEGIN PRIVATE KEY-----"
+        rows={4}
       >
         {s.googleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>

@@ -9,12 +9,12 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { isoToTag } from "../../scripts/build-tag.ts";
 import {
   isNewerVersion,
   parseReleaseTag,
   setBuildTimestampForTest,
 } from "#lib/update.ts";
+import { isoToTag } from "../../scripts/build-tag.ts";
 
 const RELEASE_TAG_FORMAT = /^v\d{4}-\d{2}-\d{2}-\d{6}$/;
 

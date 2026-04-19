@@ -21,10 +21,10 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 // ---------------------------------------------------------------------------
 
 interface StorageConfig {
-  zoneName: string;
-  zoneKey: string;
   /** Override local storage path for tests. "" = disabled, undefined = use env var. */
   localPath?: string;
+  zoneKey: string;
+  zoneName: string;
 }
 
 const storageConfigStore = new AsyncLocalStorage<StorageConfig>();

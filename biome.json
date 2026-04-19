@@ -1,13 +1,22 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
-    "includes": ["**/*.js", "**/*.ts", "**/*.tsx"],
+    "includes": [
+      "**/*.js",
+      "**/*.ts",
+      "**/*.tsx",
+      "!src/static/**",
+      "!src/client/scanner.js"
+    ],
     "ignoreUnknown": true
   },
   "assist": {
     "actions": {
       "source": {
-        "useSortedKeys": "on"
+        "useSortedAttributes": "on",
+        "useSortedInterfaceMembers": "on",
+        "useSortedKeys": "on",
+        "useSortedProperties": "on"
       }
     }
   },
@@ -19,6 +28,9 @@
   "linter": {
     "enabled": true,
     "rules": {
+      "nursery": {
+        "useSortedClasses": "error"
+      },
       "complexity": {
         "noStaticOnlyClass": "error",
         "noThisInStatic": "error",

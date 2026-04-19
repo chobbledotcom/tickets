@@ -30,23 +30,23 @@ export interface Question {
 export interface Answer {
   id: number;
   question_id: number;
-  text: string; // encrypted
   sort_order: number;
+  text: string; // encrypted
 }
 
 /** Link between event and question (ordering by sort_order) */
 export interface EventQuestion {
-  id: number;
   event_id: number;
+  id: number;
   question_id: number;
   sort_order: number;
 }
 
 /** Link between attendee and selected answer */
 export interface AttendeeAnswer {
-  id: number;
-  attendee_id: number;
   answer_id: number;
+  attendee_id: number;
+  id: number;
 }
 
 /** Question with its answer options (decrypted) */

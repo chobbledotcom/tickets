@@ -23,11 +23,11 @@ import { Layout } from "#templates/layout.tsx";
 
 /** Form field values for the duplicate-group action */
 export interface DuplicateGroupFormValues {
-  newName: string;
-  nameFind: string;
-  nameReplace: string;
   dateFind: string;
   dateReplace: string;
+  nameFind: string;
+  nameReplace: string;
+  newName: string;
 }
 
 /** Embed JSON safely inside a <script type="application/json"> tag */
@@ -44,7 +44,7 @@ export const adminBulkActionsPage = (
   const allDeactivated = events.length > 0 && !hasActive;
   return String(
     <Layout title={`Bulk Actions: ${group.name}`}>
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}`}>&larr; {group.name}</a>
       </p>
@@ -132,7 +132,7 @@ export const adminDuplicateGroupPage = (
 
   return String(
     <Layout title={`Duplicate Group: ${group.name}`}>
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}/bulk-actions`}>
           &larr; Bulk Actions
@@ -149,38 +149,38 @@ export const adminDuplicateGroupPage = (
 
       <CsrfForm
         action={`/admin/groups/${group.id}/bulk-actions/duplicate`}
-        id="duplicate-group-form"
         data-duplicate-preview
         data-timezone={tz}
+        id="duplicate-group-form"
       >
         <label>
           New group name
           <input
-            type="text"
-            name="new_name"
-            value={values.newName}
-            required
             autofocus
             data-duplicate-field
+            name="new_name"
+            required
+            type="text"
+            value={values.newName}
           />
         </label>
         <label>
           Find in event names
           <input
-            type="text"
-            name="name_find"
-            value={values.nameFind || undefined}
-            placeholder="(leave blank to keep names unchanged)"
             data-duplicate-field="name_find"
+            name="name_find"
+            placeholder="(leave blank to keep names unchanged)"
+            type="text"
+            value={values.nameFind || undefined}
           />
         </label>
         <label>
           Replace with
           <input
-            type="text"
-            name="name_replace"
-            value={values.nameReplace || undefined}
             data-duplicate-field="name_replace"
+            name="name_replace"
+            type="text"
+            value={values.nameReplace || undefined}
           />
         </label>
         <p>
@@ -193,19 +193,19 @@ export const adminDuplicateGroupPage = (
         <label>
           Reference date
           <input
-            type="date"
-            name="date_find"
-            value={values.dateFind || undefined}
             data-duplicate-field="date_find"
+            name="date_find"
+            type="date"
+            value={values.dateFind || undefined}
           />
         </label>
         <label>
           Target date
           <input
-            type="date"
-            name="date_replace"
-            value={values.dateReplace || undefined}
             data-duplicate-field="date_replace"
+            name="date_replace"
+            type="date"
+            value={values.dateReplace || undefined}
           />
         </label>
 
@@ -234,7 +234,7 @@ export const adminDuplicateGroupPage = (
           </div>
         )}
 
-        <script type="application/json" id="duplicate-preview-events">
+        <script id="duplicate-preview-events" type="application/json">
           <Raw html={eventsJson} />
         </script>
 
@@ -254,7 +254,7 @@ export const adminDeactivateGroupPage = (
   const activeCount = events.filter((e) => e.active).length;
   return String(
     <Layout title={`Deactivate Group: ${group.name}`}>
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}/bulk-actions`}>
           &larr; Bulk Actions
@@ -264,9 +264,9 @@ export const adminDeactivateGroupPage = (
 
       <ConfirmForm
         action={`/admin/groups/${group.id}/bulk-actions/deactivate`}
-        name={group.name}
-        label="Group name"
         buttonText="Deactivate Group"
+        label="Group name"
+        name={group.name}
       >
         <p>
           <strong>Warning:</strong> Deactivating this group will deactivate{" "}
@@ -298,7 +298,7 @@ export const adminReactivateGroupPage = (
   const inactiveCount = events.filter((e) => !e.active).length;
   return String(
     <Layout title={`Reactivate Group: ${group.name}`}>
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}/bulk-actions`}>
           &larr; Bulk Actions
@@ -308,10 +308,10 @@ export const adminReactivateGroupPage = (
 
       <ConfirmForm
         action={`/admin/groups/${group.id}/bulk-actions/reactivate`}
-        name={group.name}
-        label="Group name"
         buttonText="Reactivate Group"
         danger={false}
+        label="Group name"
+        name={group.name}
       >
         <p>
           Reactivating this group will reactivate {inactiveCount} event

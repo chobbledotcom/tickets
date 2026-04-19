@@ -51,7 +51,7 @@ const DataControllerAgreement = (): JSX.Element => (
     </p>
     <div class="field">
       <label>
-        <input type="checkbox" name="accept_agreement" value="yes" required />I
+        <input name="accept_agreement" required type="checkbox" value="yes" />I
         understand and accept these terms
       </label>
     </div>
@@ -74,7 +74,7 @@ export const setupPage = (error?: string): string =>
             Your Country
             <select name="country" required>
               {Object.entries(COUNTRIES).map(([code, data]) => (
-                <option value={code} selected={code === DEFAULT_COUNTRY}>
+                <option selected={code === DEFAULT_COUNTRY} value={code}>
                   {data.name} ({data.currency})
                 </option>
               ))}

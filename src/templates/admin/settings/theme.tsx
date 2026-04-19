@@ -11,19 +11,19 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
     <p>Choose between light and dark themes for the site interface.</p>
     <label>
       <input
-        type="radio"
-        name="theme"
-        value="light"
         checked={s.theme === "light"}
+        name="theme"
+        type="radio"
+        value="light"
       />
       Light
     </label>
     <label>
       <input
-        type="radio"
-        name="theme"
-        value="dark"
         checked={s.theme === "dark"}
+        name="theme"
+        type="radio"
+        value="dark"
       />
       Dark
     </label>

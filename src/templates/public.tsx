@@ -83,7 +83,7 @@ export const publicSitePage = (
     : titles[pageType];
 
   return String(
-    <Layout title={pageTitle} headExtra={FEED_DISCOVERY_TAGS}>
+    <Layout headExtra={FEED_DISCOVERY_TAGS} title={pageTitle}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <div class="prose">
@@ -158,7 +158,7 @@ export const homepagePage = (
 
   if (events.length === 0 && groups.length === 0) {
     return String(
-      <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
+      <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...navFlags()} />
         <p>
@@ -182,7 +182,7 @@ export const homepagePage = (
   )(events);
 
   return String(
-    <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
+    <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <h2>All bookable events</h2>
@@ -348,8 +348,8 @@ export const rateLimitedPage = (): string =>
 export const temporaryErrorPage = (): string =>
   String(
     <Layout
-      title="Temporary Error"
       headExtra='<meta http-equiv="refresh" content="2" />'
+      title="Temporary Error"
     >
       <h1>Temporary Error</h1>
       <p>
@@ -600,7 +600,7 @@ const TicketPageForm = ({
   return (
     <CsrfForm action={`/ticket/${slugs.join("+")}`}>
       {qrPrefill && (
-        <input type="hidden" name="qr_token" value={qrPrefill.token} />
+        <input name="qr_token" type="hidden" value={qrPrefill.token} />
       )}
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (
@@ -678,16 +678,16 @@ export const ticketPage = ({
 
   return String(
     <Layout
-      title={title}
       bodyClass={inIframe ? "iframe" : undefined}
       headExtra={headExtra}
+      title={title}
     >
       {headerName && !inIframe && (
         <TicketPageHeader
-          headerName={headerName}
           headerDescription={headerDescription}
-          singleEvent={singleEvent}
+          headerName={headerName}
           pastDays={pastDays}
+          singleEvent={singleEvent}
         />
       )}
       <Flash error={error} />
@@ -698,17 +698,17 @@ export const ticketPage = ({
         </div>
       ) : (
         <TicketPageForm
-          slugs={slugs}
-          fields={fields}
-          hasDaily={hasDaily}
           dates={dates}
           eventRows={eventRows}
+          fields={fields}
+          hasDaily={hasDaily}
           hideQuantity={hideQuantity}
           isSingleEvent={isSingleEvent}
-          questions={questions}
-          questionEventMap={questionEventMap}
-          terms={terms}
           qrPrefill={qrPrefill}
+          questionEventMap={questionEventMap}
+          questions={questions}
+          slugs={slugs}
+          terms={terms}
         />
       )}
     </Layout>,

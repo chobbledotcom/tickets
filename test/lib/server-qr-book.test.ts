@@ -31,6 +31,7 @@ import {
   createTestEvent,
   describeWithEnv,
   getAttendeesRaw,
+  hasInputWithValue,
   mockProviderType,
   mockRequest,
   setupStripe,
@@ -42,10 +43,8 @@ const qrBookPath = (slug: string, token: string): string =>
 
 /** Stub Stripe as the active provider with a canned checkout URL */
 const stubStripe = (checkoutUrl = "https://stripe.example/checkout") => {
-  const providerStub = stub(
-    paymentsApi,
-    "getConfiguredProvider",
-    () => mockProviderType("stripe"),
+  const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
+    mockProviderType("stripe"),
   );
   const checkoutStub = stub(
     stripePaymentProvider,
@@ -179,7 +178,9 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       );
       const response = await awaitTestRequest(qrBookPath(event.slug, token));
       const body = await response.text();
-      expect(body).toContain(`name="custom_price_${event.id}" value="25.00"`);
+      expect(hasInputWithValue(body, `custom_price_${event.id}`, "25.00")).toBe(
+        true,
+      );
     });
 
     test("pre-fills quantity for the event row", async () => {
@@ -250,10 +251,8 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         event.slug,
         buildQrBookPayload({ name: "Ada", value: 1000 }),
       );
-      const providerStub = stub(
-        paymentsApi,
-        "getConfiguredProvider",
-        () => mockProviderType("stripe"),
+      const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
+        mockProviderType("stripe"),
       );
       const checkoutStub = stub(
         stripePaymentProvider,

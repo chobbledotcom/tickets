@@ -63,8 +63,8 @@ export const adminAdvancedSettingsPage = (
   s: AdvancedSettingsPageState,
 ): string =>
   String(
-    <Layout title="Advanced Settings" theme={s.theme}>
-      <AdminNav session={session} active="/admin/settings" />
+    <Layout theme={s.theme} title="Advanced Settings">
+      <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       <article>

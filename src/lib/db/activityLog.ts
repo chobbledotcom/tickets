@@ -14,9 +14,9 @@ import type { Event, EventWithCount } from "#lib/types.ts";
 
 /** Activity log entry */
 export interface ActivityLogEntry {
-  id: number;
   created: string;
   event_id: number | null;
+  id: number;
   message: string;
 }
 
