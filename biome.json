@@ -20,7 +20,6 @@
     "enabled": true,
     "rules": {
       "complexity": {
-        "noBannedTypes": "off",
         "noStaticOnlyClass": "error",
         "noThisInStatic": "error",
         "noUselessThisAlias": "error",
