@@ -29,6 +29,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   followRedirectWithFlash,
+  extractInputValue,
   getAttendeesRaw,
   mockFormRequest,
   mockProviderType,
@@ -2694,9 +2695,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       { cookie: await testCookie() },
     );
     const html = await page.text();
-    const match = html.match(/name="merge_version"\s+value="([^"]*)"/);
-    if (!match) throw new Error("merge_version not found in page");
-    return match[1]!;
+    const value = extractInputValue(html, "merge_version");
+    if (value === null) throw new Error("merge_version not found in page");
+    return value;
   };
 
   describe("POST /admin/attendees/:attendeeId/merge", () => {
@@ -3220,10 +3221,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const previewHtml = await previewPage.text();
-      const versionMatch = previewHtml.match(
-        /name="merge_version"\s+value="([^"]*)"/,
-      );
-      const mergeVersion = versionMatch![1]!;
+      const mergeVersion = extractInputValue(previewHtml, "merge_version")!;
 
       // Submit choosing source answer
       const { response } = await adminFormPost(
@@ -3264,8 +3262,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const html = await previewPage.text();
-      const match = html.match(/name="merge_version"\s+value="([^"]*)"/);
-      const mergeVersion = match![1]!;
+      const mergeVersion = extractInputValue(html, "merge_version")!;
 
       const bookingKey = `${event.id}:null`;
       const { response } = await adminFormPost(
