@@ -319,21 +319,21 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
   await writeRaw(key, await encrypt(value));
 };
 
-/** Factory: run `writer` then mirror the value into the snapshot. */
+/**
+ * Factory: run `writer` then mirror the value into the snapshot. Accepts any
+ * string key so it satisfies `EncryptedUpdateFn` for wallet factories; callers
+ * always pass a `CONFIG_KEYS.*` value that is a real snapshot field.
+ */
 const stringUpdate =
   (writer: (key: string, value: string) => Promise<void>) =>
-  (key: StringSettingKey) =>
+  (key: string) =>
   async (v: string): Promise<void> => {
     await writer(key, v);
-    setSnapshotField(key, v);
+    setSnapshotField(key as StringSettingKey, v);
   };
 
-const encryptedUpdate = stringUpdate(writeEncrypted);
-const plaintextUpdate = stringUpdate(writeOrDelete);
-
-/** Wider-typed alias for passing into wallet factories that expect `string` keys. */
-const encryptedUpdateWide: EncryptedUpdateFn =
-  encryptedUpdate as EncryptedUpdateFn;
+const encryptedUpdate: EncryptedUpdateFn = stringUpdate(writeEncrypted);
+const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 
 /** Factory: write a raw string and mirror into a specific snapshot field. */
 const rawUpdate =
@@ -782,7 +782,7 @@ export const settings = {
   // -----------------------------------------------------------------------
   update: {
     // --- Apple Wallet writes ---
-    appleWallet: createAppleWalletUpdateSettings(encryptedUpdateWide),
+    appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
     attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
@@ -827,7 +827,7 @@ export const settings = {
     eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
 
     // --- Google Wallet writes ---
-    googleWallet: createGoogleWalletUpdateSettings(encryptedUpdateWide),
+    googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
     homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
     lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
