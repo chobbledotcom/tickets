@@ -184,6 +184,14 @@ export const adminGuidePage = (
             admin, they appear as one attendee linked to multiple events.
           </p>
           <p>
+            If the events have different contact-detail settings, the combined
+            form asks for the union of all selected fields &mdash; so pairing an
+            email-only event with one that also collects a phone number will
+            require both from every attendee. Fields always appear in the same
+            order (email, phone, address, special instructions) regardless of
+            which events are combined.
+          </p>
+          <p>
             To generate the link, open the <strong>Multi-booking link</strong>{" "}
             section on the <strong>Events</strong> page and tick the events you
             want to combine. The link updates as you select, and events appear
