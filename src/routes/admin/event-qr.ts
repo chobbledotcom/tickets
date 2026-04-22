@@ -209,7 +209,7 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/event/:id/qr.json"> = (
   { id },
 ) =>
   requireSessionOr(request, () =>
-    withEvent(id)(async (event) => {
+  withEvent(eventId)(async (event) => {
       const form = new FormParams(new URL(request.url).searchParams);
       const extracted = extractValues(form, event);
       if (!extracted.ok) {

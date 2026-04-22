@@ -9,7 +9,7 @@ import {
   type SessionGuard,
 } from "#routes/admin/utils.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { withEntityLoader } from "#routes/admin/utils.ts";
+import { withEntity, withEntityLoader } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   applyFlash,

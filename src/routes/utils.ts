@@ -18,6 +18,7 @@ import { getEventWithCount } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
+import { withEntity } from "#routes/admin/utils.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, setSavedFormData } from "#lib/forms.tsx";
@@ -597,14 +598,14 @@ export const requireOwnerOr = (
 
 /** Factory for creating authenticated page handlers */
 export const authPage =
-  (
+  <TSession extends AuthSession = AuthSession>(
     requireSession: (
       request: Request,
-      handler: SessionHandler,
+      handler: (session: TSession) => Response | Promise<Response>,
     ) => Promise<Response>,
   ) =>
   (
-    render: (session: AuthSession) => string | Promise<string>,
+    render: (session: TSession) => string | Promise<string>,
   ): ((request: Request) => Promise<Response>) =>
   (request) =>
     requireSession(request, async (session) => {
