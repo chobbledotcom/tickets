@@ -22,10 +22,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/country", () => {
     testRequiresAuth("/admin/settings/country", {
-      method: "POST",
       body: {
         country: "US",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

@@ -147,12 +147,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
   describe("POST /admin/holidays", () => {
     testRequiresAuth("/admin/holidays", {
-      method: "POST",
       body: {
         end_date: "2026-12-25",
         name: "Test",
         start_date: "2026-12-25",
       },
+      method: "POST",
     });
 
     test("creates holiday and redirects", async () => {
@@ -276,12 +276,12 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
   describe("POST /admin/holidays/:id/edit", () => {
     testRequiresAuth("/admin/holidays/1/edit", {
-      method: "POST",
       body: {
         end_date: "2026-12-25",
         name: "Updated",
         start_date: "2026-12-25",
       },
+      method: "POST",
       setup: async () => {
         await createTestHoliday();
       },
@@ -371,10 +371,10 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
   describe("POST /admin/holidays/:id/delete", () => {
     testRequiresAuth("/admin/holidays/1/delete", {
-      method: "POST",
       body: {
         confirm_identifier: "Test Holiday",
       },
+      method: "POST",
       setup: async () => {
         await createTestHoliday();
       },

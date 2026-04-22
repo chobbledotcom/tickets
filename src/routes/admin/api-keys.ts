@@ -19,11 +19,7 @@ import {
   createConfirmedHandlers,
 } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  applyFlash,
-  htmlResponse,
-  requireOwnerOr,
-} from "#routes/utils.ts";
+import { applyFlash, htmlResponse, requireOwnerOr } from "#routes/utils.ts";
 import {
   adminApiDocsPage,
   adminApiKeysPage,
@@ -92,9 +88,9 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
         | undefined;
       return `API key created${apiKey ? `\n${apiKey}` : ""}`;
     },
-    successRedirect: "/admin/api-keys",
     redactedSecret: (session) =>
       (session as Record<string, unknown>).createdApiKey as string | undefined,
+    successRedirect: "/admin/api-keys",
   });
 
 /** Confirmed-delete handlers for API keys */

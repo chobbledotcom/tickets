@@ -2,14 +2,10 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
-import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   describeWithEnv,
   expectFlash,
-  mockFormRequest as _mockFormRequest,
-  testCookie as _testCookie,
-  testCsrfToken as _testCsrfToken,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -32,10 +28,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/payment-provider", () => {
     testRequiresAuth("/admin/settings/payment-provider", {
-      method: "POST",
       body: {
         payment_provider: "stripe",
       },
+      method: "POST",
     });
 
     test("sets payment provider to stripe", async () => {

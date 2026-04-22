@@ -31,14 +31,13 @@ import type {
 import type { Attendee } from "#lib/types.ts";
 import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
 import {
-  AUTH_FORM,
   type AttendeeRouteParams,
+  AUTH_FORM,
   type AuthSession,
   applyFlash,
   errorRedirect,
   getSearchParam,
   htmlResponse,
-  orNotFound,
   redirect,
   requireSessionOr,
   withAuth,
@@ -392,7 +391,10 @@ export const handleMergeGet = (
   { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withMergeTarget(session, attendeeId)(async (target) => {
+    withMergeTarget(
+      session,
+      attendeeId,
+    )(async (target) => {
       const token = getSearchParam(request, "token");
       const flash = applyFlash(request);
 
@@ -449,7 +451,10 @@ export const handleMergePost = (
   { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withMergeTarget(session, attendeeId)(async (target) => {
+    withMergeTarget(
+      session,
+      attendeeId,
+    )(async (target) => {
       const input = await validateMergePostInput(attendeeId, form, session);
       if (!input.ok) return input.response;
       const { source, sourceToken } = input;

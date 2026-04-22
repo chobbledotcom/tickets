@@ -18,7 +18,6 @@ import {
   flashCookieHeader,
   followRedirectWithFlash,
   mockFormRequest,
-  mockRequest as _mockRequest,
   mockRequestWithHost,
   setTestEnv,
   setupEventAndLogin,
@@ -112,10 +111,10 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describe("POST /admin/settings/show-public-api", () => {
     testRequiresAuth("/admin/settings/show-public-api", {
-      method: "POST",
       body: {
         show_public_api: "true",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -179,10 +178,10 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describe("POST /admin/settings/email", () => {
     testRequiresAuth("/admin/settings/email", {
-      method: "POST",
       body: {
         email_provider: "resend",
       },
+      method: "POST",
     });
 
     test("saves email provider settings", async () => {
@@ -415,11 +414,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describe("POST /admin/settings/reset-database", () => {
     testRequiresAuth("/admin/settings/reset-database", {
-      method: "POST",
       body: {
         confirm_phrase:
           "The site will be fully reset and all data will be lost.",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

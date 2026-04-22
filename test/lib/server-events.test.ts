@@ -30,7 +30,6 @@ import {
   followRedirectWithFlash,
   mockFormRequest,
   mockMultipartRequest,
-  mockRequest as _mockRequest,
   setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
@@ -61,13 +60,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event", () => {
     testRequiresAuth("/admin/event", {
-      multipart: true,
       body: {
         max_attendees: "100",
         max_quantity: "1",
         name: "Test Event",
         thank_you_url: "https://example.com",
       },
+      multipart: true,
     });
 
     test("creates event when authenticated", async () => {
@@ -704,7 +703,6 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/edit", () => {
     testRequiresAuth("/admin/event/1/edit", {
-      multipart: true,
       body: {
         max_attendees: "50",
         max_quantity: "1",
@@ -712,6 +710,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         slug: "updated-event",
         thank_you_url: "https://example.com/updated",
       },
+      multipart: true,
       setup: async () => {
         await createTestEvent({
           maxAttendees: 100,
@@ -1180,8 +1179,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/deactivate", () => {
     testRequiresAuth("/admin/event/1/deactivate", {
-      method: "POST",
       body: {},
+      method: "POST",
       setup: async () => {
         await createTestEvent({
           maxAttendees: 100,
@@ -1393,10 +1392,10 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("POST /admin/event/:id/delete", () => {
     testRequiresAuth("/admin/event/1/delete", {
-      method: "POST",
       body: {
         confirm_identifier: "Test Event",
       },
+      method: "POST",
       setup: async () => {
         await createTestEvent({
           maxAttendees: 100,

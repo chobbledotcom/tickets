@@ -6,12 +6,15 @@ import { decryptAttendeeOrNull } from "#lib/db/attendees.ts";
 import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey, verifyOrRedirect, withEntityLoader } from "#routes/admin/utils.ts";
+import {
+  requirePrivateKey,
+  verifyOrRedirect,
+  withEntityLoader,
+} from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   type AuthSession,
   getSearchParam,
-  orNotFound,
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
@@ -65,9 +68,11 @@ export const attendeeGetRoute =
     { eventId, attendeeId }: AttendeeRouteParams,
   ): Promise<Response> =>
     requireSessionOr(request, (session) =>
-      withAttendee(session, eventId, attendeeId)((data) =>
-        handler(data, session, request),
-      ),
+      withAttendee(
+        session,
+        eventId,
+        attendeeId,
+      )((data) => handler(data, session, request)),
     );
 
 /** Auth + load attendee from form handler */
@@ -82,9 +87,11 @@ const withAttendeeForm = (
   ) => Response | Promise<Response>,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withAttendee(session, eventId, attendeeId)((data) =>
-      handler(data, session, form),
-    ),
+    withAttendee(
+      session,
+      eventId,
+      attendeeId,
+    )((data) => handler(data, session, form)),
   );
 
 /** Read return_url from request query params */

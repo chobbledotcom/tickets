@@ -193,32 +193,28 @@ const handleAddAttendee = (
   { eventId }: { eventId: number },
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (_session, form) =>
-    withEntityFromParam(
-      eventId,
-      getEventWithCount,
-      async (event) => {
-        const isDaily = event.event_type === "daily";
-        const fields = getAddAttendeeFields(event.fields, isDaily);
-        applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-        const validation = validateForm<AddAttendeeFormValues>(form, fields);
+    withEntityFromParam(eventId, getEventWithCount, async (event) => {
+      const isDaily = event.event_type === "daily";
+      const fields = getAddAttendeeFields(event.fields, isDaily);
+      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
+      const validation = validateForm<AddAttendeeFormValues>(form, fields);
 
-        if (!validation.valid) {
-          return redirect(`/admin/event/${eventId}`, validation.error, false);
-        }
+      if (!validation.valid) {
+        return redirect(`/admin/event/${eventId}`, validation.error, false);
+      }
 
-        const result = await createAttendeeAtomic(
-          buildCreateAttendeeInput(validation.values, eventId, isDaily),
-        );
+      const result = await createAttendeeAtomic(
+        buildCreateAttendeeInput(validation.values, eventId, isDaily),
+      );
 
-        if (!result.success) {
-          return handleCreateAttendeeFailure(result, eventId);
-        }
+      if (!result.success) {
+        return handleCreateAttendeeFailure(result, eventId);
+      }
 
-        const { name } = validation.values;
-        await logActivity(`Attendee '${name}' added manually`, eventId);
-        return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
-      },
-    )
+      const { name } = validation.values;
+      await logActivity(`Attendee '${name}' added manually`, eventId);
+      return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
+    }),
   );
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */

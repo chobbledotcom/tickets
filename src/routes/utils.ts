@@ -18,7 +18,6 @@ import { getEventWithCount } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
-import { withEntity } from "#routes/admin/utils.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { setFormError, setFormSuccess, setSavedFormData } from "#lib/forms.tsx";
@@ -447,6 +446,18 @@ export const orNotFound = async <T>(
   return data ? handler(data) : notFoundResponse();
 };
 
+/** Handler that receives a loaded entity */
+export type EntityHandler<T> = (entity: T) => Response | Promise<Response>;
+
+/**
+ * Generic wrapper: load entity, return 404 if missing, otherwise call handler.
+ * Curried so the handler is specified first, then the load function.
+ */
+export const withEntity =
+  <T>(handler: EntityHandler<T>) =>
+  (load: () => Promise<T | null>): Promise<Response> =>
+    orNotFound(load(), handler);
+
 /** Route handler that takes request + { id } params */
 export type IdRouteHandler = (
   request: Request,
@@ -596,14 +607,15 @@ export const requireOwnerOr = (
   handler: SessionHandler,
 ): Promise<Response> => requireSessionOr(request, handler, "owner");
 
+/** Session guard: require auth and call handler with session */
+export type SessionGuard<TSession> = (
+  request: Request,
+  handler: (session: TSession) => Response | Promise<Response>,
+) => Promise<Response>;
+
 /** Factory for creating authenticated page handlers */
 export const authPage =
-  <TSession extends AuthSession = AuthSession>(
-    requireSession: (
-      request: Request,
-      handler: (session: TSession) => Response | Promise<Response>,
-    ) => Promise<Response>,
-  ) =>
+  <TSession>(requireSession: SessionGuard<TSession>) =>
   (
     render: (session: TSession) => string | Promise<string>,
   ): ((request: Request) => Promise<Response>) =>
@@ -679,7 +691,8 @@ export const authenticatedGetById =
   (request, { id }) =>
     requireSessionOr(
       request,
-      (session) => withEntity((entity) => render(entity, session))(() => load(id)),
+      (session) =>
+        withEntity<T>((entity) => render(entity, session))(() => load(id)),
       role ?? undefined,
     );
 

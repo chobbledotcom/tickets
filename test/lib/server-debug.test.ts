@@ -3,7 +3,6 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { settings } from "#lib/db/settings.ts";
 import { LIMIT_ENTRIES } from "#lib/limits.ts";
-import { handleRequest as _handleRequest } from "#routes";
 import {
   adminDebugPage,
   type DebugPageState,
@@ -15,7 +14,6 @@ import {
   expectHtmlResponse,
   generateGoogleTestCreds,
   generateTestCerts,
-  mockRequest as _mockRequest,
   setTestEnv,
   testRequiresAuth,
 } from "#test-utils";

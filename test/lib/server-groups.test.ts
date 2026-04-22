@@ -22,7 +22,6 @@ import {
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
-  mockRequest as _mockRequest,
   testCookie,
   testCsrfToken,
   testRequiresAuth,
@@ -98,8 +97,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
   describe("POST /admin/groups", () => {
     testRequiresAuth("/admin/groups", {
-      method: "POST",
       body: { name: "X" },
+      method: "POST",
     });
 
     test("accessible to managers", async () => {
@@ -744,8 +743,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
   describe("POST /admin/groups/:id/add-events", () => {
     testRequiresAuth("/admin/groups/1/add-events", {
-      method: "POST",
       body: { event_ids: "1" },
+      method: "POST",
     });
 
     test("accessible to managers", async () => {

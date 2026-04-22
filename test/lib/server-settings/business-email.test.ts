@@ -21,10 +21,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/business-email", () => {
     testRequiresAuth("/admin/settings/business-email", {
-      method: "POST",
       body: {
         business_email: "contact@example.com",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -93,9 +93,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     const logs = await getAllActivityLog();
-    expect(
-      logs.some((l) => l.message.includes("Business email updated")),
-    ).toBe(true);
+    expect(logs.some((l) => l.message.includes("Business email updated"))).toBe(
+      true,
+    );
   });
 
   test("logs activity when business email is cleared", async () => {
@@ -104,8 +104,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     const logs = await getAllActivityLog();
-    expect(
-      logs.some((l) => l.message.includes("Business email cleared")),
-    ).toBe(true);
+    expect(logs.some((l) => l.message.includes("Business email cleared"))).toBe(
+      true,
+    );
   });
 });

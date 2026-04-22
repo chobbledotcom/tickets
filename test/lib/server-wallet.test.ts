@@ -262,10 +262,10 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
 
 describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   testRequiresAuth("/admin/settings/apple-wallet", {
-    method: "POST",
     body: {
       apple_wallet_pass_type_id: "pass.com.test",
     },
+    method: "POST",
   });
 
   test("requires Pass Type ID", async () => {

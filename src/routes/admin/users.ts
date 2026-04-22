@@ -118,9 +118,7 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
 /**
  * Handle GET /admin/user/new - show invite user form
  */
-const handleUserNewGet = ownerPage((session) =>
-  adminUserNewPage(session)
-);
+const handleUserNewGet = ownerPage((session) => adminUserNewPage(session));
 
 /**
  * Handle POST /admin/users - create invited user

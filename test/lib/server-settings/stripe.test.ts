@@ -16,7 +16,6 @@ import {
   expectRedirect,
   mockFormRequest,
   testCookie,
-  testCsrfToken as _testCsrfToken,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -28,10 +27,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/stripe", () => {
     testRequiresAuth("/admin/settings/stripe", {
-      method: "POST",
       body: {
         stripe_secret_key: "sk_test_123",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -214,8 +213,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/stripe/test", () => {
     testRequiresAuth("/admin/settings/stripe/test", {
-      method: "POST",
       body: {},
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

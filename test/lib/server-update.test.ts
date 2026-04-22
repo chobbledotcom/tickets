@@ -4,7 +4,6 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { settings } from "#lib/db/settings.ts";
 import { setBuildTimestampForTest } from "#lib/update.ts";
-import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -14,7 +13,6 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  mockRequest as _mockRequest,
   testCookie,
   testRequiresAuth,
   withMocks,

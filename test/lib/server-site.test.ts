@@ -14,7 +14,6 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
-  mockRequest as _mockRequest,
   testCookie,
   testRequiresAuth,
 } from "#test-utils";
@@ -81,11 +80,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
   describe("POST /admin/site", () => {
     testRequiresAuth("/admin/site", {
-      method: "POST",
       body: {
         homepage_text: "Hello",
         website_title: "Test",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -206,10 +205,10 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
   describe("POST /admin/site/contact", () => {
     testRequiresAuth("/admin/site/contact", {
-      method: "POST",
       body: {
         contact_page_text: "Hello",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

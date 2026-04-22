@@ -18,6 +18,7 @@
           packages = [
             pkgs.deno
             pkgs.typescript-go
+            pkgs.biome
             pkgs.openssl
             pkgs.buildah
           ];

@@ -687,8 +687,7 @@ export const hasCheckedInput = (
 export const hasSelectedOption = (html: string, value: string): boolean => {
   const tags = html.match(/<option\b[^>]*>/gi) ?? [];
   return tags.some(
-    (t) =>
-      t.includes(`value="${value}"`) && /\bselected(?=[\s/>])/.test(t),
+    (t) => t.includes(`value="${value}"`) && /\bselected(?=[\s/>])/.test(t),
   );
 };
 
@@ -2665,10 +2664,10 @@ export const setupAdminTest = async (
 
 /** Options for {@link testRequiresAuth}. */
 interface TestRequiresAuthOptions {
-  /** HTTP method (defaults to GET). */
-  method?: "GET" | "POST";
   /** Form/multipart body for POST requests. */
   body?: Record<string, string>;
+  /** HTTP method (defaults to GET). */
+  method?: "GET" | "POST";
   /** Use multipart/form-data instead of URL-encoded. */
   multipart?: boolean;
   /** Optional setup to run before the unauthenticated request (e.g., create a resource). */

@@ -15,7 +15,6 @@ import {
   expectHtmlResponse,
   mockFormRequest,
   testCookie,
-  testCsrfToken as _testCsrfToken,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -27,11 +26,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/square", () => {
     testRequiresAuth("/admin/settings/square", {
-      method: "POST",
       body: {
         square_access_token: "EAAAl_test_123",
         square_location_id: "L_test_123",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -111,10 +110,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/square-webhook", () => {
     testRequiresAuth("/admin/settings/square-webhook", {
-      method: "POST",
       body: {
         square_webhook_signature_key: "sig_key_test",
       },
+      method: "POST",
     });
 
     test("rejects missing webhook signature key", async () => {
@@ -164,8 +163,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/square/test", () => {
     testRequiresAuth("/admin/settings/square/test", {
-      method: "POST",
       body: {},
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

@@ -81,10 +81,10 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
 
   describe("POST /admin/settings/embed-hosts", () => {
     testRequiresAuth("/admin/settings/embed-hosts", {
-      method: "POST",
       body: {
         embed_hosts: "example.com",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

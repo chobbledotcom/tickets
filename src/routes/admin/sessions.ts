@@ -6,12 +6,7 @@ import { hashSessionToken } from "#lib/crypto/hashing.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  OWNER_FORM,
-  ownerPage,
-  redirect,
-  withAuth,
-} from "#routes/utils.ts";
+import { OWNER_FORM, ownerPage, redirect, withAuth } from "#routes/utils.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /**

@@ -17,9 +17,9 @@ import { FormParams } from "#lib/form-data.ts";
 import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { withEntityLoader } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { withEntityLoader } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   htmlResponse,
@@ -56,7 +56,7 @@ const renderPage = (
   values: AdminEventQrValues,
   extras: { error?: string; result?: AdminEventQrResult } = {},
 ): Promise<Response> =>
-  withEvent(id)(async (event) => {
+  withEvent(eventId)(async (event) => {
     const [bookableDates, canDirectCheckout] = await Promise.all([
       loadBookableDates(event),
       eventSupportsDirectCheckout(event),
@@ -209,7 +209,7 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/event/:id/qr.json"> = (
   { id },
 ) =>
   requireSessionOr(request, () =>
-  withEvent(eventId)(async (event) => {
+    withEvent(id)(async (event) => {
       const form = new FormParams(new URL(request.url).searchParams);
       const extracted = extractValues(form, event);
       if (!extracted.ok) {

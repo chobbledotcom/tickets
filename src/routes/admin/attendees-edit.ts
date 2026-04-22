@@ -29,8 +29,8 @@ import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
 import {
-  AUTH_FORM,
   type AttendeeRouteParams,
+  AUTH_FORM,
   type AuthSession,
   applyFlash,
   errorRedirect,
@@ -144,7 +144,10 @@ export const handleEditAttendeeGet = (
   { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withEditAttendee(session, attendeeId)((data) => {
+    withEditAttendee(
+      session,
+      attendeeId,
+    )((data) => {
       const flash = applyFlash(request);
       return htmlResponse(
         adminEditAttendeePage(
@@ -168,14 +171,12 @@ const editAttendeePost =
       attendeeId: number,
     ) => Response | Promise<Response>,
   ) =>
-  (
-    request: Request,
-    { attendeeId }: AttendeeRouteParams,
-  ): Promise<Response> =>
+  (request: Request, { attendeeId }: AttendeeRouteParams): Promise<Response> =>
     withAuth(request, AUTH_FORM, (session, form) =>
-      withEditAttendee(session, attendeeId)((data) =>
-        handler(session, form, data, attendeeId),
-      ),
+      withEditAttendee(
+        session,
+        attendeeId,
+      )((data) => handler(session, form, data, attendeeId)),
     );
 
 /** Handle POST /admin/attendees/:attendeeId */

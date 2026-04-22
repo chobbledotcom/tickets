@@ -38,7 +38,6 @@ import {
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
-import { withEntityLoader } from "./utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -52,6 +51,7 @@ import {
   groupCreateFields,
   groupFields,
 } from "#templates/fields.ts";
+import { withEntityLoader } from "./utils.ts";
 
 /** Generate a unique group slug, retrying on collision */
 export const generateUniqueGroupSlug = () =>

@@ -59,8 +59,8 @@ import {
   parseEmbedHosts,
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import { getFlash } from "#lib/flash-context.ts";
+import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
@@ -231,18 +231,17 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> =
 /**
  * Handle GET /admin/settings-advanced - owner only
  */
-const handleAdminSettingsAdvancedGet: TypedRouteHandler<
-  "GET /admin/settings-advanced"
-> = ownerPage(async (session) => {
-  const flash = getFlash();
-  const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
-    flash.result?.split("\n") ?? [];
-  return await renderAdvancedSettingsPage(
-    session,
-    subdomainPreview,
-    subdomainPreviewFullDomain,
-  );
-});
+const handleAdminSettingsAdvancedGet: TypedRouteHandler<"GET /admin/settings-advanced"> =
+  ownerPage(async (session) => {
+    const flash = getFlash();
+    const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
+      flash.result?.split("\n") ?? [];
+    return await renderAdvancedSettingsPage(
+      session,
+      subdomainPreview,
+      subdomainPreviewFullDomain,
+    );
+  });
 
 /**
  * Validate change password form data
@@ -913,9 +912,13 @@ const handleCustomDomainPost = advancedSettingsRoute(
         if (result.ok) {
           await settings.update.customDomainLastValidated();
           await logActivity(`Custom domain validated: ${raw}`);
-          return ok("/admin/settings-advanced", "Custom domain saved and validated", {
-            formId: "settings-custom-domain",
-          });
+          return ok(
+            "/admin/settings-advanced",
+            "Custom domain saved and validated",
+            {
+              formId: "settings-custom-domain",
+            },
+          );
         }
 
         return fail(
@@ -967,9 +970,13 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
 
         await settings.update.customDomainLastValidated();
         await logActivity(`Custom domain validated: ${customDomain}`);
-        return ok("/admin/settings-advanced", "Custom domain validated successfully", {
-          formId: "settings-custom-domain-validate",
-        });
+        return ok(
+          "/admin/settings-advanced",
+          "Custom domain validated successfully",
+          {
+            formId: "settings-custom-domain-validate",
+          },
+        );
       },
     );
 
@@ -1023,10 +1030,14 @@ const handleHostSubdomainPost = advancedSettingsRoute(
           FORM_ID_HOST_SUBDOMAIN,
         );
       }
-      return ok("/admin/settings-advanced", `${check.fullDomain} is available`, {
-        formId: FORM_ID_HOST_SUBDOMAIN,
-        result: `${raw}\n${check.fullDomain}`,
-      });
+      return ok(
+        "/admin/settings-advanced",
+        `${check.fullDomain} is available`,
+        {
+          formId: FORM_ID_HOST_SUBDOMAIN,
+          result: `${raw}\n${check.fullDomain}`,
+        },
+      );
     }
 
     // Save: actually register (guarded by current_task)
@@ -1040,9 +1051,13 @@ const handleHostSubdomainPost = advancedSettingsRoute(
 
         await settings.update.bunnySubdomain(result.fullDomain);
         await logActivity(`Host subdomain set to ${result.fullDomain}`);
-        return ok("/admin/settings-advanced", `Subdomain registered: ${result.fullDomain}`, {
-          formId: FORM_ID_HOST_SUBDOMAIN,
-        });
+        return ok(
+          "/admin/settings-advanced",
+          `Subdomain registered: ${result.fullDomain}`,
+          {
+            formId: FORM_ID_HOST_SUBDOMAIN,
+          },
+        );
       },
     );
 

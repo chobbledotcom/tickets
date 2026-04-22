@@ -24,10 +24,7 @@ import {
   listFiles,
   uploadRaw,
 } from "#lib/storage.ts";
-import {
-  createActionHandler,
-  verifyOrRedirect,
-} from "#routes/admin/utils.ts";
+import { createActionHandler, verifyOrRedirect } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
@@ -171,44 +168,44 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
   });
 
 /** POST /admin/backup/restore/confirm — execute the restore after confirmation */
-const handleBackupRestoreConfirm: TypedRouteHandler<
-  "POST /admin/backup/restore/confirm"
-> = createActionHandler({
-  auth: "owner",
-  execute: async (_session, form) => {
-    const filename = form.getString("backup_filename");
-    if (
-      !filename ||
-      !filename.startsWith(RESTORE_PENDING_PREFIX) ||
-      !filename.endsWith(".zip")
-    ) {
-      throw new Error("Invalid backup reference");
-    }
+const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/confirm"> =
+  createActionHandler({
+    auth: "owner",
+    execute: async (_session, form) => {
+      const filename = form.getString("backup_filename");
+      if (
+        !filename?.startsWith(RESTORE_PENDING_PREFIX) ||
+        !filename.endsWith(".zip")
+      ) {
+        throw new Error("Invalid backup reference");
+      }
 
-    const error = verifyOrRedirect(
-      form,
-      RESTORE_CONFIRM_PHRASE,
-      "/admin/backup",
-      "Confirmation phrase",
-      "restore",
-    );
-    if (error) throw new Error("Confirmation phrase does not match");
+      const error = verifyOrRedirect(
+        form,
+        RESTORE_CONFIRM_PHRASE,
+        "/admin/backup",
+        "Confirmation phrase",
+        "restore",
+      );
+      if (error) throw new Error("Confirmation phrase does not match");
 
-    const data = await downloadRaw(filename);
-    if (!data) {
-      throw new Error("Backup file expired or not found. Please upload again.");
-    }
+      const data = await downloadRaw(filename);
+      if (!data) {
+        throw new Error(
+          "Backup file expired or not found. Please upload again.",
+        );
+      }
 
-    try {
-      await restoreFromZip(data);
-    } finally {
-      // Clean up the temp file whether restore succeeds or fails
-      await deleteFile(filename).catch(() => {});
-    }
-  },
-  message: "Database restored from backup",
-  successRedirect: "/admin/backup",
-});
+      try {
+        await restoreFromZip(data);
+      } finally {
+        // Clean up the temp file whether restore succeeds or fails
+        await deleteFile(filename).catch(() => {});
+      }
+    },
+    message: "Database restored from backup",
+    successRedirect: "/admin/backup",
+  });
 
 /** Backup routes */
 export const backupRoutes = defineRoutes({

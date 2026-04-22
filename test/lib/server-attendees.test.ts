@@ -25,14 +25,13 @@ import {
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
+  extractInputValue,
   FLASH_TEST_ID,
   flashCookieHeader,
   followRedirectWithFlash,
-  extractInputValue,
   getAttendeesRaw,
   mockFormRequest,
   mockProviderType,
-  mockRequest as _mockRequest,
   setupAdminTest,
   setupEventAndLogin,
   testCookie,
@@ -140,10 +139,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     testRequiresAuth("/admin/event/1/attendee/1/delete", {
-      method: "POST",
       body: {
         confirm_identifier: "John Doe",
       },
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({
           maxAttendees: 100,
@@ -329,8 +328,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete", () => {
     testRequiresAuth("/admin/event/1/attendee/1/delete-incomplete", {
-      method: "POST",
       body: {},
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({
           maxAttendees: 100,
@@ -489,8 +488,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/checkin", () => {
     testRequiresAuth("/admin/event/1/attendee/1/checkin", {
-      method: "POST",
       body: {},
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({
           maxAttendees: 100,
@@ -661,12 +660,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/event/:eventId/attendee (add attendee)", () => {
     testRequiresAuth("/admin/event/1/attendee", {
-      method: "POST",
       body: {
         email: "jane@example.com",
         name: "Jane Doe",
         quantity: "1",
       },
+      method: "POST",
       setup: async () => {
         await createTestEvent({ maxAttendees: 100 });
       },
@@ -1123,7 +1122,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/attendees/:attendeeId", () => {
     testRequiresAuth("/admin/attendees/1", {
-      method: "POST",
       body: {
         address: "",
         email: "jane@example.com",
@@ -1132,6 +1130,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         phone: "",
         special_instructions: "",
       },
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({ maxAttendees: 100 });
         await createTestAttendee(
@@ -1685,10 +1684,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     const resendNotificationAction = adminAttendeeAction("resend-notification");
 
     testRequiresAuth("/admin/event/1/attendee/1/resend-notification", {
-      method: "POST",
       body: {
         confirm_identifier: "John Doe",
       },
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({ maxAttendees: 100 });
         await createTestAttendee(
@@ -1875,8 +1874,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/attendees/:attendeeId/refresh-payment", () => {
     testRequiresAuth("/admin/attendees/1/refresh-payment", {
-      method: "POST",
       body: {},
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({ maxAttendees: 100 });
         await createTestAttendee(
@@ -2671,10 +2670,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("POST /admin/attendees/:attendeeId/merge", () => {
     testRequiresAuth("/admin/attendees/1/merge", {
-      method: "POST",
       body: {
         source_token: "some-token",
       },
+      method: "POST",
       setup: async () => {
         const event = await createTestEvent({ maxAttendees: 10 });
         await createTestAttendeeDirect(

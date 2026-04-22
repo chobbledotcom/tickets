@@ -152,10 +152,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
   });
 
   testRequiresAuth("/admin/settings/google-wallet", {
-    method: "POST",
     body: {
       google_wallet_issuer_id: "123",
     },
+    method: "POST",
   });
 
   test("requires Issuer ID", async () => {

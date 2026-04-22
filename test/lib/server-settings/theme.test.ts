@@ -21,10 +21,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/theme", () => {
     testRequiresAuth("/admin/settings/theme", {
-      method: "POST",
       body: {
         theme: "dark",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

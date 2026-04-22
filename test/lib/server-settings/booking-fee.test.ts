@@ -22,10 +22,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/booking-fee", () => {
     testRequiresAuth("/admin/settings/booking-fee", {
-      method: "POST",
       body: {
         booking_fee: "1.5",
       },
+      method: "POST",
     });
 
     test("saves valid booking fee", async () => {

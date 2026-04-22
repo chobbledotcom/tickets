@@ -2,13 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#lib/db/settings.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
-import { handleRequest as _handleRequest } from "#routes";
 import {
   adminGet,
   assertAdminHtml,
   describeWithEnv,
   expectHtmlResponse,
-  mockRequest as _mockRequest,
   setTestEnv,
   testRequiresAuth,
 } from "#test-utils";

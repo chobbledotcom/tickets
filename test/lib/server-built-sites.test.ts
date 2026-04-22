@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-
-import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
@@ -12,8 +10,6 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
-  mockFormRequest as _mockFormRequest,
-  mockRequest as _mockRequest,
   testBuiltSite,
   testRequiresAuth,
   updateTestBuiltSite,
@@ -129,11 +125,11 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
 
   describe("POST /admin/built-sites", () => {
     testRequiresAuth("/admin/built-sites", {
-      method: "POST",
       body: {
         bunny_url: "https://test.b-cdn.net",
         name: "Test",
       },
+      method: "POST",
     });
 
     test("creates built site and redirects", async () => {
@@ -215,11 +211,11 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
 
   describe("POST /admin/built-sites/:id/edit", () => {
     testRequiresAuth("/admin/built-sites/1/edit", {
-      method: "POST",
       body: {
         bunny_url: "https://updated.b-cdn.net",
         name: "Updated",
       },
+      method: "POST",
       setup: async () => {
         await createTestBuiltSite();
       },
@@ -299,10 +295,10 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
 
   describe("POST /admin/built-sites/:id/delete", () => {
     testRequiresAuth("/admin/built-sites/1/delete", {
-      method: "POST",
       body: {
         confirm_identifier: "Test Site",
       },
+      method: "POST",
       setup: async () => {
         await createTestBuiltSite();
       },

@@ -13,6 +13,16 @@ const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
 const write = (s: string) => Deno.stdout.writeSync(encoder.encode(s));
 
+/** Check if a command is available in PATH */
+const hasCommand = async (name: string): Promise<boolean> => {
+  try {
+    const result = await new Deno.Command("which", { args: [name] }).output();
+    return result.success;
+  } catch {
+    return false;
+  }
+};
+
 interface Step {
   cmd: string[];
   filterOutput?: (stdout: string, stderr: string) => string;
@@ -46,18 +56,27 @@ const filterTestOutput = (stdout: string, stderr: string): string => {
   return output.join("\n").trim();
 };
 
-const steps: Step[] = [
-  { cmd: ["deno", "task", "biome:fix"], name: "biome:fix" },
-  { cmd: ["deno", "task", "typecheck"], name: "typecheck" },
-  { cmd: ["deno", "task", "lint"], name: "lint" },
-  { cmd: ["deno", "task", "cpd"], name: "cpd" },
-  { cmd: ["deno", "task", "build:edge"], name: "build:edge" },
-  {
-    cmd: ["deno", "task", "test:coverage"],
-    filterOutput: filterTestOutput,
-    name: "test:coverage",
-  },
-];
+const getSteps = async (): Promise<Step[]> => {
+  const useSystemBiome = await hasCommand("biome");
+
+  return [
+    {
+      cmd: useSystemBiome
+        ? ["biome", "check", "--write", "src", "test", "scripts"]
+        : ["deno", "task", "biome:fix"],
+      name: "biome:fix",
+    },
+    { cmd: ["deno", "task", "typecheck"], name: "typecheck" },
+    { cmd: ["deno", "task", "lint"], name: "lint" },
+    { cmd: ["deno", "task", "cpd"], name: "cpd" },
+    { cmd: ["deno", "task", "build:edge"], name: "build:edge" },
+    {
+      cmd: ["deno", "task", "test:coverage"],
+      filterOutput: filterTestOutput,
+      name: "test:coverage",
+    },
+  ];
+};
 
 const runStep = async (step: Step): Promise<boolean> => {
   write(`  ${step.name} … `);
@@ -90,6 +109,7 @@ const runStep = async (step: Step): Promise<boolean> => {
 const main = async (): Promise<void> => {
   console.log(bold("precommit"));
 
+  const steps = await getSteps();
   for (const step of steps) {
     const passed = await runStep(step);
     if (!passed) {

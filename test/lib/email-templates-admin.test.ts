@@ -127,10 +127,10 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
   describe("POST /admin/settings/email-templates/confirmation", () => {
     testRequiresAuth("/admin/settings/email-templates/confirmation", {
-      method: "POST",
       body: {
         subject: "test",
       },
+      method: "POST",
     });
 
     test("saves custom confirmation template", async () => {

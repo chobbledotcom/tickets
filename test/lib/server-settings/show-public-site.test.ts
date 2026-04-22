@@ -21,10 +21,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/show-public-site", () => {
     testRequiresAuth("/admin/settings/show-public-site", {
-      method: "POST",
       body: {
         show_public_site: "true",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

@@ -5,7 +5,6 @@ import { builderApi } from "#lib/builder.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { getAllBuiltSites } from "#lib/db/built-sites.ts";
 import { settings } from "#lib/db/settings.ts";
-import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -15,7 +14,6 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  mockRequest as _mockRequest,
   setTestEnv,
   testCookie,
   testRequiresAuth,

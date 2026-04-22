@@ -304,11 +304,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("POST /admin/users (invite)", () => {
     testRequiresAuth("/admin/users", {
-      method: "POST",
       body: {
         admin_level: "manager",
         username: "newuser",
       },
+      method: "POST",
     });
 
     test("creates invited user and shows invite link", async () => {

@@ -13,7 +13,6 @@ import {
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
-  mockRequest as _mockRequest,
   testCookie,
   testCsrfToken,
   testRequiresAuth,
@@ -73,8 +72,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions", () => {
     testRequiresAuth("/admin/questions", {
-      method: "POST",
       body: { text: "Test?" },
+      method: "POST",
     });
 
     test("creates question and redirects", async () => {
@@ -136,8 +135,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/edit", () => {
     testRequiresAuth("/admin/questions/1/edit", {
-      method: "POST",
       body: { text: "Edited" },
+      method: "POST",
       setup: async () => {
         await createQuestion("Edit me");
       },
@@ -195,8 +194,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/answers", () => {
     testRequiresAuth("/admin/questions/1/answers", {
-      method: "POST",
       body: { text: "Yes" },
+      method: "POST",
       setup: async () => {
         await createQuestion("Answer me");
       },
@@ -277,10 +276,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/delete", () => {
     testRequiresAuth("/admin/questions/1/delete", {
-      method: "POST",
       body: {
         confirm_identifier: "Auth delete",
       },
+      method: "POST",
       setup: async () => {
         await createQuestion("Auth delete");
       },
@@ -390,10 +389,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/answers/:answerId/delete", () => {
     testRequiresAuth("/admin/questions/1/answers/1/delete", {
-      method: "POST",
       body: {
         confirm_identifier: "Post auth answer",
       },
+      method: "POST",
       setup: async () => {
         const qId = await createQuestion("Answer post auth");
         await addAnswer(qId, "Post auth answer");
@@ -530,10 +529,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/event/:id/questions", () => {
     testRequiresAuth("/admin/event/1/questions", {
-      method: "POST",
       body: {
         question_ids: "1",
       },
+      method: "POST",
       setup: async () => {
         await createTestEvent({ name: "Post Auth Event" });
       },

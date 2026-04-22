@@ -23,10 +23,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/terms", () => {
     testRequiresAuth("/admin/settings/terms", {
-      method: "POST",
       body: {
         terms_and_conditions: "You must agree to our policy.",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

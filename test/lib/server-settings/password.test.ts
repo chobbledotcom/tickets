@@ -27,12 +27,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings", () => {
     testRequiresAuth("/admin/settings", {
-      method: "POST",
       body: {
         current_password: "test",
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

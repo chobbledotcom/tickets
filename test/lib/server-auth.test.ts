@@ -202,8 +202,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("POST /admin/logout", () => {
     testRequiresAuth("/admin/logout", {
-      method: "POST",
       body: { csrf_token: "invalid" },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token when authenticated", async () => {
@@ -289,8 +289,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("POST /admin/sessions", () => {
     testRequiresAuth("/admin/sessions", {
-      method: "POST",
       body: { csrf_token: "test" },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

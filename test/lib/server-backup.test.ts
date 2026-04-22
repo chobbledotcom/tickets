@@ -15,8 +15,6 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   getTestSession,
-  mockFormRequest as _mockFormRequest,
-  mockRequest as _mockRequest,
   testRequiresAuth,
   withLocalStorageEnabled,
 } from "#test-utils";
@@ -72,8 +70,8 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
   describe("POST /admin/backup/create", () => {
     testRequiresAuth("/admin/backup/create", {
-      method: "POST",
       body: {},
+      method: "POST",
     });
 
     test("creates backup and redirects with success", async () => {
@@ -135,8 +133,8 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
   describe("POST /admin/backup/restore", () => {
     testRequiresAuth("/admin/backup/restore", {
-      method: "POST",
       body: {},
+      method: "POST",
     });
 
     test("shows confirm page after uploading valid zip", async () => {
@@ -234,8 +232,8 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
   describe("POST /admin/backup/restore/confirm", () => {
     testRequiresAuth("/admin/backup/restore/confirm", {
-      method: "POST",
       body: {},
+      method: "POST",
     });
 
     test("rejects invalid filename", async () => {

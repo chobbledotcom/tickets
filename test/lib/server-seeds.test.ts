@@ -53,11 +53,11 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
   describe("POST /admin/seeds", () => {
     testRequiresAuth("/admin/seeds", {
-      method: "POST",
       body: {
         attendees_per_event: "0",
         event_count: "1",
       },
+      method: "POST",
     });
 
     test("returns 403 for non-owner", async () => {

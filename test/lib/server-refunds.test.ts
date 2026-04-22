@@ -17,7 +17,6 @@ import {
   expectRedirectWithFlash,
   mockFormRequest,
   mockProviderType,
-  mockRequest as _mockRequest,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
@@ -218,10 +217,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/refund", () => {
     testRequiresAuth("/admin/event/1/attendee/1/refund", {
-      method: "POST",
       body: {
         confirm_identifier: "John Doe",
       },
+      method: "POST",
       setup: async () => {
         const event = await createPaidEvent();
         await createTestAttendee(
@@ -389,10 +388,10 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
   describe("POST /admin/event/:id/refund-all", () => {
     testRequiresAuth("/admin/event/1/refund-all", {
-      method: "POST",
       body: {
         confirm_identifier: "Test Event",
       },
+      method: "POST",
       setup: async () => {
         await createPaidEvent();
       },

@@ -73,7 +73,6 @@ import {
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
-import { withEntityFromParam } from "./utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   type AttendeeFilter,
@@ -97,6 +96,7 @@ import {
   slugField,
   splitCsv,
 } from "#templates/fields.ts";
+import { withEntityFromParam } from "./utils.ts";
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
@@ -456,10 +456,8 @@ const withEventAndGroupsPage =
   ): TypedRouteHandler<"GET /admin/event/:id"> =>
   (request, params) =>
     requireSessionOr(request, (session) =>
-      withEntityFromParam(
-        params.id,
-        getEventAndGroups,
-        (ctx) => htmlResponse(renderPage(ctx.event, ctx.groups, session)),
+      withEntityFromParam(params.id, getEventAndGroups, (ctx) =>
+        htmlResponse(renderPage(ctx.event, ctx.groups, session)),
       ),
     );
 
@@ -475,46 +473,42 @@ const handleAdminEventEditPost: TypedRouteHandler<
   "POST /admin/event/:id/edit"
 > = (request, { id }) =>
   withAuth(request, AUTH_MULTIPART, (session, formData) =>
-    withEntityFromParam(
-      id,
-      getEventWithCount,
-      async (existing) => {
-        const form = formDataToParams(formData);
-        applyDemoOverrides(form, EVENT_DEMO_FIELDS);
+    withEntityFromParam(id, getEventWithCount, async (existing) => {
+      const form = formDataToParams(formData);
+      applyDemoOverrides(form, EVENT_DEMO_FIELDS);
 
-        // Build a resource that includes the slug field; uniqueness is enforced
-        // by validateEventInput when existingId is set.
-        const updateResource = defineResource({
-          fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
-          nameField: "name",
-          table: eventsTable,
-          toInput: extractEventUpdateInput,
-          validate: validateEventInput,
-        });
+      // Build a resource that includes the slug field; uniqueness is enforced
+      // by validateEventInput when existingId is set.
+      const updateResource = defineResource({
+        fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
+        nameField: "name",
+        table: eventsTable,
+        toInput: extractEventUpdateInput,
+        validate: validateEventInput,
+      });
 
-        const result = await updateResource.update(id, form);
-        if (result.ok) {
-          await logActivity(`Event '${result.row.name}' updated`, result.row);
-          return processUploadsAndRedirect(
-            formData,
-            id,
-            `/admin/event/${result.row.id}`,
-            "Event updated",
-            existing.image_url,
-            existing.attachment_url,
-          );
-        }
-        if ("notFound" in result) return notFoundResponse();
+      const result = await updateResource.update(id, form);
+      if (result.ok) {
+        await logActivity(`Event '${result.row.name}' updated`, result.row);
+        return processUploadsAndRedirect(
+          formData,
+          id,
+          `/admin/event/${result.row.id}`,
+          "Event updated",
+          existing.image_url,
+          existing.attachment_url,
+        );
+      }
+      if ("notFound" in result) return notFoundResponse();
 
-        const ctx = await getEventAndGroups(id);
-        return ctx
-          ? htmlResponse(
-              adminEventEditPage(ctx.event, ctx.groups, session, result.error),
-              400,
-            )
-          : notFoundResponse();
-      },
-    )
+      const ctx = await getEventAndGroups(id);
+      return ctx
+        ? htmlResponse(
+            adminEventEditPage(ctx.event, ctx.groups, session, result.error),
+            400,
+          )
+        : notFoundResponse();
+    }),
   );
 
 /**
