@@ -30,6 +30,7 @@ import {
   testCsrfToken,
   withExpectedError,
 } from "#test-utils";
+import { FormParams } from "#lib/form-data.ts";
 
 describeWithEnv("server (misc)", { db: true }, () => {
   /** Create an embeddable test event and return its ticket page response */
@@ -781,6 +782,148 @@ describeWithEnv("server (misc)", { db: true }, () => {
         expect(setCookie).toContain("session=");
         expect(setCookie).toContain("Max-Age=0");
       });
+    });
+  });
+
+  describe("routes/admin/utils.ts", () => {
+    test("verifyIdentifier matches case-insensitive trimmed strings", async () => {
+      const { verifyIdentifier } = await import("#routes/admin/utils.ts");
+
+      expect(verifyIdentifier("Test Event", "test event")).toBe(true);
+      expect(verifyIdentifier("  Test  ", "test")).toBe(true);
+      expect(verifyIdentifier("Test", "Other")).toBe(false);
+    });
+
+    test("verifyOrRedirect returns null on match", async () => {
+      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+
+      const form = new FormParams({ confirm_identifier: "Test Event" });
+      const result = verifyOrRedirect(form, "Test Event", "/admin/test");
+      expect(result).toBeNull();
+    });
+
+    test("verifyOrRedirect returns error redirect on mismatch without action", async () => {
+      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+
+      const form = new FormParams({ confirm_identifier: "Wrong" });
+      const result = verifyOrRedirect(form, "Test Event", "/admin/test");
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe(302);
+      const location = result!.headers.get("location");
+      expect(location).toContain("/admin/test");
+    });
+
+    test("verifyOrRedirect returns error redirect with action label", async () => {
+      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+
+      const form = new FormParams({ confirm_identifier: "Wrong" });
+      const result = verifyOrRedirect(
+        form,
+        "Test Event",
+        "/admin/test",
+        "Event name",
+        "deletion",
+      );
+      expect(result).not.toBeNull();
+      const location = result!.headers.get("location");
+      expect(location).toContain("deletion");
+    });
+
+    test("verifyIdentifierOrJsonError returns null on match", async () => {
+      const { verifyIdentifierOrJsonError } = await import(
+        "#routes/admin/utils.ts"
+      );
+
+      expect(
+        verifyIdentifierOrJsonError("Test Event", "Test Event"),
+      ).toBeNull();
+    });
+
+    test("verifyIdentifierOrJsonError returns error on mismatch", async () => {
+      const { verifyIdentifierOrJsonError } = await import(
+        "#routes/admin/utils.ts"
+      );
+
+      const error = verifyIdentifierOrJsonError(
+        "Test Event",
+        "Wrong",
+        "Event name",
+      );
+      expect(error).toContain("does not match");
+      expect(error).toContain("confirm_identifier");
+    });
+
+    test("verifyIdentifierOrJsonError handles non-string input", async () => {
+      const { verifyIdentifierOrJsonError } = await import(
+        "#routes/admin/utils.ts"
+      );
+
+      const error = verifyIdentifierOrJsonError("Test", null);
+      expect(error).not.toBeNull();
+    });
+
+    test("getDateFilter returns valid date", async () => {
+      const { getDateFilter } = await import("#routes/admin/utils.ts");
+
+      const request = mockRequest("/test?date=2024-01-15");
+      expect(getDateFilter(request)).toBe("2024-01-15");
+    });
+
+    test("getDateFilter returns null for invalid format", async () => {
+      const { getDateFilter } = await import("#routes/admin/utils.ts");
+
+      expect(getDateFilter(mockRequest("/test?date=01-15-2024"))).toBeNull();
+      expect(getDateFilter(mockRequest("/test?date=2024/01/15"))).toBeNull();
+      expect(getDateFilter(mockRequest("/test?date=not-a-date"))).toBeNull();
+    });
+
+    test("getDateFilter returns null when absent", async () => {
+      const { getDateFilter } = await import("#routes/admin/utils.ts");
+
+      expect(getDateFilter(mockRequest("/test"))).toBeNull();
+      expect(getDateFilter(mockRequest("/test?date="))).toBeNull();
+    });
+
+    test("csvResponse returns proper CSV response", async () => {
+      const { csvResponse } = await import("#routes/admin/utils.ts");
+
+      const response = csvResponse("name,email\nJohn,john@test.com", "test.csv");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "text/csv; charset=utf-8",
+      );
+      expect(response.headers.get("content-disposition")).toContain(
+        'filename="test.csv"',
+      );
+      const body = await response.text();
+      expect(body).toBe("name,email\nJohn,john@test.com");
+    });
+
+    test("loadQuestionData returns undefined for empty attendeeIds", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+
+      expect(await loadQuestionData([1, 2], [])).toBeUndefined();
+    });
+
+    test("loadQuestionData returns undefined for empty eventIds", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+
+      expect(await loadQuestionData([], [1, 2])).toBeUndefined();
+    });
+
+    test("loadQuestionData returns undefined when no questions exist", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { createTestAttendeeDirect } = await import("#test-utils");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "Test",
+        "test@test.com",
+      );
+
+      const result = await loadQuestionData([event.id], [attendee.id]);
+      expect(result).toBeUndefined();
     });
   });
 });

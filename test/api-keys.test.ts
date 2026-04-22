@@ -296,6 +296,19 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("GET /admin/api-keys shows success message without newline (no new key)", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
+          headers: { cookie: `${cookie}; ${flashCookieHeader("Key updated")}` },
+        }),
+      );
+
+      const html = await response.text();
+      expect(html).toContain("Key updated");
+      expect(html).not.toContain("Copy your API key now");
+    });
+
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
       const { id } = await createTestApiKeyFull("Visible Key");
       await touchApiKeyLastUsed(id);
