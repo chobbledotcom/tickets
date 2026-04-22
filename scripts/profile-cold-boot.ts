@@ -172,7 +172,9 @@ const main = async () => {
     sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
   log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
   log(
-    `  ✅ ${(sessionDuration1 / avgSession).toFixed(0)}x faster with caching!\n`,
+    `  ✅ ${(sessionDuration1 / avgSession).toFixed(
+      0,
+    )}x faster with caching!\n`,
   );
 
   // Network latency reality check

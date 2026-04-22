@@ -98,7 +98,9 @@ export const runCheckoutFlow = (
       }
       logDebug(
         "Payment",
-        `Checkout result for ${label}: ${result ? `url=${result.checkoutUrl}` : "null"}`,
+        `Checkout result for ${label}: ${
+          result ? `url=${result.checkoutUrl}` : "null"
+        }`,
       );
       return tryCheckoutRedirect(result?.checkoutUrl, () => {
         logDebug(

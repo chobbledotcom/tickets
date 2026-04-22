@@ -270,7 +270,9 @@ const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
     .filter((n) => !Number.isNaN(n));
   await setEventQuestions(id, questionIds);
   await logActivity(
-    `Questions updated for '${event.name}' (${questionIds.length} question${questionIds.length !== 1 ? "s" : ""})`,
+    `Questions updated for '${event.name}' (${questionIds.length} question${
+      questionIds.length !== 1 ? "s" : ""
+    })`,
     event,
   );
   return redirect(`/admin/event/${id}`, "Questions updated", true);

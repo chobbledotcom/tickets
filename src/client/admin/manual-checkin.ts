@@ -66,44 +66,47 @@ export const initManualCheckin = (): void => {
     }
   });
 
-  // Keyboard navigation
-  input.addEventListener("keydown", (e) => {
+  const getVisibleOptions = () => [
+    ...listbox.querySelectorAll<HTMLLIElement>("[role='option']:not(.hidden)"),
+  ];
+
+  const getActiveOption = () =>
+    listbox.querySelector<HTMLLIElement>("[role='option'].combobox-active");
+
+  const navigateOptions = (direction: "up" | "down") => {
+    const visible = getVisibleOptions();
+    if (visible.length === 0) return;
+    const active = getActiveOption();
+    const idx = active ? visible.indexOf(active) : -1;
+    active?.classList.remove("combobox-active");
+    const step = direction === "down" ? 1 : -1;
+    const next = visible[(idx + step + visible.length) % visible.length];
+    if (next) {
+      next.classList.add("combobox-active");
+      next.scrollIntoView({ block: "nearest" });
+    }
+  };
+
+  const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       hideList();
       return;
     }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      const visible = [
-        ...listbox.querySelectorAll<HTMLLIElement>(
-          "[role='option']:not(.hidden)",
-        ),
-      ];
-      if (visible.length === 0) return;
-      const active = listbox.querySelector<HTMLLIElement>(
-        "[role='option'].combobox-active",
-      );
-      const idx = active ? visible.indexOf(active) : -1;
-      active?.classList.remove("combobox-active");
-      const next =
-        e.key === "ArrowDown"
-          ? visible[(idx + 1) % visible.length]
-          : visible[(idx - 1 + visible.length) % visible.length];
-      if (next) {
-        next.classList.add("combobox-active");
-        next.scrollIntoView({ block: "nearest" });
-      }
+      navigateOptions(e.key === "ArrowDown" ? "down" : "up");
+      return;
     }
     if (e.key === "Enter") {
-      const active = listbox.querySelector<HTMLLIElement>(
-        "[role='option'].combobox-active",
-      );
+      const active = getActiveOption();
       if (active) {
         e.preventDefault();
         selectOption(active);
       }
     }
-  });
+  };
+
+  input.addEventListener("keydown", handleKeydown);
 
   listbox.addEventListener("click", (e) => {
     const opt = (e.target as HTMLElement).closest<HTMLLIElement>(

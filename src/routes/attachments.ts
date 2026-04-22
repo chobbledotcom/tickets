@@ -94,7 +94,10 @@ const handleAttachmentDownload: TypedRouteHandler<
   return new Response(data.buffer as BodyInit, {
     headers: {
       "cache-control": "public, max-age=3600",
-      "content-disposition": `attachment; filename="${event.attachment_name.replace(/"/g, '\\"')}"`,
+      "content-disposition": `attachment; filename="${event.attachment_name.replace(
+        /"/g,
+        '\\"',
+      )}"`,
       "content-type": contentType,
     },
   });

@@ -280,7 +280,14 @@ const AttendeeRow = (
   colOpts: AttendeeColumnOpts,
   filters: Map<string, string>,
 ): string =>
-  `<tr>${renderCells(row, visibleColumns, ATTENDEE_TABLE_COLUMNS, colOpts, filters, escapeHtml)}</tr>`;
+  `<tr>${renderCells(
+    row,
+    visibleColumns,
+    ATTENDEE_TABLE_COLUMNS,
+    colOpts,
+    filters,
+    escapeHtml,
+  )}</tr>`;
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -322,7 +329,9 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           ),
           joinStrings,
         )(orderedRows)
-      : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
+      : `<tr><td colspan="${colCount}">${
+          opts.emptyMessage ?? "No attendees yet"
+        }</td></tr>`;
 
   const headers = pipe(
     map((key: string) => {

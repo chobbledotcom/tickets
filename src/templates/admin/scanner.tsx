@@ -121,7 +121,9 @@ export const adminScannerPage = (
                   role="option"
                   tabIndex={0}
                 >
-                  {`${escapeHtml(t.name)} (${t.quantity} attendee${t.quantity === 1 ? "" : "s"}) — ${t.token}`}
+                  {`${escapeHtml(t.name)} (${t.quantity} attendee${
+                    t.quantity === 1 ? "" : "s"
+                  }) — ${t.token}`}
                 </div>
               ))}
             </div>

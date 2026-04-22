@@ -59,12 +59,13 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
   (data, session, request) => {
     applyFlash(request);
     const returnUrl = getReturnUrl(request);
-    if (!data.attendee.payment_id)
+    if (!data.attendee.payment_id) {
       return htmlResponse(
         adminRefundAttendeePage(data, session, NO_PAYMENT_ERROR, returnUrl),
         400,
       );
-    if (data.attendee.refunded)
+    }
+    if (data.attendee.refunded) {
       return htmlResponse(
         adminRefundAttendeePage(
           data,
@@ -74,6 +75,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
         ),
         400,
       );
+    }
     return htmlResponse(
       adminRefundAttendeePage(data, session, undefined, returnUrl),
     );
@@ -85,10 +87,12 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
   async (data, _form, eventId, attendeeId) => {
-    if (!data.attendee.payment_id)
+    if (!data.attendee.payment_id) {
       return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
-    if (data.attendee.refunded)
+    }
+    if (data.attendee.refunded) {
       return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
+    }
 
     const provider = await getActivePaymentProvider();
     if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);

@@ -195,7 +195,10 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/site/contact?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${flashCookieHeader("Something went wrong", false)}`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "Something went wrong",
+            false,
+          )}`,
         },
       );
       const html = await response.text();

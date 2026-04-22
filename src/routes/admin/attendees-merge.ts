@@ -268,7 +268,9 @@ const validateMergePostInput = async (
     return {
       ok: false,
       response: errorRedirect(
-        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         "Ticket token not found",
       ),
     };
@@ -405,7 +407,7 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
   const flash = applyFlash(request);
   if (!token) return mergeAttendeePage(request, session)(target);
   const source = await loadMergeSource(token, session);
-  if (!source)
+  if (!source) {
     return htmlResponse(
       adminMergeAttendeePage(
         target,
@@ -415,7 +417,8 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
         "Ticket token not found",
       ),
     );
-  if (source.id === target.id)
+  }
+  if (source.id === target.id) {
     return htmlResponse(
       adminMergeAttendeePage(
         target,
@@ -425,6 +428,7 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
         "Cannot merge an attendee with themselves",
       ),
     );
+  }
   const diff = await buildMergeDiffFor(target, source, target.id);
   return htmlResponse(
     adminMergeAttendeePage(target, source, token, session, flash.error, diff),
@@ -439,7 +443,7 @@ export const handleMergePost = handlers.post(async (session, form, target) => {
   const diff = await buildMergeDiffFor(target, source, target.id);
   const decision = parseMergeDecisionForm(form, diff);
   const validation = validateAttendeeMergeDecision(diff, decision);
-  if (!validation.valid)
+  if (!validation.valid) {
     return htmlResponse(
       adminMergeAttendeePage(
         target,
@@ -450,5 +454,6 @@ export const handleMergePost = handlers.post(async (session, form, target) => {
         diff,
       ),
     );
+  }
   return applyMergeDecisions(target.id, target, source, diff, decision);
 });

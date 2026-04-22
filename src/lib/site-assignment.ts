@@ -68,13 +68,17 @@ const sendSiteAssignmentEmail = async (
     )
     .join("");
 
-  const html = `<p>Your new site${assignments.length > 1 ? "s are" : " is"} ready!</p><ul>${siteListHtml}</ul>`;
+  const html = `<p>Your new site${
+    assignments.length > 1 ? "s are" : " is"
+  } ready!</p><ul>${siteListHtml}</ul>`;
 
   const siteListText = assignments
     .map((a) => `- ${a.eventName}: ${a.siteUrl}`)
     .join("\n");
 
-  const text = `Your new site${assignments.length > 1 ? "s are" : " is"} ready!\n\n${siteListText}`;
+  const text = `Your new site${
+    assignments.length > 1 ? "s are" : " is"
+  } ready!\n\n${siteListText}`;
 
   const replyTo = settings.businessEmail || undefined;
   await sendEmail(config, { html, replyTo, subject, text, to });

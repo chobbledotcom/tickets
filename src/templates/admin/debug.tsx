@@ -267,8 +267,9 @@ const StorageBackendBadge = ({
   backend: DebugPageState["bunny"]["storageBackend"];
 }): JSX.Element => {
   if (backend === "bunny") return <span class="badge-ok">Bunny CDN</span>;
-  if (backend === "local")
+  if (backend === "local") {
     return <span class="badge-ok">Local filesystem</span>;
+  }
   return <span class="badge-missing">Not configured</span>;
 };
 

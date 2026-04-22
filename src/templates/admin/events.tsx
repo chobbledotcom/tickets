@@ -160,10 +160,12 @@ const filterAttendees = (
   attendees: Attendee[],
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
-  if (activeFilter === "in")
+  if (activeFilter === "in") {
     return filter((a: Attendee) => a.checked_in)(attendees);
-  if (activeFilter === "out")
+  }
+  if (activeFilter === "out") {
     return filter((a: Attendee) => !a.checked_in)(attendees);
+  }
   return attendees;
 };
 
@@ -199,10 +201,14 @@ const DateSelector = ({
 }): string => {
   const suffix = filterSuffix(activeFilter);
   const options = [
-    `<option value="${basePath}${suffix}#attendees"${!dateFilter ? " selected" : ""}>All dates</option>`,
+    `<option value="${basePath}${suffix}#attendees"${
+      !dateFilter ? " selected" : ""
+    }>All dates</option>`,
     ...dates.map(
       (d) =>
-        `<option value="${basePath}${suffix}?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`,
+        `<option value="${basePath}${suffix}?date=${d.value}#attendees"${
+          dateFilter === d.value ? " selected" : ""
+        }>${d.label}</option>`,
     ),
   ].join("");
   return `<select data-nav-select aria-label="Filter by date">${options}</select>`;
@@ -266,7 +272,9 @@ const EventActionNav = ({
         )}
         <li>
           <a
-            href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}
+            href={`/admin/event/${event.id}/export${
+              dateFilter ? `?date=${dateFilter}` : ""
+            }`}
           >
             Export CSV
           </a>

@@ -27,8 +27,9 @@ const createAttendee = async (eventId: number, name = "Alice") => {
     email: `${name.toLowerCase()}@test.com`,
     name,
   });
-  if (!result.success)
+  if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
+  }
   return result.attendees[0]!;
 };
 

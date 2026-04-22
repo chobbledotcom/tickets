@@ -150,7 +150,9 @@ const pullZonePost = async (
 const loadFreeCertificate = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {
-  const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
+  const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(
+    hostname,
+  )}`;
 
   const response = await fetchText(url, {
     headers: { AccessKey: getBunnyApiKey() },
@@ -337,7 +339,9 @@ const registerBunnySubdomainImpl = async (
     const err = parseBunnyError(addResponse, "Add DNS CNAME record");
     logError({
       code: ErrorCode.CDN_REQUEST,
-      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(dnsRecordBody)}`,
+      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(
+        dnsRecordBody,
+      )}`,
     });
     return err;
   }
@@ -361,7 +365,9 @@ const registerBunnySubdomainImpl = async (
   ) {
     logDebug(
       "Domain",
-      `Certificate not ready, retrying in ${certRetryDelay(attempt)}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
+      `Certificate not ready, retrying in ${certRetryDelay(
+        attempt,
+      )}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
     );
     await bunnyCdnApi.delay(certRetryDelay(attempt));
     cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);

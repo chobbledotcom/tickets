@@ -53,12 +53,25 @@ import type {
   Group,
 } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { createConfirmedHandlers, csvResponse, eventAttendeesLoader, getDateFilter } from "#routes/admin/utils.ts";
+import {
+  createConfirmedHandlers,
+  csvResponse,
+  eventAttendeesLoader,
+  getDateFilter,
+} from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  AUTH_FORM, AUTH_MULTIPART, authenticatedGetById, formDataToParams, getSearchParam,
-  htmlResponse, notFoundResponse, redirect, requireSessionOr, withAuth,
+  AUTH_FORM,
+  AUTH_MULTIPART,
+  authenticatedGetById,
+  formDataToParams,
+  getSearchParam,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+  requireSessionOr,
+  withAuth,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -278,13 +291,15 @@ const processUploadsAndRedirect = async (
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
 const eventAttendeesHandler =
-  (_handler: (ctx: {
-    event: EventWithCount;
-    attendees: Attendee[];
-    session: AdminSession;
-  }) => Response | Promise<Response>) =
+  (
+    _handler: (ctx: {
+      event: EventWithCount;
+      attendees: Attendee[];
+      session: AdminSession;
+    }) => Response | Promise<Response>,
+  ) =>
   (event: EventWithCount, attendees: Attendee[], session: AdminSession) =>
-    handler({ attendees, event, session });
+    _handler({ attendees, event, session });
 
 /**
  * Handle GET /admin/event/new (show create event form)
@@ -380,40 +395,44 @@ const renderEventPage = async (
   // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
   const [, response] = await Promise.all([
     deleteAllStaleReservations(),
-    eventAttendeesLoader(request, id)(
+    eventAttendeesLoader(
+      request,
+      id,
+    )(
       eventAttendeesHandler(async ({ event, attendees, session }) => {
-      const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
-        event,
-        attendees,
-        request,
-      );
-      const attendeeIds = filteredByDate.map((a) => a.id);
-      const [flash, phonePrefix, questions, attendeeAnswerMap] =
-        await Promise.all([
-          Promise.resolve(getFlash()),
-          Promise.resolve(settings.phonePrefix),
-          getQuestionsForEvent(event.id),
-          getAttendeeAnswersBatch(attendeeIds),
-        ]);
-      const questionData =
-        questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
-      return htmlResponse(
-        adminEventPage({
-          activeFilter,
-          allowedDomain: getEffectiveDomain(),
-          attendees: filteredByDate,
-          availableDates,
-          checkinMessage: getCheckinMessage(request),
-          dateFilter,
-          errorMessage: flash.error,
+        const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
           event,
-          phonePrefix,
-          questionData,
-          session,
-          successMessage: flash.success,
-        }),
-      );
-    }),
+          attendees,
+          request,
+        );
+        const attendeeIds = filteredByDate.map((a) => a.id);
+        const [flash, phonePrefix, questions, attendeeAnswerMap] =
+          await Promise.all([
+            Promise.resolve(getFlash()),
+            Promise.resolve(settings.phonePrefix),
+            getQuestionsForEvent(event.id),
+            getAttendeeAnswersBatch(attendeeIds),
+          ]);
+        const questionData =
+          questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+        return htmlResponse(
+          adminEventPage({
+            activeFilter,
+            allowedDomain: getEffectiveDomain(),
+            attendees: filteredByDate,
+            availableDates,
+            checkinMessage: getCheckinMessage(request),
+            dateFilter,
+            errorMessage: flash.error,
+            event,
+            phonePrefix,
+            questionData,
+            session,
+            successMessage: flash.success,
+          }),
+        );
+      }),
+    ),
   ]);
   return response;
 };
@@ -501,45 +520,49 @@ const handleAdminEventEditPost: TypedRouteHandler<
 const handleAdminEventExport: TypedRouteHandler<
   "GET /admin/event/:id/export"
 > = (request, { id }) =>
-  eventAttendeesLoader(request, id)(
+  eventAttendeesLoader(
+    request,
+    id,
+  )(
     eventAttendeesHandler(async ({ event, attendees }) => {
-    const { dateFilter, filteredByDate } = applyDateFilter(
-      event,
-      attendees,
-      request,
-    );
-    const isDaily = event.event_type === "daily";
+      const { dateFilter, filteredByDate } = applyDateFilter(
+        event,
+        attendees,
+        request,
+      );
+      const isDaily = event.event_type === "daily";
 
-    // Load questions and attendee answers for CSV
-    const attendeeIds = filteredByDate.map((a) => a.id);
-    const [questions, attendeeAnswerMap] = await Promise.all([
-      getQuestionsForEvent(event.id),
-      getAttendeeAnswersBatch(attendeeIds),
-    ]);
-    const questionData: CsvQuestionData | undefined =
-      questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+      // Load questions and attendee answers for CSV
+      const attendeeIds = filteredByDate.map((a) => a.id);
+      const [questions, attendeeAnswerMap] = await Promise.all([
+        getQuestionsForEvent(event.id),
+        getAttendeeAnswersBatch(attendeeIds),
+      ]);
+      const questionData: CsvQuestionData | undefined =
+        questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 
-    const csv = generateAttendeesCsv(
-      filteredByDate,
-      isDaily,
-      {
-        eventDate: event.date,
-        eventLocation: event.location,
-      },
-      questionData,
-    );
-    const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
-    const filename = dateFilter
-      ? `${sanitizedName}_${dateFilter}_attendees.csv`
-      : `${sanitizedName}_attendees.csv`;
-    await logActivity(
-      `CSV exported for '${event.name}'${
-        dateFilter ? ` (date: ${dateFilter})` : ""
-      }`,
-      event,
-    );
-    return csvResponse(csv, filename);
-  });
+      const csv = generateAttendeesCsv(
+        filteredByDate,
+        isDaily,
+        {
+          eventDate: event.date,
+          eventLocation: event.location,
+        },
+        questionData,
+      );
+      const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const filename = dateFilter
+        ? `${sanitizedName}_${dateFilter}_attendees.csv`
+        : `${sanitizedName}_attendees.csv`;
+      await logActivity(
+        `CSV exported for '${event.name}'${
+          dateFilter ? ` (date: ${dateFilter})` : ""
+        }`,
+        event,
+      );
+      return csvResponse(csv, filename);
+    }),
+  );
 
 /** Shared config for event confirmation handlers */
 const eventConfirmBase = {

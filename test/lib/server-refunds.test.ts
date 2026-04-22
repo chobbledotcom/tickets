@@ -206,7 +206,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("includes return_url as hidden field when provided", async () => {
       const ctx = await setupRefundTest("pi_test_return");
-      const url = `${refundUrl(ctx.event.id, ctx.attendee.id)}?return_url=${encodeURIComponent("/admin/calendar#attendees")}`;
+      const url = `${refundUrl(ctx.event.id, ctx.attendee.id)}?return_url=${encodeURIComponent(
+        "/admin/calendar#attendees",
+      )}`;
       await assertAdminHtml(
         url,
         'name="return_url"',

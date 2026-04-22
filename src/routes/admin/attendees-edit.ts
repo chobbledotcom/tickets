@@ -14,10 +14,12 @@ import {
   updateAttendeePII,
 } from "#lib/db/attendees.ts";
 import { queryAll, queryOne } from "#lib/db/client.ts";
-import { getAllEvents } from "#lib/db/events.ts";
+import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
+import { getActiveHolidays } from "#lib/db/holidays.ts";
 import {
   getAttendeeAnswersBatch,
   getQuestionsForEvent,
+  type QuestionWithAnswers,
   saveAttendeeAnswers,
 } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";

@@ -19,6 +19,7 @@ import {
   AUTH_FORM,
   AUTH_MULTIPART,
   type AuthSession,
+  type EntityHandler,
   encodeBody,
   errorRedirect,
   getPrivateKey,
@@ -32,11 +33,13 @@ import {
   type SessionGuard,
   SessionKeyError,
   withAuth,
+  withEntity,
 } from "#routes/utils.ts";
 
-export type { SessionGuard };
+export type { EntityHandler, SessionGuard };
+export { withEntity };
 
-export type { withEntity, EntityHandler };
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
@@ -329,12 +332,23 @@ export const withEntityLoader =
   (handler: EntityHandler<T>): Promise<Response> =>
     withEntity(handler)(() => load(...args));
 
+type GetEntityHandler<T> = (
+  request: Request,
+  session: AuthSession,
+  entity: T,
+) => Response | Promise<Response>;
+type PostEntityHandler<T> = (
+  session: AuthSession,
+  form: FormParams,
+  entity: T,
+) => Response | Promise<Response>;
+
 /**
  * Generic factory: combine an auth wrapper with entity loading.
  * Eliminates duplication between withSessionAndEntity and withAuthAndEntity.
  */
 const createEntityHandler =
-  <T, H>(
+  <T, H extends GetEntityHandler<T> | PostEntityHandler<T>>(
     authWrapper: (
       request: Request,
       cb: (
@@ -352,7 +366,7 @@ const createEntityHandler =
   (request: Request, id: number) =>
   (handler: H): Promise<Response> =>
     authWrapper(request, (session, ...rest) =>
-      withEntity((entity) =>
+      withEntity((entity: T) =>
         adaptHandler(handler, request, ...rest)(session, entity),
       )(() => loader(session, id)),
     );
@@ -361,25 +375,32 @@ const createEntityHandler =
  * Curried: require session, load entity with session-dependent loader, call handler.
  * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
  */
-export const withSessionAndEntity = createEntityHandler(
-  (request, cb) => requireSessionOr(request, cb as SessionHandler),
-  (handler, request) => (session, entity) => handler(request, session, entity),
-);
+export const withSessionAndEntity = <T>(
+  loader: (session: AuthSession, id: number) => Promise<T | null>,
+) =>
+  createEntityHandler<T, GetEntityHandler<T>>(
+    (request, cb) => requireSessionOr(request, cb as SessionHandler),
+    (handler, request) => (session, entity) =>
+      handler(request, session, entity),
+  )(loader);
 
 /**
  * Curried: require auth + CSRF, load entity with session-dependent loader, call handler with form.
  * Eliminates: `withAuth(request, AUTH_FORM, (session, form) => withLoader(session, id)(handler))`
  */
-export const withAuthAndEntity = createEntityHandler(
-  (request, cb) =>
-    withAuth(
-      request,
-      AUTH_FORM,
-      cb as (s: AuthSession, f: FormParams) => Response,
-    ),
-  (handler, _request, form) => (session, entity) =>
-    handler(session, form as FormParams, entity),
-);
+export const withAuthAndEntity = <T>(
+  loader: (session: AuthSession, id: number) => Promise<T | null>,
+) =>
+  createEntityHandler<T, PostEntityHandler<T>>(
+    (request, cb) =>
+      withAuth(
+        request,
+        AUTH_FORM,
+        cb as (s: AuthSession, f: FormParams) => Response,
+      ),
+    (handler, _request, form) => (session, entity) =>
+      handler(session, form as FormParams, entity),
+  )(loader);
 
 /**
  * Compose a session-dependent entity loader with auth guards.
@@ -431,8 +452,20 @@ export const createEntityRouteHandlers = <
       wrapper(loader)(request, getId(params))(handler);
 
   return {
-    get: (handler) => routeHandler(withSessionAndEntity, handler),
-    post: (handler) => routeHandler(withAuthAndEntity, handler),
+    get: (
+      handler: (
+        request: Request,
+        session: AuthSession,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => routeHandler(withSessionAndEntity, handler),
+    post: (
+      handler: (
+        session: AuthSession,
+        form: FormParams,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => routeHandler(withAuthAndEntity, handler),
   };
 };
 
@@ -449,8 +482,9 @@ export const withEntityFromParam = <T>(
     typeof paramValue === "string"
       ? Number.parseInt(paramValue, 10)
       : paramValue;
-  if (id === undefined || Number.isNaN(id))
+  if (id === undefined || Number.isNaN(id)) {
     return Promise.resolve(notFoundResponse());
+  }
   return withEntity(handler)(() => load(id!));
 };
 

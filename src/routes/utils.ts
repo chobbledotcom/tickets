@@ -508,11 +508,15 @@ export const formatCountdown = (closesAt: string): string => {
   const days = Math.floor(totalHours / 24);
   const hours = totalHours % 24;
   const pl = (n: number, unit: string) => `${n} ${unit}${n !== 1 ? "s" : ""}`;
-  if (days > 0 && hours > 0)
+  if (days > 0 && hours > 0) {
     return `${pl(days, "day")} and ${pl(hours, "hour")} from now`;
+  }
   if (days > 0) return `${pl(days, "day")} from now`;
   if (hours > 0) return `${pl(hours, "hour")} from now`;
-  return `${pl(Math.max(1, Math.floor(diffMs / (1000 * 60))), "minute")} from now`;
+  return `${pl(
+    Math.max(1, Math.floor(diffMs / (1000 * 60))),
+    "minute",
+  )} from now`;
 };
 
 /** Session with wrapped data key for private key derivation, and user role */
@@ -568,8 +572,9 @@ const requireSessionFor = async (
 ): Promise<AuthSession | Response> => {
   const session = await getAuthenticatedSession(request);
   if (!session) return authFailure(channel, "not-authenticated");
-  if (role && session.adminLevel !== role)
+  if (role && session.adminLevel !== role) {
     return authFailure(channel, "forbidden");
+  }
   return session;
 };
 
@@ -798,8 +803,9 @@ const verifyCsrf = async (
   channel: AuthChannel,
 ): Promise<Response | null> => {
   if (await verifySignedCsrfToken(token)) return null;
-  if (channel === "json")
+  if (channel === "json") {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
+  }
   return authFailure(channel, "invalid-csrf");
 };
 
@@ -869,8 +875,9 @@ export async function withAuth<T extends BodyMode>(
   const channel = channelFor(policy.body);
   const auth = await resolveSession(request, channel, policy.allowApiKey);
   if (isResponse(auth)) return auth;
-  if (policy.role && auth.session.adminLevel !== policy.role)
+  if (policy.role && auth.session.adminLevel !== policy.role) {
     return authFailure(channel, "forbidden");
+  }
   const body = await parseCsrfBody(
     request,
     policy.body,

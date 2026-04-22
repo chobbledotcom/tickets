@@ -198,7 +198,10 @@ describe("code quality", () => {
       const violations = await scanSourceLines(
         ({ relativePath, line, lineNum }) => {
           if (!line.match(/^(export\s+)?let\s+/)) return null;
-          return `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`;
+          return `${relativePath}:${lineNum}: ${line.slice(
+            0,
+            50,
+          )}... (use const with once()/lazyRef())`;
         },
       );
 
@@ -223,7 +226,9 @@ describe("code quality", () => {
           if (THEN_PATTERN.test(line)) {
             THEN_PATTERN.lastIndex = 0;
             violations.push(
-              `${relativePath}:${lineNum}: ${line.trim().slice(0, 50)}... (use async/await instead)`,
+              `${relativePath}:${lineNum}: ${line
+                .trim()
+                .slice(0, 50)}... (use async/await instead)`,
             );
           }
         }

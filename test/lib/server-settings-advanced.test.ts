@@ -613,7 +613,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/host-subdomain",
               "existing.tickets.example.com",
               {
-                body: `subdomain=myevent&csrf_token=${encodeURIComponent(csrfToken)}`,
+                body: `subdomain=myevent&csrf_token=${encodeURIComponent(
+                  csrfToken,
+                )}`,
                 headers: {
                   "content-type": "application/x-www-form-urlencoded",
                   cookie: `__Host-session=${token}`,
