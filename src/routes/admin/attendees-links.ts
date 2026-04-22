@@ -116,7 +116,7 @@ export const handleUpdateEventLink = attendeeAction(
 /** Handle POST /admin/attendees/:attendeeId/link — add event link */
 export const handleAddEventLink = attendeeAction(
   ({ attendeeId }: AttendeeRouteParams) => ({
-    eventId: (form) => Number(form.get("event_id")) || undefined,
+    eventId: (form) => Number(form.get("event_id")),
     execute: async (_session, form) => {
       const eventId = Number(form.get("event_id")) || 0;
       if (!eventId) throw new Error("Event is required");
@@ -131,10 +131,7 @@ export const handleAddEventLink = attendeeAction(
     },
     message: (_session, form) => {
       const eventName = (form as unknown as Record<string, unknown>)
-        .eventName as string | undefined;
-      if (!eventName) {
-        throw new Error("Event name unavailable");
-      }
+        .eventName as string;
       return `Attendee linked to '${eventName}'`;
     },
   }),
