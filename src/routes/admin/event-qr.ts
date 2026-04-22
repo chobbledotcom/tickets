@@ -18,20 +18,10 @@ import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { withEntityLoader } from "#routes/admin/utils.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  htmlResponse,
-  jsonResponse,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
-import {
-  type AdminEventQrResult,
-  type AdminEventQrValues,
-  adminEventQrPage,
-} from "#templates/admin/event-qr.tsx";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { AUTH_FORM, htmlResponse, jsonResponse, requireSessionOr, withAuth } from "#routes/utils.ts";
+import type { AdminEventQrResult, AdminEventQrValues } from "#templates/admin/event-qr.tsx";
+import { adminEventQrPage } from "#templates/admin/event-qr.tsx";
 
 const EMPTY_VALUES: AdminEventQrValues = {
   customerName: "",

@@ -19,7 +19,6 @@ import {
   AUTH_FORM,
   AUTH_MULTIPART,
   type AuthSession,
-  type EntityHandler,
   encodeBody,
   errorRedirect,
   getPrivateKey,
@@ -33,10 +32,11 @@ import {
   type SessionGuard,
   SessionKeyError,
   withAuth,
-  withEntity,
 } from "#routes/utils.ts";
 
 export type { SessionGuard };
+
+export { withEntity, type EntityHandler };
 
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
@@ -152,6 +152,12 @@ export const withEventAttendeesAuth = (
   requireSessionOr(request, (session) =>
     withDecryptedAttendees(session, eventId, handler),
   );
+
+/** Curried: require auth then load event with decrypted attendees */
+export const eventAttendeesLoader =
+  (request: Request, eventId: number) =>
+  (handler: EventAttendeesHandler): Promise<Response> =>
+    withEventAttendeesAuth(request, eventId, handler);
 
 /** Form guard: require auth + CSRF, call handler with session and form */
 export type FormGuard<TSession> = (
@@ -322,6 +328,73 @@ export const withEntityLoader =
   (...args: P) =>
   (handler: EntityHandler<T>): Promise<Response> =>
     withEntity(handler)(() => load(...args));
+
+/**
+ * Curried: require session, load entity with session-dependent loader, call handler.
+ * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
+ */
+export const withSessionAndEntity =
+  <T>(
+    loader: (session: AuthSession, id: number) => Promise<T | null>,
+  ) =>
+  (request: Request, id: number) =>
+  (
+    handler: (
+      session: AuthSession,
+      entity: T,
+    ) => Response | Promise<Response>,
+  ): Promise<Response> =>
+    requireSessionOr(request, (session) =>
+      withEntity((entity) => handler(session, entity))(() =>
+        loader(session, id)
+      )
+    );
+
+/**
+ * Curried: require auth + CSRF, load entity with session-dependent loader, call handler with form.
+ * Eliminates: `withAuth(request, AUTH_FORM, (session, form) => withLoader(session, id)(handler))`
+ */
+export const withAuthAndEntity =
+  <T>(
+    loader: (session: AuthSession, id: number) => Promise<T | null>,
+  ) =>
+  (request: Request, id: number) =>
+  (
+    handler: (
+      session: AuthSession,
+      form: FormParams,
+      entity: T,
+    ) => Response | Promise<Response>,
+  ): Promise<Response> =>
+    withAuth(request, AUTH_FORM, (session, form) =>
+      withEntity((entity) => handler(session, form, entity))(() =>
+        loader(session, id)
+      )
+    );
+
+/**
+ * Compose a session-dependent entity loader with auth guards.
+ * Returns { get, post } handlers that handle auth + entity loading.
+ */
+export const withAuthEntityHandlers =
+  <T>(
+    loader: (session: AuthSession, id: number) => Promise<T | null>,
+  ) =>
+  (request: Request, id: number) => ({
+    get: (
+      handler: (
+        session: AuthSession,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => withSessionAndEntity(loader)(request, id)(handler),
+    post: (
+      handler: (
+        session: AuthSession,
+        form: FormParams,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => withAuthAndEntity(loader)(request, id)(handler),
+  });
 
 /**
  * Generic wrapper for typed route params: parse param as number, load entity,

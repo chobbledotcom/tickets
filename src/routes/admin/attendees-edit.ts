@@ -27,18 +27,8 @@ import type { FormParams } from "#lib/form-data.ts";
 /* jscpd:ignore-end */
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
-import {
-  type AttendeeRouteParams,
-  AUTH_FORM,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  redirect,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { requirePrivateKey, withAuthEntityHandlers } from "#routes/admin/utils.ts";
+import { type AttendeeRouteParams, AUTH_FORM, type AuthSession, applyFlash, errorRedirect, htmlResponse, redirect } from "#routes/utils.ts";
 import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
 import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 
@@ -135,49 +125,30 @@ type EditAttendeeData = NonNullable<
   Awaited<ReturnType<typeof loadAttendeeForEdit>>
 >;
 
-/** Load attendee for edit, returning 404 if not found */
-const withEditAttendee = withEntityLoader(loadAttendeeForEdit);
+/** Curried: load edit attendee data then render with flash */
+const editAttendeePage =
+  (request: Request, session: AuthSession) =>
+  (data: EditAttendeeData): Response => {
+    const flash = applyFlash(request);
+    return htmlResponse(
+      adminEditAttendeePage(
+        data,
+        session,
+        getReturnUrl(request),
+        flash.success,
+        flash.error,
+      ),
+    );
+  };
 
 /** Handle GET /admin/attendees/:attendeeId */
 export const handleEditAttendeeGet = (
   request: Request,
   { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    withEditAttendee(
-      session,
-      attendeeId,
-    )((data) => {
-      const flash = applyFlash(request);
-      return htmlResponse(
-        adminEditAttendeePage(
-          data,
-          session,
-          getReturnUrl(request),
-          flash.success,
-          flash.error,
-        ),
-      );
-    }),
+  withAuthEntityHandlers(loadAttendeeForEdit)(request, attendeeId).get(
+    (session, data) => editAttendeePage(request, session)(data),
   );
-
-/** Create a POST handler for /admin/attendees/:attendeeId/* routes */
-const editAttendeePost =
-  (
-    handler: (
-      session: AuthSession,
-      form: FormParams,
-      data: EditAttendeeData,
-      attendeeId: number,
-    ) => Response | Promise<Response>,
-  ) =>
-  (request: Request, { attendeeId }: AttendeeRouteParams): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (session, form) =>
-      withEditAttendee(
-        session,
-        attendeeId,
-      )((data) => handler(session, form, data, attendeeId)),
-    );
 
 /** Handle POST /admin/attendees/:attendeeId */
 async function editAttendeeHandler(
@@ -234,7 +205,13 @@ async function editAttendeeHandler(
     { form },
   );
 }
-export const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
+export const handleEditAttendeePost = (
+  request: Request,
+  { attendeeId }: AttendeeRouteParams,
+): Promise<Response> =>
+  withAuthEntityHandlers(loadAttendeeForEdit)(request, attendeeId).post(
+    (session, form, data) => editAttendeeHandler(session, form, data, attendeeId),
+  );
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 async function refreshPaymentHandler(
@@ -276,4 +253,10 @@ async function refreshPaymentHandler(
     true,
   );
 }
-export const handleRefreshPayment = editAttendeePost(refreshPaymentHandler);
+export const handleRefreshPayment = (
+  request: Request,
+  { attendeeId }: AttendeeRouteParams,
+): Promise<Response> =>
+  withAuthEntityHandlers(loadAttendeeForEdit)(request, attendeeId).post(
+    (session, form, data) => refreshPaymentHandler(session, form, data, attendeeId),
+  );

@@ -53,25 +53,12 @@ import type {
   Group,
 } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import {
-  createConfirmedHandlers,
-  csvResponse,
-  getDateFilter,
-  withEventAttendeesAuth,
-} from "#routes/admin/utils.ts";
+import { createConfirmedHandlers, csvResponse, eventAttendeesLoader, getDateFilter } from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  AUTH_FORM,
-  AUTH_MULTIPART,
-  authenticatedGetById,
-  formDataToParams,
-  getSearchParam,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-  requireSessionOr,
-  withAuth,
+  AUTH_FORM, AUTH_MULTIPART, authenticatedGetById, formDataToParams, getSearchParam,
+  htmlResponse, notFoundResponse, redirect, requireSessionOr, withAuth,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -290,18 +277,14 @@ const processUploadsAndRedirect = async (
 };
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
-const withEventAttendees = (
-  request: Request,
-  eventId: number,
-  handler: (ctx: {
+const eventAttendeesHandler =
+  (handler: (ctx: {
     event: EventWithCount;
     attendees: Attendee[];
     session: AdminSession;
-  }) => Response | Promise<Response>,
-): Promise<Response> =>
-  withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
-    handler({ attendees, event, session }),
-  );
+  }) => Response | Promise<Response>) =
+  (event: EventWithCount, attendees: Attendee[], session: AdminSession) =>
+    handler({ attendees, event, session });
 
 /**
  * Handle GET /admin/event/new (show create event form)
@@ -397,7 +380,8 @@ const renderEventPage = async (
   // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
   const [, response] = await Promise.all([
     deleteAllStaleReservations(),
-    withEventAttendees(request, id, async ({ event, attendees, session }) => {
+    eventAttendeesLoader(request, id)(
+      eventAttendeesHandler(async ({ event, attendees, session }) => {
       const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
         event,
         attendees,
@@ -517,7 +501,8 @@ const handleAdminEventEditPost: TypedRouteHandler<
 const handleAdminEventExport: TypedRouteHandler<
   "GET /admin/event/:id/export"
 > = (request, { id }) =>
-  withEventAttendees(request, id, async ({ event, attendees }) => {
+  eventAttendeesLoader(request, id)(
+    eventAttendeesHandler(async ({ event, attendees }) => {
     const { dateFilter, filteredByDate } = applyDateFilter(
       event,
       attendees,
