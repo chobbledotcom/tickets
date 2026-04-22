@@ -521,7 +521,7 @@ export const createActionHandler = <TSession = AuthSession>(
       try {
         await config.execute(session as TSession, form);
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
+        const error = err as Error;
         if (config.onError) {
           return config.onError(error);
         }
