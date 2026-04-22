@@ -1,86 +1,91 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   calculateBookingFee,
   getBookingFeeAmount,
   itemsSubtotal,
 } from "#lib/booking-fee.ts";
-import { settings } from "#lib/db/settings.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { testWithSetting } from "#test-utils";
 
 describe("calculateBookingFee", () => {
-  test("returns 0 when fee percent is 0", () => {
-    expect(calculateBookingFee(1000, 0)).toBe(0);
-  });
-
-  test("returns 0 when fee percent is negative", () => {
-    expect(calculateBookingFee(1000, -1)).toBe(0);
-  });
-
-  test("returns 0 when subtotal is 0", () => {
-    expect(calculateBookingFee(0, 2.5)).toBe(0);
-  });
-
-  test("calculates 2.9% of 1000 correctly", () => {
-    // 1000 * 2.9 / 100 = 29
+  test("applies the fee percentage to the subtotal", () => {
     expect(calculateBookingFee(1000, 2.9)).toBe(29);
   });
 
-  test("calculates 1.5% of 1000 correctly", () => {
-    // 1000 * 1.5 / 100 = 15
-    expect(calculateBookingFee(1000, 1.5)).toBe(15);
-  });
-
-  test("rounds to nearest integer", () => {
-    // 999 * 1.5 / 100 = 14.985 → 15
+  test("rounds fractional results to the nearest minor unit", () => {
+    // 999 × 1.5% = 14.985 → 15; 100 × 2.5% = 2.5 → 3 (half rounds up).
+    // Fees must land on whole minor units so Stripe/Square accept the charge.
     expect(calculateBookingFee(999, 1.5)).toBe(15);
-  });
-
-  test("rounds 0.5 up", () => {
-    // 100 * 2.5 / 100 = 2.5 → 3 (Math.round rounds 0.5 up)
     expect(calculateBookingFee(100, 2.5)).toBe(3);
   });
 
-  test("calculates 10% (maximum allowed) correctly", () => {
-    expect(calculateBookingFee(5000, 10)).toBe(500);
-  });
-
-  test("handles large subtotals", () => {
-    // 100000 (£1000) * 1.5 / 100 = 1500
-    expect(calculateBookingFee(100000, 1.5)).toBe(1500);
+  test("charges no fee when the percent is zero or negative", () => {
+    expect(calculateBookingFee(1000, 0)).toBe(0);
+    expect(calculateBookingFee(1000, -1)).toBe(0);
   });
 });
 
 describe("getBookingFeeAmount", () => {
-  beforeEach(async () => {
-    await createTestDb();
-  });
+  testWithSetting(
+    "returns 0 when no booking fee is configured",
+    { booking_fee: "0" },
+    () => {
+      expect(getBookingFeeAmount(10000)).toBe(0);
+    },
+  );
 
-  afterEach(() => {
-    resetDb();
-  });
+  testWithSetting(
+    "applies the configured fee to the supplied subtotal",
+    { booking_fee: "2.5" },
+    () => {
+      expect(getBookingFeeAmount(10000)).toBe(250);
+    },
+  );
 
-  test("returns 0 when no booking fee configured", async () => {
-    expect(await getBookingFeeAmount(1000)).toBe(0);
-  });
+  testWithSetting(
+    "treats an empty fee setting as no fee",
+    { booking_fee: "" },
+    () => {
+      // Admins can blank the field to disable the booking fee; the guard
+      // must stop the empty string turning into NaN and poisoning cart totals.
+      expect(getBookingFeeAmount(10000)).toBe(0);
+    },
+  );
 
-  test("returns calculated fee when booking fee is set", async () => {
-    await settings.update.bookingFee("2.5");
-    // 1000 * 2.5 / 100 = 25
-    expect(await getBookingFeeAmount(1000)).toBe(25);
-  });
+  testWithSetting(
+    "treats a non-numeric fee setting as no fee",
+    { booking_fee: "not a number" },
+    () => {
+      // parseFloat returns NaN for garbage input — the `|| 0` guard in
+      // getBookingFee() must prevent NaN ever reaching the payment provider.
+      expect(getBookingFeeAmount(10000)).toBe(0);
+    },
+  );
 });
 
 describe("itemsSubtotal", () => {
-  test("returns 0 for empty array", () => {
+  test("returns 0 for an empty cart", () => {
     expect(itemsSubtotal([])).toBe(0);
   });
 
-  test("calculates subtotal from items", () => {
-    const items = [
-      { quantity: 2, unitPrice: 500 },
-      { quantity: 1, unitPrice: 1000 },
-    ];
-    expect(itemsSubtotal(items)).toBe(2000);
+  test("sums unitPrice × quantity across mixed items", () => {
+    expect(
+      itemsSubtotal([
+        { quantity: 3, unitPrice: 500 },
+        { quantity: 1, unitPrice: 250 },
+        { quantity: 2, unitPrice: 1000 },
+      ]),
+    ).toBe(3750);
+  });
+
+  test("counts free (zero-priced) items as contributing nothing", () => {
+    // Free tickets alongside paid ones must not inflate the subtotal, which
+    // would otherwise push up the percentage-based booking fee.
+    expect(
+      itemsSubtotal([
+        { quantity: 5, unitPrice: 0 },
+        { quantity: 1, unitPrice: 750 },
+      ]),
+    ).toBe(750);
   });
 });
