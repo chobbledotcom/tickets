@@ -18,6 +18,7 @@ import {
   createTestDb,
   createTestEvent,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
@@ -825,8 +826,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         "deletion",
       );
       expect(result).not.toBeNull();
-      const location = result!.headers.get("location");
-      expect(location).toContain("deletion");
+      expectFlash(result!, "Event name does not match. Please type the exact event name to confirm deletion.", false);
     });
 
     test("verifyIdentifierOrJsonError returns null on match", async () => {
