@@ -3235,9 +3235,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       const debugLogs: string[] = [];
-      const origDebug = console.debug;
+      const origLog = console.log;
       setSuppressDebugLogs(false);
-      console.debug = (...args: unknown[]) => {
+      console.log = (...args: unknown[]) => {
         debugLogs.push(args.join(" "));
       };
 
@@ -3266,7 +3266,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           "no longer accepting registrations",
         );
       } finally {
-        console.debug = origDebug;
+        console.log = origLog;
         setSuppressDebugLogs(null);
         mockVerify.restore();
         mockRefund.restore();

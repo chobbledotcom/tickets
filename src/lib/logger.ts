@@ -240,14 +240,14 @@ type RequestLogEntry = {
 };
 
 /**
- * Log a completed request to console.debug
+ * Log a completed request to console
  * Path is automatically redacted for privacy
  */
 export const logRequest = (entry: RequestLogEntry): void => {
   if (shouldSuppressRequestLogs()) return;
   const redactedPath = redactPath(entry.path);
 
-  console.debug(
+  console.log(
     `${getLogPrefix()}[Request] ${entry.method} ${redactedPath} ${entry.status} ${entry.durationMs}ms`,
   );
 };
@@ -303,7 +303,7 @@ const persistErrorToActivityLog = async (
 };
 
 /**
- * Log a classified error to console.error only (no ntfy, no activity log).
+ * Log a classified error to console only (no ntfy, no activity log).
  * Use this where calling logError would cause infinite recursion (e.g. ntfy.ts).
  */
 export const logErrorLocal = (context: ErrorContext): void => {
@@ -362,5 +362,5 @@ export type LogCategory =
  */
 export const logDebug = (category: LogCategory, message: string): void => {
   if (shouldSuppressDebugLogs()) return;
-  console.debug(`${getLogPrefix()}[${category}] ${message}`);
+  console.log(`${getLogPrefix()}[${category}] ${message}`);
 };

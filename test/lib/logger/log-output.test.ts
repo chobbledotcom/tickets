@@ -10,21 +10,21 @@ import {
 } from "#lib/logger.ts";
 
 describe("logRequest", () => {
-  let debugSpy: Spy;
+  let logSpy: Spy;
 
   beforeEach(() => {
     setSuppressRequestLogs(false);
-    debugSpy = spy(console, "debug");
+    logSpy = spy(console, "log");
   });
 
   afterEach(() => {
-    debugSpy.restore();
+    logSpy.restore();
     setSuppressRequestLogs(null);
   });
 
   /** Assert that the spy captured a specific log message */
   const expectLogged = (message: string) => {
-    const found = debugSpy.calls.some((c) => c.args[0] === message);
+    const found = logSpy.calls.some((c) => c.args[0] === message);
     expect(found).toBe(true);
   };
 
@@ -61,7 +61,7 @@ describe("logRequest", () => {
       path: "/admin/login",
       status: 302,
     });
-    expect(debugSpy.calls.length).toBe(0);
+    expect(logSpy.calls.length).toBe(0);
   });
 
   test("falls back to env var when override is null", () => {
@@ -69,7 +69,7 @@ describe("logRequest", () => {
     Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
     try {
       logRequest({ durationMs: 1, method: "GET", path: "/admin", status: 200 });
-      expect(debugSpy.calls.length).toBe(0);
+      expect(logSpy.calls.length).toBe(0);
     } finally {
       Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
     }
@@ -77,32 +77,32 @@ describe("logRequest", () => {
 });
 
 describe("logDebug", () => {
-  let debugSpy: Spy;
+  let logSpy: Spy;
 
   beforeEach(() => {
     setSuppressDebugLogs(false);
-    debugSpy = spy(console, "debug");
+    logSpy = spy(console, "log");
   });
 
   afterEach(() => {
-    debugSpy.restore();
+    logSpy.restore();
     setSuppressDebugLogs(null);
   });
 
   test("formats message with category prefix", () => {
     logDebug("Setup", "Validation passed");
-    expect(debugSpy.calls[0]?.args[0]).toBe("[Setup] Validation passed");
+    expect(logSpy.calls[0]?.args[0]).toBe("[Setup] Validation passed");
   });
 
   test("suppresses output when setSuppressDebugLogs(true)", () => {
     setSuppressDebugLogs(true);
     logDebug("Migration", "Step 1");
-    expect(debugSpy.calls.length).toBe(0);
+    expect(logSpy.calls.length).toBe(0);
   });
 
   test("emits output when setSuppressDebugLogs(false)", () => {
     logDebug("Migration", "Step 1");
-    expect(debugSpy.calls.length).toBe(1);
+    expect(logSpy.calls.length).toBe(1);
   });
 });
 

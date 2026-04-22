@@ -32,7 +32,7 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   });
 
   test("prefixes logRequest with request ID", () => {
-    const debugSpy = spy(console, "debug");
+    const logSpy = spy(console, "log");
     try {
       let id = "";
       runWithRequestId(() => {
@@ -46,12 +46,12 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       });
 
       expect(
-        debugSpy.calls.some(
+        logSpy.calls.some(
           (c) => c.args[0] === `[${id}] [Request] GET /admin 200 10ms`,
         ),
       ).toBe(true);
     } finally {
-      debugSpy.restore();
+      logSpy.restore();
     }
   });
 
@@ -75,7 +75,7 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   });
 
   test("prefixes logDebug with request ID", () => {
-    const debugSpy = spy(console, "debug");
+    const logSpy = spy(console, "log");
     try {
       let id = "";
       runWithRequestId(() => {
@@ -84,12 +84,12 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       });
 
       expect(
-        debugSpy.calls.some(
+        logSpy.calls.some(
           (c) => c.args[0] === `[${id}] [Setup] test message`,
         ),
       ).toBe(true);
     } finally {
-      debugSpy.restore();
+      logSpy.restore();
     }
   });
 
@@ -105,7 +105,7 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   });
 
   test("no prefix outside request context", () => {
-    const debugSpy = spy(console, "debug");
+    const logSpy = spy(console, "log");
     try {
       logRequest({
         durationMs: 10,
@@ -115,12 +115,12 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       });
 
       expect(
-        debugSpy.calls.some(
+        logSpy.calls.some(
           (c) => c.args[0] === "[Request] GET /admin 200 10ms",
         ),
       ).toBe(true);
     } finally {
-      debugSpy.restore();
+      logSpy.restore();
     }
   });
 });
