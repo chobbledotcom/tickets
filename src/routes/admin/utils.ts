@@ -330,47 +330,46 @@ export const withEntityLoader =
     withEntity(handler)(() => load(...args));
 
 /**
- * Curried: require session, load entity with session-dependent loader, call handler.
- * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
+ * Generic factory: combine an auth wrapper with entity loading.
+ * Eliminates duplication between withSessionAndEntity and withAuthAndEntity.
  */
-export const withSessionAndEntity =
-  <T>(
-    loader: (session: AuthSession, id: number) => Promise<T | null>,
-  ) =>
+const createEntityHandler = <T, H>(
+  authWrapper: (
+    request: Request,
+    cb: (session: AuthSession, ...rest: unknown[]) => Response | Promise<Response>,
+  ) => Promise<Response>,
+  adaptHandler: (
+    handler: H,
+    request: Request,
+    ...rest: unknown[]
+  ) => (session: AuthSession, entity: T) => Response | Promise<Response>,
+) =>
+  (loader: (session: AuthSession, id: number) => Promise<T | null>) =>
   (request: Request, id: number) =>
-  (
-    handler: (
-      session: AuthSession,
-      entity: T,
-    ) => Response | Promise<Response>,
-  ): Promise<Response> =>
-    requireSessionOr(request, (session) =>
-      withEntity((entity) => handler(session, entity))(() =>
+  (handler: H): Promise<Response> =>
+    authWrapper(request, (session, ...rest) =>
+      withEntity((entity) => adaptHandler(handler, request, ...rest)(session, entity))(() =>
         loader(session, id)
       )
     );
 
 /**
+ * Curried: require session, load entity with session-dependent loader, call handler.
+ * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
+ */
+export const withSessionAndEntity = createEntityHandler(
+  (request, cb) => requireSessionOr(request, cb as SessionHandler),
+  (handler, request) => (session, entity) => handler(request, session, entity),
+);
+
+/**
  * Curried: require auth + CSRF, load entity with session-dependent loader, call handler with form.
  * Eliminates: `withAuth(request, AUTH_FORM, (session, form) => withLoader(session, id)(handler))`
  */
-export const withAuthAndEntity =
-  <T>(
-    loader: (session: AuthSession, id: number) => Promise<T | null>,
-  ) =>
-  (request: Request, id: number) =>
-  (
-    handler: (
-      session: AuthSession,
-      form: FormParams,
-      entity: T,
-    ) => Response | Promise<Response>,
-  ): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (session, form) =>
-      withEntity((entity) => handler(session, form, entity))(() =>
-        loader(session, id)
-      )
-    );
+export const withAuthAndEntity = createEntityHandler(
+  (request, cb) => withAuth(request, AUTH_FORM, cb as (s: AuthSession, f: FormParams) => Response),
+  (handler, _request, form) => (session, entity) => handler(session, form as FormParams, entity),
+);
 
 /**
  * Compose a session-dependent entity loader with auth guards.
@@ -383,6 +382,7 @@ export const withAuthEntityHandlers =
   (request: Request, id: number) => ({
     get: (
       handler: (
+        request: Request,
         session: AuthSession,
         entity: T,
       ) => Response | Promise<Response>,
@@ -395,6 +395,33 @@ export const withAuthEntityHandlers =
       ) => Response | Promise<Response>,
     ) => withAuthAndEntity(loader)(request, id)(handler),
   });
+
+/**
+ * Curried factory for GET/POST entity route handler pairs.
+ * Eliminates boilerplate of calling withAuthEntityHandlers twice.
+ *
+ * Usage:
+ *   const handlers = createEntityRouteHandlers(loader, p => p.attendeeId);
+ *   export const get = handlers.get((request, session, entity) => ...);
+ *   export const post = handlers.post((session, form, entity) => ...);
+ */
+export const createEntityRouteHandlers = <T, TParams extends Record<string, unknown>>(
+  loader: (session: AuthSession, id: number) => Promise<T | null>,
+  getId: (params: TParams) => number,
+) => {
+  const routeHandler = <H>(
+    wrapper: (
+      l: (s: AuthSession, i: number) => Promise<T | null>,
+    ) => (r: Request, i: number) => (h: H) => Promise<Response>,
+    handler: H,
+  ): ((request: Request, params: TParams) => Promise<Response>) =>
+    (request, params) => wrapper(loader)(request, getId(params))(handler);
+
+  return {
+    get: (handler) => routeHandler(withSessionAndEntity, handler),
+    post: (handler) => routeHandler(withAuthAndEntity, handler),
+  };
+};
 
 /**
  * Generic wrapper for typed route params: parse param as number, load entity,
