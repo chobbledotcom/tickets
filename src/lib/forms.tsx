@@ -35,6 +35,7 @@ export interface Field {
   defaultValue?: string;
   hint?: string;
   hintHtml?: string;
+  id?: string;
   inputmode?: string;
   label: string;
   max?: number;
@@ -42,7 +43,8 @@ export interface Field {
   min?: number;
   minlength?: number;
   name: string;
-  options?: { value: string; label: string }[];
+  options?: readonly { value: string; label: string }[];
+  parse?: (value: string) => string | number | null;
   pattern?: string;
   placeholder?: string;
   required?: boolean;
@@ -50,6 +52,44 @@ export interface Field {
   type: FieldType;
   validate?: (value: string) => string | null;
 }
+
+type FormFieldDefinition = Readonly<Field>;
+type FormFieldDefinitions = readonly FormFieldDefinition[];
+
+type ParsedFieldValue<F extends FormFieldDefinition> = F extends {
+  parse: (...args: never[]) => infer T;
+}
+  ? T
+  : F["type"] extends "number"
+    ? number | null
+    : string | null;
+
+type NormalizedFieldValue<F extends FormFieldDefinition> = F extends {
+  required: true;
+}
+  ? Exclude<ParsedFieldValue<F>, null>
+  : ParsedFieldValue<F>;
+
+export type FormValuesFor<TFields extends FormFieldDefinitions> = {
+  [F in TFields[number] as F["name"]]: NormalizedFieldValue<F>;
+};
+
+type FormFieldRenderHelper = { render: (value?: string) => string };
+
+export type FormDefinition<
+  TFields extends FormFieldDefinitions,
+  TContext = undefined,
+> = {
+  id: string;
+  fields: TFields;
+  render: (values?: Partial<FormValuesFor<TFields>>) => string;
+  renderFields: (values?: Partial<FormValuesFor<TFields>>) => string;
+  field: (name: TFields[number]["name"]) => FormFieldRenderHelper;
+  validate: (
+    form: FormParams,
+    context?: TContext,
+  ) => ValidationResult<FormValuesFor<TFields>>;
+};
 
 export interface FieldValues {
   [key: string]: string | number | null;
@@ -65,7 +105,7 @@ type FieldValidationResult =
 
 /** Render select options HTML */
 const renderSelectOptions = (
-  options: { value: string; label: string }[],
+  options: readonly { value: string; label: string }[],
   selectedValue: string,
 ): string =>
   options
@@ -78,7 +118,7 @@ const renderSelectOptions = (
 /** Render checkbox group HTML (multiple checkboxes with the same name) */
 const renderCheckboxGroup = (
   name: string,
-  options: { value: string; label: string }[],
+  options: readonly { value: string; label: string }[],
   selectedValues: Set<string>,
 ): string =>
   `<fieldset class="checkbox-group">${options
@@ -122,6 +162,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     return (
       <textarea
         autocomplete={field.autocomplete}
+        id={field.id}
         maxlength={field.maxlength}
         name={field.name}
         placeholder={field.placeholder}
@@ -134,7 +175,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "select" && field.options) {
     return (
       <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.id ?? field.name)}">${renderSelectOptions(field.options, value)}</select>`}
       />
     );
   }
@@ -161,6 +202,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     <input
       autocomplete={field.autocomplete}
       autofocus={field.autofocus}
+      id={field.id}
       inputmode={field.inputmode}
       max={field.max}
       maxlength={field.maxlength}
@@ -219,11 +261,13 @@ const parseFieldValue = (
   field: Field,
   trimmed: string,
 ): string | number | null =>
-  field.type === "number"
-    ? trimmed
-      ? Number.parseInt(trimmed, 10)
-      : null
-    : trimmed;
+  field.parse
+    ? field.parse(trimmed)
+    : field.type === "number"
+      ? trimmed
+        ? Number.parseInt(trimmed, 10)
+        : null
+      : trimmed;
 
 /**
  * Collect the raw trimmed value for a field from the form data.
@@ -308,6 +352,71 @@ export const validateForm = <T = FieldValues>(
   }
 
   return { valid: true, values: values as T };
+};
+
+const normalizeOptionalValue = (
+  field: Field,
+  value: string | number | null,
+): string | number | null => {
+  if (field.required) return value;
+  if (field.type === "number") return value;
+  return value === "" ? null : value;
+};
+
+/**
+ * Define a typed form schema that can render and validate from one source.
+ */
+export const defineForm = <
+  TFields extends FormFieldDefinitions,
+  TContext = undefined,
+>(config: {
+  id: string;
+  fields: TFields;
+  validate?: (
+    values: FormValuesFor<TFields>,
+    context: TContext,
+  ) => string | null;
+}): FormDefinition<TFields, TContext> => {
+  const fields = [...config.fields];
+  const fieldMap = new Map(fields.map((f) => [f.name, f] as const));
+
+  const validate = (
+    form: FormParams,
+    context?: TContext,
+  ): ValidationResult<FormValuesFor<TFields>> => {
+    const base = validateForm<Record<string, string | number | null>>(
+      form,
+      fields,
+    );
+    if (!base.valid) return base;
+
+    const values = Object.fromEntries(
+      fields.map((field) => [
+        field.name,
+        normalizeOptionalValue(field, base.values[field.name] ?? null),
+      ]),
+    ) as FormValuesFor<TFields>;
+
+    if (config.validate) {
+      const error = config.validate(values, context as TContext);
+      if (error) return { error, valid: false };
+    }
+    return { valid: true, values };
+  };
+
+  const render = (values: Partial<FormValuesFor<TFields>> = {}): string =>
+    renderFields(fields, values as FieldValues);
+
+  return {
+    field: (name) => ({
+      render: (value = "") => renderField(fieldMap.get(name)!, value),
+    }),
+    fields: config.fields,
+    id: config.id,
+    render,
+    renderFields: render,
+    validate,
+  };
 };
 
 /**
