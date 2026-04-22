@@ -6,6 +6,7 @@ import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import { createLinkEventForm } from "#lib/form-schemas.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import {
@@ -234,8 +235,9 @@ export const adminEditAttendeePage = (
   returnUrl?: string,
   success?: string,
   error?: string,
-): string =>
-  String(
+): string => {
+  const linkEventForm = createLinkEventForm(allEvents);
+  return String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} success={success} />
@@ -374,38 +376,11 @@ export const adminEditAttendeePage = (
       {/* Add Event Link Section */}
       <h3>Add to Event</h3>
       <CsrfForm action={`/admin/attendees/${attendee.id}/link`}>
-        <label for="add_event_id">
-          Event
-          <select id="add_event_id" name="event_id" required>
-            <option value="">Select event...</option>
-            {allEvents
-              .filter((e) => e.active)
-              .map((e) => (
-                <option data-event-type={e.event_type} value={String(e.id)}>
-                  {e.name}
-                </option>
-              ))}
-          </select>
-        </label>
-
-        <label for="add_quantity">
-          Quantity
-          <input
-            id="add_quantity"
-            min="1"
-            name="quantity"
-            required
-            type="number"
-            value="1"
-          />
-        </label>
-
-        <label class="daily-date-field" for="add_date" style="display:none">
-          Date
-          <select id="add_date" name="date">
-            <option value="">Select date...</option>
-          </select>
-        </label>
+        <Raw html={linkEventForm.field("event_id").render()} />
+        <Raw html={linkEventForm.field("quantity").render()} />
+        <div class="daily-date-field" style="display:none">
+          <Raw html={linkEventForm.field("date").render()} />
+        </div>
 
         <button type="submit">Add to Event</button>
       </CsrfForm>
@@ -440,6 +415,7 @@ export const adminEditAttendeePage = (
       </form>
     </Layout>,
   );
+};
 
 /** Source attendee data for the merge preview page */
 type MergeSourceInfo = {
