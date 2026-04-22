@@ -89,6 +89,20 @@ export const nonConflictAnswerLabel = (
 // Version hash
 // ---------------------------------------------------------------------------
 
+/** Join mapped values with commas */
+const joinMapped =
+  <T>(fn: (item: T) => string) =>
+  (items: T[]): string =>
+    map(fn)(items).join(",");
+
+const joinAnswerEntries = joinMapped(
+  (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
+);
+
+const joinBookingKeys = joinMapped((b: EventAttendeeRow) =>
+  bookingKey(b.event_id, b.start_at),
+);
+
 /** Compute a simple version string from diff inputs for stale-preview detection */
 const computeVersion = (
   targetId: number,
@@ -101,18 +115,10 @@ const computeVersion = (
   const parts = [
     `t:${targetId}`,
     `s:${sourceId}`,
-    `ta:${map(
-      (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
-    )([...targetAnswers.entries()]).join(",")}`,
-    `sa:${map(
-      (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
-    )([...sourceAnswers.entries()]).join(",")}`,
-    `tb:${map((b: EventAttendeeRow) => bookingKey(b.event_id, b.start_at))(
-      targetBookings,
-    ).join(",")}`,
-    `sb:${map((b: EventAttendeeRow) => bookingKey(b.event_id, b.start_at))(
-      sourceBookings,
-    ).join(",")}`,
+    `ta:${joinAnswerEntries([...targetAnswers.entries()])}`,
+    `sa:${joinAnswerEntries([...sourceAnswers.entries()])}`,
+    `tb:${joinBookingKeys(targetBookings)}`,
+    `sb:${joinBookingKeys(sourceBookings)}`,
   ];
   return parts.join("|");
 };

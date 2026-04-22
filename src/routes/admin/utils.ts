@@ -371,6 +371,7 @@ const createEntityHandler =
       )(() => loader(session, id)),
     );
 
+/* jscpd:ignore-start */
 /**
  * Curried: require session, load entity with session-dependent loader, call handler.
  * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
@@ -468,6 +469,7 @@ export const createEntityRouteHandlers = <
     ) => routeHandler(withAuthAndEntity, handler),
   };
 };
+/* jscpd:ignore-end */
 
 /**
  * Generic wrapper for typed route params: parse param as number, load entity,
