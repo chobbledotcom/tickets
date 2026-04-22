@@ -32,7 +32,7 @@ import {
   getAttendeesRaw,
   mockFormRequest,
   mockProviderType,
-  mockRequest,
+  mockRequest as _mockRequest,
   setupAdminTest,
   setupEventAndLogin,
   testCookie,

@@ -2,14 +2,14 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
-import { handleRequest } from "#routes";
+import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   describeWithEnv,
   expectFlash,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
+  mockFormRequest as _mockFormRequest,
+  testCookie as _testCookie,
+  testCsrfToken as _testCsrfToken,
   testRequiresAuth,
 } from "#test-utils";
 

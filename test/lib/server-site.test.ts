@@ -14,7 +14,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
-  mockRequest,
+  mockRequest as _mockRequest,
   testCookie,
   testRequiresAuth,
 } from "#test-utils";

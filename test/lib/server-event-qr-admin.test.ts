@@ -17,7 +17,7 @@ import {
   createTestEvent,
   describeWithEnv,
   mockFormRequest,
-  mockRequest,
+  mockRequest as _mockRequest,
   testCookie,
   testRequiresAuth,
 } from "#test-utils";

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { setDemoModeForTest } from "#lib/demo.ts";
-import { handleRequest } from "#routes";
+import { handleRequest as _handleRequest } from "#routes";
 import {
   awaitTestRequest,
   describeWithEnv,

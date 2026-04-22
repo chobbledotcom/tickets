@@ -30,7 +30,7 @@ import {
   followRedirectWithFlash,
   mockFormRequest,
   mockMultipartRequest,
-  mockRequest,
+  mockRequest as _mockRequest,
   setTestEnv,
   setupEventAndLogin,
   submitTicketForm,

@@ -18,7 +18,7 @@ import {
   flashCookieHeader,
   followRedirectWithFlash,
   mockFormRequest,
-  mockRequest,
+  mockRequest as _mockRequest,
   mockRequestWithHost,
   setTestEnv,
   setupEventAndLogin,

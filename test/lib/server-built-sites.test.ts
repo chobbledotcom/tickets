@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 
-import { handleRequest } from "#routes";
+import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
@@ -12,8 +12,8 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
-  mockFormRequest,
-  mockRequest,
+  mockFormRequest as _mockFormRequest,
+  mockRequest as _mockRequest,
   testBuiltSite,
   testRequiresAuth,
   updateTestBuiltSite,

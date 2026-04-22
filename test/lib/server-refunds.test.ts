@@ -17,7 +17,7 @@ import {
   expectRedirectWithFlash,
   mockFormRequest,
   mockProviderType,
-  mockRequest,
+  mockRequest as _mockRequest,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,

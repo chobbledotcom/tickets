@@ -15,7 +15,7 @@ import {
   expectHtmlResponse,
   mockFormRequest,
   testCookie,
-  testCsrfToken,
+  testCsrfToken as _testCsrfToken,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";

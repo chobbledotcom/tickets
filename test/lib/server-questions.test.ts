@@ -13,7 +13,7 @@ import {
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
-  mockRequest,
+  mockRequest as _mockRequest,
   testCookie,
   testCsrfToken,
   testRequiresAuth,

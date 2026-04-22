@@ -6,7 +6,7 @@ import { setDemoModeForTest } from "#lib/demo.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
-  adminFormPost,
+  adminFormPost as _adminFormPost,
   awaitTestRequest,
   describeWithEnv,
   expectFlash,

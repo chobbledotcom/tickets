@@ -15,8 +15,8 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   getTestSession,
-  mockFormRequest,
-  mockRequest,
+  mockFormRequest as _mockFormRequest,
+  mockRequest as _mockRequest,
   testRequiresAuth,
   withLocalStorageEnabled,
 } from "#test-utils";

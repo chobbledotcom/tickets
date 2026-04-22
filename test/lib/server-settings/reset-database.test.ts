@@ -3,7 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { eventsTable } from "#lib/db/events.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
-import { handleRequest } from "#routes";
+import { handleRequest as _handleRequest } from "#routes";
 import {
   adminFormPost,
   assertFormRedirect,
