@@ -415,8 +415,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("withEntityLoader returns handler response when entity exists", async () => {
       const { withEntityLoader } = await import("#routes/admin/utils.ts");
 
-      const response = await withEntityLoader(async (id: number) =>
-        id === 7 ? { id, name: "Loaded" } : null,
+      const response = await withEntityLoader((id: number) =>
+        Promise.resolve(id === 7 ? { id, name: "Loaded" } : null),
       )(7)((entity) => new Response(`entity:${entity.name}`));
 
       expect(response.status).toBe(200);
@@ -428,7 +428,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
       const response = await withEntityFromParam(
         "not-a-number",
-        async () => ({ id: 1 }),
+        () => Promise.resolve({ id: 1 }),
         () => new Response("ok"),
       );
 
@@ -439,10 +439,12 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const { withSessionAndEntity } = await import("#routes/admin/utils.ts");
       const cookie = await testCookie();
 
-      const response = await withSessionAndEntity(async (session, id) => ({
-        id,
-        userId: session.userId,
-      }))(
+      const response = await withSessionAndEntity((session, id) =>
+        Promise.resolve({
+          id,
+          userId: session.userId,
+        }),
+      )(
         mockRequest("/admin/attendees/1", { headers: { cookie } }),
         123,
       )((request, _session, entity) => {
@@ -459,9 +461,11 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const response = await withAuthAndEntity(async (_session, id) => ({
-        id,
-      }))(
+      const response = await withAuthAndEntity((_session, id) =>
+        Promise.resolve({
+          id,
+        }),
+      )(
         mockFormRequest(
           "/admin/attendees/1",
           { csrf_token: csrfToken, value: "ok" },
@@ -482,7 +486,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handlers = createEntityRouteHandlers(
-        async (_session, id) => ({ id }),
+        (_session, id) => Promise.resolve({ id }),
         (params: { attendeeId: number }) => params.attendeeId,
       );
 
@@ -513,9 +517,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
       const handler = createActionHandler({
         auth: "any" as const,
-        execute: async () => {
-          throw new Error("kaboom");
-        },
+        execute: () => Promise.reject(new Error("kaboom")),
         message: "unused",
         onError: (error) => new Response(`mapped:${error.message}`, { status: 418 }),
         successRedirect: "/admin/attendees/1",
