@@ -333,7 +333,7 @@ describe("e2e: full booking flow", () => {
         { confirm_identifier: RESTORE_CONFIRM_PHRASE },
         "Restore Database",
       );
-      expect(browser.containsText("Database restored successfully")).toBe(true);
+      expect(browser.containsText("Database restored from backup")).toBe(true);
       invalidateAllCaches();
 
       // 23. Log in again (restore wiped sessions)

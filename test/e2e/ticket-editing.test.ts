@@ -319,7 +319,7 @@ describe("e2e: ticket editing flow", () => {
       "Add to Event",
     );
     // Flash confirms Alice was added to Evening Seminar
-    expect(browser.containsText("Added to 'Evening Seminar'")).toBe(true);
+    expect(browser.containsText("Attendee linked to 'Evening Seminar'")).toBe(true);
     // Both events now appear in the Event Registrations table as links
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
@@ -329,7 +329,7 @@ describe("e2e: ticket editing flow", () => {
     //     (lower ID) appears first in the Event Registrations table.
     //     The first "Remove" form targets Morning Workshop.
     await browser.submitForm({}, "Remove");
-    expect(browser.containsText("Removed from Morning Workshop")).toBe(true);
+    expect(browser.containsText("Attendee unlinked from 'Morning Workshop'")).toBe(true);
 
     // 11. Navigate back to Morning Workshop and confirm Alice is no longer there.
     //     Then add Bob as the second attendee.
@@ -357,13 +357,13 @@ describe("e2e: ticket editing flow", () => {
       { event_id: eveningSeminarId!, quantity: "1" },
       "Add to Event",
     );
-    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
+    expect(browser.containsText("Attendee linked to 'Evening Seminar'")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
     // 14. Remove Bob from Morning Workshop (first "Remove" form = Morning Workshop)
     await browser.submitForm({}, "Remove");
-    expect(browser.containsText("Removed from Morning Workshop")).toBe(true);
+    expect(browser.containsText("Attendee unlinked from 'Morning Workshop'")).toBe(true);
 
     // 15. Verify Morning Workshop is now empty — neither Alice nor Bob appear
     await browser.visit("/admin/");
