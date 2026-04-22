@@ -510,8 +510,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
           cookie,
         ),
         88,
-      )((_session, form, entity) =>
-        new Response(`${entity.id}:${form.getString("value")}`),
+      )(
+        (_session, form, entity) =>
+          new Response(`${entity.id}:${form.getString("value")}`),
       );
 
       expect(response.status).toBe(200);
@@ -519,7 +520,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createEntityRouteHandlers wires GET and POST flows", async () => {
-      const { createEntityRouteHandlers } = await import("#routes/admin/utils.ts");
+      const { createEntityRouteHandlers } = await import(
+        "#routes/admin/utils.ts"
+      );
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -528,15 +531,16 @@ describeWithEnv("server (misc)", { db: true }, () => {
         (params: { attendeeId: number }) => params.attendeeId,
       );
 
-      const getResponse = await handlers.get((_request, _session, entity) =>
-        new Response(`get:${entity.id}`),
+      const getResponse = await handlers.get(
+        (_request, _session, entity) => new Response(`get:${entity.id}`),
       )(mockRequest("/admin/attendees/15", { headers: { cookie } }), {
         attendeeId: 15,
       });
       expect(await getResponse.text()).toBe("get:15");
 
-      const postResponse = await handlers.post((_session, form, entity) =>
-        new Response(`post:${entity.id}:${form.getString("name")}`),
+      const postResponse = await handlers.post(
+        (_session, form, entity) =>
+          new Response(`post:${entity.id}:${form.getString("name")}`),
       )(
         mockFormRequest(
           "/admin/attendees/16",
@@ -557,12 +561,17 @@ describeWithEnv("server (misc)", { db: true }, () => {
         auth: "any" as const,
         execute: () => Promise.reject(new Error("kaboom")),
         message: "unused",
-        onError: (error) => new Response(`mapped:${error.message}`, { status: 418 }),
+        onError: (error) =>
+          new Response(`mapped:${error.message}`, { status: 418 }),
         successRedirect: "/admin/attendees/1",
       });
 
       const response = await handler(
-        mockFormRequest("/admin/attendees/1", { csrf_token: csrfToken }, cookie),
+        mockFormRequest(
+          "/admin/attendees/1",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
       );
 
       expect(response.status).toBe(418);

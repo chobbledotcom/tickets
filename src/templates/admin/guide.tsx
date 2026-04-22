@@ -956,8 +956,8 @@ export const adminGuidePage = (
             Yes. Refunds reverse the full charge taken from the attendee,
             including any booking fee that was added at checkout. Your payment
             provider's own processing fee is a separate matter &mdash; Stripe
-            and Square each have their own policy on whether processing fees
-            are returned on a refund, so check your provider for details.
+            and Square each have their own policy on whether processing fees are
+            returned on a refund, so check your provider for details.
           </p>
         </Q>
 
