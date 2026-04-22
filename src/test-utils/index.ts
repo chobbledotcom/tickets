@@ -687,8 +687,7 @@ export const hasCheckedInput = (
 export const hasSelectedOption = (html: string, value: string): boolean => {
   const tags = html.match(/<option\b[^>]*>/gi) ?? [];
   return tags.some(
-    (t) =>
-      t.includes(`value="${value}"`) && /\bselected(?=[\s/>])/.test(t),
+    (t) => t.includes(`value="${value}"`) && /\bselected(?=[\s/>])/.test(t),
   );
 };
 
