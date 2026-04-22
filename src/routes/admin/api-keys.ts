@@ -14,15 +14,15 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import { createConfirmedHandlers } from "#routes/admin/utils.ts";
+import {
+  createActionHandler,
+  createConfirmedHandlers,
+} from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
   htmlResponse,
-  OWNER_FORM,
-  redirect,
   requireOwnerOr,
-  withAuth,
 } from "#routes/utils.ts";
 import {
   adminApiDocsPage,
@@ -55,41 +55,46 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
 /**
  * Handle POST /admin/api-keys (create new API key)
  */
-const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> = (
-  request,
-) =>
-  withAuth(request, OWNER_FORM, async (session, form) => {
-    const name = form.getString("name");
-    if (!name) {
-      return redirect("/admin/api-keys", "Name is required", false);
-    }
-    if (name.length > 100) {
-      return redirect(
-        "/admin/api-keys",
-        "Name must be under 100 characters",
-        false,
+const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
+  createActionHandler({
+    auth: "owner",
+    execute: async (session, form) => {
+      const name = form.getString("name");
+      if (!name) {
+        throw new Error("Name is required");
+      }
+      if (name.length > 100) {
+        throw new Error("Name must be under 100 characters");
+      }
+
+      if (!session.wrappedDataKey) {
+        throw new Error("Session key unavailable");
+      }
+
+      // Unwrap the DATA_KEY from the current session
+      const dataKey = await unwrapKeyWithToken(
+        session.wrappedDataKey,
+        session.token,
       );
-    }
 
-    if (!session.wrappedDataKey) {
-      return redirect("/admin/api-keys", "Session key unavailable", false);
-    }
+      const { apiKey } = await createApiKey(
+        session.userId,
+        name,
+        dataKey,
+        generateSecureToken,
+      );
 
-    // Unwrap the DATA_KEY from the current session
-    const dataKey = await unwrapKeyWithToken(
-      session.wrappedDataKey,
-      session.token,
-    );
-
-    const { apiKey } = await createApiKey(
-      session.userId,
-      name,
-      dataKey,
-      generateSecureToken,
-    );
-
-    // Embed the key in the flash message (after a newline) so it's not exposed in the URL
-    return redirect("/admin/api-keys", `API key created\n${apiKey}`, true);
+      (session as Record<string, unknown>).createdApiKey = apiKey;
+    },
+    message: (session) => {
+      const apiKey = (session as Record<string, unknown>).createdApiKey as
+        | string
+        | undefined;
+      return `API key created${apiKey ? `\n${apiKey}` : ""}`;
+    },
+    successRedirect: "/admin/api-keys",
+    redactedSecret: (session) =>
+      (session as Record<string, unknown>).createdApiKey as string | undefined,
   });
 
 /** Confirmed-delete handlers for API keys */

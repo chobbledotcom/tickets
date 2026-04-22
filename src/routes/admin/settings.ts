@@ -60,11 +60,13 @@ import {
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
 import type { FormParams } from "#lib/form-data.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
+import { fail, ok } from "#lib/response.ts";
 import { testSquareConnection } from "#lib/square.ts";
 import {
   deleteAllEventStorageFiles,
@@ -95,14 +97,11 @@ import {
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
-  applyFlash,
   errorRedirect,
-  htmlResponse,
   jsonResponse,
   OWNER_FORM,
   OWNER_MULTIPART,
-  redirect,
-  requireOwnerOr,
+  ownerPage,
   withAuth,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
@@ -226,32 +225,24 @@ export { processSecretField } from "#routes/admin/settings-helpers.ts";
 /**
  * Handle GET /admin/settings - owner only
  */
-const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
-  request,
-) =>
-  requireOwnerOr(request, async (session) => {
-    applyFlash(request);
-    return htmlResponse(await renderSettingsPage(session));
-  });
+const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> =
+  ownerPage((session) => renderSettingsPage(session));
 
 /**
  * Handle GET /admin/settings-advanced - owner only
  */
 const handleAdminSettingsAdvancedGet: TypedRouteHandler<
   "GET /admin/settings-advanced"
-> = (request) =>
-  requireOwnerOr(request, async (session) => {
-    const flash = applyFlash(request);
-    const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
-      flash.result?.split("\n") ?? [];
-    return htmlResponse(
-      await renderAdvancedSettingsPage(
-        session,
-        subdomainPreview,
-        subdomainPreviewFullDomain,
-      ),
-    );
-  });
+> = ownerPage(async (session) => {
+  const flash = getFlash();
+  const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
+    flash.result?.split("\n") ?? [];
+  return await renderAdvancedSettingsPage(
+    session,
+    subdomainPreview,
+    subdomainPreviewFullDomain,
+  );
+});
 
 /**
  * Validate change password form data
@@ -327,7 +318,7 @@ const handleAdminSettingsPost = settingsRoute(
     }
 
     await logActivity("Password changed");
-    return redirect("/admin", "Password changed — please log in again", true, {
+    return ok("/admin", "Password changed — please log in again", {
       cookie: clearSessionCookie(),
     });
   },
@@ -369,7 +360,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   const field = processSecretField(form, "stripe_secret_key");
 
   if (field.action === "unchanged") {
-    return redirect("/admin/settings", "Stripe settings unchanged", true, {
+    return ok("/admin/settings", "Stripe settings unchanged", {
       formId: "settings-stripe",
     });
   }
@@ -378,7 +369,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     if (!settings.stripe.hasKey) {
       return errorPage("Stripe Secret Key is required", 400, "settings-stripe");
     }
-    return redirect("/admin/settings", "Stripe settings unchanged", true, {
+    return ok("/admin/settings", "Stripe settings unchanged", {
       formId: "settings-stripe",
     });
   }
@@ -411,10 +402,9 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   await settings.update.paymentProvider("stripe");
 
   await logActivity("Stripe key configured");
-  return redirect(
+  return ok(
     "/admin/settings",
     "Stripe key updated and webhook configured successfully",
-    true,
     { formId: "settings-stripe" },
   );
 });
@@ -626,7 +616,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     if (uploadResult.status === "fulfilled") {
       await settings.update.headerImageUrl(uploadResult.value);
       await logActivity("Header image uploaded");
-      return redirect("/admin/settings", "Header image uploaded", true, {
+      return ok("/admin/settings", "Header image uploaded", {
         formId: "settings-header-image",
       });
     }
@@ -634,7 +624,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
       uploadResult.reason,
     )}`;
     logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
-    return redirect("/admin/settings", "Header image upload failed", false, {
+    return fail("/admin/settings", "Header image upload failed", {
       formId: "settings-header-image",
     });
   });
@@ -655,7 +645,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   if (deleteResult.status === "fulfilled") {
     await settings.update.headerImageUrl("");
     await logActivity("Header image removed");
-    return redirect("/admin/settings", "Header image removed", true, {
+    return ok("/admin/settings", "Header image removed", {
       formId: "settings-header-image-delete",
     });
   }
@@ -663,7 +653,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
     deleteResult.reason,
   )}`;
   logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
-  return redirect("/admin/settings", "Header image removal failed", false, {
+  return fail("/admin/settings", "Header image removal failed", {
     formId: "settings-header-image-delete",
   });
 });
@@ -732,12 +722,9 @@ const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
       "settings-email-test",
     );
   }
-  return redirect(
-    "/admin/settings-advanced",
-    `Test email sent (status ${status})`,
-    true,
-    { formId: "settings-email-test" },
-  );
+  return ok("/admin/settings-advanced", `Test email sent (status ${status})`, {
+    formId: "settings-email-test",
+  });
 });
 
 /** Valid template types for form submissions — derived from the EmailTemplateType union */
@@ -905,12 +892,9 @@ const handleCustomDomainPost = advancedSettingsRoute(
     if (raw === "") {
       await settings.update.customDomain("");
       await logActivity("Custom domain cleared");
-      return redirect(
-        "/admin/settings-advanced",
-        "Custom domain cleared",
-        true,
-        { formId: "settings-custom-domain" },
-      );
+      return ok("/admin/settings-advanced", "Custom domain cleared", {
+        formId: "settings-custom-domain",
+      });
     }
 
     // Basic domain validation: must look like a hostname
@@ -929,18 +913,14 @@ const handleCustomDomainPost = advancedSettingsRoute(
         if (result.ok) {
           await settings.update.customDomainLastValidated();
           await logActivity(`Custom domain validated: ${raw}`);
-          return redirect(
-            "/admin/settings-advanced",
-            "Custom domain saved and validated",
-            true,
-            { formId: "settings-custom-domain" },
-          );
+          return ok("/admin/settings-advanced", "Custom domain saved and validated", {
+            formId: "settings-custom-domain",
+          });
         }
 
-        return redirect(
+        return fail(
           "/admin/settings-advanced",
           `Custom domain saved but validation failed: ${result.error}`,
-          false,
           { formId: "settings-custom-domain" },
         );
       },
@@ -987,12 +967,9 @@ const handleCustomDomainValidatePost = advancedSettingsRoute(
 
         await settings.update.customDomainLastValidated();
         await logActivity(`Custom domain validated: ${customDomain}`);
-        return redirect(
-          "/admin/settings-advanced",
-          "Custom domain validated successfully",
-          true,
-          { formId: "settings-custom-domain-validate" },
-        );
+        return ok("/admin/settings-advanced", "Custom domain validated successfully", {
+          formId: "settings-custom-domain-validate",
+        });
       },
     );
 
@@ -1046,15 +1023,10 @@ const handleHostSubdomainPost = advancedSettingsRoute(
           FORM_ID_HOST_SUBDOMAIN,
         );
       }
-      return redirect(
-        "/admin/settings-advanced",
-        `${check.fullDomain} is available`,
-        true,
-        {
-          formId: FORM_ID_HOST_SUBDOMAIN,
-          result: `${raw}\n${check.fullDomain}`,
-        },
-      );
+      return ok("/admin/settings-advanced", `${check.fullDomain} is available`, {
+        formId: FORM_ID_HOST_SUBDOMAIN,
+        result: `${raw}\n${check.fullDomain}`,
+      });
     }
 
     // Save: actually register (guarded by current_task)
@@ -1068,12 +1040,9 @@ const handleHostSubdomainPost = advancedSettingsRoute(
 
         await settings.update.bunnySubdomain(result.fullDomain);
         await logActivity(`Host subdomain set to ${result.fullDomain}`);
-        return redirect(
-          "/admin/settings-advanced",
-          `Subdomain registered: ${result.fullDomain}`,
-          true,
-          { formId: FORM_ID_HOST_SUBDOMAIN },
-        );
+        return ok("/admin/settings-advanced", `Subdomain registered: ${result.fullDomain}`, {
+          formId: FORM_ID_HOST_SUBDOMAIN,
+        });
       },
     );
 
@@ -1252,7 +1221,7 @@ const handleResetDatabasePost = advancedSettingsRoute(
     await resetDatabase();
 
     // Redirect to setup page since the database is now empty
-    return redirect("/setup/", "Database reset", true, {
+    return ok("/setup/", "Database reset", {
       cookie: clearSessionCookie(),
     });
   },

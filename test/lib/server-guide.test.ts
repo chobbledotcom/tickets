@@ -7,18 +7,15 @@ import {
   adminGet,
   assertAdminHtml,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
   mockRequest,
   setTestEnv,
+  testRequiresAuth,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
   describe("GET /admin/guide", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/guide"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/guide");
 
     test("renders guide page when authenticated", async () => {
       const { response } = await adminGet("/admin/guide");

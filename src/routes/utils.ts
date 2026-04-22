@@ -586,6 +586,29 @@ export const requireOwnerOr = (
   handler: SessionHandler,
 ): Promise<Response> => requireSessionOr(request, handler, "owner");
 
+/** Factory for creating authenticated page handlers */
+export const authPage =
+  (
+    requireSession: (
+      request: Request,
+      handler: SessionHandler,
+    ) => Promise<Response>,
+  ) =>
+  (
+    render: (session: AuthSession) => string | Promise<string>,
+  ): ((request: Request) => Promise<Response>) =>
+  (request) =>
+    requireSession(request, async (session) => {
+      applyFlash(request);
+      return htmlResponse(await render(session));
+    });
+
+/** Owner-only GET page: authenticate, apply flash, render HTML */
+export const ownerPage = authPage(requireOwnerOr);
+
+/** Authenticated GET page: authenticate, apply flash, render HTML */
+export const sessionPage = authPage(requireSessionOr);
+
 /** CSRF form result type */
 export type CsrfFormResult =
   | { ok: true; form: FormParams }

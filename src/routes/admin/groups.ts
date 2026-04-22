@@ -34,11 +34,11 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   AUTH_FORM,
   htmlResponse,
-  orNotFound,
   redirect,
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
+import { withEntity } from "./utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -148,7 +148,7 @@ const crud = createCrudHandlers({
 export const withGroup = (
   id: number,
   handler: (group: Group) => Response | Promise<Response>,
-): Promise<Response> => orNotFound(groupsTable.findById(id), handler);
+): Promise<Response> => withEntity(() => groupsTable.findById(id), handler);
 
 /**
  * POST handler factory: CSRF-validated form + loaded group.

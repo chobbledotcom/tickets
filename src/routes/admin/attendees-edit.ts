@@ -27,14 +27,13 @@ import type { FormParams } from "#lib/form-data.ts";
 /* jscpd:ignore-end */
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey } from "#routes/admin/utils.ts";
+import { requirePrivateKey, withEntity } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   type AuthSession,
   applyFlash,
   errorRedirect,
   htmlResponse,
-  orNotFound,
   redirect,
   requireSessionOr,
   withAuth,
@@ -141,7 +140,7 @@ const withEditAttendee = (
   attendeeId: number,
   handler: (data: EditAttendeeData) => Response | Promise<Response>,
 ): Promise<Response> =>
-  orNotFound(loadAttendeeForEdit(session, attendeeId), handler);
+  withEntity(() => loadAttendeeForEdit(session, attendeeId), handler);
 
 /** Handle GET /admin/attendees/:attendeeId */
 export const handleEditAttendeeGet = (

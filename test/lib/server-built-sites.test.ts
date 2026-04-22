@@ -8,7 +8,6 @@ import {
   createTestBuiltSite,
   deleteTestBuiltSite,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -16,15 +15,13 @@ import {
   mockFormRequest,
   mockRequest,
   testBuiltSite,
+  testRequiresAuth,
   updateTestBuiltSite,
 } from "#test-utils";
 
 describeWithEnv("server (admin built sites)", { db: true }, () => {
   describe("GET /admin/built-sites", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/built-sites"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/built-sites");
 
     test("shows empty built sites list", async () => {
       const { response } = await adminGet("/admin/built-sites");
@@ -113,12 +110,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("GET /admin/built-sites/new", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockRequest("/admin/built-sites/new"),
-      );
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/built-sites/new");
 
     test("shows create built site form", async () => {
       const { response } = await adminGet("/admin/built-sites/new");
@@ -136,14 +128,12 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("POST /admin/built-sites", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/built-sites", {
-          bunny_url: "https://test.b-cdn.net",
-          name: "Test",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/built-sites", {
+      method: "POST",
+      body: {
+        bunny_url: "https://test.b-cdn.net",
+        name: "Test",
+      },
     });
 
     test("creates built site and redirects", async () => {
@@ -194,12 +184,10 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("GET /admin/built-sites/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      const site = await createTestBuiltSite();
-      const response = await handleRequest(
-        mockRequest(`/admin/built-sites/${site.id}/edit`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/built-sites/1/edit", {
+      setup: async () => {
+        await createTestBuiltSite();
+      },
     });
 
     test("shows edit form with pre-filled values", async () => {
@@ -226,15 +214,15 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("POST /admin/built-sites/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      const site = await createTestBuiltSite();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/built-sites/${site.id}/edit`, {
-          bunny_url: "https://updated.b-cdn.net",
-          name: "Updated",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/built-sites/1/edit", {
+      method: "POST",
+      body: {
+        bunny_url: "https://updated.b-cdn.net",
+        name: "Updated",
+      },
+      setup: async () => {
+        await createTestBuiltSite();
+      },
     });
 
     test("updates built site", async () => {
@@ -283,12 +271,10 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("GET /admin/built-sites/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const site = await createTestBuiltSite();
-      const response = await handleRequest(
-        mockRequest(`/admin/built-sites/${site.id}/delete`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/built-sites/1/delete", {
+      setup: async () => {
+        await createTestBuiltSite();
+      },
     });
 
     test("shows delete confirmation page", async () => {
@@ -312,14 +298,14 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("POST /admin/built-sites/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const site = await createTestBuiltSite();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/built-sites/${site.id}/delete`, {
-          confirm_identifier: "Test Site",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/built-sites/1/delete", {
+      method: "POST",
+      body: {
+        confirm_identifier: "Test Site",
+      },
+      setup: async () => {
+        await createTestBuiltSite();
+      },
     });
 
     test("deletes built site with correct name confirmation", async () => {

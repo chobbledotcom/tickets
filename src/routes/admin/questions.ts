@@ -34,6 +34,7 @@ import {
   OWNER_FORM,
   ownerFormById,
   ownerGetById,
+  ownerPage,
   redirect,
   requireOwnerOr,
   withAuth,
@@ -58,17 +59,14 @@ const requireTextOrError = (
 };
 
 /** Handle GET /admin/questions */
-const handleQuestionsGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
-    const flash = getFlash();
-    return htmlResponse(
-      adminQuestionsPage(
-        await getAllQuestionsWithAnswers(),
-        session,
-        flash.error,
-      ),
-    );
-  });
+const handleQuestionsGet = ownerPage(async (session) => {
+  const flash = getFlash();
+  return adminQuestionsPage(
+    await getAllQuestionsWithAnswers(),
+    session,
+    flash.error,
+  );
+});
 
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request) =>

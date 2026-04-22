@@ -7,7 +7,7 @@
  */
 
 import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
+
 import {
   countZipStatements,
   createAndUploadBackup,
@@ -24,12 +24,14 @@ import {
   listFiles,
   uploadRaw,
 } from "#lib/storage.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import {
+  createActionHandler,
+  verifyOrRedirect,
+} from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
   htmlResponse,
-  OWNER_FORM,
   OWNER_MULTIPART,
   redirect,
   requireOwnerOr,
@@ -91,14 +93,14 @@ const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = (request) =>
   });
 
 /** POST /admin/backup/create — create a new backup */
-const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> = (
-  request,
-) =>
-  withAuth(request, OWNER_FORM, async () => {
-    await createAndUploadBackup();
-
-    await logActivity("Database backup created");
-    return redirect("/admin/backup", "Backup created successfully", true);
+const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
+  createActionHandler({
+    auth: "owner",
+    execute: async () => {
+      await createAndUploadBackup();
+    },
+    message: "Database backup created",
+    successRedirect: "/admin/backup",
   });
 
 /** GET /admin/backup/download/:filename — download a backup file */
@@ -171,15 +173,16 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
 /** POST /admin/backup/restore/confirm — execute the restore after confirmation */
 const handleBackupRestoreConfirm: TypedRouteHandler<
   "POST /admin/backup/restore/confirm"
-> = (request) =>
-  withAuth(request, OWNER_FORM, async (_session, form) => {
+> = createActionHandler({
+  auth: "owner",
+  execute: async (_session, form) => {
     const filename = form.getString("backup_filename");
     if (
       !filename ||
       !filename.startsWith(RESTORE_PENDING_PREFIX) ||
       !filename.endsWith(".zip")
     ) {
-      return redirect("/admin/backup", "Invalid backup reference", false);
+      throw new Error("Invalid backup reference");
     }
 
     const error = verifyOrRedirect(
@@ -189,15 +192,11 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
       "Confirmation phrase",
       "restore",
     );
-    if (error) return error;
+    if (error) throw new Error("Confirmation phrase does not match");
 
     const data = await downloadRaw(filename);
     if (!data) {
-      return redirect(
-        "/admin/backup",
-        "Backup file expired or not found. Please upload again.",
-        false,
-      );
+      throw new Error("Backup file expired or not found. Please upload again.");
     }
 
     try {
@@ -206,10 +205,10 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
       // Clean up the temp file whether restore succeeds or fails
       await deleteFile(filename).catch(() => {});
     }
-
-    await logActivity("Database restored from backup");
-    return redirect("/admin/backup", "Database restored successfully", true);
-  });
+  },
+  message: "Database restored from backup",
+  successRedirect: "/admin/backup",
+});
 
 /** Backup routes */
 export const backupRoutes = defineRoutes({

@@ -7,10 +7,9 @@ import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  htmlResponse,
   OWNER_FORM,
+  ownerPage,
   redirect,
-  requireOwnerOr,
   withAuth,
 } from "#routes/utils.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
@@ -19,11 +18,12 @@ import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 export const MAX_SEED_EVENTS = 30;
 
 /** Handle GET /admin/seeds (show seed form) */
-const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
-  requireOwnerOr(request, (session) => {
+const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = ownerPage(
+  (session) => {
     const flash = getFlash();
-    return htmlResponse(adminSeedsPage(session, flash.error, flash.success));
-  });
+    return adminSeedsPage(session, flash.error, flash.success);
+  },
+);
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>

@@ -7,7 +7,6 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
-  expectAdminRedirect,
   expectRedirectWithFlash,
   generateTestCerts,
   getHeader,
@@ -15,6 +14,7 @@ import {
   setTestEnv,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
 } from "#test-utils";
 
 /** Reuse cached certs for all wallet configuration */
@@ -261,13 +261,11 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
 });
 
 describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
-  test("redirects to login when not authenticated", async () => {
-    const response = await handleRequest(
-      mockFormRequest("/admin/settings/apple-wallet", {
-        apple_wallet_pass_type_id: "pass.com.test",
-      }),
-    );
-    expectAdminRedirect(response);
+  testRequiresAuth("/admin/settings/apple-wallet", {
+    method: "POST",
+    body: {
+      apple_wallet_pass_type_id: "pass.com.test",
+    },
   });
 
   test("requires Pass Type ID", async () => {

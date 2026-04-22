@@ -8,6 +8,7 @@ import { markRefunded } from "#lib/db/attendees.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
+import { fail, ok } from "#lib/response.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   verifyOrRedirect,
@@ -21,7 +22,6 @@ import {
   applyFlash,
   errorRedirect,
   htmlResponse,
-  redirect,
   withAuth,
 } from "#routes/utils.ts";
 import {
@@ -108,7 +108,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       `Refund issued for attendee '${data.attendee.name}'`,
       eventId,
     );
-    return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
+    return ok(`/admin/event/${eventId}`, "Refund issued");
   },
 );
 
@@ -220,7 +220,7 @@ const buildRefundProblemResponse = async (
     `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${event.name}'`,
     event.id,
   );
-  return errorRedirect(refundAllUrl, msg);
+  return fail(refundAllUrl, msg);
 };
 
 /** Build the final response for a bulk refund based on tallied results. */
@@ -245,10 +245,9 @@ const buildRefundAllResponse = async (
       `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${event.name}'`,
       event.id,
     );
-    return redirect(
+    return ok(
       refundAllUrl,
       `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
-      true,
     );
   }
 
@@ -256,7 +255,7 @@ const buildRefundAllResponse = async (
     `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
     event.id,
   );
-  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+  return ok(`/admin/event/${event.id}`, "All attendees refunded");
 };
 
 /** Process bulk refund for all refundable attendees */
@@ -272,12 +271,12 @@ const processRefundAll = async (
   if (error) return error;
 
   if (refundable.length === 0) {
-    return errorRedirect(refundAllUrl, NO_REFUNDABLE_ERROR);
+    return fail(refundAllUrl, NO_REFUNDABLE_ERROR);
   }
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    return errorRedirect(refundAllUrl, NO_PROVIDER_ERROR);
+    return fail(refundAllUrl, NO_PROVIDER_ERROR);
   }
 
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);

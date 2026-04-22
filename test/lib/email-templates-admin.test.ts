@@ -7,12 +7,12 @@ import {
   assertJson,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   mockFormRequest,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
   useSetting,
 } from "#test-utils";
 
@@ -126,13 +126,11 @@ describeWithEnv("admin email templates", { db: true }, () => {
   });
 
   describe("POST /admin/settings/email-templates/confirmation", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation", {
-          subject: "test",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/email-templates/confirmation", {
+      method: "POST",
+      body: {
+        subject: "test",
+      },
     });
 
     test("saves custom confirmation template", async () => {

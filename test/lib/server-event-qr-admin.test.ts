@@ -19,6 +19,7 @@ import {
   mockFormRequest,
   mockRequest,
   testCookie,
+  testRequiresAuth,
 } from "#test-utils";
 
 /** Extract the ?t= token from a generated QR booking link */
@@ -29,13 +30,10 @@ const extractToken = (html: string): string | null => {
 
 describeWithEnv("admin event-qr route", { db: true }, () => {
   describe("GET /admin/event/:id/qr", () => {
-    test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await handleRequest(
-        mockRequest(`/admin/event/${event.id}/qr`),
-      );
-      expect(response.status).toBe(302);
-      response.body?.cancel();
+    testRequiresAuth("/admin/event/1/qr", {
+      setup: async () => {
+        await createTestEvent({ maxAttendees: 10 });
+      },
     });
 
     test("returns 404 when the event does not exist", async () => {
@@ -219,13 +217,10 @@ describeWithEnv("admin event-qr route", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/qr.json (client-side refresh)", () => {
-    test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await handleRequest(
-        mockRequest(`/admin/event/${event.id}/qr.json?quantity=1`),
-      );
-      expect(response.status).toBe(302);
-      response.body?.cancel();
+    testRequiresAuth("/admin/event/1/qr.json?quantity=1", {
+      setup: async () => {
+        await createTestEvent({ maxAttendees: 10 });
+      },
     });
 
     test("returns 404 when the event does not exist", async () => {

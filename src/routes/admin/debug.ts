@@ -22,7 +22,7 @@ import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#lib/limits.ts";
 import { getStorageBackend } from "#lib/storage.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { htmlResponse, requireOwnerOr } from "#routes/utils.ts";
+import { ownerPage } from "#routes/utils.ts";
 import {
   adminDebugPage,
   type DebugPageState,
@@ -181,11 +181,12 @@ const formatLastPruned = (raw: string): string =>
 /**
  * Handle GET /admin/debug - owner only
  */
-const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = (request) =>
-  requireOwnerOr(request, async (session) => {
+const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = ownerPage(
+  async (session) => {
     const state = await getDebugPageState();
-    return htmlResponse(adminDebugPage(session, state));
-  });
+    return adminDebugPage(session, state);
+  },
+);
 
 /** Debug routes */
 export const debugRoutes = defineRoutes({

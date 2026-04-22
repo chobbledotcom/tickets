@@ -19,7 +19,6 @@ import {
   awaitTestRequest,
   createTestEvent,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -34,6 +33,7 @@ import {
   TEST_ADMIN_PASSWORD,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
   withFetchMock,
   withMocks,
 } from "#test-utils";
@@ -44,10 +44,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("GET /admin/settings", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/settings"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/settings");
 
     test("shows settings page when authenticated", async () => {
       const response = await awaitTestRequest("/admin/settings", {
@@ -130,15 +127,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings", {
-          current_password: "test",
-          new_password: "newpassword123",
-          new_password_confirm: "newpassword123",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings", {
+      method: "POST",
+      body: {
+        current_password: "test",
+        new_password: "newpassword123",
+        new_password_confirm: "newpassword123",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -262,13 +257,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/stripe", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_123",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/stripe", {
+      method: "POST",
+      body: {
+        stripe_secret_key: "sk_test_123",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -450,11 +443,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/stripe/test", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/stripe/test", {}),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/stripe/test", {
+      method: "POST",
+      body: {},
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -600,14 +591,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/square", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/square", {
-          square_access_token: "EAAAl_test_123",
-          square_location_id: "L_test_123",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/square", {
+      method: "POST",
+      body: {
+        square_access_token: "EAAAl_test_123",
+        square_location_id: "L_test_123",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -686,13 +675,33 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/square-webhook", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/square-webhook", {
-          square_webhook_signature_key: "sig_key_test",
-        }),
+    testRequiresAuth("/admin/settings/square-webhook", {
+      method: "POST",
+      body: {
+        square_webhook_signature_key: "sig_key_test",
+      },
+    });
+
+    test("rejects missing webhook signature key", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/square-webhook",
+        { square_webhook_signature_key: "" },
       );
-      expectAdminRedirect(response);
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
+    });
+
+    test("updates Square webhook key successfully", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/square-webhook",
+        { square_webhook_signature_key: "sig_key_new" },
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Square webhook signature key updated"),
+      );
     });
 
     test("rejects missing webhook signature key", async () => {
@@ -719,11 +728,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/square/test", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/square/test", {}),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/square/test", {
+      method: "POST",
+      body: {},
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -842,13 +849,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
   });
   describe("POST /admin/settings/payment-provider", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/payment-provider", {
-          payment_provider: "stripe",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/payment-provider", {
+      method: "POST",
+      body: {
+        payment_provider: "stripe",
+      },
+    });
     });
 
     test("sets payment provider to stripe", async () => {
@@ -938,13 +944,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/terms", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/terms", {
-          terms_and_conditions: "You must agree to our policy.",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/terms", {
+      method: "POST",
+      body: {
+        terms_and_conditions: "You must agree to our policy.",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1081,13 +1085,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
   });
   describe("POST /admin/settings/business-email", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/business-email", {
-          business_email: "contact@example.com",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/business-email", {
+      method: "POST",
+      body: {
+        business_email: "contact@example.com",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1338,13 +1340,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/theme", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/theme", {
-          theme: "dark",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/theme", {
+      method: "POST",
+      body: {
+        theme: "dark",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1470,13 +1470,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/show-public-site", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/show-public-site", {
-          show_public_site: "true",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/show-public-site", {
+      method: "POST",
+      body: {
+        show_public_site: "true",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1559,13 +1557,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
   });
   describe("POST /admin/settings/country", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/country", {
-          country: "US",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/country", {
+      method: "POST",
+      body: {
+        country: "US",
+      },
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1681,13 +1677,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
   });
   describe("POST /admin/settings/booking-fee", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/booking-fee", {
-          booking_fee: "1.5",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/booking-fee", {
+      method: "POST",
+      body: {
+        booking_fee: "1.5",
+      },
     });
 
     test("saves valid booking fee", async () => {

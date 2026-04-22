@@ -8,7 +8,6 @@ import {
   createTestEvent,
   createTestManagerSession,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -17,6 +16,7 @@ import {
   mockRequest,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
 } from "#test-utils";
 
 /** Helper: create a question via the admin form */
@@ -50,10 +50,7 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("GET /admin/questions", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/questions"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/questions");
 
     test("returns 403 for non-owner", async () => {
       const response = await awaitTestRequest("/admin/questions", {
@@ -75,11 +72,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/questions", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/questions", { text: "Test?" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions", {
+      method: "POST",
+      body: { text: "Test?" },
     });
 
     test("creates question and redirects", async () => {
@@ -113,12 +108,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("GET /admin/questions/:id", () => {
-    test("redirects to login when not authenticated", async () => {
-      const id = await createQuestion("Detail question?");
-      const response = await handleRequest(
-        mockRequest(`/admin/questions/${id}`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1", {
+      setup: async () => {
+        await createQuestion("Detail question?");
+      },
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -142,12 +135,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/questions/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      const id = await createQuestion("Edit me");
-      const response = await handleRequest(
-        mockFormRequest(`/admin/questions/${id}/edit`, { text: "Edited" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1/edit", {
+      method: "POST",
+      body: { text: "Edited" },
+      setup: async () => {
+        await createQuestion("Edit me");
+      },
     });
 
     test("updates question text", async () => {
@@ -201,12 +194,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/questions/:id/answers", () => {
-    test("redirects to login when not authenticated", async () => {
-      const id = await createQuestion("Answer me");
-      const response = await handleRequest(
-        mockFormRequest(`/admin/questions/${id}/answers`, { text: "Yes" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1/answers", {
+      method: "POST",
+      body: { text: "Yes" },
+      setup: async () => {
+        await createQuestion("Answer me");
+      },
     });
 
     test("adds answer and redirects", async () => {
@@ -259,12 +252,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("GET /admin/questions/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const id = await createQuestion("Delete me");
-      const response = await handleRequest(
-        mockRequest(`/admin/questions/${id}/delete`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1/delete", {
+      setup: async () => {
+        await createQuestion("Delete me");
+      },
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -285,14 +276,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/questions/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const id = await createQuestion("Auth delete");
-      const response = await handleRequest(
-        mockFormRequest(`/admin/questions/${id}/delete`, {
-          confirm_identifier: "Auth delete",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1/delete", {
+      method: "POST",
+      body: {
+        confirm_identifier: "Auth delete",
+      },
+      setup: async () => {
+        await createQuestion("Auth delete");
+      },
     });
 
     test("deletes question with correct text confirmation", async () => {
@@ -360,13 +351,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("GET /admin/questions/:id/answers/:answerId/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const qId = await createQuestion("Answer delete auth");
-      const aId = await addAnswer(qId, "Delete this answer");
-      const response = await handleRequest(
-        mockRequest(`/admin/questions/${qId}/answers/${aId}/delete`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1/answers/1/delete", {
+      setup: async () => {
+        const qId = await createQuestion("Answer delete auth");
+        await addAnswer(qId, "Delete this answer");
+      },
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -400,15 +389,15 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/questions/:id/answers/:answerId/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const qId = await createQuestion("Answer post auth");
-      const aId = await addAnswer(qId, "Post auth answer");
-      const response = await handleRequest(
-        mockFormRequest(`/admin/questions/${qId}/answers/${aId}/delete`, {
-          confirm_identifier: "Post auth answer",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/questions/1/answers/1/delete", {
+      method: "POST",
+      body: {
+        confirm_identifier: "Post auth answer",
+      },
+      setup: async () => {
+        const qId = await createQuestion("Answer post auth");
+        await addAnswer(qId, "Post auth answer");
+      },
     });
 
     test("returns 404 for non-existent question", async () => {
@@ -483,12 +472,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/questions", () => {
-    test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ name: "Auth Event" });
-      const response = await handleRequest(
-        mockRequest(`/admin/event/${event.id}/questions`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/questions", {
+      setup: async () => {
+        await createTestEvent({ name: "Auth Event" });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -542,14 +529,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/event/:id/questions", () => {
-    test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ name: "Post Auth Event" });
-      const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/questions`, {
-          question_ids: "1",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/questions", {
+      method: "POST",
+      body: {
+        question_ids: "1",
+      },
+      setup: async () => {
+        await createTestEvent({ name: "Post Auth Event" });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {

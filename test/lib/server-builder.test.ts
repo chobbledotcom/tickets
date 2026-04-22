@@ -10,7 +10,6 @@ import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -19,6 +18,7 @@ import {
   mockRequest,
   setTestEnv,
   testCookie,
+  testRequiresAuth,
   withMocks,
 } from "#test-utils";
 
@@ -96,10 +96,7 @@ describeWithEnv(
       }
     });
 
-    test("GET /admin/builder redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/builder"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/builder");
 
     test("GET /admin/builder shows builder page when authenticated", async () => {
       const response = await awaitTestRequest("/admin/builder", {
