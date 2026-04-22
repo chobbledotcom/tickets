@@ -27,6 +27,7 @@ import {
   mockRequest,
   resetDb,
   testCookie,
+  testCsrfToken,
   withExpectedError,
 } from "#test-utils";
 import { FormParams } from "#lib/form-data.ts";
@@ -408,6 +409,127 @@ describeWithEnv("server (misc)", { db: true }, () => {
         wrappedDataKey: null,
       } as Parameters<typeof requirePrivateKey>[0];
       await expect(requirePrivateKey(session)).rejects.toThrow(SessionKeyError);
+    });
+  });
+
+  describe("routes/admin/utils.ts (helper factories)", () => {
+    test("withEntityLoader returns handler response when entity exists", async () => {
+      const { withEntityLoader } = await import("#routes/admin/utils.ts");
+
+      const response = await withEntityLoader((id: number) =>
+        Promise.resolve(id === 7 ? { id, name: "Loaded" } : null),
+      )(7)((entity) => new Response(`entity:${entity.name}`));
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("entity:Loaded");
+    });
+
+    test("withEntityFromParam returns 404 for invalid ids", async () => {
+      const { withEntityFromParam } = await import("#routes/admin/utils.ts");
+
+      const response = await withEntityFromParam(
+        "not-a-number",
+        () => Promise.resolve({ id: 1 }),
+        () => new Response("ok"),
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    test("withSessionAndEntity loads entity after session auth", async () => {
+      const { withSessionAndEntity } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+
+      const response = await withSessionAndEntity((session, id) =>
+        Promise.resolve({
+          id,
+          userId: session.userId,
+        }),
+      )(
+        mockRequest("/admin/attendees/1", { headers: { cookie } }),
+        123,
+      )((request, _session, entity) => {
+        const path = new URL(request.url).pathname;
+        return new Response(`${path}:${entity.id}:${entity.userId}`);
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("/admin/attendees/1:123:1");
+    });
+
+    test("withAuthAndEntity handles form auth then loads entity", async () => {
+      const { withAuthAndEntity } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const response = await withAuthAndEntity((_session, id) =>
+        Promise.resolve({
+          id,
+        }),
+      )(
+        mockFormRequest(
+          "/admin/attendees/1",
+          { csrf_token: csrfToken, value: "ok" },
+          cookie,
+        ),
+        88,
+      )((_session, form, entity) =>
+        new Response(`${entity.id}:${form.getString("value")}`),
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("88:ok");
+    });
+
+    test("createEntityRouteHandlers wires GET and POST flows", async () => {
+      const { createEntityRouteHandlers } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handlers = createEntityRouteHandlers(
+        (_session, id) => Promise.resolve({ id }),
+        (params: { attendeeId: number }) => params.attendeeId,
+      );
+
+      const getResponse = await handlers.get((_request, _session, entity) =>
+        new Response(`get:${entity.id}`),
+      )(mockRequest("/admin/attendees/15", { headers: { cookie } }), {
+        attendeeId: 15,
+      });
+      expect(await getResponse.text()).toBe("get:15");
+
+      const postResponse = await handlers.post((_session, form, entity) =>
+        new Response(`post:${entity.id}:${form.getString("name")}`),
+      )(
+        mockFormRequest(
+          "/admin/attendees/16",
+          { csrf_token: csrfToken, name: "x" },
+          cookie,
+        ),
+        { attendeeId: 16 },
+      );
+      expect(await postResponse.text()).toBe("post:16:x");
+    });
+
+    test("createActionHandler supports custom error mapping", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.reject(new Error("kaboom")),
+        message: "unused",
+        onError: (error) => new Response(`mapped:${error.message}`, { status: 418 }),
+        successRedirect: "/admin/attendees/1",
+      });
+
+      const response = await handler(
+        mockFormRequest("/admin/attendees/1", { csrf_token: csrfToken }, cookie),
+      );
+
+      expect(response.status).toBe(418);
+      expect(await response.text()).toBe("mapped:kaboom");
     });
   });
 
