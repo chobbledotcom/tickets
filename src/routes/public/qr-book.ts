@@ -148,6 +148,6 @@ export const handleQrBookGet = async (
   const payload = await verifyQrBookToken(slug, token);
   if (!payload) return errorResponse(slug, 400);
   const event = await getEventWithCountBySlug(slug);
-  if (!event || !event.active) return errorResponse(slug, 404);
+  if (!event?.active) return errorResponse(slug, 404);
   return dispatchVerified(request, slug, token, payload, event);
 };

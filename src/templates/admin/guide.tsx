@@ -1353,12 +1353,11 @@ export const adminGuidePage = (
             . The export includes name, email, phone, address, special
             instructions, quantity, registration date, amount paid, transaction
             ID, check-in status, ticket token, and ticket URL. If the event has
-            custom booking questions, each question is appended as an
-            additional column (one per question, in the order assigned to the
-            event) with the attendee's selected answer text. For daily events,
-            the attendee list has a date filter &mdash; select a date to see
-            only that day's attendees, and the CSV export respects the same
-            filter.
+            custom booking questions, each question is appended as an additional
+            column (one per question, in the order assigned to the event) with
+            the attendee's selected answer text. For daily events, the attendee
+            list has a date filter &mdash; select a date to see only that day's
+            attendees, and the CSV export respects the same filter.
           </p>
         </Q>
 
