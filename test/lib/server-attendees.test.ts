@@ -2430,6 +2430,28 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
     });
 
+    test("POST /admin/attendees/:id/link handles daily event with empty date string", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({
+        eventType: "daily",
+        maxAttendees: 50,
+      });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "Empty Date",
+        "emptydate@test.com",
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/link`,
+        { date: "", event_id: String(event2.id), quantity: "1" },
+      );
+      expect(response.status).toBe(302);
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const raw = await getAttendeesRaw(event2.id);
+      expect(raw[0]!.date).toBeNull();
+    });
+
     test("POST /admin/attendees/:id/link handles daily event with date", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({
