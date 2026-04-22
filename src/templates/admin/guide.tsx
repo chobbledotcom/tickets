@@ -1746,6 +1746,42 @@ export const adminGuidePage = (
             propagate, then click <strong>Validate Custom Domain</strong> to try
             again.
           </p>
+          <p>
+            Until validation succeeds, ticket links, redirect URLs, and emails
+            continue to use your host subdomain (or the Bunny.net address if you
+            haven't registered one). See{" "}
+            <strong>Which domain is used for ticket links and emails?</strong>{" "}
+            below.
+          </p>
+        </Q>
+
+        <Q q="Which domain is used for ticket links and emails?">
+          <p>
+            The system picks a single <strong>canonical</strong> domain for
+            every request and uses it for generated URLs (ticket links, QR
+            codes, redirects, webhook callbacks, and emails). It's chosen in
+            this order of priority:
+          </p>
+          <ol>
+            <li>
+              Your <strong>custom domain</strong>, but only once its{" "}
+              <strong>CNAME has been validated</strong>. Saving a domain is not
+              enough on its own.
+            </li>
+            <li>
+              Your registered <strong>host subdomain</strong> (e.g.{" "}
+              <code>mysite.tickets</code>), if one is set.
+            </li>
+            <li>
+              Otherwise the hostname from the incoming request (the Bunny.net
+              address).
+            </li>
+          </ol>
+          <p>
+            Both the host subdomain and a validated custom domain continue to
+            accept traffic at the CDN level, but only the higher-priority one is
+            used when the system generates links.
+          </p>
         </Q>
       </Section>
 
