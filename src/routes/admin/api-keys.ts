@@ -83,12 +83,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
       (session as Record<string, unknown>).createdApiKey = apiKey;
     },
     message: (session) => {
-      const apiKey = (session as Record<string, unknown>).createdApiKey as
-        | string
-        | undefined;
-      if (!apiKey) {
-        throw new Error("API key unavailable");
-      }
+      const apiKey = (session as Record<string, unknown>).createdApiKey as string;
       return `API key created\n${apiKey}`;
     },
     redactedSecret: (session) =>

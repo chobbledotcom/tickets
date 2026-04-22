@@ -17,7 +17,6 @@ import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   AUTH_FORM,
-  AUTH_MULTIPART,
   type AuthSession,
   type EntityHandler,
   encodeBody,
@@ -26,7 +25,6 @@ import {
   htmlResponse,
   notFoundResponse,
   OWNER_FORM,
-  OWNER_MULTIPART,
   redirect,
   requireOwnerOr,
   requireSessionOr,
@@ -404,31 +402,7 @@ export const withAuthAndEntity = <T>(
   )(loader);
 
 /**
- * Compose a session-dependent entity loader with auth guards.
- * Returns { get, post } handlers that handle auth + entity loading.
- */
-export const withAuthEntityHandlers =
-  <T>(loader: (session: AuthSession, id: number) => Promise<T | null>) =>
-  (request: Request, id: number) => ({
-    get: (
-      handler: (
-        request: Request,
-        session: AuthSession,
-        entity: T,
-      ) => Response | Promise<Response>,
-    ) => withSessionAndEntity(loader)(request, id)(handler),
-    post: (
-      handler: (
-        session: AuthSession,
-        form: FormParams,
-        entity: T,
-      ) => Response | Promise<Response>,
-    ) => withAuthAndEntity(loader)(request, id)(handler),
-  });
-
-/**
  * Curried factory for GET/POST entity route handler pairs.
- * Eliminates boilerplate of calling withAuthEntityHandlers twice.
  *
  * Usage:
  *   const handlers = createEntityRouteHandlers(loader, p => p.attendeeId);
@@ -497,8 +471,6 @@ export type ErrorMapper = (error: Error) => Response;
 export type ActionHandlerConfig<TSession = AuthSession> = {
   /** Auth mode: "owner" requires owner role, "any" allows any authenticated user */
   auth: "owner" | "any";
-  /** CSRF body mode: "form" (default) or "multipart" */
-  bodyMode?: "form" | "multipart";
   /** Executor: receives session and parsed form, returns nothing on success */
   execute: (session: TSession, form: FormParams) => Promise<void>;
   /** Optional event/resource id for activity logging context */
@@ -512,9 +484,7 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   /** Optional custom error mapping (falls back to errorRedirect with message) */
   onError?: ErrorMapper;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
-  redactedSecret?:
-    | string
-    | ((session: TSession, form: FormParams) => string | undefined);
+  redactedSecret?: (session: TSession, form: FormParams) => string | undefined;
 };
 
 /**
@@ -524,14 +494,7 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
 export const createActionHandler = <TSession = AuthSession>(
   config: ActionHandlerConfig<TSession>,
 ): ((request: Request) => Promise<Response>) => {
-  const policy =
-    config.bodyMode === "multipart"
-      ? config.auth === "owner"
-        ? OWNER_MULTIPART
-        : AUTH_MULTIPART
-      : config.auth === "owner"
-        ? OWNER_FORM
-        : AUTH_FORM;
+  const policy = config.auth === "owner" ? OWNER_FORM : AUTH_FORM;
 
   const resolveEventId = (form: FormParams): number | undefined => {
     if (config.eventId === undefined) return undefined;
@@ -549,27 +512,13 @@ export const createActionHandler = <TSession = AuthSession>(
   ): Promise<string> =>
     typeof value === "function" ? await value(session, form) : value;
 
-  const resolveOptionalString = async (
-    value:
-      | string
-      | ((session: TSession, form: FormParams) => string | undefined)
-      | undefined,
-    session: TSession,
-    form: FormParams,
-  ): Promise<string | undefined> =>
-    !value
-      ? undefined
-      : typeof value === "function"
-        ? await value(session, form)
-        : value;
-
   return (request: Request) =>
     withAuth(request, policy, async (session, body) => {
       const form = body as FormParams;
       try {
         await config.execute(session as TSession, form);
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
+        const error = err as Error;
         if (config.onError) {
           return config.onError(error);
         }
@@ -586,11 +535,7 @@ export const createActionHandler = <TSession = AuthSession>(
         session as TSession,
         form,
       );
-      const secret = await resolveOptionalString(
-        config.redactedSecret,
-        session as TSession,
-        form,
-      );
+      const secret = config.redactedSecret?.(session as TSession, form);
       const logMsg = secret ? msg.replaceAll(secret, "***") : msg;
       await logActivity(logMsg, resolveEventId(form));
 
