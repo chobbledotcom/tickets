@@ -132,7 +132,10 @@ export const handleAddEventLink = attendeeAction(
     message: (_session, form) => {
       const eventName = (form as unknown as Record<string, unknown>)
         .eventName as string | undefined;
-      return `Attendee linked to '${eventName ?? "event"}'`;
+      if (!eventName) {
+        throw new Error("Event name unavailable");
+      }
+      return `Attendee linked to '${eventName}'`;
     },
   }),
 );
