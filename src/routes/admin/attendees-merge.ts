@@ -30,9 +30,21 @@ import type {
   MergeValueChoice,
 } from "#lib/merge/attendee-merge-types.ts";
 import type { Attendee } from "#lib/types.ts";
-import { requirePrivateKey, createEntityRouteHandlers } from "#routes/admin/utils.ts";
-import { type AttendeeRouteParams, type AuthSession, applyFlash, errorRedirect, getSearchParam, htmlResponse, redirect } from "#routes/utils.ts";
+import {
+  createEntityRouteHandlers,
+  requirePrivateKey,
+} from "#routes/admin/utils.ts";
+import {
+  type AttendeeRouteParams,
+  type AuthSession,
+  applyFlash,
+  errorRedirect,
+  getSearchParam,
+  htmlResponse,
+  redirect,
+} from "#routes/utils.ts";
 import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
+
 /* jscpd:ignore-end */
 
 /** Load and decrypt a target attendee by ID for merge operations */
@@ -388,29 +400,55 @@ const handlers = createEntityRouteHandlers(
 );
 
 /** Handle GET /admin/attendees/:attendeeId/merge — analyze + render decisions */
-export const handleMergeGet = handlers.get(
-  async (request, session, target) => {
-    const token = getSearchParam(request, "token");
-    const flash = applyFlash(request);
-    if (!token) return mergeAttendeePage(request, session)(target);
-    const source = await loadMergeSource(token, session);
-    if (!source) return htmlResponse(adminMergeAttendeePage(target, null, token, session, "Ticket token not found"));
-    if (source.id === target.id) return htmlResponse(adminMergeAttendeePage(target, null, token, session, "Cannot merge an attendee with themselves"));
-    const diff = await buildMergeDiffFor(target, source, target.id);
-    return htmlResponse(adminMergeAttendeePage(target, source, token, session, flash.error, diff));
-  },
-);
+export const handleMergeGet = handlers.get(async (request, session, target) => {
+  const token = getSearchParam(request, "token");
+  const flash = applyFlash(request);
+  if (!token) return mergeAttendeePage(request, session)(target);
+  const source = await loadMergeSource(token, session);
+  if (!source)
+    return htmlResponse(
+      adminMergeAttendeePage(
+        target,
+        null,
+        token,
+        session,
+        "Ticket token not found",
+      ),
+    );
+  if (source.id === target.id)
+    return htmlResponse(
+      adminMergeAttendeePage(
+        target,
+        null,
+        token,
+        session,
+        "Cannot merge an attendee with themselves",
+      ),
+    );
+  const diff = await buildMergeDiffFor(target, source, target.id);
+  return htmlResponse(
+    adminMergeAttendeePage(target, source, token, session, flash.error, diff),
+  );
+});
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
-export const handleMergePost = handlers.post(
-  async (session, form, target) => {
-    const input = await validateMergePostInput(target.id, form, session);
-    if (!input.ok) return input.response;
-    const { source, sourceToken } = input;
-    const diff = await buildMergeDiffFor(target, source, target.id);
-    const decision = parseMergeDecisionForm(form, diff);
-    const validation = validateAttendeeMergeDecision(diff, decision);
-    if (!validation.valid) return htmlResponse(adminMergeAttendeePage(target, source, sourceToken, session, validation.errors.join("; "), diff));
-    return applyMergeDecisions(target.id, target, source, diff, decision);
-  },
-);
+export const handleMergePost = handlers.post(async (session, form, target) => {
+  const input = await validateMergePostInput(target.id, form, session);
+  if (!input.ok) return input.response;
+  const { source, sourceToken } = input;
+  const diff = await buildMergeDiffFor(target, source, target.id);
+  const decision = parseMergeDecisionForm(form, diff);
+  const validation = validateAttendeeMergeDecision(diff, decision);
+  if (!validation.valid)
+    return htmlResponse(
+      adminMergeAttendeePage(
+        target,
+        source,
+        sourceToken,
+        session,
+        validation.errors.join("; "),
+        diff,
+      ),
+    );
+  return applyMergeDecisions(target.id, target, source, diff, decision);
+});

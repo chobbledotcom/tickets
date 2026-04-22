@@ -278,7 +278,7 @@ const processUploadsAndRedirect = async (
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
 const eventAttendeesHandler =
-  (handler: (ctx: {
+  (_handler: (ctx: {
     event: EventWithCount;
     attendees: Attendee[];
     session: AdminSession;

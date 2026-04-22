@@ -24,10 +24,21 @@ import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey, createEntityRouteHandlers } from "#routes/admin/utils.ts";
-import { type AttendeeRouteParams, type AuthSession, applyFlash, errorRedirect, htmlResponse, redirect } from "#routes/utils.ts";
+import {
+  createEntityRouteHandlers,
+  requirePrivateKey,
+} from "#routes/admin/utils.ts";
+import {
+  type AttendeeRouteParams,
+  type AuthSession,
+  applyFlash,
+  errorRedirect,
+  htmlResponse,
+  redirect,
+} from "#routes/utils.ts";
 import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
 import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
+
 /* jscpd:ignore-end */
 
 /** Get all events (active + the current event), uniquified */
@@ -145,8 +156,8 @@ const handlers = createEntityRouteHandlers(
 );
 
 /** Handle GET /admin/attendees/:attendeeId */
-export const handleEditAttendeeGet = handlers.get(
-  (request, session, data) => editAttendeePage(request, session)(data),
+export const handleEditAttendeeGet = handlers.get((request, session, data) =>
+  editAttendeePage(request, session)(data),
 );
 
 /** Handle POST /admin/attendees/:attendeeId */
@@ -204,8 +215,8 @@ async function editAttendeeHandler(
     { form },
   );
 }
-export const handleEditAttendeePost = handlers.post(
-  (session, form, data) => editAttendeeHandler(session, form, data, data.attendee.id),
+export const handleEditAttendeePost = handlers.post((session, form, data) =>
+  editAttendeeHandler(session, form, data, data.attendee.id),
 );
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
@@ -248,6 +259,6 @@ async function refreshPaymentHandler(
     true,
   );
 }
-export const handleRefreshPayment = handlers.post(
-  (session, form, data) => refreshPaymentHandler(session, form, data, data.attendee.id),
+export const handleRefreshPayment = handlers.post((session, form, data) =>
+  refreshPaymentHandler(session, form, data, data.attendee.id),
 );
