@@ -314,13 +314,27 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
   };
 };
 
+/** Handler that receives a loaded entity */
+export type EntityHandler<T> = (entity: T) => Response | Promise<Response>;
+
 /**
  * Generic wrapper: load entity, return 404 if missing, otherwise call handler.
+ * Curried so the handler is specified first, then the load function.
  */
-export const withEntity = <T>(
-  load: () => Promise<T | null>,
-  handler: (entity: T) => Response | Promise<Response>,
-): Promise<Response> => orNotFound(load(), handler);
+export const withEntity = <T>(handler: EntityHandler<T>) =>
+  (load: () => Promise<T | null>): Promise<Response> =>
+    orNotFound(load(), handler);
+
+/**
+ * Curried factory: creates a wrapper that takes load params, then a handler.
+ * Eliminates the boilerplate of writing `(params, handler) => withEntity(handler)(() => loadFn(params))`.
+ */
+export const withEntityLoader = <T, P extends unknown[]>(
+  load: (...args: P) => Promise<T | null>,
+) =>
+  (...args: P) =>
+  (handler: EntityHandler<T>): Promise<Response> =>
+    withEntity(handler)(() => load(...args));
 
 /**
  * Generic wrapper for typed route params: parse param as number, load entity,
@@ -329,11 +343,11 @@ export const withEntity = <T>(
 export const withEntityFromParam = <T>(
   paramValue: string | number | undefined,
   load: (id: number) => Promise<T | null>,
-  handler: (entity: T) => Response | Promise<Response>,
+  handler: EntityHandler<T>,
 ): Promise<Response> => {
   const id = typeof paramValue === "string" ? Number.parseInt(paramValue, 10) : paramValue;
   if (id === undefined || Number.isNaN(id)) return Promise.resolve(notFoundResponse());
-  return withEntity(() => load(id!), handler);
+  return withEntity(handler)(() => load(id!));
 };
 
 /** Error mapping: convert an Error into a redirect response */

@@ -38,7 +38,7 @@ import {
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
-import { withEntity } from "./utils.ts";
+import { withEntityLoader } from "./utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -145,10 +145,7 @@ const crud = createCrudHandlers({
 });
 
 /** Look up group by id, return 404 if not found */
-export const withGroup = (
-  id: number,
-  handler: (group: Group) => Response | Promise<Response>,
-): Promise<Response> => withEntity(() => groupsTable.findById(id), handler);
+export const withGroup = withEntityLoader(groupsTable.findById);
 
 /**
  * POST handler factory: CSRF-validated form + loaded group.
@@ -161,7 +158,7 @@ export const groupFormPost =
   ): TypedRouteHandler<"POST /admin/groups/:id"> =>
   (request, { id }) =>
     withAuth(request, AUTH_FORM, (_session, form) =>
-      withGroup(id, (group) => handler(group, form)),
+      withGroup(id)((group) => handler(group, form)),
     );
 
 /** Handle GET /admin/groups/:id - group detail page */
@@ -170,7 +167,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
   { id },
 ) =>
   requireSessionOr(request, (session) =>
-    withGroup(id, async (group) => {
+    withGroup(id)(async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
         getEventsByGroupId(id),
         getUngroupedEvents(),

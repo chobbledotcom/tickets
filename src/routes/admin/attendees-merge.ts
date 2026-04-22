@@ -32,6 +32,7 @@ import type { Attendee } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
+  type AttendeeRouteParams,
   type AuthSession,
   applyFlash,
   errorRedirect,
@@ -393,7 +394,7 @@ const parseMergeDecisionForm = (
 /** Handle GET /admin/attendees/:attendeeId/merge — analyze + render decisions */
 export const handleMergeGet = (
   request: Request,
-  { attendeeId }: { attendeeId: number },
+  { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
     withMergeTarget(session, attendeeId, async (target) => {
@@ -450,7 +451,7 @@ export const handleMergeGet = (
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
 export const handleMergePost = (
   request: Request,
-  { attendeeId }: { attendeeId: number },
+  { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
     withMergeTarget(session, attendeeId, async (target) => {

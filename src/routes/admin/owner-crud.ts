@@ -12,6 +12,7 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   AUTH_FORM,
   applyFlash,
+  authPage,
   errorRedirect,
   htmlResponse,
   type IdRouteHandler,
@@ -77,13 +78,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
     (request: Request): Promise<Response> =>
       auth.withForm(request, handler);
 
-  const authHtml =
-    (render: (session: AdminSession) => string | Promise<string>) =>
-    (request: Request): Promise<Response> =>
-      auth.requireSession(request, async (session) => {
-        applyFlash(request);
-        return htmlResponse(await render(session));
-      });
+  const authHtml = authPage(auth.requireSession);
 
   const authRowHtml =
     (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>

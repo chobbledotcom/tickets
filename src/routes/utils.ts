@@ -452,6 +452,15 @@ export type IdRouteHandler = (
   params: { id: number },
 ) => Promise<Response>;
 
+/** Route params for attendee-scoped routes */
+export type AttendeeRouteParams = { attendeeId: number };
+
+/** Route params for attendee + event-scoped routes */
+export type AttendeeEventRouteParams = {
+  attendeeId: number;
+  eventId: number;
+};
+
 export const withEventPage = (
   renderPage: (event: EventWithCount, session: AdminSession) => string,
 ): IdRouteHandler =>

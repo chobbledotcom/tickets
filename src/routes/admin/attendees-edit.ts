@@ -27,9 +27,10 @@ import type { FormParams } from "#lib/form-data.ts";
 /* jscpd:ignore-end */
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey, withEntity } from "#routes/admin/utils.ts";
+import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
+  type AttendeeRouteParams,
   type AuthSession,
   applyFlash,
   errorRedirect,
@@ -135,20 +136,15 @@ type EditAttendeeData = NonNullable<
 >;
 
 /** Load attendee for edit, returning 404 if not found */
-const withEditAttendee = (
-  session: AuthSession,
-  attendeeId: number,
-  handler: (data: EditAttendeeData) => Response | Promise<Response>,
-): Promise<Response> =>
-  withEntity(() => loadAttendeeForEdit(session, attendeeId), handler);
+const withEditAttendee = withEntityLoader(loadAttendeeForEdit);
 
 /** Handle GET /admin/attendees/:attendeeId */
 export const handleEditAttendeeGet = (
   request: Request,
-  { attendeeId }: { attendeeId: number },
+  { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withEditAttendee(session, attendeeId, (data) => {
+    withEditAttendee(session, attendeeId)((data) => {
       const flash = applyFlash(request);
       return htmlResponse(
         adminEditAttendeePage(
@@ -174,10 +170,10 @@ const editAttendeePost =
   ) =>
   (
     request: Request,
-    { attendeeId }: { attendeeId: number },
+    { attendeeId }: AttendeeRouteParams,
   ): Promise<Response> =>
     withAuth(request, AUTH_FORM, (session, form) =>
-      withEditAttendee(session, attendeeId, (data) =>
+      withEditAttendee(session, attendeeId)((data) =>
         handler(session, form, data, attendeeId),
       ),
     );
