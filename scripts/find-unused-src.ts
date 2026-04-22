@@ -222,7 +222,7 @@ for (const file of allFiles) {
   const imports = extractImports(file);
   for (const { specifier, names } of imports) {
     const resolved = resolveImport(specifier, file);
-    if (!resolved || !resolved.startsWith("src/")) continue;
+    if (!resolved?.startsWith("src/")) continue;
 
     let target = resolved;
     const allSrcFiles = [...srcFiles, ...testUtilFiles];

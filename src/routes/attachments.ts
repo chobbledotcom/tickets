@@ -76,7 +76,7 @@ const handleAttachmentDownload: TypedRouteHandler<
 
   // Look up event and verify it has an attachment
   const event = await getEvent(id);
-  if (!event || !event.attachment_url) return notFoundResponse();
+  if (!event?.attachment_url) return notFoundResponse();
 
   // Verify attendee exists and belongs to this event
   const attendee = await getAttendeeRaw(attendeeId);
