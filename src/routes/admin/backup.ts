@@ -175,8 +175,7 @@ const handleBackupRestoreConfirm: TypedRouteHandler<
   withAuth(request, OWNER_FORM, async (_session, form) => {
     const filename = form.getString("backup_filename");
     if (
-      !filename ||
-      !filename.startsWith(RESTORE_PENDING_PREFIX) ||
+      !filename?.startsWith(RESTORE_PENDING_PREFIX) ||
       !filename.endsWith(".zip")
     ) {
       return redirect("/admin/backup", "Invalid backup reference", false);

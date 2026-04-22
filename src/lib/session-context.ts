@@ -21,7 +21,7 @@ export const runWithSessionContext = <T>(fn: () => T): T =>
 /** Return the cached session if already resolved, or undefined if not yet resolved */
 export const getCachedSession = (): AuthSession | null | undefined => {
   const state = sessionStore.getStore();
-  if (!state || !state.resolved) return undefined;
+  if (!state?.resolved) return undefined;
   return state.value;
 };
 

@@ -1,15 +1,5 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
-  "files": {
-    "includes": [
-      "**/*.js",
-      "**/*.ts",
-      "**/*.tsx",
-      "!src/static/**",
-      "!src/client/scanner.js"
-    ],
-    "ignoreUnknown": true
-  },
   "assist": {
     "actions": {
       "source": {
@@ -20,6 +10,16 @@
       }
     }
   },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.js",
+      "**/*.ts",
+      "**/*.tsx",
+      "!src/static",
+      "!src/client/scanner.js"
+    ]
+  },
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2,
@@ -28,50 +28,50 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "nursery": {
-        "useSortedClasses": "error"
+      "a11y": {
+        "noLabelWithoutControl": "off",
+        "useValidAnchor": "off"
       },
       "complexity": {
-        "noStaticOnlyClass": "error",
-        "noThisInStatic": "error",
-        "noUselessThisAlias": "error",
-        "useArrowFunction": "error",
-        "noForEach": "error",
-        "useFlatMap": "error",
         "noExcessiveCognitiveComplexity": {
           "level": "warn",
           "options": {
             "maxAllowedComplexity": 15
           }
-        }
-      },
-      "style": {
-        "useConst": "error",
-        "useTemplate": "error",
-        "noUnusedTemplateLiteral": "error",
-        "noNonNullAssertion": "off"
-      },
-      "suspicious": {
-        "noVar": "error",
-        "noDoubleEquals": "error",
-        "noConsole": "error",
-        "noSkippedTests": "error",
-        "noFocusedTests": "error",
-        "noExplicitAny": "off",
-        "noImplicitAnyLet": "off",
-        "noAssignInExpressions": "off"
-      },
-      "a11y": {
-        "noLabelWithoutControl": "off",
-        "useValidAnchor": "off"
+        },
+        "noForEach": "error",
+        "noStaticOnlyClass": "error",
+        "noThisInStatic": "error",
+        "noUselessThisAlias": "error",
+        "useArrowFunction": "error",
+        "useFlatMap": "error"
       },
       "correctness": {
-        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error",
         "noUnusedImports": "error",
-        "noUnusedFunctionParameters": "error"
+        "noUnusedVariables": "error"
+      },
+      "nursery": {
+        "useSortedClasses": "error"
       },
       "performance": {
         "noAccumulatingSpread": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "noUnusedTemplateLiteral": "error",
+        "useConst": "error",
+        "useTemplate": "error"
+      },
+      "suspicious": {
+        "noAssignInExpressions": "off",
+        "noConsole": "error",
+        "noDoubleEquals": "error",
+        "noExplicitAny": "off",
+        "noFocusedTests": "error",
+        "noImplicitAnyLet": "off",
+        "noSkippedTests": "error",
+        "noVar": "error"
       }
     }
   },
@@ -80,13 +80,6 @@
       "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
-          "suspicious": {
-            "noConsole": "off"
-          },
-          "correctness": {
-            "noUnusedVariables": "off",
-            "noUnusedFunctionParameters": "off"
-          },
           "complexity": {
             "noExcessiveCognitiveComplexity": {
               "level": "error",
@@ -94,6 +87,13 @@
                 "maxAllowedComplexity": 30
               }
             }
+          },
+          "correctness": {
+            "noUnusedFunctionParameters": "off",
+            "noUnusedVariables": "off"
+          },
+          "suspicious": {
+            "noConsole": "off"
           }
         }
       }
@@ -112,13 +112,13 @@
       "includes": ["scripts/**/*.ts"],
       "linter": {
         "rules": {
-          "suspicious": {
-            "noConsole": "off",
-            "noImplicitAnyLet": "off",
-            "noAssignInExpressions": "off"
-          },
           "complexity": {
             "noExcessiveCognitiveComplexity": "off"
+          },
+          "suspicious": {
+            "noAssignInExpressions": "off",
+            "noConsole": "off",
+            "noImplicitAnyLet": "off"
           }
         }
       }
