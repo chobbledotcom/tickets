@@ -385,6 +385,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("explains the canonical-domain priority order for generated links", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Which domain is used for ticket links and emails?",
+        "CNAME has been validated",
+        "host subdomain",
+      );
+    });
+
     test("contains host subdomain in advanced settings list", async () => {
       await assertAdminHtml(
         "/admin/guide",
