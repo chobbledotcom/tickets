@@ -678,7 +678,7 @@ export const authenticatedGetById =
   (request, { id }) =>
     requireSessionOr(
       request,
-      (session) => orNotFound(load(id), (entity) => render(entity, session)),
+      (session) => withEntity((entity) => render(entity, session))(() => load(id)),
       role ?? undefined,
     );
 

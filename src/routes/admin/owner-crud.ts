@@ -9,6 +9,7 @@ import {
   type SessionGuard,
 } from "#routes/admin/utils.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import { withEntityLoader } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   applyFlash,
@@ -18,7 +19,6 @@ import {
   type IdRouteHandler,
   notFoundResponse,
   OWNER_FORM,
-  orNotFound,
   redirect,
   requireOwnerOr,
   requireSessionOr,
@@ -85,9 +85,9 @@ const createCrudHandlersWithAuth = <Row, Input>(
     (request, { id }) =>
       auth.requireSession(request, (session) => {
         applyFlash(request);
-        return orNotFound(cfg.resource.table.findById(id), (row) =>
-          htmlResponse(render(row, session)),
-        );
+        return withEntity((row) =>
+          htmlResponse(render(row, session))
+        )(() => cfg.resource.table.findById(id));
       });
 
   const logAndRedirect = async (

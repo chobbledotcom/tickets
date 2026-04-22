@@ -29,7 +29,7 @@ import type {
   MergeValueChoice,
 } from "#lib/merge/attendee-merge-types.ts";
 import type { Attendee } from "#lib/types.ts";
-import { requirePrivateKey } from "#routes/admin/utils.ts";
+import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
 import {
   AUTH_FORM,
   type AttendeeRouteParams,
@@ -97,12 +97,7 @@ const loadMergeSource = async (
 };
 
 /** Load target attendee and call handler, returning 404 if not found */
-const withMergeTarget = (
-  session: AuthSession,
-  attendeeId: number,
-  handler: (target: Attendee) => Response | Promise<Response>,
-): Promise<Response> =>
-  orNotFound(loadMergeTarget(session, attendeeId), handler);
+const withMergeTarget = withEntityLoader(loadMergeTarget);
 
 /** Load all event_attendees rows for an attendee */
 const loadAttendeeBookings = (
@@ -397,7 +392,7 @@ export const handleMergeGet = (
   { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withMergeTarget(session, attendeeId, async (target) => {
+    withMergeTarget(session, attendeeId)(async (target) => {
       const token = getSearchParam(request, "token");
       const flash = applyFlash(request);
 
@@ -454,7 +449,7 @@ export const handleMergePost = (
   { attendeeId }: AttendeeRouteParams,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withMergeTarget(session, attendeeId, async (target) => {
+    withMergeTarget(session, attendeeId)(async (target) => {
       const input = await validateMergePostInput(attendeeId, form, session);
       if (!input.ok) return input.response;
       const { source, sourceToken } = input;
