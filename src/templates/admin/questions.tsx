@@ -3,9 +3,14 @@
  */
 
 import { map } from "#fp";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import {
+  answerTextForm,
+  questionTextForm,
+} from "#routes/admin/questions.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -26,15 +31,7 @@ export const adminQuestionsPage = (
       <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">
-        <label>
-          New Question
-          <input
-            name="text"
-            placeholder="e.g. What is your T-shirt size?"
-            required
-            type="text"
-          />
-        </label>
+        <Raw html={questionTextForm.render()} />
         <button type="submit">Add Question</button>
       </CsrfForm>
 
@@ -73,10 +70,7 @@ export const adminQuestionPage = (
       <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
-        <label>
-          Question Text
-          <input name="text" required type="text" value={question.text} />
-        </label>
+        <Raw html={questionTextForm.render({ text: question.text })} />
         <button type="submit">Update</button>
       </CsrfForm>
 
@@ -85,10 +79,7 @@ export const adminQuestionPage = (
         action={`/admin/questions/${question.id}/answers`}
         id="add-answer"
       >
-        <label>
-          New Answer
-          <input name="text" placeholder="e.g. Medium" required type="text" />
-        </label>
+        <Raw html={answerTextForm.render()} />
         <button type="submit">Add Answer</button>
       </CsrfForm>
 
