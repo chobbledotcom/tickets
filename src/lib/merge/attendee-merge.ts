@@ -112,19 +112,13 @@ const computeVersion = (
   targetBookings: EventAttendeeRow[],
   sourceBookings: EventAttendeeRow[],
 ): string => {
-  const fmtAnswers = map(
-    (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
-  );
-  const fmtBookings = map((b: EventAttendeeRow) =>
-    bookingKey(b.event_id, b.start_at),
-  );
   const parts = [
     `t:${targetId}`,
     `s:${sourceId}`,
-    `ta:${fmtAnswers([...targetAnswers.entries()]).join(",")}`,
-    `sa:${fmtAnswers([...sourceAnswers.entries()]).join(",")}`,
-    `tb:${fmtBookings(targetBookings).join(",")}`,
-    `sb:${fmtBookings(sourceBookings).join(",")}`,
+    `ta:${joinAnswerEntries([...targetAnswers.entries()])}`,
+    `sa:${joinAnswerEntries([...sourceAnswers.entries()])}`,
+    `tb:${joinBookingKeys(targetBookings)}`,
+    `sb:${joinBookingKeys(sourceBookings)}`,
   ];
   return parts.join("|");
 };
