@@ -2,10 +2,13 @@
 /** Event link date picker: filter date <select> options based on selected event. */
 export const initEventDatePicker = (): void => {
   const datesEl = document.getElementById("available-dates-data");
-  const eventSelect =
-    document.querySelector<HTMLSelectElement>("#add_event_id");
+  const eventSelect = document.querySelector<HTMLSelectElement>(
+    'select[name="event_id"], #add_event_id',
+  );
   const dateField = document.querySelector<HTMLElement>(".daily-date-field");
-  const dateSelect = document.querySelector<HTMLSelectElement>("#add_date");
+  const dateSelect = document.querySelector<HTMLSelectElement>(
+    'select[name="date"], #add_date',
+  );
   if (!datesEl || !eventSelect || !dateField || !dateSelect) return;
 
   const datesData: Record<string, string[]> = JSON.parse(
