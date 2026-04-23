@@ -319,9 +319,7 @@ describe("e2e: ticket editing flow", () => {
       "Add to Event",
     );
     // Flash confirms Alice was added to Evening Seminar
-    expect(browser.containsText("Attendee linked to 'Evening Seminar'")).toBe(
-      true,
-    );
+    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
     // Both events now appear in the Event Registrations table as links
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
@@ -361,9 +359,7 @@ describe("e2e: ticket editing flow", () => {
       { event_id: eveningSeminarId!, quantity: "1" },
       "Add to Event",
     );
-    expect(browser.containsText("Attendee linked to 'Evening Seminar'")).toBe(
-      true,
-    );
+    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
