@@ -26,14 +26,10 @@ import {
   csvResponse,
   getDateFilter,
   loadQuestionData,
-} from "#routes/admin/utils.ts";
+} from "#routes/admin/actions.ts";
+import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  getPrivateKey,
-  htmlResponse,
-  redirect,
-  requireSessionOr,
-} from "#routes/utils.ts";
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,

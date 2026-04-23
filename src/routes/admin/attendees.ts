@@ -14,16 +14,10 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { type AdminSession, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  applyFlash,
-  htmlResponse,
-  redirect,
-  redirectResponse,
-  validateFormHandler,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminDeleteAttendeePage,
   adminResendNotificationPage,
@@ -50,7 +44,7 @@ import {
   getReturnUrl,
   verifiedAttendeeForm,
 } from "./attendees-route-helpers.ts";
-import { withEntityFromParam } from "./utils.ts";
+import { withEntityFromParam } from "./entity-handlers.ts";
 
 /** Signature shared by all attendee GET page renderers */
 type AttendeePageRenderer = (
@@ -194,34 +188,33 @@ const handleAddAttendee: TypedRouteHandler<
   "POST /admin/event/:eventId/attendee"
 > = (request, params) =>
   withAuth(request, AUTH_FORM, (_session, form) =>
-    withEntityFromParam(params.eventId, getEventWithCount, (event) => {
+    withEntityFromParam(params.eventId, getEventWithCount, async (event) => {
       const isDaily = event.event_type === "daily";
       const fields = getAddAttendeeFields(event.fields, isDaily);
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
-      return validateFormHandler(
-        (f) => validateForm<AddAttendeeFormValues>(f, fields),
-        async (values) => {
-          const result = await createAttendeeAtomic(
-            buildCreateAttendeeInput(values, params.eventId, isDaily),
-          );
+      const result = validateForm<AddAttendeeFormValues>(form, fields);
+      if (!result.valid) {
+        return redirect(`/admin/event/${params.eventId}`, result.error, false);
+      }
 
-          if (!result.success) {
-            return handleCreateAttendeeFailure(result, params.eventId);
-          }
+      const createResult = await createAttendeeAtomic(
+        buildCreateAttendeeInput(result.values, params.eventId, isDaily),
+      );
 
-          await logActivity(
-            `Attendee '${values.name}' added manually`,
-            params.eventId,
-          );
-          return redirect(
-            `/admin/event/${params.eventId}`,
-            `Added ${values.name}`,
-            true,
-          );
-        },
-        (error) => redirect(`/admin/event/${params.eventId}`, error, false),
-      )(form);
+      if (!createResult.success) {
+        return handleCreateAttendeeFailure(createResult, params.eventId);
+      }
+
+      await logActivity(
+        `Attendee '${result.values.name}' added manually`,
+        params.eventId,
+      );
+      return redirect(
+        `/admin/event/${params.eventId}`,
+        `Added ${result.values.name}`,
+        true,
+      );
     }),
   );
 

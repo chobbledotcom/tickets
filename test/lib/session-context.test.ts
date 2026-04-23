@@ -5,7 +5,7 @@ import {
   runWithSessionContext,
   setCachedSession,
 } from "#lib/session-context.ts";
-import type { AuthSession } from "#routes/utils.ts";
+import type { AuthSession } from "#routes/auth.ts";
 
 const makeSession = (token = "tok"): AuthSession => ({
   adminLevel: "owner",

@@ -38,9 +38,9 @@ import type {
 } from "#lib/types.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
-import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
+import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
+import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { jsonResponse } from "#routes/utils.ts";
 
 // =============================================================================
 // Published API types — the contract for callers

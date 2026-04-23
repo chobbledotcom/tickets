@@ -362,6 +362,14 @@ describe("code quality", () => {
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
       "routes/api.ts:apiRoutes",
       "routes/admin/api.ts:adminApiRoutes",
+      // Storage delete override for testing fire-and-forget error handling
+      "lib/test-overrides.ts:getDeleteOverride",
+      "lib/test-overrides.ts:setDeleteOverride",
+      "lib/test-overrides.ts:setDeleteOverrideForTest",
+      // API key touch override for testing fire-and-forget error handling
+      "lib/test-overrides.ts:getTouchOverride",
+      "lib/test-overrides.ts:setTouchOverride",
+      "lib/test-overrides.ts:setTouchOverrideForTest",
     ];
 
     /**

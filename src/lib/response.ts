@@ -3,7 +3,7 @@
  * Wraps redirect with a consistent API.
  */
 
-import { redirect } from "#routes/utils.ts";
+import { redirect } from "#routes/response.ts";
 
 /** Options for ok/fail response helpers */
 export type ActionOutcomeOpts = {

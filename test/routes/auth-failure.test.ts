@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { authFailure } from "#routes/utils.ts";
+import { authFailure } from "#routes/auth.ts";
 
 describe("authFailure", () => {
   describe("html channel", () => {

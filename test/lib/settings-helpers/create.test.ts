@@ -5,7 +5,7 @@ import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import { createSettingsHandler } from "#routes/admin/settings-helpers.ts";
-import type { AuthSession } from "#routes/utils.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { describeWithEnv, expectFlash, expectRedirect } from "#test-utils";
 
 const formFrom = (data: Record<string, string>): FormParams =>

@@ -2,7 +2,7 @@
  * Health check route
  */
 
-import { encodeBody } from "#routes/utils.ts";
+import { encodeBody } from "#routes/response.ts";
 
 const HEALTH_RESPONSE = encodeBody(JSON.stringify({ status: "ok" }));
 

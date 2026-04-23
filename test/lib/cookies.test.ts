@@ -13,7 +13,7 @@ import {
   isSecureMode,
   parseFlashValue,
 } from "#lib/cookies.ts";
-import { parseCookies } from "#routes/utils.ts";
+import { parseCookies } from "#routes/url.ts";
 
 /** Assert common cookie attributes for dev (localhost) mode */
 const expectDevCookieAttributes = (cookie: string) => {

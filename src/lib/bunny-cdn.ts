@@ -580,22 +580,3 @@ export const getCdnHostname = (): Promise<CdnHostnameResult> =>
 /** Upload and publish new script code to Bunny CDN. */
 export const deployScriptCode = (code: string): Promise<BunnyApiResult> =>
   bunnyCdnApi.deployScriptCode(code);
-
-/** Create a new Bunny edge script. */
-export const createEdgeScript = (
-  name: string,
-  code: string,
-): ReturnType<typeof createEdgeScriptImpl> =>
-  bunnyCdnApi.createEdgeScript(name, code);
-
-/** Set a secret on a Bunny edge script. */
-export const setEdgeScriptSecret = (
-  scriptId: number,
-  name: string,
-  value: string,
-): Promise<BunnyApiResult> =>
-  bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
-
-/** Publish a Bunny edge script. */
-export const publishEdgeScript = (scriptId: number): Promise<BunnyApiResult> =>
-  bunnyCdnApi.publishEdgeScript(scriptId);

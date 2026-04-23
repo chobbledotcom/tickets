@@ -662,5 +662,26 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       expect(response.status).toBe(403);
     });
+
+    test("request succeeds when touchApiKeyLastUsed fails (fire-and-forget)", async () => {
+      await createTestEvent({ name: "Touch Test" });
+      const { apiKey } = await createTestApiKeyFull("Touch Test Key");
+
+      // Make touchApiKeyLastUsed throw via test hook
+      const { setTouchOverrideForTest } = await import(
+        "#lib/test-overrides.ts"
+      );
+      setTouchOverrideForTest(new Error("touch failed"));
+
+      try {
+        const response = await handleRequest(
+          requestAsApiKey("/api/admin/events", apiKey),
+        );
+        // Request should succeed despite touchApiKeyLastUsed throwing
+        expect(response.status).toBe(200);
+      } finally {
+        setTouchOverrideForTest(null);
+      }
+    });
   });
 });

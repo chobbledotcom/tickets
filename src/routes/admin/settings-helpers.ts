@@ -12,13 +12,8 @@
 import { logActivity } from "#lib/db/activityLog.ts";
 import { isMaskSentinel } from "#lib/db/settings.ts";
 import type { FormParams } from "#lib/form-data.ts";
-import {
-  type AuthSession,
-  errorRedirect,
-  OWNER_FORM,
-  redirect,
-  withAuth,
-} from "#routes/utils.ts";
+import { type AuthSession, OWNER_FORM, withAuth } from "#routes/auth.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
 
 // ── Types ───────────────────────────────────────────────────────────
 
