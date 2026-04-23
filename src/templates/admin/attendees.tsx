@@ -6,7 +6,6 @@ import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
 import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#lib/db/questions.ts";
-import { createLinkEventForm } from "#lib/form-schemas.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import {
@@ -17,6 +16,7 @@ import {
 } from "#lib/merge/attendee-merge.ts";
 import type { AttendeeMergeDiff } from "#lib/merge/attendee-merge-types.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import { createLinkEventForm } from "#routes/admin/attendees-link-form.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
