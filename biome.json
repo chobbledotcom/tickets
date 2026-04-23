@@ -51,6 +51,12 @@
         "noUnusedVariables": "error"
       },
       "nursery": {
+        "noExcessiveLinesPerFile": {
+          "level": "error",
+          "options": {
+            "maxLines": 1200
+          }
+        },
         "useSortedClasses": "error"
       },
       "performance": {
