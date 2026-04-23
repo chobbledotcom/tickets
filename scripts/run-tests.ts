@@ -138,6 +138,35 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
   return result.code;
 };
 
+/** Extract uncovered line numbers from DA: entries in an lcov record */
+const extractUncoveredLines = (record: string): number[] => {
+  const matches = record.matchAll(/^DA:(\d+),0$/gm);
+  const lines: number[] = [];
+  for (const m of matches) lines.push(parseInt(m[1], 10));
+  return lines;
+};
+
+/** Extract uncovered branch line numbers from BRDA: entries, deduped */
+const extractUncoveredBranchLines = (record: string): number[] => {
+  const matches = record.matchAll(/^BRDA:(\d+),\d+,\d+,(-|0)$/gm);
+  const seen = new Set<number>();
+  const lines: number[] = [];
+  for (const m of matches) {
+    const line = parseInt(m[1], 10);
+    if (!seen.has(line)) {
+      seen.add(line);
+      lines.push(line);
+    }
+  }
+  return lines;
+};
+
+/** Format uncovered numbers as an indented suffix, or "" if none */
+const formatUncovered = (label: string, nums: number[]): string => {
+  if (nums.length === 0) return "";
+  return `\n      uncovered ${label}: ${nums.join(", ")}`;
+};
+
 /** Check a coverage metric (lines or branches) in an lcov record */
 const checkMetric = (
   record: string,
@@ -145,13 +174,16 @@ const checkMetric = (
   foundKey: string,
   file: string,
   label: string,
+  uncoveredSuffix: string,
 ): string | undefined => {
   const hitMatch = record.match(new RegExp(`${hitKey}:(\\d+)`));
   const foundMatch = record.match(new RegExp(`${foundKey}:(\\d+)`));
   if (!hitMatch || !foundMatch) return undefined;
   const hit = parseInt(hitMatch[1], 10);
   const found = parseInt(foundMatch[1], 10);
-  return hit < found ? `${file}: ${hit}/${found} ${label} covered` : undefined;
+  return hit < found
+    ? `${file}: ${hit}/${found} ${label} covered${uncoveredSuffix}`
+    : undefined;
 };
 
 // Files excluded from coverage enforcement
@@ -175,9 +207,21 @@ const checkRecord = (
   lineFailures: string[],
   branchFailures: string[],
 ): void => {
-  const lineFail = checkMetric(record, "LH", "LF", file, "lines");
+  const lineSuffix = formatUncovered("lines", extractUncoveredLines(record));
+  const branchSuffix = formatUncovered(
+    "branches (by line)",
+    extractUncoveredBranchLines(record),
+  );
+  const lineFail = checkMetric(record, "LH", "LF", file, "lines", lineSuffix);
   if (lineFail) lineFailures.push(lineFail);
-  const branchFail = checkMetric(record, "BRH", "BRF", file, "branches");
+  const branchFail = checkMetric(
+    record,
+    "BRH",
+    "BRF",
+    file,
+    "branches",
+    branchSuffix,
+  );
   if (branchFail) branchFailures.push(branchFail);
 };
 
