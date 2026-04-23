@@ -14,12 +14,12 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
-import {
-  createActionHandler,
-  createConfirmedHandlers,
-} from "#routes/admin/utils.ts";
+import { createActionHandler } from "#routes/admin/actions.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { applyFlash, htmlResponse, requireOwnerOr } from "#routes/utils.ts";
 import {
   adminApiDocsPage,
   adminApiKeysPage,

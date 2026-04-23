@@ -1060,7 +1060,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expect(setupResponse.status).toBe(200);
 
-      const { withAuth, jsonResponse } = await import("#routes/utils.ts");
+      const { withAuth } = await import("#routes/auth.ts");
+      const { jsonResponse } = await import("#routes/response.ts");
       const { runWithSessionContext } = await import("#lib/session-context.ts");
 
       const response = await runWithSessionContext(async () => {

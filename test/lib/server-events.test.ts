@@ -10,7 +10,8 @@ import { nowMs } from "#lib/now.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
-import { formatCountdown, withCookie } from "#routes/utils.ts";
+import { formatCountdown } from "#routes/format.ts";
+import { withCookie } from "#routes/response.ts";
 import {
   adminFormPost,
   adminGet,

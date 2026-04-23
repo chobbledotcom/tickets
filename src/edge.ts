@@ -14,7 +14,7 @@ import {
   logError,
 } from "#lib/logger.ts";
 import { handleRequest } from "#routes";
-import { temporaryErrorResponse } from "#routes/utils.ts";
+import { temporaryErrorResponse } from "#routes/response.ts";
 
 const initialize = once(async (): Promise<void> => {
   validateEncryptionKey();

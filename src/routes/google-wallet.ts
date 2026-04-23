@@ -5,12 +5,12 @@
 
 import { settings } from "#lib/db/settings.ts";
 import { buildGoogleWalletUrl } from "#lib/google-wallet.ts";
+import { notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
 } from "#routes/token-utils.ts";
-import { notFoundResponse } from "#routes/utils.ts";
 
 /** Handle GET /gwallet/:token — redirect to Google Wallet save URL */
 const handleGoogleWalletGet = async (

@@ -14,7 +14,7 @@ import type {
   DeleteResult,
   Resource,
 } from "#lib/rest/resource.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/utils.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;

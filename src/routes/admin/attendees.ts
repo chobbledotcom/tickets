@@ -14,15 +14,10 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { type AdminSession, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  applyFlash,
-  htmlResponse,
-  redirect,
-  redirectResponse,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminDeleteAttendeePage,
   adminResendNotificationPage,
@@ -49,7 +44,7 @@ import {
   getReturnUrl,
   verifiedAttendeeForm,
 } from "./attendees-route-helpers.ts";
-import { withEntityFromParam } from "./utils.ts";
+import { withEntityFromParam } from "./entity-handlers.ts";
 
 /** Signature shared by all attendee GET page renderers */
 type AttendeePageRenderer = (

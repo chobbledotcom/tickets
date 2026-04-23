@@ -13,7 +13,7 @@ import { settings } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
-import { formatCreationError } from "#routes/utils.ts";
+import { formatCreationError } from "#routes/format.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,

@@ -2,6 +2,7 @@
  * Admin user management routes - owner only
  */
 
+/* jscpd:ignore-start */
 import { getEffectiveDomain } from "#lib/config.ts";
 import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -23,20 +24,18 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
-import { createConfirmedHandlers } from "#routes/admin/utils.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   type AuthSession,
-  errorRedirect,
   generateSecureToken,
-  getSearchParam,
-  htmlResponse,
   OWNER_FORM,
   ownerPage,
-  redirect,
   requireOwnerOr,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 
 import {
   adminUserDeletePage,
@@ -49,6 +48,8 @@ import {
   type InviteUserFormValues,
   inviteUserFields,
 } from "#templates/fields.ts";
+
+/* jscpd:ignore-end */
 
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;

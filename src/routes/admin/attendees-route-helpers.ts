@@ -6,18 +6,16 @@ import { decryptAttendeeOrNull } from "#lib/db/attendees.ts";
 import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import {
-  requirePrivateKey,
-  verifyOrRedirect,
-  withEntityLoader,
-} from "#routes/admin/utils.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
   AUTH_FORM,
   type AuthSession,
-  getSearchParam,
   requireSessionOr,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { getSearchParam } from "#routes/url.ts";
 
 /** Attendee with event data */
 export type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };

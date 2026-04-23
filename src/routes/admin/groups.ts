@@ -28,16 +28,11 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
+import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { loadQuestionData, requirePrivateKey } from "#routes/admin/utils.ts";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  htmlResponse,
-  redirect,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -51,7 +46,7 @@ import {
   groupCreateFields,
   groupFields,
 } from "#templates/fields.ts";
-import { withEntityLoader } from "./utils.ts";
+import { withEntityLoader } from "./entity-handlers.ts";
 
 /** Generate a unique group slug, retrying on collision */
 export const generateUniqueGroupSlug = () =>

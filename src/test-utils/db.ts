@@ -37,6 +37,7 @@ const prepareTestClient = async (): Promise<void> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
 
+  setTestEnv({ DB_URL: ":memory:" });
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
@@ -195,7 +196,7 @@ export const describeWithEnv = (
   fn: () => void,
 ): void => {
   describe(name, () => {
-    let restoreEnv: () => void;
+    let restoreEnv: (() => void) | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
@@ -209,7 +210,7 @@ export const describeWithEnv = (
     });
     afterEach(() => {
       if (options.db) resetDb();
-      if (options.env) restoreEnv();
+      if (restoreEnv) restoreEnv();
     });
     fn();
   });

@@ -21,18 +21,17 @@ import { nowMs } from "#lib/now.ts";
 import { fail, ok } from "#lib/response.ts";
 import { getSkipLoginDelay } from "#lib/test-overrides.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
-import { defineRoutes } from "#routes/router.ts";
-import type { ServerContext } from "#routes/types.ts";
 import {
   AUTH_FORM,
   generateSecureToken,
   getAuthenticatedSession,
-  getClientIp,
-  parseCookies,
-  parseFormData,
-  redirect,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { parseFormData } from "#routes/csrf.ts";
+import { redirect } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
+import type { ServerContext } from "#routes/types.ts";
+import { getClientIp, parseCookies } from "#routes/url.ts";
 import { type LoginFormValues, loginFields } from "#templates/fields.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */

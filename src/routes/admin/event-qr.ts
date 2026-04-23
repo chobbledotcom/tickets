@@ -17,15 +17,10 @@ import { FormParams } from "#lib/form-data.ts";
 import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
-import { withEntityLoader } from "#routes/admin/utils.ts";
+import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  htmlResponse,
-  jsonResponse,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
 import type {
   AdminEventQrResult,
   AdminEventQrValues,

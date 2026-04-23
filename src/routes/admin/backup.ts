@@ -24,16 +24,12 @@ import {
   listFiles,
   uploadRaw,
 } from "#lib/storage.ts";
-import { createActionHandler, verifyOrRedirect } from "#routes/admin/utils.ts";
+import { createActionHandler } from "#routes/admin/actions.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  applyFlash,
-  htmlResponse,
-  OWNER_MULTIPART,
-  redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminBackupPage,
   adminRestoreConfirmPage,

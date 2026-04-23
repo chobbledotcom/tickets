@@ -24,19 +24,15 @@ import { buildDuplicateEventInput } from "#lib/events-actions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import {
   generateUniqueGroupSlug,
   groupFormPost,
   withGroup,
 } from "#routes/admin/groups.ts";
-import { verifyOrRedirect } from "#routes/admin/utils.ts";
+import { requireSessionOr } from "#routes/auth.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  redirect,
-  requireSessionOr,
-} from "#routes/utils.ts";
 import {
   adminBulkActionsPage,
   adminDeactivateGroupPage,

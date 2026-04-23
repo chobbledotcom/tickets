@@ -14,11 +14,11 @@ import type { EventWithCount } from "#lib/types.ts";
 import {
   type ActionHandlerConfig,
   createActionHandler,
-} from "#routes/admin/utils.ts";
+} from "#routes/admin/actions.ts";
 import type {
   AttendeeEventRouteParams,
   AttendeeRouteParams,
-} from "#routes/utils.ts";
+} from "#routes/entity.ts";
 
 /** Parse a quantity value from a form field, clamping to [1, max] */
 const parseQuantity = (value: string, max: number): number => {

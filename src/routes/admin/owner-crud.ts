@@ -6,24 +6,25 @@ import type { AdminSession } from "#lib/types.ts";
 import {
   createConfirmedHandlers,
   type FormGuard,
-  type SessionGuard,
-} from "#routes/admin/utils.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
+} from "#routes/admin/confirmation.ts";
 import {
   AUTH_FORM,
-  applyFlash,
   authPage,
-  errorRedirect,
-  htmlResponse,
-  type IdRouteHandler,
-  notFoundResponse,
   OWNER_FORM,
-  redirect,
   requireOwnerOr,
   requireSessionOr,
+  type SessionGuard,
   withAuth,
-  withEntity,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { type IdRouteHandler, withEntity } from "#routes/entity.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 
 type CrudConfig<Row, Input> = {
   singular: string;

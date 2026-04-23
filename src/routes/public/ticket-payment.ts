@@ -24,13 +24,13 @@ import {
 } from "#lib/payments.ts";
 import type { ContactInfo, Group } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
 import {
   checkoutResponse,
   errorRedirect,
-  getBaseUrl,
-  isRegistrationClosed,
   notFoundResponse,
-} from "#routes/utils.ts";
+} from "#routes/response.ts";
+import { getBaseUrl } from "#routes/url.ts";
 import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
 import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
 import type {
