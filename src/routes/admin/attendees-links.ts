@@ -36,23 +36,21 @@ const parseLinkFormFields = (
 });
 
 const eventMessage =
-  (eventId: number, prefix: string): (() => Promise<string>) =>
-  async () => {
+  (eventId: number, prefix: string): () => Promise<string> => async () => {
     const event = await getEventWithCount(eventId);
     return `${prefix} '${event!.name}'`;
   };
 
 /** Execute wrapper: fetch event, validate, run operation */
-const withEventExecute =
-  (
-    eventId: number,
-    op: (event: EventWithCount, form: FormParams) => Promise<void>,
-  ): ActionHandlerConfig["execute"] =>
-  async (_session, form) => {
-    const event = await getEventWithCount(eventId);
-    if (!event) throw new Error("Event not found");
-    await op(event, form);
-  };
+const withEventExecute = (
+  eventId: number,
+  op: (event: EventWithCount, form: FormParams) => Promise<void>,
+): ActionHandlerConfig["execute"] =>
+async (_session, form) => {
+  const event = await getEventWithCount(eventId);
+  if (!event) throw new Error("Event not found");
+  await op(event, form);
+};
 
 /** Common config for attendee event-link actions */
 const attendeeActionConfig = (
@@ -63,17 +61,16 @@ const attendeeActionConfig = (
 });
 
 /** Curried factory: params → config → route handler */
-const attendeeAction =
-  <T extends AttendeeRouteParams>(
-    config: (
-      params: T,
-    ) => Omit<ActionHandlerConfig, "auth" | "successRedirect">,
-  ) =>
-  (request: Request, params: T): Promise<Response> =>
-    createActionHandler({
-      ...attendeeActionConfig(params.attendeeId),
-      ...config(params),
-    })(request);
+const attendeeAction = <T extends AttendeeRouteParams>(
+  config: (
+    params: T,
+  ) => Omit<ActionHandlerConfig, "auth" | "successRedirect">,
+) =>
+(request: Request, params: T): Promise<Response> =>
+  createActionHandler({
+    ...attendeeActionConfig(params.attendeeId),
+    ...config(params),
+  })(request);
 
 /** Handle POST /admin/attendees/:attendeeId/unlink/:eventId — remove event link */
 export const handleUnlinkEvent = attendeeAction(
@@ -115,7 +112,7 @@ export const handleUpdateEventLink = attendeeAction(
 /** Handle POST /admin/attendees/:attendeeId/link — add event link */
 export const handleAddEventLink = attendeeAction(
   ({ attendeeId }: AttendeeRouteParams) => ({
-    eventId: (form) => Number(form.get("event_id")) || undefined,
+    eventId: (form) => Number(form.get("event_id")),
     execute: async (_session, form) => {
       const eventId = Number(form.get("event_id")) || 0;
       if (!eventId) throw new Error("Event is required");
