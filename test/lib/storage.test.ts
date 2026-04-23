@@ -601,10 +601,67 @@ describeWithEnv(
         },
       },
       () => {
-        // uploadRaw and downloadRaw Bunny branches are covered indirectly:
-        // existing tests call uploadImage/downloadImage which delegate to
-        // uploadRaw/downloadRaw via encryptAndUpload/downloadImage wrappers.
-        // Only listFiles is a wholly new Bunny codepath that needs direct testing.
+        test("uploadRaw uploads bytes to Bunny CDN", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                let uploadRequest: {
+                  body: Uint8Array;
+                  contentType: string | null;
+                  method: string;
+                  url: string;
+                } | null = null;
+
+                installUrlHandler(originalFetch, async (url, init) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    const request = new Request(url, init);
+                    uploadRequest = {
+                      body: new Uint8Array(await request.arrayBuffer()),
+                      contentType: request.headers.get("content-type"),
+                      method: request.method,
+                      url,
+                    };
+                    return new Response(JSON.stringify({ HttpCode: 201 }), {
+                      status: 201,
+                    });
+                  }
+                  return null;
+                });
+
+                const raw = new Uint8Array([1, 2, 3, 4]);
+                const filename = await uploadRaw(raw, "raw-upload.bin");
+
+                expect(filename).toBe("raw-upload.bin");
+                expect(uploadRequest).not.toBeNull();
+                expect(uploadRequest?.method).toBe("PUT");
+                expect(uploadRequest?.url).toContain("/raw-upload.bin");
+                expect(uploadRequest?.contentType).toBe(
+                  "application/octet-stream",
+                );
+                expect(uploadRequest?.body).toEqual(raw);
+              }),
+          );
+        });
+
+        test("downloadRaw returns null when Bunny reports missing file", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    return Promise.resolve(new Response("File not found", {
+                      status: 404,
+                    }));
+                  }
+                  return null;
+                });
+
+                await expect(downloadRaw("missing.bin")).resolves.toBeNull();
+              }),
+          );
+        });
 
         test("listFiles lists files from Bunny CDN matching prefix", async () => {
           await runWithStorageConfig(
