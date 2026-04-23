@@ -236,7 +236,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
   describe("routes/utils.ts (getPrivateKey)", () => {
     test("returns null when wrappedDataKey is null", async () => {
-      const { getPrivateKey } = await import("#routes/utils.ts");
+      const { getPrivateKey } = await import("#routes/auth.ts");
       const result = await getPrivateKey({
         token: "any-token",
         wrappedDataKey: null,
@@ -253,7 +253,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
       s.invalidateCache();
 
-      const { getPrivateKey } = await import("#routes/utils.ts");
+      const { getPrivateKey } = await import("#routes/auth.ts");
       const result = await getPrivateKey({
         token: "any-token",
         wrappedDataKey: "some-wrapped-key",
@@ -262,7 +262,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("returns null when crypto operation throws", async () => {
-      const { getPrivateKey } = await import("#routes/utils.ts");
+      const { getPrivateKey } = await import("#routes/auth.ts");
       const result = await getPrivateKey({
         token: "any-token",
         wrappedDataKey: "corrupt-key-data",

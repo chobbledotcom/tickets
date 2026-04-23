@@ -2,16 +2,14 @@
  * Entity loading patterns for route handlers
  */
 
-import { getEventWithCount } from "#lib/db/events.ts";
 import type { FormParams } from "#lib/form-data.ts";
-import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
+import type { AdminLevel } from "#lib/types.ts";
 import {
   type AuthSession,
   OWNER_FORM,
   requireSessionOr,
   withAuth,
 } from "#routes/auth.ts";
-import { htmlResponse } from "#routes/response.ts";
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.
@@ -89,10 +87,3 @@ export const ownerFormById =
     withAuth(request, OWNER_FORM, (session, form) =>
       handler(id, session, form as FormParams),
     );
-
-export const withEventPage = (
-  renderPage: (event: EventWithCount, session: AdminSession) => string,
-): IdRouteHandler =>
-  authenticatedGetById(null)(getEventWithCount, (event, session) =>
-    htmlResponse(renderPage(event, session)),
-  );

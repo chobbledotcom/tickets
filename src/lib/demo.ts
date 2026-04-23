@@ -599,10 +599,6 @@ export const TERMS_DEMO_FIELDS: DemoFieldMap = {
 export const randomChoice = <T>(arr: readonly T[]): T =>
   arr[Math.floor(Math.random() * arr.length)]!;
 
-/** Generate a random full name from first name + surname arrays */
-export const randomName = (): string =>
-  `${randomChoice(DEMO_FIRST_NAMES)} ${randomChoice(DEMO_SURNAMES)}`;
-
 /**
  * Replace form field values with demo data when demo mode is active.
  * Only replaces fields that are present and non-empty in the form.

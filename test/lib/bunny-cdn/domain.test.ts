@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import {
   buildSubdomainRecordName,
   bunnyCdnApi,
@@ -677,3 +678,23 @@ describeWithEnv(
     });
   },
 );
+
+// ---------------------------------------------------------------------------
+// delay
+// ---------------------------------------------------------------------------
+
+describeWithEnv("delay", {}, () => {
+  test("resolves after the specified time", async () => {
+    using time = new FakeTime();
+    let resolved = false;
+    bunnyCdnApi.delay(1000).then(() => {
+      resolved = true;
+    });
+    time.tick(500);
+    await time.runMicrotasks();
+    expect(resolved).toBe(false);
+    time.tick(500);
+    await time.runMicrotasks();
+    expect(resolved).toBe(true);
+  });
+});
