@@ -9,7 +9,6 @@ import {
   deleteTestGroup,
   updateTestGroup,
   urlFromFetchInput,
-  wait,
 } from "#test-utils";
 
 describe("test-compat", () => {
