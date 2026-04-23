@@ -10,7 +10,11 @@ import { FormParams } from "#lib/form-data.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithRequestId } from "#lib/logger.ts";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
-import { redirect, redirectResponse, temporaryErrorResponse } from "#routes/response.ts";
+import {
+  redirect,
+  redirectResponse,
+  temporaryErrorResponse,
+} from "#routes/response.ts";
 import {
   createTestDb,
   createTestEvent,
@@ -412,7 +416,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
   describe("routes/admin/utils.ts (helper factories)", () => {
     test("withEntityLoader returns handler response when entity exists", async () => {
-      const { withEntityLoader } = await import("#routes/admin/entity-handlers.ts");
+      const { withEntityLoader } = await import(
+        "#routes/admin/entity-handlers.ts"
+      );
 
       const response = await withEntityLoader((id: number) =>
         Promise.resolve(id === 7 ? { id, name: "Loaded" } : null),
@@ -423,7 +429,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withEntityFromParam returns 404 for invalid ids", async () => {
-      const { withEntityFromParam } = await import("#routes/admin/entity-handlers.ts");
+      const { withEntityFromParam } = await import(
+        "#routes/admin/entity-handlers.ts"
+      );
 
       const response = await withEntityFromParam(
         "not-a-number",
@@ -435,7 +443,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withSessionAndEntity loads entity after session auth", async () => {
-      const { withSessionAndEntity } = await import("#routes/admin/entity-handlers.ts");
+      const { withSessionAndEntity } = await import(
+        "#routes/admin/entity-handlers.ts"
+      );
       const cookie = await testCookie();
 
       const response = await withSessionAndEntity((session, id) =>
@@ -456,7 +466,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withAuthAndEntity handles form auth then loads entity", async () => {
-      const { withAuthAndEntity } = await import("#routes/admin/entity-handlers.ts");
+      const { withAuthAndEntity } = await import(
+        "#routes/admin/entity-handlers.ts"
+      );
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -514,7 +526,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withAuthEntityHandlers wires GET and POST flows", async () => {
-      const { withAuthEntityHandlers } = await import("#routes/admin/entity-handlers.ts");
+      const { withAuthEntityHandlers } = await import(
+        "#routes/admin/entity-handlers.ts"
+      );
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -1029,7 +1043,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
   describe("routes/admin/utils.ts", () => {
     test("verifyIdentifier matches case-insensitive trimmed strings", async () => {
-      const { verifyIdentifier } = await import("#routes/admin/confirmation.ts");
+      const { verifyIdentifier } = await import(
+        "#routes/admin/confirmation.ts"
+      );
 
       expect(verifyIdentifier("Test Event", "test event")).toBe(true);
       expect(verifyIdentifier("  Test  ", "test")).toBe(true);
@@ -1037,7 +1053,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("verifyOrRedirect returns null on match", async () => {
-      const { verifyOrRedirect } = await import("#routes/admin/confirmation.ts");
+      const { verifyOrRedirect } = await import(
+        "#routes/admin/confirmation.ts"
+      );
 
       const form = new FormParams({ confirm_identifier: "Test Event" });
       const result = verifyOrRedirect(form, "Test Event", "/admin/test");
@@ -1045,7 +1063,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("verifyOrRedirect returns error redirect on mismatch without action", async () => {
-      const { verifyOrRedirect } = await import("#routes/admin/confirmation.ts");
+      const { verifyOrRedirect } = await import(
+        "#routes/admin/confirmation.ts"
+      );
 
       const form = new FormParams({ confirm_identifier: "Wrong" });
       const result = verifyOrRedirect(form, "Test Event", "/admin/test");
@@ -1056,7 +1076,9 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("verifyOrRedirect returns error redirect with action label", async () => {
-      const { verifyOrRedirect } = await import("#routes/admin/confirmation.ts");
+      const { verifyOrRedirect } = await import(
+        "#routes/admin/confirmation.ts"
+      );
 
       const form = new FormParams({ confirm_identifier: "Wrong" });
       const result = verifyOrRedirect(

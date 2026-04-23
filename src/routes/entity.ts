@@ -2,11 +2,16 @@
  * Entity loading patterns for route handlers
  */
 
-import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
+import type { FormParams } from "#lib/form-data.ts";
+import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
+import {
+  type AuthSession,
+  OWNER_FORM,
+  requireSessionOr,
+  withAuth,
+} from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
-import { requireSessionOr, type AuthSession, withAuth, OWNER_FORM } from "#routes/auth.ts";
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.
@@ -17,7 +22,9 @@ export const orNotFound = async <T>(
   handler: (data: T) => Response | Promise<Response>,
 ): Promise<Response> => {
   const data = await load;
-  return data ? handler(data) : (await import("#routes/response.ts")).notFoundResponse();
+  return data
+    ? handler(data)
+    : (await import("#routes/response.ts")).notFoundResponse();
 };
 
 /** Handler that receives a loaded entity */

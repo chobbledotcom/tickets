@@ -11,9 +11,9 @@ import {
 } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import type { User } from "#lib/types.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import { type JoinFormValues, joinFields } from "#templates/fields.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 

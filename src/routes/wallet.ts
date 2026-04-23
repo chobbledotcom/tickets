@@ -7,12 +7,12 @@
 import { buildPkpass, type SigningCredentials } from "#lib/apple-wallet.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
+import { notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
 } from "#routes/token-utils.ts";
-import { notFoundResponse } from "#routes/response.ts";
 
 /** MIME type for Apple Wallet passes */
 const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";

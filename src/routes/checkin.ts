@@ -10,15 +10,25 @@ import { updateCheckedIn } from "#lib/db/attendees.ts";
 import { settings } from "#lib/db/settings.ts";
 import type { Attendee } from "#lib/types.ts";
 import {
+  AUTH_FORM,
+  type AuthSession,
+  getAuthenticatedSession,
+  getPrivateKey,
+  withAuth,
+} from "#routes/auth.ts";
+import {
+  htmlResponse,
+  notFoundResponse,
+  redirectResponse,
+} from "#routes/response.ts";
+import {
   createTokenRoute,
   decryptTokenEntries,
   lookupAttendees,
   resolveEntries,
   type TokenEntry,
 } from "#routes/token-utils.ts";
-import { AUTH_FORM, type AuthSession, getAuthenticatedSession, getPrivateKey, withAuth } from "#routes/auth.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { htmlResponse, notFoundResponse, redirectResponse } from "#routes/response.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 
 const formatTicketCount = (count: number): string => {

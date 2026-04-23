@@ -2,11 +2,15 @@
  * Response builder utilities for route handlers
  */
 
+import { buildFlashCookie } from "#lib/cookies.ts";
 import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { getRequestId } from "#lib/logger.ts";
-import { buildFlashCookie } from "#lib/cookies.ts";
-import { notFoundPage, rateLimitedPage, temporaryErrorPage } from "#templates/public.tsx";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
+import {
+  notFoundPage,
+  rateLimitedPage,
+  temporaryErrorPage,
+} from "#templates/public.tsx";
 
 /**
  * Shared TextEncoder for pre-encoding string response bodies to Uint8Array.

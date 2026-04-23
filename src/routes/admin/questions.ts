@@ -2,6 +2,7 @@
  * Admin routes for custom questions management (owner-only)
  */
 
+/* jscpd:ignore-start */
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import {
@@ -21,12 +22,25 @@ import {
 } from "#lib/db/questions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { createConfirmedHandlers, verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import { defineRoutes } from "#routes/router.ts";
-import { errorRedirect, htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import { type FormParams } from "#routes/csrf.ts";
-import { OWNER_FORM, ownerPage, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import {
+  createConfirmedHandlers,
+  verifyOrRedirect,
+} from "#routes/admin/confirmation.ts";
+import {
+  OWNER_FORM,
+  ownerPage,
+  requireOwnerOr,
+  withAuth,
+} from "#routes/auth.ts";
+import type { FormParams } from "#routes/csrf.ts";
 import { ownerFormById, ownerGetById } from "#routes/entity.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,
@@ -34,6 +48,7 @@ import {
   adminQuestionPage,
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
+/* jscpd:ignore-end */
 
 /** Validate text is non-empty, returning error redirect if blank */
 const requireTextOrError = (

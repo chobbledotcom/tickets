@@ -14,8 +14,8 @@ import type { CheckoutIntent } from "#lib/payments.ts";
 import { eventSupportsDirectCheckout } from "#lib/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#lib/qr-token.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { htmlResponse } from "#routes/response.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { htmlResponse } from "#routes/response.ts";
 import {
   buildTicketEvent,
   type QrPrefill,

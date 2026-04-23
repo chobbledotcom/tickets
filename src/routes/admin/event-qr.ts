@@ -18,9 +18,9 @@ import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import type {
   AdminEventQrResult,
   AdminEventQrValues,

@@ -4,7 +4,7 @@
 
 import type { FormParams } from "#lib/form-data.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { requireSessionOr, withAuth, AUTH_FORM } from "#routes/auth.ts";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import type { EntityHandler } from "#routes/entity.ts";
 import { withEntity } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";

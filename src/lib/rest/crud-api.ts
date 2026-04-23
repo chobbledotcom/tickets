@@ -22,9 +22,9 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import type { Table } from "#lib/db/table.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };

@@ -39,13 +39,19 @@ import {
 } from "#lib/payments.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { formatCreationError, isRegistrationClosed } from "#routes/format.ts";
 import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
+import {
+  htmlResponse,
+  jsonResponse,
+  paymentErrorResponse,
+  plainResponse,
+  redirectResponse,
+} from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
-import { formatCreationError, isRegistrationClosed } from "#routes/format.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { htmlResponse, jsonResponse, paymentErrorResponse, plainResponse, redirectResponse } from "#routes/response.ts";
 import type {
   BookingIntent,
   EventPriceValidation,

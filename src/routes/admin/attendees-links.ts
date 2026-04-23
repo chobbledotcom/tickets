@@ -11,7 +11,10 @@ import { queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { type ActionHandlerConfig, createActionHandler } from "#routes/admin/actions.ts";
+import {
+  type ActionHandlerConfig,
+  createActionHandler,
+} from "#routes/admin/actions.ts";
 import type {
   AttendeeEventRouteParams,
   AttendeeRouteParams,

@@ -14,10 +14,10 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { type AdminSession, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   adminDeleteAttendeePage,
   adminResendNotificationPage,

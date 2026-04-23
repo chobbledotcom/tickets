@@ -3,13 +3,28 @@ import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { createConfirmedHandlers, type FormGuard } from "#routes/admin/confirmation.ts";
-import { type SessionGuard } from "#routes/auth.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
-import { AUTH_FORM, authPage, OWNER_FORM, requireOwnerOr, requireSessionOr, withAuth } from "#routes/auth.ts";
+import {
+  createConfirmedHandlers,
+  type FormGuard,
+} from "#routes/admin/confirmation.ts";
+import {
+  AUTH_FORM,
+  authPage,
+  OWNER_FORM,
+  requireOwnerOr,
+  requireSessionOr,
+  type SessionGuard,
+  withAuth,
+} from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { errorRedirect, htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import { type IdRouteHandler, withEntity } from "#routes/entity.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 
 type CrudConfig<Row, Input> = {
   singular: string;

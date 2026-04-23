@@ -28,11 +28,11 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,

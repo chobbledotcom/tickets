@@ -9,7 +9,12 @@ import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
-import { AUTH_FORM, type AuthSession, requireSessionOr, withAuth } from "#routes/auth.ts";
+import {
+  AUTH_FORM,
+  type AuthSession,
+  requireSessionOr,
+  withAuth,
+} from "#routes/auth.ts";
 import { getSearchParam } from "#routes/url.ts";
 
 /** Attendee with event data */

@@ -10,9 +10,14 @@ import { resetDatabase } from "#lib/db/migrations.ts";
 import { isDemoMode } from "#lib/demo.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
-import { errorRedirect, htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   demoResetPage,
   RESET_DATABASE_PHRASE,

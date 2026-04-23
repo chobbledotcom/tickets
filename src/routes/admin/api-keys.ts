@@ -16,10 +16,10 @@ import {
 } from "#lib/db/api-keys.ts";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   adminApiDocsPage,
   adminApiKeysPage,
