@@ -605,15 +605,15 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const handlers = createConfirmedHandlers<{ name: string }>({
         path: "/admin/test/:id/delete",
         auth: "any",
-        load: async () => ({ name: "Alpha" }),
-        render: async () => "ok",
-        identifier: async (m) => m.name,
-        onConfirm: async () => {},
+        load: () => Promise.resolve({ name: "Alpha" }),
+        render: () => Promise.resolve("ok"),
+        identifier: (m) => Promise.resolve(m.name),
+        onConfirm: () => Promise.resolve(),
         successRedirect: "/admin/test",
         successMessage: "deleted",
         identifierLabel: "Name",
-        preValidate: async () =>
-          new Response("blocked", { status: 418, headers: { "x-hit": "1" } }),
+        preValidate: () =>
+          Promise.resolve(new Response("blocked", { status: 418, headers: { "x-hit": "1" } })),
       });
 
       const getResponse = await handlers.get(
@@ -635,15 +635,15 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const missing = createConfirmedHandlers<{ name: string }>({
         path: "/admin/test/:id/delete",
         auth: "any",
-        load: async () => null,
-        render: async () => "ok",
-        identifier: async (m) => m.name,
-        onConfirm: async () => {},
+        load: () => Promise.resolve(null),
+        render: () => Promise.resolve("ok"),
+        identifier: (m) => Promise.resolve(m.name),
+        onConfirm: () => Promise.resolve(),
         successRedirect: "/admin/test",
         successMessage: "deleted",
         identifierLabel: "Name",
-        onNotFound: async () =>
-          new Response("custom-not-found", { status: 410 }),
+        onNotFound: () =>
+          Promise.resolve(new Response("custom-not-found", { status: 410 })),
       });
 
       const missingResponse = await missing.get(
