@@ -18,7 +18,6 @@ import {
   createTestDb,
   createTestEvent,
   describeWithEnv,
-  expectFlash,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
