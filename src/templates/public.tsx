@@ -121,9 +121,13 @@ const renderEventListing = (info: TicketEvent): string => {
     ? "<p><strong>Sold Out</strong></p>"
     : isClosed || isReadOnly()
       ? "<p><strong>Registration Closed</strong></p>"
-      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>${bookLabel}</strong></a></p>`;
+      : `<p><a href="/ticket/${escapeHtml(
+          event.slug,
+        )}"><strong>${bookLabel}</strong></a></p>`;
 
-  return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(
+    event.name,
+  )}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
 };
 
 /** Render a single group listing for the events page (same style as events) */
@@ -133,9 +137,13 @@ const renderGroupListing = (group: Group): string => {
     : "";
   const linkHtml = isReadOnly()
     ? "<p><strong>Registration Closed</strong></p>"
-    : `<p><a href="/ticket/${escapeHtml(group.slug)}"><strong>Book now</strong></a></p>`;
+    : `<p><a href="/ticket/${escapeHtml(
+        group.slug,
+      )}"><strong>Book now</strong></a></p>`;
 
-  return `<div class="prose"><h2>${escapeHtml(group.name)}</h2>${descriptionHtml}</div>${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(
+    group.name,
+  )}</h2>${descriptionHtml}</div>${linkHtml}`;
 };
 
 /**
@@ -203,7 +211,9 @@ export const renderEventImage = (
   className = "event-image",
 ): string =>
   event.image_url
-    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="" class="${className}" />`
+    ? `<img src="${escapeHtml(
+        getImageProxyUrl(event.image_url),
+      )}" alt="" class="${className}" />`
     : "";
 
 /** Build OpenGraph meta tags for a public event page */
@@ -214,16 +224,22 @@ export const buildOgTags = (
   const tags = [
     `<meta property="og:title" content="${escapeHtml(event.name)}">`,
     `<meta property="og:type" content="website">`,
-    `<meta property="og:url" content="${escapeHtml(baseUrl)}/ticket/${escapeHtml(event.slug)}">`,
+    `<meta property="og:url" content="${escapeHtml(baseUrl)}/ticket/${escapeHtml(
+      event.slug,
+    )}">`,
   ];
   if (event.description) {
     tags.push(
-      `<meta property="og:description" content="${escapeHtml(event.description)}">`,
+      `<meta property="og:description" content="${escapeHtml(
+        event.description,
+      )}">`,
     );
   }
   if (event.image_url) {
     tags.push(
-      `<meta property="og:image" content="${escapeHtml(baseUrl)}${escapeHtml(getImageProxyUrl(event.image_url))}">`,
+      `<meta property="og:image" content="${escapeHtml(baseUrl)}${escapeHtml(
+        getImageProxyUrl(event.image_url),
+      )}">`,
     );
   }
   return tags.join("\n");
@@ -239,7 +255,9 @@ const renderDateSelector = (dates: string[], selected = ""): string =>
          ${dates
            .map(
              (d) =>
-               `<option value="${d}"${d === selected ? " selected" : ""}>${formatDateLabel(d)}</option>`,
+               `<option value="${d}"${d === selected ? " selected" : ""}>${formatDateLabel(
+                 d,
+               )}</option>`,
            )
            .join("")}
        </select>`;
@@ -265,7 +283,13 @@ const renderPayMoreInput = (
       : minPrice;
   return (
     `<label>${rangeHint}` +
-    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(defaultValue))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${minPrice > 0 ? " required" : ""} /></label>`
+    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(
+      toMajorUnits(defaultValue),
+    )}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(
+      toMajorUnits(maxPrice),
+    )}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${
+      minPrice > 0 ? " required" : ""
+    } /></label>`
   );
 };
 
@@ -287,14 +311,18 @@ export const renderQuestions = (
       const options = q.answers
         .map(
           (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(a.text)}</label>`,
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(
+              a.text,
+            )}</label>`,
         )
         .join("");
       const eventIds = questionEventMap?.get(q.id);
       const eventAttr = eventIds
         ? ` data-event-ids="${eventIds.join(" ")}"`
         : "";
-      return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+      return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(
+        q.text,
+      )}</legend>${options}</fieldset>`;
     })
     .join("");
 };
@@ -406,7 +434,9 @@ const quantityOptions = (max: number, selected: number): string =>
   Array.from({ length: max + 1 }, (_, i) => i)
     .map(
       (n) =>
-        `<option value="${n}"${n === selected ? " selected" : ""}>${n}</option>`,
+        `<option value="${n}"${
+          n === selected ? " selected" : ""
+        }>${n}</option>`,
     )
     .join("");
 
@@ -451,7 +481,10 @@ const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
 
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : `<select name="${fieldName}">${quantityOptions(maxPurchasable, 0)}</select>`;
+    : `<select name="${fieldName}">${quantityOptions(
+        maxPurchasable,
+        0,
+      )}</select>`;
 
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
@@ -478,10 +511,15 @@ const renderSingleEventControls = (
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : `<label>Number of Tickets<select name="${fieldName}">${quantityOptions(maxPurchasable, prefilledQty)}</select></label>`;
+    : `<label>Number of Tickets<select name="${fieldName}">${quantityOptions(
+        maxPurchasable,
+        prefilledQty,
+      )}</select></label>`;
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
-  return `${quantityHtml}${showPayMore ? renderPayMoreInput(event, priceFieldName, prefilledPrice) : ""}`;
+  return `${quantityHtml}${
+    showPayMore ? renderPayMoreInput(event, priceFieldName, prefilledPrice) : ""
+  }`;
 };
 
 /**

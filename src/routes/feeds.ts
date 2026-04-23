@@ -72,8 +72,9 @@ const buildVEvent = (
     `SUMMARY:${escapeIcs(event.name)}`,
     `URL:https://${domain}/ticket/${event.slug}`,
   ];
-  if (event.description)
+  if (event.description) {
     lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
+  }
   if (event.date) lines.push(`DTSTART:${formatIcsDate(event.date)}`);
   if (event.location) lines.push(`LOCATION:${escapeIcs(event.location)}`);
   lines.push("END:VEVENT");

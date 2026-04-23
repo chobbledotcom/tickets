@@ -4,7 +4,6 @@
     "actions": {
       "source": {
         "useSortedAttributes": "on",
-        "useSortedInterfaceMembers": "on",
         "useSortedKeys": "on",
         "useSortedProperties": "on"
       }
@@ -129,5 +128,8 @@
         "enabled": false
       }
     }
-  ]
+  ],
+  "vcs": {
+    "useIgnoreFile": true
+  }
 }

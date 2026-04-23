@@ -71,7 +71,9 @@ const renderSelectOptions = (
   options
     .map(
       (opt) =>
-        `<option value="${escapeHtml(opt.value)}"${opt.value === selectedValue ? " selected" : ""}>${escapeHtml(opt.label)}</option>`,
+        `<option value="${escapeHtml(opt.value)}"${
+          opt.value === selectedValue ? " selected" : ""
+        }>${escapeHtml(opt.label)}</option>`,
     )
     .join("");
 
@@ -84,7 +86,11 @@ const renderCheckboxGroup = (
   `<fieldset class="checkbox-group">${options
     .map(
       (opt) =>
-        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(opt.value)}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(opt.label)}</label>`,
+        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
+          opt.value,
+        )}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(
+          opt.label,
+        )}</label>`,
     )
     .join("")}</fieldset>`;
 
@@ -93,8 +99,16 @@ const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date" aria-label="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
-  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time" aria-label="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+  `<input type="date" name="${escapeHtml(
+    name,
+  )}_date" placeholder="Date" aria-label="Date"${
+    date ? ` value="${escapeHtml(date)}"` : ""
+  }>` +
+  `<input type="time" name="${escapeHtml(
+    name,
+  )}_time" placeholder="Time" aria-label="Time"${
+    time ? ` value="${escapeHtml(time)}"` : ""
+  }>`;
 
 const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";
@@ -134,7 +148,9 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "select" && field.options) {
     return (
       <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(
+          field.name,
+        )}">${renderSelectOptions(field.options, value)}</select>`}
       />
     );
   }
@@ -238,8 +254,9 @@ const collectFieldValue = (
     const result = getDatetimeValue(form, field.name);
     if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
     if (!result) {
-      if (field.required)
+      if (field.required) {
         return { error: `${field.label} is required`, valid: false };
+      }
       return { valid: true, value: null };
     }
     return result;

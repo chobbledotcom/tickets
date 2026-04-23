@@ -276,10 +276,11 @@ const handleToggleActive = (
 ): Promise<Response> =>
   withEvent(request, eventId, async (event) => {
     const updated = await toggleEventActive(eventId, event, active);
-    if (!updated)
+    if (!updated) {
       return apiErrorResponse(
         `Event is already ${active ? "active" : "deactivated"}`,
       );
+    }
     return jsonResponse({ event: toAdminEvent(updated) });
   });
 

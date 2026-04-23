@@ -82,8 +82,9 @@ export const lookupSingleTokenPassData = async (
   tokens: string[],
 ): Promise<SingleTokenResult> => {
   const token = tokens[0];
-  if (!token || tokens.length > 1)
+  if (!token || tokens.length > 1) {
     return { ok: false, response: notFoundResponse() };
+  }
 
   const result = await lookupAttendees([token]);
   if (!result.ok) return { ok: false, response: result.response };

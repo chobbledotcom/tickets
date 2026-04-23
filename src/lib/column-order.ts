@@ -102,7 +102,9 @@ const parseColumnTemplate = (
     const { key, filter } = parseTagBody(match[1]!);
     if (!validKeySet.has(key)) {
       return {
-        error: `Unknown column "${key}". Available columns: ${validKeys.join(", ")}`,
+        error: `Unknown column "${key}". Available columns: ${validKeys.join(
+          ", ",
+        )}`,
         ok: false,
       };
     }

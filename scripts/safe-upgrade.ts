@@ -69,8 +69,9 @@ function compareVersions(a: string, b: string): number {
 
 async function fetchNpmVersions(pkg: string): Promise<VersionInfo[]> {
   const resp = await fetch(`https://registry.npmjs.org/${pkg}`);
-  if (!resp.ok)
+  if (!resp.ok) {
     throw new Error(`npm registry returned ${resp.status} for ${pkg}`);
+  }
   const data = await resp.json();
   const time = data.time as Record<string, string>;
   const versions: VersionInfo[] = [];
@@ -91,8 +92,9 @@ async function fetchJsrVersions(
   const resp = await fetch(
     `https://jsr.io/api/scopes/${scope}/packages/${name}/versions`,
   );
-  if (!resp.ok)
+  if (!resp.ok) {
     throw new Error(`JSR API returned ${resp.status} for @${scope}/${name}`);
+  }
   const raw = await resp.json();
   const data = (Array.isArray(raw) ? raw : (raw.items ?? [])) as Array<{
     version: string;
@@ -211,7 +213,9 @@ async function main() {
   const cutoffDate = new Date(Date.now() - minAgeDays * 24 * 60 * 60 * 1000);
 
   console.log(
-    `\nSafe upgrade: only versions published before ${cutoffDate.toISOString().slice(0, 10)} (${minAgeDays}+ days old)`,
+    `\nSafe upgrade: only versions published before ${cutoffDate
+      .toISOString()
+      .slice(0, 10)} (${minAgeDays}+ days old)`,
   );
   if (dryRun) console.log("DRY RUN — no changes will be written\n");
   else console.log("");

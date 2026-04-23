@@ -242,8 +242,9 @@ export const getQuestionsWithEventIds = async (
   questions: QuestionWithAnswers[];
   questionEventMap: QuestionEventMap;
 }> => {
-  if (eventIds.length === 0)
+  if (eventIds.length === 0) {
     return { questionEventMap: new Map(), questions: [] };
+  }
 
   const ph = inPlaceholders(eventIds);
   const rows = await queryAll<JoinedRowWithEvents>(

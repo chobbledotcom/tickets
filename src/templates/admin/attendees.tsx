@@ -195,10 +195,14 @@ const renderEditQuestions = (
       const options = q.answers
         .map((a) => {
           const checked = selectedAnswerIds.includes(a.id) ? " checked" : "";
-          return `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked}> ${escapeHtml(a.text)}</label>`;
+          return `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked}> ${escapeHtml(
+            a.text,
+          )}</label>`;
         })
         .join("");
-      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+      return `<fieldset class="custom-question"><legend>${escapeHtml(
+        q.text,
+      )}</legend>${options}</fieldset>`;
     })
     .join("");
 };

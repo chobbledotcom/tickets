@@ -11,8 +11,9 @@ export const normalizePhone = (phone: string, prefix: string): string => {
   if (digits.startsWith("0")) return `+${prefix}${digits.slice(1)}`;
 
   // Country code followed by spurious zero: 440161... → +44161...
-  if (digits.startsWith(`${prefix}0`))
+  if (digits.startsWith(`${prefix}0`)) {
     return `+${prefix}${digits.slice(prefix.length + 1)}`;
+  }
 
   // Already has country code without leading zero: 44161... → +44161...
   return `+${digits}`;

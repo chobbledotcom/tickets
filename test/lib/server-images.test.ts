@@ -422,7 +422,10 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest(`/admin?flash=${FLASH_TEST_ID}`, {
             headers: {
-              cookie: `${cookie}; ${flashCookieHeader("Image exceeds the 256KB size limit", false)}`,
+              cookie: `${cookie}; ${flashCookieHeader(
+                "Image exceeds the 256KB size limit",
+                false,
+              )}`,
             },
           }),
         );
@@ -439,7 +442,10 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest(`/admin/event/${event.id}?flash=${FLASH_TEST_ID}`, {
             headers: {
-              cookie: `${cookie}; ${flashCookieHeader("Image must be a JPEG, PNG, GIF, or WebP file", false)}`,
+              cookie: `${cookie}; ${flashCookieHeader(
+                "Image must be a JPEG, PNG, GIF, or WebP file",
+                false,
+              )}`,
             },
           }),
         );

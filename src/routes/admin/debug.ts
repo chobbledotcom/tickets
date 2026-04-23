@@ -83,10 +83,12 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
         : false;
 
   const resolveWalletPassTypeId = (): string => {
-    if (settings.appleWallet.hasDbConfig)
+    if (settings.appleWallet.hasDbConfig) {
       return settings.appleWallet.passTypeId;
-    if (appleWalletEnvConfigured)
+    }
+    if (appleWalletEnvConfigured) {
       return settings.appleWallet.hostConfig!.passTypeId;
+    }
     return "";
   };
   const resolveWalletSource = (): string => {
@@ -96,10 +98,12 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   };
 
   const resolveGoogleWalletIssuerId = (): string => {
-    if (settings.googleWallet.hasDbConfig)
+    if (settings.googleWallet.hasDbConfig) {
       return settings.googleWallet.issuerId;
-    if (googleWalletEnvConfigured)
+    }
+    if (googleWalletEnvConfigured) {
       return settings.googleWallet.hostConfig!.issuerId;
+    }
     return "";
   };
   const resolveGoogleWalletSource = (): string => {

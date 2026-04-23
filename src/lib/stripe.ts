@@ -112,12 +112,15 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   // Stripe SDK errors have statusCode, code, and type properties.
   // Use "in" narrowing instead of a blanket type assertion.
   const parts: string[] = [];
-  if ("statusCode" in err && typeof err.statusCode === "number")
+  if ("statusCode" in err && typeof err.statusCode === "number") {
     parts.push(`status=${err.statusCode}`);
-  if ("code" in err && typeof err.code === "string")
+  }
+  if ("code" in err && typeof err.code === "string") {
     parts.push(`code=${err.code}`);
-  if ("type" in err && typeof err.type === "string")
+  }
+  if ("type" in err && typeof err.type === "string") {
     parts.push(`type=${err.type}`);
+  }
 
   return parts.length > 0 ? parts.join(" ") : err.name;
 };

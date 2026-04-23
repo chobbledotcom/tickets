@@ -101,7 +101,7 @@ export const adminQuestionPage = (
           {question.answers.map((a, i) => (
             <li>
               {a.text}
-              {answerCounts && <small> ({answerCounts.get(a.id)})</small>}{" "}
+              {answerCounts && <small>({answerCounts.get(a.id)})</small>}{" "}
               {i > 0 && (
                 <CsrfForm
                   action={`/admin/questions/${question.id}/answers/${a.id}/move-up`}

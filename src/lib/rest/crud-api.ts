@@ -64,8 +64,9 @@ export const parseAndValidate = async <Input>(
   id?: number,
 ): Promise<ValidatedInput<Input>> => {
   const result = await parsed;
-  if (!result.ok)
+  if (!result.ok) {
     return { ok: false, response: apiErrorResponse(result.error) };
+  }
   if (validate) {
     const error = await validate(result.input, id);
     if (error) return { ok: false, response: apiErrorResponse(error) };

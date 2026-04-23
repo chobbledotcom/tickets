@@ -102,7 +102,9 @@ const handleCheckinPost = (
 
       if (eligible.length === 0) {
         return redirectResponse(
-          `/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`,
+          `/checkin/${tokens.join("+")}?message=${encodeURIComponent(
+            "Cannot check in refunded tickets",
+          )}`,
         );
       }
 
