@@ -27,12 +27,12 @@ import { createConfirmedHandlers } from "#routes/admin/utils.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
-  applyFlash,
   errorRedirect,
   generateSecureToken,
   getSearchParam,
   htmlResponse,
   OWNER_FORM,
+  ownerPage,
   redirect,
   requireOwnerOr,
   withAuth,
@@ -118,11 +118,7 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
 /**
  * Handle GET /admin/user/new - show invite user form
  */
-const handleUserNewGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, (session) => {
-    applyFlash(request);
-    return htmlResponse(adminUserNewPage(session));
-  });
+const handleUserNewGet = ownerPage((session) => adminUserNewPage(session));
 
 /**
  * Handle POST /admin/users - create invited user

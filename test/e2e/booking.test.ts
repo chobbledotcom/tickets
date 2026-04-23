@@ -264,7 +264,7 @@ describe("e2e: full booking flow", () => {
       expect(browser.containsText("Encryption Key")).toBe(true);
 
       await browser.submitForm({}, "Create Backup Now");
-      expect(browser.containsText("Backup created successfully")).toBe(true);
+      expect(browser.containsText("Database backup created")).toBe(true);
 
       // 15. Download the backup zip for later restore
       const downloadLink = browser.links.find((l) =>
@@ -333,7 +333,7 @@ describe("e2e: full booking flow", () => {
         { confirm_identifier: RESTORE_CONFIRM_PHRASE },
         "Restore Database",
       );
-      expect(browser.containsText("Database restored successfully")).toBe(true);
+      expect(browser.containsText("Database restored from backup")).toBe(true);
       invalidateAllCaches();
 
       // 23. Log in again (restore wiped sessions)

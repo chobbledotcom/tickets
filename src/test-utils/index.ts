@@ -2656,6 +2656,60 @@ export const setupAdminTest = async (
   return { attendee, cookie, csrfToken, event };
 };
 
+// ---------------------------------------------------------------------------
+// Admin route auth helpers
+// Eliminate the repeated "redirects to login when not authenticated" boilerplate
+// that appears 90+ times across server route tests.
+// ---------------------------------------------------------------------------
+
+/** Options for {@link testRequiresAuth}. */
+interface TestRequiresAuthOptions {
+  /** Form/multipart body for POST requests. */
+  body?: Record<string, string>;
+  /** HTTP method (defaults to GET). */
+  method?: "GET" | "POST";
+  /** Use multipart/form-data instead of URL-encoded. */
+  multipart?: boolean;
+  /** Optional setup to run before the unauthenticated request (e.g., create a resource). */
+  setup?: () => Promise<void>;
+}
+
+/**
+ * Generate a test that asserts an admin route requires authentication.
+ * Replaces the repetitive "redirects to login when not authenticated" pattern.
+ *
+ * @example
+ * // Simple GET
+ * testRequiresAuth("/admin/events");
+ *
+ * // POST with form data
+ * testRequiresAuth("/admin/groups", { method: "POST", body: { name: "X" } });
+ *
+ * // POST with multipart
+ * testRequiresAuth("/admin/event", { multipart: true, body: { name: "X", max_attendees: "10" } });
+ *
+ * // With prerequisite setup
+ * testRequiresAuth("/admin/holidays/1/edit", {
+ *   setup: async () => { await createTestHoliday(); }
+ * });
+ */
+export const testRequiresAuth = (
+  path: string,
+  options: TestRequiresAuthOptions = {},
+): void => {
+  it("redirects to login when not authenticated", async () => {
+    await options.setup?.();
+    const { handleRequest } = await import("#routes");
+    const request = options.multipart
+      ? mockMultipartRequest(path, options.body ?? {})
+      : options.method === "POST"
+        ? mockFormRequest(path, options.body ?? {})
+        : mockRequest(path);
+    const response = await handleRequest(request);
+    expectAdminRedirect(response);
+  });
+};
+
 /**
  * Curried admin form POST for attendee actions.
  * Creates event + attendee + admin session, POSTs form to the attendee action URL.

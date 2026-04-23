@@ -446,11 +446,32 @@ export const orNotFound = async <T>(
   return data ? handler(data) : notFoundResponse();
 };
 
+/** Handler that receives a loaded entity */
+export type EntityHandler<T> = (entity: T) => Response | Promise<Response>;
+
+/**
+ * Generic wrapper: load entity, return 404 if missing, otherwise call handler.
+ * Curried so the handler is specified first, then the load function.
+ */
+export const withEntity =
+  <T>(handler: EntityHandler<T>) =>
+  (load: () => Promise<T | null>): Promise<Response> =>
+    orNotFound(load(), handler);
+
 /** Route handler that takes request + { id } params */
 export type IdRouteHandler = (
   request: Request,
   params: { id: number },
 ) => Promise<Response>;
+
+/** Route params for attendee-scoped routes */
+export type AttendeeRouteParams = { attendeeId: number };
+
+/** Route params for attendee + event-scoped routes */
+export type AttendeeEventRouteParams = {
+  attendeeId: number;
+  eventId: number;
+};
 
 export const withEventPage = (
   renderPage: (event: EventWithCount, session: AdminSession) => string,
@@ -591,6 +612,30 @@ export const requireOwnerOr = (
   handler: SessionHandler,
 ): Promise<Response> => requireSessionOr(request, handler, "owner");
 
+/** Session guard: require auth and call handler with session */
+export type SessionGuard<TSession> = (
+  request: Request,
+  handler: (session: TSession) => Response | Promise<Response>,
+) => Promise<Response>;
+
+/** Factory for creating authenticated page handlers */
+export const authPage =
+  <TSession>(requireSession: SessionGuard<TSession>) =>
+  (
+    render: (session: TSession) => string | Promise<string>,
+  ): ((request: Request) => Promise<Response>) =>
+  (request) =>
+    requireSession(request, async (session) => {
+      applyFlash(request);
+      return htmlResponse(await render(session));
+    });
+
+/** Owner-only GET page: authenticate, apply flash, render HTML */
+export const ownerPage = authPage(requireOwnerOr);
+
+/** Authenticated GET page: authenticate, apply flash, render HTML */
+export const sessionPage = authPage(requireSessionOr);
+
 /** CSRF form result type */
 export type CsrfFormResult =
   | { ok: true; form: FormParams }
@@ -651,7 +696,8 @@ export const authenticatedGetById =
   (request, { id }) =>
     requireSessionOr(
       request,
-      (session) => orNotFound(load(id), (entity) => render(entity, session)),
+      (session) =>
+        withEntity<T>((entity) => render(entity, session))(() => load(id)),
       role ?? undefined,
     );
 

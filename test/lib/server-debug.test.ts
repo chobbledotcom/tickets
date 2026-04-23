@@ -3,7 +3,6 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { settings } from "#lib/db/settings.ts";
 import { LIMIT_ENTRIES } from "#lib/limits.ts";
-import { handleRequest } from "#routes";
 import {
   adminDebugPage,
   type DebugPageState,
@@ -12,20 +11,16 @@ import {
   adminGet,
   assertAdminHtml,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
   generateGoogleTestCreds,
   generateTestCerts,
-  mockRequest,
   setTestEnv,
+  testRequiresAuth,
 } from "#test-utils";
 
 describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/debug"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/debug");
 
     test("renders debug page when authenticated", async () => {
       const { response } = await adminGet("/admin/debug");

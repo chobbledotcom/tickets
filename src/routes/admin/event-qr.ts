@@ -17,21 +17,20 @@ import { FormParams } from "#lib/form-data.ts";
 import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { withEntityLoader } from "#routes/admin/utils.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   AUTH_FORM,
   htmlResponse,
   jsonResponse,
-  orNotFound,
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
-import {
-  type AdminEventQrResult,
-  type AdminEventQrValues,
-  adminEventQrPage,
+import type {
+  AdminEventQrResult,
+  AdminEventQrValues,
 } from "#templates/admin/event-qr.tsx";
+import { adminEventQrPage } from "#templates/admin/event-qr.tsx";
 
 const EMPTY_VALUES: AdminEventQrValues = {
   customerName: "",
@@ -47,6 +46,8 @@ const loadBookableDates = async (event: EventWithCount): Promise<string[]> => {
   return getAvailableDates(event, holidays);
 };
 
+const withEvent = withEntityLoader(getEventWithCount);
+
 /** Render the QR admin page; 404 when the event is missing */
 const renderPage = (
   eventId: number,
@@ -54,7 +55,7 @@ const renderPage = (
   values: AdminEventQrValues,
   extras: { error?: string; result?: AdminEventQrResult } = {},
 ): Promise<Response> =>
-  orNotFound(Promise.resolve(getEventWithCount(eventId)), async (event) => {
+  withEvent(eventId)(async (event) => {
     const [bookableDates, canDirectCheckout] = await Promise.all([
       loadBookableDates(event),
       eventSupportsDirectCheckout(event),
@@ -185,7 +186,7 @@ const handlePost: TypedRouteHandler<"POST /admin/event/:id/qr"> = (
   { id },
 ) =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    orNotFound(Promise.resolve(getEventWithCount(id)), (event) => {
+    withEvent(id)((event) => {
       const extracted = extractValues(form, event);
       return extracted.ok
         ? generateAndRender(id, session, event, extracted)
@@ -207,7 +208,7 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/event/:id/qr.json"> = (
   { id },
 ) =>
   requireSessionOr(request, () =>
-    orNotFound(Promise.resolve(getEventWithCount(id)), async (event) => {
+    withEvent(id)(async (event) => {
       const form = new FormParams(new URL(request.url).searchParams);
       const extracted = extractValues(form, event);
       if (!extracted.ok) {

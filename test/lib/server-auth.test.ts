@@ -10,7 +10,6 @@ import {
   assertPublicHtml,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -23,6 +22,7 @@ import {
   mockFormRequest,
   mockRequest,
   TEST_ADMIN_PASSWORD,
+  testRequiresAuth,
 } from "#test-utils";
 
 describeWithEnv("server (admin auth)", { db: true }, () => {
@@ -201,11 +201,9 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   });
 
   describe("POST /admin/logout", () => {
-    test("redirects to login when unauthenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/logout", { csrf_token: "invalid" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/logout", {
+      body: { csrf_token: "invalid" },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token when authenticated", async () => {
@@ -243,10 +241,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   });
 
   describe("GET /admin/sessions", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/sessions"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/sessions");
 
     test("shows sessions page when authenticated", async () => {
       await assertAdminHtml(
@@ -293,11 +288,9 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   });
 
   describe("POST /admin/sessions", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/sessions", { csrf_token: "test" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/sessions", {
+      body: { csrf_token: "test" },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

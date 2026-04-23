@@ -20,7 +20,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyFlash,
   htmlResponse,
-  requireSessionOr,
+  sessionPage,
   withSession,
 } from "#routes/utils.ts";
 /* jscpd:ignore-end */
@@ -79,17 +79,16 @@ const LOG_DISPLAY_LIMIT = 200;
 /**
  * Handle GET /admin/log
  */
-const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = (request) =>
-  requireSessionOr(request, async (session) => {
+const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
+  async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
     const truncated = entries.length > LOG_DISPLAY_LIMIT;
     const displayEntries = truncated
       ? entries.slice(0, LOG_DISPLAY_LIMIT)
       : entries;
-    return htmlResponse(
-      adminGlobalActivityLogPage(displayEntries, truncated, session),
-    );
-  });
+    return adminGlobalActivityLogPage(displayEntries, truncated, session);
+  },
+);
 
 /** Dashboard routes */
 export const dashboardRoutes = defineRoutes({

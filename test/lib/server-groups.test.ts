@@ -17,15 +17,14 @@ import {
   createTestManagerSession,
   deleteTestGroup,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
-  mockRequest,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
   updateTestGroup,
 } from "#test-utils";
 
@@ -39,10 +38,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   });
 
   describe("GET /admin/groups", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/groups"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/groups");
 
     test("accessible to managers", async () => {
       const response = await awaitTestRequest("/admin/groups", {
@@ -76,10 +72,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   });
 
   describe("GET /admin/groups/new", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/groups/new"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/groups/new");
 
     test("accessible to managers", async () => {
       const response = await awaitTestRequest("/admin/groups/new", {
@@ -103,11 +96,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   });
 
   describe("POST /admin/groups", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/groups", { name: "X" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/groups", {
+      body: { name: "X" },
+      method: "POST",
     });
 
     test("accessible to managers", async () => {
@@ -440,10 +431,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   });
 
   describe("GET /admin/groups/:id", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/groups/1"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/groups/1");
 
     test("accessible to managers", async () => {
       const group = await createTestGroup({
@@ -754,11 +742,9 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   });
 
   describe("POST /admin/groups/:id/add-events", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/groups/1/add-events", { event_ids: "1" }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/groups/1/add-events", {
+      body: { event_ids: "1" },
+      method: "POST",
     });
 
     test("accessible to managers", async () => {

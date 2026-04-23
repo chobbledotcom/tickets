@@ -13,6 +13,7 @@ import {
   getHeader,
   mockFormRequest,
   mockRequest,
+  testRequiresAuth,
 } from "#test-utils";
 
 /** Post invalid embed hosts and assert a 302 redirect with error flash */
@@ -79,14 +80,11 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/embed-hosts", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/embed-hosts", {
-          embed_hosts: "example.com",
-        }),
-      );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+    testRequiresAuth("/admin/settings/embed-hosts", {
+      body: {
+        embed_hosts: "example.com",
+      },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

@@ -3,6 +3,7 @@
  */
 
 import { asString } from "#fp";
+import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import {
@@ -16,19 +17,30 @@ import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   AUTH_FORM,
+  AUTH_MULTIPART,
   type AuthSession,
+  type EntityHandler,
   encodeBody,
   errorRedirect,
   getPrivateKey,
   htmlResponse,
   notFoundResponse,
   OWNER_FORM,
+  OWNER_MULTIPART,
   redirect,
   requireOwnerOr,
   requireSessionOr,
+  type SessionGuard,
   SessionKeyError,
   withAuth,
+  withEntity,
 } from "#routes/utils.ts";
+
+export type { EntityHandler, SessionGuard };
+export { withEntity };
+
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** Form field definition type */
@@ -144,11 +156,11 @@ export const withEventAttendeesAuth = (
     withDecryptedAttendees(session, eventId, handler),
   );
 
-/** Session guard: require auth and call handler with session */
-export type SessionGuard<TSession> = (
-  request: Request,
-  handler: (session: TSession) => Response | Promise<Response>,
-) => Promise<Response>;
+/** Curried: require auth then load event with decrypted attendees */
+export const eventAttendeesLoader =
+  (request: Request, eventId: number) =>
+  (handler: EventAttendeesHandler): Promise<Response> =>
+    withEventAttendeesAuth(request, eventId, handler);
 
 /** Form guard: require auth + CSRF, call handler with session and form */
 export type FormGuard<TSession> = (
@@ -308,6 +320,287 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       [`POST ${config.path}`]: toRoute(post),
     },
   };
+};
+
+/**
+ * Curried factory: creates a wrapper that takes load params, then a handler.
+ * Eliminates the boilerplate of writing `(params, handler) => withEntity(handler)(() => loadFn(params))`.
+ */
+export const withEntityLoader =
+  <T, P extends unknown[]>(load: (...args: P) => Promise<T | null>) =>
+  (...args: P) =>
+  (handler: EntityHandler<T>): Promise<Response> =>
+    withEntity(handler)(() => load(...args));
+
+type GetEntityHandler<T> = (
+  request: Request,
+  session: AuthSession,
+  entity: T,
+) => Response | Promise<Response>;
+type PostEntityHandler<T> = (
+  session: AuthSession,
+  form: FormParams,
+  entity: T,
+) => Response | Promise<Response>;
+
+/**
+ * Generic factory: combine an auth wrapper with entity loading.
+ * Eliminates duplication between withSessionAndEntity and withAuthAndEntity.
+ */
+const createEntityHandler =
+  <T, H extends GetEntityHandler<T> | PostEntityHandler<T>>(
+    authWrapper: (
+      request: Request,
+      cb: (
+        session: AuthSession,
+        ...rest: unknown[]
+      ) => Response | Promise<Response>,
+    ) => Promise<Response>,
+    adaptHandler: (
+      handler: H,
+      request: Request,
+      ...rest: unknown[]
+    ) => (session: AuthSession, entity: T) => Response | Promise<Response>,
+  ) =>
+  (loader: (session: AuthSession, id: number) => Promise<T | null>) =>
+  (request: Request, id: number) =>
+  (handler: H): Promise<Response> =>
+    authWrapper(request, (session, ...rest) =>
+      withEntity((entity: T) =>
+        adaptHandler(handler, request, ...rest)(session, entity),
+      )(() => loader(session, id)),
+    );
+
+/* jscpd:ignore-start */
+/**
+ * Curried: require session, load entity with session-dependent loader, call handler.
+ * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
+ */
+export const withSessionAndEntity = <T>(
+  loader: (session: AuthSession, id: number) => Promise<T | null>,
+) =>
+  createEntityHandler<T, GetEntityHandler<T>>(
+    (request, cb) => requireSessionOr(request, cb as SessionHandler),
+    (handler, request) => (session, entity) =>
+      handler(request, session, entity),
+  )(loader);
+
+/**
+ * Curried: require auth + CSRF, load entity with session-dependent loader, call handler with form.
+ * Eliminates: `withAuth(request, AUTH_FORM, (session, form) => withLoader(session, id)(handler))`
+ */
+export const withAuthAndEntity = <T>(
+  loader: (session: AuthSession, id: number) => Promise<T | null>,
+) =>
+  createEntityHandler<T, PostEntityHandler<T>>(
+    (request, cb) =>
+      withAuth(
+        request,
+        AUTH_FORM,
+        cb as (s: AuthSession, f: FormParams) => Response,
+      ),
+    (handler, _request, form) => (session, entity) =>
+      handler(session, form as FormParams, entity),
+  )(loader);
+
+/**
+ * Compose a session-dependent entity loader with auth guards.
+ * Returns { get, post } handlers that handle auth + entity loading.
+ */
+export const withAuthEntityHandlers =
+  <T>(loader: (session: AuthSession, id: number) => Promise<T | null>) =>
+  (request: Request, id: number) => ({
+    get: (
+      handler: (
+        request: Request,
+        session: AuthSession,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => withSessionAndEntity(loader)(request, id)(handler),
+    post: (
+      handler: (
+        session: AuthSession,
+        form: FormParams,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => withAuthAndEntity(loader)(request, id)(handler),
+  });
+
+/**
+ * Curried factory for GET/POST entity route handler pairs.
+ * Eliminates boilerplate of calling withAuthEntityHandlers twice.
+ *
+ * Usage:
+ *   const handlers = createEntityRouteHandlers(loader, p => p.attendeeId);
+ *   export const get = handlers.get((request, session, entity) => ...);
+ *   export const post = handlers.post((session, form, entity) => ...);
+ */
+export const createEntityRouteHandlers = <
+  T,
+  TParams extends Record<string, unknown>,
+>(
+  loader: (session: AuthSession, id: number) => Promise<T | null>,
+  getId: (params: TParams) => number,
+) => {
+  const routeHandler =
+    <H>(
+      wrapper: (
+        l: (s: AuthSession, i: number) => Promise<T | null>,
+      ) => (r: Request, i: number) => (h: H) => Promise<Response>,
+      handler: H,
+    ): ((request: Request, params: TParams) => Promise<Response>) =>
+    (request, params) =>
+      wrapper(loader)(request, getId(params))(handler);
+
+  return {
+    get: (
+      handler: (
+        request: Request,
+        session: AuthSession,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => routeHandler(withSessionAndEntity, handler),
+    post: (
+      handler: (
+        session: AuthSession,
+        form: FormParams,
+        entity: T,
+      ) => Response | Promise<Response>,
+    ) => routeHandler(withAuthAndEntity, handler),
+  };
+};
+/* jscpd:ignore-end */
+
+/**
+ * Generic wrapper for typed route params: parse param as number, load entity,
+ * return 404 if missing, otherwise call handler.
+ */
+export const withEntityFromParam = <T>(
+  paramValue: string | number | undefined,
+  load: (id: number) => Promise<T | null>,
+  handler: EntityHandler<T>,
+): Promise<Response> => {
+  const id =
+    typeof paramValue === "string"
+      ? Number.parseInt(paramValue, 10)
+      : paramValue;
+  if (id === undefined || Number.isNaN(id)) {
+    return Promise.resolve(notFoundResponse());
+  }
+  return withEntity(handler)(() => load(id!));
+};
+
+/** Error mapping: convert an Error into a redirect response */
+export type ErrorMapper = (error: Error) => Response;
+
+/** Configuration for createActionHandler */
+export type ActionHandlerConfig<TSession = AuthSession> = {
+  /** Auth mode: "owner" requires owner role, "any" allows any authenticated user */
+  auth: "owner" | "any";
+  /** CSRF body mode: "form" (default) or "multipart" */
+  bodyMode?: "form" | "multipart";
+  /** Executor: receives session and parsed form, returns nothing on success */
+  execute: (session: TSession, form: FormParams) => Promise<void>;
+  /** Optional event/resource id for activity logging context */
+  eventId?: number | ((form: FormParams) => number | undefined);
+  /** Message used for both flash and activity log */
+  message:
+    | string
+    | ((session: TSession, form: FormParams) => string | Promise<string>);
+  /** Redirect URL on success */
+  successRedirect: string | ((session: TSession, form: FormParams) => string);
+  /** Optional custom error mapping (falls back to errorRedirect with message) */
+  onError?: ErrorMapper;
+  /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
+  redactedSecret?:
+    | string
+    | ((session: TSession, form: FormParams) => string | undefined);
+};
+
+/**
+ * Composable factory for POST action handlers.
+ * Encapsulates the common lifecycle: auth + CSRF, execute, log activity, redirect.
+ */
+export const createActionHandler = <TSession = AuthSession>(
+  config: ActionHandlerConfig<TSession>,
+): ((request: Request) => Promise<Response>) => {
+  const policy =
+    config.bodyMode === "multipart"
+      ? config.auth === "owner"
+        ? OWNER_MULTIPART
+        : AUTH_MULTIPART
+      : config.auth === "owner"
+        ? OWNER_FORM
+        : AUTH_FORM;
+
+  const resolveEventId = (form: FormParams): number | undefined => {
+    if (config.eventId === undefined) return undefined;
+    return typeof config.eventId === "function"
+      ? config.eventId(form)
+      : config.eventId;
+  };
+
+  const resolveString = async (
+    value:
+      | string
+      | ((session: TSession, form: FormParams) => string | Promise<string>),
+    session: TSession,
+    form: FormParams,
+  ): Promise<string> =>
+    typeof value === "function" ? await value(session, form) : value;
+
+  const resolveOptionalString = async (
+    value:
+      | string
+      | ((session: TSession, form: FormParams) => string | undefined)
+      | undefined,
+    session: TSession,
+    form: FormParams,
+  ): Promise<string | undefined> =>
+    !value
+      ? undefined
+      : typeof value === "function"
+        ? await value(session, form)
+        : value;
+
+  return (request: Request) =>
+    withAuth(request, policy, async (session, body) => {
+      const form = body as FormParams;
+      try {
+        await config.execute(session as TSession, form);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (config.onError) {
+          return config.onError(error);
+        }
+        const redirectUrl = await resolveString(
+          config.successRedirect,
+          session as TSession,
+          form,
+        );
+        return errorRedirect(redirectUrl, error.message);
+      }
+
+      const msg = await resolveString(
+        config.message,
+        session as TSession,
+        form,
+      );
+      const secret = await resolveOptionalString(
+        config.redactedSecret,
+        session as TSession,
+        form,
+      );
+      const logMsg = secret ? msg.replaceAll(secret, "***") : msg;
+      await logActivity(logMsg, resolveEventId(form));
+
+      const redirectUrl = await resolveString(
+        config.successRedirect,
+        session as TSession,
+        form,
+      );
+      return redirect(redirectUrl, msg, true);
+    });
 };
 
 /** Load question data for attendees across multiple events */

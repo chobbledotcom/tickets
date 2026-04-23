@@ -1,0 +1,147 @@
+import { expect } from "@std/expect";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#lib/db/settings.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
+import { handleRequest } from "#routes";
+import {
+  awaitTestRequest,
+  describeWithEnv,
+  expectFlash,
+  expectHtmlResponse,
+  mockFormRequest,
+  testCookie,
+  testCsrfToken,
+  testRequiresAuth,
+} from "#test-utils";
+
+describeWithEnv("server (admin settings)", { db: true }, () => {
+  afterEach(() => {
+    setDemoModeForTest(false);
+  });
+
+  describe("POST /admin/settings/theme", () => {
+    testRequiresAuth("/admin/settings/theme", {
+      body: {
+        theme: "dark",
+      },
+      method: "POST",
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: "invalid-csrf-token",
+            theme: "dark",
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
+    });
+
+    test("rejects invalid theme value", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+            theme: "invalid-theme",
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid theme selection"),
+        false,
+      );
+    });
+
+    test("rejects missing theme field", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+          },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid theme selection"),
+        false,
+      );
+    });
+
+    test("updates theme to dark successfully", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+            theme: "dark",
+          },
+          await testCookie(),
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "Theme set to dark");
+    });
+
+    test("updates theme to light successfully", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+            theme: "light",
+          },
+          await testCookie(),
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "Theme set to light");
+    });
+
+    test("theme setting persists in database", async () => {
+      // Initially should be "light"
+      expect(settings.theme).toBe("light");
+
+      // Update to dark
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+            theme: "dark",
+          },
+          await testCookie(),
+        ),
+      );
+
+      // Should now be "dark"
+      expect(settings.theme).toBe("dark");
+    });
+
+    test("settings page displays current theme selection", async () => {
+      // Set theme to dark
+      await settings.update.theme("dark");
+
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // Check that dark radio button is checked
+      expect(html).toContain('value="dark"');
+      expect(html).toContain("checked");
+    });
+  });
+});

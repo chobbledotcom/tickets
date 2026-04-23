@@ -12,21 +12,16 @@ import {
   createTestEvent,
   createTestManagerSession,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
   getTestSession,
-  mockFormRequest,
-  mockRequest,
+  testRequiresAuth,
   withLocalStorageEnabled,
 } from "#test-utils";
 
 describeWithEnv("server (admin backup)", { db: true }, () => {
   describe("GET /admin/backup", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/backup"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/backup");
 
     test("returns 403 for manager users", async () => {
       const managerCookie = await createTestManagerSession();
@@ -74,11 +69,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
   });
 
   describe("POST /admin/backup/create", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/backup/create", {}),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/backup/create", {
+      body: {},
+      method: "POST",
     });
 
     test("creates backup and redirects with success", async () => {
@@ -102,12 +95,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
   });
 
   describe("GET /admin/backup/download/:filename", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockRequest("/admin/backup/download/backup-local-test.zip"),
-      );
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/backup/download/backup-local-test.zip");
 
     test("returns 400 for invalid filename", async () => {
       const { response } = await adminGet(
@@ -144,11 +132,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
   });
 
   describe("POST /admin/backup/restore", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/backup/restore", {}),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/backup/restore", {
+      body: {},
+      method: "POST",
     });
 
     test("shows confirm page after uploading valid zip", async () => {
@@ -245,11 +231,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
   });
 
   describe("POST /admin/backup/restore/confirm", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/backup/restore/confirm", {}),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/backup/restore/confirm", {
+      body: {},
+      method: "POST",
     });
 
     test("rejects invalid filename", async () => {

@@ -12,21 +12,18 @@ import {
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
-  expectAdminRedirect,
   expectRedirectWithFlash,
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
 } from "#test-utils";
 
 describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("GET /admin/seeds", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/seeds"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/seeds");
 
     test("returns 403 for non-owner", async () => {
       const managerCookie = await createTestManagerSession();
@@ -55,14 +52,12 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
   });
 
   describe("POST /admin/seeds", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/seeds", {
-          attendees_per_event: "0",
-          event_count: "1",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/seeds", {
+      body: {
+        attendees_per_event: "0",
+        event_count: "1",
+      },
+      method: "POST",
     });
 
     test("returns 403 for non-owner", async () => {
