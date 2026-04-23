@@ -55,7 +55,7 @@ const getLocalStoragePath = (): string | null => {
   if (ctx && "localPath" in ctx) {
     return ctx.localPath || null;
   }
-  return getEnv("LOCAL_STORAGE_PATH") ?? null;
+  return getEnv("LOCAL_STORAGE_PATH") || null;
 };
 
 /** Supported image types — single source of truth for mime, extension, and magic bytes */
@@ -253,15 +253,11 @@ const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   );
 };
 
-/** Upload raw bytes to storage, routing to local or Bunny based on config */
-export const uploadRaw = async (
+/** Upload raw bytes to Bunny storage */
+const bunnyWrite = async (
   data: Uint8Array,
   filename: string,
-): Promise<string> => {
-  if (getLocalStoragePath() !== null) {
-    await localWrite(data, filename);
-    return filename;
-  }
+): Promise<void> => {
   const sz = connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -272,6 +268,23 @@ export const uploadRaw = async (
   await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as never, {
     contentType: "application/octet-stream",
   });
+};
+
+const rawUploaders = {
+  bunny: bunnyWrite,
+  local: localWrite,
+  none: bunnyWrite,
+} satisfies Record<
+  ReturnType<typeof getStorageBackend>,
+  (data: Uint8Array, filename: string) => Promise<void>
+>;
+
+/** Upload raw bytes to storage, routing to local or Bunny based on config */
+export const uploadRaw = async (
+  data: Uint8Array,
+  filename: string,
+): Promise<string> => {
+  await rawUploaders[getStorageBackend()](data, filename);
   return filename;
 };
 

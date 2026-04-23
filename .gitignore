@@ -1,5 +1,6 @@
 node_modules/
 tickets.db
+.codex
 *.db
 .db-key
 .env
