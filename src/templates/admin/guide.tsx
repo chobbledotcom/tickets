@@ -1308,11 +1308,18 @@ export const adminGuidePage = (
         <Q q="Is there a way to recover a lost password?">
           <p>
             No. There is <strong>no password recovery</strong> mechanism. All
-            attendee data is encrypted with keys derived from admin passwords,
-            so a reset would make existing data unreadable. If you lose your
-            password, another owner can delete your account and send a fresh
-            invite &mdash; all existing attendee data remains accessible to
-            other admins. Keep your password somewhere safe.
+            attendee data is encrypted with keys derived from admin passwords
+            using PBKDF2. A password reset would invalidate the key derivation,
+            making existing encrypted data unreadable. There is no way to
+            decrypt data without the original password.
+          </p>
+          <p>
+            If you lose your password, another owner can delete your account and
+            send a fresh invite &mdash; all existing attendee data remains
+            accessible to other admins because their encryption keys are
+            independent. <strong>Keep your password somewhere safe</strong> (a
+            password manager is recommended) &mdash; losing it means permanently
+            losing access to your own encrypted records.
           </p>
         </Q>
 
@@ -1331,19 +1338,29 @@ export const adminGuidePage = (
         <Q q="How is attendee data protected?">
           <p>
             All personal information (names, email addresses, phone numbers,
-            postal addresses) is encrypted before being stored. Even if the
-            database were compromised, the data cannot be read without the
-            encryption keys. Data is only decrypted when an authenticated admin
-            views it.
+            postal addresses) is encrypted before being stored using{" "}
+            <strong>AES-256-GCM</strong>. Even if the database were compromised,
+            the data cannot be read without the encryption keys. Data is only
+            decrypted when an authenticated admin views it.
+          </p>
+          <p>
+            Each admin's encryption key is derived from their password using{" "}
+            <strong>PBKDF2-SHA256</strong>, combined with the database encryption
+            key (<code>DB_ENCRYPTION_KEY</code>) as additional cryptographic
+            material. This means an attacker would need both the database and the
+            environment variable to decrypt any data.
           </p>
         </Q>
 
         <Q q="What happens if I lose my password?">
           <p>
             There is <strong>no password recovery</strong>. If you lose your
-            password, you cannot log in or decrypt any data. Keep your password
-            safe. Another owner can delete your account and send a fresh invite,
-            and all existing attendee data remains accessible to other admins.
+            password, you cannot log in or decrypt your data. This is by design
+            &mdash; your password is the only way to derive the encryption key
+            that secures your records. Keep your password safe in a password
+            manager. Another owner can delete your account and send a fresh
+            invite, and all existing attendee data remains accessible to other
+            admins whose encryption keys are independent.
           </p>
         </Q>
 
@@ -1424,9 +1441,12 @@ export const adminGuidePage = (
             be logged out and must sign in again with the new password.
           </p>
           <p>
-            Your existing attendee data remains fully accessible. The encryption
-            key is re-secured with the new password, so every record created
-            before the change can still be decrypted after you log back in.
+            Your existing attendee data remains fully accessible. When you change
+            your password, your encryption key is re-secured: the system
+            re-derives your PBKDF2 key from the new password and re-wraps your
+            data encryption key with it. This means every record created before
+            the change can still be decrypted after you log back in, without
+            requiring database-level decryption and re-encryption.
           </p>
         </Q>
 
@@ -2274,11 +2294,12 @@ export const adminGuidePage = (
         <Q q="What happens to API keys if their owner is deleted?">
           <p>
             Each API key is tied to the owner who created it, because the key
-            wraps that owner's data encryption key. When you delete an owner
-            from the <strong>Users</strong> page, all of their API keys are
-            deleted at the same time and any integration using one of those keys
-            will stop working immediately. If a previous owner had keys in use,
-            create new keys under another owner before removing the old account.
+            wraps that owner's data encryption key using <strong>RSA-OAEP</strong>
+            . When you delete an owner from the <strong>Users</strong> page, all
+            of their API keys are deleted at the same time and any integration
+            using one of those keys will stop working immediately. If a previous
+            owner had keys in use, create new keys under another owner before
+            removing the old account.
           </p>
         </Q>
       </Section>
@@ -2317,11 +2338,18 @@ export const adminGuidePage = (
 
         <Q q="What is the encryption key shown on the backup page?">
           <p>
-            The encryption key is needed if you ever restore a backup to a{" "}
-            <strong>different</strong> site. All personal data in the database
-            is encrypted at the field level, so you need the same encryption key
-            to read it. Store this key securely &mdash; it cannot be recovered
-            if lost.
+            The encryption key is your <code>DB_ENCRYPTION_KEY</code>, which is
+            used by all admins to derive their encryption keys. It is needed if
+            you ever restore a backup to a <strong>different</strong> site. All
+            personal data in the database is encrypted at the field level using
+            AES-256-GCM, so you need the same encryption key to read it. Without
+            it, the backup data cannot be decrypted.
+          </p>
+          <p>
+            <strong>Store this key securely</strong> &mdash; it cannot be
+            recovered if lost. If you lose it and need to restore a backup, the
+            data will be unreadable. Keep it alongside your backups or in a
+            secure password manager, not in your codebase or configuration files.
           </p>
         </Q>
 
