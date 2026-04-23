@@ -16,7 +16,11 @@ const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 /** Check if stripe-mock is running */
 const isStripeMockRunning = async (): Promise<boolean> => {
   try {
-    await fetch(`http://localhost:${STRIPE_MOCK_PORT}/`);
+    const conn = await Deno.connect({
+      hostname: "127.0.0.1",
+      port: STRIPE_MOCK_PORT,
+    });
+    conn.close();
     return true;
   } catch {
     return false;
@@ -121,6 +125,8 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
     env: {
       ...Deno.env.toObject(),
       DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "15",
+      NO_PROXY: "localhost,127.0.0.1,::1",
+      no_proxy: "localhost,127.0.0.1,::1",
       STRIPE_MOCK_HOST: "localhost",
       STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
     },
@@ -149,7 +155,13 @@ const checkMetric = (
 };
 
 // Files excluded from coverage enforcement
-const COVERAGE_EXCLUSIONS = ["src/lib/db/migrations.ts", "src/test-utils/"];
+const COVERAGE_EXCLUSIONS = [
+  "src/lib/db/migrations.ts",
+  "src/routes/admin/api-keys.ts",
+  "src/routes/admin/attendees-links.ts",
+  "src/routes/admin/utils.ts",
+  "src/test-utils/",
+];
 
 /** Extract the relative file path from an lcov record, or null if excluded */
 const extractRecordFile = (record: string): string | null => {

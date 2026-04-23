@@ -83,10 +83,8 @@ export const isStripeMockRunning = async (
   port: number = STRIPE_MOCK_PORT,
 ): Promise<boolean> => {
   try {
-    const res = await fetch(`http://localhost:${port}/`);
-    // Consume the body to avoid resource leaks in Deno's test runner
-    await res.body?.cancel();
-    // Any response (including 401) means the server is running
+    const conn = await Deno.connect({ hostname: "127.0.0.1", port });
+    conn.close();
     return true;
   } catch {
     return false;
@@ -98,7 +96,7 @@ export const isStripeMockRunning = async (
  */
 export const waitForStripeMock = async (
   port: number = STRIPE_MOCK_PORT,
-  maxAttempts = 30,
+  maxAttempts = 100,
   delayMs = 100,
 ): Promise<boolean> => {
   for (let i = 0; i < maxAttempts; i++) {
@@ -124,7 +122,7 @@ export class StripeMockManager {
    * @param maxAttempts Maximum readiness poll attempts (default 30)
    * @param delayMs Delay between readiness polls in ms (default 100)
    */
-  async start(maxAttempts = 30, delayMs = 100): Promise<void> {
+  async start(maxAttempts = 100, delayMs = 100): Promise<void> {
     // Check if already running (e.g., in dev mode)
     if (await isStripeMockRunning(this.port)) {
       return;
@@ -135,7 +133,7 @@ export class StripeMockManager {
 
     // Start stripe-mock
     const command = new Deno.Command(STRIPE_MOCK_PATH, {
-      args: ["-port", String(this.port)],
+      args: ["-http-port", String(this.port)],
       stderr: "null",
       stdout: "null",
     });
