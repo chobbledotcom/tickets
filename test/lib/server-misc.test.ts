@@ -5,6 +5,7 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#lib/config.ts";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { settings } from "#lib/db/settings.ts";
 import { FormParams } from "#lib/form-data.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
@@ -725,6 +726,60 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
       expect(response.status).toBe(302);
       expectFlash(response, "API key created", true);
+    });
+
+    test("createActionHandler logs with fixed eventId when configured", async () => {
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        eventId: 42,
+        execute: () => Promise.resolve(),
+        message: "Fixed event action",
+        successRedirect: "/admin/fixed-event",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/fixed-event",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const entries = await getAllActivityLog();
+      expect(entries[0]?.message).toBe("Fixed event action");
+      expect(entries[0]?.event_id).toBe(42);
+    });
+
+    test("createActionHandler computes eventId from submitted form", async () => {
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        eventId: (form) => Number.parseInt(form.getString("event_id"), 10),
+        execute: () => Promise.resolve(),
+        message: "Computed event action",
+        successRedirect: "/admin/computed-event",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/computed-event",
+          { csrf_token: csrfToken, event_id: "77" },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const entries = await getAllActivityLog();
+      expect(entries[0]?.message).toBe("Computed event action");
+      expect(entries[0]?.event_id).toBe(77);
     });
 
     test("createConfirmedHandlers handles preValidate rejection and custom notFound", async () => {

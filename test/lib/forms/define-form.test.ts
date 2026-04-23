@@ -111,4 +111,22 @@ describe("defineForm", () => {
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.error).toBe("Name is required");
   });
+
+  test("normalizes nullish parser output to null for optional fields", () => {
+    const form = defineForm({
+      fields: [
+        {
+          label: "Maybe",
+          name: "maybe",
+          parse: () => undefined as unknown as string | number | null,
+          type: "text",
+        },
+      ] as const,
+      id: "test",
+    });
+
+    const result = form.validate(new FormParams({ maybe: "value" }));
+    expect(result.valid).toBe(true);
+    if (result.valid) expect(result.values.maybe).toBeNull();
+  });
 });
