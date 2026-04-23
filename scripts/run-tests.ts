@@ -124,7 +124,6 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
     cwd: projectRoot,
     env: {
       ...Deno.env.toObject(),
-      DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "15",
       NO_PROXY: "localhost,127.0.0.1,::1",
       no_proxy: "localhost,127.0.0.1,::1",
       STRIPE_MOCK_HOST: "localhost",
