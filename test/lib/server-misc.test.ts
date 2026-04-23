@@ -26,6 +26,7 @@ import {
   getEmbeddableTicketResponse,
   getHeader,
   mockFormRequest,
+  mockMultipartRequest,
   mockRequest,
   resetDb,
   testCookie,
@@ -593,6 +594,136 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
       expect(response.status).toBe(302);
       expectFlash(response, "plain string failure", false);
+    });
+
+    test("createActionHandler with owner auth and form body redirects on success", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "owner" as const,
+        execute: () => Promise.resolve(),
+        message: "Owner action completed",
+        successRedirect: "/admin/test-owner",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/test-owner",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        "/admin/test-owner",
+      );
+    });
+
+    test("createActionHandler with multipart body and any auth redirects on success", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        bodyMode: "multipart" as const,
+        execute: () => Promise.resolve(),
+        message: "Multipart action completed",
+        successRedirect: "/admin/test-multipart",
+      });
+
+      const response = await handler(
+        mockMultipartRequest(
+          "/admin/test-multipart",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        "/admin/test-multipart",
+      );
+    });
+
+    test("createActionHandler with multipart body and owner auth redirects on success", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "owner" as const,
+        bodyMode: "multipart" as const,
+        execute: () => Promise.resolve(),
+        message: "Owner multipart action completed",
+        successRedirect: "/admin/test-owner-multipart",
+      });
+
+      const response = await handler(
+        mockMultipartRequest(
+          "/admin/test-owner-multipart",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        "/admin/test-owner-multipart",
+      );
+    });
+
+    test("createActionHandler redacts string secret from activity log", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.resolve(),
+        message: "API key sk_test_123 created",
+        redactedSecret: "sk_test_123",
+        successRedirect: "/admin/keys",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/keys",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "API key sk_test_123 created", true);
+    });
+
+    test("createActionHandler redacts dynamic secret from activity log", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.resolve(),
+        message: "API key created",
+        redactedSecret: (_session, form) => form.getString("api_key") || undefined,
+        successRedirect: "/admin/keys",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/keys",
+          { csrf_token: csrfToken, api_key: "secret_key_456" },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "API key created", true);
     });
 
     test("createConfirmedHandlers handles preValidate rejection and custom notFound", async () => {
