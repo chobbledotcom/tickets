@@ -92,7 +92,7 @@ export const expectRedirect = (
   ...patterns: (string | RegExp)[]
 ): string => {
   expect(response.status).toBe(302);
-  response.body?.cancel();
+  response.body!.cancel();
   const location = getHeader(response, "location");
   for (const p of patterns) {
     if (typeof p === "string") {
@@ -113,11 +113,10 @@ export const expectFlash = (
   message: string | any,
   succeeded = true,
 ): Response => {
-  response.body?.cancel();
+  response.body!.cancel();
   const cookies = response.headers.getSetCookie();
-  const flash = cookies.find((c) => c.startsWith("flash_"));
-  if (!flash) throw new Error("No flash cookie in response");
-  const cookiePart = flash.split(";")[0] ?? "";
+  const flash = cookies.find((c) => c.startsWith("flash_"))!;
+  const cookiePart = flash.split(";")[0]!;
   const value = cookiePart.split("=").slice(1).join("=");
   const parsed = parseFlashValue(value);
   const actual = succeeded ? parsed.success : parsed.error;
@@ -196,22 +195,15 @@ export const expectResultNotFound = <
   return result;
 };
 
-export const getHeader = (response: Response, name: string): string => {
-  const value = response.headers.get(name);
-  if (value === null) throw new Error(`Missing expected header: ${name}`);
-  return value;
-};
+export const getHeader = (response: Response, name: string): string =>
+  response.headers.get(name)!;
 
 export const matchGroup = (
   text: string,
   pattern: RegExp,
   group = 1,
 ): string => {
-  const m = text.match(pattern);
-  if (!m?.[group]) {
-    throw new Error(`No match for ${pattern} group ${group}`);
-  }
-  return m[group];
+  return text.match(pattern)![group]!;
 };
 
 interface TestRequiresAuthOptions {
@@ -232,9 +224,9 @@ export const testRequiresAuth = (
       "#test-utils/mocks.ts"
     );
     const request = options.multipart
-      ? mockMultipartRequest(path, options.body ?? {})
+      ? mockMultipartRequest(path, options.body!)
       : options.method === "POST"
-        ? mockFormRequest(path, options.body ?? {})
+        ? mockFormRequest(path, options.body!)
         : mockRequest(path);
     const response = await handleRequest(request);
     expectAdminRedirect(response);

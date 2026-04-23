@@ -4,13 +4,13 @@ describeWithEnv("test-utils/assertions", { db: true }, () => {
   testRequiresAuth("/admin/settings");
 
   testRequiresAuth("/admin/groups", {
-    method: "POST",
     body: { name: "test" },
+    method: "POST",
   });
 
   testRequiresAuth("/admin/event", {
+    body: { max_attendees: "10", name: "test" },
     multipart: true,
-    body: { name: "test", max_attendees: "10" },
   });
 
   testRequiresAuth("/admin/backup", {
