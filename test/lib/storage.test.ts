@@ -613,18 +613,20 @@ describeWithEnv(
                   url: string;
                 } | null = null;
 
-                installUrlHandler(originalFetch, async (url, init) => {
+                installUrlHandler(originalFetch, (url, init) => {
                   if (url.includes("storage.bunnycdn.com")) {
-                    const request = new Request(url, init);
-                    uploadRequest = {
-                      body: new Uint8Array(await request.arrayBuffer()),
-                      contentType: request.headers.get("content-type"),
-                      method: request.method,
-                      url,
-                    };
-                    return new Response(JSON.stringify({ HttpCode: 201 }), {
-                      status: 201,
-                    });
+                    return (async () => {
+                      const request = new Request(url, init);
+                      uploadRequest = {
+                        body: new Uint8Array(await request.arrayBuffer()),
+                        contentType: request.headers.get("content-type"),
+                        method: request.method,
+                        url,
+                      };
+                      return new Response(JSON.stringify({ HttpCode: 201 }), {
+                        status: 201,
+                      });
+                    })();
                   }
                   return null;
                 });
@@ -634,12 +636,15 @@ describeWithEnv(
 
                 expect(filename).toBe("raw-upload.bin");
                 expect(uploadRequest).not.toBeNull();
-                expect(uploadRequest?.method).toBe("PUT");
-                expect(uploadRequest?.url).toContain("/raw-upload.bin");
-                expect(uploadRequest?.contentType).toBe(
+                if (!uploadRequest) {
+                  throw new Error("Expected upload request to be captured");
+                }
+                expect(uploadRequest.method).toBe("PUT");
+                expect(uploadRequest.url).toContain("/raw-upload.bin");
+                expect(uploadRequest.contentType).toBe(
                   "application/octet-stream",
                 );
-                expect(uploadRequest?.body).toEqual(raw);
+                expect(uploadRequest.body).toEqual(raw);
               }),
           );
         });
