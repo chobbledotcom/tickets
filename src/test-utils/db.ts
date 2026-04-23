@@ -195,7 +195,7 @@ export const describeWithEnv = (
   fn: () => void,
 ): void => {
   describe(name, () => {
-    let restoreEnv: () => void;
+    let restoreEnv: (() => void) | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
@@ -205,11 +205,14 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup();
       }
-      if (options.env) restoreEnv = setTestEnv(options.env);
+      const envVars: Record<string, string | undefined> = {};
+      if (options.db) envVars.DB_URL = ":memory:";
+      if (options.env) Object.assign(envVars, options.env);
+      if (Object.keys(envVars).length > 0) restoreEnv = setTestEnv(envVars);
     });
     afterEach(() => {
       if (options.db) resetDb();
-      if (options.env) restoreEnv();
+      if (restoreEnv) restoreEnv();
     });
     fn();
   });
