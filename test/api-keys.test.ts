@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { buildSessionCookie } from "#lib/cookies.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
@@ -476,6 +477,27 @@ describeWithEnv("API Keys", { db: true }, () => {
       const response = await handleRequest(mockRequest("/admin/api-keys/docs"));
 
       expect(response.status).toBe(302);
+    });
+
+    test("succeeds even when touchApiKeyLastUsed fails", async () => {
+      await createTestEvent({ name: "Touch Fail Test" });
+      const { apiKey } = await createTestApiKeyFull("Resilient Auth");
+
+      const apiKeysModule = await import("#lib/db/api-keys.ts");
+      const stubTouch = stub(
+        apiKeysModule.apiKeysApi,
+        "touchApiKeyLastUsed",
+        () => Promise.reject(new Error("DB error")),
+      );
+
+      try {
+        const response = await handleRequest(
+          requestAsApiKey("/api/admin/events", apiKey),
+        );
+        expect(response.status).toBe(200);
+      } finally {
+        stubTouch.restore();
+      }
     });
   });
 

@@ -14,13 +14,14 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { type AdminSession, isPaidEvent } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   AUTH_FORM,
   applyFlash,
   htmlResponse,
   redirect,
   redirectResponse,
+  validateFormHandler,
   withAuth,
 } from "#routes/utils.ts";
 import {
@@ -189,32 +190,38 @@ const handleCreateAttendeeFailure = (
 };
 
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
-const handleAddAttendee = (
-  request: Request,
-  { eventId }: { eventId: number },
-): Promise<Response> =>
+const handleAddAttendee: TypedRouteHandler<
+  "POST /admin/event/:eventId/attendee"
+> = (request, params) =>
   withAuth(request, AUTH_FORM, (_session, form) =>
-    withEntityFromParam(eventId, getEventWithCount, async (event) => {
+    withEntityFromParam(params.eventId, getEventWithCount, (event) => {
       const isDaily = event.event_type === "daily";
       const fields = getAddAttendeeFields(event.fields, isDaily);
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      const validation = validateForm<AddAttendeeFormValues>(form, fields);
 
-      if (!validation.valid) {
-        return redirect(`/admin/event/${eventId}`, validation.error, false);
-      }
+      return validateFormHandler(
+        (f) => validateForm<AddAttendeeFormValues>(f, fields),
+        async (values) => {
+          const result = await createAttendeeAtomic(
+            buildCreateAttendeeInput(values, params.eventId, isDaily),
+          );
 
-      const result = await createAttendeeAtomic(
-        buildCreateAttendeeInput(validation.values, eventId, isDaily),
-      );
+          if (!result.success) {
+            return handleCreateAttendeeFailure(result, params.eventId);
+          }
 
-      if (!result.success) {
-        return handleCreateAttendeeFailure(result, eventId);
-      }
-
-      const { name } = validation.values;
-      await logActivity(`Attendee '${name}' added manually`, eventId);
-      return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
+          await logActivity(
+            `Attendee '${values.name}' added manually`,
+            params.eventId,
+          );
+          return redirect(
+            `/admin/event/${params.eventId}`,
+            `Added ${values.name}`,
+            true,
+          );
+        },
+        (error) => redirect(`/admin/event/${params.eventId}`, error, false),
+      )(form);
     }),
   );
 

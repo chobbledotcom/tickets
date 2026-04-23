@@ -10,18 +10,19 @@ import {
 } from "#lib/db/attendees.ts";
 import { queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import {
-  type LinkEventUpdateValues,
-  type LinkEventValues,
-  linkEventForm,
-  linkEventUpdateForm,
-} from "#lib/form-schemas.ts";
+import { linkEventForm, linkEventUpdateForm } from "#lib/form-schemas.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { AUTH_FORM, errorRedirect, redirect, withAuth } from "#routes/utils.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
+import {
+  AUTH_FORM,
+  errorRedirect,
+  formRouteRedirect,
+  redirect,
+  withAuth,
+} from "#routes/utils.ts";
 
 /** Parse a quantity value from a form field, clamping to [1, max] */
-const parseQuantity = (value: string, max: number): number => {
+export const parseQuantity = (value: string, max: number): number => {
   const parsed = Math.floor(Number(value));
   return Math.max(1, Math.min(max, Number.isNaN(parsed) ? 1 : parsed));
 };
@@ -64,66 +65,18 @@ const applyLinkOp = async (
       );
 };
 
-/* jscpd:ignore-start — route factories; inner signature matches editAttendeePost in attendees-edit.ts */
-type FormSchema<TValues> = {
-  validate: (
-    form: FormParams,
-  ) => { valid: true; values: TValues } | { valid: false; error: string };
-};
-
-const attendeeRouteWithForm =
-  <TValues>(
-    schema: FormSchema<TValues>,
-    fn: (attendeeId: number, values: TValues) => Response | Promise<Response>,
-  ) =>
-  (
-    request: Request,
-    { attendeeId }: { attendeeId: number },
-  ): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (_session, form) => {
-      const validation = schema.validate(form);
-      if (!validation.valid)
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}`,
-          validation.error,
-        );
-      return fn(attendeeId, validation.values);
-    });
-
-const eventLinkRouteWithForm =
-  <TValues>(
-    schema: FormSchema<TValues>,
-    fn: (
-      attendeeId: number,
-      eventId: number,
-      values: TValues,
-    ) => Promise<Response>,
-  ) =>
-  (
-    request: Request,
-    { attendeeId, eventId }: { attendeeId: number; eventId: number },
-  ): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (_session, form) => {
-      const validation = schema.validate(form);
-      if (!validation.valid)
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}`,
-          validation.error,
-        );
-      return fn(attendeeId, eventId, validation.values);
-    });
-
-/** Route handler factory for /admin/attendees/:attendeeId/…/:eventId operations */
-const eventLinkRoute =
-  (fn: (attendeeId: number, eventId: number) => Response | Promise<Response>) =>
-  (
-    request: Request,
-    { attendeeId, eventId }: { attendeeId: number; eventId: number },
-  ): Promise<Response> =>
-    withAuth(request, AUTH_FORM, () => fn(attendeeId, eventId));
-
 /** Handle POST /admin/attendees/:attendeeId/unlink/:eventId — remove event link */
-export const handleUnlinkEvent = eventLinkRoute(async (attendeeId, eventId) => {
+export const handleUnlinkEvent: TypedRouteHandler<
+  "POST /admin/attendees/:attendeeId/unlink/:eventId"
+> = (request, params) =>
+  withAuth(request, AUTH_FORM, () =>
+    handleUnlinkEventAction(params.attendeeId, params.eventId),
+  );
+
+const handleUnlinkEventAction = async (
+  attendeeId: number,
+  eventId: number,
+): Promise<Response> => {
   const linkCount = await queryOne<{ count: number }>(
     "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
     [attendeeId],
@@ -142,22 +95,23 @@ export const handleUnlinkEvent = eventLinkRoute(async (attendeeId, eventId) => {
     `Attendee unlinked from '${event!.name}'`,
     true,
   );
-});
+};
 
 /** Handle POST /admin/attendees/:attendeeId/event/:eventId — update per-event link */
-export const handleUpdateEventLink =
-  eventLinkRouteWithForm<LinkEventUpdateValues>(
-    linkEventUpdateForm,
-    (attendeeId, eventId, values) =>
+export const handleUpdateEventLink: TypedRouteHandler<"POST /admin/attendees/:attendeeId/event/:eventId"> =
+  formRouteRedirect(
+    linkEventUpdateForm.validate,
+    (params) => `/admin/attendees/${params.attendeeId}`,
+    (params, values) =>
       applyLinkOp(
-        attendeeId,
-        eventId,
+        params.attendeeId,
+        params.eventId,
         values,
-        (fields) => updateEventLink(attendeeId, eventId, fields),
+        (fields) => updateEventLink(params.attendeeId, params.eventId, fields),
         (event) =>
           Promise.resolve(
             redirect(
-              `/admin/attendees/${attendeeId}`,
+              `/admin/attendees/${params.attendeeId}`,
               `Updated ${event.name}`,
               true,
             ),
@@ -166,23 +120,25 @@ export const handleUpdateEventLink =
   );
 
 /** Handle POST /admin/attendees/:attendeeId/link — add event link */
-export const handleAddEventLink = attendeeRouteWithForm<LinkEventValues>(
-  linkEventForm,
-  (attendeeId, values) => {
-    const eventId = values.event_id;
-    return applyLinkOp(
-      attendeeId,
-      eventId,
-      values,
-      (fields) => addEventLink(attendeeId, { eventId, ...fields }),
-      async (event) => {
-        await logActivity(`Attendee linked to '${event.name}'`, eventId);
-        return redirect(
-          `/admin/attendees/${attendeeId}`,
-          `Added to ${event.name}`,
-          true,
-        );
-      },
-    );
-  },
-);
+export const handleAddEventLink: TypedRouteHandler<"POST /admin/attendees/:attendeeId/link"> =
+  formRouteRedirect(
+    linkEventForm.validate,
+    (params) => `/admin/attendees/${params.attendeeId}`,
+    (params, values) => {
+      const eventId = values.event_id;
+      return applyLinkOp(
+        params.attendeeId,
+        eventId,
+        values,
+        (fields) => addEventLink(params.attendeeId, { eventId, ...fields }),
+        async (event) => {
+          await logActivity(`Attendee linked to '${event.name}'`, eventId);
+          return redirect(
+            `/admin/attendees/${params.attendeeId}`,
+            `Added to ${event.name}`,
+            true,
+          );
+        },
+      );
+    },
+  );

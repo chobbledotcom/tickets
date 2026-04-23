@@ -13,8 +13,7 @@ import {
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#lib/csrf.ts";
-import { getApiKeyByToken, touchApiKeyLastUsed } from "#lib/db/api-keys.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { apiKeysApi, getApiKeyByToken } from "#lib/db/api-keys.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { settings } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
@@ -25,7 +24,8 @@ import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { ErrorCode, getRequestId, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
 import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
-import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
+import type { AdminLevel } from "#lib/types.ts";
+import type { RouteParams } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import {
@@ -206,7 +206,7 @@ export const getAuthenticatedApiKey = async (
   const adminLevel = await decryptAdminLevel(user);
 
   // Fire-and-forget last_used update
-  touchApiKeyLastUsed(apiKeyRow.id).catch(() => {});
+  apiKeysApi.touchApiKeyLastUsed(apiKeyRow.id).catch(() => {});
 
   const result: AuthSession = {
     adminLevel,
@@ -472,13 +472,6 @@ export type AttendeeEventRouteParams = {
   attendeeId: number;
   eventId: number;
 };
-
-export const withEventPage = (
-  renderPage: (event: EventWithCount, session: AdminSession) => string,
-): IdRouteHandler =>
-  authenticatedGetById(null)(getEventWithCount, (event, session) =>
-    htmlResponse(renderPage(event, session)),
-  );
 
 /** Check if an event's registration period has closed */
 export const isRegistrationClosed = (event: {
@@ -886,3 +879,74 @@ export async function withAuth<T extends BodyMode>(
   if (isResponse(body)) return body;
   return handler(auth.session, body as ParsedBody<T>, auth.authKind);
 }
+
+/** Validator that extracts typed values from form data */
+export type FormValidator<T> = (
+  form: FormParams,
+) => { valid: true; values: T } | { valid: false; error: string };
+
+/** Wrap form handling with validation. Use inside withAuth to eliminate
+ *  repetitive validate-then-redirect patterns.
+ *
+ *  Usage:
+ *    withAuth(request, AUTH_FORM, (_session, form) =>
+ *      validateFormHandler(
+ *        (form) => myForm.validate(form),
+ *        (values) => doSomething(values),
+ *        (error) => errorRedirect("/url", error),
+ *      )(form),
+ *    );
+ */
+export const validateFormHandler =
+  <TValues>(
+    validate: FormValidator<TValues>,
+    onSuccess: (values: TValues) => Response | Promise<Response>,
+    onError: (error: string) => Response,
+  ) =>
+  (form: FormParams): Response | Promise<Response> => {
+    const result = validate(form);
+    if (!result.valid) return onError(result.error);
+    return onSuccess(result.values);
+  };
+
+/** Create a route handler that authenticates, validates CSRF, validates form data,
+ *  and either returns an error response or calls the success handler.
+ *
+ *  Eliminates the common boilerplate of
+ *  `withAuth(request, AUTH_FORM, (session, form) => { ... validate ... errorRedirect ... })`.
+ *
+ *  Usage:
+ *    export const handlePost = formRoute(
+ *      (form) => myForm.validate(form),
+ *      (params, error) => errorRedirect(`/admin/items/${params.id}`, error),
+ *      (params, values) => doSomething(params.id, values),
+ *    );
+ */
+export const formRoute =
+  <TParams extends RouteParams, TValues>(
+    validate: FormValidator<TValues>,
+    onInvalid: (params: TParams, error: string) => Response,
+    handler: (params: TParams, values: TValues) => Response | Promise<Response>,
+  ) =>
+  (
+    request: Request,
+    params: TParams,
+    _server?: ServerContext,
+  ): Promise<Response> =>
+    withAuth(request, AUTH_FORM, (_session, form) => {
+      const result = validate(form);
+      if (!result.valid) return onInvalid(params, result.error);
+      return handler(params, result.values);
+    });
+
+/** Convenience variant of formRoute that uses errorRedirect with a URL built from params. */
+export const formRouteRedirect = <TParams extends RouteParams, TValues>(
+  validate: FormValidator<TValues>,
+  errorUrl: (params: TParams) => string,
+  handler: (params: TParams, values: TValues) => Response | Promise<Response>,
+) =>
+  formRoute(
+    validate,
+    (params, error) => errorRedirect(errorUrl(params), error),
+    handler,
+  );
