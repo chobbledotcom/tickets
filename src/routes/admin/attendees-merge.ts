@@ -263,7 +263,9 @@ const validateMergePostInput = async (
     return {
       ok: false,
       response: errorRedirect(
-        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         "Ticket token not found",
       ),
     };

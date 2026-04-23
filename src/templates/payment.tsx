@@ -60,7 +60,9 @@ export const successPage = ({
       bodyClass={inIframe ? "iframe" : undefined}
       headExtra={
         thankYouUrl
-          ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">`
+          ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(
+              thankYouUrl,
+            )}">`
           : undefined
       }
       title="Order Successful"

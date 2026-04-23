@@ -292,9 +292,9 @@ export const adminGroupDetailPage = (
               <tr>
                 <th>Public URL</th>
                 <td>
-                  <a
-                    href={ticketUrl}
-                  >{`${allowedDomain}/ticket/${group.slug}`}</a>
+                  <a href={ticketUrl}>
+                    {`${allowedDomain}/ticket/${group.slug}`}
+                  </a>
                   <small>
                     {" "}
                     (<a href={`/ticket/${group.slug}/qr`}>QR Code</a>)

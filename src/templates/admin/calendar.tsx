@@ -43,17 +43,23 @@ const CalendarDateSelector = ({
   dates: CalendarDateOption[];
   today: string;
 }): string => {
-  const selectOption = `<option value="/admin/calendar#attendees"${!dateFilter ? " selected" : ""}>Select a date</option>`;
+  const selectOption = `<option value="/admin/calendar#attendees"${
+    !dateFilter ? " selected" : ""
+  }>Select a date</option>`;
   const dateOptions = dates.map((d) =>
     d.hasBookings
-      ? `<option value="/admin/calendar?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`
+      ? `<option value="/admin/calendar?date=${d.value}#attendees"${
+          dateFilter === d.value ? " selected" : ""
+        }>${d.label}</option>`
       : `<option disabled>${d.label}</option>`,
   );
   // Insert "Select a date" before the first current/future date to split past from future
   const splitIndex = dates.findIndex((d) => d.value >= today);
   const insertAt = splitIndex === -1 ? dateOptions.length : splitIndex;
   dateOptions.splice(insertAt, 0, selectOption);
-  return `<select data-nav-select aria-label="Select a date">${dateOptions.join("")}</select>`;
+  return `<select data-nav-select aria-label="Select a date">${dateOptions.join(
+    "",
+  )}</select>`;
 };
 
 /**

@@ -71,8 +71,9 @@ export const processBooking = async (
       baseUrl,
     );
     if (!result) return { type: "checkout_failed" };
-    if ("error" in result)
+    if ("error" in result) {
       return { error: result.error, type: "checkout_failed" };
+    }
 
     return { checkoutUrl: result.checkoutUrl, type: "checkout" };
   }
@@ -83,8 +84,9 @@ export const processBooking = async (
     bookings: [{ date, eventId: event.id, quantity }],
   });
 
-  if (!result.success)
+  if (!result.success) {
     return { reason: result.reason, type: "creation_failed" };
+  }
 
   await logAndNotifyRegistration([{ attendee: result.attendees[0]!, event }]);
   return { attendee: result.attendees[0]!, type: "success" };

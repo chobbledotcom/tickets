@@ -15,7 +15,9 @@ type EventCol = ColumnDef<EventWithCount>;
 
 const name: EventCol = {
   cell: (e) =>
-    `${renderEventImage(e, "event-thumbnail")}<a href="/admin/event/${e.id}">${escapeHtml(e.name)}</a>`,
+    `${renderEventImage(e, "event-thumbnail")}<a href="/admin/event/${e.id}">${escapeHtml(
+      e.name,
+    )}</a>`,
   description: "Event name with thumbnail image and link to event detail",
   headerText: "Event Name",
   isHtml: true,

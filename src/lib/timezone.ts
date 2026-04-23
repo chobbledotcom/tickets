@@ -64,7 +64,9 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
   const get = (type: string): string =>
     parts.find((p) => p.type === type)!.value;
 
-  return `${get("weekday")} ${day} ${get("month")} ${year} at ${pad2(hour)}:${pad2(minute)} ${get("timeZoneName")}`;
+  return `${get("weekday")} ${day} ${get("month")} ${year} at ${pad2(hour)}:${pad2(
+    minute,
+  )} ${get("timeZoneName")}`;
 };
 
 /**
@@ -82,7 +84,9 @@ export const formatDatetimeShortInTz = (utcIso: string, tz: string): string =>
  */
 export const utcToLocalInput = (utcIso: string, tz: string): string => {
   const z = utcToZoned(utcIso, tz);
-  return `${z.year}-${pad2(z.month)}-${pad2(z.day)}T${pad2(z.hour)}:${pad2(z.minute)}`;
+  return `${z.year}-${pad2(z.month)}-${pad2(z.day)}T${pad2(z.hour)}:${pad2(
+    z.minute,
+  )}`;
 };
 
 /**

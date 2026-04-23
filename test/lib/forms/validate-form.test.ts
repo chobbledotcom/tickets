@@ -127,8 +127,9 @@ describe("validateForm", () => {
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid)
+      if (result.valid) {
         expect(result.values.closes_at).toBe("2099-06-15T14:30");
+      }
     });
 
     test("returns null when both date and time are empty", () => {
@@ -146,8 +147,9 @@ describe("validateForm", () => {
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid)
+      if (result.valid) {
         expect(result.values.closes_at).toBe("2099-06-15T00:00");
+      }
     });
 
     test("rejects time without date", () => {

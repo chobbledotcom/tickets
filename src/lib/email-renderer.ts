@@ -152,7 +152,9 @@ const safeRender = async (
   } catch (error) {
     logError({
       code: ErrorCode.EMAIL_TEMPLATE_RENDER,
-      detail: `template render error (${type}/${format}): ${error instanceof Error ? error.message : String(error)}`,
+      detail: `template render error (${type}/${format}): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     });
     return await renderTemplate(fallbackTemplate, data);
   }

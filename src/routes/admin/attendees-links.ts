@@ -41,8 +41,9 @@ const applyLinkOp = async (
   onSuccess: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> => {
   const event = await getEventWithCount(eventId);
-  if (!event)
+  if (!event) {
     return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+  }
   const result = await operate(parseLinkFormFields(form, event));
   return result.success
     ? onSuccess(event)
@@ -89,11 +90,12 @@ export const handleUnlinkEvent = eventLinkRoute(async (attendeeId, eventId) => {
     "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
     [attendeeId],
   );
-  if (linkCount && linkCount.count <= 1)
+  if (linkCount && linkCount.count <= 1) {
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
       "Cannot remove the last event — delete the attendee instead",
     );
+  }
 
   const event = await getEventWithCount(eventId);
   const eventName = event!.name;
@@ -128,8 +130,9 @@ export const handleUpdateEventLink = eventLinkRoute(
 /** Handle POST /admin/attendees/:attendeeId/link — add event link */
 export const handleAddEventLink = attendeeRoute((attendeeId, form) => {
   const eventId = Number(form.get("event_id")) || 0;
-  if (!eventId)
+  if (!eventId) {
     return errorRedirect(`/admin/attendees/${attendeeId}`, "Event is required");
+  }
   return applyLinkOp(
     attendeeId,
     eventId,

@@ -277,7 +277,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/users?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${flashCookieHeader("User deleted successfully")}`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "User deleted successfully",
+          )}`,
         },
       );
       await expectHtmlResponse(

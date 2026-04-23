@@ -133,12 +133,13 @@ const handleAttendeeCheckin = attendeeFormAction(
     );
 
     const returnUrl = form.getString("return_url");
-    if (returnUrl)
+    if (returnUrl) {
       return redirect(
         returnUrl,
         `Checked ${data.attendee.name} ${status}`,
         true,
       );
+    }
 
     const name = encodeURIComponent(data.attendee.name);
     const filterValue = form.getString("return_filter");

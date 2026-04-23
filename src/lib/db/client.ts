@@ -174,6 +174,8 @@ export const insert = (
 
   return {
     args,
-    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`,
+    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(
+      ", ",
+    )})`,
   };
 };

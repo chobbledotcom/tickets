@@ -101,10 +101,18 @@ const computeVersion = (
   const parts = [
     `t:${targetId}`,
     `s:${sourceId}`,
-    `ta:${map((e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`)([...targetAnswers.entries()]).join(",")}`,
-    `sa:${map((e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`)([...sourceAnswers.entries()]).join(",")}`,
-    `tb:${map((b: EventAttendeeRow) => bookingKey(b.event_id, b.start_at))(targetBookings).join(",")}`,
-    `sb:${map((b: EventAttendeeRow) => bookingKey(b.event_id, b.start_at))(sourceBookings).join(",")}`,
+    `ta:${map(
+      (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
+    )([...targetAnswers.entries()]).join(",")}`,
+    `sa:${map(
+      (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
+    )([...sourceAnswers.entries()]).join(",")}`,
+    `tb:${map((b: EventAttendeeRow) => bookingKey(b.event_id, b.start_at))(
+      targetBookings,
+    ).join(",")}`,
+    `sb:${map((b: EventAttendeeRow) => bookingKey(b.event_id, b.start_at))(
+      sourceBookings,
+    ).join(",")}`,
   ];
   return parts.join("|");
 };
@@ -282,7 +290,9 @@ export const validateAttendeeMergeDecision = (
   for (const item of conflictingBookings) {
     if (!decision.bookings[itemBookingKey(item)]) {
       errors.push(
-        `Missing decision for booking: Event #${item.eventId}${item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""}`,
+        `Missing decision for booking: Event #${item.eventId}${
+          item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""
+        }`,
       );
     }
   }

@@ -255,8 +255,9 @@ describe("rest/resource", () => {
         new FormParams({ name: "Updated", value: "200" }),
       );
       expect(result.ok).toBe(true);
-      if (result.ok)
+      if (result.ok) {
         expect(result.row).toMatchObject({ name: "Updated", value: 200 });
+      }
     });
 
     test("returns notFound for non-existent row", async () => {

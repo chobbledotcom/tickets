@@ -228,8 +228,9 @@ const loadEventOr404 = async <Extra extends Record<string, unknown>>(
   | ({ ok: false; error: string; status: 404 } & Extra)
 > => {
   const event = await getEventWithCount(eventId);
-  if (!event)
+  if (!event) {
     return { error: "Event not found", ok: false, status: 404, ...extra };
+  }
   return { event, ok: true };
 };
 
@@ -658,7 +659,9 @@ const processSessionAndRedirect = async (
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
     return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(result.ticketTokens.join("+"))}`,
+      `/payment/success?tokens=${encodeURIComponent(
+        result.ticketTokens.join("+"),
+      )}`,
     );
   }
 
