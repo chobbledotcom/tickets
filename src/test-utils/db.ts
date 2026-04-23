@@ -37,6 +37,7 @@ const prepareTestClient = async (): Promise<void> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
 
+  setTestEnv({ DB_URL: ":memory:" });
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
@@ -205,10 +206,7 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup();
       }
-      const envVars: Record<string, string | undefined> = {};
-      if (options.db) envVars.DB_URL = ":memory:";
-      if (options.env) Object.assign(envVars, options.env);
-      if (Object.keys(envVars).length > 0) restoreEnv = setTestEnv(envVars);
+      if (options.env) restoreEnv = setTestEnv(options.env);
     });
     afterEach(() => {
       if (options.db) resetDb();
