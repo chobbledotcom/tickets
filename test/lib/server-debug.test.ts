@@ -12,11 +12,13 @@ import {
   assertAdminHtml,
   describeWithEnv,
   expectHtmlResponse,
-  generateGoogleTestCreds,
-  generateTestCerts,
   setTestEnv,
   testRequiresAuth,
 } from "#test-utils";
+import {
+  generateGoogleTestCreds,
+  generateTestCerts,
+} from "#test-utils/crypto.ts";
 
 describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {

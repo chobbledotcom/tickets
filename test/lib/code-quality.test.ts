@@ -34,7 +34,18 @@ const FORBIDDEN_PATTERNS = [
  * Test utility files - excluded from all code quality checks
  */
 const TEST_UTILITY_FILES = [
-  "test-utils/index.ts",
+  "test-utils/internal.ts",
+  "test-utils/db.ts",
+  "test-utils/env.ts",
+  "test-utils/mocks.ts",
+  "test-utils/assertions.ts",
+  "test-utils/csrf.ts",
+  "test-utils/factories.ts",
+  "test-utils/validation.ts",
+  "test-utils/session.ts",
+  "test-utils/db-helpers.ts",
+  "test-utils/settings.ts",
+  "test-utils/crypto.ts",
   "test-utils/stripe-mock.ts",
   "test-utils/test-browser.ts",
   "test-utils/test-compat.ts",
@@ -49,6 +60,8 @@ const ALLOWED_FILES_STATE = [
   "lib/db/sessions.ts",
   // Settings test overrides Map for injecting test values into the snapshot
   "lib/db/settings.ts",
+  // Test override flags (lazyRef state for test isolation)
+  "lib/test-overrides.ts",
 ];
 
 /**
@@ -269,6 +282,7 @@ describe("code quality", () => {
       "lib/db/index.ts",
       "lib/rest/index.ts",
       "templates/index.ts",
+      "test-utils.ts",
     ];
 
     /**
@@ -324,7 +338,7 @@ describe("code quality", () => {
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
-      "routes/admin/auth.ts:setSkipLoginDelayForTest",
+      "lib/test-overrides.ts:setSkipLoginDelayForTest",
       // Reset/set host email config between tests without env var races
       "lib/email.ts:setHostEmailConfigForTest",
       "lib/email.ts:resetHostEmailConfig",
@@ -342,7 +356,7 @@ describe("code quality", () => {
       "lib/logger.ts:setSuppressRequestLogs",
       "lib/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
-      "routes/index.ts:setRethrowErrorsForTest",
+      "lib/test-overrides.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
       "lib/update.ts:setBuildTimestampForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)

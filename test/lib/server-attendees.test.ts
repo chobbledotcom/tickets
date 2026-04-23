@@ -124,11 +124,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${
-            encodeURIComponent(
-              "/admin/calendar#attendees",
-            )
-          }`,
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent(
+            "/admin/calendar#attendees",
+          )}`,
       )();
       await expectHtmlResponse(
         response,
@@ -830,7 +828,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             Promise.resolve({
               reason: "encryption_error",
               success: false,
-            })),
+            }),
+          ),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -985,11 +984,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}?return_url=${
-          encodeURIComponent(
-            "/admin/calendar#attendees",
-          )
-        }`,
+        `/admin/attendees/${attendee.id}?return_url=${encodeURIComponent(
+          "/admin/calendar#attendees",
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -1619,11 +1616,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${
-            encodeURIComponent(
-              "/admin/calendar#attendees",
-            )
-          }`,
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${encodeURIComponent(
+            "/admin/calendar#attendees",
+          )}`,
       )();
       await expectHtmlResponse(
         response,
@@ -1739,10 +1734,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("re-sends notification with matching name", async () => {
-      const webhookFetch = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response(null, { status: 200 })),
+      const webhookFetch = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response(null, { status: 200 })),
       );
 
       try {
@@ -1765,10 +1758,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("logs activity when notification is re-sent", async () => {
-      const webhookFetch = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response(null, { status: 200 })),
+      const webhookFetch = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response(null, { status: 200 })),
       );
 
       try {
@@ -1783,7 +1774,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
         const logs = await getEventActivityLog(event.id);
         const resendLog = logs.find((l: { message: string }) =>
-          l.message.includes("Notification re-sent")
+          l.message.includes("Notification re-sent"),
         );
         expect(resendLog).toBeDefined();
         expect(resendLog?.message).toContain("John Doe");
@@ -1855,11 +1846,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${
-            flashCookieHeader(
-              "Payment status is up to date",
-            )
-          }`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "Payment status is up to date",
+          )}`,
         },
       );
       await expectHtmlResponse(response, 200, "Payment status is up to date");
@@ -1964,10 +1953,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await withMocks(
         () =>
-          stub(
-            paymentsApi,
-            "getConfiguredProvider",
-            () => mockProviderType("stripe"),
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            mockProviderType("stripe"),
           ),
         async () => {
           const { stripePaymentProvider } = await import(
@@ -2008,10 +1995,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await withMocks(
         () =>
-          stub(
-            paymentsApi,
-            "getConfiguredProvider",
-            () => mockProviderType("stripe"),
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            mockProviderType("stripe"),
           ),
         async () => {
           const { stripePaymentProvider } = await import(
@@ -2668,11 +2653,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}/merge?token=${
-          encodeURIComponent(
-            token,
-          )
-        }`,
+        `/admin/attendees/${attendee.id}/merge?token=${encodeURIComponent(
+          token,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -2695,11 +2678,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -2719,11 +2700,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     sourceToken: string,
   ): Promise<string> => {
     const page = await awaitTestRequest(
-      `/admin/attendees/${targetId}/merge?token=${
-        encodeURIComponent(
-          sourceToken,
-        )
-      }`,
+      `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(
+        sourceToken,
+      )}`,
       { cookie: await testCookie() },
     );
     const html = await page.text();
@@ -2851,7 +2830,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         m.queryAll<{ event_id: number }>(
           "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
           [target.id],
-        )
+        ),
       );
       const eventIds = targetEventLinks.map((r) => r.event_id).sort();
       expect(eventIds).toEqual([event1.id, event2.id].sort());
@@ -3014,11 +2993,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Gluten free",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // Multiline fields (address, special_instructions) differ — exercises renderFieldValue(val, true) with same=false
@@ -3042,11 +3019,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Merge Preview");
@@ -3067,11 +3042,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "",
       );
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Merge Preview");
@@ -3098,11 +3071,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const sourceToken = result.attendees[0]!.ticket_token;
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // start_at is set for daily events — exercises the b.start_at ? `— date` : "" branch
@@ -3125,11 +3096,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // All bookings are moveable (different events) — no Decision column rendered
@@ -3151,11 +3120,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       // Same event, same qty/price/checked_in/refunded — classified as "duplicate"
@@ -3206,11 +3173,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await save([sourceData!.id], [a2.id]);
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       await expectHtmlResponse(
@@ -3261,11 +3226,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Get merge version from preview page
       const previewPage = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       const previewHtml = await previewPage.text();
@@ -3304,11 +3267,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Get merge version
       const previewPage = await awaitTestRequest(
-        `/admin/attendees/${target.id}/merge?token=${
-          encodeURIComponent(
-            sourceToken,
-          )
-        }`,
+        `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         { cookie: await testCookie() },
       );
       const html = await previewPage.text();

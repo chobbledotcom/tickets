@@ -7,7 +7,8 @@
 		"**/node_modules/**",
 		"**/package-lock.json",
 		"**/deno.lock",
-		"**/fp.ts"
+		"**/fp.ts",
+		"**/test-utils/**"
 	],
 	"format": ["typescript", "json"],
 	"absolute": false,

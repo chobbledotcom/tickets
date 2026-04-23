@@ -35,12 +35,10 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
     const flash = applyFlash(request);
     // The API key is embedded in the flash success message after a newline
     const newLineIdx = flash.success?.indexOf("\n") ?? -1;
-    const success = newLineIdx >= 0
-      ? flash.success!.slice(0, newLineIdx)
-      : flash.success;
-    const newKey = newLineIdx >= 0
-      ? flash.success!.slice(newLineIdx + 1)
-      : undefined;
+    const success =
+      newLineIdx >= 0 ? flash.success!.slice(0, newLineIdx) : flash.success;
+    const newKey =
+      newLineIdx >= 0 ? flash.success!.slice(newLineIdx + 1) : undefined;
     return htmlResponse(
       adminApiKeysPage(keys, session, {
         error: flash.error,
@@ -117,7 +115,8 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   requireOwnerOr(request, (session) =>
     htmlResponse(
       adminApiDocsPage(session, PUBLIC_API_ENDPOINTS, ADMIN_API_ENDPOINTS),
-    ));
+    ),
+  );
 
 export const apiKeysRoutes = {
   ...apiKeyDelete.routes,

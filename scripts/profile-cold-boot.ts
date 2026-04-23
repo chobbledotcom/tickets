@@ -6,7 +6,7 @@
  */
 
 import { createClient } from "@libsql/client";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env";
 
 interface Timing {
   duration: number;

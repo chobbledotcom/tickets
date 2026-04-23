@@ -8,7 +8,7 @@ import {
   signJwt,
 } from "#lib/google-wallet.ts";
 import type { WalletPassData } from "#routes/token-utils.ts";
-import { generateGoogleTestCreds } from "#test-utils";
+import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 
 const makePassData = (
   overrides: Partial<WalletPassData> = {},

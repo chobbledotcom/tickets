@@ -16,7 +16,7 @@ import {
   trimAuthToken,
 } from "#lib/apple-wallet.ts";
 import { WALLET_ICONS } from "#lib/wallet-icons.ts";
-import { generateTestCerts } from "#test-utils";
+import { generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Type for eventTicket field groups in pass.json */
 type TicketFields = {

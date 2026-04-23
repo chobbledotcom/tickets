@@ -358,7 +358,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         const flashId = url.searchParams.get("flash")!;
         const cookies = response.headers.getSetCookie();
         const flashCookie = cookies.find((c) =>
-          c.startsWith(`flash_${flashId}=`)
+          c.startsWith(`flash_${flashId}=`),
         );
         expect(flashCookie).toBeDefined();
       }));
@@ -419,7 +419,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const { withEntityLoader } = await import("#routes/admin/utils.ts");
 
       const response = await withEntityLoader((id: number) =>
-        Promise.resolve(id === 7 ? { id, name: "Loaded" } : null)
+        Promise.resolve(id === 7 ? { id, name: "Loaded" } : null),
       )(7)((entity) => new Response(`entity:${entity.name}`));
 
       expect(response.status).toBe(200);
@@ -446,7 +446,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
         Promise.resolve({
           id,
           userId: session.userId,
-        })
+        }),
       )(
         mockRequest("/admin/attendees/1", { headers: { cookie } }),
         123,
@@ -467,7 +467,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const response = await withAuthAndEntity((_session, id) =>
         Promise.resolve({
           id,
-        })
+        }),
       )(
         mockFormRequest(
           "/admin/attendees/1",
@@ -523,7 +523,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handlers = withAuthEntityHandlers((_session, id) =>
-        Promise.resolve({ id })
+        Promise.resolve({ id }),
       );
 
       const getResponse = await handlers(
@@ -609,17 +609,11 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
 
       const response = await handler(
-        mockFormRequest(
-          "/admin/test-owner",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest("/admin/test-owner", { csrf_token: csrfToken }, cookie),
       );
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        "/admin/test-owner",
-      );
+      expect(response.headers.get("location")).toContain("/admin/test-owner");
     });
 
     test("createActionHandler with multipart body and any auth redirects on success", async () => {
@@ -690,11 +684,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       });
 
       const response = await handler(
-        mockFormRequest(
-          "/admin/keys",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest("/admin/keys", { csrf_token: csrfToken }, cookie),
       );
 
       expect(response.status).toBe(302);
@@ -710,14 +700,15 @@ describeWithEnv("server (misc)", { db: true }, () => {
         auth: "any" as const,
         execute: () => Promise.resolve(),
         message: "API key created",
-        redactedSecret: (_session, form) => form.getString("api_key") || undefined,
+        redactedSecret: (_session, form) =>
+          form.getString("api_key") || undefined,
         successRedirect: "/admin/keys",
       });
 
       const response = await handler(
         mockFormRequest(
           "/admin/keys",
-          { csrf_token: csrfToken, api_key: "secret_key_456" },
+          { api_key: "secret_key_456", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -734,17 +725,19 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handlers = createConfirmedHandlers<{ name: string }>({
-        path: "/admin/test/:id/delete",
         auth: "any",
-        load: () => Promise.resolve({ name: "Alpha" }),
-        render: () => Promise.resolve("ok"),
         identifier: (m) => Promise.resolve(m.name),
-        onConfirm: () => Promise.resolve(),
-        successRedirect: "/admin/test",
-        successMessage: "deleted",
         identifierLabel: "Name",
+        load: () => Promise.resolve({ name: "Alpha" }),
+        onConfirm: () => Promise.resolve(),
+        path: "/admin/test/:id/delete",
         preValidate: () =>
-          Promise.resolve(new Response("blocked", { status: 418, headers: { "x-hit": "1" } })),
+          Promise.resolve(
+            new Response("blocked", { headers: { "x-hit": "1" }, status: 418 }),
+          ),
+        render: () => Promise.resolve("ok"),
+        successMessage: "deleted",
+        successRedirect: "/admin/test",
       });
 
       const getResponse = await handlers.get(
@@ -756,7 +749,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
       const postResponse = await handlers.post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { csrf_token: csrfToken, confirm_identifier: "Alpha" },
+          { confirm_identifier: "Alpha", csrf_token: csrfToken },
           cookie,
         ),
         1,
@@ -764,17 +757,17 @@ describeWithEnv("server (misc)", { db: true }, () => {
       expect(postResponse.status).toBe(418);
 
       const missing = createConfirmedHandlers<{ name: string }>({
-        path: "/admin/test/:id/delete",
         auth: "any",
-        load: () => Promise.resolve(null),
-        render: () => Promise.resolve("ok"),
         identifier: (m) => Promise.resolve(m.name),
-        onConfirm: () => Promise.resolve(),
-        successRedirect: "/admin/test",
-        successMessage: "deleted",
         identifierLabel: "Name",
+        load: () => Promise.resolve(null),
+        onConfirm: () => Promise.resolve(),
         onNotFound: () =>
           Promise.resolve(new Response("custom-not-found", { status: 410 })),
+        path: "/admin/test/:id/delete",
+        render: () => Promise.resolve("ok"),
+        successMessage: "deleted",
+        successRedirect: "/admin/test",
       });
 
       const missingResponse = await missing.get(
@@ -1188,11 +1181,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
     test("loadQuestionData returns question data when questions exist", async () => {
       const { loadQuestionData } = await import("#routes/admin/utils.ts");
       const { createTestAttendeeDirect } = await import("#test-utils");
-      const {
-        answersTable,
-        eventQuestionsTable,
-        questionsTable,
-      } = await import("#lib/db/questions.ts");
+      const { answersTable, eventQuestionsTable, questionsTable } =
+        await import("#lib/db/questions.ts");
 
       const event = await createTestEvent({ maxAttendees: 10 });
       const question = await questionsTable.insert({ text: "Food preference" });

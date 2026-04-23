@@ -8,7 +8,6 @@ import {
   createTestAttendeeWithToken,
   describeWithEnv,
   expectRedirectWithFlash,
-  generateTestCerts,
   getHeader,
   mockFormRequest,
   setTestEnv,
@@ -16,6 +15,7 @@ import {
   testCsrfToken,
   testRequiresAuth,
 } from "#test-utils";
+import { generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();

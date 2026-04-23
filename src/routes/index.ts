@@ -3,7 +3,7 @@
  * Uses lazy loading to minimize startup time for edge scripts
  */
 
-import { lazyRef, once, reduce } from "#fp";
+import { once, reduce } from "#fp";
 import { loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
@@ -32,6 +32,7 @@ import {
 import { addPendingWork, flushPendingWork } from "#lib/pending-work.ts";
 import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
+import { getRethrowErrors } from "#lib/test-overrides.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -59,15 +60,6 @@ import { readOnlyPage } from "#templates/public.tsx";
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
-
-/** Module-level override avoids env race in parallel tests */
-const [getRethrowErrors, setRethrowErrors] = lazyRef<boolean | null>(
-  () => null,
-);
-
-/** Explicitly enable/disable test error rethrowing without env var races */
-export const setRethrowErrorsForTest = (rethrow: boolean | null): void =>
-  setRethrowErrors(rethrow);
 
 /** Lazy-load admin routes (only needed for authenticated admin requests) */
 const loadAdminRoutes = once(async () => {

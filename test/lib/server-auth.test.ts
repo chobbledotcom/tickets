@@ -3,8 +3,8 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
+import { setSkipLoginDelayForTest } from "#lib/test-overrides.ts";
 import { handleRequest } from "#routes";
-import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
 import {
   assertAdminHtml,
   assertPublicHtml,
