@@ -1,10 +1,9 @@
-import { bracket } from "#fp";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { bracket } from "#fp";
+import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { FormParams } from "#lib/form-data.ts";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import type { TestRequestOptions } from "#test-utils/internal.ts";
 
@@ -336,13 +335,6 @@ export const stubFetchRecorder = (responseInit?: ResponseInit) => {
 };
 
 export const useFetchStub = () => {
-  interface FetchStubCall {
-    args: [string | URL | Request, RequestInit | undefined];
-  }
-  interface FetchStub extends FetchStubCall {
-    calls: FetchStubCall[];
-    restore(): void;
-  }
   // deno-lint-ignore no-explicit-any
   type FetchStubRef = { current: any };
   const ref: FetchStubRef = { current: null };

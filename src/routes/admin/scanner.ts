@@ -16,7 +16,7 @@ import {
 import { getEventWithCount } from "#lib/db/events.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
-import { requirePrivateKey } from "#routes/admin/utils.ts";
+import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   decryptTokenEntries,
@@ -29,16 +29,17 @@ import {
   htmlResponse,
   type IdRouteHandler,
   jsonResponse,
-  orNotFound,
   requireSessionOr,
   withAuth,
 } from "#routes/utils.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
+const withEvent = withEntityLoader(getEventWithCount);
+
 /** Handle GET /admin/event/:id/scanner - render scanner page */
 const handleScannerGet: IdRouteHandler = (request, { id }) =>
   requireSessionOr(request, (session) =>
-    orNotFound(getEventWithCount(id), async (event) => {
+    withEvent(id)(async (event) => {
       const privateKey = await requirePrivateKey(session);
       const rawAttendees = await getAttendeesRaw(event.id);
       const attendees = await decryptAttendees(rawAttendees, privateKey);

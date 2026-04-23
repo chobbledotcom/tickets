@@ -12,16 +12,17 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   AUTH_FORM,
   applyFlash,
+  authPage,
   errorRedirect,
   htmlResponse,
   type IdRouteHandler,
   notFoundResponse,
   OWNER_FORM,
-  orNotFound,
   redirect,
   requireOwnerOr,
   requireSessionOr,
   withAuth,
+  withEntity,
 } from "#routes/utils.ts";
 
 type CrudConfig<Row, Input> = {
@@ -77,21 +78,15 @@ const createCrudHandlersWithAuth = <Row, Input>(
     (request: Request): Promise<Response> =>
       auth.withForm(request, handler);
 
-  const authHtml =
-    (render: (session: AdminSession) => string | Promise<string>) =>
-    (request: Request): Promise<Response> =>
-      auth.requireSession(request, async (session) => {
-        applyFlash(request);
-        return htmlResponse(await render(session));
-      });
+  const authHtml = authPage(auth.requireSession);
 
   const authRowHtml =
     (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
     (request, { id }) =>
       auth.requireSession(request, (session) => {
         applyFlash(request);
-        return orNotFound(cfg.resource.table.findById(id), (row) =>
-          htmlResponse(render(row, session)),
+        return withEntity<Row>((row) => htmlResponse(render(row, session)))(
+          () => cfg.resource.table.findById(id),
         );
       });
 

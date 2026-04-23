@@ -2,7 +2,6 @@
  * Admin authentication routes - login and logout
  */
 
-import { getSkipLoginDelay } from "#lib/test-overrides.ts";
 import {
   buildSessionCookie,
   clearSessionCookie,
@@ -19,12 +18,13 @@ import { createSession, deleteSession } from "#lib/db/sessions.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
+import { fail, ok } from "#lib/response.ts";
+import { getSkipLoginDelay } from "#lib/test-overrides.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
   AUTH_FORM,
-  errorRedirect,
   generateSecureToken,
   getAuthenticatedSession,
   getClientIp,
@@ -73,20 +73,14 @@ const handleAdminLogin = async (
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return errorRedirect(
-      "/admin",
-      "Invalid or expired form. Please try again.",
-    );
+    return fail("/admin", "Invalid or expired form. Please try again.");
   }
 
   const clientIp = getClientIp(request, server);
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
-    return errorRedirect(
-      "/admin",
-      "Too many login attempts. Please try again later.",
-    );
+    return fail("/admin", "Too many login attempts. Please try again later.");
   }
 
   // A failed credential check should also log the user out of any existing
@@ -95,7 +89,7 @@ const handleAdminLogin = async (
   const failedCredentialsRedirect = async (): Promise<Response> => {
     await recordFailedLogin(clientIp);
     if (existingToken) await deleteSession(existingToken);
-    return redirect("/admin", "Username or password was wrong", false, {
+    return fail("/admin", "Username or password was wrong", {
       cookie: existingToken ? clearSessionCookie() : undefined,
     });
   };
@@ -103,7 +97,7 @@ const handleAdminLogin = async (
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
-    return errorRedirect("/admin", validation.error);
+    return fail("/admin", validation.error);
   }
 
   const { username, password } = validation.values;
@@ -121,7 +115,7 @@ const handleAdminLogin = async (
 
   // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
-    return errorRedirect(
+    return fail(
       "/admin",
       "Your account has not been activated yet. Please contact the site owner.",
     );
@@ -146,7 +140,7 @@ const handleAdminLogin = async (
 const handleAdminLogout = (request: Request): Promise<Response> =>
   withAuth(request, AUTH_FORM, async (session) => {
     await deleteSession(session.token);
-    return redirect("/admin", "Logged out", true, {
+    return ok("/admin", "Logged out", {
       cookie: clearSessionCookie(),
     });
   });
@@ -154,7 +148,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 /** Handle GET /admin/login - redirect to dashboard if already authenticated */
 const handleLoginGet = async (request: Request): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
-  if (session) return redirect("/admin", "Already logged in", true);
+  if (session) return ok("/admin", "Already logged in");
   return loginResponse(request);
 };
 

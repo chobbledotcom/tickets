@@ -82,7 +82,8 @@ export const splitStatements = (sql: string): string[] => {
 
 /** Check if DB_URL points to a remote database */
 export const isRemoteDatabase = (): boolean => {
-  const url = getEnv("DB_URL") ?? "";
+  const url = getEnv("DB_URL");
+  if (!url) return false;
   return url.startsWith("libsql://") || url.startsWith("https://");
 };
 
@@ -92,7 +93,8 @@ export const isRemoteDatabase = (): boolean => {
  * Falls back to "local" for non-remote or unparseable URLs.
  */
 export const dbName = (): string => {
-  const url = getEnv("DB_URL") ?? "";
+  const url = getEnv("DB_URL");
+  if (!url) return "local";
   let host: string;
   try {
     host = new URL(url).hostname;

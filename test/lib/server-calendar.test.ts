@@ -11,6 +11,7 @@ import {
   expectRedirectWithFlash,
   submitTicketForm,
   testCookie,
+  testRequiresAuth,
 } from "#test-utils";
 
 const tomorrow = () => addDays(todayInTz("UTC"), 1);
@@ -85,11 +86,7 @@ describeWithEnv(
   { db: true, env: { NTFY_URL: undefined } },
   () => {
     describe("GET /admin/calendar", () => {
-      test("redirects to login when not authenticated", async () => {
-        const response = await awaitTestRequest("/admin/calendar");
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/admin");
-      });
+      testRequiresAuth("/admin/calendar");
 
       test("renders calendar page when authenticated", async () => {
         const response = await fetchCalendarResponse();
@@ -311,13 +308,7 @@ describeWithEnv(
     });
 
     describe("GET /admin/calendar/export", () => {
-      test("redirects to login when not authenticated", async () => {
-        const response = await awaitTestRequest(
-          "/admin/calendar/export?date=2026-03-15",
-        );
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/admin");
-      });
+      testRequiresAuth("/admin/calendar/export?date=2026-03-15");
 
       test("redirects to calendar when no date provided", async () => {
         const response = await fetchCalendarResponse("/admin/calendar/export");

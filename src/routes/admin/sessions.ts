@@ -6,28 +6,18 @@ import { hashSessionToken } from "#lib/crypto/hashing.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  htmlResponse,
-  OWNER_FORM,
-  redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { OWNER_FORM, ownerPage, redirect, withAuth } from "#routes/utils.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /**
  * Handle GET /admin/sessions
  */
-const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (
-  request,
-) =>
-  requireOwnerOr(request, async (session) => {
+const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> =
+  ownerPage(async (session) => {
     const sessions = await getAllSessions();
     const tokenHash = await hashSessionToken(session.token);
     const flash = getFlash();
-    return htmlResponse(
-      adminSessionsPage(sessions, tokenHash, session, flash.success),
-    );
+    return adminSessionsPage(sessions, tokenHash, session, flash.success);
   });
 
 /**

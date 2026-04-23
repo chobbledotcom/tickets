@@ -1,4 +1,4 @@
-import { getSessionCookieName, parseFlashValue } from "#lib/cookies.ts";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 
 export const extractCsrfToken = (html: string | null): string | null => {
@@ -91,12 +91,8 @@ export const submitJoinForm = async (
   data: { password: string; password_confirm: string },
 ): Promise<Response> => {
   const { handleRequest } = await import("#routes");
-  const { mockFormRequest, mockRequest } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const requireJoinCsrfTokenImport = await import(
-    "#test-utils/csrf.ts"
-  );
+  const { mockFormRequest, mockRequest } = await import("#test-utils/mocks.ts");
+  const requireJoinCsrfTokenImport = await import("#test-utils/csrf.ts");
   const joinGetResponse = await handleRequest(
     mockRequest(`/join/${inviteCode}`),
   );
@@ -127,9 +123,7 @@ export const submitMultiTicketForm = async (
   data: Record<string, string>,
 ): Promise<Response> => {
   const { handleRequest } = await import("#routes");
-  const { mockFormRequest, mockRequest } = await import(
-    "#test-utils/mocks.ts"
-  );
+  const { mockFormRequest, mockRequest } = await import("#test-utils/mocks.ts");
   const path = `/ticket/${slug}`;
   const getResponse = await handleRequest(mockRequest(path));
   const csrfToken = extractCsrfToken(await getResponse.text()) ?? "";

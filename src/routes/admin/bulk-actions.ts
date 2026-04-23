@@ -56,7 +56,7 @@ const groupEventsPage =
   ): TypedRouteHandler<"GET /admin/groups/:id/bulk-actions"> =>
   (request, { id }) =>
     requireSessionOr(request, (session) =>
-      withGroup(id, async (group) => {
+      withGroup(id)(async (group) => {
         const events = sortEvents(await getEventsByGroupId(group.id), []);
         const flash = getFlash();
         return htmlResponse(render(group, events, session, flash.error));

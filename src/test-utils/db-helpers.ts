@@ -1,16 +1,21 @@
 import { parseFlashValue } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMajorUnits } from "#lib/currency.ts";
-import { getAttendeesRaw } from "#lib/db/attendees.ts";
 import type { CreateAttendeeResult } from "#lib/db/attendee-types.ts";
+import { getAttendeesRaw } from "#lib/db/attendees.ts";
+import type { BuiltSiteFormInput } from "#lib/db/built-sites.ts";
 import { type EventInput, getEventWithCount } from "#lib/db/events.ts";
 import type { GroupInput } from "#lib/db/groups.ts";
 import type { HolidayInput } from "#lib/db/holidays.ts";
-import type { BuiltSiteFormInput } from "#lib/db/built-sites.ts";
-import type { Attendee, Event, EventWithCount, Group, Holiday } from "#lib/types.ts";
-import { generateTestEventName } from "#test-utils/internal.ts";
-import type { AdminTestContext, BookAttendeeOpts } from "#test-utils/internal.ts";
+import type {
+  Attendee,
+  Event,
+  EventWithCount,
+  Group,
+  Holiday,
+} from "#lib/types.ts";
 import { testEventInput } from "#test-utils/factories.ts";
+import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
 const bool = (v: unknown): string => (v ? "1" : "");
 const optionalNumber = (v: number | null | undefined): string =>
@@ -152,7 +157,11 @@ async function doAuthenticatedFormRequest<T>(
   const { mockFormRequest } = await import("#test-utils/mocks.ts");
   const session = await getTestSession();
   const response = await handleRequest(
-    mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+    mockFormRequest(
+      path,
+      { ...formData, csrf_token: session.csrfToken },
+      session.cookie,
+    ),
   );
   response.body?.cancel();
   if (response.status !== 302) {
@@ -172,7 +181,11 @@ async function doAuthenticatedMultipartFormRequest<T>(
   const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
   const session = await getTestSession();
   const response = await handleRequest(
-    mockMultipartRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+    mockMultipartRequest(
+      path,
+      { ...formData, csrf_token: session.csrfToken },
+      session.cookie,
+    ),
   );
   response.body?.cancel();
   if (response.status !== 302) {
@@ -181,7 +194,7 @@ async function doAuthenticatedMultipartFormRequest<T>(
   return onSuccess();
 }
 
-export const createTestEvent = async (
+export const createTestEvent = (
   overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
 ): Promise<Event> => {
   const input = testEventInput(overrides);
@@ -381,7 +394,9 @@ export const bookAttendee = async (
   opts: BookAttendeeOpts = {},
 ): Promise<CreateAttendeeResult> => {
   const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-  const booking: import("#lib/db/attendee-types.ts").EventBooking = { eventId: event.id };
+  const booking: import("#lib/db/attendee-types.ts").EventBooking = {
+    eventId: event.id,
+  };
   if (opts.date !== undefined) booking.date = opts.date;
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
   if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
@@ -544,9 +559,7 @@ export const updateTestHoliday = async (
   );
 };
 
-export const deleteTestHoliday = async (
-  holidayId: number,
-): Promise<void> => {
+export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
   const { holidaysTable } = await import("#lib/db/holidays.ts");
   const existing = (await holidaysTable.findById(holidayId)) as Holiday;
 
@@ -583,7 +596,9 @@ export const createTestBuiltSite = (
     async () => {
       const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
       const sites = await getAllBuiltSites();
-      return sites[sites.length - 1] as import("#lib/db/built-sites.ts").BuiltSite;
+      return sites[
+        sites.length - 1
+      ] as import("#lib/db/built-sites.ts").BuiltSite;
     },
     "create built site",
   );
@@ -594,7 +609,9 @@ export const updateTestBuiltSite = async (
   updates: Partial<BuiltSiteFormInput>,
 ): Promise<import("#lib/db/built-sites.ts").BuiltSite> => {
   const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
-  const existing = (await builtSitesCrudTable.findById(siteId)) as import("#lib/db/built-sites.ts").BuiltSite;
+  const existing = (await builtSitesCrudTable.findById(
+    siteId,
+  )) as import("#lib/db/built-sites.ts").BuiltSite;
 
   const assignable = updates.assignable ?? existing.assignable;
   return doAuthenticatedFormRequest(
@@ -617,7 +634,9 @@ export const updateTestBuiltSite = async (
 
 export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
   const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
-  const existing = (await builtSitesCrudTable.findById(siteId)) as import("#lib/db/built-sites.ts").BuiltSite;
+  const existing = (await builtSitesCrudTable.findById(
+    siteId,
+  )) as import("#lib/db/built-sites.ts").BuiltSite;
 
   return doAuthenticatedFormRequest(
     `/admin/built-sites/${siteId}/delete`,

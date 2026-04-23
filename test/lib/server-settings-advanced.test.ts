@@ -11,7 +11,6 @@ import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -19,12 +18,12 @@ import {
   flashCookieHeader,
   followRedirectWithFlash,
   mockFormRequest,
-  mockRequest,
   mockRequestWithHost,
   setTestEnv,
   setupEventAndLogin,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
   withMockBunnyCdnApi,
   withMocks,
 } from "#test-utils";
@@ -35,12 +34,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
   });
 
   describe("GET /admin/settings-advanced", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockRequest("/admin/settings-advanced"),
-      );
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/settings-advanced");
 
     test("shows advanced settings page when authenticated", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
@@ -116,13 +110,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/show-public-api", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/show-public-api", {
-          show_public_api: "true",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/show-public-api", {
+      body: {
+        show_public_api: "true",
+      },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -185,13 +177,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/email", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/email", {
-          email_provider: "resend",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/email", {
+      body: {
+        email_provider: "resend",
+      },
+      method: "POST",
     });
 
     test("saves email provider settings", async () => {
@@ -423,14 +413,12 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/reset-database", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/reset-database", {
-          confirm_phrase:
-            "The site will be fully reset and all data will be lost.",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/settings/reset-database", {
+      body: {
+        confirm_phrase:
+          "The site will be fully reset and all data will be lost.",
+      },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

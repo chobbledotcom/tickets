@@ -1,21 +1,18 @@
-import { getSessionCookieName } from "#lib/cookies.ts";
 import type { Row } from "@libsql/client";
-import { createApiKey } from "#lib/db/api-keys.ts";
-import { wrapKeyWithToken } from "#lib/crypto/keys.ts";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { generateSecureToken } from "#lib/crypto/utils.ts";
-import { getSession } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import type { Event, EventWithCount } from "#lib/types.ts";
-import type { Attendee } from "#lib/types.ts";
-import type { AdminTestContext } from "#test-utils/internal.ts";
+import { createApiKey } from "#lib/db/api-keys.ts";
 import type { EventInput } from "#lib/db/events.ts";
+import { getSession } from "#lib/db/sessions.ts";
+import type { Event } from "#lib/types.ts";
+import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
   getCachedAdminSession,
   getInternalTestSession,
   setTestSession,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 
 export const loginAsAdmin = async (): Promise<{
@@ -93,7 +90,7 @@ export const createTestManagerSession = async (
   token = "mgr-session",
   username = "testmanager",
 ): Promise<string> => {
-  const { encrypt } = await import("#lib/crypto/encryption.ts");
+  const { encrypt: enc } = await import("#lib/crypto/encryption.ts");
   const { hmacHash } = await import("#lib/crypto/hashing.ts");
   const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
     "#lib/crypto/keys.ts"
@@ -124,9 +121,9 @@ export const createTestManagerSession = async (
   );
   await getDb().execute(
     insert("users", {
-      admin_level: await encrypt(username),
+      admin_level: await enc("manager"),
       password_hash: "",
-      username_hash: await encrypt(username),
+      username_hash: await enc(username),
       username_index: managerIdx,
       wrapped_data_key: managerWrappedKey,
     }),

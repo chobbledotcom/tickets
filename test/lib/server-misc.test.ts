@@ -6,6 +6,7 @@ import {
   setEffectiveDomainForTest,
 } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
+import { FormParams } from "#lib/form-data.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithRequestId } from "#lib/logger.ts";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
@@ -18,15 +19,18 @@ import {
   createTestDb,
   createTestEvent,
   describeWithEnv,
+  expectFlash,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
   getEmbeddableTicketResponse,
   getHeader,
   mockFormRequest,
+  mockMultipartRequest,
   mockRequest,
   resetDb,
   testCookie,
+  testCsrfToken,
   withExpectedError,
 } from "#test-utils";
 
@@ -410,6 +414,371 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
   });
 
+  describe("routes/admin/utils.ts (helper factories)", () => {
+    test("withEntityLoader returns handler response when entity exists", async () => {
+      const { withEntityLoader } = await import("#routes/admin/utils.ts");
+
+      const response = await withEntityLoader((id: number) =>
+        Promise.resolve(id === 7 ? { id, name: "Loaded" } : null),
+      )(7)((entity) => new Response(`entity:${entity.name}`));
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("entity:Loaded");
+    });
+
+    test("withEntityFromParam returns 404 for invalid ids", async () => {
+      const { withEntityFromParam } = await import("#routes/admin/utils.ts");
+
+      const response = await withEntityFromParam(
+        "not-a-number",
+        () => Promise.resolve({ id: 1 }),
+        () => new Response("ok"),
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    test("withSessionAndEntity loads entity after session auth", async () => {
+      const { withSessionAndEntity } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+
+      const response = await withSessionAndEntity((session, id) =>
+        Promise.resolve({
+          id,
+          userId: session.userId,
+        }),
+      )(
+        mockRequest("/admin/attendees/1", { headers: { cookie } }),
+        123,
+      )((request, _session, entity) => {
+        const path = new URL(request.url).pathname;
+        return new Response(`${path}:${entity.id}:${entity.userId}`);
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("/admin/attendees/1:123:1");
+    });
+
+    test("withAuthAndEntity handles form auth then loads entity", async () => {
+      const { withAuthAndEntity } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const response = await withAuthAndEntity((_session, id) =>
+        Promise.resolve({
+          id,
+        }),
+      )(
+        mockFormRequest(
+          "/admin/attendees/1",
+          { csrf_token: csrfToken, value: "ok" },
+          cookie,
+        ),
+        88,
+      )(
+        (_session, form, entity) =>
+          new Response(`${entity.id}:${form.getString("value")}`),
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("88:ok");
+    });
+
+    test("createEntityRouteHandlers wires GET and POST flows", async () => {
+      const { createEntityRouteHandlers } = await import(
+        "#routes/admin/utils.ts"
+      );
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handlers = createEntityRouteHandlers(
+        (_session, id) => Promise.resolve({ id }),
+        (params: { attendeeId: number }) => params.attendeeId,
+      );
+
+      const getResponse = await handlers.get(
+        (_request, _session, entity) => new Response(`get:${entity.id}`),
+      )(mockRequest("/admin/attendees/15", { headers: { cookie } }), {
+        attendeeId: 15,
+      });
+      expect(await getResponse.text()).toBe("get:15");
+
+      const postResponse = await handlers.post(
+        (_session, form, entity) =>
+          new Response(`post:${entity.id}:${form.getString("name")}`),
+      )(
+        mockFormRequest(
+          "/admin/attendees/16",
+          { csrf_token: csrfToken, name: "x" },
+          cookie,
+        ),
+        { attendeeId: 16 },
+      );
+      expect(await postResponse.text()).toBe("post:16:x");
+    });
+
+    test("withAuthEntityHandlers wires GET and POST flows", async () => {
+      const { withAuthEntityHandlers } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handlers = withAuthEntityHandlers((_session, id) =>
+        Promise.resolve({ id }),
+      );
+
+      const getResponse = await handlers(
+        mockRequest("/admin/attendees/33", { headers: { cookie } }),
+        33,
+      ).get((_request, _session, entity) => new Response(`get:${entity.id}`));
+      expect(await getResponse.text()).toBe("get:33");
+
+      const postResponse = await handlers(
+        mockFormRequest(
+          "/admin/attendees/33",
+          { csrf_token: csrfToken, name: "posted" },
+          cookie,
+        ),
+        33,
+      ).post(
+        (_session, form, entity) =>
+          new Response(`post:${entity.id}:${form.getString("name")}`),
+      );
+      expect(await postResponse.text()).toBe("post:33:posted");
+    });
+
+    test("createActionHandler supports custom error mapping", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.reject(new Error("kaboom")),
+        message: "unused",
+        onError: (error) =>
+          new Response(`mapped:${error.message}`, { status: 418 }),
+        successRedirect: "/admin/attendees/1",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/attendees/1",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(418);
+      expect(await response.text()).toBe("mapped:kaboom");
+    });
+
+    test("createActionHandler maps non-Error throws to redirect flashes", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.reject("plain string failure"),
+        message: "unused",
+        successRedirect: "/admin/attendees/1",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/attendees/1",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "plain string failure", false);
+    });
+
+    test("createActionHandler with owner auth and form body redirects on success", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "owner" as const,
+        execute: () => Promise.resolve(),
+        message: "Owner action completed",
+        successRedirect: "/admin/test-owner",
+      });
+
+      const response = await handler(
+        mockFormRequest("/admin/test-owner", { csrf_token: csrfToken }, cookie),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("/admin/test-owner");
+    });
+
+    test("createActionHandler with multipart body and any auth redirects on success", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        bodyMode: "multipart" as const,
+        execute: () => Promise.resolve(),
+        message: "Multipart action completed",
+        successRedirect: "/admin/test-multipart",
+      });
+
+      const response = await handler(
+        mockMultipartRequest(
+          "/admin/test-multipart",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        "/admin/test-multipart",
+      );
+    });
+
+    test("createActionHandler with multipart body and owner auth redirects on success", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "owner" as const,
+        bodyMode: "multipart" as const,
+        execute: () => Promise.resolve(),
+        message: "Owner multipart action completed",
+        successRedirect: "/admin/test-owner-multipart",
+      });
+
+      const response = await handler(
+        mockMultipartRequest(
+          "/admin/test-owner-multipart",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        "/admin/test-owner-multipart",
+      );
+    });
+
+    test("createActionHandler redacts string secret from activity log", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.resolve(),
+        message: "API key sk_test_123 created",
+        redactedSecret: "sk_test_123",
+        successRedirect: "/admin/keys",
+      });
+
+      const response = await handler(
+        mockFormRequest("/admin/keys", { csrf_token: csrfToken }, cookie),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "API key sk_test_123 created", true);
+    });
+
+    test("createActionHandler redacts dynamic secret from activity log", async () => {
+      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handler = createActionHandler({
+        auth: "any" as const,
+        execute: () => Promise.resolve(),
+        message: "API key created",
+        redactedSecret: (_session, form) =>
+          form.getString("api_key") || undefined,
+        successRedirect: "/admin/keys",
+      });
+
+      const response = await handler(
+        mockFormRequest(
+          "/admin/keys",
+          { api_key: "secret_key_456", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "API key created", true);
+    });
+
+    test("createConfirmedHandlers handles preValidate rejection and custom notFound", async () => {
+      const { createConfirmedHandlers } = await import(
+        "#routes/admin/utils.ts"
+      );
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const handlers = createConfirmedHandlers<{ name: string }>({
+        auth: "any",
+        identifier: (m) => Promise.resolve(m.name),
+        identifierLabel: "Name",
+        load: () => Promise.resolve({ name: "Alpha" }),
+        onConfirm: () => Promise.resolve(),
+        path: "/admin/test/:id/delete",
+        preValidate: () =>
+          Promise.resolve(
+            new Response("blocked", { headers: { "x-hit": "1" }, status: 418 }),
+          ),
+        render: () => Promise.resolve("ok"),
+        successMessage: "deleted",
+        successRedirect: "/admin/test",
+      });
+
+      const getResponse = await handlers.get(
+        mockRequest("/admin/test/1/delete", { headers: { cookie } }),
+        1,
+      );
+      expect(getResponse.status).toBe(418);
+
+      const postResponse = await handlers.post(
+        mockFormRequest(
+          "/admin/test/1/delete",
+          { confirm_identifier: "Alpha", csrf_token: csrfToken },
+          cookie,
+        ),
+        1,
+      );
+      expect(postResponse.status).toBe(418);
+
+      const missing = createConfirmedHandlers<{ name: string }>({
+        auth: "any",
+        identifier: (m) => Promise.resolve(m.name),
+        identifierLabel: "Name",
+        load: () => Promise.resolve(null),
+        onConfirm: () => Promise.resolve(),
+        onNotFound: () =>
+          Promise.resolve(new Response("custom-not-found", { status: 410 })),
+        path: "/admin/test/:id/delete",
+        render: () => Promise.resolve("ok"),
+        successMessage: "deleted",
+        successRedirect: "/admin/test",
+      });
+
+      const missingResponse = await missing.get(
+        mockRequest("/admin/test/999/delete", { headers: { cookie } }),
+        999,
+      );
+      expect(missingResponse.status).toBe(410);
+      expect(await missingResponse.text()).toBe("custom-not-found");
+    });
+  });
+
   describe("routes/utils.ts (CSRF token validation)", () => {
     test("empty csrf_token from form falls back to empty string", async () => {
       // Send form without csrf_token field at all
@@ -659,6 +1028,185 @@ describeWithEnv("server (misc)", { db: true }, () => {
         expect(setCookie).toContain("session=");
         expect(setCookie).toContain("Max-Age=0");
       });
+    });
+  });
+
+  describe("routes/admin/utils.ts", () => {
+    test("verifyIdentifier matches case-insensitive trimmed strings", async () => {
+      const { verifyIdentifier } = await import("#routes/admin/utils.ts");
+
+      expect(verifyIdentifier("Test Event", "test event")).toBe(true);
+      expect(verifyIdentifier("  Test  ", "test")).toBe(true);
+      expect(verifyIdentifier("Test", "Other")).toBe(false);
+    });
+
+    test("verifyOrRedirect returns null on match", async () => {
+      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+
+      const form = new FormParams({ confirm_identifier: "Test Event" });
+      const result = verifyOrRedirect(form, "Test Event", "/admin/test");
+      expect(result).toBeNull();
+    });
+
+    test("verifyOrRedirect returns error redirect on mismatch without action", async () => {
+      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+
+      const form = new FormParams({ confirm_identifier: "Wrong" });
+      const result = verifyOrRedirect(form, "Test Event", "/admin/test");
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe(302);
+      const location = result!.headers.get("location");
+      expect(location).toContain("/admin/test");
+    });
+
+    test("verifyOrRedirect returns error redirect with action label", async () => {
+      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+
+      const form = new FormParams({ confirm_identifier: "Wrong" });
+      const result = verifyOrRedirect(
+        form,
+        "Test Event",
+        "/admin/test",
+        "Event name",
+        "deletion",
+      );
+      expect(result).not.toBeNull();
+      expectFlash(
+        result!,
+        "Event name does not match. Please type the exact event name to confirm deletion.",
+        false,
+      );
+    });
+
+    test("verifyIdentifierOrJsonError returns null on match", async () => {
+      const { verifyIdentifierOrJsonError } = await import(
+        "#routes/admin/utils.ts"
+      );
+
+      expect(
+        verifyIdentifierOrJsonError("Test Event", "Test Event"),
+      ).toBeNull();
+    });
+
+    test("verifyIdentifierOrJsonError returns error on mismatch", async () => {
+      const { verifyIdentifierOrJsonError } = await import(
+        "#routes/admin/utils.ts"
+      );
+
+      const error = verifyIdentifierOrJsonError(
+        "Test Event",
+        "Wrong",
+        "Event name",
+      );
+      expect(error).toContain("does not match");
+      expect(error).toContain("confirm_identifier");
+    });
+
+    test("verifyIdentifierOrJsonError handles non-string input", async () => {
+      const { verifyIdentifierOrJsonError } = await import(
+        "#routes/admin/utils.ts"
+      );
+
+      const error = verifyIdentifierOrJsonError("Test", null);
+      expect(error).not.toBeNull();
+    });
+
+    test("getDateFilter returns valid date", async () => {
+      const { getDateFilter } = await import("#routes/admin/utils.ts");
+
+      const request = mockRequest("/test?date=2024-01-15");
+      expect(getDateFilter(request)).toBe("2024-01-15");
+    });
+
+    test("getDateFilter returns null for invalid format", async () => {
+      const { getDateFilter } = await import("#routes/admin/utils.ts");
+
+      expect(getDateFilter(mockRequest("/test?date=01-15-2024"))).toBeNull();
+      expect(getDateFilter(mockRequest("/test?date=2024/01/15"))).toBeNull();
+      expect(getDateFilter(mockRequest("/test?date=not-a-date"))).toBeNull();
+    });
+
+    test("getDateFilter returns null when absent", async () => {
+      const { getDateFilter } = await import("#routes/admin/utils.ts");
+
+      expect(getDateFilter(mockRequest("/test"))).toBeNull();
+      expect(getDateFilter(mockRequest("/test?date="))).toBeNull();
+    });
+
+    test("csvResponse returns proper CSV response", async () => {
+      const { csvResponse } = await import("#routes/admin/utils.ts");
+
+      const response = csvResponse(
+        "name,email\nJohn,john@test.com",
+        "test.csv",
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "text/csv; charset=utf-8",
+      );
+      expect(response.headers.get("content-disposition")).toContain(
+        'filename="test.csv"',
+      );
+      const body = await response.text();
+      expect(body).toBe("name,email\nJohn,john@test.com");
+    });
+
+    test("loadQuestionData returns undefined for empty attendeeIds", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+
+      expect(await loadQuestionData([1, 2], [])).toBeUndefined();
+    });
+
+    test("loadQuestionData returns undefined for empty eventIds", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+
+      expect(await loadQuestionData([], [1, 2])).toBeUndefined();
+    });
+
+    test("loadQuestionData returns undefined when no questions exist", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { createTestAttendeeDirect } = await import("#test-utils");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "Test",
+        "test@test.com",
+      );
+
+      const result = await loadQuestionData([event.id], [attendee.id]);
+      expect(result).toBeUndefined();
+    });
+
+    test("loadQuestionData returns question data when questions exist", async () => {
+      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { answersTable, eventQuestionsTable, questionsTable } =
+        await import("#lib/db/questions.ts");
+
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const question = await questionsTable.insert({ text: "Food preference" });
+      await eventQuestionsTable.insert({
+        eventId: event.id,
+        questionId: question.id,
+        sortOrder: 0,
+      });
+      await answersTable.insert({
+        questionId: question.id,
+        sortOrder: 0,
+        text: "Veg",
+      });
+      const { attendee } = await createTestAttendeeDirect(
+        event.id,
+        "Has Question",
+        "has-question@test.com",
+      );
+
+      const result = await loadQuestionData([event.id], [attendee.id]);
+      expect(result).toBeDefined();
+      expect(result!.questions.length).toBe(1);
+      expect(result!.questions[0]!.id).toBe(question.id);
+      expect(result!.attendeeAnswerMap).toBeDefined();
     });
   });
 });

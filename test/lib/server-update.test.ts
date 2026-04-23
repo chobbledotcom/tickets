@@ -4,19 +4,17 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { settings } from "#lib/db/settings.ts";
 import { setBuildTimestampForTest } from "#lib/update.ts";
-import { handleRequest } from "#routes";
 import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  mockRequest,
   testCookie,
+  testRequiresAuth,
   withMocks,
 } from "#test-utils";
 
@@ -86,10 +84,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
   });
 
   describe("GET /admin/update", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/update"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/update");
 
     test("shows update page when authenticated", async () => {
       const response = await awaitTestRequest("/admin/update", {

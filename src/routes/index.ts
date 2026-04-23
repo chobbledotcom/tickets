@@ -4,7 +4,6 @@
  */
 
 import { once, reduce } from "#fp";
-import { getRethrowErrors, setRethrowErrorsForTest } from "#lib/test-overrides.ts";
 import { loadEffectiveDomain } from "#lib/config.ts";
 import {
   clearFlashCookie,
@@ -33,6 +32,7 @@ import {
 import { addPendingWork, flushPendingWork } from "#lib/pending-work.ts";
 import { runWithRequestCache } from "#lib/request-cache.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
+import { getRethrowErrors } from "#lib/test-overrides.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,

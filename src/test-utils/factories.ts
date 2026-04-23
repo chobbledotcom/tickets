@@ -1,10 +1,15 @@
-import type { Holiday } from "#lib/types.ts";
 import type { BuiltSite } from "#lib/db/built-sites.ts";
-import type { Event, EventWithCount, Attendee, Group } from "#lib/types.ts";
-import type { SessionMetadata } from "#lib/payments.ts";
-import type { EmailEntry, EmailEvent } from "#lib/email.ts";
-import type { WebhookAttendee } from "#lib/webhook.ts";
 import type { EventInput } from "#lib/db/events.ts";
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
+import type { SessionMetadata } from "#lib/payments.ts";
+import type {
+  Attendee,
+  Event,
+  EventWithCount,
+  Group,
+  Holiday,
+} from "#lib/types.ts";
+import type { WebhookAttendee } from "#lib/webhook.ts";
 import { generateTestEventName } from "#test-utils/internal.ts";
 
 export const testEvent = (overrides: Partial<Event> = {}): Event => ({
@@ -152,9 +157,7 @@ export const singleItem = (
   price: number,
 ): string => JSON.stringify([{ e: eventId, p: price, q: quantity }]);
 
-export const JPEG_HEADER = new Uint8Array([
-  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10,
-]);
+export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 

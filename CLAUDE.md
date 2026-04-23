@@ -9,7 +9,7 @@ Run `./setup.sh` to install Deno, cache dependencies, and run all precommit chec
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)
-- **Development/Testing**: Deno (for `deno task test`, `deno task start`, package management)
+- **Development/Testing**: Deno (for `deno task test`, `deno task start`, `deno coverage`, package management)
 - **Build**: `esbuild` with `platform: "browser"` bundles to a single edge-compatible file
 
 Code must work in both environments. The edge runtime is Deno-based, so development with Deno ensures parity.
@@ -17,7 +17,7 @@ Code must work in both environments. The edge runtime is Deno-based, so developm
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
-- **100% test coverage**: All code must have complete test coverage
+- **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 
 ## FP Imports
 
@@ -30,9 +30,9 @@ import { pipe, filter, map, reduce, compact, unique } from "#fp";
 ```typescript
 // Compose operations
 const processItems = pipe(
-  filter(item => item.active),
-  map(item => item.name),
-  unique
+  filter((item) => item.active),
+  map((item) => item.name),
+  unique,
 );
 
 // Instead of forEach, use for...of or curried filter/map
@@ -49,20 +49,20 @@ const result = reduce((acc, item) => {
 
 ### Available FP Functions
 
-| Function | Purpose |
-|----------|---------|
-| `pipe(...fns)` | Compose functions left-to-right |
-| `filter(pred)` | Curried array filter |
-| `map(fn)` | Curried array map |
-| `flatMap(fn)` | Curried array flatMap |
-| `reduce(fn, init)` | Curried array reduce |
-| `sort(cmp)` | Non-mutating sort |
-| `sortBy(key)` | Sort by property/getter |
-| `unique(arr)` | Remove duplicates |
-| `uniqueBy(fn)` | Dedupe by key |
-| `compact(arr)` | Remove null/undefined |
-| `chunk(size)` | Split array into chunks |
-| `pick(keys)` | Extract object keys |
+| Function           | Purpose                         |
+| ------------------ | ------------------------------- |
+| `pipe(...fns)`     | Compose functions left-to-right |
+| `filter(pred)`     | Curried array filter            |
+| `map(fn)`          | Curried array map               |
+| `flatMap(fn)`      | Curried array flatMap           |
+| `reduce(fn, init)` | Curried array reduce            |
+| `sort(cmp)`        | Non-mutating sort               |
+| `sortBy(key)`      | Sort by property/getter         |
+| `unique(arr)`      | Remove duplicates               |
+| `uniqueBy(fn)`     | Dedupe by key                   |
+| `compact(arr)`     | Remove null/undefined           |
+| `chunk(size)`      | Split array into chunks         |
+| `pick(keys)`       | Extract object keys             |
 
 | `groupBy(fn)` | Group array items |
 
@@ -129,6 +129,7 @@ Apple Wallet can be configured via env vars (all 5 required) or via the admin se
 ### Stripe Configuration
 
 Stripe is configured via the admin settings page (`/admin/settings`), not environment variables:
+
 - Enter your Stripe secret key in the admin settings
 - The webhook endpoint is automatically created in your Stripe account
 - The webhook signing secret is stored encrypted in the database
@@ -138,6 +139,7 @@ Admin password and currency code are set through the web-based setup page at `/s
 ## Deno Configuration
 
 The project uses `deno.json` for configuration:
+
 - Import maps for `#` prefixed aliases
 - npm packages via `npm:` specifier
 - JSR packages via `jsr:` specifier
@@ -145,6 +147,7 @@ The project uses `deno.json` for configuration:
 ## Test Framework
 
 Tests use Deno standard library packages directly:
+
 - `@std/testing/bdd` — `describe`, `it` (aliased as `test`), `beforeEach`, `afterEach`
 - `@std/expect` — `expect()` assertions
 - `@std/testing/mock` — `spy()`, `stub()` for mocking
@@ -156,31 +159,37 @@ Tests use Deno standard library packages directly:
 All tests must meet these mandatory criteria:
 
 ### 1. Tests Production Code, Not Reimplementations
+
 - Import and call actual production functions
 - Never copy-paste or reimplement production logic in tests
 - Import constants from production code, don't hardcode
 
 ### 2. Not Tautological
+
 - Never assert a value you just set (e.g., `expect(true).toBe(true)`)
 - Always have production code execution between setup and assertion
 - Verify behavior, not that JavaScript assignment works
 
 ### 3. Tests Behavior, Not Implementation Details
+
 - Verify observable outcomes (HTTP status, content, state changes)
 - Refactoring shouldn't break tests unless behavior changes
 - Answer "does it work?" not "is it structured this way?"
 
 ### 4. Has Clear Failure Semantics
+
 - Test names describe the specific behavior being verified
 - When a test fails, it should be obvious what's broken
 - Use descriptive assertion messages
 
 ### 5. Isolated and Repeatable
+
 - Tests clean up after themselves (use `beforeEach`/`afterEach`)
 - Tests don't depend on other tests running first
 - No time-dependent flakiness
 
 ### 6. Tests One Thing
+
 - Each test has a single reason to fail
 - If you need "and" in the description, split the test
 
@@ -199,16 +208,20 @@ Then check `coverage/` for detailed coverage information.
 Use helpers from `#test-utils` instead of defining locally:
 
 ```typescript
-import { mockRequest, mockFormRequest, createTestDb, resetDb } from "#test-utils";
+import {
+  mockRequest,
+  mockFormRequest,
+  createTestDb,
+  resetDb,
+} from "#test-utils";
 ```
 
 ### Anti-Patterns to Avoid
 
-| Anti-Pattern | What To Do Instead |
-|--------------|-------------------|
-| `expect(true).toBe(true)` | Assert on actual behavior/state |
-| Reimplementing production logic | Import and call production code |
-| Duplicating test helpers | Use `#test-utils` |
-| Magic numbers/strings | Import constants from production |
-| Testing private internals | Test public API behavior |
-
+| Anti-Pattern                    | What To Do Instead               |
+| ------------------------------- | -------------------------------- |
+| `expect(true).toBe(true)`       | Assert on actual behavior/state  |
+| Reimplementing production logic | Import and call production code  |
+| Duplicating test helpers        | Use `#test-utils`                |
+| Magic numbers/strings           | Import constants from production |
+| Testing private internals       | Test public API behavior         |

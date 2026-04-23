@@ -6,24 +6,19 @@ import { getFlash } from "#lib/flash-context.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  htmlResponse,
-  OWNER_FORM,
-  redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { OWNER_FORM, ownerPage, redirect, withAuth } from "#routes/utils.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 
 /** Max events that can be created in a single seed operation */
 export const MAX_SEED_EVENTS = 30;
 
 /** Handle GET /admin/seeds (show seed form) */
-const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = (request) =>
-  requireOwnerOr(request, (session) => {
+const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = ownerPage(
+  (session) => {
     const flash = getFlash();
-    return htmlResponse(adminSeedsPage(session, flash.error, flash.success));
-  });
+    return adminSeedsPage(session, flash.error, flash.success);
+  },
+);
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>

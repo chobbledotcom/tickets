@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { it } from "@std/testing/bdd";
 import { parseFlashValue } from "#lib/cookies.ts";
 
 export const FLASH_TEST_ID = "t001";
@@ -12,13 +13,13 @@ export const expectStatus =
 
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
-  <T = any>(status: number, assertions?: (body: T) => void) =>
-  async (response: Response): Promise<T> => {
-    expect(response.status).toBe(status);
-    const body = (await response.json()) as T;
-    assertions?.(body);
-    return body;
-  };
+    <T = any>(status: number, assertions?: (body: T) => void) =>
+    async (response: Response): Promise<T> => {
+      expect(response.status).toBe(status);
+      const body = (await response.json()) as T;
+      assertions?.(body);
+      return body;
+    };
 
 // deno-lint-ignore no-explicit-any
 export const assertJson = async <T = any>(
@@ -126,18 +127,18 @@ export const expectFlash = (
 
 export const expectRedirectWithFlash =
   // deno-lint-ignore no-explicit-any
-  (location: string, message?: string | any, succeeded = true) =>
-  (response: Response): Response => {
-    const actualLocation = expectRedirect(response);
-    const url = new URL(actualLocation, "http://localhost");
-    const flashId = url.searchParams.get("flash");
-    expect(flashId).toBeDefined();
-    url.searchParams.delete("flash");
-    const clean = url.pathname + url.search + url.hash;
-    expect(clean).toBe(location);
-    expectFlash(response, message, succeeded);
-    return response;
-  };
+    (location: string, message?: string | any, succeeded = true) =>
+    (response: Response): Response => {
+      const actualLocation = expectRedirect(response);
+      const url = new URL(actualLocation, "http://localhost");
+      const flashId = url.searchParams.get("flash");
+      expect(flashId).toBeDefined();
+      url.searchParams.delete("flash");
+      const clean = url.pathname + url.search + url.hash;
+      expect(clean).toBe(location);
+      expectFlash(response, message, succeeded);
+      return response;
+    };
 
 export const flashCookieHeader = (
   message: string,
@@ -211,4 +212,31 @@ export const matchGroup = (
     throw new Error(`No match for ${pattern} group ${group}`);
   }
   return m[group];
+};
+
+interface TestRequiresAuthOptions {
+  body?: Record<string, string>;
+  method?: "GET" | "POST";
+  multipart?: boolean;
+  setup?: () => Promise<void>;
+}
+
+export const testRequiresAuth = (
+  path: string,
+  options: TestRequiresAuthOptions = {},
+): void => {
+  it("redirects to login when not authenticated", async () => {
+    await options.setup?.();
+    const { handleRequest } = await import("#routes");
+    const { mockFormRequest, mockMultipartRequest, mockRequest } = await import(
+      "#test-utils/mocks.ts"
+    );
+    const request = options.multipart
+      ? mockMultipartRequest(path, options.body ?? {})
+      : options.method === "POST"
+        ? mockFormRequest(path, options.body ?? {})
+        : mockRequest(path);
+    const response = await handleRequest(request);
+    expectAdminRedirect(response);
+  });
 };

@@ -1,7 +1,7 @@
-import { type InValue, type Row, createClient } from "@libsql/client";
+import { createClient, type InValue, type Row } from "@libsql/client";
 import { afterEach, beforeEach, describe } from "@std/testing/bdd";
-import { signCsrfToken } from "#lib/csrf.ts";
 import { resetEffectiveDomain } from "#lib/config.ts";
+import { signCsrfToken } from "#lib/csrf.ts";
 import { getDb, insert, queryOne, setDb } from "#lib/db/client.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
 import { invalidateGroupsCache } from "#lib/db/groups.ts";
@@ -12,23 +12,21 @@ import { settings } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { setDemoModeForTest } from "#lib/demo.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
-import { wrapKeyWithToken } from "#lib/crypto/keys.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
-  getCachedAdminSession,
+  type DescribeEnvOptions,
   getCachedSetupSettings,
   getCachedSetupUsers,
+  type RawEventRange,
+  resetTestSession,
+  resetTestSlugCounter,
   setCachedAdminSession,
   setCachedSetupSettings,
   setCachedSetupUsers,
   setTestSession,
-  resetTestSession,
-  resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-  type DescribeEnvOptions,
-  type RawEventRange,
 } from "#test-utils/internal.ts";
-import { clearTestEncryptionKey, setupTestEncryptionKey, setTestEnv } from "#test-utils/env.ts";
 
 const prepareTestClient = async (): Promise<void> => {
   setupTestEncryptionKey();
@@ -49,9 +47,7 @@ export const createTestDb = async (): Promise<void> => {
   resetTestSession();
 };
 
-export const createTestDbWithSetup = async (
-  country = "GB",
-): Promise<void> => {
+export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
   await prepareTestClient();
   resetTestSession();
 
@@ -98,10 +94,12 @@ export const createTestDbWithSetup = async (
   settings.setForTest({ timezone: "UTC" });
 
   const result = await getDb().execute("SELECT key, value FROM settings");
-  setCachedSetupSettings(result.rows.map((r) => ({
-    key: r.key as string,
-    value: r.value as string,
-  })));
+  setCachedSetupSettings(
+    result.rows.map((r) => ({
+      key: r.key as string,
+      value: r.value as string,
+    })),
+  );
 
   const usersResult = await getDb().execute("SELECT * FROM users");
   setCachedSetupUsers(usersResult.rows.map((r) => ({ ...r })));
