@@ -16,11 +16,9 @@ import { sortEvents } from "#lib/sort-events.ts";
 import { type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import {
-  getBaseUrl,
-  isRegistrationClosed,
-  jsonResponse,
-} from "#routes/utils.ts";
+import { getBaseUrl } from "#routes/url.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
+import { jsonResponse } from "#routes/response.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================

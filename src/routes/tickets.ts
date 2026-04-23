@@ -16,7 +16,7 @@ import {
   type TokenRouteFn,
   withTokenRateLimit,
 } from "#routes/token-utils.ts";
-import { htmlResponse } from "#routes/utils.ts";
+import { htmlResponse } from "#routes/response.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
 /** Build a ticket card for a single token/entry pair */

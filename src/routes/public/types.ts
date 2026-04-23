@@ -8,7 +8,7 @@ import type {
   QuestionWithAnswers,
 } from "#lib/db/questions.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { isRegistrationClosed } from "#routes/utils.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
 import {
   buildTicketEvent,
   type QrPrefill,

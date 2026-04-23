@@ -21,24 +21,12 @@ import {
 } from "#lib/db/questions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { AdminSession } from "#lib/types.ts";
-import {
-  createConfirmedHandlers,
-  verifyOrRedirect,
-} from "#routes/admin/utils.ts";
+import { createConfirmedHandlers, verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  errorRedirect,
-  type FormParams,
-  htmlResponse,
-  notFoundResponse,
-  OWNER_FORM,
-  ownerFormById,
-  ownerGetById,
-  ownerPage,
-  redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { errorRedirect, htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import { type FormParams } from "#routes/csrf.ts";
+import { OWNER_FORM, ownerPage, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { ownerFormById, ownerGetById } from "#routes/entity.ts";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,

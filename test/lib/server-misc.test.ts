@@ -10,11 +10,7 @@ import { FormParams } from "#lib/form-data.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
 import { runWithRequestId } from "#lib/logger.ts";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
-import {
-  redirect,
-  redirectResponse,
-  temporaryErrorResponse,
-} from "#routes/utils.ts";
+import { redirect, redirectResponse, temporaryErrorResponse } from "#routes/response.ts";
 import {
   createTestDb,
   createTestEvent,
@@ -404,8 +400,8 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
   describe("routes/admin/utils.ts (requirePrivateKey)", () => {
     test("throws SessionKeyError when private key is unavailable", async () => {
-      const { requirePrivateKey } = await import("#routes/admin/utils.ts");
-      const { SessionKeyError } = await import("#routes/utils.ts");
+      const { requirePrivateKey } = await import("#routes/admin/actions.ts");
+      const { SessionKeyError } = await import("#routes/auth.ts");
       const session = {
         token: "any-token",
         wrappedDataKey: null,
@@ -416,7 +412,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
   describe("routes/admin/utils.ts (helper factories)", () => {
     test("withEntityLoader returns handler response when entity exists", async () => {
-      const { withEntityLoader } = await import("#routes/admin/utils.ts");
+      const { withEntityLoader } = await import("#routes/admin/entity-handlers.ts");
 
       const response = await withEntityLoader((id: number) =>
         Promise.resolve(id === 7 ? { id, name: "Loaded" } : null),
@@ -427,7 +423,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withEntityFromParam returns 404 for invalid ids", async () => {
-      const { withEntityFromParam } = await import("#routes/admin/utils.ts");
+      const { withEntityFromParam } = await import("#routes/admin/entity-handlers.ts");
 
       const response = await withEntityFromParam(
         "not-a-number",
@@ -439,7 +435,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withSessionAndEntity loads entity after session auth", async () => {
-      const { withSessionAndEntity } = await import("#routes/admin/utils.ts");
+      const { withSessionAndEntity } = await import("#routes/admin/entity-handlers.ts");
       const cookie = await testCookie();
 
       const response = await withSessionAndEntity((session, id) =>
@@ -460,7 +456,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withAuthAndEntity handles form auth then loads entity", async () => {
-      const { withAuthAndEntity } = await import("#routes/admin/utils.ts");
+      const { withAuthAndEntity } = await import("#routes/admin/entity-handlers.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -486,7 +482,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("createEntityRouteHandlers wires GET and POST flows", async () => {
       const { createEntityRouteHandlers } = await import(
-        "#routes/admin/utils.ts"
+        "#routes/admin/entity-handlers.ts"
       );
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
@@ -518,7 +514,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("withAuthEntityHandlers wires GET and POST flows", async () => {
-      const { withAuthEntityHandlers } = await import("#routes/admin/utils.ts");
+      const { withAuthEntityHandlers } = await import("#routes/admin/entity-handlers.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -547,7 +543,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler supports custom error mapping", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -573,7 +569,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler maps non-Error throws to redirect flashes", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -597,7 +593,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler with owner auth and form body redirects on success", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -617,7 +613,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler with multipart body and any auth redirects on success", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -644,7 +640,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler with multipart body and owner auth redirects on success", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -671,7 +667,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler redacts string secret from activity log", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -692,7 +688,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("createActionHandler redacts dynamic secret from activity log", async () => {
-      const { createActionHandler } = await import("#routes/admin/utils.ts");
+      const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
@@ -719,7 +715,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("createConfirmedHandlers handles preValidate rejection and custom notFound", async () => {
       const { createConfirmedHandlers } = await import(
-        "#routes/admin/utils.ts"
+        "#routes/admin/confirmation.ts"
       );
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
@@ -1033,7 +1029,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
   describe("routes/admin/utils.ts", () => {
     test("verifyIdentifier matches case-insensitive trimmed strings", async () => {
-      const { verifyIdentifier } = await import("#routes/admin/utils.ts");
+      const { verifyIdentifier } = await import("#routes/admin/confirmation.ts");
 
       expect(verifyIdentifier("Test Event", "test event")).toBe(true);
       expect(verifyIdentifier("  Test  ", "test")).toBe(true);
@@ -1041,7 +1037,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("verifyOrRedirect returns null on match", async () => {
-      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+      const { verifyOrRedirect } = await import("#routes/admin/confirmation.ts");
 
       const form = new FormParams({ confirm_identifier: "Test Event" });
       const result = verifyOrRedirect(form, "Test Event", "/admin/test");
@@ -1049,7 +1045,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("verifyOrRedirect returns error redirect on mismatch without action", async () => {
-      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+      const { verifyOrRedirect } = await import("#routes/admin/confirmation.ts");
 
       const form = new FormParams({ confirm_identifier: "Wrong" });
       const result = verifyOrRedirect(form, "Test Event", "/admin/test");
@@ -1060,7 +1056,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("verifyOrRedirect returns error redirect with action label", async () => {
-      const { verifyOrRedirect } = await import("#routes/admin/utils.ts");
+      const { verifyOrRedirect } = await import("#routes/admin/confirmation.ts");
 
       const form = new FormParams({ confirm_identifier: "Wrong" });
       const result = verifyOrRedirect(
@@ -1080,7 +1076,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("verifyIdentifierOrJsonError returns null on match", async () => {
       const { verifyIdentifierOrJsonError } = await import(
-        "#routes/admin/utils.ts"
+        "#routes/admin/confirmation.ts"
       );
 
       expect(
@@ -1090,7 +1086,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("verifyIdentifierOrJsonError returns error on mismatch", async () => {
       const { verifyIdentifierOrJsonError } = await import(
-        "#routes/admin/utils.ts"
+        "#routes/admin/confirmation.ts"
       );
 
       const error = verifyIdentifierOrJsonError(
@@ -1104,7 +1100,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
 
     test("verifyIdentifierOrJsonError handles non-string input", async () => {
       const { verifyIdentifierOrJsonError } = await import(
-        "#routes/admin/utils.ts"
+        "#routes/admin/confirmation.ts"
       );
 
       const error = verifyIdentifierOrJsonError("Test", null);
@@ -1112,14 +1108,14 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("getDateFilter returns valid date", async () => {
-      const { getDateFilter } = await import("#routes/admin/utils.ts");
+      const { getDateFilter } = await import("#routes/admin/actions.ts");
 
       const request = mockRequest("/test?date=2024-01-15");
       expect(getDateFilter(request)).toBe("2024-01-15");
     });
 
     test("getDateFilter returns null for invalid format", async () => {
-      const { getDateFilter } = await import("#routes/admin/utils.ts");
+      const { getDateFilter } = await import("#routes/admin/actions.ts");
 
       expect(getDateFilter(mockRequest("/test?date=01-15-2024"))).toBeNull();
       expect(getDateFilter(mockRequest("/test?date=2024/01/15"))).toBeNull();
@@ -1127,14 +1123,14 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("getDateFilter returns null when absent", async () => {
-      const { getDateFilter } = await import("#routes/admin/utils.ts");
+      const { getDateFilter } = await import("#routes/admin/actions.ts");
 
       expect(getDateFilter(mockRequest("/test"))).toBeNull();
       expect(getDateFilter(mockRequest("/test?date="))).toBeNull();
     });
 
     test("csvResponse returns proper CSV response", async () => {
-      const { csvResponse } = await import("#routes/admin/utils.ts");
+      const { csvResponse } = await import("#routes/admin/actions.ts");
 
       const response = csvResponse(
         "name,email\nJohn,john@test.com",
@@ -1152,19 +1148,19 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("loadQuestionData returns undefined for empty attendeeIds", async () => {
-      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { loadQuestionData } = await import("#routes/admin/actions.ts");
 
       expect(await loadQuestionData([1, 2], [])).toBeUndefined();
     });
 
     test("loadQuestionData returns undefined for empty eventIds", async () => {
-      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { loadQuestionData } = await import("#routes/admin/actions.ts");
 
       expect(await loadQuestionData([], [1, 2])).toBeUndefined();
     });
 
     test("loadQuestionData returns undefined when no questions exist", async () => {
-      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { loadQuestionData } = await import("#routes/admin/actions.ts");
       const { createTestAttendeeDirect } = await import("#test-utils");
 
       const event = await createTestEvent({ maxAttendees: 10 });
@@ -1179,7 +1175,7 @@ describeWithEnv("server (misc)", { db: true }, () => {
     });
 
     test("loadQuestionData returns question data when questions exist", async () => {
-      const { loadQuestionData } = await import("#routes/admin/utils.ts");
+      const { loadQuestionData } = await import("#routes/admin/actions.ts");
       const { createTestAttendeeDirect } = await import("#test-utils");
       const { answersTable, eventQuestionsTable, questionsTable } =
         await import("#lib/db/questions.ts");

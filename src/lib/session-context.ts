@@ -7,7 +7,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { AuthSession } from "#routes/utils.ts";
+import type { AuthSession } from "#routes/auth.ts";
 
 /** Sentinel value distinguishing "resolved to null" from "not yet resolved" */
 type SessionState = { value: AuthSession | null; resolved: boolean };

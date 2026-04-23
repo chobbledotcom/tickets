@@ -35,7 +35,7 @@ import { siteRoutes } from "#routes/admin/site.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
-import { getAuthenticatedSession } from "#routes/utils.ts";
+import { getAuthenticatedSession } from "#routes/auth.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [

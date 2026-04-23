@@ -12,12 +12,9 @@ import {
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  type AuthSession,
-  applyFlash,
-  htmlResponse,
-  requireOwnerOr,
-} from "#routes/utils.ts";
+import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse } from "#routes/response.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,

@@ -30,19 +30,13 @@ import type {
   MergeValueChoice,
 } from "#lib/merge/attendee-merge-types.ts";
 import type { Attendee } from "#lib/types.ts";
-import {
-  createEntityRouteHandlers,
-  requirePrivateKey,
-} from "#routes/admin/utils.ts";
-import {
-  type AttendeeRouteParams,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  getSearchParam,
-  htmlResponse,
-  redirect,
-} from "#routes/utils.ts";
+import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { type AttendeeRouteParams } from "#routes/entity.ts";
+import { type AuthSession } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
 
 /* jscpd:ignore-end */

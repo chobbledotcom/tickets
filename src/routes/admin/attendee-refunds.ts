@@ -10,20 +10,12 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import { fail, ok } from "#lib/response.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import {
-  verifyOrRedirect,
-  withDecryptedAttendees,
-  withEventAttendeesAuth,
-} from "#routes/admin/utils.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/actions.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  withAuth,
-} from "#routes/utils.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,

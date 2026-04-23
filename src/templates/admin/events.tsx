@@ -32,7 +32,7 @@ import {
   isPaidEvent,
 } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { formatCountdown } from "#routes/utils.ts";
+import { formatCountdown } from "#routes/format.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";

@@ -12,7 +12,7 @@ import {
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
 } from "#routes/token-utils.ts";
-import { notFoundResponse } from "#routes/utils.ts";
+import { notFoundResponse } from "#routes/response.ts";
 
 /** MIME type for Apple Wallet passes */
 const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";

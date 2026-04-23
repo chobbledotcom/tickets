@@ -26,18 +26,12 @@ import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import {
-  createEntityRouteHandlers,
-  requirePrivateKey,
-} from "#routes/admin/utils.ts";
-import {
-  type AttendeeRouteParams,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  redirect,
-} from "#routes/utils.ts";
+import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { type AttendeeRouteParams } from "#routes/entity.ts";
+import { type AuthSession } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
 import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 

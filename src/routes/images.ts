@@ -9,7 +9,7 @@ import {
   isStorageEnabled,
 } from "#lib/storage.ts";
 import type { createRouter } from "#routes/router.ts";
-import { notFoundResponse } from "#routes/utils.ts";
+import { notFoundResponse } from "#routes/response.ts";
 
 type RouterFn = ReturnType<typeof createRouter>;
 

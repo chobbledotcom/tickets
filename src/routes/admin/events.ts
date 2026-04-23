@@ -53,26 +53,15 @@ import type {
   Group,
 } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import {
-  createConfirmedHandlers,
-  csvResponse,
-  eventAttendeesLoader,
-  getDateFilter,
-} from "#routes/admin/utils.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import { csvResponse, eventAttendeesLoader, getDateFilter } from "#routes/admin/actions.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  AUTH_MULTIPART,
-  authenticatedGetById,
-  formDataToParams,
-  getSearchParam,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { AUTH_FORM, AUTH_MULTIPART, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { authenticatedGetById } from "#routes/entity.ts";
+import { formDataToParams } from "#routes/csrf.ts";
+import { getSearchParam } from "#routes/url.ts";
+import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   type AttendeeFilter,
@@ -96,7 +85,7 @@ import {
   slugField,
   splitCsv,
 } from "#templates/fields.ts";
-import { withEntityFromParam } from "./utils.ts";
+import { withEntityFromParam } from "./entity-handlers.ts";
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>

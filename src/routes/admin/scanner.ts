@@ -16,22 +16,17 @@ import {
 import { getEventWithCount } from "#lib/db/events.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { Attendee } from "#lib/types.ts";
-import { requirePrivateKey, withEntityLoader } from "#routes/admin/utils.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   decryptTokenEntries,
   resolveEntries,
   type TokenEntry,
 } from "#routes/token-utils.ts";
-import {
-  AUTH_JSON,
-  getPrivateKey,
-  htmlResponse,
-  type IdRouteHandler,
-  jsonResponse,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { AUTH_JSON, getPrivateKey, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { htmlResponse, jsonResponse } from "#routes/response.ts";
+import { type IdRouteHandler } from "#routes/entity.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
 const withEvent = withEntityLoader(getEventWithCount);

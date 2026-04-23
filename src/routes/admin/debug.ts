@@ -22,7 +22,7 @@ import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#lib/limits.ts";
 import { getStorageBackend } from "#lib/storage.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { ownerPage } from "#routes/utils.ts";
+import { ownerPage } from "#routes/auth.ts";
 import {
   adminDebugPage,
   type DebugPageState,

@@ -23,20 +23,11 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
-import { createConfirmedHandlers } from "#routes/admin/utils.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  type AuthSession,
-  errorRedirect,
-  generateSecureToken,
-  getSearchParam,
-  htmlResponse,
-  OWNER_FORM,
-  ownerPage,
-  redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { type AuthSession, generateSecureToken, OWNER_FORM, ownerPage, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 
 import {
   adminUserDeletePage,

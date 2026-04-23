@@ -15,7 +15,7 @@ import { getEvent } from "#lib/db/events.ts";
 import { downloadImage, isStorageEnabled } from "#lib/storage.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { notFoundResponse } from "#routes/utils.ts";
+import { notFoundResponse } from "#routes/response.ts";
 
 /** Common MIME types by file extension */
 const EXT_MIME_MAP: Record<string, string> = {

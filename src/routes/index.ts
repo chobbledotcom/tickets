@@ -44,18 +44,9 @@ import {
 import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import {
-  htmlResponse,
-  jsonResponse,
-  normalizePath,
-  notFoundResponse,
-  parseCookies,
-  parseRequest,
-  redirectResponse,
-  SessionKeyError,
-  temporaryErrorResponse,
-  withCookie,
-} from "#routes/utils.ts";
+import { htmlResponse, jsonResponse, notFoundResponse, redirectResponse, temporaryErrorResponse, withCookie } from "#routes/response.ts";
+import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
+import { SessionKeyError } from "#routes/auth.ts";
 import { readOnlyPage } from "#templates/public.tsx";
 
 /** Router function type - reuse from router.ts */

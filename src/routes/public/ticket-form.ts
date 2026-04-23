@@ -10,11 +10,8 @@ import type {
 } from "#lib/db/questions.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { EventFields } from "#lib/types.ts";
-import {
-  errorRedirect,
-  formatCreationError,
-  htmlResponse,
-} from "#routes/utils.ts";
+import { errorRedirect, htmlResponse } from "#routes/response.ts";
+import { formatCreationError } from "#routes/format.ts";
 import { extractContact, mergeEventFields } from "#templates/fields.ts";
 import { type TicketEvent, ticketPage } from "#templates/public.tsx";
 import type { EventQty, TicketCtx } from "./types.ts";

@@ -10,13 +10,8 @@ import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import {
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  parseFormData,
-  redirectResponse,
-} from "#routes/utils.ts";
+import { applyFlash, parseFormData } from "#routes/csrf.ts";
+import { errorRedirect, htmlResponse, redirectResponse } from "#routes/response.ts";
 import { type SetupFormValues, setupFields } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 

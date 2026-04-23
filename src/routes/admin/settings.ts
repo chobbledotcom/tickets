@@ -95,15 +95,8 @@ import {
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  type AuthSession,
-  errorRedirect,
-  jsonResponse,
-  OWNER_FORM,
-  OWNER_MULTIPART,
-  ownerPage,
-  withAuth,
-} from "#routes/utils.ts";
+import { type AuthSession, OWNER_FORM, OWNER_MULTIPART, ownerPage, withAuth } from "#routes/auth.ts";
+import { errorRedirect, jsonResponse } from "#routes/response.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {

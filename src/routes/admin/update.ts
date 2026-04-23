@@ -15,13 +15,8 @@ import {
   isNewerVersion,
 } from "#lib/update.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  errorRedirect,
-  OWNER_FORM,
-  ownerPage,
-  redirect,
-  withAuth,
-} from "#routes/utils.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
+import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import {
   adminUpdatePage,
   type UpdatePageState,

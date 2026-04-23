@@ -6,7 +6,7 @@ import { getEffectiveDomain, getEmbedHosts } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
-import { encodeBody } from "#routes/utils.ts";
+import { encodeBody } from "#routes/response.ts";
 
 /**
  * Security headers for all responses

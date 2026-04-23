@@ -10,7 +10,7 @@ import {
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
 } from "#routes/token-utils.ts";
-import { notFoundResponse } from "#routes/utils.ts";
+import { notFoundResponse } from "#routes/response.ts";
 
 /** Handle GET /gwallet/:token — redirect to Google Wallet save URL */
 const handleGoogleWalletGet = async (

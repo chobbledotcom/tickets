@@ -11,14 +11,11 @@ import { queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import {
-  type ActionHandlerConfig,
-  createActionHandler,
-} from "#routes/admin/utils.ts";
+import { type ActionHandlerConfig, createActionHandler } from "#routes/admin/actions.ts";
 import type {
   AttendeeEventRouteParams,
   AttendeeRouteParams,
-} from "#routes/utils.ts";
+} from "#routes/entity.ts";
 
 /** Parse a quantity value from a form field, clamping to [1, max] */
 const parseQuantity = (value: string, max: number): number => {

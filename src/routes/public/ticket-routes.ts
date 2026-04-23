@@ -8,7 +8,7 @@ import { computeGroupSlugIndex, getGroupBySlugIndex } from "#lib/db/groups.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { htmlResponse, notFoundResponse } from "#routes/utils.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
