@@ -67,4 +67,27 @@ describe("fail", () => {
     const response = fail("/admin", "Something went wrong");
     expectRedirectWithFlash("/admin", "Something went wrong", false)(response);
   });
+
+  test("includes result in flash cookie when provided", () => {
+    const response = fail("/admin", "Failed", { result: "err456" });
+    expectRedirectWithFlash("/admin", "Failed", false)(response);
+
+    const cookies = response.headers.getSetCookie();
+    const flash = cookies.find((c) => c.startsWith("flash_"));
+    const cookiePart = flash!.split(";")[0] ?? "";
+    const value = cookiePart.split("=").slice(1).join("=");
+    const parsed = parseFlashValue(value);
+    expect(parsed.result).toBe("err456");
+  });
+
+  test("appends additional cookie when provided", () => {
+    const response = fail("/admin", "Auth failed", {
+      cookie: "session=; Path=/; Max-Age=0",
+    });
+    const cookies = response.headers.getSetCookie();
+    const hasClearedSession = cookies.some(
+      (c) => c.includes("session=;") && c.includes("Max-Age=0"),
+    );
+    expect(hasClearedSession).toBe(true);
+  });
 });

@@ -68,7 +68,7 @@ export type BuiltSiteFormInput = Pick<
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
 
-const assignableCol = col.withDefault(() => 0);
+const assignableCol = {} as ColumnDef<number>;
 const nullCol = col.withDefault<number | null>(() => null);
 
 const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
