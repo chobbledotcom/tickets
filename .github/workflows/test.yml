@@ -44,6 +44,9 @@ jobs:
       - name: Lint
         run: deno task lint
 
+      - name: Biome check
+        run: deno task biome:check
+
       - name: Copy-paste detection
         run: deno task cpd
 
