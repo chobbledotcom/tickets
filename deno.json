@@ -22,7 +22,8 @@
   },
   "imports": {
     "#fp": "./src/fp.ts",
-    "#test-utils": "./src/test-utils/index.ts",
+    "#test-utils": "./src/test-utils.ts",
+    "#lib/test-overrides": "./src/lib/test-overrides.ts",
     "#test-utils/": "./src/test-utils/",
     "#jsx/jsx-runtime": "./src/lib/jsx/jsx-runtime.ts",
     "#jsx/jsx-dev-runtime": "./src/lib/jsx/jsx-runtime.ts",

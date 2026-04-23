@@ -324,7 +324,7 @@ describe("code quality", () => {
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
-      "routes/admin/auth.ts:setSkipLoginDelayForTest",
+      "lib/test-overrides.ts:setSkipLoginDelayForTest",
       // Reset/set host email config between tests without env var races
       "lib/email.ts:setHostEmailConfigForTest",
       "lib/email.ts:resetHostEmailConfig",
@@ -342,7 +342,7 @@ describe("code quality", () => {
       "lib/logger.ts:setSuppressRequestLogs",
       "lib/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
-      "routes/index.ts:setRethrowErrorsForTest",
+      "lib/test-overrides.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
       "lib/update.ts:setBuildTimestampForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)

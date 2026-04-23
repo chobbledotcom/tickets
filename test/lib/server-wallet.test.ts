@@ -9,13 +9,13 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectRedirectWithFlash,
-  generateTestCerts,
   getHeader,
   mockFormRequest,
   setTestEnv,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
+import { generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();

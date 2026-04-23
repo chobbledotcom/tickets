@@ -14,11 +14,10 @@ import {
   describeWithEnv,
   expectAdminRedirect,
   expectHtmlResponse,
-  generateGoogleTestCreds,
-  generateTestCerts,
   mockRequest,
   setTestEnv,
 } from "#test-utils";
+import { generateGoogleTestCreds, generateTestCerts } from "#test-utils/crypto.ts";
 
 describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {

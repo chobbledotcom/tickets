@@ -10,11 +10,11 @@ import {
   expectAdminRedirect,
   expectRedirect,
   expectRedirectWithFlash,
-  generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
   setTestEnv,
 } from "#test-utils";
+import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 
 /** Reuse cached creds for all wallet configuration */
 let testCreds: GoogleWalletCredentials;
