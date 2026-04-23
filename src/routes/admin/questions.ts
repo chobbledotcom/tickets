@@ -115,6 +115,10 @@ const handleQuestionGet = ownerGetById(
 
 type QuestionIdParams = { id: number };
 
+const redirectToQuestion = (
+  args: { error: string; params: QuestionIdParams },
+): Response => errorRedirect(`/admin/questions/${args.params.id}`, args.error);
+
 /** Handle POST /admin/questions/:id/edit */
 const handleQuestionEdit = createAuthedFormRoute<
   { text: string },
@@ -122,8 +126,7 @@ const handleQuestionEdit = createAuthedFormRoute<
 >({
   auth: OWNER_FORM,
   form: questionTextForm,
-  onInvalid: ({ error, params }) =>
-    errorRedirect(`/admin/questions/${params.id}`, error),
+  onInvalid: redirectToQuestion,
   onValid: async ({ params, values: { text } }) => {
     const updated = await questionsTable.update(params.id, { text });
     if (!updated) return notFoundResponse();
@@ -139,8 +142,7 @@ const handleAddAnswer = createAuthedFormRoute<
 >({
   auth: OWNER_FORM,
   form: answerTextForm,
-  onInvalid: ({ error, params }) =>
-    errorRedirect(`/admin/questions/${params.id}`, error),
+  onInvalid: redirectToQuestion,
   onValid: async ({ params, values: { text } }) => {
     const sortOrder = await getNextAnswerSortOrder(params.id);
     await answersTable.insert({ questionId: params.id, sortOrder, text });
