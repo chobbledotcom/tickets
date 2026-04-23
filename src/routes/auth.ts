@@ -207,7 +207,7 @@ type ParsedBody<T extends BodyMode> = T extends "form"
     : Record<string, unknown>;
 
 /** Policy controlling authentication, CSRF, role, and body parsing */
-type AuthPolicy<T extends BodyMode = BodyMode> = {
+export type AuthPolicy<T extends BodyMode = BodyMode> = {
   body: T;
   role?: AdminLevel;
   allowApiKey?: boolean;
