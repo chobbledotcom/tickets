@@ -92,7 +92,6 @@ export const expectRedirect = (
   ...patterns: (string | RegExp)[]
 ): string => {
   expect(response.status).toBe(302);
-  response.body!.cancel();
   const location = getHeader(response, "location");
   for (const p of patterns) {
     if (typeof p === "string") {
@@ -113,7 +112,6 @@ export const expectFlash = (
   message: string | any,
   succeeded = true,
 ): Response => {
-  response.body!.cancel();
   const cookies = response.headers.getSetCookie();
   const flash = cookies.find((c) => c.startsWith("flash_"))!;
   const cookiePart = flash.split(";")[0]!;
