@@ -128,5 +128,8 @@
         "enabled": false
       }
     }
-  ]
+  ],
+  "vcs": {
+    "useIgnoreFile": true
+  }
 }

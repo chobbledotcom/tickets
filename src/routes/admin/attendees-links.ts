@@ -35,13 +35,29 @@ const parseLinkFormFields = (
   quantity: parseQuantity(form.get("quantity") || "1", event.max_quantity),
 });
 
-/** Build a message function that fetches event and formats with prefix */
-const eventMessage =
-  (eventId: number, prefix: string): (() => Promise<string>) =>
-  async () => {
-    const event = await getEventWithCount(eventId);
-    return `${prefix} '${event!.name}'`;
-  };
+/** Resolve event, parse form fields, run op, check capacity, redirect on success */
+const applyLinkOp = async (
+  attendeeId: number,
+  eventId: number,
+  form: FormParams,
+  operate: (fields: {
+    quantity: number;
+    date: string | null;
+  }) => Promise<{ success: boolean }>,
+  onSuccess: (event: EventWithCount) => Promise<Response>,
+): Promise<Response> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+  }
+  const result = await operate(parseLinkFormFields(form, event));
+  return result.success
+    ? onSuccess(event)
+    : errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        "Not enough spots available",
+      );
+};
 
 /** Execute wrapper: fetch event, validate, run operation */
 const withEventExecute =
