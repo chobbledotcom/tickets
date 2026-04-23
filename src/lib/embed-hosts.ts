@@ -22,8 +22,9 @@ const HOST_PATTERN = new RegExp(
  */
 export const validateHostPattern = (host: string): string | null => {
   if (host === "") return "Empty host pattern";
-  if (host === "*")
+  if (host === "*") {
     return "Bare wildcard '*' is not allowed — use '*.example.com'";
+  }
   if (!HOST_PATTERN.test(host)) {
     return `Invalid host pattern: '${host}' — must be a hostname like 'example.com' or '*.example.com'`;
   }

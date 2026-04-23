@@ -68,8 +68,9 @@ function listEntries(d: string): { dirs: string[]; files: string[] } {
   for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
     const full = path.join(d, entry.name);
     if (entry.isDirectory()) dirs.push(full);
-    else if (isTypeScriptFile(entry.name))
+    else if (isTypeScriptFile(entry.name)) {
       files.push(path.relative(ROOT, full));
+    }
   }
   return { dirs, files };
 }
@@ -222,7 +223,7 @@ for (const file of allFiles) {
   const imports = extractImports(file);
   for (const { specifier, names } of imports) {
     const resolved = resolveImport(specifier, file);
-    if (!resolved || !resolved.startsWith("src/")) continue;
+    if (!resolved?.startsWith("src/")) continue;
 
     let target = resolved;
     const allSrcFiles = [...srcFiles, ...testUtilFiles];

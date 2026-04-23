@@ -7,7 +7,6 @@ import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -15,8 +14,8 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   mockFormRequest,
-  mockRequest,
   testCookie,
+  testRequiresAuth,
 } from "#test-utils";
 
 /** Assert a 302 redirect with a flash cookie containing the given text */
@@ -27,10 +26,7 @@ const expectRedirectContaining = (response: Response, text: string) => {
 
 describeWithEnv("server (admin site)", { db: true }, () => {
   describe("GET /admin/site", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/site"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/site");
 
     test("shows homepage editor when authenticated", async () => {
       const response = await awaitTestRequest("/admin/site", {
@@ -83,14 +79,12 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   });
 
   describe("POST /admin/site", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/site", {
-          homepage_text: "Hello",
-          website_title: "Test",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/site", {
+      body: {
+        homepage_text: "Hello",
+        website_title: "Test",
+      },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -160,10 +154,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   });
 
   describe("GET /admin/site/contact", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/site/contact"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/site/contact");
 
     test("shows contact editor when authenticated", async () => {
       const response = await awaitTestRequest("/admin/site/contact", {
@@ -204,7 +195,10 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/site/contact?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${flashCookieHeader("Something went wrong", false)}`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "Something went wrong",
+            false,
+          )}`,
         },
       );
       const html = await response.text();
@@ -213,13 +207,11 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   });
 
   describe("POST /admin/site/contact", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/site/contact", {
-          contact_page_text: "Hello",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/site/contact", {
+      body: {
+        contact_page_text: "Hello",
+      },
+      method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {

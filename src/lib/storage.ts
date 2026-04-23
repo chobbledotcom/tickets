@@ -15,16 +15,17 @@ import {
   MAX_IMAGE_SIZE,
 } from "#lib/limits.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { getDeleteOverride } from "#lib/test-overrides.ts";
 
 // ---------------------------------------------------------------------------
 // Per-context storage config (eliminates env var races in concurrent tests)
 // ---------------------------------------------------------------------------
 
 interface StorageConfig {
-  zoneName: string;
-  zoneKey: string;
   /** Override local storage path for tests. "" = disabled, undefined = use env var. */
   localPath?: string;
+  zoneKey: string;
+  zoneName: string;
 }
 
 const storageConfigStore = new AsyncLocalStorage<StorageConfig>();
@@ -352,6 +353,8 @@ export const downloadImage = async (
  * Delete a file, routing to local or Bunny based on config.
  */
 export const deleteFile = async (filename: string): Promise<void> => {
+  const override = getDeleteOverride();
+  if (override) throw override;
   if (getLocalStoragePath() !== null) {
     await localRemove(filename);
     return;

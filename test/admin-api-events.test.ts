@@ -704,8 +704,9 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
     test("returns error for missing max_attendees", async () => {
       const result = await bodyToCreateInput({ name: "Test" });
       expect(result.ok).toBe(false);
-      if (!result.ok)
+      if (!result.ok) {
         expect(result.error).toBe("max_attendees is required and must be >= 1");
+      }
     });
 
     test("handles all field types correctly", async () => {

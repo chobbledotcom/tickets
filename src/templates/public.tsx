@@ -83,7 +83,7 @@ export const publicSitePage = (
     : titles[pageType];
 
   return String(
-    <Layout title={pageTitle} headExtra={FEED_DISCOVERY_TAGS}>
+    <Layout headExtra={FEED_DISCOVERY_TAGS} title={pageTitle}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <div class="prose">
@@ -121,9 +121,13 @@ const renderEventListing = (info: TicketEvent): string => {
     ? "<p><strong>Sold Out</strong></p>"
     : isClosed || isReadOnly()
       ? "<p><strong>Registration Closed</strong></p>"
-      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>${bookLabel}</strong></a></p>`;
+      : `<p><a href="/ticket/${escapeHtml(
+          event.slug,
+        )}"><strong>${bookLabel}</strong></a></p>`;
 
-  return `<div class="prose"><h2>${escapeHtml(event.name)}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(
+    event.name,
+  )}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
 };
 
 /** Render a single group listing for the events page (same style as events) */
@@ -133,9 +137,13 @@ const renderGroupListing = (group: Group): string => {
     : "";
   const linkHtml = isReadOnly()
     ? "<p><strong>Registration Closed</strong></p>"
-    : `<p><a href="/ticket/${escapeHtml(group.slug)}"><strong>Book now</strong></a></p>`;
+    : `<p><a href="/ticket/${escapeHtml(
+        group.slug,
+      )}"><strong>Book now</strong></a></p>`;
 
-  return `<div class="prose"><h2>${escapeHtml(group.name)}</h2>${descriptionHtml}</div>${linkHtml}`;
+  return `<div class="prose"><h2>${escapeHtml(
+    group.name,
+  )}</h2>${descriptionHtml}</div>${linkHtml}`;
 };
 
 /**
@@ -158,7 +166,7 @@ export const homepagePage = (
 
   if (events.length === 0 && groups.length === 0) {
     return String(
-      <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
+      <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...navFlags()} />
         <p>
@@ -182,7 +190,7 @@ export const homepagePage = (
   )(events);
 
   return String(
-    <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
+    <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <h2>All bookable events</h2>
@@ -203,7 +211,9 @@ export const renderEventImage = (
   className = "event-image",
 ): string =>
   event.image_url
-    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="" class="${className}" />`
+    ? `<img src="${escapeHtml(
+        getImageProxyUrl(event.image_url),
+      )}" alt="" class="${className}" />`
     : "";
 
 /** Build OpenGraph meta tags for a public event page */
@@ -214,29 +224,42 @@ export const buildOgTags = (
   const tags = [
     `<meta property="og:title" content="${escapeHtml(event.name)}">`,
     `<meta property="og:type" content="website">`,
-    `<meta property="og:url" content="${escapeHtml(baseUrl)}/ticket/${escapeHtml(event.slug)}">`,
+    `<meta property="og:url" content="${escapeHtml(baseUrl)}/ticket/${escapeHtml(
+      event.slug,
+    )}">`,
   ];
   if (event.description) {
     tags.push(
-      `<meta property="og:description" content="${escapeHtml(event.description)}">`,
+      `<meta property="og:description" content="${escapeHtml(
+        event.description,
+      )}">`,
     );
   }
   if (event.image_url) {
     tags.push(
-      `<meta property="og:image" content="${escapeHtml(baseUrl)}${escapeHtml(getImageProxyUrl(event.image_url))}">`,
+      `<meta property="og:image" content="${escapeHtml(baseUrl)}${escapeHtml(
+        getImageProxyUrl(event.image_url),
+      )}">`,
     );
   }
   return tags.join("\n");
 };
 
 /** Render a date selector dropdown for daily events */
-const renderDateSelector = (dates: string[], durationDays = 1): string =>
+const renderDateSelector = (dates: string[], selected = "", durationDays = 1): string =>
   dates.length === 0
     ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
     : `<label for="date">Select Date${durationDays > 1 ? ` <small>(each booking reserves ${durationDays} days)</small>` : ""}</label>
        <select name="date" id="date" required>
          <option value="">— Select a date —</option>
-         ${dates.map((d) => `<option value="${d}">${formatDateLabel(d)}</option>`).join("")}
+         ${dates
+           .map(
+             (d) =>
+               `<option value="${d}"${d === selected ? " selected" : ""}>${formatDateLabel(
+                 d,
+               )}</option>`,
+           )
+           .join("")}
        </select>`;
 
 /** Quantity values parsed from ticket form */
@@ -246,6 +269,7 @@ export type TicketQuantities = Map<number, number>;
 const renderPayMoreInput = (
   event: Pick<EventWithCount, "unit_price" | "max_price">,
   fieldName = "custom_price",
+  prefillMinor?: number,
 ): string => {
   const minPrice = event.unit_price;
   const maxPrice = event.max_price;
@@ -253,9 +277,19 @@ const renderPayMoreInput = (
     minPrice > 0
       ? `Price per ticket (${formatCurrency(minPrice)} minimum)`
       : `Price per ticket (optional, up to ${formatCurrency(maxPrice)})`;
+  const defaultValue =
+    prefillMinor !== undefined && prefillMinor >= minPrice
+      ? prefillMinor
+      : minPrice;
   return (
     `<label>${rangeHint}` +
-    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${minPrice > 0 ? " required" : ""} /></label>`
+    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(
+      toMajorUnits(defaultValue),
+    )}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(
+      toMajorUnits(maxPrice),
+    )}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${
+      minPrice > 0 ? " required" : ""
+    } /></label>`
   );
 };
 
@@ -277,14 +311,18 @@ export const renderQuestions = (
       const options = q.answers
         .map(
           (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(a.text)}</label>`,
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(
+              a.text,
+            )}</label>`,
         )
         .join("");
       const eventIds = questionEventMap?.get(q.id);
       const eventAttr = eventIds
         ? ` data-event-ids="${eventIds.join(" ")}"`
         : "";
-      return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+      return `<fieldset class="custom-question"${eventAttr}><legend>${escapeHtml(
+        q.text,
+      )}</legend>${options}</fieldset>`;
     })
     .join("");
 };
@@ -296,6 +334,24 @@ export const notFoundPage = (): string =>
   String(
     <Layout title="Not Found">
       <h1>Not Found</h1>
+    </Layout>,
+  );
+
+/**
+ * QR booking link error page shown when a signed link is invalid or expired.
+ * Always includes a fallback link to the normal event booking page.
+ */
+export const qrBookErrorPage = (slug: string): string =>
+  String(
+    <Layout title="QR code expired">
+      <h1>QR code expired or invalid</h1>
+      <p>
+        This QR code has expired or the link has been tampered with. Ask the
+        organiser to generate a new one, or use the normal booking page below.
+      </p>
+      <p>
+        <a href={`/ticket/${escapeHtml(slug)}`}>Go to booking page</a>
+      </p>
     </Layout>,
   );
 
@@ -320,8 +376,8 @@ export const rateLimitedPage = (): string =>
 export const temporaryErrorPage = (): string =>
   String(
     <Layout
-      title="Temporary Error"
       headExtra='<meta http-equiv="refresh" content="2" />'
+      title="Temporary Error"
     >
       <h1>Temporary Error</h1>
       <p>
@@ -366,7 +422,37 @@ const renderEventDescription = (description: string): string =>
     ? `<div class="description-compact">${renderMarkdown(description)}</div>`
     : "";
 
-/** Render quantity selector for an event row */
+/** Per-event pre-fill applied when scanning a signed QR link */
+export type TicketPrefill = {
+  quantity?: number;
+  /** Pre-fill the custom_price input for can_pay_more events (minor units) */
+  customPriceMinor?: number;
+};
+
+/** Render an <option> list for quantity selectors with the given default selected */
+const quantityOptions = (max: number, selected: number): string =>
+  Array.from({ length: max + 1 }, (_, i) => i)
+    .map(
+      (n) =>
+        `<option value="${n}"${
+          n === selected ? " selected" : ""
+        }>${n}</option>`,
+    )
+    .join("");
+
+/** Resolve the pre-filled quantity value, clamped to the allowed range */
+const resolveQuantity = (
+  prefill: TicketPrefill | undefined,
+  maxPurchasable: number,
+): number => {
+  if (!prefill?.quantity) return 0;
+  return Math.max(0, Math.min(prefill.quantity, maxPurchasable));
+};
+
+/** Render quantity selector for an event row.
+ *
+ * Note: QR pre-fills are single-event only and go through
+ * renderSingleEventControls, so this function has no prefill parameter. */
 const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
@@ -395,12 +481,10 @@ const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
 
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : (() => {
-        const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
-          .map((n) => `<option value="${n}">${n}</option>`)
-          .join("");
-        return `<select name="${fieldName}">${options}</select>`;
-      })();
+    : `<select name="${fieldName}">${quantityOptions(
+        maxPurchasable,
+        0,
+      )}</select>`;
 
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
@@ -419,20 +503,23 @@ const renderEventRow = (info: TicketEvent, hideQuantity = false): string => {
 const renderSingleEventControls = (
   info: TicketEvent,
   hideQuantity: boolean,
+  prefill?: TicketPrefill,
 ): string => {
   const { event, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
+  const prefilledQty = resolveQuantity(prefill, maxPurchasable);
+  const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : (() => {
-        const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
-          .map((n) => `<option value="${n}">${n}</option>`)
-          .join("");
-        return `<label>Number of Tickets<select name="${fieldName}">${options}</select></label>`;
-      })();
+    : `<label>Number of Tickets<select name="${fieldName}">${quantityOptions(
+        maxPurchasable,
+        prefilledQty,
+      )}</select></label>`;
   const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
-  return `${quantityHtml}${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}`;
+  return `${quantityHtml}${
+    showPayMore ? renderPayMoreInput(event, priceFieldName, prefilledPrice) : ""
+  }`;
 };
 
 /**
@@ -440,6 +527,18 @@ const renderSingleEventControls = (
  */
 const getTicketFieldsSetting = (events: TicketEvent[]): EventFields =>
   mergeEventFields(events.map((e) => e.event.fields));
+
+/** Pre-fill state derived from a signed QR booking link */
+export type QrPrefill = {
+  /** Opaque signed token re-submitted via a hidden input to verify price override */
+  token: string;
+  /** Pre-fill name input */
+  name?: string;
+  /** Pre-fill date selector (for daily events) */
+  date?: string;
+  /** Per-event pre-fill — keyed by event id */
+  events: Map<number, TicketPrefill>;
+};
 
 /** Options for the ticket page */
 export type TicketPageOptions = {
@@ -453,6 +552,7 @@ export type TicketPageOptions = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
+  qrPrefill?: QrPrefill;
 };
 
 /** Unavailability message shown when all events are sold out or closed */
@@ -520,6 +620,7 @@ const TicketPageForm = ({
   questions,
   questionEventMap,
   terms,
+  qrPrefill,
 }: {
   slugs: string[];
   fields: Field[];
@@ -532,29 +633,43 @@ const TicketPageForm = ({
   questions: QuestionWithAnswers[] | undefined;
   questionEventMap: QuestionEventMap | undefined;
   terms: string | null | undefined;
-}): JSX.Element => (
-  <CsrfForm action={`/ticket/${slugs.join("+")}`}>
-    <Raw html={renderFields(fields)} />
-    {hasDaily && dates && (
-      <Raw html={renderDateSelector(dates, durationDays)} />
-    )}
+  qrPrefill?: QrPrefill;
+}): JSX.Element => {
+  const fieldValues: Record<string, string> = {};
+  if (qrPrefill?.name) fieldValues.name = qrPrefill.name;
+  return (
+    <CsrfForm action={`/ticket/${slugs.join("+")}`}>
+      {qrPrefill && (
+        <input name="qr_token" type="hidden" value={qrPrefill.token} />
+      )}
+      <Raw html={renderFields(fields, fieldValues)} />
+      {hasDaily && dates && (
+        <Raw
+          html={renderDateSelector(
+            dates,
+            qrPrefill?.date ?? "",
+            durationDays,
+          )}
+        />
+      )}
 
-    {hideQuantity || isSingleEvent ? (
-      <Raw html={eventRows} />
-    ) : (
-      <fieldset class="ticket-events">
-        <legend>Select Tickets</legend>
+      {hideQuantity || isSingleEvent ? (
         <Raw html={eventRows} />
-      </fieldset>
-    )}
+      ) : (
+        <fieldset class="ticket-events">
+          <legend>Select Tickets</legend>
+          <Raw html={eventRows} />
+        </fieldset>
+      )}
 
-    {questions && questions.length > 0 && (
-      <Raw html={renderQuestions(questions, questionEventMap)} />
-    )}
-    {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-    <button type="submit">Continue</button>
-  </CsrfForm>
-);
+      {questions && questions.length > 0 && (
+        <Raw html={renderQuestions(questions, questionEventMap)} />
+      )}
+      {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
+      <button type="submit">Continue</button>
+    </CsrfForm>
+  );
+};
 
 /**
  * Ticket page - register for one or more events
@@ -572,6 +687,7 @@ export const ticketPage = ({
   baseUrl,
   groupName,
   groupDescription,
+  qrPrefill,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
@@ -590,9 +706,13 @@ export const ticketPage = ({
     availableEvents.length === 1 && availableEvents[0]?.maxPurchasable === 1;
 
   // For single events, render just the quantity/pay-more controls (event details are in the header).
-  // For multiple events, render full event rows with name, image, and description.
+  // QR pre-fills only apply to single-event pages, so multi-event rows ignore them.
   const eventRows = isSingleEvent
-    ? renderSingleEventControls(events[0]!, hideQuantity)
+    ? renderSingleEventControls(
+        events[0]!,
+        hideQuantity,
+        qrPrefill?.events.get(events[0]!.event.id),
+      )
     : events.map((e) => renderEventRow(e, hideQuantity)).join("");
 
   // Unified header: single events use event details, groups use group metadata
@@ -604,16 +724,16 @@ export const ticketPage = ({
 
   return String(
     <Layout
-      title={title}
       bodyClass={inIframe ? "iframe" : undefined}
       headExtra={headExtra}
+      title={title}
     >
       {headerName && !inIframe && (
         <TicketPageHeader
-          headerName={headerName}
           headerDescription={headerDescription}
-          singleEvent={singleEvent}
+          headerName={headerName}
           pastDays={pastDays}
+          singleEvent={singleEvent}
         />
       )}
       <Flash error={error} />
@@ -624,16 +744,17 @@ export const ticketPage = ({
         </div>
       ) : (
         <TicketPageForm
-          slugs={slugs}
+          dates={dates}
+          durationDays={singleEvent?.duration_days ?? 1}
+          eventRows={eventRows}
           fields={fields}
           hasDaily={hasDaily}
-          durationDays={singleEvent?.duration_days ?? 1}
-          dates={dates}
-          eventRows={eventRows}
           hideQuantity={hideQuantity}
           isSingleEvent={isSingleEvent}
-          questions={questions}
+          qrPrefill={qrPrefill}
           questionEventMap={questionEventMap}
+          questions={questions}
+          slugs={slugs}
           terms={terms}
         />
       )}

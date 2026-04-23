@@ -14,7 +14,7 @@ import type {
   DeleteResult,
   Resource,
 } from "#lib/rest/resource.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/utils.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;
@@ -34,12 +34,13 @@ type OnRowSuccess<R> = (row: R, session: AuthSession) => MaybeAsync<Response>;
 
 /** Options for create handler */
 export interface CreateHandlerOptions<R> {
-  onSuccess: OnRowSuccess<R>;
   onError: OnError;
+  onSuccess: OnRowSuccess<R>;
 }
 
 /** Options for delete handler */
 export interface DeleteHandlerOptions<R> {
+  onNotFound: () => MaybeAsync<Response>;
   onSuccess: (session: AuthSession) => MaybeAsync<Response>;
   /** Called when name verification fails - receives id so you can fetch extended data */
   onVerifyFailed?: (
@@ -48,7 +49,6 @@ export interface DeleteHandlerOptions<R> {
     session: AuthSession,
     form: FormParams,
   ) => MaybeAsync<Response>;
-  onNotFound: () => MaybeAsync<Response>;
 }
 
 /** Handler taking request and ID */

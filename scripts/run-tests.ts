@@ -16,7 +16,11 @@ const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 /** Check if stripe-mock is running */
 const isStripeMockRunning = async (): Promise<boolean> => {
   try {
-    await fetch(`http://localhost:${STRIPE_MOCK_PORT}/`);
+    const conn = await Deno.connect({
+      hostname: "127.0.0.1",
+      port: STRIPE_MOCK_PORT,
+    });
+    conn.close();
     return true;
   } catch {
     return false;
@@ -121,6 +125,8 @@ const runTests = async (useCoverage: boolean): Promise<number> => {
     env: {
       ...Deno.env.toObject(),
       DENO_JOBS: Deno.env.get("DENO_JOBS") ?? "15",
+      NO_PROXY: "localhost,127.0.0.1,::1",
+      no_proxy: "localhost,127.0.0.1,::1",
       STRIPE_MOCK_HOST: "localhost",
       STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
     },
@@ -156,8 +162,9 @@ const extractRecordFile = (record: string): string | null => {
   const sfMatch = record.match(/SF:(.*)/);
   if (!sfMatch) return null;
   const file = sfMatch[1].replace(`${projectRoot}/`, "");
-  if (COVERAGE_EXCLUSIONS.some((exclusion) => file.includes(exclusion)))
+  if (COVERAGE_EXCLUSIONS.some((exclusion) => file.includes(exclusion))) {
     return null;
+  }
   return file;
 };
 
@@ -179,8 +186,9 @@ const findCoverageFailures = (
   lcov: string,
 ): { lineFailures: string[]; branchFailures: string[] } => {
   const records = lcov.split("end_of_record").filter((r) => r.includes("SF:"));
-  if (records.length === 0)
+  if (records.length === 0) {
     return { branchFailures: [], lineFailures: ["No coverage data found"] };
+  }
 
   const lineFailures: string[] = [];
   const branchFailures: string[] = [];

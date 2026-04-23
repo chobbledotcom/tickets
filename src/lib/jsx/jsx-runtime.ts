@@ -26,38 +26,38 @@ export type Child =
 
 /** HTML attribute types */
 interface HtmlAttributes {
+  action?: string;
+  alt?: string;
+  charset?: string;
+  checked?: boolean;
   children?: Child;
   class?: string;
-  style?: string;
+  cols?: string | number;
+  colspan?: string | number;
+  content?: string;
+  disabled?: boolean;
+  for?: string;
+  href?: string;
   // Common HTML attributes
   id?: string;
+  lang?: string;
+  max?: number | string;
+  method?: string;
+  min?: number | string;
   name?: string;
+  pattern?: string;
+  placeholder?: string;
+  readonly?: boolean;
+  rel?: string;
+  required?: boolean;
+  rows?: string | number;
+  rowspan?: string | number;
+  src?: string;
+  style?: string;
+  target?: string;
+  title?: string;
   type?: string;
   value?: string | number;
-  href?: string;
-  src?: string;
-  alt?: string;
-  title?: string;
-  placeholder?: string;
-  required?: boolean;
-  disabled?: boolean;
-  checked?: boolean;
-  readonly?: boolean;
-  min?: number | string;
-  max?: number | string;
-  pattern?: string;
-  rows?: string | number;
-  cols?: string | number;
-  for?: string;
-  method?: string;
-  action?: string;
-  target?: string;
-  rel?: string;
-  colspan?: string | number;
-  rowspan?: string | number;
-  lang?: string;
-  charset?: string;
-  content?: string;
   // Allow any other attributes
   [key: string]: Child | string | number | boolean | null | undefined;
 }
@@ -155,7 +155,7 @@ export const jsx = (tag: string | Component, props: Props | null): SafeHtml => {
 };
 
 // JSX runtime exports (used by TypeScript's JSX transform)
-export { jsx as jsxs, jsx as jsxDEV };
+export { jsx as jsxDEV, jsx as jsxs };
 
 /**
  * Fragment - just renders children without wrapper

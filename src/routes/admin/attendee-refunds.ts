@@ -8,22 +8,17 @@ import { markRefunded } from "#lib/db/attendees.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
+import { fail, ok } from "#lib/response.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
-  verifyOrRedirect,
   withDecryptedAttendees,
   withEventAttendeesAuth,
-} from "#routes/admin/utils.ts";
+} from "#routes/admin/actions.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  redirect,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
@@ -59,12 +54,13 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
   (data, session, request) => {
     applyFlash(request);
     const returnUrl = getReturnUrl(request);
-    if (!data.attendee.payment_id)
+    if (!data.attendee.payment_id) {
       return htmlResponse(
         adminRefundAttendeePage(data, session, NO_PAYMENT_ERROR, returnUrl),
         400,
       );
-    if (data.attendee.refunded)
+    }
+    if (data.attendee.refunded) {
       return htmlResponse(
         adminRefundAttendeePage(
           data,
@@ -74,6 +70,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
         ),
         400,
       );
+    }
     return htmlResponse(
       adminRefundAttendeePage(data, session, undefined, returnUrl),
     );
@@ -84,11 +81,13 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
 const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
-  async (data, form, eventId, attendeeId) => {
-    if (!data.attendee.payment_id)
+  async (data, _form, eventId, attendeeId) => {
+    if (!data.attendee.payment_id) {
       return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
-    if (data.attendee.refunded)
+    }
+    if (data.attendee.refunded) {
       return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
+    }
 
     const provider = await getActivePaymentProvider();
     if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
@@ -108,7 +107,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       `Refund issued for attendee '${data.attendee.name}'`,
       eventId,
     );
-    return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
+    return ok(`/admin/event/${eventId}`, "Refund issued");
   },
 );
 
@@ -220,7 +219,7 @@ const buildRefundProblemResponse = async (
     `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${event.name}'`,
     event.id,
   );
-  return errorRedirect(refundAllUrl, msg);
+  return fail(refundAllUrl, msg);
 };
 
 /** Build the final response for a bulk refund based on tallied results. */
@@ -245,10 +244,9 @@ const buildRefundAllResponse = async (
       `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${event.name}'`,
       event.id,
     );
-    return redirect(
+    return ok(
       refundAllUrl,
       `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
-      true,
     );
   }
 
@@ -256,7 +254,7 @@ const buildRefundAllResponse = async (
     `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
     event.id,
   );
-  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
+  return ok(`/admin/event/${event.id}`, "All attendees refunded");
 };
 
 /** Process bulk refund for all refundable attendees */
@@ -272,12 +270,12 @@ const processRefundAll = async (
   if (error) return error;
 
   if (refundable.length === 0) {
-    return errorRedirect(refundAllUrl, NO_REFUNDABLE_ERROR);
+    return fail(refundAllUrl, NO_REFUNDABLE_ERROR);
   }
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    return errorRedirect(refundAllUrl, NO_PROVIDER_ERROR);
+    return fail(refundAllUrl, NO_PROVIDER_ERROR);
   }
 
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);

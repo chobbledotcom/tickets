@@ -2,6 +2,7 @@
  * Admin routes for custom questions management (owner-only)
  */
 
+/* jscpd:ignore-start */
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import {
@@ -24,20 +25,22 @@ import type { AdminSession } from "#lib/types.ts";
 import {
   createConfirmedHandlers,
   verifyOrRedirect,
-} from "#routes/admin/utils.ts";
-import { defineRoutes } from "#routes/router.ts";
+} from "#routes/admin/confirmation.ts";
 import {
-  errorRedirect,
-  type FormParams,
-  htmlResponse,
-  notFoundResponse,
   OWNER_FORM,
-  ownerFormById,
-  ownerGetById,
-  redirect,
+  ownerPage,
   requireOwnerOr,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import type { FormParams } from "#routes/csrf.ts";
+import { ownerFormById, ownerGetById } from "#routes/entity.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,
@@ -45,6 +48,8 @@ import {
   adminQuestionPage,
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
+
+/* jscpd:ignore-end */
 
 /** Validate text is non-empty, returning error redirect if blank */
 const requireTextOrError = (
@@ -58,17 +63,14 @@ const requireTextOrError = (
 };
 
 /** Handle GET /admin/questions */
-const handleQuestionsGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
-    const flash = getFlash();
-    return htmlResponse(
-      adminQuestionsPage(
-        await getAllQuestionsWithAnswers(),
-        session,
-        flash.error,
-      ),
-    );
-  });
+const handleQuestionsGet = ownerPage(async (session) => {
+  const flash = getFlash();
+  return adminQuestionsPage(
+    await getAllQuestionsWithAnswers(),
+    session,
+    flash.error,
+  );
+});
 
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = (request: Request) =>
@@ -272,7 +274,9 @@ const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
     .filter((n) => !Number.isNaN(n));
   await setEventQuestions(id, questionIds);
   await logActivity(
-    `Questions updated for '${event.name}' (${questionIds.length} question${questionIds.length !== 1 ? "s" : ""})`,
+    `Questions updated for '${event.name}' (${questionIds.length} question${
+      questionIds.length !== 1 ? "s" : ""
+    })`,
     event,
   );
   return redirect(`/admin/event/${id}`, "Questions updated", true);

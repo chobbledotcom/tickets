@@ -17,7 +17,7 @@ export const ConfirmationEmailTemplateForm = (
     <p>
       Customise the registration confirmation email sent to attendees (
       <a href="/admin/guide#email-templates">template guide</a>). Uses{" "}
-      <a href="https://liquidjs.com/" target="_blank" rel="noopener">
+      <a href="https://liquidjs.com/" rel="noopener" target="_blank">
         Liquid
       </a>{" "}
       template syntax. Leave blank to use the default template.
@@ -114,41 +114,41 @@ export const ConfirmationEmailTemplateForm = (
     <label>
       Subject
       <input
-        type="text"
+        autocomplete="off"
         name="subject"
         placeholder={DEFAULT_TEMPLATES.confirmation.subject}
+        type="text"
         value={s.confirmationTemplates.subject}
-        autocomplete="off"
       />
     </label>
     <label>
       HTML Body
       <textarea
+        data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
         id="confirmation_html"
         name="html"
-        rows="8"
         placeholder="Leave blank to use default template"
-        data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
+        rows="8"
       >
         {s.confirmationTemplates.html}
       </textarea>
     </label>
-    <a href="#" data-fill-default="confirmation_html">
+    <a data-fill-default="confirmation_html" href="#">
       <small>Edit default template</small>
     </a>
     <label>
       Plain Text Body
       <textarea
+        data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
         id="confirmation_text"
         name="text"
-        rows="6"
         placeholder="Leave blank to use default template"
-        data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
+        rows="6"
       >
         {s.confirmationTemplates.text}
       </textarea>
     </label>
-    <a href="#" data-fill-default="confirmation_text">
+    <a data-fill-default="confirmation_text" href="#">
       <small>Edit default template</small>
     </a>
     <br />

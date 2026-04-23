@@ -13,9 +13,9 @@ import {
 } from "#lib/db/attendees.ts";
 import { getEvent } from "#lib/db/events.ts";
 import { downloadImage, isStorageEnabled } from "#lib/storage.ts";
+import { notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { notFoundResponse } from "#routes/utils.ts";
 
 /** Common MIME types by file extension */
 const EXT_MIME_MAP: Record<string, string> = {
@@ -76,7 +76,7 @@ const handleAttachmentDownload: TypedRouteHandler<
 
   // Look up event and verify it has an attachment
   const event = await getEvent(id);
-  if (!event || !event.attachment_url) return notFoundResponse();
+  if (!event?.attachment_url) return notFoundResponse();
 
   // Verify attendee exists and belongs to this event
   const attendee = await getAttendeeRaw(attendeeId);
@@ -94,7 +94,10 @@ const handleAttachmentDownload: TypedRouteHandler<
   return new Response(data.buffer as BodyInit, {
     headers: {
       "cache-control": "public, max-age=3600",
-      "content-disposition": `attachment; filename="${event.attachment_name.replace(/"/g, '\\"')}"`,
+      "content-disposition": `attachment; filename="${event.attachment_name.replace(
+        /"/g,
+        '\\"',
+      )}"`,
       "content-type": contentType,
     },
   });

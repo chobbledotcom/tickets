@@ -27,7 +27,7 @@ export const adminBackupPage = (
 ): string =>
   String(
     <Layout title="Database Backup">
-      <AdminNav session={session} active="/admin/settings" />
+      <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
       <h1>Database Backup &amp; Restore</h1>
       <p>
@@ -75,8 +75,8 @@ export const adminBackupPage = (
             </p>
             <CsrfForm
               action="/admin/backup/create"
-              id="backup-create"
               class="no-bg"
+              id="backup-create"
             >
               <button type="submit">Create Backup Now</button>
             </CsrfForm>
@@ -120,12 +120,12 @@ export const adminBackupPage = (
             </p>
             <CsrfForm
               action="/admin/backup/restore"
-              id="backup-restore"
               enctype="multipart/form-data"
+              id="backup-restore"
             >
               <label>
                 Backup file (.zip)
-                <input type="file" name="backup_file" accept=".zip" required />
+                <input accept=".zip" name="backup_file" required type="file" />
               </label>
               <button type="submit">Upload &amp; Review</button>
             </CsrfForm>
@@ -147,16 +147,16 @@ export const adminRestoreConfirmPage = (
 ): string =>
   String(
     <Layout title="Confirm Restore">
-      <AdminNav session={session} active="/admin/settings" />
+      <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       <ConfirmForm
         action="/admin/backup/restore/confirm"
-        id="backup-restore-confirm"
-        name={RESTORE_CONFIRM_PHRASE}
-        label="Confirmation phrase"
         buttonText="Restore Database"
         hiddenFields={{ backup_filename: filename }}
+        id="backup-restore-confirm"
+        label="Confirmation phrase"
+        name={RESTORE_CONFIRM_PHRASE}
       >
         <h1>Confirm Database Restore</h1>
         <Flash error={error} />

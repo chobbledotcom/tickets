@@ -27,14 +27,14 @@ type CdnHostnameResult =
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
 interface EdgeScriptLinkedPullZone {
+  DefaultHostname: string;
   Id: number;
   PullZoneName: string;
-  DefaultHostname: string;
 }
 
 interface EdgeScriptResponse {
-  Id: number;
   DefaultHostname: string;
+  Id: number;
   LinkedPullZones: EdgeScriptLinkedPullZone[];
 }
 
@@ -150,7 +150,9 @@ const pullZonePost = async (
 const loadFreeCertificate = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {
-  const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
+  const url = `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(
+    hostname,
+  )}`;
 
   const response = await fetchText(url, {
     headers: { AccessKey: getBunnyApiKey() },
@@ -215,14 +217,14 @@ const validateCustomDomainImpl = async (
 
 interface BunnyDnsRecord {
   Id: number;
-  Type: number;
   Name: string;
+  Type: number;
   Value: string;
 }
 
 interface BunnyDnsZone {
-  Id: number;
   Domain: string;
+  Id: number;
   Records: BunnyDnsRecord[];
 }
 
@@ -337,7 +339,9 @@ const registerBunnySubdomainImpl = async (
     const err = parseBunnyError(addResponse, "Add DNS CNAME record");
     logError({
       code: ErrorCode.CDN_REQUEST,
-      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(dnsRecordBody)}`,
+      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(
+        dnsRecordBody,
+      )}`,
     });
     return err;
   }
@@ -361,7 +365,9 @@ const registerBunnySubdomainImpl = async (
   ) {
     logDebug(
       "Domain",
-      `Certificate not ready, retrying in ${certRetryDelay(attempt)}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
+      `Certificate not ready, retrying in ${certRetryDelay(
+        attempt,
+      )}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
     );
     await bunnyCdnApi.delay(certRetryDelay(attempt));
     cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
@@ -439,10 +445,10 @@ const publishScript = async (
 // ---------------------------------------------------------------------------
 
 interface CreateEdgeScriptResult {
-  ok: true;
-  scriptId: number;
-  pullZoneId: number;
   defaultHostname: string;
+  ok: true;
+  pullZoneId: number;
+  scriptId: number;
 }
 
 /**
@@ -574,22 +580,3 @@ export const getCdnHostname = (): Promise<CdnHostnameResult> =>
 /** Upload and publish new script code to Bunny CDN. */
 export const deployScriptCode = (code: string): Promise<BunnyApiResult> =>
   bunnyCdnApi.deployScriptCode(code);
-
-/** Create a new Bunny edge script. */
-export const createEdgeScript = (
-  name: string,
-  code: string,
-): ReturnType<typeof createEdgeScriptImpl> =>
-  bunnyCdnApi.createEdgeScript(name, code);
-
-/** Set a secret on a Bunny edge script. */
-export const setEdgeScriptSecret = (
-  scriptId: number,
-  name: string,
-  value: string,
-): Promise<BunnyApiResult> =>
-  bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
-
-/** Publish a Bunny edge script. */
-export const publishEdgeScript = (scriptId: number): Promise<BunnyApiResult> =>
-  bunnyCdnApi.publishEdgeScript(scriptId);

@@ -183,7 +183,9 @@ export const normalizeDatetime = (value: string, label: string): string => {
  */
 export const formatDateLabel = (dateStr: string): string => {
   const date = new Date(`${dateStr}T00:00:00Z`);
-  return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${
+    MONTH_NAMES[date.getUTCMonth()]
+  } ${date.getUTCFullYear()}`;
 };
 
 /**

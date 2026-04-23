@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { buildSessionCookie } from "#lib/cookies.ts";
 import { hmacHash } from "#lib/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
@@ -296,6 +297,19 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("GET /admin/api-keys shows success message without newline (no new key)", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
+          headers: { cookie: `${cookie}; ${flashCookieHeader("Key updated")}` },
+        }),
+      );
+
+      const html = await response.text();
+      expect(html).toContain("Key updated");
+      expect(html).not.toContain("Copy your API key now");
+    });
+
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
       const { id } = await createTestApiKeyFull("Visible Key");
       await touchApiKeyLastUsed(id);
@@ -464,6 +478,27 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       expect(response.status).toBe(302);
     });
+
+    test("succeeds even when touchApiKeyLastUsed fails", async () => {
+      await createTestEvent({ name: "Touch Fail Test" });
+      const { apiKey } = await createTestApiKeyFull("Resilient Auth");
+
+      const apiKeysModule = await import("#lib/db/api-keys.ts");
+      const stubTouch = stub(
+        apiKeysModule.apiKeysApi,
+        "touchApiKeyLastUsed",
+        () => Promise.reject(new Error("DB error")),
+      );
+
+      try {
+        const response = await handleRequest(
+          requestAsApiKey("/api/admin/events", apiKey),
+        );
+        expect(response.status).toBe(200);
+      } finally {
+        stubTouch.restore();
+      }
+    });
   });
 
   describe("admin UI edge cases", () => {
@@ -626,6 +661,27 @@ describeWithEnv("API Keys", { db: true }, () => {
       );
 
       expect(response.status).toBe(403);
+    });
+
+    test("request succeeds when touchApiKeyLastUsed fails (fire-and-forget)", async () => {
+      await createTestEvent({ name: "Touch Test" });
+      const { apiKey } = await createTestApiKeyFull("Touch Test Key");
+
+      // Make touchApiKeyLastUsed throw via test hook
+      const { setTouchOverrideForTest } = await import(
+        "#lib/test-overrides.ts"
+      );
+      setTouchOverrideForTest(new Error("touch failed"));
+
+      try {
+        const response = await handleRequest(
+          requestAsApiKey("/api/admin/events", apiKey),
+        );
+        // Request should succeed despite touchApiKeyLastUsed throwing
+        expect(response.status).toBe(200);
+      } finally {
+        setTouchOverrideForTest(null);
+      }
     });
   });
 });

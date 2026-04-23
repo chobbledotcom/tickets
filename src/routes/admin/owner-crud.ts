@@ -6,23 +6,25 @@ import type { AdminSession } from "#lib/types.ts";
 import {
   createConfirmedHandlers,
   type FormGuard,
-  type SessionGuard,
-} from "#routes/admin/utils.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
+} from "#routes/admin/confirmation.ts";
 import {
   AUTH_FORM,
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  type IdRouteHandler,
-  notFoundResponse,
+  authPage,
   OWNER_FORM,
-  orNotFound,
-  redirect,
   requireOwnerOr,
   requireSessionOr,
+  type SessionGuard,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { type IdRouteHandler, withEntity } from "#routes/entity.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 
 type CrudConfig<Row, Input> = {
   singular: string;
@@ -77,21 +79,15 @@ const createCrudHandlersWithAuth = <Row, Input>(
     (request: Request): Promise<Response> =>
       auth.withForm(request, handler);
 
-  const authHtml =
-    (render: (session: AdminSession) => string | Promise<string>) =>
-    (request: Request): Promise<Response> =>
-      auth.requireSession(request, async (session) => {
-        applyFlash(request);
-        return htmlResponse(await render(session));
-      });
+  const authHtml = authPage(auth.requireSession);
 
   const authRowHtml =
     (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
     (request, { id }) =>
       auth.requireSession(request, (session) => {
         applyFlash(request);
-        return orNotFound(cfg.resource.table.findById(id), (row) =>
-          htmlResponse(render(row, session)),
+        return withEntity<Row>((row) => htmlResponse(render(row, session)))(
+          () => cfg.resource.table.findById(id),
         );
       });
 

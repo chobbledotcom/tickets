@@ -852,7 +852,13 @@ export const verifyWebhookSignature = async (
   if (!secureCompare(signature, expectedSignature)) {
     logError({
       code: ErrorCode.SQUARE_SIGNATURE,
-      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${payloadBytes.length}`,
+      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(
+        0,
+        8,
+      )}..., expectedPrefix=${expectedSignature.slice(
+        0,
+        8,
+      )}..., bodyLength=${payloadBytes.length}`,
     });
     return { error: "Signature verification failed", valid: false };
   }

@@ -39,23 +39,22 @@ import {
 } from "#lib/payments.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { formatCreationError, isRegistrationClosed } from "#routes/format.ts";
 import {
   bookingDateFields,
   ensureAllBookings,
 } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
-import { parseTokens } from "#routes/token-utils.ts";
 import {
-  formatCreationError,
-  getSearchParam,
   htmlResponse,
-  isRegistrationClosed,
   jsonResponse,
   paymentErrorResponse,
   plainResponse,
   redirectResponse,
-} from "#routes/utils.ts";
+} from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
+import { parseTokens } from "#routes/token-utils.ts";
+import { getSearchParam } from "#routes/url.ts";
 import type {
   BookingIntent,
   EventPriceValidation,
@@ -231,8 +230,9 @@ const loadEventOr404 = async <Extra extends Record<string, unknown>>(
   | ({ ok: false; error: string; status: 404 } & Extra)
 > => {
   const event = await getEventWithCount(eventId);
-  if (!event)
+  if (!event) {
     return { error: "Event not found", ok: false, status: 404, ...extra };
+  }
   return { event, ok: true };
 };
 
@@ -665,7 +665,9 @@ const processSessionAndRedirect = async (
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
     return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(result.ticketTokens.join("+"))}`,
+      `/payment/success?tokens=${encodeURIComponent(
+        result.ticketTokens.join("+"),
+      )}`,
     );
   }
 

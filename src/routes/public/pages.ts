@@ -6,12 +6,12 @@ import { getAllGroups } from "#lib/db/groups.ts";
 import { settings } from "#lib/db/settings.ts";
 import { loadSortedEvents } from "#lib/sort-events.ts";
 import type { EventWithCount, Group } from "#lib/types.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
 import {
   htmlResponse,
-  isRegistrationClosed,
   notFoundResponse,
   redirectResponse,
-} from "#routes/utils.ts";
+} from "#routes/response.ts";
 import {
   buildTicketEvent,
   homepagePage,

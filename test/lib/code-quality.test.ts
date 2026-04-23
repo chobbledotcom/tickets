@@ -34,7 +34,18 @@ const FORBIDDEN_PATTERNS = [
  * Test utility files - excluded from all code quality checks
  */
 const TEST_UTILITY_FILES = [
-  "test-utils/index.ts",
+  "test-utils/internal.ts",
+  "test-utils/db.ts",
+  "test-utils/env.ts",
+  "test-utils/mocks.ts",
+  "test-utils/assertions.ts",
+  "test-utils/csrf.ts",
+  "test-utils/factories.ts",
+  "test-utils/validation.ts",
+  "test-utils/session.ts",
+  "test-utils/db-helpers.ts",
+  "test-utils/settings.ts",
+  "test-utils/crypto.ts",
   "test-utils/stripe-mock.ts",
   "test-utils/test-browser.ts",
   "test-utils/test-compat.ts",
@@ -49,6 +60,8 @@ const ALLOWED_FILES_STATE = [
   "lib/db/sessions.ts",
   // Settings test overrides Map for injecting test values into the snapshot
   "lib/db/settings.ts",
+  // Test override flags (lazyRef state for test isolation)
+  "lib/test-overrides.ts",
 ];
 
 /**
@@ -198,7 +211,10 @@ describe("code quality", () => {
       const violations = await scanSourceLines(
         ({ relativePath, line, lineNum }) => {
           if (!line.match(/^(export\s+)?let\s+/)) return null;
-          return `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`;
+          return `${relativePath}:${lineNum}: ${line.slice(
+            0,
+            50,
+          )}... (use const with once()/lazyRef())`;
         },
       );
 
@@ -223,7 +239,9 @@ describe("code quality", () => {
           if (THEN_PATTERN.test(line)) {
             THEN_PATTERN.lastIndex = 0;
             violations.push(
-              `${relativePath}:${lineNum}: ${line.trim().slice(0, 50)}... (use async/await instead)`,
+              `${relativePath}:${lineNum}: ${line
+                .trim()
+                .slice(0, 50)}... (use async/await instead)`,
             );
           }
         }
@@ -264,6 +282,7 @@ describe("code quality", () => {
       "lib/db/index.ts",
       "lib/rest/index.ts",
       "templates/index.ts",
+      "test-utils.ts",
     ];
 
     /**
@@ -319,7 +338,7 @@ describe("code quality", () => {
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
-      "routes/admin/auth.ts:setSkipLoginDelayForTest",
+      "lib/test-overrides.ts:setSkipLoginDelayForTest",
       // Reset/set host email config between tests without env var races
       "lib/email.ts:setHostEmailConfigForTest",
       "lib/email.ts:resetHostEmailConfig",
@@ -337,12 +356,20 @@ describe("code quality", () => {
       "lib/logger.ts:setSuppressRequestLogs",
       "lib/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
-      "routes/index.ts:setRethrowErrorsForTest",
+      "lib/test-overrides.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
       "lib/update.ts:setBuildTimestampForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
       "routes/api.ts:apiRoutes",
       "routes/admin/api.ts:adminApiRoutes",
+      // Storage delete override for testing fire-and-forget error handling
+      "lib/test-overrides.ts:getDeleteOverride",
+      "lib/test-overrides.ts:setDeleteOverride",
+      "lib/test-overrides.ts:setDeleteOverrideForTest",
+      // API key touch override for testing fire-and-forget error handling
+      "lib/test-overrides.ts:getTouchOverride",
+      "lib/test-overrides.ts:setTouchOverride",
+      "lib/test-overrides.ts:setTouchOverrideForTest",
     ];
 
     /**

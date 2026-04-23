@@ -91,8 +91,8 @@ export const adminGuidePage = (
   hostConfig?: GuideHostConfig,
 ): string =>
   String(
-    <Layout title="Guide" bodyClass="guide">
-      <AdminNav session={adminSession} active="/admin/guide" />
+    <Layout bodyClass="guide" title="Guide">
+      <AdminNav active="/admin/guide" session={adminSession} />
 
       <h2>Guide</h2>
 
@@ -182,6 +182,14 @@ export const adminGuidePage = (
             The attendee gets a single ticket with one QR code covering all
             their events. Their ticket page shows one card per event. In the
             admin, they appear as one attendee linked to multiple events.
+          </p>
+          <p>
+            If the events have different contact-detail settings, the combined
+            form asks for the union of all selected fields &mdash; so pairing an
+            email-only event with one that also collects a phone number will
+            require both from every attendee. Fields always appear in the same
+            order (email, phone, address, special instructions) regardless of
+            which events are combined.
           </p>
           <p>
             To generate the link, open the <strong>Multi-booking link</strong>{" "}
@@ -943,6 +951,16 @@ export const adminGuidePage = (
           </p>
         </Q>
 
+        <Q q="Is the booking fee refunded too?">
+          <p>
+            Yes. Refunds reverse the full charge taken from the attendee,
+            including any booking fee that was added at checkout. Your payment
+            provider's own processing fee is a separate matter &mdash; Stripe
+            and Square each have their own policy on whether processing fees are
+            returned on a refund, so check your provider for details.
+          </p>
+        </Q>
+
         <Q q="What happens to the attendee after a refund?">
           <p>
             The attendee <strong>remains registered</strong>. A refund only
@@ -1334,10 +1352,12 @@ export const adminGuidePage = (
             Yes. On any event's attendee list, click <strong>Export CSV</strong>
             . The export includes name, email, phone, address, special
             instructions, quantity, registration date, amount paid, transaction
-            ID, check-in status, ticket token, and ticket URL. For daily events,
-            the attendee list has a date filter &mdash; select a date to see
-            only that day's attendees, and the CSV export respects the same
-            filter.
+            ID, check-in status, ticket token, and ticket URL. If the event has
+            custom booking questions, each question is appended as an additional
+            column (one per question, in the order assigned to the event) with
+            the attendee's selected answer text. For daily events, the attendee
+            list has a date filter &mdash; select a date to see only that day's
+            attendees, and the CSV export respects the same filter.
           </p>
         </Q>
 
@@ -1735,6 +1755,42 @@ export const adminGuidePage = (
             propagate, then click <strong>Validate Custom Domain</strong> to try
             again.
           </p>
+          <p>
+            Until validation succeeds, ticket links, redirect URLs, and emails
+            continue to use your host subdomain (or the Bunny.net address if you
+            haven't registered one). See{" "}
+            <strong>Which domain is used for ticket links and emails?</strong>{" "}
+            below.
+          </p>
+        </Q>
+
+        <Q q="Which domain is used for ticket links and emails?">
+          <p>
+            The system picks a single <strong>canonical</strong> domain for
+            every request and uses it for generated URLs (ticket links, QR
+            codes, redirects, webhook callbacks, and emails). It's chosen in
+            this order of priority:
+          </p>
+          <ol>
+            <li>
+              Your <strong>custom domain</strong>, but only once its{" "}
+              <strong>CNAME has been validated</strong>. Saving a domain is not
+              enough on its own.
+            </li>
+            <li>
+              Your registered <strong>host subdomain</strong> (e.g.{" "}
+              <code>mysite.tickets</code>), if one is set.
+            </li>
+            <li>
+              Otherwise the hostname from the incoming request (the Bunny.net
+              address).
+            </li>
+          </ol>
+          <p>
+            Both the host subdomain and a validated custom domain continue to
+            accept traffic at the CDN level, but only the higher-priority one is
+            used when the system generates links.
+          </p>
         </Q>
       </Section>
 
@@ -1783,6 +1839,23 @@ export const adminGuidePage = (
               <strong>Admin password</strong> &mdash; change your login password
             </li>
           </ul>
+        </Q>
+
+        <Q q="How does the header image work?">
+          <p>
+            Upload a logo or banner from <strong>Settings</strong> and it
+            appears at the top of every admin and public page. The image is
+            encrypted and served through the <code>/image/</code> proxy with
+            long-lived immutable cache headers, so browsers only download it
+            once.
+          </p>
+          <p>
+            Supported formats are JPEG, PNG, GIF, and WebP, up to 256&nbsp;KB.
+            Uploading a new image automatically deletes the old one, and the{" "}
+            <strong>Remove Image</strong> button clears it completely. If image
+            storage isn't configured the section is hidden &mdash; see{" "}
+            <strong>Advanced Settings</strong> to set up a Bunny storage zone.
+          </p>
         </Q>
 
         <Q q="What are Advanced Settings?">
@@ -1852,6 +1925,28 @@ export const adminGuidePage = (
             positive integer; overridden values are highlighted. A
             &quot;Database pruning&quot; table at the bottom shows when each
             short-lived table was last cleaned up.
+          </p>
+        </Q>
+
+        <Q q="What is the debug footer?">
+          <p>
+            The debug footer appears at the bottom of every admin page you view
+            while signed in. It reports how long the page took to render and
+            summarises the database work done for that request: the total number
+            of SQL queries, the time they consumed, and how many of them were
+            served from the in-memory query cache.
+          </p>
+          <p>
+            Click the summary line to expand it. The details panel lists every
+            SQL statement that ran to build the page (with its execution time)
+            and, where relevant, the current cache contents. The footer is only
+            injected into authenticated admin page loads &mdash; it never
+            appears on the public site, on form submissions, or on file
+            downloads such as CSV exports, and signed-out visitors never see it.
+          </p>
+          <p>
+            Use it to spot slow pages or unexpectedly large numbers of queries
+            without leaving the page you're debugging.
           </p>
         </Q>
       </Section>
@@ -2334,7 +2429,7 @@ export const adminGuidePage = (
           </p>
         </Q>
       </Section>
-      <Section title="Column Order" id="column-order">
+      <Section id="column-order" title="Column Order">
         <Q q="How do I customise which columns appear in tables?">
           <p>
             Go to <strong>Advanced Settings</strong> and find the{" "}

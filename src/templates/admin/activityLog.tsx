@@ -37,7 +37,7 @@ export const adminEventActivityLogPage = (
 ): string =>
   String(
     <Layout title={`Log: ${event.name}`}>
-      <AdminNav session={session} active="/admin/log" />
+      <AdminNav active="/admin/log" session={session} />
       <p>
         <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
         {" | "}
@@ -69,7 +69,7 @@ export const adminGlobalActivityLogPage = (
 ): string =>
   String(
     <Layout title="Log">
-      <AdminNav session={session} active="/admin/log" />
+      <AdminNav active="/admin/log" session={session} />
       <p>
         <a href="/admin/guide#activity-log">Activity log guide</a>
       </p>

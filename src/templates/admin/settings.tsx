@@ -59,8 +59,8 @@ export const adminSettingsPage = (
   s: SettingsPageState,
 ): string =>
   String(
-    <Layout title="Settings" theme={s.theme}>
-      <AdminNav session={session} active="/admin/settings" />
+    <Layout theme={s.theme} title="Settings">
+      <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       {CountryForm(s)}

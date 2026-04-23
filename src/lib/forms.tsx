@@ -29,27 +29,67 @@ export type FieldType =
   | "file";
 
 export interface Field {
-  name: string;
-  label: string;
-  type: FieldType;
-  required?: boolean;
-  placeholder?: string;
+  accept?: string;
+  autocomplete?: string;
+  autofocus?: boolean;
+  defaultValue?: string;
   hint?: string;
   hintHtml?: string;
-  min?: number;
-  max?: number;
-  minlength?: number;
+  id?: string;
   inputmode?: string;
+  label: string;
+  max?: number;
   maxlength?: number;
+  min?: number;
+  minlength?: number;
+  name: string;
+  options?: readonly { value: string; label: string }[];
+  parse?: (value: string) => string | number | null;
   pattern?: string;
+  placeholder?: string;
+  required?: boolean;
   title?: string;
-  accept?: string;
-  autofocus?: boolean;
-  autocomplete?: string;
-  defaultValue?: string;
+  type: FieldType;
   validate?: (value: string) => string | null;
-  options?: { value: string; label: string }[];
 }
+
+type FormFieldDefinition = Readonly<Field>;
+type FormFieldDefinitions = readonly FormFieldDefinition[];
+
+type ParsedFieldValue<F extends FormFieldDefinition> = F extends {
+  parse: (...args: never[]) => infer T;
+}
+  ? T
+  : F["type"] extends "number"
+    ? number | null
+    : string | null;
+
+type NormalizedFieldValue<F extends FormFieldDefinition> = F extends {
+  required: true;
+}
+  ? Exclude<ParsedFieldValue<F>, null>
+  : ParsedFieldValue<F>;
+
+export type FormValuesFor<TFields extends FormFieldDefinitions> = {
+  [F in TFields[number] as F["name"]]: NormalizedFieldValue<F>;
+};
+
+type FormFieldRenderHelper = { render: (value?: string) => string };
+
+export type FormDefinition<
+  TFields extends FormFieldDefinitions,
+  TContext = undefined,
+> = {
+  id: string;
+  fields: TFields;
+  render: (values?: Partial<FormValuesFor<TFields>>) => string;
+  renderFields: (values?: Partial<FormValuesFor<TFields>>) => string;
+  field: (name: TFields[number]["name"]) => FormFieldRenderHelper;
+  validate: (
+    form: FormParams,
+    context?: TContext,
+  ) => ValidationResult<FormValuesFor<TFields>>;
+};
 
 export interface FieldValues {
   [key: string]: string | number | null;
@@ -65,26 +105,32 @@ type FieldValidationResult =
 
 /** Render select options HTML */
 const renderSelectOptions = (
-  options: { value: string; label: string }[],
+  options: readonly { value: string; label: string }[],
   selectedValue: string,
 ): string =>
   options
     .map(
       (opt) =>
-        `<option value="${escapeHtml(opt.value)}"${opt.value === selectedValue ? " selected" : ""}>${escapeHtml(opt.label)}</option>`,
+        `<option value="${escapeHtml(opt.value)}"${
+          opt.value === selectedValue ? " selected" : ""
+        }>${escapeHtml(opt.label)}</option>`,
     )
     .join("");
 
 /** Render checkbox group HTML (multiple checkboxes with the same name) */
 const renderCheckboxGroup = (
   name: string,
-  options: { value: string; label: string }[],
+  options: readonly { value: string; label: string }[],
   selectedValues: Set<string>,
 ): string =>
   `<fieldset class="checkbox-group">${options
     .map(
       (opt) =>
-        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(opt.value)}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(opt.label)}</label>`,
+        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
+          opt.value,
+        )}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(
+          opt.label,
+        )}</label>`,
     )
     .join("")}</fieldset>`;
 
@@ -93,8 +139,16 @@ const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date" aria-label="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>` +
-  `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time" aria-label="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+  `<input type="date" name="${escapeHtml(
+    name,
+  )}_date" placeholder="Date" aria-label="Date"${
+    date ? ` value="${escapeHtml(date)}"` : ""
+  }>` +
+  `<input type="time" name="${escapeHtml(
+    name,
+  )}_time" placeholder="Time" aria-label="Time"${
+    time ? ` value="${escapeHtml(time)}"` : ""
+  }>`;
 
 const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";
@@ -121,11 +175,12 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "textarea") {
     return (
       <textarea
-        name={field.name}
-        required={field.required}
-        placeholder={field.placeholder}
-        maxlength={field.maxlength}
         autocomplete={field.autocomplete}
+        id={field.id}
+        maxlength={field.maxlength}
+        name={field.name}
+        placeholder={field.placeholder}
+        required={field.required}
       >
         <Raw html={escapeHtml(value)} />
       </textarea>
@@ -134,7 +189,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "select" && field.options) {
     return (
       <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.id ?? field.name)}">${renderSelectOptions(field.options, value)}</select>`}
       />
     );
   }
@@ -155,24 +210,25 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     );
   }
   if (field.type === "file") {
-    return <input type="file" name={field.name} accept={field.accept} />;
+    return <input accept={field.accept} name={field.name} type="file" />;
   }
   return (
     <input
-      type={field.type}
-      name={field.name}
-      value={value || undefined}
-      required={field.required}
-      placeholder={field.placeholder}
-      min={field.min}
-      max={field.max}
-      minlength={field.minlength}
-      inputmode={field.inputmode}
-      maxlength={field.maxlength}
-      pattern={field.pattern}
-      title={field.title}
-      autofocus={field.autofocus}
       autocomplete={field.autocomplete}
+      autofocus={field.autofocus}
+      id={field.id}
+      inputmode={field.inputmode}
+      max={field.max}
+      maxlength={field.maxlength}
+      min={field.min}
+      minlength={field.minlength}
+      name={field.name}
+      pattern={field.pattern}
+      placeholder={field.placeholder}
+      required={field.required}
+      title={field.title}
+      type={field.type}
+      value={value || undefined}
     />
   );
 };
@@ -219,11 +275,13 @@ const parseFieldValue = (
   field: Field,
   trimmed: string,
 ): string | number | null =>
-  field.type === "number"
-    ? trimmed
-      ? Number.parseInt(trimmed, 10)
-      : null
-    : trimmed;
+  field.parse
+    ? field.parse(trimmed)
+    : field.type === "number"
+      ? trimmed
+        ? Number.parseInt(trimmed, 10)
+        : null
+      : trimmed;
 
 /**
  * Collect the raw trimmed value for a field from the form data.
@@ -238,8 +296,9 @@ const collectFieldValue = (
     const result = getDatetimeValue(form, field.name);
     if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
     if (!result) {
-      if (field.required)
+      if (field.required) {
         return { error: `${field.label} is required`, valid: false };
+      }
       return { valid: true, value: null };
     }
     return result;
@@ -308,6 +367,71 @@ export const validateForm = <T = FieldValues>(
   }
 
   return { valid: true, values: values as T };
+};
+
+const normalizeOptionalValue = (
+  field: Field,
+  value: string | number | null,
+): string | number | null => {
+  if (field.required) return value;
+  if (field.type === "number") return value;
+  return value === "" ? null : value;
+};
+
+/**
+ * Define a typed form schema that can render and validate from one source.
+ */
+export const defineForm = <
+  TFields extends FormFieldDefinitions,
+  TContext = undefined,
+>(config: {
+  id: string;
+  fields: TFields;
+  validate?: (
+    values: FormValuesFor<TFields>,
+    context: TContext,
+  ) => string | null;
+}): FormDefinition<TFields, TContext> => {
+  const fields = [...config.fields];
+  const fieldMap = new Map(fields.map((f) => [f.name, f] as const));
+
+  const validate = (
+    form: FormParams,
+    context?: TContext,
+  ): ValidationResult<FormValuesFor<TFields>> => {
+    const base = validateForm<Record<string, string | number | null>>(
+      form,
+      fields,
+    );
+    if (!base.valid) return base;
+
+    const values = Object.fromEntries(
+      fields.map((field) => [
+        field.name,
+        normalizeOptionalValue(field, base.values[field.name] ?? null),
+      ]),
+    ) as FormValuesFor<TFields>;
+
+    if (config.validate) {
+      const error = config.validate(values, context as TContext);
+      if (error) return { error, valid: false };
+    }
+    return { valid: true, values };
+  };
+
+  const render = (values: Partial<FormValuesFor<TFields>> = {}): string =>
+    renderFields(fields, values as FieldValues);
+
+  return {
+    field: (name) => ({
+      render: (value = "") => renderField(fieldMap.get(name)!, value),
+    }),
+    fields: config.fields,
+    id: config.id,
+    render,
+    renderFields: render,
+    validate,
+  };
 };
 
 /**
@@ -429,8 +553,8 @@ export const CsrfForm = ({
   class?: string;
   enctype?: string;
 } & { [key: `data-${string}`]: string | boolean }): JSX.Element => (
-  <form method="POST" action={appendIframeParam(action)} {...rest}>
-    <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
+  <form action={appendIframeParam(action)} method="POST" {...rest}>
+    <input name="csrf_token" type="hidden" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && (
       <Flash success={_successStore.message} />
     )}
@@ -479,22 +603,22 @@ export const ConfirmForm = ({
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
     {children && <div class="prose">{children}</div>}
-    {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
+    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
     {hiddenFields &&
       Object.entries(hiddenFields).map(([fieldName, value]) => (
-        <input type="hidden" name={fieldName} value={value} />
+        <input name={fieldName} type="hidden" value={value} />
       ))}
     <label>
       {label}
       <input
-        type="text"
+        autocomplete="off"
         name="confirm_identifier"
         placeholder={name}
-        autocomplete="off"
         required
+        type="text"
       />
     </label>
-    <button type="submit" class={danger ? "danger" : undefined}>
+    <button class={danger ? "danger" : undefined} type="submit">
       {buttonText}
     </button>
   </CsrfForm>

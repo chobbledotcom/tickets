@@ -648,7 +648,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     test("nav contains guide link", async () => {
       const { response } = await adminGet("/admin/guide");
       const body = await response.text();
-      expect(body).toContain('/admin/guide" class="active">Guide</a>');
+      expect(body).toMatch(
+        /<a[^>]*\bclass="active"[^>]*\bhref="\/admin\/guide"[^>]*>\s*Guide\s*<\/a>/,
+      );
     });
   });
 });

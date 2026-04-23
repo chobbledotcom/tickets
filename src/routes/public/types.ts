@@ -8,8 +8,12 @@ import type {
   QuestionWithAnswers,
 } from "#lib/db/questions.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { isRegistrationClosed } from "#routes/utils.ts";
-import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
+import { isRegistrationClosed } from "#routes/format.ts";
+import {
+  buildTicketEvent,
+  type QrPrefill,
+  type TicketEvent,
+} from "#templates/public.tsx";
 
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {
@@ -22,6 +26,7 @@ export type TicketCtx = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
+  qrPrefill?: QrPrefill;
 };
 
 /** Possibly-async response handler */

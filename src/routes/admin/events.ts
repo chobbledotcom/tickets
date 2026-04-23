@@ -56,28 +56,25 @@ import type {
   EventWithCount,
   Group,
 } from "#lib/types.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
-  createConfirmedHandlers,
   csvResponse,
+  eventAttendeesLoader,
   getDateFilter,
-  withEventAttendeesAuth,
-} from "#routes/admin/utils.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
+} from "#routes/admin/actions.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   AUTH_FORM,
   AUTH_MULTIPART,
-  authenticatedGetById,
-  formDataToParams,
-  getSearchParam,
-  htmlResponse,
-  notFoundResponse,
-  orNotFound,
-  redirect,
   requireSessionOr,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { formDataToParams } from "#routes/csrf.ts";
+import { authenticatedGetById } from "#routes/entity.ts";
+import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   type AttendeeFilter,
@@ -101,6 +98,7 @@ import {
   slugField,
   splitCsv,
 } from "#templates/fields.ts";
+import { withEntityFromParam } from "./entity-handlers.ts";
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
@@ -295,18 +293,16 @@ const processUploadsAndRedirect = async (
 };
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
-const withEventAttendees = (
-  request: Request,
-  eventId: number,
-  handler: (ctx: {
-    event: EventWithCount;
-    attendees: Attendee[];
-    session: AdminSession;
-  }) => Response | Promise<Response>,
-): Promise<Response> =>
-  withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
-    handler({ attendees, event, session }),
-  );
+const eventAttendeesHandler =
+  (
+    _handler: (ctx: {
+      event: EventWithCount;
+      attendees: Attendee[];
+      session: AdminSession;
+    }) => Response | Promise<Response>,
+  ) =>
+  (event: EventWithCount, attendees: Attendee[], session: AdminSession) =>
+    _handler({ attendees, event, session });
 
 /**
  * Handle GET /admin/event/new (show create event form)
@@ -402,39 +398,44 @@ const renderEventPage = async (
   // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
   const [, response] = await Promise.all([
     deleteAllStaleReservations(),
-    withEventAttendees(request, id, async ({ event, attendees, session }) => {
-      const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
-        event,
-        attendees,
-        request,
-      );
-      const attendeeIds = filteredByDate.map((a) => a.id);
-      const [flash, phonePrefix, questions, attendeeAnswerMap] =
-        await Promise.all([
-          Promise.resolve(getFlash()),
-          Promise.resolve(settings.phonePrefix),
-          getQuestionsForEvent(event.id),
-          getAttendeeAnswersBatch(attendeeIds),
-        ]);
-      const questionData =
-        questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
-      return htmlResponse(
-        adminEventPage({
-          activeFilter,
-          allowedDomain: getEffectiveDomain(),
-          attendees: filteredByDate,
-          availableDates,
-          checkinMessage: getCheckinMessage(request),
-          dateFilter,
-          errorMessage: flash.error,
+    eventAttendeesLoader(
+      request,
+      id,
+    )(
+      eventAttendeesHandler(async ({ event, attendees, session }) => {
+        const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
           event,
-          phonePrefix,
-          questionData,
-          session,
-          successMessage: flash.success,
-        }),
-      );
-    }),
+          attendees,
+          request,
+        );
+        const attendeeIds = filteredByDate.map((a) => a.id);
+        const [flash, phonePrefix, questions, attendeeAnswerMap] =
+          await Promise.all([
+            Promise.resolve(getFlash()),
+            Promise.resolve(settings.phonePrefix),
+            getQuestionsForEvent(event.id),
+            getAttendeeAnswersBatch(attendeeIds),
+          ]);
+        const questionData =
+          questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+        return htmlResponse(
+          adminEventPage({
+            activeFilter,
+            allowedDomain: getEffectiveDomain(),
+            attendees: filteredByDate,
+            availableDates,
+            checkinMessage: getCheckinMessage(request),
+            dateFilter,
+            errorMessage: flash.error,
+            event,
+            phonePrefix,
+            questionData,
+            session,
+            successMessage: flash.success,
+          }),
+        );
+      }),
+    ),
   ]);
   return response;
 };
@@ -461,7 +462,7 @@ const withEventAndGroupsPage =
   ): TypedRouteHandler<"GET /admin/event/:id"> =>
   (request, params) =>
     requireSessionOr(request, (session) =>
-      orNotFound(getEventAndGroups(params.id), (ctx) =>
+      withEntityFromParam(params.id, getEventAndGroups, (ctx) =>
         htmlResponse(renderPage(ctx.event, ctx.groups, session)),
       ),
     );
@@ -477,72 +478,71 @@ const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> =
 const handleAdminEventEditPost: TypedRouteHandler<
   "POST /admin/event/:id/edit"
 > = (request, { id }) =>
-  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
-    const existing = await getEventWithCount(id);
-    if (!existing) return notFoundResponse();
+  withAuth(request, AUTH_MULTIPART, (session, formData) =>
+    withEntityFromParam(id, getEventWithCount, async (existing) => {
+      const form = formDataToParams(formData);
+      applyDemoOverrides(form, EVENT_DEMO_FIELDS);
 
-    const form = formDataToParams(formData);
-    applyDemoOverrides(form, EVENT_DEMO_FIELDS);
+      // Build a resource that includes the slug field; uniqueness is enforced
+      // by validateEventInput when existingId is set.
+      const updateResource = defineResource({
+        fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
+        nameField: "name",
+        table: eventsTable,
+        toInput: extractEventUpdateInput,
+        validate: validateEventInput,
+      });
 
-    // Build a resource that includes the slug field; uniqueness is enforced
-    // by validateEventInput when existingId is set.
-    const updateResource = defineResource({
-      fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
-      nameField: "name",
-      table: eventsTable,
-      toInput: extractEventUpdateInput,
-      validate: validateEventInput,
-    });
-
-    const result = await updateResource.update(id, form);
-    if (result.ok) {
-      // If duration changed on a daily event, reconcile existing booking ranges
-      // so stored end_at values match the event's current policy.
-      let durationWarning = "";
-      if (
-        result.row.event_type === "daily" &&
-        result.row.duration_days !== existing.duration_days
-      ) {
-        await recomputeEventBookingRanges(
-          result.row.id,
-          result.row.duration_days,
-        );
-        await logActivity(
-          `Event '${result.row.name}' duration changed to ${result.row.duration_days} day(s)`,
-          result.row,
-        );
-        const overDay = await checkGroupCapAfterDurationChange(
-          result.row.id,
-          result.row.group_id,
-        );
-        if (overDay) {
-          durationWarning = ` Warning: group capacity exceeded on ${overDay}`;
+      const result = await updateResource.update(id, form);
+      if (result.ok) {
+        // If duration changed on a daily event, reconcile existing booking ranges
+        // so stored end_at values match the event's current policy.
+        let durationWarning = "";
+        if (
+          result.row.event_type === "daily" &&
+          result.row.duration_days !== existing.duration_days
+        ) {
+          await recomputeEventBookingRanges(
+            result.row.id,
+            result.row.duration_days,
+          );
           await logActivity(
-            `Duration change caused group capacity overflow on ${overDay}`,
+            `Event '${result.row.name}' duration changed to ${result.row.duration_days} day(s)`,
             result.row,
           );
+          const overDay = await checkGroupCapAfterDurationChange(
+            result.row.id,
+            result.row.group_id,
+          );
+          if (overDay) {
+            durationWarning = ` Warning: group capacity exceeded on ${overDay}`;
+            await logActivity(
+              `Duration change caused group capacity overflow on ${overDay}`,
+              result.row,
+            );
+          }
         }
+        await logActivity(`Event '${result.row.name}' updated`, result.row);
+        return processUploadsAndRedirect(
+          formData,
+          id,
+          `/admin/event/${result.row.id}`,
+          `Event updated${durationWarning}`,
+          existing.image_url,
+          existing.attachment_url,
+        );
       }
-      await logActivity(`Event '${result.row.name}' updated`, result.row);
-      return processUploadsAndRedirect(
-        formData,
-        id,
-        `/admin/event/${result.row.id}`,
-        `Event updated${durationWarning}`,
-        existing.image_url,
-        existing.attachment_url,
-      );
-    }
-    if ("notFound" in result) return notFoundResponse();
+      if ("notFound" in result) return notFoundResponse();
 
-    const ctx = await getEventAndGroups(id);
-    return ctx
-      ? htmlResponse(
-          adminEventEditPage(ctx.event, ctx.groups, session, result.error),
-          400,
-        )
-      : notFoundResponse();
-  });
+      const ctx = await getEventAndGroups(id);
+      return ctx
+        ? htmlResponse(
+            adminEventEditPage(ctx.event, ctx.groups, session, result.error),
+            400,
+          )
+        : notFoundResponse();
+    }),
+  );
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
@@ -550,45 +550,50 @@ const handleAdminEventEditPost: TypedRouteHandler<
 const handleAdminEventExport: TypedRouteHandler<
   "GET /admin/event/:id/export"
 > = (request, { id }) =>
-  withEventAttendees(request, id, async ({ event, attendees }) => {
-    const { dateFilter, filteredByDate } = applyDateFilter(
-      event,
-      attendees,
-      request,
-    );
-    const isDaily = event.event_type === "daily";
+  eventAttendeesLoader(
+    request,
+    id,
+  )(
+    eventAttendeesHandler(async ({ event, attendees }) => {
+      const { dateFilter, filteredByDate } = applyDateFilter(
+        event,
+        attendees,
+        request,
+      );
+      const isDaily = event.event_type === "daily";
 
-    // Load questions and attendee answers for CSV
-    const attendeeIds = filteredByDate.map((a) => a.id);
-    const [questions, attendeeAnswerMap] = await Promise.all([
-      getQuestionsForEvent(event.id),
-      getAttendeeAnswersBatch(attendeeIds),
-    ]);
-    const questionData: CsvQuestionData | undefined =
-      questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+      // Load questions and attendee answers for CSV
+      const attendeeIds = filteredByDate.map((a) => a.id);
+      const [questions, attendeeAnswerMap] = await Promise.all([
+        getQuestionsForEvent(event.id),
+        getAttendeeAnswersBatch(attendeeIds),
+      ]);
+      const questionData: CsvQuestionData | undefined =
+        questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 
-    const csv = generateAttendeesCsv(
-      filteredByDate,
-      isDaily,
-      {
-        eventDate: event.date,
-        eventLocation: event.location,
-      },
-      questionData,
-      event.duration_days,
-    );
-    const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
-    const filename = dateFilter
-      ? `${sanitizedName}_${dateFilter}_attendees.csv`
-      : `${sanitizedName}_attendees.csv`;
-    await logActivity(
-      `CSV exported for '${event.name}'${
-        dateFilter ? ` (date: ${dateFilter})` : ""
-      }`,
-      event,
-    );
-    return csvResponse(csv, filename);
-  });
+      const csv = generateAttendeesCsv(
+        filteredByDate,
+        isDaily,
+        {
+          eventDate: event.date,
+          eventLocation: event.location,
+        },
+        questionData,
+        event.duration_days,
+      );
+      const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const filename = dateFilter
+        ? `${sanitizedName}_${dateFilter}_attendees.csv`
+        : `${sanitizedName}_attendees.csv`;
+      await logActivity(
+        `CSV exported for '${event.name}'${
+          dateFilter ? ` (date: ${dateFilter})` : ""
+        }`,
+        event,
+      );
+      return csvResponse(csv, filename);
+    }),
+  );
 
 /** Shared config for event confirmation handlers */
 const eventConfirmBase = {
@@ -665,7 +670,7 @@ const handleAdminEventDelete: TypedRouteHandler<
   getSearchParam(request, "verify_identifier") !== "false"
     ? eventDelete.post(request, id)
     : withAuth(request, AUTH_FORM, () =>
-        orNotFound(getEventWithCount(id), async (event) => {
+        withEntityFromParam(id, getEventWithCount, async (event) => {
           await performEventDelete(event);
           return redirect("/admin", "Event deleted", true);
         }),
@@ -680,7 +685,7 @@ const handleFileDelete =
   ): TypedRouteHandler<`POST /admin/event/:id/${string}/delete`> =>
   (request, { id }) =>
     withAuth(request, AUTH_FORM, () =>
-      orNotFound(getEventWithCount(id), async (event) => {
+      withEntityFromParam(id, getEventWithCount, async (event) => {
         const url = getUrl(event);
         if (url) {
           const [deleteResult] = await Promise.allSettled([deleteFile(url)]);

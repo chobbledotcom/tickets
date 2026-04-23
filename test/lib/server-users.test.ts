@@ -27,7 +27,6 @@ import {
   createTestInvite,
   createTestManagerSession,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
@@ -40,6 +39,7 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
   testCookie,
+  testRequiresAuth,
 } from "#test-utils";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
@@ -244,10 +244,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("GET /admin/users", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/users"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/users");
 
     test("shows users list when authenticated as owner", async () => {
       const response = await awaitTestRequest("/admin/users", {
@@ -277,7 +274,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const response = await awaitTestRequest(
         `/admin/users?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${flashCookieHeader("User deleted successfully")}`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "User deleted successfully",
+          )}`,
         },
       );
       await expectHtmlResponse(
@@ -290,10 +289,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("GET /admin/user/new", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/user/new"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/user/new");
 
     test("renders invite user form when authenticated as owner", async () => {
       const response = await awaitTestRequest("/admin/user/new", {
@@ -309,14 +305,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("POST /admin/users (invite)", () => {
-    test("redirects when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/users", {
-          admin_level: "manager",
-          username: "newuser",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/users", {
+      body: {
+        admin_level: "manager",
+        username: "newuser",
+      },
+      method: "POST",
     });
 
     test("creates invited user and shows invite link", async () => {
@@ -1066,7 +1060,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expect(setupResponse.status).toBe(200);
 
-      const { withAuth, jsonResponse } = await import("#routes/utils.ts");
+      const { withAuth } = await import("#routes/auth.ts");
+      const { jsonResponse } = await import("#routes/response.ts");
       const { runWithSessionContext } = await import("#lib/session-context.ts");
 
       const response = await runWithSessionContext(async () => {

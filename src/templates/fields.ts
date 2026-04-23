@@ -448,7 +448,9 @@ export const eventFields: Field[] = [
   {
     defaultValue: "100.00",
     get hint() {
-      return `The maximum price attendees can pay. Must be at least ${formatCurrency(100)} more than the ticket price.`;
+      return `The maximum price attendees can pay. Must be at least ${formatCurrency(
+        100,
+      )} more than the ticket price.`;
     },
     inputmode: "decimal",
     label: "Maximum Price (for pay more)",
@@ -504,8 +506,9 @@ export const eventFields: Field[] = [
 
 /** Validate date format (YYYY-MM-DD) */
 export const validateDate = (value: string): string | null => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return "Please enter a valid date (YYYY-MM-DD)";
+  }
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return "Please enter a valid date";
   return null;
@@ -596,7 +599,9 @@ export const assignBuiltSiteField: Field = {
 /** Image upload field for event forms (appended when storage is enabled) */
 export const imageField: Field = {
   accept: "image/jpeg,image/png,image/gif,image/webp",
-  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(MAX_IMAGE_SIZE)})`,
+  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(
+    MAX_IMAGE_SIZE,
+  )})`,
   name: "image",
   type: "file",
 };

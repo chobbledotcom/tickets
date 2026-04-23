@@ -32,11 +32,15 @@ const ticketCount = (count: number): string =>
 
 /** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderAppleWalletLink = (token: string): string =>
-  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Apple Wallet</a>`;
+  `<a href="/wallet/${escapeHtml(
+    token,
+  )}.pkpass" class="wallet-link">Apple Wallet</a>`;
 
 /** Render a "Google Wallet" link for a token */
 const renderGoogleWalletLink = (token: string): string =>
-  `<a href="/gwallet/${escapeHtml(token)}" class="wallet-link">Google Wallet</a>`;
+  `<a href="/gwallet/${escapeHtml(
+    token,
+  )}" class="wallet-link">Google Wallet</a>`;
 
 /** Render a single ticket card */
 const renderTicketCard = (
@@ -48,7 +52,9 @@ const renderTicketCard = (
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
-    ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date))}</div>`
+    ? `<div class="ticket-card-date">${escapeHtml(
+        formatDatetimeLabel(event.date),
+      )}</div>`
     : "";
 
   const locationHtml = event.location
@@ -56,7 +62,9 @@ const renderTicketCard = (
     : "";
 
   const descriptionHtml = event.description
-    ? `<div class="ticket-card-description">${renderMarkdown(event.description)}</div>`
+    ? `<div class="ticket-card-description">${renderMarkdown(
+        event.description,
+      )}</div>`
     : "";
 
   const bookingDurationDays =
@@ -76,7 +84,9 @@ const renderTicketCard = (
   const pricePaid = Number(attendee.price_paid);
   const priceHtml =
     pricePaid > 0
-      ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
+      ? `<div class="ticket-card-price">Price: ${escapeHtml(
+          formatCurrency(pricePaid),
+        )}</div>`
       : "";
 
   const nonTransferableHtml =
@@ -97,7 +107,11 @@ const renderTicketCard = (
     : "";
 
   const attachmentHtml = attachmentUrl
-    ? `<a href="${escapeHtml(attachmentUrl)}" class="attachment-link">Download: ${escapeHtml(event.attachment_name)}</a>`
+    ? `<a href="${escapeHtml(
+        attachmentUrl,
+      )}" class="attachment-link">Download: ${escapeHtml(
+        event.attachment_name,
+      )}</a>`
     : "";
 
   return `
@@ -115,7 +129,9 @@ const renderTicketCard = (
       ${
         event.purchase_only
           ? ""
-          : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(token)}/svg" alt="QR code" /></div>
+          : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
+              token,
+            )}/svg" alt="QR code" /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>`
       }
       ${walletHtml}

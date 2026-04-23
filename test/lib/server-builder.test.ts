@@ -5,20 +5,18 @@ import { builderApi } from "#lib/builder.ts";
 import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { getAllBuiltSites } from "#lib/db/built-sites.ts";
 import { settings } from "#lib/db/settings.ts";
-import { handleRequest } from "#routes";
 import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  mockRequest,
   setTestEnv,
   testCookie,
+  testRequiresAuth,
   withMocks,
 } from "#test-utils";
 
@@ -96,10 +94,7 @@ describeWithEnv(
       }
     });
 
-    test("GET /admin/builder redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/builder"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/builder");
 
     test("GET /admin/builder shows builder page when authenticated", async () => {
       const response = await awaitTestRequest("/admin/builder", {

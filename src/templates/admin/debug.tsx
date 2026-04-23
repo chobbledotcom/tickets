@@ -267,8 +267,9 @@ const StorageBackendBadge = ({
   backend: DebugPageState["bunny"]["storageBackend"];
 }): JSX.Element => {
   if (backend === "bunny") return <span class="badge-ok">Bunny CDN</span>;
-  if (backend === "local")
+  if (backend === "local") {
     return <span class="badge-ok">Local filesystem</span>;
+  }
   return <span class="badge-missing">Not configured</span>;
 };
 
@@ -439,8 +440,8 @@ export const adminDebugPage = (
   s: DebugPageState,
 ): string =>
   String(
-    <Layout title="Debug Info" theme={s.theme}>
-      <AdminNav session={session} active="/admin/settings" />
+    <Layout theme={s.theme} title="Debug Info">
+      <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       <h1>Debug Info</h1>

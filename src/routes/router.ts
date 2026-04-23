@@ -159,7 +159,7 @@ const compileRoutes = (
       compiled.set(method, methodRoutes);
       return compiled;
     },
-    new Map<string, CompiledRoute[]>(),
+    new Map(),
   )(sortedEntries);
 };
 
@@ -246,8 +246,7 @@ export function defineRoutes<T extends string>(
 // Implementation accepts any function-valued record; the overload signature
 // above enforces type safety at call sites.
 export function defineRoutes(
-  // deno-lint-ignore ban-types
-  routes: Record<string, Function>,
+  routes: Record<string, (...args: never) => unknown>,
 ): Record<string, RouteHandlerFn> {
   return routes as Record<string, RouteHandlerFn>;
 }

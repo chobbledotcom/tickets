@@ -21,6 +21,7 @@ import { bulkActionsRoutes } from "#routes/admin/bulk-actions.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
+import { eventQrRoutes } from "#routes/admin/event-qr.ts";
 import { eventsRoutes } from "#routes/admin/events.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
@@ -33,8 +34,8 @@ import { settingsRoutes } from "#routes/admin/settings.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
+import { getAuthenticatedSession } from "#routes/auth.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
-import { getAuthenticatedSession } from "#routes/utils.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
@@ -47,6 +48,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   sessionsRoutes,
   calendarRoutes,
   eventsRoutes,
+  eventQrRoutes,
   attendeesRoutes,
   attendeeRefundRoutes,
   usersRoutes,

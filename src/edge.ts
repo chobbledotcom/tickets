@@ -14,7 +14,7 @@ import {
   logError,
 } from "#lib/logger.ts";
 import { handleRequest } from "#routes";
-import { temporaryErrorResponse } from "#routes/utils.ts";
+import { temporaryErrorResponse } from "#routes/response.ts";
 
 const initialize = once(async (): Promise<void> => {
   validateEncryptionKey();
@@ -30,7 +30,11 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     logError({
       code: ErrorCode.CDN_REQUEST,
-      detail: `unhandled ${formatRequestError(request.method, url.pathname, error)}`,
+      detail: `unhandled ${formatRequestError(
+        request.method,
+        url.pathname,
+        error,
+      )}`,
     });
     return temporaryErrorResponse();
   }

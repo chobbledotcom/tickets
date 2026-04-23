@@ -162,7 +162,7 @@ const buildAnswerTextMap = (
     reduce((m: Map<number, string>, a: Answer) => {
       m.set(a.id, a.text);
       return m;
-    }, new Map<number, string>()),
+    }, new Map()),
   )(questions);
 
 /** Build answer question map (answer ID → question text) */
@@ -208,9 +208,9 @@ const CheckinButton = ({
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
       class="inline"
     >
-      <input type="hidden" name="return_filter" value={activeFilter} />
-      {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
-      <button type="submit" class={buttonClass}>
+      <input name="return_filter" type="hidden" value={activeFilter} />
+      {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
+      <button class={buttonClass} type="submit">
         {label}
       </button>
     </CsrfForm>,
@@ -246,8 +246,8 @@ const createActionsRenderer =
       <>
         {isRefundable(row) && (
           <a
-            href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
             class="danger"
+            href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
           >
             Refund
           </a>
@@ -255,8 +255,8 @@ const createActionsRenderer =
         {isRefundable(row) && " "}
         <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
         <a
-          href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
           class="danger"
+          href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
         >
           Delete
         </a>{" "}
@@ -280,7 +280,14 @@ const AttendeeRow = (
   colOpts: AttendeeColumnOpts,
   filters: Map<string, string>,
 ): string =>
-  `<tr>${renderCells(row, visibleColumns, ATTENDEE_TABLE_COLUMNS, colOpts, filters, escapeHtml)}</tr>`;
+  `<tr>${renderCells(
+    row,
+    visibleColumns,
+    ATTENDEE_TABLE_COLUMNS,
+    colOpts,
+    filters,
+    escapeHtml,
+  )}</tr>`;
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -322,7 +329,9 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           ),
           joinStrings,
         )(orderedRows)
-      : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
+      : `<tr><td colspan="${colCount}">${
+          opts.emptyMessage ?? "No attendees yet"
+        }</td></tr>`;
 
   const headers = pipe(
     map((key: string) => {

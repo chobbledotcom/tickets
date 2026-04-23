@@ -6,11 +6,11 @@
  */
 
 import { createClient } from "@libsql/client";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env";
 
 interface Timing {
-  name: string;
   duration: number;
+  name: string;
 }
 
 const timings: Timing[] = [];
@@ -172,7 +172,9 @@ const main = async () => {
     sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
   log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
   log(
-    `  ✅ ${(sessionDuration1 / avgSession).toFixed(0)}x faster with caching!\n`,
+    `  ✅ ${(sessionDuration1 / avgSession).toFixed(
+      0,
+    )}x faster with caching!\n`,
   );
 
   // Network latency reality check

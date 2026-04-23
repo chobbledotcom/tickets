@@ -21,9 +21,10 @@ import type { InValue } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import type { Table } from "#lib/db/table.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { verifyIdentifierOrJsonError } from "#routes/admin/utils.ts";
+import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
+import { ADMIN_API, withAuth } from "#routes/auth.ts";
+import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { ADMIN_API, jsonResponse, withAuth } from "#routes/utils.ts";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };
@@ -64,8 +65,9 @@ export const parseAndValidate = async <Input>(
   id?: number,
 ): Promise<ValidatedInput<Input>> => {
   const result = await parsed;
-  if (!result.ok)
+  if (!result.ok) {
     return { ok: false, response: apiErrorResponse(result.error) };
+  }
   if (validate) {
     const error = await validate(result.input, id);
     if (error) return { ok: false, response: apiErrorResponse(error) };
@@ -104,14 +106,28 @@ export const parseUpdateName = (
 
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
-  /** Resource name (lowercase plural, used in routes and log messages) */
-  name: string;
-  /** Singular display name for activity log (e.g. "Holiday") */
-  singular: string;
-  /** Table with CRUD operations */
-  table: Table<Row, Input>;
+  /** Extra route entries to merge in (can also override generated routes) */
+  extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
   getAll: () => Promise<FullRow[]>;
+  /** When true, activity log entries for create/update are linked to the row's id as event_id */
+  linkActivityToRow?: boolean;
+  /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
+  listExtras?: (session: AdminSession) => Record<string, unknown>;
+  /** Custom single-row lookup (e.g. to include joined counts). Defaults to table.findById. */
+  lookup?: (id: number) => Promise<FullRow | null>;
+  /** Resource name (lowercase plural, used in routes and log messages) */
+  name: string;
+  /** Field on Row that holds the display name (for delete confirmation) */
+  nameField: keyof FullRow & string;
+  /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
+  onDelete?: (id: InValue) => Promise<void>;
+  /** Singular display name for activity log (e.g. "Holiday") */
+  singular: string;
+  /** Keys to strip from response (e.g. "slug_index") */
+  stripKeys?: string[];
+  /** Table with CRUD operations */
+  table: Table<Row, Input>;
   /** Convert JSON body to Input for create */
   toCreateInput: (
     body: Record<string, unknown>,
@@ -123,20 +139,6 @@ export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
   ) => ParseResult<Input> | Promise<ParseResult<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
-  /** Field on Row that holds the display name (for delete confirmation) */
-  nameField: keyof FullRow & string;
-  /** Keys to strip from response (e.g. "slug_index") */
-  stripKeys?: string[];
-  /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
-  onDelete?: (id: InValue) => Promise<void>;
-  /** Custom single-row lookup (e.g. to include joined counts). Defaults to table.findById. */
-  lookup?: (id: number) => Promise<FullRow | null>;
-  /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
-  listExtras?: (session: AdminSession) => Record<string, unknown>;
-  /** When true, activity log entries for create/update are linked to the row's id as event_id */
-  linkActivityToRow?: boolean;
-  /** Extra route entries to merge in (can also override generated routes) */
-  extraRoutes?: Record<string, RouteHandlerFn>;
 }
 
 /** Callback receiving an entity row plus auth context */

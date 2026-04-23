@@ -20,7 +20,7 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#lib/db/migrations.ts";
-import { getEnv } from "#lib/env.ts";
+import { requireEnv } from "#lib/env.ts";
 import { uploadRaw } from "#lib/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ export const splitStatements = (sql: string): string[] => {
 
 /** Check if DB_URL points to a remote database */
 export const isRemoteDatabase = (): boolean => {
-  const url = getEnv("DB_URL") ?? "";
+  const url = requireEnv("DB_URL");
   return url.startsWith("libsql://") || url.startsWith("https://");
 };
 
@@ -92,7 +92,7 @@ export const isRemoteDatabase = (): boolean => {
  * Falls back to "local" for non-remote or unparseable URLs.
  */
 export const dbName = (): string => {
-  const url = getEnv("DB_URL") ?? "";
+  const url = requireEnv("DB_URL");
   let host: string;
   try {
     host = new URL(url).hostname;

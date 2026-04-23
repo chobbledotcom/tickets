@@ -2,23 +2,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#lib/db/settings.ts";
 import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
-import { handleRequest } from "#routes";
 import {
   adminGet,
   assertAdminHtml,
   describeWithEnv,
-  expectAdminRedirect,
   expectHtmlResponse,
-  mockRequest,
   setTestEnv,
+  testRequiresAuth,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
   describe("GET /admin/guide", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/guide"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/guide");
 
     test("renders guide page when authenticated", async () => {
       const { response } = await adminGet("/admin/guide");
@@ -382,6 +377,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Host Subdomain",
         "permanent and cannot be changed",
         "host subdomain and custom domain",
+      );
+    });
+
+    test("explains the canonical-domain priority order for generated links", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Which domain is used for ticket links and emails?",
+        "CNAME has been validated",
+        "host subdomain",
       );
     });
 

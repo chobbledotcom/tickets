@@ -2,6 +2,7 @@
  * Admin attendee edit routes (edit page, refresh payment)
  */
 
+/* jscpd:ignore-start */
 import { compact, filter, map, uniqueBy } from "#fp";
 import { getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -15,32 +16,26 @@ import {
 import { queryAll, queryOne } from "#lib/db/client.ts";
 import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
 import {
   getAttendeeAnswersBatch,
   getQuestionsForEvent,
+  type QuestionWithAnswers,
   saveAttendeeAnswers,
 } from "#lib/db/questions.ts";
-/* jscpd:ignore-start — these two imports also appear in ticket-submit.ts */
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { FormParams } from "#lib/form-data.ts";
-/* jscpd:ignore-end */
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey } from "#routes/admin/utils.ts";
-import {
-  AUTH_FORM,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  orNotFound,
-  redirect,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
+import type { AuthSession } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import type { AttendeeRouteParams } from "#routes/entity.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
 import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
+
+/* jscpd:ignore-end */
 
 /** Get all events (active + the current event), uniquified */
 const getEventsForSelector = async (
@@ -135,53 +130,31 @@ type EditAttendeeData = NonNullable<
   Awaited<ReturnType<typeof loadAttendeeForEdit>>
 >;
 
-/** Load attendee for edit, returning 404 if not found */
-const withEditAttendee = (
-  session: AuthSession,
-  attendeeId: number,
-  handler: (data: EditAttendeeData) => Response | Promise<Response>,
-): Promise<Response> =>
-  orNotFound(loadAttendeeForEdit(session, attendeeId), handler);
-
-/** Handle GET /admin/attendees/:attendeeId */
-export const handleEditAttendeeGet = (
-  request: Request,
-  { attendeeId }: { attendeeId: number },
-): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    withEditAttendee(session, attendeeId, (data) => {
-      const flash = applyFlash(request);
-      return htmlResponse(
-        adminEditAttendeePage(
-          data,
-          session,
-          getReturnUrl(request),
-          flash.success,
-          flash.error,
-        ),
-      );
-    }),
-  );
-
-/** Create a POST handler for /admin/attendees/:attendeeId/* routes */
-const editAttendeePost =
-  (
-    handler: (
-      session: AuthSession,
-      form: FormParams,
-      data: EditAttendeeData,
-      attendeeId: number,
-    ) => Response | Promise<Response>,
-  ) =>
-  (
-    request: Request,
-    { attendeeId }: { attendeeId: number },
-  ): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (session, form) =>
-      withEditAttendee(session, attendeeId, (data) =>
-        handler(session, form, data, attendeeId),
+/** Curried: load edit attendee data then render with flash */
+const editAttendeePage =
+  (request: Request, session: AuthSession) =>
+  (data: EditAttendeeData): Response => {
+    const flash = applyFlash(request);
+    return htmlResponse(
+      adminEditAttendeePage(
+        data,
+        session,
+        getReturnUrl(request),
+        flash.success,
+        flash.error,
       ),
     );
+  };
+
+const handlers = createEntityRouteHandlers(
+  loadAttendeeForEdit,
+  ({ attendeeId }: AttendeeRouteParams) => attendeeId,
+);
+
+/** Handle GET /admin/attendees/:attendeeId */
+export const handleEditAttendeeGet = handlers.get((request, session, data) =>
+  editAttendeePage(request, session)(data),
+);
 
 /** Handle POST /admin/attendees/:attendeeId */
 async function editAttendeeHandler(
@@ -238,7 +211,9 @@ async function editAttendeeHandler(
     { form },
   );
 }
-export const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
+export const handleEditAttendeePost = handlers.post((session, form, data) =>
+  editAttendeeHandler(session, form, data, data.attendee.id),
+);
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 async function refreshPaymentHandler(
@@ -280,4 +255,6 @@ async function refreshPaymentHandler(
     true,
   );
 }
-export const handleRefreshPayment = editAttendeePost(refreshPaymentHandler);
+export const handleRefreshPayment = handlers.post((session, form, data) =>
+  refreshPaymentHandler(session, form, data, data.attendee.id),
+);

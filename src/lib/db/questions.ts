@@ -30,23 +30,23 @@ export interface Question {
 export interface Answer {
   id: number;
   question_id: number;
-  text: string; // encrypted
   sort_order: number;
+  text: string; // encrypted
 }
 
 /** Link between event and question (ordering by sort_order) */
 export interface EventQuestion {
-  id: number;
   event_id: number;
+  id: number;
   question_id: number;
   sort_order: number;
 }
 
 /** Link between attendee and selected answer */
 export interface AttendeeAnswer {
-  id: number;
-  attendee_id: number;
   answer_id: number;
+  attendee_id: number;
+  id: number;
 }
 
 /** Question with its answer options (decrypted) */
@@ -242,8 +242,9 @@ export const getQuestionsWithEventIds = async (
   questions: QuestionWithAnswers[];
   questionEventMap: QuestionEventMap;
 }> => {
-  if (eventIds.length === 0)
+  if (eventIds.length === 0) {
     return { questionEventMap: new Map(), questions: [] };
+  }
 
   const ph = inPlaceholders(eventIds);
   const rows = await queryAll<JoinedRowWithEvents>(
@@ -375,7 +376,7 @@ export const getAttendeeAnswersBatch = async (
       acc.set(attendee_id, list);
       return acc;
     },
-    new Map<number, number[]>(),
+    new Map(),
   )(rows);
 };
 
@@ -488,7 +489,7 @@ export const getAnswerCountsForQuestion = async (
       acc.set(answer_id, cnt);
       return acc;
     },
-    new Map<number, number>(),
+    new Map(),
   )(rows);
 };
 

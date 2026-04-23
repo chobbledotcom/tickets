@@ -48,8 +48,8 @@ export const checkinAdminPage = (
       <CsrfForm action={checkinPath}>
         <h1>Check-in</h1>
         <Flash success={message} />
-        <input type="hidden" name="check_in" value={nextValue} />
-        <button type="submit" class={buttonClass}>
+        <input name="check_in" type="hidden" value={nextValue} />
+        <button class={buttonClass} type="submit">
           {buttonLabel}
         </button>
       </CsrfForm>

@@ -44,7 +44,7 @@ export const adminGroupsPage = (
 ): string =>
   String(
     <Layout title="Groups">
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <Flash success={successMessage} />
       {!isReadOnly() && (
         <p>
@@ -118,7 +118,7 @@ export const adminGroupNewPage = (
 ): string =>
   String(
     <Layout title="Add Group">
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <CsrfForm action="/admin/groups">
         <h1>Add Group</h1>
         <Flash error={error} />
@@ -138,7 +138,7 @@ export const adminGroupEditPage = (
 ): string =>
   String(
     <Layout title="Edit Group">
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
         <h1>Edit Group</h1>
         <Flash error={error} />
@@ -158,13 +158,13 @@ export const adminGroupDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Group">
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <ConfirmForm
         action={`/admin/groups/${group.id}/delete`}
-        name={group.name}
-        label="Group name"
         buttonText="Delete Group"
         danger={false}
+        label="Group name"
+        name={group.name}
       >
         <h1>Delete Group</h1>
         <Flash error={error} />
@@ -258,7 +258,7 @@ export const adminGroupDetailPage = (
 
   return String(
     <Layout title={group.name}>
-      <AdminNav session={session} active="/admin/groups" />
+      <AdminNav active="/admin/groups" session={session} />
       <Flash success={successMessage} />
       <nav>
         <ul>
@@ -275,7 +275,7 @@ export const adminGroupDetailPage = (
             </>
           )}
           <li>
-            <a href={`/admin/groups/${group.id}/delete`} class="danger">
+            <a class="danger" href={`/admin/groups/${group.id}/delete`}>
               Delete Group
             </a>
           </li>
@@ -292,9 +292,9 @@ export const adminGroupDetailPage = (
               <tr>
                 <th>Public URL</th>
                 <td>
-                  <a
-                    href={ticketUrl}
-                  >{`${allowedDomain}/ticket/${group.slug}`}</a>
+                  <a href={ticketUrl}>
+                    {`${allowedDomain}/ticket/${group.slug}`}
+                  </a>
                   <small>
                     {" "}
                     (<a href={`/ticket/${group.slug}/qr`}>QR Code</a>)
@@ -307,11 +307,11 @@ export const adminGroupDetailPage = (
                 </th>
                 <td>
                   <input
-                    type="text"
-                    id={`embed-script-${group.id}`}
-                    value={embedScriptCode}
-                    readonly
                     data-select-on-click
+                    id={`embed-script-${group.id}`}
+                    readonly
+                    type="text"
+                    value={embedScriptCode}
                   />
                 </td>
               </tr>
@@ -321,11 +321,11 @@ export const adminGroupDetailPage = (
                 </th>
                 <td>
                   <input
-                    type="text"
-                    id={`embed-iframe-${group.id}`}
-                    value={embedIframeCode}
-                    readonly
                     data-select-on-click
+                    id={`embed-iframe-${group.id}`}
+                    readonly
+                    type="text"
+                    value={embedIframeCode}
                   />
                 </td>
               </tr>
@@ -369,7 +369,7 @@ export const adminGroupDetailPage = (
           <CsrfForm action={`/admin/groups/${group.id}/add-events`}>
             {ungroupedEvents.map((e) => (
               <label>
-                <input type="checkbox" name="event_ids" value={String(e.id)} />
+                <input name="event_ids" type="checkbox" value={String(e.id)} />
                 {` ${e.name}`}
               </label>
             ))}

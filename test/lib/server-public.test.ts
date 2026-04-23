@@ -13,7 +13,7 @@ import { settings } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
-import { formatCreationError } from "#routes/utils.ts";
+import { formatCreationError } from "#routes/format.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,
@@ -29,8 +29,9 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
+  extractInputValue,
   getTicketCsrfToken,
-  matchGroup,
+  hasCheckedInput,
   mockFormRequest,
   mockRequest,
   setTestEnv,
@@ -904,7 +905,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
       const html = await response.text();
       // Signed tokens start with s1.
-      expect(html).toMatch(/name="csrf_token" value="s1\./);
+      expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
     });
 
     test("POST succeeds with signed token and no cookie", async () => {
@@ -914,7 +915,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await getResponse.text();
-      const signedToken = matchGroup(html, /name="csrf_token" value="([^"]+)"/);
+      const signedToken = extractInputValue(html, "csrf_token") ?? "";
       expect(signedToken.startsWith("s1.")).toBe(true);
 
       // POST without any cookie - signed tokens are the only CSRF mechanism
@@ -1621,7 +1622,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
       );
       const html = await response.text();
-      expect(html).toMatch(/name="csrf_token" value="s1\./);
+      expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
     });
 
     test("ticket POST succeeds with signed token and no cookie", async () => {
@@ -1633,7 +1634,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         mockRequest(`${path}?iframe=true`),
       );
       const html = await getResponse.text();
-      const signedToken = matchGroup(html, /name="csrf_token" value="([^"]+)"/);
+      const signedToken = extractInputValue(html, "csrf_token") ?? "";
 
       const response = await handleRequest(
         mockFormRequest(`${path}?iframe=true`, {
@@ -4141,7 +4142,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      expect(html).toContain('name="can_pay_more" value="1" checked');
+      expect(hasCheckedInput(html, "can_pay_more", "1")).toBe(true);
     });
 
     test("admin edit page shows can_pay_more unchecked for disabled event", async () => {
@@ -4154,7 +4155,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more"');
-      expect(html).not.toContain('name="can_pay_more" value="1" checked');
+      expect(hasCheckedInput(html, "can_pay_more", "1")).toBe(false);
     });
 
     test("POST respects custom max_price", async () => {

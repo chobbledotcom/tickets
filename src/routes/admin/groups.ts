@@ -28,17 +28,11 @@ import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
+import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { loadQuestionData, requirePrivateKey } from "#routes/admin/utils.ts";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  AUTH_FORM,
-  htmlResponse,
-  orNotFound,
-  redirect,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -52,6 +46,7 @@ import {
   groupCreateFields,
   groupFields,
 } from "#templates/fields.ts";
+import { withEntityLoader } from "./entity-handlers.ts";
 
 /** Generate a unique group slug, retrying on collision */
 export const generateUniqueGroupSlug = () =>
@@ -145,10 +140,7 @@ const crud = createCrudHandlers({
 });
 
 /** Look up group by id, return 404 if not found */
-export const withGroup = (
-  id: number,
-  handler: (group: Group) => Response | Promise<Response>,
-): Promise<Response> => orNotFound(groupsTable.findById(id), handler);
+export const withGroup = withEntityLoader(groupsTable.findById);
 
 /**
  * POST handler factory: CSRF-validated form + loaded group.
@@ -161,7 +153,7 @@ export const groupFormPost =
   ): TypedRouteHandler<"POST /admin/groups/:id"> =>
   (request, { id }) =>
     withAuth(request, AUTH_FORM, (_session, form) =>
-      withGroup(id, (group) => handler(group, form)),
+      withGroup(id)((group) => handler(group, form)),
     );
 
 /** Handle GET /admin/groups/:id - group detail page */
@@ -170,7 +162,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
   { id },
 ) =>
   requireSessionOr(request, (session) =>
-    withGroup(id, async (group) => {
+    withGroup(id)(async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
         getEventsByGroupId(id),
         getUngroupedEvents(),
@@ -198,7 +190,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       const successMessage = getFlash().success;
       const questionData = await loadQuestionData(
         eventIds,
-        attendees.map((a: Attendee) => a.id),
+        attendees.map((a) => a.id),
       );
 
       return htmlResponse(

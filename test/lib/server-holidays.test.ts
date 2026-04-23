@@ -10,7 +10,6 @@ import {
   createTestHoliday,
   deleteTestHoliday,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -22,15 +21,13 @@ import {
   testCookie,
   testCsrfToken,
   testHoliday,
+  testRequiresAuth,
   updateTestHoliday,
 } from "#test-utils";
 
 describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("GET /admin/holidays", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/holidays"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/holidays");
 
     test("returns 403 for non-owner", async () => {
       // Create a manager user and login
@@ -133,10 +130,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   });
 
   describe("GET /admin/holidays/new", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/holidays/new"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/holidays/new");
 
     test("shows create holiday form", async () => {
       const { response } = await adminGet("/admin/holidays/new");
@@ -152,15 +146,13 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   });
 
   describe("POST /admin/holidays", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/holidays", {
-          end_date: "2026-12-25",
-          name: "Test",
-          start_date: "2026-12-25",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/holidays", {
+      body: {
+        end_date: "2026-12-25",
+        name: "Test",
+        start_date: "2026-12-25",
+      },
+      method: "POST",
     });
 
     test("creates holiday and redirects", async () => {
@@ -253,12 +245,10 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   });
 
   describe("GET /admin/holidays/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      const holiday = await createTestHoliday();
-      const response = await handleRequest(
-        mockRequest(`/admin/holidays/${holiday.id}/edit`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/holidays/1/edit", {
+      setup: async () => {
+        await createTestHoliday();
+      },
     });
 
     test("shows edit form with pre-filled values", async () => {
@@ -285,16 +275,16 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   });
 
   describe("POST /admin/holidays/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      const holiday = await createTestHoliday();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/holidays/${holiday.id}/edit`, {
-          end_date: "2026-12-25",
-          name: "Updated",
-          start_date: "2026-12-25",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/holidays/1/edit", {
+      body: {
+        end_date: "2026-12-25",
+        name: "Updated",
+        start_date: "2026-12-25",
+      },
+      method: "POST",
+      setup: async () => {
+        await createTestHoliday();
+      },
     });
 
     test("updates holiday", async () => {
@@ -353,12 +343,10 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   });
 
   describe("GET /admin/holidays/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const holiday = await createTestHoliday();
-      const response = await handleRequest(
-        mockRequest(`/admin/holidays/${holiday.id}/delete`),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/holidays/1/delete", {
+      setup: async () => {
+        await createTestHoliday();
+      },
     });
 
     test("shows delete confirmation page", async () => {
@@ -382,14 +370,14 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   });
 
   describe("POST /admin/holidays/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const holiday = await createTestHoliday();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/holidays/${holiday.id}/delete`, {
-          confirm_identifier: "Test Holiday",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/holidays/1/delete", {
+      body: {
+        confirm_identifier: "Test Holiday",
+      },
+      method: "POST",
+      setup: async () => {
+        await createTestHoliday();
+      },
     });
 
     test("deletes holiday with correct name confirmation", async () => {

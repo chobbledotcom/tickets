@@ -7,13 +7,13 @@ import { map, pipe } from "#fp";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { settings } from "#lib/db/settings.ts";
 import { type EventWithCount, loadSortedEvents } from "#lib/sort-events.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
 import {
   icsResponse,
-  isRegistrationClosed,
   redirectResponse,
   rssResponse,
-} from "#routes/utils.ts";
+} from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -72,8 +72,9 @@ const buildVEvent = (
     `SUMMARY:${escapeIcs(event.name)}`,
     `URL:https://${domain}/ticket/${event.slug}`,
   ];
-  if (event.description)
+  if (event.description) {
     lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
+  }
   if (event.date) lines.push(`DTSTART:${formatIcsDate(event.date)}`);
   if (event.location) lines.push(`LOCATION:${escapeIcs(event.location)}`);
   lines.push("END:VEVENT");

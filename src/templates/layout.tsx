@@ -22,11 +22,11 @@ export const escapeHtml = (str: string): string =>
     .replace(/"/g, "&quot;");
 
 interface LayoutProps {
-  title: string;
   bodyClass?: string;
-  headExtra?: string;
   children?: Child;
+  headExtra?: string;
   theme?: Theme;
+  title: string;
 }
 
 /**
@@ -45,28 +45,28 @@ export const Layout = ({
   return new SafeHtml(
     "<!DOCTYPE html>" +
     (
-      <html lang="en" data-theme={resolvedTheme}>
+      <html data-theme={resolvedTheme} lang="en">
         <head>
           <meta charset="UTF-8" />
           <meta
-            name="viewport"
             content="width=device-width, initial-scale=1.0"
+            name="viewport"
           />
           <title>{title}</title>
-          <link rel="stylesheet" href={CSS_PATH} />
+          <link href={CSS_PATH} rel="stylesheet" />
           {headExtra && <Raw html={headExtra} />}
         </head>
         <body class={bodyClass || undefined}>
-          <a href="#main-content" class="skip-nav">
+          <a class="skip-nav" href="#main-content">
             Skip to content
           </a>
           {isDemoMode() && <Raw html={DEMO_BANNER} />}
           <main id="main-content" tabindex="-1">
             {headerImage && (
               <img
-                src={getImageProxyUrl(headerImage)}
                 alt=""
                 class="header-image"
+                src={getImageProxyUrl(headerImage)}
               />
             )}
             {children}
@@ -74,7 +74,7 @@ export const Layout = ({
           {bodyClass?.includes("iframe") && (
             <script src={IFRAME_RESIZER_CHILD_JS_PATH}></script>
           )}
-          <script src={JS_PATH} defer></script>
+          <script defer src={JS_PATH}></script>
           <Raw html={renderDebugFooter()} />
         </body>
       </html>

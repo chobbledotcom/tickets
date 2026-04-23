@@ -26,14 +26,10 @@ import {
   csvResponse,
   getDateFilter,
   loadQuestionData,
-} from "#routes/admin/utils.ts";
+} from "#routes/admin/actions.ts";
+import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  getPrivateKey,
-  htmlResponse,
-  redirect,
-  requireSessionOr,
-} from "#routes/utils.ts";
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,
@@ -53,7 +49,7 @@ const buildStandardEventDateMap = (
       acc.set(calDate, ids);
     }
     return acc;
-  }, new Map<string, number[]>())(events);
+  }, new Map())(events);
 
 /** Compile all possible dates from events (available + existing attendee dates + standard event dates) */
 const compileDateOptions = (
@@ -109,7 +105,7 @@ const buildCalendarAttendees = (
       acc.set(e.id, e);
       return acc;
     },
-    new Map<number, EventWithCount>(),
+    new Map(),
   )(events);
 
   return map((a: Attendee): CalendarAttendeeRow => {
@@ -243,8 +239,9 @@ const handleAdminCalendarGet = (request: Request) =>
  */
 const handleAdminCalendarExport = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    if (!dateFilter)
+    if (!dateFilter) {
       return redirect("/admin/calendar", "Select a date to export", false);
+    }
 
     const privateKey = (await getPrivateKey(session))!;
     const [dailyEvents, rawDailyAttendees, standardCtx] = await Promise.all([

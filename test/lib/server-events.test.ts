@@ -10,7 +10,8 @@ import { nowMs } from "#lib/now.ts";
 import { runWithStorageConfig } from "#lib/storage.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
-import { formatCountdown, withCookie } from "#routes/utils.ts";
+import { formatCountdown } from "#routes/format.ts";
+import { withCookie } from "#routes/response.ts";
 import {
   adminFormPost,
   adminGet,
@@ -23,7 +24,6 @@ import {
   createTestManagerSession,
   deactivateTestEvent,
   describeWithEnv,
-  expectAdminRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -31,12 +31,12 @@ import {
   followRedirectWithFlash,
   mockFormRequest,
   mockMultipartRequest,
-  mockRequest,
   setTestEnv,
   setupEventAndLogin,
   submitTicketForm,
   testCookie,
   testCsrfToken,
+  testRequiresAuth,
   updateTestEvent,
 } from "#test-utils";
 
@@ -46,10 +46,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/new", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/event/new"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/event/new");
 
     test("renders create event form when authenticated", async () => {
       const { response } = await adminGet("/admin/event/new");
@@ -63,16 +60,14 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("POST /admin/event", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest("/admin/event", {
-          max_attendees: "100",
-          max_quantity: "1",
-          name: "Test Event",
-          thank_you_url: "https://example.com",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event", {
+      body: {
+        max_attendees: "100",
+        max_quantity: "1",
+        name: "Test Event",
+        thank_you_url: "https://example.com",
+      },
+      multipart: true,
     });
 
     test("creates event when authenticated", async () => {
@@ -281,10 +276,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/event/1"));
-      expect(response.status).toBe(302);
-    });
+    testRequiresAuth("/admin/event/1");
 
     test("returns 404 for non-existent event", async () => {
       const response = await awaitTestRequest("/admin/event/999", {
@@ -343,15 +335,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/duplicate", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/event/1/duplicate"),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/duplicate", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -403,13 +393,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/in", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(mockRequest("/admin/event/1/in"));
-      expect(response.status).toBe(302);
+    testRequiresAuth("/admin/event/1/in", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -456,13 +446,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/out", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(mockRequest("/admin/event/1/out"));
-      expect(response.status).toBe(302);
+    testRequiresAuth("/admin/event/1/out", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -511,15 +501,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/export", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/event/1/export"),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/export", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -677,13 +665,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(mockRequest("/admin/event/1/edit"));
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/edit", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -715,21 +703,21 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("POST /admin/event/:id/edit", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockMultipartRequest("/admin/event/1/edit", {
-          max_attendees: "50",
-          max_quantity: "1",
-          name: "Updated Event",
-          slug: "updated-event",
-          thank_you_url: "https://example.com/updated",
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/edit", {
+      body: {
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Updated Event",
+        slug: "updated-event",
+        thank_you_url: "https://example.com/updated",
+      },
+      multipart: true,
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1157,15 +1145,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/deactivate", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/event/1/deactivate"),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/deactivate", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1193,15 +1179,15 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("POST /admin/event/:id/deactivate", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockFormRequest("/admin/event/1/deactivate", {}),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/deactivate", {
+      body: {},
+      method: "POST",
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("deactivates event and redirects", async () => {
@@ -1272,15 +1258,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/reactivate", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/event/1/reactivate"),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/reactivate", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("shows reactivate confirmation page when authenticated", async () => {
@@ -1375,15 +1359,13 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockRequest("/admin/event/1/delete"),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/delete", {
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1410,18 +1392,18 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("POST /admin/event/:id/delete", () => {
-    test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        name: "Test Event",
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockFormRequest("/admin/event/1/delete", {
-          confirm_identifier: event.name,
-        }),
-      );
-      expectAdminRedirect(response);
+    testRequiresAuth("/admin/event/1/delete", {
+      body: {
+        confirm_identifier: "Test Event",
+      },
+      method: "POST",
+      setup: async () => {
+        await createTestEvent({
+          maxAttendees: 100,
+          name: "Test Event",
+          thankYouUrl: "https://example.com",
+        });
+      },
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1793,10 +1775,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/log", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/log"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/log");
 
     test("shows log page when authenticated", async () => {
       // Create an event to generate activity
@@ -1831,10 +1810,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   });
 
   describe("GET /admin/event/:id/log", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/event/1/log"));
-      expectAdminRedirect(response);
-    });
+    testRequiresAuth("/admin/event/1/log");
 
     test("returns 404 for non-existent event", async () => {
       const response = await awaitTestRequest("/admin/event/999/log", {

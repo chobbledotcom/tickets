@@ -2,6 +2,7 @@
  * Admin attendee merge routes
  */
 
+/* jscpd:ignore-start */
 import { filter, map, pipe } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -29,20 +30,16 @@ import type {
   MergeValueChoice,
 } from "#lib/merge/attendee-merge-types.ts";
 import type { Attendee } from "#lib/types.ts";
-import { requirePrivateKey } from "#routes/admin/utils.ts";
-import {
-  AUTH_FORM,
-  type AuthSession,
-  applyFlash,
-  errorRedirect,
-  getSearchParam,
-  htmlResponse,
-  orNotFound,
-  redirect,
-  requireSessionOr,
-  withAuth,
-} from "#routes/utils.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
+import type { AuthSession } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import type { AttendeeRouteParams } from "#routes/entity.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
+
+/* jscpd:ignore-end */
 
 /** Load and decrypt a target attendee by ID for merge operations */
 const loadMergeTarget = async (
@@ -95,13 +92,15 @@ const loadMergeSource = async (
   };
 };
 
-/** Load target attendee and call handler, returning 404 if not found */
-const withMergeTarget = (
-  session: AuthSession,
-  attendeeId: number,
-  handler: (target: Attendee) => Response | Promise<Response>,
-): Promise<Response> =>
-  orNotFound(loadMergeTarget(session, attendeeId), handler);
+/** Curried: load merge target then render with flash */
+const mergeAttendeePage =
+  (request: Request, session: AuthSession) =>
+  (target: Attendee): Response => {
+    const flash = applyFlash(request);
+    return htmlResponse(
+      adminMergeAttendeePage(target, null, null, session, flash.error),
+    );
+  };
 
 /** Load all event_attendees rows for an attendee */
 const loadAttendeeBookings = (
@@ -263,7 +262,9 @@ const validateMergePostInput = async (
     return {
       ok: false,
       response: errorRedirect(
-        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(sourceToken)}`,
+        `/admin/attendees/${attendeeId}/merge?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
         "Ticket token not found",
       ),
     };
@@ -389,93 +390,64 @@ const parseMergeDecisionForm = (
   version: form.getString("merge_version"),
 });
 
-/* jscpd:ignore-start — merge handlers share structural patterns with other route handlers */
+const handlers = createEntityRouteHandlers(
+  loadMergeTarget,
+  ({ attendeeId }: AttendeeRouteParams) => attendeeId,
+);
+
 /** Handle GET /admin/attendees/:attendeeId/merge — analyze + render decisions */
-export const handleMergeGet = (
-  request: Request,
-  { attendeeId }: { attendeeId: number },
-): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    withMergeTarget(session, attendeeId, async (target) => {
-      const token = getSearchParam(request, "token");
-      const flash = applyFlash(request);
-
-      if (!token) {
-        return htmlResponse(
-          adminMergeAttendeePage(target, null, null, session, flash.error),
-        );
-      }
-
-      const source = await loadMergeSource(token, session);
-
-      if (!source) {
-        return htmlResponse(
-          adminMergeAttendeePage(
-            target,
-            null,
-            token,
-            session,
-            "Ticket token not found",
-          ),
-        );
-      }
-
-      if (source.id === attendeeId) {
-        return htmlResponse(
-          adminMergeAttendeePage(
-            target,
-            null,
-            token,
-            session,
-            "Cannot merge an attendee with themselves",
-          ),
-        );
-      }
-
-      const diff = await buildMergeDiffFor(target, source, attendeeId);
-
-      return htmlResponse(
-        adminMergeAttendeePage(
-          target,
-          source,
-          token,
-          session,
-          flash.error,
-          diff,
-        ),
-      );
-    }),
+export const handleMergeGet = handlers.get(async (request, session, target) => {
+  const token = getSearchParam(request, "token");
+  const flash = applyFlash(request);
+  if (!token) return mergeAttendeePage(request, session)(target);
+  const source = await loadMergeSource(token, session);
+  if (!source) {
+    return htmlResponse(
+      adminMergeAttendeePage(
+        target,
+        null,
+        token,
+        session,
+        "Ticket token not found",
+      ),
+    );
+  }
+  if (source.id === target.id) {
+    return htmlResponse(
+      adminMergeAttendeePage(
+        target,
+        null,
+        token,
+        session,
+        "Cannot merge an attendee with themselves",
+      ),
+    );
+  }
+  const diff = await buildMergeDiffFor(target, source, target.id);
+  return htmlResponse(
+    adminMergeAttendeePage(target, source, token, session, flash.error, diff),
   );
+});
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
-export const handleMergePost = (
-  request: Request,
-  { attendeeId }: { attendeeId: number },
-): Promise<Response> =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    withMergeTarget(session, attendeeId, async (target) => {
-      const input = await validateMergePostInput(attendeeId, form, session);
-      if (!input.ok) return input.response;
-      const { source, sourceToken } = input;
-
-      const diff = await buildMergeDiffFor(target, source, attendeeId);
-      const decision = parseMergeDecisionForm(form, diff);
-      const validation = validateAttendeeMergeDecision(diff, decision);
-
-      if (!validation.valid) {
-        return htmlResponse(
-          adminMergeAttendeePage(
-            target,
-            source,
-            sourceToken,
-            session,
-            validation.errors.join("; "),
-            diff,
-          ),
-        );
-      }
-
-      return applyMergeDecisions(attendeeId, target, source, diff, decision);
-    }),
-  );
-/* jscpd:ignore-end */
+export const handleMergePost = handlers.post(async (session, form, target) => {
+  const input = await validateMergePostInput(target.id, form, session);
+  if (!input.ok) return input.response;
+  const { source, sourceToken } = input;
+  const diff = await buildMergeDiffFor(target, source, target.id);
+  const decision = parseMergeDecisionForm(form, diff);
+  const validation = validateAttendeeMergeDecision(diff, decision);
+  if (!validation.valid) {
+    return htmlResponse(
+      adminMergeAttendeePage(
+        target,
+        source,
+        sourceToken,
+        session,
+        validation.errors.join("; "),
+        diff,
+      ),
+    );
+  }
+  return applyMergeDecisions(target.id, target, source, diff, decision);
+});

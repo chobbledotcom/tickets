@@ -41,6 +41,7 @@ import {
   createGoogleWalletReadSettings,
   createGoogleWalletUpdateSettings,
 } from "#lib/wallets/google-wallet-settings.ts";
+import type { EncryptedUpdateFn } from "#lib/wallets/wallet-settings-types.ts";
 
 // ---------------------------------------------------------------------------
 // Setting keys
@@ -282,14 +283,19 @@ const snap = <K extends keyof SettingsData>(key: K): SettingsData[K] => {
 const getRawCached = (key: string): string | null =>
   getCacheState().entries?.get(key) ?? null;
 
+/** Mutate the raw cache if it's currently loaded; no-op otherwise. */
+const syncCache = (mutate: (entries: Map<string, string>) => void): void => {
+  const { entries } = getCacheState();
+  if (entries) mutate(entries);
+};
+
 /** Write a setting to the DB and update the raw cache in-place. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
   await getDb().execute({
     args: [key, value],
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
   });
-  const state = getCacheState();
-  if (state.entries) state.entries.set(key, value);
+  syncCache((entries) => entries.set(key, value));
 };
 
 /** Delete a setting from the DB and remove it from the raw cache. */
@@ -298,8 +304,7 @@ const deleteRaw = async (key: string): Promise<void> => {
     args: [key],
     sql: "DELETE FROM settings WHERE key = ?",
   });
-  const state = getCacheState();
-  if (state.entries) state.entries.delete(key);
+  syncCache((entries) => entries.delete(key));
 };
 
 /** Write a setting or delete it if value is empty. */
@@ -314,21 +319,42 @@ const writeEncrypted = async (key: string, value: string): Promise<void> => {
   await writeRaw(key, await encrypt(value));
 };
 
-/** Factory: write encrypted value + update snapshot. */
-const encryptedUpdate =
-  (key: StringSettingKey) =>
+/**
+ * Factory: run `writer` then mirror the value into the snapshot. Accepts any
+ * string key so it satisfies `EncryptedUpdateFn` for wallet factories; callers
+ * always pass a `CONFIG_KEYS.*` value that is a real snapshot field.
+ */
+const stringUpdate =
+  (writer: (key: string, value: string) => Promise<void>) =>
+  (key: string) =>
   async (v: string): Promise<void> => {
-    await writeEncrypted(key, v);
-    setSnapshotField(key, v);
+    await writer(key, v);
+    setSnapshotField(key as StringSettingKey, v);
   };
 
-/** Factory: write-or-delete plaintext value + update snapshot. */
-const plaintextUpdate =
-  (key: StringSettingKey) =>
-  async (v: string): Promise<void> => {
-    await writeOrDelete(key, v);
-    setSnapshotField(key, v);
+const encryptedUpdate: EncryptedUpdateFn = stringUpdate(writeEncrypted);
+const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
+
+/** Factory: write a raw string and mirror into a specific snapshot field. */
+const rawUpdate =
+  <K extends keyof SettingsData>(
+    configKey: string,
+    field: K,
+    serialize: (v: SettingsData[K]) => string = String,
+  ) =>
+  async (v: SettingsData[K]): Promise<void> => {
+    await writeRaw(configKey, serialize(v));
+    setSnapshotField(field, v);
   };
+
+/** Factory: write a boolean as "true"/"false" and mirror into the snapshot. */
+const boolUpdate = <K extends BoolSettingKey>(configKey: string, field: K) =>
+  rawUpdate(configKey, field, (v) => (v ? "true" : "false"));
+
+/** Snapshot keys whose value is a boolean. */
+type BoolSettingKey = {
+  [K in keyof SettingsData]: SettingsData[K] extends boolean ? K : never;
+}[keyof SettingsData];
 
 // ---------------------------------------------------------------------------
 // Snapshot builder — called by loadAll()
@@ -756,9 +782,7 @@ export const settings = {
   // -----------------------------------------------------------------------
   update: {
     // --- Apple Wallet writes ---
-    appleWallet: createAppleWalletUpdateSettings(
-      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
-    ),
+    appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
     attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
@@ -803,9 +827,7 @@ export const settings = {
     eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
 
     // --- Google Wallet writes ---
-    googleWallet: createGoogleWalletUpdateSettings(
-      encryptedUpdate as (k: string) => (v: string) => Promise<void>,
-    ),
+    googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
     homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
     lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
@@ -816,30 +838,24 @@ export const settings = {
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
-    paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
-      data.payment_provider = v;
-    },
-    showPublicApi: async (v: boolean): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_API, v ? "true" : "false");
-      data.show_public_api = v;
-    },
-    showPublicSite: async (v: boolean): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.SHOW_PUBLIC_SITE, v ? "true" : "false");
-      data.show_public_site = v;
-    },
+    paymentProvider: rawUpdate(
+      CONFIG_KEYS.PAYMENT_PROVIDER,
+      "payment_provider",
+    ) as (v: PaymentProviderType) => Promise<void>,
+    showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
+    showPublicSite: boolUpdate(
+      CONFIG_KEYS.SHOW_PUBLIC_SITE,
+      "show_public_site",
+    ),
 
     // --- Square writes ---
     square: {
       accessToken: encryptedUpdate(CONFIG_KEYS.SQUARE_ACCESS_TOKEN),
-      locationId: async (v: string): Promise<void> => {
-        await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, v);
-        data.square_location_id = v;
-      },
-      sandbox: async (v: boolean): Promise<void> => {
-        await writeRaw(CONFIG_KEYS.SQUARE_SANDBOX, v ? "true" : "false");
-        data.square_sandbox = v;
-      },
+      locationId: rawUpdate(
+        CONFIG_KEYS.SQUARE_LOCATION_ID,
+        "square_location_id",
+      ),
+      sandbox: boolUpdate(CONFIG_KEYS.SQUARE_SANDBOX, "square_sandbox"),
       webhookSignatureKey: encryptedUpdate(
         CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
       ),
@@ -864,10 +880,7 @@ export const settings = {
       },
     },
     terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS),
-    theme: async (v: Theme): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.THEME, v);
-      data.theme = v;
-    },
+    theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),
   },
   updateUserPassword,

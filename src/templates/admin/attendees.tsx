@@ -16,6 +16,7 @@ import {
 } from "#lib/merge/attendee-merge.ts";
 import type { AttendeeMergeDiff } from "#lib/merge/attendee-merge-types.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import { createLinkEventForm } from "#routes/admin/attendees-link-form.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -30,14 +31,14 @@ export const adminDeleteAttendeePage = (
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
-        name={attendee.name}
-        label="Attendee name"
         buttonText="Delete Attendee"
+        label="Attendee name"
+        name={attendee.name}
         returnUrl={returnUrl}
       >
         <p>
@@ -76,14 +77,14 @@ export const adminRefundAttendeePage = (
 ): string =>
   String(
     <Layout title={`Refund Attendee: ${attendee.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
-        name={attendee.name}
-        label="Attendee name"
         buttonText="Refund Attendee"
+        label="Attendee name"
+        name={attendee.name}
         returnUrl={returnUrl}
       >
         <p>
@@ -127,14 +128,14 @@ export const adminRefundAllAttendeesPage = (
 ): string =>
   String(
     <Layout title={`Refund All: ${event.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/refund-all`}
-        name={event.name}
-        label="Event name"
         buttonText="Refund All Attendees"
+        label="Event name"
+        name={event.name}
       >
         <p>
           <strong>Warning:</strong> This will issue a full refund for all{" "}
@@ -195,10 +196,14 @@ const renderEditQuestions = (
       const options = q.answers
         .map((a) => {
           const checked = selectedAnswerIds.includes(a.id) ? " checked" : "";
-          return `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked}> ${escapeHtml(a.text)}</label>`;
+          return `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked}> ${escapeHtml(
+            a.text,
+          )}</label>`;
         })
         .join("");
-      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+      return `<fieldset class="custom-question"><legend>${escapeHtml(
+        q.text,
+      )}</legend>${options}</fieldset>`;
     })
     .join("");
 };
@@ -234,11 +239,12 @@ export const adminEditAttendeePage = (
   returnUrl?: string,
   success?: string,
   error?: string,
-): string =>
-  String(
+): string => {
+  const linkEventForm = createLinkEventForm(allEvents);
+  return String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
-      <AdminNav session={session} active="/admin/" />
-      <Flash success={success} error={error} />
+      <AdminNav active="/admin/" session={session} />
+      <Flash error={error} success={success} />
 
       <h2>Edit Attendee</h2>
 
@@ -248,27 +254,27 @@ export const adminEditAttendeePage = (
       <h3>Contact Information</h3>
       <CsrfForm action={`/admin/attendees/${attendee.id}`}>
         {returnUrl && (
-          <input type="hidden" name="return_url" value={returnUrl} />
+          <input name="return_url" type="hidden" value={returnUrl} />
         )}
 
         <label for="name">
           Name
           <input
-            type="text"
+            autofocus
             id="name"
             name="name"
-            value={attendee.name}
             required
-            autofocus
+            type="text"
+            value={attendee.name}
           />
         </label>
 
         <label for="email">
           Email
           <input
-            type="email"
             id="email"
             name="email"
+            type="email"
             value={attendee.email || ""}
           />
         </label>
@@ -276,18 +282,18 @@ export const adminEditAttendeePage = (
         <label for="phone">
           Phone
           <input
-            type="text"
             id="phone"
             name="phone"
-            value={attendee.phone || ""}
             pattern="[+\d][\d\s\-()]{5,}"
             title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
+            type="text"
+            value={attendee.phone || ""}
           />
         </label>
 
         <label for="address">
           Address
-          <textarea id="address" name="address" rows={3} maxlength={250}>
+          <textarea id="address" maxlength={250} name="address" rows={3}>
             {attendee.address || ""}
           </textarea>
         </label>
@@ -296,9 +302,9 @@ export const adminEditAttendeePage = (
           Special Instructions
           <textarea
             id="special_instructions"
+            maxlength={250}
             name="special_instructions"
             rows={3}
-            maxlength={250}
           >
             {attendee.special_instructions || ""}
           </textarea>
@@ -339,14 +345,14 @@ export const adminEditAttendeePage = (
                     class="inline"
                   >
                     <input
-                      type="number"
-                      name="quantity"
-                      value={String(booking.quantity)}
-                      min="1"
                       max={String(evt.max_quantity)}
+                      min="1"
+                      name="quantity"
                       style="width:4em"
+                      type="number"
+                      value={String(booking.quantity)}
                     />
-                    <button type="submit" class="link-button">
+                    <button class="link-button" type="submit">
                       Update
                     </button>
                   </CsrfForm>
@@ -364,7 +370,7 @@ export const adminEditAttendeePage = (
                     action={`/admin/attendees/${attendee.id}/unlink/${evt.id}`}
                     class="inline"
                   >
-                    <button type="submit" class="link-button danger">
+                    <button class="link-button danger" type="submit">
                       Remove
                     </button>
                   </CsrfForm>
@@ -378,44 +384,17 @@ export const adminEditAttendeePage = (
       {/* Add Event Link Section */}
       <h3>Add to Event</h3>
       <CsrfForm action={`/admin/attendees/${attendee.id}/link`}>
-        <label for="add_event_id">
-          Event
-          <select id="add_event_id" name="event_id" required>
-            <option value="">Select event...</option>
-            {allEvents
-              .filter((e) => e.active)
-              .map((e) => (
-                <option value={String(e.id)} data-event-type={e.event_type}>
-                  {e.name}
-                </option>
-              ))}
-          </select>
-        </label>
-
-        <label for="add_quantity">
-          Quantity
-          <input
-            type="number"
-            id="add_quantity"
-            name="quantity"
-            value="1"
-            min="1"
-            required
-          />
-        </label>
-
-        <label for="add_date" class="daily-date-field" style="display:none">
-          Date
-          <select id="add_date" name="date">
-            <option value="">Select date...</option>
-          </select>
-        </label>
+        <Raw html={linkEventForm.field("event_id").render()} />
+        <Raw html={linkEventForm.field("quantity").render()} />
+        <div class="daily-date-field" style="display:none">
+          <Raw html={linkEventForm.field("date").render()} />
+        </div>
 
         <button type="submit">Add to Event</button>
       </CsrfForm>
 
       {/* Available dates JSON for client-side date picker filtering (read by admin.ts) */}
-      <script type="application/json" id="available-dates-data">
+      <script id="available-dates-data" type="application/json">
         <Raw html={JSON.stringify(availableDatesByEvent)} />
       </script>
 
@@ -427,23 +406,24 @@ export const adminEditAttendeePage = (
       </p>
       <form
         action={`/admin/attendees/${attendee.id}/merge`}
-        method="get"
         class="inline-row"
+        method="get"
       >
         <label for="merge_token">
           Ticket token
           <input
-            type="text"
             id="merge_token"
             name="token"
             placeholder="Enter ticket token…"
             required
+            type="text"
           />
         </label>
         <button type="submit">Search</button>
       </form>
     </Layout>,
   );
+};
 
 /** Source attendee data for the merge preview page */
 type MergeSourceInfo = {
@@ -484,7 +464,7 @@ const MergePiiField = ({
       <th scope="row">{label}</th>
       <td>
         <label>
-          <input type="radio" name={name} value="target" checked />{" "}
+          <input checked name={name} type="radio" value="target" />{" "}
           <Raw html={renderFieldValue(targetValue, multiline)} />
         </label>
       </td>
@@ -493,7 +473,7 @@ const MergePiiField = ({
           <span class="muted">(same)</span>
         ) : (
           <label>
-            <input type="radio" name={name} value="source" />{" "}
+            <input name={name} type="radio" value="source" />{" "}
             <Raw html={renderFieldValue(sourceValue, multiline)} />
           </label>
         )}
@@ -550,19 +530,19 @@ const MergeAnswersDecisionTable = ({
                   <th scope="row">{item.questionText}</th>
                   <td>
                     <label>
-                      <input type="radio" name={name} value="target" checked />{" "}
+                      <input checked name={name} type="radio" value="target" />{" "}
                       {targetLabel}
                     </label>
                   </td>
                   <td>
                     <label>
-                      <input type="radio" name={name} value="source" />{" "}
+                      <input name={name} type="radio" value="source" />{" "}
                       {sourceLabel}
                     </label>
                   </td>
                   <td>
                     <label>
-                      <input type="radio" name={name} value="clear" /> None
+                      <input name={name} type="radio" value="clear" /> None
                     </label>
                   </td>
                 </tr>
@@ -640,21 +620,21 @@ const MergeBookingsDecisionTable = ({
                   <td>
                     <label>
                       <input
-                        type="radio"
-                        name={name}
-                        value="keep_target"
                         checked
+                        name={name}
+                        type="radio"
+                        value="keep_target"
                       />{" "}
                       Keep target
                     </label>
                     <br />
                     <label>
-                      <input type="radio" name={name} value="take_source" />{" "}
+                      <input name={name} type="radio" value="take_source" />{" "}
                       Replace with source
                     </label>
                     <br />
                     <label>
-                      <input type="radio" name={name} value="skip_source" />{" "}
+                      <input name={name} type="radio" value="skip_source" />{" "}
                       Skip source
                     </label>
                   </td>
@@ -681,7 +661,7 @@ export const adminMergeAttendeePage = (
 ): string =>
   String(
     <Layout title={`Merge Attendee: ${target.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <h2>Merge Attendee</h2>
@@ -693,19 +673,19 @@ export const adminMergeAttendeePage = (
       <h3>Search by Ticket Token</h3>
       <form
         action={`/admin/attendees/${target.id}/merge`}
-        method="get"
         class="inline-row"
+        method="get"
       >
         <label for="token">
           Ticket token to merge from
           <input
-            type="text"
+            autofocus={!source}
             id="token"
             name="token"
-            value={searchToken || ""}
             placeholder="Enter ticket token…"
             required
-            autofocus={!source}
+            type="text"
+            value={searchToken || ""}
           />
         </label>
         <button type="submit">Search</button>
@@ -721,13 +701,13 @@ export const adminMergeAttendeePage = (
 
           <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
             <input
-              type="hidden"
               name="source_token"
+              type="hidden"
               value={source.ticket_token}
             />
             <input
-              type="hidden"
               name="merge_version"
+              type="hidden"
               value={mergeDiff.version}
             />
 
@@ -777,7 +757,7 @@ export const adminMergeAttendeePage = (
               <strong>Warning:</strong> This will permanently delete the source
               attendee. This action cannot be undone.
             </p>
-            <button type="submit" class="danger">
+            <button class="danger" type="submit">
               Merge and Delete Source Attendee
             </button>
           </CsrfForm>
@@ -797,15 +777,15 @@ export const adminResendNotificationPage = (
 ): string =>
   String(
     <Layout title={`Re-send Notification: ${attendee.name}`}>
-      <AdminNav session={session} active="/admin/" />
+      <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
-        name={attendee.name}
-        label="Attendee name"
         buttonText="Re-send Notification"
         danger={false}
+        label="Attendee name"
+        name={attendee.name}
         returnUrl={returnUrl}
       >
         <p>

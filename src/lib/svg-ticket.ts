@@ -83,7 +83,11 @@ export const generateSvgTicket = async (
   const linesSvg = infoLines
     .map(
       (line, i) =>
-        `<text x="${MARGIN}" y="${HEADER_Y + (i + 1) * LINE_HEIGHT}" font-family="sans-serif" font-size="13" fill="#555">${escapeHtml(line)}</text>`,
+        `<text x="${MARGIN}" y="${
+          HEADER_Y + (i + 1) * LINE_HEIGHT
+        }" font-family="sans-serif" font-size="13" fill="#555">${escapeHtml(
+          line,
+        )}</text>`,
     )
     .join("\n    ");
 

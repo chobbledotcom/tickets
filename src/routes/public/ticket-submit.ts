@@ -8,15 +8,12 @@ import { countAssignableSites } from "#lib/db/built-sites.ts";
 import { saveEventAnswers } from "#lib/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
 import type { FormParams } from "#lib/form-data.ts";
+import { verifyQrBookToken } from "#lib/qr-token.ts";
 import { isPaidEvent } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import {
-  applyFlash,
-  errorRedirect,
-  getBaseUrl,
-  redirectResponse,
-  withCsrfForm,
-} from "#routes/utils.ts";
+import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
+import { errorRedirect, redirectResponse } from "#routes/response.ts";
+import { getBaseUrl } from "#routes/url.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
@@ -129,6 +126,29 @@ const parseCustomPrices = (
     customPrices.set(event.id, priceResult.price);
   }
   return customPrices;
+};
+
+/**
+ * Apply signed QR-token price overrides to the custom prices map.
+ *
+ * QR tokens can pre-set a price for a specific event. For can_pay_more events
+ * the user-submitted custom_price_{id} already populated the map in
+ * parseCustomPrices and wins. For fixed-price events the signed value
+ * overrides event.unit_price so admins can generate one-off bookings at any
+ * price. Tokens are re-verified here to prevent tampering of the hidden field.
+ */
+const applyQrTokenOverride = async (
+  form: FormParams,
+  ctx: TicketCtx,
+  customPrices: Map<number, number>,
+): Promise<void> => {
+  const token = form.getString("qr_token");
+  if (!token || ctx.slugs.length !== 1) return;
+  const payload = await verifyQrBookToken(ctx.slugs[0]!, token);
+  if (!payload || payload.v < 0) return;
+  for (const { event } of ctx.events) {
+    if (!event.can_pay_more) customPrices.set(event.id, payload.v);
+  }
 };
 
 /** Verify built site availability when the builder feature is enabled */
@@ -261,6 +281,8 @@ const processSubmission = async (
   const customPricesResult = parseCustomPrices(form, ctx, quantities);
   if (customPricesResult instanceof Response) return customPricesResult;
 
+  await applyQrTokenOverride(form, ctx, customPricesResult);
+
   const items = buildRegistrationItems(
     ctx.events,
     quantities,
@@ -306,6 +328,7 @@ export const handleTicket = async (
   actionSlugs: string[],
   activeEvents: TicketEvent[],
   getContext: TicketContextProvider,
+  qrPrefill?: TicketCtx["qrPrefill"],
 ): Promise<Response> => {
   const [sharedCtx] = await Promise.all([
     getContext(activeEvents),
@@ -316,6 +339,7 @@ export const handleTicket = async (
     events: activeEvents,
     slugs: actionSlugs,
     ...sharedCtx,
+    qrPrefill,
   };
   if (request.method === "GET") applyFlash(request);
   const response =

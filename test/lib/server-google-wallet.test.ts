@@ -7,14 +7,14 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
-  expectAdminRedirect,
   expectRedirect,
   expectRedirectWithFlash,
-  generateGoogleTestCreds,
   loginAsAdmin,
   mockFormRequest,
   setTestEnv,
+  testRequiresAuth,
 } from "#test-utils";
+import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 
 /** Reuse cached creds for all wallet configuration */
 let testCreds: GoogleWalletCredentials;
@@ -151,13 +151,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     await ensureCreds();
   });
 
-  test("redirects to login when not authenticated", async () => {
-    const response = await handleRequest(
-      mockFormRequest("/admin/settings/google-wallet", {
-        google_wallet_issuer_id: "123",
-      }),
-    );
-    expectAdminRedirect(response);
+  testRequiresAuth("/admin/settings/google-wallet", {
+    body: {
+      google_wallet_issuer_id: "123",
+    },
+    method: "POST",
   });
 
   test("requires Issuer ID", async () => {

@@ -20,12 +20,9 @@ import {
 import { addPendingWork } from "#lib/pending-work.ts";
 import { buildCheckinUrl } from "#lib/ticket-url.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
+import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
-import {
-  getClientIp,
-  notFoundResponse,
-  rateLimitedResponse,
-} from "#routes/utils.ts";
+import { getClientIp } from "#routes/url.ts";
 
 /** Attendee paired with its event */
 export type TokenEntry = {
@@ -82,8 +79,9 @@ export const lookupSingleTokenPassData = async (
   tokens: string[],
 ): Promise<SingleTokenResult> => {
   const token = tokens[0];
-  if (!token || tokens.length > 1)
+  if (!token || tokens.length > 1) {
     return { ok: false, response: notFoundResponse() };
+  }
 
   const result = await lookupAttendees([token]);
   if (!result.ok) return { ok: false, response: result.response };

@@ -20,6 +20,7 @@ import {
   queryOne,
 } from "#lib/db/client.ts";
 import { nowIso } from "#lib/now.ts";
+import { getTouchOverride } from "#lib/test-overrides.ts";
 import type { ApiKey } from "#lib/types.ts";
 
 /**
@@ -140,6 +141,8 @@ export const deleteAllApiKeysForUser = (userId: number): Promise<void> =>
  * Uses fire-and-forget pattern to avoid slowing down requests.
  */
 export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
+  const override = getTouchOverride();
+  if (override) throw override;
   await getDb().execute({
     args: [nowIso(), id],
     sql: "UPDATE api_keys SET last_used = ? WHERE id = ?",

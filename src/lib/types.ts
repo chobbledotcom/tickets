@@ -72,53 +72,53 @@ export const isPaidEvent = (
 ): boolean => event.unit_price > 0 || event.can_pay_more;
 
 export interface Event {
-  id: number;
-  name: string;
-  description: string;
+  active: boolean;
+  assign_built_site: boolean;
+  attachment_name: string;
+  attachment_url: string;
+  bookable_days: string[];
+  can_pay_more: boolean;
+  closes_at: string | null;
+  created: string;
   date: string; // encrypted UTC ISO datetime or empty string
+  description: string;
+  event_type: EventType;
+  fields: EventFields;
+  group_id: number;
+  hidden: boolean;
+  id: number;
+  image_url: string;
   location: string; // encrypted or empty string
+  max_attendees: number;
+  max_price: number;
+  max_quantity: number;
+  maximum_days_after: number;
+  minimum_days_before: number;
+  name: string;
+  non_transferable: boolean;
+  purchase_only: boolean;
   slug: string;
   slug_index: string;
-  group_id: number;
-  created: string;
-  max_attendees: number;
   thank_you_url: string;
   unit_price: number;
-  max_quantity: number;
   webhook_url: string;
-  active: boolean;
-  fields: EventFields;
-  closes_at: string | null;
-  event_type: EventType;
-  bookable_days: string[];
-  minimum_days_before: number;
-  maximum_days_after: number;
-  image_url: string;
-  attachment_url: string;
-  attachment_name: string;
-  non_transferable: boolean;
-  can_pay_more: boolean;
-  max_price: number;
-  hidden: boolean;
-  purchase_only: boolean;
-  assign_built_site: boolean;
   duration_days: number;
 }
 
 export interface Attendee extends ContactInfo {
-  id: number;
-  event_id: number;
-  created: string;
-  payment_id: string;
-  quantity: number;
-  price_paid: string;
+  attachment_downloads: number;
   checked_in: boolean;
+  created: string;
+  date: string | null;
+  event_id: number;
+  id: number;
+  payment_id: string;
+  pii_blob: string;
+  price_paid: string;
+  quantity: number;
   refunded: boolean;
   ticket_token: string;
   ticket_token_index: string;
-  date: string | null;
-  attachment_downloads: number;
-  pii_blob: string;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */
@@ -139,11 +139,11 @@ export interface Settings {
 }
 
 export interface Session {
-  token: string; // Contains the hashed token for DB storage
   csrf_token: string;
   expires: number;
-  wrapped_data_key: string | null;
+  token: string; // Contains the hashed token for DB storage
   user_id: number;
+  wrapped_data_key: string | null;
 }
 
 /** Admin role levels */
@@ -161,42 +161,42 @@ export type AdminSession = {
 };
 
 export interface User {
-  id: number;
-  username_hash: string; // encrypted at rest, decrypted to display
-  username_index: string; // HMAC hash for lookups
-  password_hash: string; // PBKDF2 hash encrypted at rest
-  wrapped_data_key: string | null; // wrapped with user's KEK
   admin_level: string; // encrypted "owner" or "manager"
+  id: number;
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
+  password_hash: string; // PBKDF2 hash encrypted at rest
+  username_hash: string; // encrypted at rest, decrypted to display
+  username_index: string; // HMAC hash for lookups
+  wrapped_data_key: string | null; // wrapped with user's KEK
 }
 
 export interface ApiKey {
-  id: number;
-  user_id: number;
-  key_index: string; // HMAC hash for lookup
-  wrapped_data_key: string; // DATA_KEY wrapped with the API key token
-  name: string; // encrypted label
   created: string;
+  id: number;
+  key_index: string; // HMAC hash for lookup
   last_used: string; // ISO 8601 or empty string
+  name: string; // encrypted label
+  user_id: number;
+  wrapped_data_key: string; // DATA_KEY wrapped with the API key token
 }
 
 export interface Holiday {
+  end_date: string;
   id: number;
   name: string;
   start_date: string;
-  end_date: string;
 }
 
 export interface Group {
+  description: string;
+  hidden: boolean;
   id: number;
+  max_attendees: number;
+  name: string;
   slug: string;
   slug_index: string;
-  name: string;
-  description: string;
   terms_and_conditions: string;
-  max_attendees: number;
-  hidden: boolean;
 }
 
 export interface EventWithCount extends Event {

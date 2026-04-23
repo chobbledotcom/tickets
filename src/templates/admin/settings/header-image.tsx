@@ -13,9 +13,9 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
       {s.headerImageUrl && (
         <div>
           <img
-            src={getImageProxyUrl(s.headerImageUrl)}
             alt="Header preview"
             class="event-image-preview"
+            src={getImageProxyUrl(s.headerImageUrl)}
           />
           <CsrfForm
             action="/admin/settings/header-image/delete"
@@ -38,9 +38,9 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
         <label>
           {s.headerImageUrl ? "Replace Image" : "Upload Image"}
           <input
-            type="file"
-            name="header_image"
             accept="image/jpeg,image/png,image/gif,image/webp"
+            name="header_image"
+            type="file"
           />
         </label>
         <button type="submit">Upload</button>

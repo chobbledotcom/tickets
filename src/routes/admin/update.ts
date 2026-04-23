@@ -7,22 +7,16 @@ import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
 import { isBunnyCdnEnabled } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { settings } from "#lib/db/settings.ts";
+import { getFlash } from "#lib/flash-context.ts";
 import {
   deployRelease,
   fetchLatestRelease,
   formatBuildDate,
   isNewerVersion,
 } from "#lib/update.ts";
+import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import {
-  applyFlash,
-  errorRedirect,
-  htmlResponse,
-  OWNER_FORM,
-  redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
 import {
   adminUpdatePage,
   type UpdatePageState,
@@ -47,13 +41,15 @@ const getUpdatePageState = (): UpdatePageState => {
 };
 
 /** GET /admin/update — show current version and update status */
-const handleUpdateGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, (session) => {
-    const { error, success } = applyFlash(request);
-    return htmlResponse(
-      adminUpdatePage(session, getUpdatePageState(), error, success),
-    );
-  });
+const handleUpdateGet = ownerPage((session) => {
+  const flash = getFlash();
+  return adminUpdatePage(
+    session,
+    getUpdatePageState(),
+    flash.error,
+    flash.success,
+  );
+});
 
 /** Check GitHub for a newer release, store result, redirect with flash */
 const checkForUpdate = async (): Promise<Response> => {

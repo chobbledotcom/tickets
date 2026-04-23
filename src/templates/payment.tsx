@@ -57,13 +57,15 @@ export const successPage = ({
   const inIframe = getIframeMode();
   return String(
     <Layout
-      title="Order Successful"
+      bodyClass={inIframe ? "iframe" : undefined}
       headExtra={
         thankYouUrl
-          ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">`
+          ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(
+              thankYouUrl,
+            )}">`
           : undefined
       }
-      bodyClass={inIframe ? "iframe" : undefined}
+      title="Order Successful"
     >
       <div
         data-payment-result={paid ? "success" : undefined}
@@ -82,7 +84,7 @@ export const successPage = ({
         ) : null}
         {ticketUrl ? (
           <p>
-            <a href={ticketUrl} target="_blank" rel="noopener">
+            <a href={ticketUrl} rel="noopener" target="_blank">
               Click here to view your ticket
             </a>
           </p>
@@ -142,15 +144,15 @@ export const paymentErrorPage = (message: string): string =>
  */
 export const checkoutPopupPage = (checkoutUrl: string): string =>
   String(
-    <Layout title="Complete Payment" bodyClass="iframe">
+    <Layout bodyClass="iframe" title="Complete Payment">
       <div data-checkout-popup={escapeHtml(checkoutUrl)} data-scroll-into-view>
         <p>Payment is processed in a new window.</p>
         <p>
           <a
-            href={checkoutUrl}
-            target="_blank"
             data-open-checkout
+            href={checkoutUrl}
             rel="noopener"
+            target="_blank"
           >
             <b>Pay Now</b>
           </a>
@@ -158,7 +160,7 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
         <div data-checkout-waiting hidden>
           <p>Completing payment in the other window...</p>
           <p>
-            <a href={checkoutUrl} target="_blank" rel="noopener">
+            <a href={checkoutUrl} rel="noopener" target="_blank">
               <small>Click here if the payment window didn't open</small>
             </a>
           </p>

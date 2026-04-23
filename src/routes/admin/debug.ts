@@ -21,8 +21,8 @@ import { getEnv } from "#lib/env.ts";
 import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#lib/limits.ts";
 import { getStorageBackend } from "#lib/storage.ts";
+import { ownerPage } from "#routes/auth.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { htmlResponse, requireOwnerOr } from "#routes/utils.ts";
 import {
   adminDebugPage,
   type DebugPageState,
@@ -83,10 +83,12 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
         : false;
 
   const resolveWalletPassTypeId = (): string => {
-    if (settings.appleWallet.hasDbConfig)
+    if (settings.appleWallet.hasDbConfig) {
       return settings.appleWallet.passTypeId;
-    if (appleWalletEnvConfigured)
+    }
+    if (appleWalletEnvConfigured) {
       return settings.appleWallet.hostConfig!.passTypeId;
+    }
     return "";
   };
   const resolveWalletSource = (): string => {
@@ -96,10 +98,12 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   };
 
   const resolveGoogleWalletIssuerId = (): string => {
-    if (settings.googleWallet.hasDbConfig)
+    if (settings.googleWallet.hasDbConfig) {
       return settings.googleWallet.issuerId;
-    if (googleWalletEnvConfigured)
+    }
+    if (googleWalletEnvConfigured) {
       return settings.googleWallet.hostConfig!.issuerId;
+    }
     return "";
   };
   const resolveGoogleWalletSource = (): string => {
@@ -181,11 +185,12 @@ const formatLastPruned = (raw: string): string =>
 /**
  * Handle GET /admin/debug - owner only
  */
-const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = (request) =>
-  requireOwnerOr(request, async (session) => {
+const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = ownerPage(
+  async (session) => {
     const state = await getDebugPageState();
-    return htmlResponse(adminDebugPage(session, state));
-  });
+    return adminDebugPage(session, state);
+  },
+);
 
 /** Debug routes */
 export const debugRoutes = defineRoutes({

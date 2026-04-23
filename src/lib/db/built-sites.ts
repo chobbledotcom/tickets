@@ -14,27 +14,27 @@ import { requestCache } from "#lib/request-cache.ts";
 
 /** Encrypted site data blob shape */
 export interface SiteDataBlob {
-  v: 1;
-  /** Site name */
-  n: string;
-  /** Bunny URL (default hostname) */
-  u: string;
   /** Database URL (optional, absent in older blobs) */
   d?: string;
-  /** Database token (optional, absent in older blobs) */
-  t?: string;
+  /** Site name */
+  n: string;
   /** Bunny edge script ID (optional, absent in older blobs) */
   s?: string;
+  /** Database token (optional, absent in older blobs) */
+  t?: string;
+  /** Bunny URL (default hostname) */
+  u: string;
+  v: 1;
 }
 
 /** Built site row as stored in the database */
 export interface BuiltSiteRow {
-  id: number;
-  site_data: string;
   assignable: number;
   assigned_attendee_id: number | null;
   assigned_event_id: number | null;
   created: string;
+  id: number;
+  site_data: string;
 }
 
 /** Built site input for creating a new row */
@@ -47,16 +47,16 @@ export type BuiltSiteInput = {
 
 /** Decrypted built site for display */
 export interface BuiltSite {
-  id: number;
-  name: string;
-  bunnyUrl: string;
-  dbUrl: string;
-  dbToken: string;
-  bunnyScriptId: string;
   assignable: boolean;
   assignedAttendeeId: number | null;
   assignedEventId: number | null;
+  bunnyScriptId: string;
+  bunnyUrl: string;
   created: string;
+  dbToken: string;
+  dbUrl: string;
+  id: number;
+  name: string;
 }
 
 /** Form input for CRUD operations */
@@ -68,7 +68,7 @@ export type BuiltSiteFormInput = Pick<
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
 
-const assignableCol = col.withDefault(() => 0);
+const assignableCol = {} as ColumnDef<number>;
 const nullCol = col.withDefault<number | null>(() => null);
 
 const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({

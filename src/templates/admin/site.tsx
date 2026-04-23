@@ -36,7 +36,7 @@ export const adminSiteHomePage = (
 ): string =>
   String(
     <Layout title="Site - Home">
-      <AdminNav session={session} active="/admin/site" />
+      <AdminNav active="/admin/site" session={session} />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
@@ -52,12 +52,12 @@ export const adminSiteHomePage = (
           </small>
         </p>
         <input
-          type="text"
-          id="website_title"
-          name="website_title"
-          maxlength="128"
-          value={websiteTitle}
           autocomplete="off"
+          id="website_title"
+          maxlength="128"
+          name="website_title"
+          type="text"
+          value={websiteTitle}
         />
 
         <label for="homepage_text">Homepage Text</label>
@@ -69,8 +69,8 @@ export const adminSiteHomePage = (
         </p>
         <textarea
           id="homepage_text"
-          name="homepage_text"
           maxlength={MAX_TEXTAREA_LENGTH}
+          name="homepage_text"
           placeholder="Welcome to our site..."
         >
           {homepageText}
@@ -92,7 +92,7 @@ export const adminSiteContactPage = (
 ): string =>
   String(
     <Layout title="Site - Contact">
-      <AdminNav session={session} active="/admin/site" />
+      <AdminNav active="/admin/site" session={session} />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
@@ -109,8 +109,8 @@ export const adminSiteContactPage = (
         </p>
         <textarea
           id="contact_page_text"
-          name="contact_page_text"
           maxlength={MAX_TEXTAREA_LENGTH}
+          name="contact_page_text"
           placeholder="Get in touch with us..."
         >
           {contactPageText}

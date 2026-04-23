@@ -39,12 +39,16 @@ export const buildFlashCookie = (
     result ? { m: message, r: result, t: type } : { m: message, t: type },
   );
   const value = encodeURIComponent(payload);
-  return `${flashCookieName(id)}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
+  return `${flashCookieName(
+    id,
+  )}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
 };
 
 /** Clear a keyed flash cookie (set after reading) */
 export const clearFlashCookie = (id: string): string =>
-  `${flashCookieName(id)}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
+  `${flashCookieName(
+    id,
+  )}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
 /** Parse a flash cookie value into type, message, and optional result */
 export const parseFlashValue = (

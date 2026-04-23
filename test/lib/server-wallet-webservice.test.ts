@@ -7,8 +7,8 @@ import {
   assertJson,
   createTestAttendeeWithToken,
   describeWithEnv,
-  generateTestCerts,
 } from "#test-utils";
+import { generateTestCerts } from "#test-utils/crypto.ts";
 
 const testCerts = generateTestCerts();
 

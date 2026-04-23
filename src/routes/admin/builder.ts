@@ -8,17 +8,15 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#lib/db/built-sites.ts";
 import { settings } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
 import {
-  applyFlash,
   errorRedirect,
   htmlResponse,
   notFoundResponse,
-  OWNER_FORM,
   redirect,
-  requireOwnerOr,
-  withAuth,
-} from "#routes/utils.ts";
+} from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   adminBuilderPage,
   type BuiltSiteDisplay,

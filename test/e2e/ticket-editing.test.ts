@@ -46,9 +46,10 @@ const extractEventIdFromSelect = (
   html: string,
   eventName: string,
 ): string | null => {
+  const escaped = eventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = html.match(
     new RegExp(
-      `<option value="(\\d+)"[^>]*>\\s*${eventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<\\/option>`,
+      `<option[^>]*\\bvalue="(\\d+)"[^>]*>\\s*${escaped}\\s*<\\/option>`,
     ),
   );
   return match?.[1] ?? null;
@@ -328,7 +329,9 @@ describe("e2e: ticket editing flow", () => {
     //     (lower ID) appears first in the Event Registrations table.
     //     The first "Remove" form targets Morning Workshop.
     await browser.submitForm({}, "Remove");
-    expect(browser.containsText("Removed from Morning Workshop")).toBe(true);
+    expect(
+      browser.containsText("Attendee unlinked from 'Morning Workshop'"),
+    ).toBe(true);
 
     // 11. Navigate back to Morning Workshop and confirm Alice is no longer there.
     //     Then add Bob as the second attendee.
@@ -362,7 +365,9 @@ describe("e2e: ticket editing flow", () => {
 
     // 14. Remove Bob from Morning Workshop (first "Remove" form = Morning Workshop)
     await browser.submitForm({}, "Remove");
-    expect(browser.containsText("Removed from Morning Workshop")).toBe(true);
+    expect(
+      browser.containsText("Attendee unlinked from 'Morning Workshop'"),
+    ).toBe(true);
 
     // 15. Verify Morning Workshop is now empty — neither Alice nor Bob appear
     await browser.visit("/admin/");

@@ -468,7 +468,9 @@ const createIndexesForTable = async (
   for (const idx of indexes) {
     const unique = idx.unique ? "UNIQUE " : "";
     await runMigration(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(", ")})`,
+      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+        ", ",
+      )})`,
     );
   }
 };

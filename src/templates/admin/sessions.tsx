@@ -50,7 +50,7 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title="Sessions">
-      <AdminNav session={adminSession} active="/admin/users" />
+      <AdminNav active="/admin/users" session={adminSession} />
       <UsersSubNav />
 
       <Flash success={success} />
@@ -79,7 +79,7 @@ export const adminSessionsPage = (
           <br />
 
           <CsrfForm action="/admin/sessions" class="one-button">
-            <button type="submit" class="danger">
+            <button class="danger" type="submit">
               Log out of all other sessions ({otherSessionCount})
             </button>
           </CsrfForm>

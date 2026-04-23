@@ -6,15 +6,16 @@ import { decryptAttendeeOrNull } from "#lib/db/attendees.ts";
 import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { requirePrivateKey, verifyOrRedirect } from "#routes/admin/utils.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
   AUTH_FORM,
   type AuthSession,
-  getSearchParam,
-  orNotFound,
   requireSessionOr,
   withAuth,
-} from "#routes/utils.ts";
+} from "#routes/auth.ts";
+import { getSearchParam } from "#routes/url.ts";
 
 /** Attendee with event data */
 export type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
@@ -43,13 +44,7 @@ const loadAttendeeForEvent = async (
 };
 
 /** Load attendee with auth, returning 404 if not found */
-const withAttendee = (
-  session: AuthSession,
-  eventId: number,
-  attendeeId: number,
-  handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
-): Promise<Response> =>
-  orNotFound(loadAttendeeForEvent(session, eventId, attendeeId), handler);
+const withAttendee = withEntityLoader(loadAttendeeForEvent);
 
 /** Route params for event-scoped routes */
 export type EventRouteParams = { id: number };
@@ -71,9 +66,11 @@ export const attendeeGetRoute =
     { eventId, attendeeId }: AttendeeRouteParams,
   ): Promise<Response> =>
     requireSessionOr(request, (session) =>
-      withAttendee(session, eventId, attendeeId, (data) =>
-        handler(data, session, request),
-      ),
+      withAttendee(
+        session,
+        eventId,
+        attendeeId,
+      )((data) => handler(data, session, request)),
     );
 
 /** Auth + load attendee from form handler */
@@ -88,9 +85,11 @@ const withAttendeeForm = (
   ) => Response | Promise<Response>,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withAttendee(session, eventId, attendeeId, (data) =>
-      handler(data, session, form),
-    ),
+    withAttendee(
+      session,
+      eventId,
+      attendeeId,
+    )((data) => handler(data, session, form)),
   );
 
 /** Read return_url from request query params */
