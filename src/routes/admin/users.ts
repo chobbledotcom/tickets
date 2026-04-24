@@ -19,8 +19,8 @@ import {
   isInviteExpired,
   isUsernameTaken,
 } from "#lib/db/users.ts";
+import { createAuthedFormRoute } from "#lib/app-forms.ts";
 import { getFlash } from "#lib/flash-context.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import type { User } from "#lib/types.ts";
@@ -121,49 +121,39 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
  */
 const handleUserNewGet = ownerPage((session) => adminUserNewPage(session));
 
-/**
- * Handle POST /admin/users - create invited user
- */
-const handleUsersPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, handleUsersPostForm);
+/** Handle POST /admin/users - create invited user */
+const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
+  auth: OWNER_FORM,
+  form: {
+    validate: (form) =>
+      validateForm<InviteUserFormValues>(form, inviteUserFields),
+  },
+  onInvalid: ({ error }) => errorRedirect("/admin/user/new", error),
+  onValid: async ({ values }) => {
+    const { username, admin_level: adminLevel } = values;
 
-const handleUsersPostForm = async (
-  _session: AuthSession,
-  form: FormParams,
-): Promise<Response> => {
-  const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
-  if (!validation.valid) {
-    return errorRedirect("/admin/user/new", validation.error);
-  }
+    if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
+      return errorRedirect("/admin/user/new", "Invalid role");
+    }
+    if (await isUsernameTaken(username)) {
+      return errorRedirect("/admin/user/new", "Username is already taken");
+    }
 
-  const { username, admin_level: adminLevel } = validation.values;
+    const inviteCode = generateSecureToken();
+    const codeHash = await hashInviteCode(inviteCode);
+    const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
 
-  if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-    return errorRedirect("/admin/user/new", "Invalid role");
-  }
+    await createInvitedUser(username, adminLevel, codeHash, expiry);
 
-  // Check if username is taken
-  if (await isUsernameTaken(username)) {
-    return errorRedirect("/admin/user/new", "Username is already taken");
-  }
-
-  // Generate invite code
-  const inviteCode = generateSecureToken();
-  const codeHash = await hashInviteCode(inviteCode);
-  const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
-
-  await createInvitedUser(username, adminLevel, codeHash, expiry);
-
-  const domain = getEffectiveDomain();
-  const inviteLink = `https://${domain}/join/${inviteCode}`;
-
-  await logActivity(`User '${username}' invited as ${adminLevel}`);
-  return redirect(
-    `/admin/users?invite=${encodeURIComponent(inviteLink)}`,
-    "User invited",
-    true,
-  );
-};
+    const inviteLink = `https://${getEffectiveDomain()}/join/${inviteCode}`;
+    await logActivity(`User '${username}' invited as ${adminLevel}`);
+    return redirect(
+      `/admin/users?invite=${encodeURIComponent(inviteLink)}`,
+      "User invited",
+      true,
+    );
+  },
+});
 
 type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
 type UserActionHandler = (

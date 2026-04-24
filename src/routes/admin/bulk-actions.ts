@@ -24,7 +24,7 @@ import { buildDuplicateEventInput } from "#lib/events-actions.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
-import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import {
   generateUniqueGroupSlug,
   groupFormPost,
@@ -73,26 +73,24 @@ const handleReactivateGroupGet = groupEventsPage(adminReactivateGroupPage);
 
 /** Factory for group-level bulk toggle handlers (deactivate/reactivate). */
 const groupTogglePost = (opts: { active: boolean; action: string }) =>
-  groupFormPost(async (group, form) => {
-    const formUrl = `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
-    const error = verifyOrRedirect(
-      form,
-      group.name,
-      formUrl,
-      "Group name",
-      `${opts.action}ion`,
-    );
-    if (error) return error;
-
-    const affected = await setGroupEventsActive(group.id, opts.active);
-    await logActivity(
-      `Group '${group.name}' ${opts.action}d (${affected} event(s))`,
-    );
-    return redirect(
-      `/admin/groups/${group.id}`,
-      `Group ${opts.action}d (${affected} event(s))`,
-      true,
-    );
+  createVerifiedFormRoute<{ id: number }, Group>({
+    actionLabel: `${opts.action}ion`,
+    identifier: (group) => group.name,
+    identifierLabel: "Group name",
+    loadContext: ({ id }) => groupsTable.findById(id),
+    mismatchRedirect: (group) =>
+      `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
+    onConfirm: async ({ context: group }) => {
+      const affected = await setGroupEventsActive(group.id, opts.active);
+      await logActivity(
+        `Group '${group.name}' ${opts.action}d (${affected} event(s))`,
+      );
+      return redirect(
+        `/admin/groups/${group.id}`,
+        `Group ${opts.action}d (${affected} event(s))`,
+        true,
+      );
+    },
   });
 
 /** POST /admin/groups/:id/bulk-actions/deactivate */

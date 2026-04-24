@@ -3,14 +3,16 @@
  * Access is strictly restricted to demo mode (DEMO_MODE=true).
  */
 
+/* jscpd:ignore-start */
+import { createFormRoute } from "#lib/app-forms.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import { isDemoMode } from "#lib/demo.ts";
-import type { FormParams } from "#lib/form-data.ts";
+import { defineForm } from "#lib/forms.tsx";
 import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
-import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
+import { applyFlash } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -23,6 +25,7 @@ import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
+/* jscpd:ignore-end */
 
 /** Guard: require demo mode, else 404 */
 const withDemoResetAccess = (
@@ -30,20 +33,22 @@ const withDemoResetAccess = (
 ): Response | Promise<Response> =>
   isDemoMode() ? handler() : notFoundResponse();
 
-/** Redirect back to demo reset page with an error */
-const resetPageError = (message: string, _status: number): Response =>
-  errorRedirect("/demo/reset", message);
-
-/**
- * Validate the confirmation phrase from a form submission.
- * Shared with admin settings reset handler.
- */
-export const validateResetPhrase = (form: FormParams): string | null => {
-  const confirmPhrase = form.getString("confirm_phrase");
-  return confirmPhrase === RESET_DATABASE_PHRASE
-    ? null
-    : RESET_PHRASE_MISMATCH_ERROR;
-};
+/** Form schema for database reset confirmation */
+export const demoResetForm = defineForm({
+  fields: [
+    {
+      autocomplete: "off" as const,
+      label: "Confirmation phrase",
+      name: "confirm_phrase",
+      type: "text" as const,
+    },
+  ] as const,
+  id: "demoReset",
+  validate: (values) =>
+    (values.confirm_phrase ?? "") !== RESET_DATABASE_PHRASE
+      ? RESET_PHRASE_MISMATCH_ERROR
+      : null,
+});
 
 /** Handle GET /demo/reset - show reset confirmation page */
 const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
@@ -53,22 +58,23 @@ const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
     return htmlResponse(demoResetPage());
   });
 
+const resetRoute = createFormRoute({
+  form: demoResetForm,
+  onInvalid: ({ error }) => errorRedirect("/demo/reset", error),
+  onValid: async () => {
+    if (isStorageEnabled()) {
+      await deleteAllEventStorageFiles(await getAllEvents());
+    }
+    await resetDatabase();
+    return redirect("/setup/", "Database reset", true, {
+      cookie: clearSessionCookie(),
+    });
+  },
+});
+
 /** Handle POST /demo/reset - reset the database */
 const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
-  withDemoResetAccess(() =>
-    withCsrfForm(request, resetPageError, async (form) => {
-      const phraseError = validateResetPhrase(form);
-      if (phraseError) return resetPageError(phraseError, 400);
-
-      if (isStorageEnabled()) {
-        await deleteAllEventStorageFiles(await getAllEvents());
-      }
-      await resetDatabase();
-      return redirect("/setup/", "Database reset", true, {
-        cookie: clearSessionCookie(),
-      });
-    }),
-  );
+  withDemoResetAccess(() => resetRoute(request, {}));
 
 /** Demo reset routes */
 export const demoResetRoutes = defineRoutes({

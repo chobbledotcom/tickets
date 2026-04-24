@@ -3,6 +3,7 @@
  */
 
 import { map } from "#fp";
+import { createAuthedHandler } from "#lib/app-forms.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
@@ -30,7 +31,7 @@ import { sortEvents } from "#lib/sort-events.ts";
 import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
 import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -147,14 +148,13 @@ export const withGroup = withEntityLoader(groupsTable.findById);
  * Callers receive the group and the parsed form; a missing session or
  * missing group short-circuits with the appropriate response.
  */
-export const groupFormPost =
-  (
-    handler: (group: Group, form: FormParams) => Response | Promise<Response>,
-  ): TypedRouteHandler<"POST /admin/groups/:id"> =>
-  (request, { id }) =>
-    withAuth(request, AUTH_FORM, (_session, form) =>
-      withGroup(id)((group) => handler(group, form)),
-    );
+export const groupFormPost = (
+  handler: (group: Group, form: FormParams) => Response | Promise<Response>,
+): TypedRouteHandler<"POST /admin/groups/:id"> =>
+  createAuthedHandler<{ id: number }, Group>({
+    loadContext: ({ id }) => groupsTable.findById(id),
+    handle: ({ context, form }) => handler(context, form),
+  });
 
 /** Handle GET /admin/groups/:id - group detail page */
 const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (

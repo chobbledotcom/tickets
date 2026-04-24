@@ -2,9 +2,9 @@
  * Join (invite) page templates
  */
 
-import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { joinFields } from "#templates/fields.ts";
+import { joinForm } from "#routes/join.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -21,7 +21,7 @@ export const joinPage = (
         <h1>Welcome, {username}</h1>
         <p>Set your password to complete your account setup.</p>
         <Flash error={error} />
-        <Raw html={renderFields(joinFields)} />
+        <Raw html={joinForm.render()} />
         <button type="submit">Set Password</button>
       </CsrfForm>
     </Layout>,
