@@ -83,7 +83,7 @@ import {
   testStripeConnection,
 } from "#lib/stripe.ts";
 import type { Theme } from "#lib/types.ts";
-import { validateResetPhrase } from "#routes/admin/database-reset.ts";
+import { demoResetForm } from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
   processSecretField,
@@ -1223,9 +1223,9 @@ const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
  */
 const handleResetDatabasePost = advancedSettingsRoute(
   async (form, errorPage) => {
-    const phraseError = validateResetPhrase(form);
-    if (phraseError) {
-      return errorPage(phraseError, 400, "settings-reset-database");
+    const phraseResult = demoResetForm.validate(form);
+    if (!phraseResult.valid) {
+      return errorPage(phraseResult.error, 400, "settings-reset-database");
     }
 
     await logActivity("Database reset initiated");
