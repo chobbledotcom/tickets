@@ -485,6 +485,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
 
       // Mock createCheckoutSession to return a validation error result
+      const { stub } = await import("@std/testing/mock");
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockCreate = stub(
         stripePaymentProvider,
