@@ -2,13 +2,13 @@
  * Entity loading patterns for route handlers
  */
 
+import { createAuthedHandler } from "#lib/app-forms.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { AdminLevel } from "#lib/types.ts";
 import {
   type AuthSession,
   OWNER_FORM,
   requireSessionOr,
-  withAuth,
 } from "#routes/auth.ts";
 
 /**
@@ -75,15 +75,15 @@ export const authenticatedGetById =
 export const ownerGetById = authenticatedGetById("owner");
 
 /** Owner POST-by-ID + CSRF */
-export const ownerFormById =
-  (
-    handler: (
-      id: number,
-      session: AuthSession,
-      form: FormParams,
-    ) => Response | Promise<Response>,
-  ): IdRouteHandler =>
-  (request, { id }) =>
-    withAuth(request, OWNER_FORM, (session, form) =>
-      handler(id, session, form as FormParams),
-    );
+export const ownerFormById = (
+  handler: (
+    id: number,
+    session: AuthSession,
+    form: FormParams,
+  ) => Response | Promise<Response>,
+): IdRouteHandler =>
+  createAuthedHandler<{ id: number }>({
+    auth: OWNER_FORM,
+    handle: ({ form, params, session }) =>
+      handler(params.id, session, form),
+  });

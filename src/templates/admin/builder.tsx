@@ -3,7 +3,9 @@
  */
 
 import { CsrfForm, Flash } from "#lib/forms.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { builderForm } from "#routes/admin/builder.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -24,38 +26,7 @@ const BuilderForm = (): JSX.Element => (
       </p>
     </div>
     <CsrfForm action="/admin/builder" id="builder-form">
-      <label for="site_name">
-        Site Name
-        <input
-          id="site_name"
-          maxlength={64}
-          minlength={1}
-          name="site_name"
-          placeholder="My Event Site"
-          required
-          type="text"
-        />
-      </label>
-      <label for="db_url">
-        Database URL
-        <input
-          id="db_url"
-          name="db_url"
-          placeholder="libsql://your-db.turso.io"
-          required
-          type="url"
-        />
-      </label>
-      <label for="db_token">
-        Database Token
-        <input
-          id="db_token"
-          name="db_token"
-          placeholder="Token for the database"
-          required
-          type="password"
-        />
-      </label>
+      <Raw html={builderForm.render()} />
       <fieldset>
         <label>
           <input name="assignable" type="checkbox" value="1" />

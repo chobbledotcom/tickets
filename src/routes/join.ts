@@ -2,6 +2,7 @@
  * Join routes - public invite acceptance flow
  */
 
+import { createFormRoute } from "#lib/app-forms.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import {
   decryptUsername,
@@ -9,13 +10,36 @@ import {
   isInviteValid,
   setUserPassword,
 } from "#lib/db/users.ts";
-import { validateForm } from "#lib/forms.tsx";
+import { defineForm } from "#lib/forms.tsx";
 import type { User } from "#lib/types.ts";
-import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
+import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { type JoinFormValues, joinFields } from "#templates/fields.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
+
+export const joinForm = defineForm({
+  fields: [
+    {
+      autocomplete: "new-password" as const,
+      hint: "Minimum 8 characters",
+      label: "Password",
+      minlength: 8,
+      name: "password" as const,
+      required: true,
+      type: "password" as const,
+      validate: (v: string) =>
+        v.length < 8 ? "Password must be at least 8 characters" : null,
+    },
+    {
+      autocomplete: "new-password" as const,
+      label: "Confirm Password",
+      name: "password_confirm" as const,
+      required: true,
+      type: "password" as const,
+    },
+  ] as const,
+  id: "join",
+});
 
 /** Validate invite code and return user, or an error response */
 const validateInvite = async (
@@ -79,39 +103,24 @@ const handleJoinGet = joinRoute(async (request, code, _user, username) => {
   return htmlResponse(joinPage(code, username, flash.error));
 });
 
+const setPasswordRoute = (code: string, user: User) =>
+  createFormRoute({
+    form: joinForm,
+    onInvalid: ({ error }) => errorRedirect(`/join/${code}`, error),
+    onValid: async ({ values }) => {
+      if (values.password !== values.password_confirm) {
+        return errorRedirect(`/join/${code}`, "Passwords do not match");
+      }
+      await setUserPassword(user.id, values.password);
+      return redirect("/join/complete", "Password set successfully", true);
+    },
+  });
+
 /**
  * Handle POST /join/:code
  */
-const handleJoinPost = joinRoute((request, code, user, _username) =>
-  withCsrfForm(
-    request,
-    (message) => errorRedirect(`/join/${code}`, message),
-    async (form) => {
-      // Validate password fields
-      const validation = validateForm<JoinFormValues>(form, joinFields);
-      if (!validation.valid) {
-        return errorRedirect(`/join/${code}`, validation.error);
-      }
-
-      const { password, password_confirm: passwordConfirm } = validation.values;
-
-      if (password.length < 8) {
-        return errorRedirect(
-          `/join/${code}`,
-          "Password must be at least 8 characters",
-        );
-      }
-
-      if (password !== passwordConfirm) {
-        return errorRedirect(`/join/${code}`, "Passwords do not match");
-      }
-
-      // Set the password and clear the invite code
-      await setUserPassword(user.id, password);
-
-      return redirect("/join/complete", "Password set successfully", true);
-    },
-  ),
+const handleJoinPost = joinRoute(
+  (request, code, user) => setPasswordRoute(code, user)(request, {}),
 );
 
 /**

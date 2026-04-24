@@ -7,6 +7,7 @@ import type { EndpointDoc } from "#lib/admin-api-example.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { apiKeyForm } from "#routes/admin/api-keys.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -95,16 +96,7 @@ export const adminApiKeysPage = (
 
       <CsrfForm action="/admin/api-keys">
         <h2>Create API key</h2>
-        <label>
-          Name
-          <input
-            maxLength={100}
-            name="name"
-            placeholder="e.g. CI Pipeline"
-            required
-            type="text"
-          />
-        </label>
+        <Raw html={apiKeyForm.render()} />
         <button type="submit">Create key</button>
       </CsrfForm>
     </Layout>,
