@@ -20,7 +20,7 @@ const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
 
 /** Values the admin previously submitted, re-rendered on error/success */
 export type AdminEventQrValues = {
-  customerName: string;
+  customer_name: string;
   value: string;
   quantity: string;
   date: string;
@@ -179,7 +179,7 @@ export const adminEventQrPage = ({
             <input
               name="customer_name"
               type="text"
-              value={values.customerName}
+              value={values.customer_name}
             />
             <small>Optional &mdash; pre-fills the name field.</small>
           </label>
