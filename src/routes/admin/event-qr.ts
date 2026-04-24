@@ -83,6 +83,14 @@ const extractRawValues = (form: FormParams): AdminEventQrValues => ({
   value: form.getString("value").trim(),
 });
 
+/** Price range for an event: min/max allowed in minor units */
+const getPriceBounds = (
+  event: EventWithCount,
+): { minPrice: number; maxPrice: number } => ({
+  maxPrice: event.can_pay_more ? event.max_price : Number.MAX_SAFE_INTEGER,
+  minPrice: event.can_pay_more ? event.unit_price : 0,
+});
+
 /** Build a form validator for the QR form, using event config for range checks */
 const createQrFormValidator = (
   event: EventWithCount,
@@ -102,10 +110,7 @@ const createQrFormValidator = (
     }
 
     if (values.value) {
-      const minPrice = event.can_pay_more ? event.unit_price : 0;
-      const maxPrice = event.can_pay_more
-        ? event.max_price
-        : Number.MAX_SAFE_INTEGER;
+      const { minPrice, maxPrice } = getPriceBounds(event);
       const priceResult = validatePrice(values.value, minPrice, maxPrice);
       if (!priceResult.ok) {
         return { error: priceResult.error, valid: false };
@@ -135,10 +140,7 @@ const parsedFromValues = (
   const quantity = Number.parseInt(values.quantity, 10);
   let valueMinor: number | undefined;
   if (values.value) {
-    const minPrice = event.can_pay_more ? event.unit_price : 0;
-    const maxPrice = event.can_pay_more
-      ? event.max_price
-      : Number.MAX_SAFE_INTEGER;
+    const { minPrice, maxPrice } = getPriceBounds(event);
     const result = validatePrice(values.value, minPrice, maxPrice);
     if (result.ok) valueMinor = result.price;
   }
