@@ -6,6 +6,8 @@ import {
   type AuthSession,
   withAuth,
 } from "#routes/auth.ts";
+import { CSRF_INVALID_FORM_MESSAGE } from "#lib/csrf.ts";
+import { requireCsrfForm } from "#routes/csrf.ts";
 import { notFoundResponse } from "#routes/response.ts";
 
 export type FormValidator<TValues> = {
@@ -49,6 +51,47 @@ type FormRouteConfig<TValues, TParams, TContext> = {
     args: HandlerArgs<TValues, TParams, TContext>,
   ) => Response | Promise<Response>;
 };
+
+type PublicHandlerArgs<TValues, TParams> = {
+  form: FormParams;
+  params: TParams;
+  values: TValues;
+};
+
+type PublicInvalidArgs<TParams> = {
+  error: string;
+  params: TParams;
+};
+
+type PublicFormRouteConfig<TValues, TParams> = {
+  form: FormValidator<TValues>;
+  preprocessForm?: (form: FormParams) => void;
+  /** Must return a synchronous Response (used as the CSRF error handler too). */
+  onInvalid: (args: PublicInvalidArgs<TParams>) => Response;
+  onValid: (
+    args: PublicHandlerArgs<TValues, TParams>,
+  ) => Response | Promise<Response>;
+};
+
+/** CSRF-only (no auth): validate a typed form, then dispatch. */
+export const createFormRoute =
+  <TValues, TParams = Record<string, never>>(
+    config: PublicFormRouteConfig<TValues, TParams>,
+  ) =>
+  async (request: Request, params: TParams): Promise<Response> => {
+    const csrf = await requireCsrfForm(request, () =>
+      config.onInvalid({ error: CSRF_INVALID_FORM_MESSAGE, params }),
+    );
+    if (!csrf.ok) return csrf.response;
+
+    const { form } = csrf;
+    config.preprocessForm?.(form);
+    const result = config.form.validate(form);
+
+    return result.valid
+      ? config.onValid({ form, params, values: result.values })
+      : config.onInvalid({ error: result.error, params });
+  };
 
 /** Require auth, optionally load context, validate a typed form, then dispatch. */
 export const createAuthedFormRoute =
