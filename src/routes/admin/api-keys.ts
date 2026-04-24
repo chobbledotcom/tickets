@@ -36,8 +36,6 @@ export const apiKeyForm = defineForm({
       placeholder: "e.g. CI Pipeline",
       required: true,
       type: "text" as const,
-      validate: (v) =>
-        v.length > 100 ? "Name must be under 100 characters" : null,
     },
   ] as const,
   id: "apiKey",
