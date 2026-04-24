@@ -58,27 +58,27 @@ const handleBuilderGet = (request: Request): Promise<Response> => {
 export const builderForm = defineForm({
   fields: [
     {
-      label: "Site name",
+      label: "Site Name",
+      maxlength: 64,
+      minlength: 1,
       name: "site_name",
+      placeholder: "My Event Site",
       required: true,
       type: "text" as const,
     },
     {
       label: "Database URL",
       name: "db_url",
+      placeholder: "libsql://your-db.turso.io",
       required: true,
-      type: "text" as const,
+      type: "url" as const,
     },
     {
-      label: "Database token",
+      label: "Database Token",
       name: "db_token",
+      placeholder: "Token for the database",
       required: true,
-      type: "text" as const,
-    },
-    {
-      label: "Assignable",
-      name: "assignable",
-      type: "text" as const,
+      type: "password" as const,
     },
   ] as const,
   id: "builder",
@@ -88,7 +88,7 @@ const builderPost = createAuthedFormRoute({
   auth: OWNER_FORM,
   form: builderForm,
   onInvalid: ({ error }) => errorRedirect(BUILDER_PATH, error),
-  onValid: async ({ values }) => {
+  onValid: async ({ form, values }) => {
     const dbTest = await builderApi.testDbConnection(
       values.db_url,
       values.db_token,
@@ -118,7 +118,7 @@ const builderPost = createAuthedFormRoute({
       buildResult.defaultHostname,
       values.db_url,
       values.db_token,
-      values.assignable === "1",
+      form.getString("assignable") === "1",
       String(buildResult.scriptId),
     );
     await logActivity(`Built new site: ${values.site_name}`);
