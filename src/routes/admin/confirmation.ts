@@ -4,9 +4,10 @@
 
 /* jscpd:ignore-start */
 import { asString } from "#fp";
+import { createAuthedHandler } from "#lib/app-forms.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
-import type { AuthSession } from "#routes/auth.ts";
+import type { AuthPolicy, AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
   OWNER_FORM,
@@ -76,6 +77,58 @@ export const verifyIdentifierOrJsonError = (
   }
   return null;
 };
+
+// ── createVerifiedFormRoute: auth + load + verify identifier + action ─
+
+type VerifiedFormRouteConfig<TParams, TContext> = {
+  /** Auth policy (default AUTH_FORM). Use OWNER_FORM for owner-only. */
+  auth?: AuthPolicy<"form">;
+  /** Load context after auth. Returning null yields a 404. */
+  loadContext?: (
+    params: TParams,
+    session: AuthSession,
+  ) => Promise<TContext | null>;
+  /** The identifier the user must type (e.g. entity name) */
+  identifier: (context: TContext, params: TParams) => string | Promise<string>;
+  /** Label for the identifier field (e.g. "Event name") */
+  identifierLabel: string;
+  /** Action suffix for the mismatch error (e.g. "deletion") */
+  actionLabel?: string;
+  /** Where to redirect on identifier mismatch */
+  mismatchRedirect: (context: TContext, params: TParams) => string;
+  /** Run after identifier verifies */
+  onConfirm: (args: {
+    context: TContext;
+    form: FormParams;
+    params: TParams;
+    session: AuthSession;
+  }) => Response | Promise<Response>;
+};
+
+/**
+ * Auth + CSRF + optional entity load + confirm_identifier verification,
+ * then dispatch to `onConfirm`. Mismatch → errorRedirect with a consistent
+ * "X does not match" message.
+ */
+export const createVerifiedFormRoute = <TParams, TContext>(
+  config: VerifiedFormRouteConfig<TParams, TContext>,
+) =>
+  createAuthedHandler<TParams, TContext>({
+    auth: config.auth,
+    loadContext: config.loadContext,
+    handle: async (args) => {
+      const expected = await config.identifier(args.context, args.params);
+      const error = verifyOrRedirect(
+        args.form,
+        expected,
+        config.mismatchRedirect(args.context, args.params),
+        config.identifierLabel,
+        config.actionLabel,
+      );
+      if (error) return error;
+      return config.onConfirm(args);
+    },
+  });
 
 /** Auth option: string shorthand or explicit guard pair */
 type AuthOption<TSession> =
