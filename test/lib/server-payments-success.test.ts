@@ -174,7 +174,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+        Promise.resolve({ id: "re_inactive_refund" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
         >),
       );
@@ -284,7 +284,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+        Promise.resolve({ id: "re_rollback_refund" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
         >),
       );
