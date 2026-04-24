@@ -15,7 +15,6 @@ import {
   setTestEnv,
   setupStripe,
   singleItem,
-  withMocks,
 } from "#test-utils";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
