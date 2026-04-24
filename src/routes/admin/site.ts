@@ -9,16 +9,57 @@ import {
   SITE_CONTACT_DEMO_FIELDS,
   SITE_HOME_DEMO_FIELDS,
 } from "#lib/demo.ts";
+import { defineForm } from "#lib/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { FORMATTING_HINT } from "#templates/fields.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
 } from "#templates/admin/site.tsx";
+
+export const siteHomeForm = defineForm({
+  fields: [
+    {
+      autocomplete: "off" as const,
+      hint: "Displayed as the main heading on all public pages (max 128 characters).",
+      id: "website_title",
+      label: "Website Title",
+      maxlength: MAX_WEBSITE_TITLE_LENGTH,
+      name: "website_title",
+      type: "text" as const,
+    },
+    {
+      hintHtml: `Text displayed on the public homepage (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      id: "homepage_text",
+      label: "Homepage Text",
+      maxlength: MAX_TEXTAREA_LENGTH,
+      name: "homepage_text",
+      placeholder: "Welcome to our site...",
+      type: "textarea" as const,
+    },
+  ] as const,
+  id: "siteHome",
+});
+
+export const siteContactForm = defineForm({
+  fields: [
+    {
+      hintHtml: `Text displayed on the public contact page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      id: "contact_page_text",
+      label: "Contact Page Text",
+      maxlength: MAX_TEXTAREA_LENGTH,
+      name: "contact_page_text",
+      placeholder: "Get in touch with us...",
+      type: "textarea" as const,
+    },
+  ] as const,
+  id: "siteContact",
+});
 
 type PageRenderer = (
   session: AuthSession,

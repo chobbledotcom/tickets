@@ -142,11 +142,6 @@ export type InviteUserFormValues = {
   admin_level: AdminLevel;
 };
 
-/** Typed values from join (set password) form */
-export type JoinFormValues = {
-  password: string;
-  password_confirm: string;
-};
 
 /**
  * Validate URL is safe (https or relative path, no javascript: etc.)
@@ -950,10 +945,3 @@ export const inviteUserFields: Field[] = [
   },
 ];
 
-/**
- * Join (set password) form field definitions
- */
-export const joinFields: Field[] = [
-  newPasswordField("password", "Password"),
-  newPasswordField("password_confirm", "Confirm Password", { confirm: true }),
-];

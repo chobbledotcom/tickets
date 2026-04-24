@@ -153,7 +153,7 @@ describeWithEnv(
       expectRedirect(response, "/admin/builder");
       expectFlash(
         response,
-        expect.stringContaining("Site name is required"),
+        expect.stringContaining("Site Name is required"),
         false,
       );
     });
@@ -181,7 +181,7 @@ describeWithEnv(
       expectRedirect(response, "/admin/builder");
       expectFlash(
         response,
-        expect.stringContaining("Database token is required"),
+        expect.stringContaining("Database Token is required"),
         false,
       );
     });

@@ -17,8 +17,9 @@ import { FormParams } from "#lib/form-data.ts";
 import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { createAuthedFormRoute, type FormValidator } from "#lib/app-forms.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import type {
@@ -28,7 +29,7 @@ import type {
 import { adminEventQrPage } from "#templates/admin/event-qr.tsx";
 
 const EMPTY_VALUES: AdminEventQrValues = {
-  customerName: "",
+  customer_name: "",
   date: "",
   quantity: "1",
   value: "",
@@ -74,74 +75,81 @@ const handleGet: TypedRouteHandler<"GET /admin/event/:id/qr"> = (
 ) =>
   requireSessionOr(request, (session) => renderPage(id, session, EMPTY_VALUES));
 
-/** Extract and validate form values. Returns a parsed shape or an error string. */
-const extractValues = (
-  form: FormParams,
+/** Extract raw form values without validation */
+const extractRawValues = (form: FormParams): AdminEventQrValues => ({
+  customer_name: form.getString("customer_name").trim(),
+  date: form.getString("date").trim(),
+  quantity: form.getString("quantity").trim() || "1",
+  value: form.getString("value").trim(),
+});
+
+/** Price range for an event: min/max allowed in minor units */
+const getPriceBounds = (
   event: EventWithCount,
-):
-  | { ok: true; parsed: ParsedValues; values: AdminEventQrValues }
-  | {
-      ok: false;
-      error: string;
-      values: AdminEventQrValues;
-    } => {
-  const values: AdminEventQrValues = {
-    customerName: form.getString("customer_name").trim(),
-    date: form.getString("date").trim(),
-    quantity: form.getString("quantity").trim() || "1",
-    value: form.getString("value").trim(),
-  };
+): { minPrice: number; maxPrice: number } => ({
+  maxPrice: event.can_pay_more ? event.max_price : Number.MAX_SAFE_INTEGER,
+  minPrice: event.can_pay_more ? event.unit_price : 0,
+});
 
-  const quantity = Number.parseInt(values.quantity, 10);
-  if (Number.isNaN(quantity) || quantity < 1) {
-    return { error: "Quantity must be at least 1", ok: false, values };
-  }
-  if (quantity > event.max_quantity) {
-    return {
-      error: `Quantity cannot exceed ${event.max_quantity}`,
-      ok: false,
-      values,
-    };
-  }
+/** Build a form validator for the QR form, using event config for range checks */
+const createQrFormValidator = (
+  event: EventWithCount,
+): FormValidator<AdminEventQrValues> => ({
+  validate: (form) => {
+    const values = extractRawValues(form);
 
-  let valueMinor: number | undefined;
-  if (values.value) {
-    const minPrice = event.can_pay_more ? event.unit_price : 0;
-    const maxPrice = event.can_pay_more
-      ? event.max_price
-      : Number.MAX_SAFE_INTEGER;
-    const priceResult = validatePrice(values.value, minPrice, maxPrice);
-    if (!priceResult.ok) {
-      return { error: priceResult.error, ok: false, values };
+    const quantity = Number.parseInt(values.quantity, 10);
+    if (Number.isNaN(quantity) || quantity < 1) {
+      return { error: "Quantity must be at least 1", valid: false };
     }
-    valueMinor = priceResult.price;
-  }
+    if (quantity > event.max_quantity) {
+      return {
+        error: `Quantity cannot exceed ${event.max_quantity}`,
+        valid: false,
+      };
+    }
 
-  if (event.event_type === "daily" && !values.date) {
-    return {
-      error: "Date is required for daily events",
-      ok: false,
-      values,
-    };
-  }
+    if (values.value) {
+      const { minPrice, maxPrice } = getPriceBounds(event);
+      const priceResult = validatePrice(values.value, minPrice, maxPrice);
+      if (!priceResult.ok) {
+        return { error: priceResult.error, valid: false };
+      }
+    }
 
-  return {
-    ok: true,
-    parsed: {
-      date: values.date || undefined,
-      name: values.customerName || undefined,
-      quantity,
-      value: valueMinor,
-    },
-    values,
-  };
-};
+    if (event.event_type === "daily" && !values.date) {
+      return { error: "Date is required for daily events", valid: false };
+    }
+
+    return { valid: true, values };
+  },
+});
 
 type ParsedValues = {
   name?: string;
   value?: number;
   quantity: number;
   date?: string;
+};
+
+/** Parse validated string values into the typed shape needed for token signing */
+const parsedFromValues = (
+  values: AdminEventQrValues,
+  event: EventWithCount,
+): ParsedValues => {
+  const quantity = Number.parseInt(values.quantity, 10);
+  let valueMinor: number | undefined;
+  if (values.value) {
+    const { minPrice, maxPrice } = getPriceBounds(event);
+    const result = validatePrice(values.value, minPrice, maxPrice);
+    if (result.ok) valueMinor = result.price;
+  }
+  return {
+    date: values.date || undefined,
+    name: values.customer_name || undefined,
+    quantity,
+    value: valueMinor,
+  };
 };
 
 /** Build the absolute URL the QR encodes */
@@ -164,32 +172,30 @@ const signAndRenderQr = async (
   return { svg, url };
 };
 
-/** Process a validated admin QR form submission and render the result panel */
+/** Process a validated QR form submission and render the result panel */
 const generateAndRender = async (
   id: number,
   session: AdminSession,
   event: EventWithCount,
-  extracted: Extract<ReturnType<typeof extractValues>, { ok: true }>,
+  values: AdminEventQrValues,
 ): Promise<Response> => {
-  const result = await signAndRenderQr(event, extracted.parsed);
-  return renderPage(id, session, extracted.values, { result });
+  const result = await signAndRenderQr(event, parsedFromValues(values, event));
+  return renderPage(id, session, values, { result });
 };
 
 /** POST /admin/event/:id/qr */
-const handlePost: TypedRouteHandler<"POST /admin/event/:id/qr"> = (
-  request,
-  { id },
-) =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    withEvent(id)((event) => {
-      const extracted = extractValues(form, event);
-      return extracted.ok
-        ? generateAndRender(id, session, event, extracted)
-        : renderPage(id, session, extracted.values, {
-            error: extracted.error,
-          });
-    }),
-  );
+const handlePost = createAuthedFormRoute<
+  AdminEventQrValues,
+  { id: number },
+  EventWithCount
+>({
+  form: (event) => createQrFormValidator(event),
+  loadContext: ({ id }) => getEventWithCount(id),
+  onInvalid: ({ error, form, params, session }) =>
+    renderPage(params.id, session, extractRawValues(form), { error }),
+  onValid: ({ context: event, params, session, values }) =>
+    generateAndRender(params.id, session, event, values),
+});
 
 /**
  * GET /admin/event/:id/qr.json
@@ -205,12 +211,15 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/event/:id/qr.json"> = (
   requireSessionOr(request, () =>
     withEvent(id)(async (event) => {
       const form = new FormParams(new URL(request.url).searchParams);
-      const extracted = extractValues(form, event);
-      if (!extracted.ok) {
-        return jsonResponse({ error: extracted.error, ok: false }, 400);
+      const result = createQrFormValidator(event).validate(form);
+      if (!result.valid) {
+        return jsonResponse({ error: result.error, ok: false }, 400);
       }
-      const result = await signAndRenderQr(event, extracted.parsed);
-      return jsonResponse({ ok: true, ...result });
+      const qrResult = await signAndRenderQr(
+        event,
+        parsedFromValues(result.values, event),
+      );
+      return jsonResponse({ ok: true, ...qrResult });
     }),
   );
 

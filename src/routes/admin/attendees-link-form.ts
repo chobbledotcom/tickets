@@ -129,7 +129,8 @@ const createLinkRoute = <TValues extends LinkFormValues>(
 ) =>
   createAuthedFormRoute<TValues, LinkRouteParams>({
     form,
-    onInvalid: (error, params) => invalidLinkResponse(params.attendeeId, error),
+    onInvalid: ({ error, params }) =>
+      invalidLinkResponse(params.attendeeId, error),
     onValid: ({ params, values }) => {
       const eventId = getEventId(values, params);
       const linkParams = { attendeeId: params.attendeeId, eventId };
