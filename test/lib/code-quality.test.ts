@@ -46,6 +46,7 @@ const TEST_UTILITY_FILES = [
   "test-utils/db-helpers.ts",
   "test-utils/settings.ts",
   "test-utils/crypto.ts",
+  "test-utils/square-helpers.ts",
   "test-utils/stripe-mock.ts",
   "test-utils/test-browser.ts",
   "test-utils/test-compat.ts",
