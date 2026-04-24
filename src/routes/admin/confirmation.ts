@@ -4,10 +4,10 @@
 
 /* jscpd:ignore-start */
 import { asString } from "#fp";
-import { createAuthedHandler } from "#lib/app-forms.ts";
+import { type AuthedBase, createAuthedHandler } from "#lib/app-forms.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import type { FormParams } from "#lib/form-data.ts";
-import type { AuthPolicy, AuthSession } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
   OWNER_FORM,
@@ -80,30 +80,28 @@ export const verifyIdentifierOrJsonError = (
 
 // ── createVerifiedFormRoute: auth + load + verify identifier + action ─
 
-type VerifiedFormRouteConfig<TParams, TContext> = {
-  /** Auth policy (default AUTH_FORM). Use OWNER_FORM for owner-only. */
-  auth?: AuthPolicy<"form">;
-  /** Load context after auth. Returning null yields a 404. */
-  loadContext?: (
-    params: TParams,
-    session: AuthSession,
-  ) => Promise<TContext | null>;
-  /** The identifier the user must type (e.g. entity name) */
-  identifier: (context: TContext, params: TParams) => string | Promise<string>;
-  /** Label for the identifier field (e.g. "Event name") */
-  identifierLabel: string;
-  /** Action suffix for the mismatch error (e.g. "deletion") */
-  actionLabel?: string;
-  /** Where to redirect on identifier mismatch */
-  mismatchRedirect: (context: TContext, params: TParams) => string;
-  /** Run after identifier verifies */
-  onConfirm: (args: {
-    context: TContext;
-    form: FormParams;
-    params: TParams;
-    session: AuthSession;
-  }) => Response | Promise<Response>;
-};
+type VerifiedFormRouteConfig<TParams, TContext> =
+  & AuthedBase<TParams, TContext>
+  & {
+    /** The identifier the user must type (e.g. entity name) */
+    identifier: (
+      context: TContext,
+      params: TParams,
+    ) => string | Promise<string>;
+    /** Label for the identifier field (e.g. "Event name") */
+    identifierLabel: string;
+    /** Action suffix for the mismatch error (e.g. "deletion") */
+    actionLabel?: string;
+    /** Where to redirect on identifier mismatch */
+    mismatchRedirect: (context: TContext, params: TParams) => string;
+    /** Run after identifier verifies */
+    onConfirm: (args: {
+      context: TContext;
+      form: FormParams;
+      params: TParams;
+      session: AuthSession;
+    }) => Response | Promise<Response>;
+  };
 
 /**
  * Auth + CSRF + optional entity load + confirm_identifier verification,
@@ -113,10 +111,12 @@ type VerifiedFormRouteConfig<TParams, TContext> = {
 export const createVerifiedFormRoute = <TParams, TContext>(
   config: VerifiedFormRouteConfig<TParams, TContext>,
 ) =>
+  /* jscpd:ignore-start */
   createAuthedHandler<TParams, TContext>({
     auth: config.auth,
     loadContext: config.loadContext,
     handle: async (args) => {
+      /* jscpd:ignore-end */
       const expected = await config.identifier(args.context, args.params);
       const error = verifyOrRedirect(
         args.form,

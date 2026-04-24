@@ -23,7 +23,8 @@ type AuthedHandlerArgs<TParams, TContext> = {
   session: AuthSession;
 };
 
-type AuthedHandlerConfig<TParams, TContext> = {
+/** Shared auth + load context fields for all authed-form route primitives. */
+export type AuthedBase<TParams, TContext> = {
   /** Auth policy (default AUTH_FORM). Use OWNER_FORM for owner-only routes. */
   auth?: AuthPolicy<"form">;
   /** Load context after auth. Returning null yields a 404. */
@@ -31,6 +32,9 @@ type AuthedHandlerConfig<TParams, TContext> = {
     params: TParams,
     session: AuthSession,
   ) => Promise<TContext | null>;
+};
+
+type AuthedHandlerConfig<TParams, TContext> = AuthedBase<TParams, TContext> & {
   /** Handle the authed, loaded request. */
   handle: (
     args: AuthedHandlerArgs<TParams, TContext>,
@@ -82,27 +86,22 @@ type InvalidArgs<TParams, TContext> = {
   session: AuthSession;
 };
 
-type FormRouteConfig<TValues, TParams, TContext> = {
-  /** Auth policy (default AUTH_FORM). Use OWNER_FORM for owner-only routes. */
-  auth?: AuthPolicy<"form">;
-  /** Load context before validation. Returning null yields a 404. */
-  loadContext?: (
-    params: TParams,
-    session: AuthSession,
-  ) => Promise<TContext | null>;
-  /** Mutate the form before validation (demo overrides, secret triage, etc.). */
-  preprocessForm?: (form: FormParams, context: TContext) => void;
-  /** Form validator — static, or built from the loaded context. */
-  form:
-    | FormValidator<TValues>
-    | ((context: TContext) => FormValidator<TValues>);
-  onInvalid: (
-    args: InvalidArgs<TParams, TContext>,
-  ) => Response | Promise<Response>;
-  onValid: (
-    args: HandlerArgs<TValues, TParams, TContext>,
-  ) => Response | Promise<Response>;
-};
+type FormRouteConfig<TValues, TParams, TContext> =
+  & AuthedBase<TParams, TContext>
+  & {
+    /** Mutate the form before validation (demo overrides, secret triage, etc.). */
+    preprocessForm?: (form: FormParams, context: TContext) => void;
+    /** Form validator — static, or built from the loaded context. */
+    form:
+      | FormValidator<TValues>
+      | ((context: TContext) => FormValidator<TValues>);
+    onInvalid: (
+      args: InvalidArgs<TParams, TContext>,
+    ) => Response | Promise<Response>;
+    onValid: (
+      args: HandlerArgs<TValues, TParams, TContext>,
+    ) => Response | Promise<Response>;
+  };
 
 /** Require auth, optionally load context, validate a typed form, then dispatch. */
 export const createAuthedFormRoute = <
@@ -112,10 +111,12 @@ export const createAuthedFormRoute = <
 >(
   config: FormRouteConfig<TValues, TParams, TContext>,
 ) =>
+  /* jscpd:ignore-start */
   createAuthedHandler<TParams, TContext>({
     auth: config.auth,
     loadContext: config.loadContext,
     handle: ({ context, form, params, session }) => {
+      /* jscpd:ignore-end */
       config.preprocessForm?.(form, context);
       const validator = typeof config.form === "function"
         ? config.form(context)
