@@ -65,7 +65,6 @@ type PublicInvalidArgs<TParams> = {
 
 type PublicFormRouteConfig<TValues, TParams> = {
   form: FormValidator<TValues>;
-  preprocessForm?: (form: FormParams) => void;
   /** Must return a synchronous Response (used as the CSRF error handler too). */
   onInvalid: (args: PublicInvalidArgs<TParams>) => Response;
   onValid: (
@@ -85,7 +84,6 @@ export const createFormRoute =
     if (!csrf.ok) return csrf.response;
 
     const { form } = csrf;
-    config.preprocessForm?.(form);
     const result = config.form.validate(form);
 
     return result.valid
