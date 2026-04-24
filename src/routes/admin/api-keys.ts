@@ -14,6 +14,7 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#lib/db/api-keys.ts";
+import { defineForm } from "#lib/forms.tsx";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
@@ -25,6 +26,22 @@ import {
   adminApiKeysPage,
   adminDeleteApiKeyPage,
 } from "#templates/admin/api-keys.tsx";
+
+export const apiKeyForm = defineForm({
+  fields: [
+    {
+      label: "Name",
+      maxlength: 100,
+      name: "name",
+      placeholder: "e.g. CI Pipeline",
+      required: true,
+      type: "text" as const,
+      validate: (v) =>
+        v.length > 100 ? "Name must be under 100 characters" : null,
+    },
+  ] as const,
+  id: "apiKey",
+});
 
 /**
  * Handle GET /admin/api-keys
