@@ -3,7 +3,7 @@
  */
 
 /* jscpd:ignore-start */
-import { createAuthedFormRoute } from "#lib/app-forms.ts";
+import { createAuthedFormRoute, createAuthedHandler } from "#lib/app-forms.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import {
@@ -26,15 +26,13 @@ import { defineForm } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 import {
   createConfirmedHandlers,
-  verifyOrRedirect,
+  createVerifiedFormRoute,
 } from "#routes/admin/confirmation.ts";
 import {
   OWNER_FORM,
   ownerPage,
   requireOwnerOr,
-  withAuth,
 } from "#routes/auth.ts";
-import type { FormParams } from "#routes/csrf.ts";
 import { ownerFormById, ownerGetById } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -115,9 +113,10 @@ const handleQuestionGet = ownerGetById(
 
 type QuestionIdParams = { id: number };
 
-const redirectToQuestion = (
-  args: { error: string; params: QuestionIdParams },
-): Response => errorRedirect(`/admin/questions/${args.params.id}`, args.error);
+const redirectToQuestion = (args: {
+  error: string;
+  params: QuestionIdParams;
+}): Response => errorRedirect(`/admin/questions/${args.params.id}`, args.error);
 
 /** Handle POST /admin/questions/:id/edit */
 const handleQuestionEdit = createAuthedFormRoute<
@@ -166,56 +165,35 @@ const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
   successRedirect: "/admin/questions",
 });
 
-/** Load question + answer by IDs, returning 404 if either is missing */
-const withAnswer = async <T>(
-  questionId: number,
-  answerId: number,
-  handler: (question: QuestionWithAnswers, answer: Answer) => T | Promise<T>,
-): Promise<T | Response> => {
-  const question = await getQuestionWithAnswers(questionId);
-  if (!question) return notFoundResponse();
+type AnswerRouteParams = { id: number; answerId: number };
+type AnswerContext = { question: QuestionWithAnswers; answer: Answer };
+
+/** Load question + answer by route params, returning null if either is missing */
+const loadQuestionAndAnswer = async (
+  { id, answerId }: AnswerRouteParams,
+): Promise<AnswerContext | null> => {
+  const question = await getQuestionWithAnswers(id);
+  if (!question) return null;
   const answer = question.answers.find((a) => a.id === answerId);
-  if (!answer) return notFoundResponse();
-  return handler(question, answer);
+  if (!answer) return null;
+  return { question, answer };
 };
 
-type AnswerRouteParams = { id: number; answerId: number };
-type AnswerHandler<Extra extends unknown[]> = (
-  question: QuestionWithAnswers,
-  answer: Answer,
-  session: AdminSession,
-  ...extra: Extra
-) => Response | Promise<Response>;
-
-/** Owner answer-scoped route factory, parameterized by auth type */
-const withAnswerAuth =
-  <Extra extends unknown[]>(
-    auth: (
-      request: Request,
-      handler: (
-        session: AdminSession,
-        ...extra: Extra
-      ) => Response | Promise<Response>,
-    ) => Promise<Response>,
-  ) =>
-  (handler: AnswerHandler<Extra>) =>
-  (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
-    auth(request, (session, ...extra) =>
-      withAnswer(id, answerId, (question, answer) =>
-        handler(question, answer, session, ...extra),
-      ),
-    );
-
 /** Owner GET route for answer-scoped pages */
-const answerRoute = withAnswerAuth(requireOwnerOr);
-
-/** Owner POST route for answer-scoped form actions */
-const answerFormRoute = withAnswerAuth(
+const answerRoute =
   (
-    request: Request,
-    handler: (s: AdminSession, f: FormParams) => Response | Promise<Response>,
-  ) => withAuth(request, OWNER_FORM, handler),
-);
+    handler: (
+      question: QuestionWithAnswers,
+      answer: Answer,
+      session: AdminSession,
+    ) => Response | Promise<Response>,
+  ) =>
+  (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
+    requireOwnerOr(request, async (session) => {
+      const result = await loadQuestionAndAnswer({ id, answerId });
+      if (!result) return notFoundResponse();
+      return handler(result.question, result.answer, session);
+    });
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerGet = answerRoute((question, answer, session) => {
@@ -226,38 +204,44 @@ const handleDeleteAnswerGet = answerRoute((question, answer, session) => {
 });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
-const handleDeleteAnswerPost = answerFormRoute(
-  async (question, answer, _session, form) => {
-    const error = verifyOrRedirect(
-      form,
-      answer.text,
-      `/admin/questions/${question.id}/answers/${answer.id}/delete`,
-      "Answer text",
-      "deletion",
-    );
-    if (error) return error;
+const handleDeleteAnswerPost = createVerifiedFormRoute<
+  AnswerRouteParams,
+  AnswerContext
+>({
+  actionLabel: "deletion",
+  auth: OWNER_FORM,
+  identifier: ({ answer }) => answer.text,
+  identifierLabel: "Answer text",
+  loadContext: loadQuestionAndAnswer,
+  mismatchRedirect: (_, { id, answerId }) =>
+    `/admin/questions/${id}/answers/${answerId}/delete`,
+  onConfirm: async ({ context: { answer, question } }) => {
     await deleteAnswer(answer.id);
     await logActivity(
       `Answer '${answer.text}' deleted from question ${question.id}`,
     );
     return redirect(`/admin/questions/${question.id}`, "Answer deleted", true);
   },
-);
+});
 
 /** Factory for move-up/move-down handlers */
 const moveAnswerHandler = (direction: -1 | 1) =>
-  answerFormRoute(async (question, answer, _session) => {
-    const idx = question.answers.findIndex((a) => a.id === answer.id);
-    const neighbor = question.answers[idx + direction];
-    if (neighbor) {
-      await swapAnswerOrder(
-        answer.id,
-        answer.sort_order,
-        neighbor.id,
-        neighbor.sort_order,
-      );
-    }
-    return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
+  createAuthedHandler<AnswerRouteParams, AnswerContext>({
+    auth: OWNER_FORM,
+    handle: async ({ context: { answer, question } }) => {
+      const idx = question.answers.findIndex((a) => a.id === answer.id);
+      const neighbor = question.answers[idx + direction];
+      if (neighbor) {
+        await swapAnswerOrder(
+          answer.id,
+          answer.sort_order,
+          neighbor.id,
+          neighbor.sort_order,
+        );
+      }
+      return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
+    },
+    loadContext: loadQuestionAndAnswer,
   });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/move-up */
