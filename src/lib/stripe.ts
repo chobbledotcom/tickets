@@ -125,10 +125,12 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   return parts.length > 0 ? parts.join(" ") : err.name;
 };
 
+type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
+
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
-const getMockConfigImpl = (): Stripe.StripeConfig | undefined => {
+const getMockConfigImpl = (): StripeConfig | undefined => {
   const mockHost = getEnv("STRIPE_MOCK_HOST");
   if (!mockHost) return undefined;
 
@@ -141,7 +143,7 @@ const getMockConfigImpl = (): Stripe.StripeConfig | undefined => {
   };
 };
 
-const [getMockConfig, setMockConfig] = lazyRef<Stripe.StripeConfig | undefined>(
+const [getMockConfig, setMockConfig] = lazyRef<StripeConfig | undefined>(
   getMockConfigImpl,
 );
 
@@ -184,11 +186,15 @@ const getClientImpl = async (): Promise<Stripe | null> => {
 /** Run operation with stripe client, return null if not available */
 const withClient = createWithClient(getClientImpl);
 
+type StripeCheckoutLineItem = NonNullable<
+  Stripe.Checkout.SessionCreateParams["line_items"]
+>[number];
+
 /** Build a Stripe fee line item array (empty when fee is zero). */
 const stripeFeeItems = (
   subtotal: number,
   currency: string,
-): Stripe.Checkout.SessionCreateParams.LineItem[] => {
+): StripeCheckoutLineItem[] => {
   const amount = getBookingFeeAmount(subtotal);
   if (amount <= 0) return [];
   return [
@@ -284,19 +290,18 @@ export const stripeApi: {
     const currency = settings.currency.toLowerCase();
 
     // Build line items for each event
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      intent.items.map((item) => ({
-        price_data: {
-          currency,
-          product_data: {
-            description:
-              item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-            name: `Ticket: ${item.name}`,
-          },
-          unit_amount: item.unitPrice,
+    const lineItems: StripeCheckoutLineItem[] = intent.items.map((item) => ({
+      price_data: {
+        currency,
+        product_data: {
+          description:
+            item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
+          name: `Ticket: ${item.name}`,
         },
-        quantity: item.quantity,
-      }));
+        unit_amount: item.unitPrice,
+      },
+      quantity: item.quantity,
+    }));
 
     lineItems.push(...stripeFeeItems(itemsSubtotal(intent.items), currency));
 

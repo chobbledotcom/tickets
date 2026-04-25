@@ -25,6 +25,7 @@ import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
+
 /* jscpd:ignore-end */
 
 /** Guard: require demo mode, else 404 */

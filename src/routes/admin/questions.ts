@@ -28,11 +28,7 @@ import {
   createConfirmedHandlers,
   createVerifiedFormRoute,
 } from "#routes/admin/confirmation.ts";
-import {
-  OWNER_FORM,
-  ownerPage,
-  requireOwnerOr,
-} from "#routes/auth.ts";
+import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { ownerFormById, ownerGetById } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -169,14 +165,15 @@ type AnswerRouteParams = { id: number; answerId: number };
 type AnswerContext = { question: QuestionWithAnswers; answer: Answer };
 
 /** Load question + answer by route params, returning null if either is missing */
-const loadQuestionAndAnswer = async (
-  { id, answerId }: AnswerRouteParams,
-): Promise<AnswerContext | null> => {
+const loadQuestionAndAnswer = async ({
+  id,
+  answerId,
+}: AnswerRouteParams): Promise<AnswerContext | null> => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return null;
   const answer = question.answers.find((a) => a.id === answerId);
   if (!answer) return null;
-  return { question, answer };
+  return { answer, question };
 };
 
 /** Owner GET route for answer-scoped pages */
@@ -190,7 +187,7 @@ const answerRoute =
   ) =>
   (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {
-      const result = await loadQuestionAndAnswer({ id, answerId });
+      const result = await loadQuestionAndAnswer({ answerId, id });
       if (!result) return notFoundResponse();
       return handler(result.question, result.answer, session);
     });

@@ -80,28 +80,26 @@ export const verifyIdentifierOrJsonError = (
 
 // ── createVerifiedFormRoute: auth + load + verify identifier + action ─
 
-type VerifiedFormRouteConfig<TParams, TContext> =
-  & AuthedBase<TParams, TContext>
-  & {
-    /** The identifier the user must type (e.g. entity name) */
-    identifier: (
-      context: TContext,
-      params: TParams,
-    ) => string | Promise<string>;
-    /** Label for the identifier field (e.g. "Event name") */
-    identifierLabel: string;
-    /** Action suffix for the mismatch error (e.g. "deletion") */
-    actionLabel?: string;
-    /** Where to redirect on identifier mismatch */
-    mismatchRedirect: (context: TContext, params: TParams) => string;
-    /** Run after identifier verifies */
-    onConfirm: (args: {
-      context: TContext;
-      form: FormParams;
-      params: TParams;
-      session: AuthSession;
-    }) => Response | Promise<Response>;
-  };
+type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
+  TParams,
+  TContext
+> & {
+  /** The identifier the user must type (e.g. entity name) */
+  identifier: (context: TContext, params: TParams) => string | Promise<string>;
+  /** Label for the identifier field (e.g. "Event name") */
+  identifierLabel: string;
+  /** Action suffix for the mismatch error (e.g. "deletion") */
+  actionLabel?: string;
+  /** Where to redirect on identifier mismatch */
+  mismatchRedirect: (context: TContext, params: TParams) => string;
+  /** Run after identifier verifies */
+  onConfirm: (args: {
+    context: TContext;
+    form: FormParams;
+    params: TParams;
+    session: AuthSession;
+  }) => Response | Promise<Response>;
+};
 
 /**
  * Auth + CSRF + optional entity load + confirm_identifier verification,
@@ -114,7 +112,6 @@ export const createVerifiedFormRoute = <TParams, TContext>(
   /* jscpd:ignore-start */
   createAuthedHandler<TParams, TContext>({
     auth: config.auth,
-    loadContext: config.loadContext,
     handle: async (args) => {
       /* jscpd:ignore-end */
       const expected = await config.identifier(args.context, args.params);
@@ -128,6 +125,7 @@ export const createVerifiedFormRoute = <TParams, TContext>(
       if (error) return error;
       return config.onConfirm(args);
     },
+    loadContext: config.loadContext,
   });
 
 /** Auth option: string shorthand or explicit guard pair */

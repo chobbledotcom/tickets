@@ -1,3 +1,4 @@
+import { CSRF_INVALID_FORM_MESSAGE } from "#lib/csrf.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { ValidationResult } from "#lib/forms.tsx";
 import {
@@ -6,7 +7,6 @@ import {
   type AuthSession,
   withAuth,
 } from "#routes/auth.ts";
-import { CSRF_INVALID_FORM_MESSAGE } from "#lib/csrf.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
 import { notFoundResponse } from "#routes/response.ts";
 
@@ -86,22 +86,23 @@ type InvalidArgs<TParams, TContext> = {
   session: AuthSession;
 };
 
-type FormRouteConfig<TValues, TParams, TContext> =
-  & AuthedBase<TParams, TContext>
-  & {
-    /** Mutate the form before validation (demo overrides, secret triage, etc.). */
-    preprocessForm?: (form: FormParams, context: TContext) => void;
-    /** Form validator — static, or built from the loaded context. */
-    form:
-      | FormValidator<TValues>
-      | ((context: TContext) => FormValidator<TValues>);
-    onInvalid: (
-      args: InvalidArgs<TParams, TContext>,
-    ) => Response | Promise<Response>;
-    onValid: (
-      args: HandlerArgs<TValues, TParams, TContext>,
-    ) => Response | Promise<Response>;
-  };
+type FormRouteConfig<TValues, TParams, TContext> = AuthedBase<
+  TParams,
+  TContext
+> & {
+  /** Mutate the form before validation (demo overrides, secret triage, etc.). */
+  preprocessForm?: (form: FormParams, context: TContext) => void;
+  /** Form validator — static, or built from the loaded context. */
+  form:
+    | FormValidator<TValues>
+    | ((context: TContext) => FormValidator<TValues>);
+  onInvalid: (
+    args: InvalidArgs<TParams, TContext>,
+  ) => Response | Promise<Response>;
+  onValid: (
+    args: HandlerArgs<TValues, TParams, TContext>,
+  ) => Response | Promise<Response>;
+};
 
 /** Require auth, optionally load context, validate a typed form, then dispatch. */
 export const createAuthedFormRoute = <
@@ -114,30 +115,29 @@ export const createAuthedFormRoute = <
   /* jscpd:ignore-start */
   createAuthedHandler<TParams, TContext>({
     auth: config.auth,
-    loadContext: config.loadContext,
     handle: ({ context, form, params, session }) => {
       /* jscpd:ignore-end */
       config.preprocessForm?.(form, context);
-      const validator = typeof config.form === "function"
-        ? config.form(context)
-        : config.form;
+      const validator =
+        typeof config.form === "function" ? config.form(context) : config.form;
       const result = validator.validate(form);
       return result.valid
         ? config.onValid({
-          context,
-          form,
-          params,
-          session,
-          values: result.values,
-        })
+            context,
+            form,
+            params,
+            session,
+            values: result.values,
+          })
         : config.onInvalid({
-          context,
-          error: result.error,
-          form,
-          params,
-          session,
-        });
+            context,
+            error: result.error,
+            form,
+            params,
+            session,
+          });
     },
+    loadContext: config.loadContext,
   });
 
 // ── createFormRoute: public CSRF-only (no auth) ───────────────────────

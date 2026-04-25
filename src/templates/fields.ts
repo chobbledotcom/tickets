@@ -142,7 +142,6 @@ export type InviteUserFormValues = {
   admin_level: AdminLevel;
 };
 
-
 /**
  * Validate URL is safe (https or relative path, no javascript: etc.)
  */
@@ -944,4 +943,3 @@ export const inviteUserFields: Field[] = [
     type: "select",
   },
 ];
-

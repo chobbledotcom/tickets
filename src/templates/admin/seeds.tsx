@@ -4,8 +4,8 @@
 
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm, Flash } from "#lib/forms.tsx";
-import { seedsForm } from "#routes/admin/seeds.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { seedsForm } from "#routes/admin/seeds.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

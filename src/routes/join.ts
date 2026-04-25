@@ -119,8 +119,8 @@ const setPasswordRoute = (code: string, user: User) =>
 /**
  * Handle POST /join/:code
  */
-const handleJoinPost = joinRoute(
-  (request, code, user) => setPasswordRoute(code, user)(request, {}),
+const handleJoinPost = joinRoute((request, code, user) =>
+  setPasswordRoute(code, user)(request, {}),
 );
 
 /**

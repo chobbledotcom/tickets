@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
-import { createInvitedUser, getUserByUsername, hasPassword } from "#lib/db/users.ts";
+import {
+  createInvitedUser,
+  getUserByUsername,
+  hasPassword,
+} from "#lib/db/users.ts";
 import { handleRequest } from "#routes";
 import {
   assertPublicHtml,

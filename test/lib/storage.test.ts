@@ -671,9 +671,11 @@ describeWithEnv(
               withFetchMock(async (originalFetch) => {
                 installUrlHandler(originalFetch, (url) => {
                   if (url.includes("storage.bunnycdn.com")) {
-                    return Promise.resolve(new Response("File not found", {
-                      status: 404,
-                    }));
+                    return Promise.resolve(
+                      new Response("File not found", {
+                        status: 404,
+                      }),
+                    );
                   }
                   return null;
                 });

@@ -16,11 +16,11 @@ import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { FORMATTING_HINT } from "#templates/fields.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
 } from "#templates/admin/site.tsx";
+import { FORMATTING_HINT } from "#templates/fields.ts";
 
 export const siteHomeForm = defineForm({
   fields: [
