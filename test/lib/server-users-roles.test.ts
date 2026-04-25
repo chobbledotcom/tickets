@@ -5,10 +5,7 @@ import { encrypt } from "#lib/crypto/encryption.ts";
 import { hashPassword } from "#lib/crypto/hashing.ts";
 import { getDb, insert } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
-import {
-  getUserByUsername,
-  invalidateUsersCache,
-} from "#lib/db/users.ts";
+import { getUserByUsername, invalidateUsersCache } from "#lib/db/users.ts";
 import { handleRequest } from "#routes";
 import {
   adminFormPost,

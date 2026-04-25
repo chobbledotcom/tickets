@@ -267,7 +267,9 @@ describeWithEnv(
               const log = await getAllActivityLog();
               expect(
                 log.some((e) =>
-                  e.message.includes("Custom domain set to tickets.example.com"),
+                  e.message.includes(
+                    "Custom domain set to tickets.example.com",
+                  ),
                 ),
               ).toBe(true);
             } finally {
@@ -487,7 +489,10 @@ describeWithEnv(
           "/admin/settings/event-column-order",
           { column_order: "{{name}}, {{status}}" },
         );
-        expectRedirectWithFlash(formUrl, "Event column order updated")(response);
+        expectRedirectWithFlash(
+          formUrl,
+          "Event column order updated",
+        )(response);
         expect(settings.eventColumnOrder).toBe("{{name}}, {{status}}");
       });
 
@@ -497,7 +502,9 @@ describeWithEnv(
           { column_order: "{{invalid}}" },
         );
         expectRedirectWithFlash(formUrl, undefined, false)(response);
-        const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
+        const msg = decodeURIComponent(
+          response.headers.get("set-cookie") ?? "",
+        );
         expect(msg).toContain("invalid");
         expect(msg).toContain("Available columns");
       });
@@ -508,7 +515,10 @@ describeWithEnv(
           "/admin/settings/event-column-order",
           { column_order: "" },
         );
-        expectRedirectWithFlash(formUrl, "Event column order updated")(response);
+        expectRedirectWithFlash(
+          formUrl,
+          "Event column order updated",
+        )(response);
         expect(settings.eventColumnOrder).toBe("");
       });
     });
@@ -537,7 +547,9 @@ describeWithEnv(
           { column_order: "{{bogus}}" },
         );
         expectRedirectWithFlash(formUrl, undefined, false)(response);
-        const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
+        const msg = decodeURIComponent(
+          response.headers.get("set-cookie") ?? "",
+        );
         expect(msg).toContain("bogus");
         expect(msg).toContain("Available columns");
       });

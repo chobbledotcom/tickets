@@ -152,8 +152,8 @@ export const groupFormPost = (
   handler: (group: Group, form: FormParams) => Response | Promise<Response>,
 ): TypedRouteHandler<"POST /admin/groups/:id"> =>
   createAuthedHandler<{ id: number }, Group>({
-    loadContext: ({ id }) => groupsTable.findById(id),
     handle: ({ context, form }) => handler(context, form),
+    loadContext: ({ id }) => groupsTable.findById(id),
   });
 
 /** Handle GET /admin/groups/:id - group detail page */

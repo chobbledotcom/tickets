@@ -84,6 +84,5 @@ export const ownerFormById = (
 ): IdRouteHandler =>
   createAuthedHandler<{ id: number }>({
     auth: OWNER_FORM,
-    handle: ({ form, params, session }) =>
-      handler(params.id, session, form),
+    handle: ({ form, params, session }) => handler(params.id, session, form),
   });

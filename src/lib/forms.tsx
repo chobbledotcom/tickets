@@ -189,7 +189,9 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "select" && field.options) {
     return (
       <Raw
-        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.id ?? field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(
+          field.id ?? field.name,
+        )}">${renderSelectOptions(field.options, value)}</select>`}
       />
     );
   }

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#lib/crypto/encryption.ts";
-import { getDb } from "#lib/db/client.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
+import { getDb } from "#lib/db/client.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { handleRequest } from "#routes";
 import {

@@ -1,10 +1,5 @@
 import { expect } from "@std/expect";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  it as test,
-} from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { settings } from "#lib/db/settings.ts";
 import {

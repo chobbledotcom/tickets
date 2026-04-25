@@ -2,6 +2,7 @@
  * Admin user management routes - owner only
  */
 
+import { createAuthedFormRoute } from "#lib/app-forms.ts";
 /* jscpd:ignore-start */
 import { getEffectiveDomain } from "#lib/config.ts";
 import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
@@ -19,7 +20,6 @@ import {
   isInviteExpired,
   isUsernameTaken,
 } from "#lib/db/users.ts";
-import { createAuthedFormRoute } from "#lib/app-forms.ts";
 import { getFlash } from "#lib/flash-context.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";

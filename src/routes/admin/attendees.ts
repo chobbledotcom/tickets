@@ -187,43 +187,42 @@ const handleCreateAttendeeFailure = (
 };
 
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
-const handleAddAttendee: TypedRouteHandler<
-  "POST /admin/event/:eventId/attendee"
-> = createAuthedFormRoute<
-  AddAttendeeFormValues,
-  { eventId: number },
-  EventWithCount
->({
-  loadContext: ({ eventId }) => getEventWithCount(eventId),
-  preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
-  form: (event) => ({
-    validate: (form) =>
-      validateForm<AddAttendeeFormValues>(
-        form,
-        getAddAttendeeFields(event.fields, event.event_type === "daily"),
-      ),
-  }),
-  onInvalid: ({ error, params }) =>
-    redirect(`/admin/event/${params.eventId}`, error, false),
-  onValid: async ({ context: event, params, values }) => {
-    const isDaily = event.event_type === "daily";
-    const createResult = await createAttendeeAtomic(
-      buildCreateAttendeeInput(values, params.eventId, isDaily),
-    );
-    if (!createResult.success) {
-      return handleCreateAttendeeFailure(createResult, params.eventId);
-    }
-    await logActivity(
-      `Attendee '${values.name}' added manually`,
-      params.eventId,
-    );
-    return redirect(
-      `/admin/event/${params.eventId}`,
-      `Added ${values.name}`,
-      true,
-    );
-  },
-});
+const handleAddAttendee: TypedRouteHandler<"POST /admin/event/:eventId/attendee"> =
+  createAuthedFormRoute<
+    AddAttendeeFormValues,
+    { eventId: number },
+    EventWithCount
+  >({
+    form: (event) => ({
+      validate: (form) =>
+        validateForm<AddAttendeeFormValues>(
+          form,
+          getAddAttendeeFields(event.fields, event.event_type === "daily"),
+        ),
+    }),
+    loadContext: ({ eventId }) => getEventWithCount(eventId),
+    onInvalid: ({ error, params }) =>
+      redirect(`/admin/event/${params.eventId}`, error, false),
+    onValid: async ({ context: event, params, values }) => {
+      const isDaily = event.event_type === "daily";
+      const createResult = await createAttendeeAtomic(
+        buildCreateAttendeeInput(values, params.eventId, isDaily),
+      );
+      if (!createResult.success) {
+        return handleCreateAttendeeFailure(createResult, params.eventId);
+      }
+      await logActivity(
+        `Attendee '${values.name}' added manually`,
+        params.eventId,
+      );
+      return redirect(
+        `/admin/event/${params.eventId}`,
+        `Added ${values.name}`,
+        true,
+      );
+    },
+    preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
+  });
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeePageRoute(

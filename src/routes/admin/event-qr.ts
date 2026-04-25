@@ -8,6 +8,7 @@
  * can refresh the QR client-side (every minute) without a full reload.
  */
 
+import { createAuthedFormRoute, type FormValidator } from "#lib/app-forms.ts";
 import { getEffectiveDomain } from "#lib/config.ts";
 import { validatePrice } from "#lib/currency.ts";
 import { getAvailableDates } from "#lib/dates.ts";
@@ -17,7 +18,6 @@ import { FormParams } from "#lib/form-data.ts";
 import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
-import { createAuthedFormRoute, type FormValidator } from "#lib/app-forms.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
