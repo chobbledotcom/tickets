@@ -341,10 +341,9 @@ export const handleTicket = async (
     ...sharedCtx,
     qrPrefill,
   };
-  if (request.method === "GET") applyFlash(request);
   const response =
     request.method === "GET"
-      ? ticketResponse(ctx)()
+      ? ticketResponse(ctx)(applyFlash(request).error)
       : await submitTicket(request, ctx);
   const anyHidden = activeEvents.some((e) => e.event.hidden);
   return applyHiddenNoindex(response, anyHidden);

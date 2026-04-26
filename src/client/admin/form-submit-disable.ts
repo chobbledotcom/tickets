@@ -8,8 +8,9 @@ export const initFormSubmitDisable = (): void => {
   for (const form of document.querySelectorAll<HTMLFormElement>(
     'form[method="POST"]:not([data-manual-checkin])',
   )) {
-    form.addEventListener("submit", () => {
+    form.addEventListener("submit", (event) => {
       requestAnimationFrame(() => {
+        if (event.defaultPrevented) return;
         for (let i = 0; i < form.elements.length; i++) {
           (form.elements[i] as HTMLInputElement | HTMLButtonElement).disabled =
             true;
