@@ -629,26 +629,50 @@ export const adminGuidePage = (
         <Q q="What happens when someone books a paid ticket?">
           <p>
             They fill in the booking form, then are redirected to your payment
-            provider's checkout page. Their place is held for 5 minutes while
-            they pay. Once payment is confirmed, the booking is finalised and
-            they receive their ticket.
+            provider's checkout page. Once their payment is confirmed, their
+            place is recorded and they receive their ticket. Their place is
+            <strong> not</strong> held while they're paying &mdash; see{" "}
+            <em>Why don't we hold places during checkout?</em> below for the
+            reason.
           </p>
         </Q>
 
-        <Q q="What's the 5-minute reservation window?">
+        <Q q="Why don't we hold places during checkout?">
           <p>
-            When someone starts paying for a ticket, their place is reserved for
-            5 minutes. If they don't complete payment within that time, the
-            reservation is released and the place becomes available for others.
-            This prevents places being held indefinitely by abandoned checkouts.
+            When someone clicks &ldquo;Buy&rdquo;, we don't reserve their place
+            while they're paying. A place only counts as taken once the payment
+            goes through. This might sound backwards, so here's why.
+          </p>
+          <p>
+            Imagine if we <em>did</em> hold places during checkout. A sneaky
+            person could write a small program that opens the checkout page
+            over and over, grabbing every place, without ever paying. Real
+            visitors would see &ldquo;sold out&rdquo; even though nobody had
+            actually bought anything. When the holds expired, the program
+            could grab them all again. This is how ticket scalpers cause
+            problems on bigger sites.
+          </p>
+          <p>
+            Because places only count once payment is finished, the only way
+            to &ldquo;hold&rdquo; a place is to actually pay for it. Real
+            money has to change hands &mdash; so the trick above doesn't
+            work, and real visitors get a fair chance at the tickets.
+          </p>
+          <p>
+            The trade-off: very rarely, two people can finish paying for the
+            last place at almost the same moment. The first payment to arrive
+            wins; the second person is automatically refunded. See the next
+            question.
           </p>
         </Q>
 
         <Q q="What if the event sells out while someone is paying?">
           <p>
-            If someone completes payment but the event has since sold out, they
-            are automatically refunded. They'll see a message explaining the
-            event is full and that their payment has been returned.
+            If someone completes payment but the event has since sold out,
+            they are automatically refunded. They'll see a message explaining
+            the event is full and that their payment has been returned. This
+            is rare but possible &mdash; it's the trade-off described in the
+            previous question.
           </p>
         </Q>
 
