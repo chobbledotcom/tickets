@@ -57,8 +57,13 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
-    test("contains payment reservation info", async () => {
-      await assertAdminHtml("/admin/guide", "5 minutes");
+    test("explains why places aren't held during checkout", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Why don't we hold places during checkout?",
+        "scalpers",
+        "automatically refunded",
+      );
     });
 
     test("contains add attendee info", async () => {
