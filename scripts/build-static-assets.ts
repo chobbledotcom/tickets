@@ -92,39 +92,39 @@ export const buildStaticAssets = async (
 ): Promise<void> => {
   await buildBundle("Scanner", {
     bundle: true,
-    entryPoints: ["./src/client/scanner.js"],
+    entryPoints: ["./src/ui/client/scanner.js"],
     format: "iife",
     minify: true,
-    outfile: "./src/static/scanner.js",
+    outfile: "./src/ui/static/scanner.js",
     platform: "browser",
     plugins: [denoNpmResolvePlugin],
   });
 
   await buildBundle("Admin", {
     bundle: true,
-    entryPoints: ["./src/client/admin.ts"],
+    entryPoints: ["./src/ui/client/admin.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/static/admin.js",
+    outfile: "./src/ui/static/admin.js",
     platform: "browser",
     plugins: [denoImportMapPlugin],
   });
 
   await buildBundle("Embed", {
     bundle: true,
-    entryPoints: ["./src/client/embed.ts"],
+    entryPoints: ["./src/ui/client/embed.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/static/embed.js",
+    outfile: "./src/ui/static/embed.js",
     platform: "browser",
   });
 
   await buildBundle("iframe-resizer-parent", {
     bundle: true,
-    entryPoints: ["./src/client/iframe-resizer-parent.ts"],
+    entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/static/iframe-resizer-parent.js",
+    outfile: "./src/ui/static/iframe-resizer-parent.js",
     platform: "browser",
     plugins: [iframeResizerResolvePlugin],
   });
@@ -132,10 +132,10 @@ export const buildStaticAssets = async (
   await buildBundle("iframe-resizer-child", {
     banner: { js: "window.iframeResizer={license:'GPLv3'};" },
     bundle: true,
-    entryPoints: ["./src/client/iframe-resizer-child.ts"],
+    entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/static/iframe-resizer-child.js",
+    outfile: "./src/ui/static/iframe-resizer-child.js",
     platform: "browser",
     plugins: [iframeResizerResolvePlugin],
   });

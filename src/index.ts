@@ -1,18 +1,7 @@
 /**
- * Entry point for ticket reservation system
+ * Backwards-compatible entrypoint.
+ *
+ * Runtime server bootstrap now lives in `src/app/index.ts`.
  */
 
-import { validateEncryptionKey } from "#lib/crypto/encryption.ts";
-import { initDb } from "#lib/db/migrations.ts";
-import { handleRequest } from "#routes/index.ts";
-
-const startServer = async (port = 3000): Promise<void> => {
-  validateEncryptionKey();
-  await initDb();
-  console.log(`Server starting on http://localhost:${port}`);
-
-  Deno.serve({ port }, (request) => handleRequest(request));
-};
-
-const port = Number.parseInt(Deno.env.get("PORT") || "3000", 10);
-startServer(port);
+import "#src/app/index.ts";

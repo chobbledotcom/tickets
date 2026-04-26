@@ -1,0 +1,19 @@
+/**
+ * Entry point for ticket reservation system
+ */
+
+import { validateEncryptionKey } from "#lib/crypto/encryption.ts";
+import { initDb } from "#lib/db/migrations.ts";
+import { logDebug } from "#lib/logger.ts";
+import { handleRequest } from "#routes/index.ts";
+
+const startServer = async (port = 3000): Promise<void> => {
+  validateEncryptionKey();
+  await initDb();
+  logDebug("Setup", `Server starting on http://localhost:${port}`);
+
+  Deno.serve({ port }, (request) => handleRequest(request));
+};
+
+const port = Number.parseInt(Deno.env.get("PORT") || "3000", 10);
+startServer(port);

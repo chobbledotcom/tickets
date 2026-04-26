@@ -193,7 +193,7 @@ console.log("Scanning codebase...\n");
 const srcFiles = collectFiles("src").filter(
   (f) =>
     !f.startsWith("src/test-utils/") &&
-    !f.startsWith("src/static/") &&
+    !f.startsWith("src/ui/static/") &&
     !f.endsWith(".d.ts"),
 );
 const testUtilFiles = collectFiles("src/test-utils");
@@ -257,7 +257,7 @@ console.log(
 let fileCount = 0;
 for (const srcFile of srcFiles) {
   if (entryPoints.has(srcFile)) continue;
-  if (srcFile.startsWith("src/client/")) continue;
+  if (srcFile.startsWith("src/ui/client/")) continue;
 
   const srcImporters = importedBySrc.get(srcFile) ?? [];
   const testImporters = importedByTest.get(srcFile) ?? [];
@@ -336,7 +336,7 @@ console.log(
 let deadCount = 0;
 for (const srcFile of srcFiles) {
   if (entryPoints.has(srcFile)) continue;
-  if (srcFile.startsWith("src/client/")) continue;
+  if (srcFile.startsWith("src/ui/client/")) continue;
 
   const srcImporters = importedBySrc.get(srcFile) ?? [];
   const testImporters = importedByTest.get(srcFile) ?? [];

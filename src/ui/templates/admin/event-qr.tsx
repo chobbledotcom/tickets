@@ -104,7 +104,7 @@ const DateSelect = ({
  *
  * Data attributes drive client-side auto-refresh: the panel polls the
  * `data-qr-refresh` endpoint every minute and fades the new SVG + URL
- * in/out. See src/client/admin/qr-refresh.ts. */
+ * in/out. See src/ui/client/admin/qr-refresh.ts. */
 const QrResultPanel = ({
   result,
   refreshUrl,

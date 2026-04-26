@@ -34,8 +34,8 @@
     "#lib/": "./src/lib/",
     "#routes": "./src/routes/index.ts",
     "#routes/": "./src/routes/",
-    "#templates/": "./src/templates/",
-    "#static/": "./src/static/",
+    "#templates/": "./src/ui/templates/",
+    "#static/": "./src/ui/static/",
     "#src/": "./src/",
     "#test/": "./test/",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
@@ -72,13 +72,13 @@
   },
   "lint": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js", "src/static/embed.js", "src/static/iframe-resizer-parent.js", "src/static/iframe-resizer-child.js"],
+    "exclude": ["src/ui/client/", "src/ui/static/admin.js", "src/ui/static/scanner.js", "src/ui/static/embed.js", "src/ui/static/iframe-resizer-parent.js", "src/ui/static/iframe-resizer-child.js"],
     "rules": {
       "tags": ["recommended"]
     }
   },
   "fmt": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js", "src/static/embed.js", "src/static/iframe-resizer-parent.js", "src/static/iframe-resizer-child.js"]
+    "exclude": ["src/ui/client/", "src/ui/static/admin.js", "src/ui/static/scanner.js", "src/ui/static/embed.js", "src/ui/static/iframe-resizer-parent.js", "src/ui/static/iframe-resizer-child.js"]
   }
 }

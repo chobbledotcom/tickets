@@ -19,7 +19,7 @@ await buildStaticAssets();
 const BUILD_TS = Math.floor(Date.now() / 1000);
 
 // Read static assets at build time for inlining (client bundles freshly built above)
-const rawCss = await Deno.readTextFile("./src/static/mvp.css");
+const rawCss = await Deno.readTextFile("./src/ui/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
 const JS = "application/javascript; charset=utf-8";
@@ -50,13 +50,15 @@ const ASSET_DEFS: [string, string, string, string][] = [
 ];
 
 const STATIC_ASSETS: Record<string, string> = {
-  "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
+  "favicon.svg": await Deno.readTextFile("./src/ui/static/favicon.svg"),
   "mvp.css": minifiedCss,
 };
 
 for (const [filename] of ASSET_DEFS) {
   if (filename === "favicon.svg" || filename === "mvp.css") continue;
-  STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
+  STATIC_ASSETS[filename] = await Deno.readTextFile(
+    `./src/ui/static/${filename}`,
+  );
 }
 
 // Subpath overrides: use platform-specific entry points for certain packages

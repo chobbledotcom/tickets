@@ -15,8 +15,8 @@
       "**/*.js",
       "**/*.ts",
       "**/*.tsx",
-      "!src/static",
-      "!src/client/scanner.js"
+      "!src/ui/static",
+      "!src/ui/client/scanner.js"
     ]
   },
   "formatter": {
@@ -98,7 +98,7 @@
       }
     },
     {
-      "includes": ["src/index.ts", "src/lib/logger.ts"],
+      "includes": ["src/index.ts", "src/app/index.ts", "src/lib/logger.ts"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -123,7 +123,7 @@
       }
     },
     {
-      "includes": ["src/client/scanner.js", "src/static/**"],
+      "includes": ["src/ui/client/scanner.js", "src/ui/static/**"],
       "linter": {
         "enabled": false
       }

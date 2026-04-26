@@ -29,8 +29,8 @@
       "#lib/*": ["./src/lib/*"],
       "#routes": ["./src/routes/index.ts"],
       "#routes/*": ["./src/routes/*"],
-      "#templates/*": ["./src/templates/*"],
-      "#static/*": ["./src/static/*"]
+      "#templates/*": ["./src/ui/templates/*"],
+      "#static/*": ["./src/ui/static/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],

@@ -242,7 +242,9 @@ const init = () => {
   const stopCamera = () => {
     const stream = video.srcObject;
     if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+      for (const t of stream.getTracks()) {
+        t.stop();
+      }
     }
   };
 
