@@ -23,6 +23,7 @@ import { initPaymentTestButtons } from "./admin/payment-test-buttons.ts";
 import { initQrRefresh } from "./admin/qr-refresh.ts";
 import { initScrollHideNav } from "./admin/scroll-hide-nav.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
+import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 
 initSelectOnClick();
 initNavSelect();
@@ -41,3 +42,4 @@ initFormSubmitDisable();
 initQuestionVisibility();
 initEventDatePicker();
 initDuplicatePreview();
+initTicketQuantityRequired();

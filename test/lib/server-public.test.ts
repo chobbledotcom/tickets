@@ -1716,6 +1716,36 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
     });
 
+    test("renders flashed 'select at least one ticket' error after redirect", async () => {
+      const { FLASH_TEST_ID, flashCookieHeader } = await import(
+        "#test-utils/assertions.ts"
+      );
+      const event1 = await createTestEvent({
+        maxAttendees: 50,
+        name: "Multi Flash Render 1",
+      });
+      const event2 = await createTestEvent({
+        maxAttendees: 50,
+        name: "Multi Flash Render 2",
+      });
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await handleRequest(
+        mockRequest(`/ticket/${slug}?flash=${FLASH_TEST_ID}`, {
+          headers: {
+            cookie: flashCookieHeader(
+              "Please select at least one ticket",
+              false,
+            ),
+          },
+        }),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Please select at least one ticket",
+      );
+    });
+
     test("creates attendees for selected free events", async () => {
       const event1 = await createTestEvent({
         maxAttendees: 50,
