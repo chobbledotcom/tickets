@@ -1,7 +1,7 @@
 /**
  * Tests that the API example in the documentation matches the real
  * toPublicEvent() output. If the shape changes, this test fails and
- * forces an update to src/lib/api-example.ts (and thus the admin guide).
+ * forces an update to src/shared/api-example.ts (and thus the admin guide).
  */
 
 import { expect } from "@std/expect";

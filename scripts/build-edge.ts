@@ -118,7 +118,7 @@ const inlineAssetsPlugin: Plugin = {
   name: "inline-assets",
   setup(build) {
     // Replace build-info module with actual build metadata
-    build.onResolve({ filter: /lib\/build-info\.ts$/ }, (args) => ({
+    build.onResolve({ filter: /build-info\.ts$/ }, (args) => ({
       namespace: "inline-build-info",
       path: args.path,
     }));
@@ -129,7 +129,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     // Replace asset paths module with cache-busted version
-    build.onResolve({ filter: /lib\/asset-paths\.ts$/ }, (args) => ({
+    build.onResolve({ filter: /asset-paths\.ts$/ }, (args) => ({
       namespace: "inline-asset-paths",
       path: args.path,
     }));
@@ -140,10 +140,13 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     // Replace the assets module with inlined content
-    build.onResolve({ filter: /routes\/assets\.ts$/ }, (args) => ({
-      namespace: "inline-assets",
-      path: args.path,
-    }));
+    build.onResolve(
+      { filter: /(routes\/assets\.ts$|#routes\/assets\.ts$)/ },
+      (args) => ({
+        namespace: "inline-assets",
+        path: args.path,
+      }),
+    );
 
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
       contents: buildAssetsModule(),

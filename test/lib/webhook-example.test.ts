@@ -1,7 +1,7 @@
 /**
  * Tests that the webhook example in the documentation matches the real
  * buildWebhookPayload() output. If the payload shape changes, this test
- * fails and forces an update to src/lib/webhook-example.ts (and thus the
+ * fails and forces an update to src/shared/webhook-example.ts (and thus the
  * admin guide and README).
  */
 

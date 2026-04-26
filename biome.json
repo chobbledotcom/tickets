@@ -98,7 +98,7 @@
       }
     },
     {
-      "includes": ["src/index.ts", "src/app/index.ts", "src/lib/logger.ts"],
+      "includes": ["src/index.ts", "src/app/index.ts", "src/shared/logger.ts"],
       "linter": {
         "rules": {
           "suspicious": {

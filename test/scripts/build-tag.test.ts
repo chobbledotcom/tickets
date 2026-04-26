@@ -1,6 +1,6 @@
 /**
  * Tests for the release-tag format shared between build-edge.ts (which
- * writes .build-tag) and src/lib/update.ts (which parses tags from
+ * writes .build-tag) and src/shared/update.ts (which parses tags from
  * GitHub releases to decide whether a newer version is available).
  *
  * Any drift between these two halves silently breaks self-update, so the

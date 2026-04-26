@@ -206,9 +206,9 @@ const entryPoints = new Set([
   "src/index.ts", // deno task start
   "src/edge.ts", // esbuild entry for Bunny CDN
   "src/fp.ts", // import map root alias
-  "src/routes/index.ts", // import map root alias
+  "src/features/routes/index.ts", // import map root alias
   "src/doc.ts", // deno doc generation
-  "src/lib/jsx/jsx-dev-runtime.ts", // jsxImportSource compiler config
+  "src/shared/jsx/jsx-dev-runtime.ts", // jsxImportSource compiler config
 ]);
 
 // Docs files are used by deno doc via src/doc.ts - mark as known

@@ -1,7 +1,7 @@
 /**
  * Tests that the admin API examples match the real toAdminEvent() output.
  * If the shape changes, this test fails and forces an update to
- * src/lib/admin-api-example.ts (and thus the API docs page).
+ * src/shared/admin-api-example.ts (and thus the API docs page).
  */
 
 import { expect } from "@std/expect";

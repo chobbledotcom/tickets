@@ -57,11 +57,11 @@ const TEST_UTILITY_FILES = [
 const ALLOWED_FILES_STATE = [
   ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
-  "lib/db/sessions.ts",
+  "shared/db/sessions.ts",
   // Settings test overrides Map for injecting test values into the snapshot
-  "lib/db/settings.ts",
+  "shared/db/settings.ts",
   // Test override flags (lazyRef state for test isolation)
-  "lib/test-overrides.ts",
+  "shared/test-overrides.ts",
 ];
 
 /**
@@ -262,8 +262,8 @@ describe("code quality", () => {
      * Excluded from checking:
      * - Test utility modules (test-utils/*) - explicitly for testing
      * - Library modules (fp/*) - reusable utilities, may not all be used yet
-     * - JSX runtime modules (lib/jsx/*) - used implicitly by JSX compiler
-     * - Index files that only re-export (lib/db/index.ts) - aggregation modules
+     * - JSX runtime modules (shared/jsx/*) - used implicitly by JSX compiler
+     * - Index files that only re-export (shared/db/index.ts) - aggregation modules
      */
 
     /** Files explicitly for testing */
@@ -272,15 +272,15 @@ describe("code quality", () => {
     /** Library/infrastructure modules - okay to have unused exports */
     const LIBRARY_PATHS = [
       "fp.ts", // FP utility library
-      "lib/jsx/jsx-runtime.ts", // JSX compiler runtime
-      "lib/jsx/jsx-dev-runtime.ts", // JSX dev runtime
-      "lib/asset-paths.ts", // Build-time config consumed by .tsx templates
+      "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
+      "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
+      "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
     ];
 
     /** Index modules that only re-export from sub-modules */
     const AGGREGATION_MODULES = [
-      "lib/db/index.ts",
-      "lib/rest/index.ts",
+      "shared/db/index.ts",
+      "shared/rest/index.ts",
       "templates/index.ts",
       "test-utils.ts",
     ];
@@ -292,84 +292,84 @@ describe("code quality", () => {
      */
     const ALLOWED_TEST_HOOKS: string[] = [
       // Database injection for test isolation
-      "lib/db/client.ts:setDb",
+      "shared/db/client.ts:setDb",
       // Set encryption key directly to avoid env var races between parallel tests
-      "lib/crypto/encryption.ts:setEncryptionKeyForTest",
+      "shared/crypto/encryption.ts:setEncryptionKeyForTest",
       // Set fast PBKDF2 directly to avoid env var races between parallel tests
-      "lib/crypto/hashing.ts:setFastPbkdf2ForTest",
+      "shared/crypto/hashing.ts:setFastPbkdf2ForTest",
       // Set RSA key size directly to avoid env var races between parallel tests
-      "lib/crypto/keys.ts:setRsaKeySizeForTest",
+      "shared/crypto/keys.ts:setRsaKeySizeForTest",
       // Reset cached Stripe client between tests
-      "lib/stripe.ts:resetStripeClient",
+      "shared/stripe.ts:resetStripeClient",
       // TTL constant used by page-cache tests to verify caching behaviour
-      "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+      "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
       // (settings.ts functions now accessed via settings namespace, not individual exports)
       // Reset cached sessions between tests
-      "lib/db/sessions.ts:resetSessionCache",
+      "shared/db/sessions.ts:resetSessionCache",
       // DB version/hash constants used in production but test pattern doesn't detect constant comparison
-      "lib/db/migrations.ts:LATEST_UPDATE",
-      "lib/db/migrations.ts:SCHEMA_HASH",
+      "shared/db/migrations.ts:LATEST_UPDATE",
+      "shared/db/migrations.ts:SCHEMA_HASH",
       // Test helper for creating signed webhook payloads
-      "lib/stripe.ts:constructTestWebhookEvent",
+      "shared/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests
-      "lib/square.ts:resetSquareClient",
+      "shared/square.ts:resetSquareClient",
       // Test helper for creating signed Square webhook payloads
-      "lib/square.ts:constructTestWebhookEvent",
+      "shared/square.ts:constructTestWebhookEvent",
       // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
-      "lib/db/processed-payments.ts:getProcessedAttendeeId",
+      "shared/db/processed-payments.ts:getProcessedAttendeeId",
       // Raw attendee fetch for testing encrypted data (production uses batched getEventWithAttendeesRaw)
-      "lib/db/attendees/queries.ts:getAttendeesRaw",
+      "shared/db/attendees/queries.ts:getAttendeesRaw",
       // Single attendee fetch for tests (production uses batched getEventWithAttendeeRaw)
-      "lib/db/attendees/queries.ts:getAttendee",
+      "shared/db/attendees/queries.ts:getAttendee",
       // Event activity log fetch for tests (production uses batched getEventWithActivityLog)
-      "lib/db/activityLog.ts:getEventActivityLog",
+      "shared/db/activityLog.ts:getEventActivityLog",
       // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
-      "lib/csrf.ts:isSignedCsrfToken",
+      "shared/csrf.ts:isSignedCsrfToken",
       // Response cookie helper used by auth tests (production sets cookies directly)
-      "routes/utils.ts:withCookie",
+      "features/routes/utils.ts:withCookie",
       // Reset cache registry between tests
-      "lib/cache-registry.ts:resetCacheRegistry",
+      "shared/cache-registry.ts:resetCacheRegistry",
       // Reset cached effective domain between tests
-      "lib/config.ts:resetEffectiveDomain",
-      "lib/config.ts:setEffectiveDomainForTest",
+      "shared/config.ts:resetEffectiveDomain",
+      "shared/config.ts:setEffectiveDomainForTest",
       // Reset cached demo mode between tests
-      "lib/demo.ts:resetDemoMode",
-      "lib/demo.ts:setDemoModeForTest",
+      "shared/demo.ts:resetDemoMode",
+      "shared/demo.ts:setDemoModeForTest",
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
-      "lib/email-renderer.ts:resetEngine",
+      "shared/email-renderer.ts:resetEngine",
       // Skip login delay in tests without env var races
-      "lib/test-overrides.ts:setSkipLoginDelayForTest",
+      "shared/test-overrides.ts:setSkipLoginDelayForTest",
       // Reset/set host email config between tests without env var races
-      "lib/email.ts:setHostEmailConfigForTest",
-      "lib/email.ts:resetHostEmailConfig",
+      "shared/email.ts:setHostEmailConfigForTest",
+      "shared/email.ts:resetHostEmailConfig",
       // Timezone validation utility (timezone now derived from country, but still useful for tests)
-      "lib/timezone.ts:isValidTimezone",
+      "shared/timezone.ts:isValidTimezone",
       // Attachment size constant (now re-exported from limits.ts, not detected by export patterns)
-      "lib/storage.ts:MAX_ATTACHMENT_SIZE",
+      "shared/storage.ts:MAX_ATTACHMENT_SIZE",
       // AsyncLocalStorage-based storage config for concurrent test isolation
-      "lib/storage.ts:runWithStorageConfig",
+      "shared/storage.ts:runWithStorageConfig",
       // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
-      "lib/limits.ts:readLimit",
+      "shared/limits.ts:readLimit",
       // Settings cache TTL constant used by tests to verify caching behavior
-      "lib/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+      "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
       // Set log suppression directly to avoid env var races between parallel tests
-      "lib/logger.ts:setSuppressRequestLogs",
-      "lib/logger.ts:setSuppressDebugLogs",
+      "shared/logger.ts:setSuppressRequestLogs",
+      "shared/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
-      "lib/test-overrides.ts:setRethrowErrorsForTest",
+      "shared/test-overrides.ts:setRethrowErrorsForTest",
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
-      "lib/update.ts:setBuildTimestampForTest",
+      "shared/update.ts:setBuildTimestampForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
-      "routes/api.ts:apiRoutes",
-      "routes/admin/api.ts:adminApiRoutes",
+      "features/routes/api.ts:apiRoutes",
+      "features/routes/admin/api.ts:adminApiRoutes",
       // Storage delete override for testing fire-and-forget error handling
-      "lib/test-overrides.ts:getDeleteOverride",
-      "lib/test-overrides.ts:setDeleteOverride",
-      "lib/test-overrides.ts:setDeleteOverrideForTest",
+      "shared/test-overrides.ts:getDeleteOverride",
+      "shared/test-overrides.ts:setDeleteOverride",
+      "shared/test-overrides.ts:setDeleteOverrideForTest",
       // API key touch override for testing fire-and-forget error handling
-      "lib/test-overrides.ts:getTouchOverride",
-      "lib/test-overrides.ts:setTouchOverride",
-      "lib/test-overrides.ts:setTouchOverrideForTest",
+      "shared/test-overrides.ts:getTouchOverride",
+      "shared/test-overrides.ts:setTouchOverride",
+      "shared/test-overrides.ts:setTouchOverrideForTest",
     ];
 
     /**

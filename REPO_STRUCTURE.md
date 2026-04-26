@@ -1,51 +1,58 @@
 # Repository Structure Reference
 
-This document describes the **current layout** after the structure migration.
+This document describes the **current** structure.
 
-## Current top-level `src/` layout
+## `src/` layout
 
 ```text
 src/
-  app/                  # runtime entrypoints
-    index.ts            # local/server bootstrap
-    edge.ts             # Bunny edge bootstrap
+  app/                     # runtime entrypoints
+    index.ts               # local/server bootstrap
+    edge.ts                # Bunny edge bootstrap
 
-  ui/                   # presentation layer
-    client/             # browser-side scripts and admin UI interactions
-    static/             # static assets + generated browser bundles
-    templates/          # TSX templates for public/admin/email pages
+  features/
+    routes/                # HTTP routing and route handlers
 
-  routes/               # HTTP routing and route handlers
-  lib/                  # shared/domain logic (in-progress migration target)
-  docs/                 # API and feature documentation endpoints
-  test-utils/           # shared test helpers/factories/mocks
-  fp.ts                 # functional primitives
-  test-utils.ts         # test utils barrel
-  static.d.ts           # static module declarations
+  shared/                  # reusable/server-side modules
+    db/
+    rest/
+    jsx/
+    crypto/
+    columns/
+    merge/
+    wallets/
+    ...
+
+  ui/                      # presentation layer
+    client/                # browser-side scripts
+    static/                # static assets (+ generated bundles)
+    templates/             # TSX templates (public/admin/email)
+
+  docs/                    # API/doc endpoint content
+  test-utils/              # shared test helpers/factories/mocks
+  fp.ts                    # functional primitives
+  test-utils.ts            # test utils barrel
+  static.d.ts              # static module declarations
 ```
 
-## Import and build conventions
+## Import conventions
 
-- Use `#templates/*` for UI template imports (mapped to `src/ui/templates/*`).
-- Use `#static/*` for static asset references (mapped to `src/ui/static/*`).
-- Static builds now read from `src/ui/client` and emit to `src/ui/static`.
-- `src/index.ts` and `src/edge.ts` remain as compatibility entrypoints that delegate to `src/app/*`.
+- `#routes/*` resolves to `src/features/routes/*`.
+- `#lib/*` resolves to `src/shared/*` (kept for compatibility and incremental refactors).
+- `#templates/*` resolves to `src/ui/templates/*`.
+- `#static/*` resolves to `src/ui/static/*`.
+- `#jsx/*` resolves to `src/shared/jsx/*`.
 
-## Migration status
+## Build/tooling conventions
 
-Completed in this phase:
-
-- ✅ Introduced `src/app` and moved runtime bootstraps there.
-- ✅ Introduced `src/ui` and moved `client`, `static`, and `templates` under it.
-- ✅ Updated import-map aliases and build/tooling scripts for the new paths.
-
-Still in progress:
-
-- `src/lib` and `src/routes` are still in their previous structure and can be migrated incrementally by feature slices.
+- Client bundle inputs live in `src/ui/client` and outputs are emitted to `src/ui/static`.
+- Runtime entry wrappers remain at `src/index.ts` and `src/edge.ts`, delegating to `src/app/*`.
+- Static file route handlers read from `src/ui/static`.
 
 ## Contributor guidance
 
-- New browser code should go in `src/ui/client`.
-- New reusable templates should go in `src/ui/templates`.
-- New static assets should go in `src/ui/static`.
-- New entry/runtime wiring should live in `src/app`.
+- Put new route handlers in `src/features/routes`.
+- Put shared server/domain logic in `src/shared`.
+- Put browser scripts in `src/ui/client`.
+- Put templates in `src/ui/templates`.
+- Put static assets in `src/ui/static`.

@@ -46,9 +46,9 @@ Each phase is intended to be a shippable, typechecking, test-passing state.
 ### Phase 1 — Schema + type
 
 **Files**
-- `src/lib/db/migrations.ts` — add `["duration_days", "INTEGER NOT NULL DEFAULT 1"]` to `events` table columns. Bump `LATEST_UPDATE` to `"add duration_days to events"`.
-- `src/lib/types.ts` — add `duration_days: number` to the `Event` interface (~line 74–105).
-- `src/lib/db/events.ts` — add `duration_days: col.withDefault(() => 1)` to `rawEventsTable` (near `max_quantity`, ~line 149). Add `durationDays?: number` to `EventInput` if it's a separate type.
+- `src/shared/db/migrations.ts` — add `["duration_days", "INTEGER NOT NULL DEFAULT 1"]` to `events` table columns. Bump `LATEST_UPDATE` to `"add duration_days to events"`.
+- `src/shared/types.ts` — add `duration_days: number` to the `Event` interface (~line 74–105).
+- `src/shared/db/events.ts` — add `duration_days: col.withDefault(() => 1)` to `rawEventsTable` (near `max_quantity`, ~line 149). Add `durationDays?: number` to `EventInput` if it's a separate type.
 
 **Tests**
 - `test/lib/db.test.ts` — confirm an inserted event round-trips `duration_days` (default 1, explicit value preserved).
@@ -60,7 +60,7 @@ Each phase is intended to be a shippable, typechecking, test-passing state.
 This is the core correctness phase. Everything else rides on it.
 
 **Files**
-- `src/lib/db/attendees.ts`
+- `src/shared/db/attendees.ts`
   - Extend `dateToRange` to accept an optional duration:
     ```ts
     export const dateToRange = (date: string, durationDays = 1) => {
@@ -78,13 +78,13 @@ This is the core correctness phase. Everything else rides on it.
     - Formula: `end_at = datetime(start_at, '+' || durationDays || ' days')` (or equivalent UTC-safe expression).
     - Runs in same transaction as event update when duration changes.
   - `getDateAttendeeCount(eventId, date)` — unchanged; still checks a single day's load (this is what makes multi-day checks accurate).
-- `src/lib/db/attendees.ts → checkBatchAvailability`
+- `src/shared/db/attendees.ts → checkBatchAvailability`
   - **Accuracy fix**: for each daily event in the batch, if `duration_days > 1` expand to per-day checks.
   - Implementation: enumerate every day in `[startDate, startDate + duration_days)` and run the existing single-day capacity query for each. Fail if any day is over capacity.
   - Apply the same per-day expansion to **group capacity** checks (`groups.max_attendees`) so multi-day products cannot overflow group occupancy on later days in the range.
   - Parallelize with `Promise.all` across days × events.
   - Why per-day vs. a single overlap-sum: when two existing bookings each cover a subset of the requested range but don't overlap each other, overlap-sum double-counts them on days they don't both occupy, producing false "sold out" errors. Per-day iteration is exact and short (typical ranges ≤14 days).
-- `src/lib/db/attendees.ts → buildCapacityCondition`
+- `src/shared/db/attendees.ts → buildCapacityCondition`
   - The inline SQL capacity check runs inside the atomic insert. For a multi-day booking, the simplest safe approach: JS-side per-day `hasAvailableSpots`-style check happens before the insert (already done via `checkBatchAvailability` in `ticket-payment.ts`); the inline SQL check remains the overlap-sum as a safety net. Over-rejection in the insert is safe (just triggers user retry) and race-condition rare.
   - Document this in a comment above `buildCapacityCondition`.
 
@@ -107,7 +107,7 @@ This is the core correctness phase. Everything else rides on it.
   - Add `duration_days: number | null` to `EventFormValues` (~line 44–67).
   - Add a field in `eventFields` after `maximum_days_after` (~line 380–386): label "Booking duration (days)", input `type="number"`, `min=1`, `max=90`, default `1`. Help text: "How many days each booking reserves. Only applies to daily events."
   - Hide/disable when `event_type !== 'daily'` — can piggyback on existing daily-only field visibility logic.
-- `src/routes/admin/events.ts`
+- `src/features/routes/admin/events.ts`
   - `extractCommonFields` / `extractEventUpdateInput` — parse `duration_days` (clamp ≥1), alongside `minimum_days_before`.
   - On event edit save: if `duration_days` changed and event is daily, call the DB reconciliation helper in the same transaction.
 - `src/templates/admin/events.tsx`
@@ -132,15 +132,15 @@ This is the core correctness phase. Everything else rides on it.
 ### Phase 4 — Booking flow: price + bookable-start-date filter
 
 **Files**
-- `src/lib/dates.ts`
+- `src/shared/dates.ts`
   - Update `getAvailableDates` to also filter out start dates whose range would extend past `end` or include a non-bookable day.
   - New helper (internal): `isRangeBookable(start, durationDays, bookableDays, holidays, endLimit)` — all days in `[start, start+duration)` must pass `isBookable` and be ≤ `endLimit`.
   - `getAvailableDates(event, holidays)` reads `event.duration_days` and applies the range filter.
   - `getNextBookableDate` — same filter.
-- `src/routes/public/ticket-payment.ts`
+- `src/features/routes/public/ticket-payment.ts`
   - `buildRegistrationItems` — when the event is daily with `duration_days > 1`, multiply `unitPrice` by `duration_days`. (The per-ticket item price the payment provider sees becomes the total per-ticket charge.)
   - `buildBookings` — include `durationDays: event.duration_days` in the booking object so the DB insert uses the correct range.
-- `src/routes/public/ticket-form.ts`
+- `src/features/routes/public/ticket-form.ts`
   - `parseCustomPrice` / pay-more validation — the customer-entered price is **per-day**. Multiply by `duration_days` when validating against `max_price`? Or treat `max_price` as already-per-day? **Decision**: `unit_price` and `max_price` are per-day values; UI labels reflect that. Validation checks the per-day value as today; the final charge is `customPrice × duration_days × quantity`.
 - `src/templates/public.tsx`
   - Near price display for daily events with duration>1, show "£X/day × N days = £Y".
@@ -159,7 +159,7 @@ This is the core correctness phase. Everything else rides on it.
 ### Phase 5 — Display: confirmation page, email, admin views
 
 **Files**
-- `src/lib/dates.ts`
+- `src/shared/dates.ts`
   - Add `formatDateRangeLabel(startIso, endIso)` for booking records, returning a human range; single-day collapses to `formatDateLabel`.
   - Add English-only compact date-range formatter for event/ticket display (for now), using **en dash** style rules:
     - Same day: `2 February 2027`
@@ -170,7 +170,7 @@ This is the core correctness phase. Everything else rides on it.
 - `src/templates/public.tsx`
   - Reuse the compact formatter for the public event/date line so UI shows an explicit range when available, with en dash-separated labels.
 - `src/templates/tickets.tsx` — `attendeeDateHtml` (~line 57–59): render range when `attendee.end_at - attendee.start_at > 1 day`. Keep existing behaviour for single-day.
-- `src/lib/email-renderer.ts` — template data exposes `dateRangeLabel` alongside `date` (kept for backward compatibility).
+- `src/shared/email-renderer.ts` — template data exposes `dateRangeLabel` alongside `date` (kept for backward compatibility).
 - `src/templates/admin/attendees.tsx` / `attendee-table.tsx` — date column shows range when multi-day (small visual tweak; row still sorts by start).
 - `src/templates/admin/calendar.tsx` — **deferred** (still shows start date only; acceptable for v1).
 
