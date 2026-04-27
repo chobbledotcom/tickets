@@ -11,7 +11,9 @@ src/
     edge.ts                # Bunny edge bootstrap
 
   features/
-    routes/                # HTTP routing and route handlers
+    admin/
+    public/
+    ...                    # HTTP routing and route handlers grouped by feature
 
   shared/                  # reusable/server-side modules
     db/
@@ -37,7 +39,7 @@ src/
 
 ## Import conventions
 
-- `#routes/*` resolves to `src/features/routes/*`.
+- `#routes/*` resolves to `src/features/*`.
 - `#lib/*` resolves to `src/shared/*` (kept for compatibility and incremental refactors).
 - `#templates/*` resolves to `src/ui/templates/*`.
 - `#static/*` resolves to `src/ui/static/*`.
@@ -51,7 +53,7 @@ src/
 
 ## Contributor guidance
 
-- Put new route handlers in `src/features/routes`.
+- Put new route handlers in the relevant `src/features/*` module.
 - Put shared server/domain logic in `src/shared`.
 - Put browser scripts in `src/ui/client`.
 - Put templates in `src/ui/templates`.

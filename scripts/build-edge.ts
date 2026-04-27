@@ -141,7 +141,7 @@ const inlineAssetsPlugin: Plugin = {
 
     // Replace the assets module with inlined content
     build.onResolve(
-      { filter: /(routes\/assets\.ts$|#routes\/assets\.ts$)/ },
+      { filter: /(features\/assets\.ts$|#routes\/assets\.ts$)/ },
       (args) => ({
         namespace: "inline-assets",
         path: args.path,

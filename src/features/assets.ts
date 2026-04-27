@@ -6,7 +6,7 @@ import { dirname, fromFileUrl, join } from "@std/path";
 import { encodeBody } from "#routes/response.ts";
 
 const currentDir = dirname(fromFileUrl(import.meta.url));
-const staticDir = join(currentDir, "..", "..", "ui", "static");
+const staticDir = join(currentDir, "..", "ui", "static");
 
 /** Cache for 1 year (immutable assets) */
 const CACHE_HEADERS = {

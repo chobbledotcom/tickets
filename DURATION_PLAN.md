@@ -107,7 +107,7 @@ This is the core correctness phase. Everything else rides on it.
   - Add `duration_days: number | null` to `EventFormValues` (~line 44–67).
   - Add a field in `eventFields` after `maximum_days_after` (~line 380–386): label "Booking duration (days)", input `type="number"`, `min=1`, `max=90`, default `1`. Help text: "How many days each booking reserves. Only applies to daily events."
   - Hide/disable when `event_type !== 'daily'` — can piggyback on existing daily-only field visibility logic.
-- `src/features/routes/admin/events.ts`
+- `src/features/admin/events.ts`
   - `extractCommonFields` / `extractEventUpdateInput` — parse `duration_days` (clamp ≥1), alongside `minimum_days_before`.
   - On event edit save: if `duration_days` changed and event is daily, call the DB reconciliation helper in the same transaction.
 - `src/templates/admin/events.tsx`
@@ -137,10 +137,10 @@ This is the core correctness phase. Everything else rides on it.
   - New helper (internal): `isRangeBookable(start, durationDays, bookableDays, holidays, endLimit)` — all days in `[start, start+duration)` must pass `isBookable` and be ≤ `endLimit`.
   - `getAvailableDates(event, holidays)` reads `event.duration_days` and applies the range filter.
   - `getNextBookableDate` — same filter.
-- `src/features/routes/public/ticket-payment.ts`
+- `src/features/public/ticket-payment.ts`
   - `buildRegistrationItems` — when the event is daily with `duration_days > 1`, multiply `unitPrice` by `duration_days`. (The per-ticket item price the payment provider sees becomes the total per-ticket charge.)
   - `buildBookings` — include `durationDays: event.duration_days` in the booking object so the DB insert uses the correct range.
-- `src/features/routes/public/ticket-form.ts`
+- `src/features/public/ticket-form.ts`
   - `parseCustomPrice` / pay-more validation — the customer-entered price is **per-day**. Multiply by `duration_days` when validating against `max_price`? Or treat `max_price` as already-per-day? **Decision**: `unit_price` and `max_price` are per-day values; UI labels reflect that. Validation checks the per-day value as today; the final charge is `customPrice × duration_days × quantity`.
 - `src/templates/public.tsx`
   - Near price display for daily events with duration>1, show "£X/day × N days = £Y".
