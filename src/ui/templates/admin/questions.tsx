@@ -4,10 +4,10 @@
 
 import { map } from "#fp";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
+import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

@@ -4,9 +4,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   createTestEvent,
   deactivateTestEvent,

@@ -7,8 +7,8 @@
  */
 
 import { lazyRef } from "#fp";
-import { BUILD_TIMESTAMP } from "#lib/build-info.ts";
-import { deployScriptCode } from "#lib/bunny-cdn.ts";
+import { BUILD_TIMESTAMP } from "#shared/build-info.ts";
+import { deployScriptCode } from "#shared/bunny-cdn.ts";
 
 /** GitHub repo URL — update here if the repo moves */
 export const GITHUB_REPO = "chobbledotcom/tickets";

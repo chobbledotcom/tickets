@@ -3,26 +3,26 @@
  * Owner-only access enforced via requireOwnerOr
  */
 
+import { ownerPage } from "#routes/auth.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   isValidPemCertificate,
   isValidPemPrivateKey,
-} from "#lib/apple-wallet.ts";
-import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#lib/build-info.ts";
-import { getCdnHostname } from "#lib/bunny-cdn.ts";
+} from "#shared/apple-wallet.ts";
+import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
+import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   getEffectiveDomain,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
-} from "#lib/config.ts";
-import { settings } from "#lib/db/settings.ts";
-import { getHostEmailConfig } from "#lib/email.ts";
-import { getEnv } from "#lib/env.ts";
-import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
-import { LIMIT_ENTRIES } from "#lib/limits.ts";
-import { getStorageBackend } from "#lib/storage.ts";
-import { ownerPage } from "#routes/auth.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+} from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getHostEmailConfig } from "#shared/email.ts";
+import { getEnv } from "#shared/env.ts";
+import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
+import { LIMIT_ENTRIES } from "#shared/limits.ts";
+import { getStorageBackend } from "#shared/storage.ts";
 import {
   adminDebugPage,
   type DebugPageState,

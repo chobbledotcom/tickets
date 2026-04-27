@@ -2,14 +2,14 @@
  * Admin holiday management routes - owner only
  */
 
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import {
   getAllHolidays,
   type HolidayInput,
   holidaysTable,
-} from "#lib/db/holidays.ts";
-import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
-import { defineNamedResource } from "#lib/rest/resource.ts";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+} from "#shared/db/holidays.ts";
+import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
+import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   adminHolidayDeletePage,
   adminHolidayEditPage,

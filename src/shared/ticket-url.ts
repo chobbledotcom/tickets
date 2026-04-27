@@ -3,7 +3,7 @@
  */
 
 import { map, pipe, unique } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 
 type TokenEntry = { attendee: { ticket_token: string } };
 

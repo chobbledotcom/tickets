@@ -10,9 +10,9 @@
  * @module
  */
 
-export * from "#lib/crypto/encryption.ts";
-export * from "#lib/crypto/hashing.ts";
-export * from "#lib/crypto/keys.ts";
-export * from "#lib/crypto/utils.ts";
-export * from "#lib/csrf.ts";
-export * from "#lib/payment-crypto.ts";
+export * from "#shared/crypto/encryption.ts";
+export * from "#shared/crypto/hashing.ts";
+export * from "#shared/crypto/keys.ts";
+export * from "#shared/crypto/utils.ts";
+export * from "#shared/csrf.ts";
+export * from "#shared/payment-crypto.ts";

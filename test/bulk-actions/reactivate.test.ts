@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
+import { eventsTable, getEventWithCount } from "#shared/db/events.ts";
 import {
   adminFormPost,
   adminGet,

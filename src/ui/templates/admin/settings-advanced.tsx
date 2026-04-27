@@ -2,7 +2,7 @@
  * Admin advanced settings page template
  */
 
-import type { AdminSession, Theme } from "#lib/types.ts";
+import type { AdminSession, Theme } from "#shared/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";

@@ -3,19 +3,19 @@
  * Owner-only access
  */
 
-import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#lib/db/settings.ts";
-import {
-  applyDemoOverrides,
-  SITE_CONTACT_DEMO_FIELDS,
-  SITE_HOME_DEMO_FIELDS,
-} from "#lib/demo.ts";
-import { defineForm } from "#lib/forms.tsx";
-import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
+import {
+  applyDemoOverrides,
+  SITE_CONTACT_DEMO_FIELDS,
+  SITE_HOME_DEMO_FIELDS,
+} from "#shared/demo.ts";
+import { defineForm } from "#shared/forms.tsx";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,

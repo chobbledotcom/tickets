@@ -7,15 +7,15 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
-import { decryptBytes, encryptBytes } from "#lib/crypto/encryption.ts";
-import { getEnv } from "#lib/env.ts";
+import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
+import { getEnv } from "#shared/env.ts";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
   MAX_IMAGE_SIZE,
-} from "#lib/limits.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { getDeleteOverride } from "#lib/test-overrides.ts";
+} from "#shared/limits.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { getDeleteOverride } from "#shared/test-overrides.ts";
 
 // ---------------------------------------------------------------------------
 // Per-context storage config (eliminates env var races in concurrent tests)
@@ -367,7 +367,7 @@ export const deleteFile = async (filename: string): Promise<void> => {
 // Attachment storage (any file type, up to 25MB)
 // ---------------------------------------------------------------------------
 
-// Re-export for existing consumers (imported from #lib/limits.ts at top)
+// Re-export for existing consumers (imported from #shared/limits.ts at top)
 export { MAX_ATTACHMENT_SIZE };
 
 /** Attachment validation error */

@@ -81,14 +81,14 @@ export interface FetchCall {
 }
 
 export type AdminTestContext = {
-  event: import("#lib/types.ts").Event;
-  attendee: import("#lib/types.ts").Attendee;
+  event: import("#shared/types.ts").Event;
+  attendee: import("#shared/types.ts").Attendee;
   cookie: string;
   csrfToken: string;
 };
 
 export type BookAttendeeOpts = Partial<
-  Omit<import("#lib/db/attendee-types.ts").EventBooking, "eventId">
+  Omit<import("#shared/db/attendee-types.ts").EventBooking, "eventId">
 > & {
   name?: string;
   email?: string;
@@ -105,13 +105,13 @@ export type RawEventRange = {
 };
 
 export type PaymentProviderType =
-  import("#lib/payments.ts").PaymentProviderType;
+  import("#shared/payments.ts").PaymentProviderType;
 
-export type SessionMetadata = import("#lib/payments.ts").SessionMetadata;
+export type SessionMetadata = import("#shared/payments.ts").SessionMetadata;
 
-export type { BuiltSiteFormInput } from "#lib/db/built-sites.ts";
-export type { EventInput } from "#lib/db/events.ts";
-export type { GroupInput } from "#lib/db/groups.ts";
-export type { HolidayInput } from "#lib/db/holidays.ts";
-export type { EmailEntry, EmailEvent } from "#lib/email.ts";
-export type { WebhookAttendee } from "#lib/webhook.ts";
+export type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
+export type { EventInput } from "#shared/db/events.ts";
+export type { GroupInput } from "#shared/db/groups.ts";
+export type { HolidayInput } from "#shared/db/holidays.ts";
+export type { EmailEntry, EmailEvent } from "#shared/email.ts";
+export type { WebhookAttendee } from "#shared/webhook.ts";

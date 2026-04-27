@@ -2,7 +2,7 @@
  * Group selector for event forms (only shown when groups exist)
  */
 
-import type { Group } from "#lib/types.ts";
+import type { Group } from "#shared/types.ts";
 
 interface EventGroupSelectProps {
   groups: Group[];

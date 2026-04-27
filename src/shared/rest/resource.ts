@@ -17,10 +17,10 @@
  */
 
 import type { InValue } from "@libsql/client";
-import type { Table } from "#lib/db/table.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { Field, FieldValues } from "#lib/forms.tsx";
-import { validateForm } from "#lib/forms.tsx";
+import type { Table } from "#shared/db/table.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { Field, FieldValues } from "#shared/forms.tsx";
+import { validateForm } from "#shared/forms.tsx";
 
 /** Success result with data */
 type SuccessResult<T> = { ok: true } & T;

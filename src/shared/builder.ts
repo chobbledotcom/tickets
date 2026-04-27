@@ -12,11 +12,11 @@
  * 7. Record the built site in the local database
  */
 
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { toBase64 } from "#lib/crypto/utils.ts";
-import { getEnv } from "#lib/env.ts";
-import { fetchText } from "#lib/fetch.ts";
-import { fetchLatestRelease } from "#lib/update.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { toBase64 } from "#shared/crypto/utils.ts";
+import { getEnv } from "#shared/env.ts";
+import { fetchText } from "#shared/fetch.ts";
+import { fetchLatestRelease } from "#shared/update.ts";
 
 /** Secrets copied from the host environment (if set) */
 const HOST_SECRET_KEYS = [

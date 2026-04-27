@@ -6,12 +6,15 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
-import { isPaymentsEnabled } from "#lib/config.ts";
-import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
-import { singleEventAnswerIds } from "#lib/payment-helpers.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
-import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { isPaymentsEnabled } from "#shared/config.ts";
+import {
+  createAttendeeAtomic,
+  hasAvailableSpots,
+} from "#shared/db/attendees.ts";
+import { singleEventAnswerIds } from "#shared/payment-helpers.ts";
+import { getActivePaymentProvider } from "#shared/payments.ts";
+import type { Attendee, ContactInfo, EventWithCount } from "#shared/types.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
 /** Booking result — callers map this to their response format */
 export type BookingResult =

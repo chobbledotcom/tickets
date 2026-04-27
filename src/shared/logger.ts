@@ -9,13 +9,13 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef } from "#fp";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { sendNtfyError } from "#lib/ntfy.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   addPendingWork,
   hasPendingWorkScope,
   runWithPendingWork,
-} from "#lib/pending-work.ts";
+} from "#shared/pending-work.ts";
 
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();

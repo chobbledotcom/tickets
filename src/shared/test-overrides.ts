@@ -1,5 +1,5 @@
 import { lazyRef } from "#fp";
-import { getEnv } from "#lib/env.ts";
+import { getEnv } from "#shared/env.ts";
 
 const [getRethrowErrors, setRethrowErrors] = lazyRef<boolean | null>(
   () => null,

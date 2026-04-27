@@ -2,10 +2,26 @@
  * Admin routes for custom questions management (owner-only)
  */
 
+import {
+  createConfirmedHandlers,
+  createVerifiedFormRoute,
+} from "#routes/admin/confirmation.ts";
+import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
+import { ownerFormById, ownerGetById } from "#routes/entity.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
-import { createAuthedFormRoute, createAuthedHandler } from "#lib/app-forms.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import {
+  createAuthedFormRoute,
+  createAuthedHandler,
+} from "#shared/app-forms.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
 import {
   type Answer,
   answersTable,
@@ -20,23 +36,10 @@ import {
   questionsTable,
   setEventQuestions,
   swapAnswerOrder,
-} from "#lib/db/questions.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { defineForm } from "#lib/forms.tsx";
-import type { AdminSession } from "#lib/types.ts";
-import {
-  createConfirmedHandlers,
-  createVerifiedFormRoute,
-} from "#routes/admin/confirmation.ts";
-import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
-import { ownerFormById, ownerGetById } from "#routes/entity.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
+} from "#shared/db/questions.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { defineForm } from "#shared/forms.tsx";
+import type { AdminSession } from "#shared/types.ts";
 import {
   adminAnswerDeletePage,
   adminEventQuestionsPage,

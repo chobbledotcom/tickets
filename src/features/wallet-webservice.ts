@@ -12,11 +12,14 @@
  * so devices re-download the pass on every manual refresh.
  */
 
-import { type SigningCredentials, trimAuthToken } from "#lib/apple-wallet.ts";
-import { settings } from "#lib/db/settings.ts";
-import { logDebug } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet.ts";
+import {
+  type SigningCredentials,
+  trimAuthToken,
+} from "#shared/apple-wallet.ts";
+import { settings } from "#shared/db/settings.ts";
+import { logDebug } from "#shared/logger.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 

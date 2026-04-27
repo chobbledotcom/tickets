@@ -5,10 +5,10 @@
  * iterates the ordered columns and calls each one's cell() function.
  */
 
-import type { ColumnDef, ColumnGenerators } from "#lib/column-order.ts";
-import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
-import { normalizePhone } from "#lib/phone.ts";
-import type { AttendeeTableRow } from "#lib/types.ts";
+import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
+import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
+import { normalizePhone } from "#shared/phone.ts";
+import type { AttendeeTableRow } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 

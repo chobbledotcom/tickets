@@ -11,8 +11,11 @@ import { FakeTime } from "@std/testing/time";
 import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
-} from "#lib/config.ts";
-import { buildWebhookPayload, type RegistrationEntry } from "#lib/webhook.ts";
+} from "#shared/config.ts";
+import {
+  buildWebhookPayload,
+  type RegistrationEntry,
+} from "#shared/webhook.ts";
 import {
   EXAMPLE_ATTENDEE,
   EXAMPLE_BUSINESS_EMAIL,
@@ -20,7 +23,7 @@ import {
   EXAMPLE_EVENT,
   WEBHOOK_EXAMPLE_JSON,
   WEBHOOK_EXAMPLE_PAYLOAD,
-} from "#lib/webhook-example.ts";
+} from "#shared/webhook-example.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 
 /** Extract the domain from the example ticket_url (e.g. "https://x.com/t/..." → "x.com") */
@@ -34,11 +37,11 @@ describe("webhook example", () => {
     await resetDb();
     await createTestDbWithSetup(EXAMPLE_CURRENCY);
 
-    const { settings: s } = await import("#lib/db/settings.ts");
+    const { settings: s } = await import("#shared/db/settings.ts");
     s.invalidateCache();
 
     // Set business email to match the example
-    const { updateBusinessEmail } = await import("#lib/business-email.ts");
+    const { updateBusinessEmail } = await import("#shared/business-email.ts");
     await updateBusinessEmail(EXAMPLE_BUSINESS_EMAIL);
 
     // Set effective domain to match the example domain

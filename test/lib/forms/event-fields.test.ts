@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   eventFields,
   groupCreateFields,

@@ -6,8 +6,13 @@
  * storage since the sensitive data is already encrypted at the field level.
  */
 
-import { getEncryptionKeyString } from "#lib/crypto/encryption.ts";
-
+import { createActionHandler } from "#routes/admin/actions.ts";
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import {
   countZipStatements,
   createAndUploadBackup,
@@ -15,21 +20,15 @@ import {
   isRemoteDatabase,
   readManifest,
   restoreFromZip,
-} from "#lib/db/backup.ts";
-import { SCHEMA_HASH } from "#lib/db/migrations.ts";
+} from "#shared/db/backup.ts";
+import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import {
   deleteFile,
   downloadRaw,
   isStorageEnabled,
   listFiles,
   uploadRaw,
-} from "#lib/storage.ts";
-import { createActionHandler } from "#routes/admin/actions.ts";
-import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+} from "#shared/storage.ts";
 import {
   adminBackupPage,
   adminRestoreConfirmPage,

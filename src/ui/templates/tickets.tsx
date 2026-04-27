@@ -3,15 +3,15 @@
  */
 
 import { map, pipe } from "#fp";
-import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { renderMarkdown } from "#lib/markdown.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
-/** Re-export for backwards compatibility */
+/** Alias export used by ticket templates */
 export type { TokenEntry as TicketEntry };
 
 /** Ticket card data for rendering */

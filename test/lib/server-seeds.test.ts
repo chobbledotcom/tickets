@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
-import { getAllEvents } from "#lib/db/events.ts";
-import { settings } from "#lib/db/settings.ts";
-import { createSeeds } from "#lib/seeds.ts";
 import { handleRequest } from "#routes";
 import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import { getAllEvents } from "#shared/db/events.ts";
+import { settings } from "#shared/db/settings.ts";
+import { createSeeds } from "#shared/seeds.ts";
 import {
   assertAdminHtml,
   awaitTestRequest,

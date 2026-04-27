@@ -3,17 +3,17 @@
  */
 
 import { reduce } from "#fp";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { countAssignableSites } from "#lib/db/built-sites.ts";
-import { saveEventAnswers } from "#lib/db/questions.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { verifyQrBookToken } from "#lib/qr-token.ts";
-import { isPaidEvent } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { countAssignableSites } from "#shared/db/built-sites.ts";
+import { saveEventAnswers } from "#shared/db/questions.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { verifyQrBookToken } from "#shared/qr-token.ts";
+import { isPaidEvent } from "#shared/types.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,

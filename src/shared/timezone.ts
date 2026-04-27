@@ -12,7 +12,7 @@ import {
   parseDateTime,
   toZoned,
 } from "@internationalized/date";
-import { formatIsoForPreview } from "#lib/bulk-replace.ts";
+import { formatIsoForPreview } from "#shared/bulk-replace.ts";
 
 /** Default timezone when none is configured */
 export const DEFAULT_TIMEZONE = "Europe/London";

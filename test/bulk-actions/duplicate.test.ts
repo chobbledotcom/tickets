@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
-import { getAllGroups, getEventsByGroupId } from "#lib/db/groups.ts";
+import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
+import { getAllGroups, getEventsByGroupId } from "#shared/db/groups.ts";
 import {
   adminFormPost,
   adminGet,

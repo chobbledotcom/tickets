@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { settings } from "#lib/db/settings.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -152,7 +152,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("setting persists in database", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
 
       expect(settings.showPublicApi).toBe(false);
 
@@ -287,7 +287,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("shows error when no business email set", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
 
       await settings.update.email.provider("resend");
       await settings.update.email.apiKey("re_test_key");
@@ -304,9 +304,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("sends test email and redirects with success including status code", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
-        "#lib/business-email.ts"
+        "#shared/business-email.ts"
       );
 
       await settings.update.email.provider("resend");
@@ -332,9 +332,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("shows error when email API returns non-2xx status", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
-        "#lib/business-email.ts"
+        "#shared/business-email.ts"
       );
 
       await settings.update.email.provider("resend");
@@ -364,9 +364,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     });
 
     test("shows error when email send encounters network error", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
-        "#lib/business-email.ts"
+        "#shared/business-email.ts"
       );
 
       await settings.update.email.provider("resend");
@@ -398,7 +398,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
   describe("settings-advanced page email provider display", () => {
     test("shows email provider when configured", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
 
       await settings.update.email.provider("resend");
       await settings.update.email.fromAddress("from@test.com");

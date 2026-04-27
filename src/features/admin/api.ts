@@ -7,19 +7,24 @@
  *   - Session cookie + x-csrf-token header
  */
 
+import { groupApiRoutes } from "#routes/admin/api-groups.ts";
+import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
+import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
+import { jsonResponse } from "#routes/response.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   computeSlugIndex,
   type EventInput,
   eventsTable,
   getAllEvents,
   getEventWithCount,
-} from "#lib/db/events.ts";
+} from "#shared/db/events.ts";
 import {
   generateUniqueEventSlug,
   performEventDelete,
   toggleEventActive,
   validateEventInput,
-} from "#lib/events-actions.ts";
+} from "#shared/events-actions.ts";
 import {
   apiErrorResponse,
   type DeleteBody,
@@ -28,19 +33,14 @@ import {
   parseUpdateName,
   parseUpdateSlug,
   withApiEntity,
-} from "#lib/rest/crud-api.ts";
-import { normalizeSlug } from "#lib/slug.ts";
+} from "#shared/rest/crud-api.ts";
+import { normalizeSlug } from "#shared/slug.ts";
 import type {
   AdminEvent,
   Event,
   EventType,
   EventWithCount,
-} from "#lib/types.ts";
-import { groupApiRoutes } from "#routes/admin/api-groups.ts";
-import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
-import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
-import { jsonResponse } from "#routes/response.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
+} from "#shared/types.ts";
 
 // =============================================================================
 // Published API types — the contract for callers

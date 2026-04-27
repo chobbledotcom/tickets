@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { renderMarkdown } from "#lib/markdown.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 
 describe("markdown", () => {
   describe("renderMarkdown", () => {

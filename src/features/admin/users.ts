@@ -2,28 +2,6 @@
  * Admin user management routes - owner only
  */
 
-import { createAuthedFormRoute } from "#lib/app-forms.ts";
-/* jscpd:ignore-start */
-import { getEffectiveDomain } from "#lib/config.ts";
-import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  activateUser,
-  createInvitedUser,
-  decryptAdminLevel,
-  decryptUsername,
-  deleteUser,
-  getAllUsers,
-  getUserById,
-  hashInviteCode,
-  hasPassword,
-  isInviteExpired,
-  isUsernameTaken,
-} from "#lib/db/users.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { validateForm } from "#lib/forms.tsx";
-import { nowMs } from "#lib/now.ts";
-import type { User } from "#lib/types.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   type AuthSession,
@@ -36,6 +14,28 @@ import {
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
+/* jscpd:ignore-start */
+import { getEffectiveDomain } from "#shared/config.ts";
+import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  activateUser,
+  createInvitedUser,
+  decryptAdminLevel,
+  decryptUsername,
+  deleteUser,
+  getAllUsers,
+  getUserById,
+  hashInviteCode,
+  hasPassword,
+  isInviteExpired,
+  isUsernameTaken,
+} from "#shared/db/users.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { validateForm } from "#shared/forms.tsx";
+import { nowMs } from "#shared/now.ts";
+import type { User } from "#shared/types.ts";
 
 import {
   adminUserDeletePage,
@@ -206,7 +206,7 @@ const handleUserActivate: UserActionHandler = async (
   );
 
   // Decrypt user's password hash to derive their KEK
-  const { decrypt } = await import("#lib/crypto/encryption.ts");
+  const { decrypt } = await import("#shared/crypto/encryption.ts");
   const decryptedPasswordHash = await decrypt(user.password_hash);
 
   await activateUser(user.id, dataKey, decryptedPasswordHash);

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendee } from "#lib/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees.ts";
 import {
   createTestAttendee,
   createTestEvent,

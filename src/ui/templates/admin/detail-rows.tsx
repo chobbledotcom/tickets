@@ -3,8 +3,8 @@
  */
 
 import { joinStrings, map, reduce } from "#fp";
-import { formatCurrency } from "#lib/currency.ts";
-import type { Attendee } from "#lib/types.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import type { Attendee } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** A key/value row for the event-details-table */

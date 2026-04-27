@@ -3,7 +3,7 @@
  * Used by Stripe, Square, and webhook validation.
  */
 
-import { getBookingFee } from "#lib/config.ts";
+import { getBookingFee } from "#shared/config.ts";
 
 /** Calculate the booking fee amount in minor units from a subtotal and percentage. */
 export const calculateBookingFee = (

@@ -7,10 +7,10 @@ import type {
   BatchAvailabilityItem,
   EventBooking,
   UpdateEventLinkResult,
-} from "#lib/db/attendee-types.ts";
-import { buildCapacityCondition, dateToRange } from "#lib/db/capacity.ts";
-import { inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
-import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
+} from "#shared/db/attendee-types.ts";
+import { buildCapacityCondition, dateToRange } from "#shared/db/capacity.ts";
+import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import { getEventWithCount, invalidateEventsCache } from "#shared/db/events.ts";
 
 /** Shared failure result for capacity-exceeded */
 export const CAPACITY_EXCEEDED = {

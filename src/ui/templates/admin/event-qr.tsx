@@ -7,12 +7,12 @@
  * generation.
  */
 
-import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
-import { formatDateLabel } from "#lib/dates.ts";
-import { CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { QR_TOKEN_MAX_AGE_S } from "#lib/qr-token.ts";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/dates.ts";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

@@ -6,10 +6,10 @@
  * their ticket page to get a fresh URL (prevents sharing).
  */
 
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { base64ToBase64Url, constantTimeEqual } from "#lib/crypto/utils.ts";
-import { ATTACHMENT_URL_MAX_AGE_S } from "#lib/limits.ts";
-import { nowMs } from "#lib/now.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { base64ToBase64Url, constantTimeEqual } from "#shared/crypto/utils.ts";
+import { ATTACHMENT_URL_MAX_AGE_S } from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
 
 /** Build the HMAC message for an attachment download */
 const buildMessage = (

@@ -2,9 +2,9 @@
  * Terms and Conditions form for settings
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
+import { CsrfForm } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 

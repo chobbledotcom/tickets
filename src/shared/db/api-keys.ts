@@ -9,19 +9,19 @@
  * Keys inherit admin_level from their parent user.
  */
 
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { wrapKeyWithToken } from "#lib/crypto/keys.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import {
   deleteByField,
   getDb,
   insert,
   queryAll,
   queryOne,
-} from "#lib/db/client.ts";
-import { nowIso } from "#lib/now.ts";
-import { getTouchOverride } from "#lib/test-overrides.ts";
-import type { ApiKey } from "#lib/types.ts";
+} from "#shared/db/client.ts";
+import { nowIso } from "#shared/now.ts";
+import { getTouchOverride } from "#shared/test-overrides.ts";
+import type { ApiKey } from "#shared/types.ts";
 
 /**
  * Create a new API key for a user.

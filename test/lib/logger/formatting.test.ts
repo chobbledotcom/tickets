@@ -7,7 +7,7 @@ import {
   errorCodeLabel,
   formatErrorMessage,
   formatRequestError,
-} from "#lib/logger.ts";
+} from "#shared/logger.ts";
 
 describe("errorCodeLabel", () => {
   test("has a label for every error code", () => {

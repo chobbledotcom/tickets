@@ -7,5 +7,5 @@
  * @module
  */
 
-export * from "#lib/demo.ts";
-export * from "#lib/seeds.ts";
+export * from "#shared/demo.ts";
+export * from "#shared/seeds.ts";

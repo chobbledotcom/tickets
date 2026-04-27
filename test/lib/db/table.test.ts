@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { eventsTable } from "#lib/db/events.ts";
+import { eventsTable } from "#shared/db/events.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > table utilities", { db: true }, () => {
   test("toCamelCase converts snake_case to camelCase", async () => {
-    const { toCamelCase } = await import("#lib/db/table.ts");
+    const { toCamelCase } = await import("#shared/db/table.ts");
     expect(toCamelCase("max_attendees")).toBe("maxAttendees");
     expect(toCamelCase("thank_you_url")).toBe("thankYouUrl");
     expect(toCamelCase("name")).toBe("name");
@@ -13,7 +13,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("toSnakeCase converts camelCase to snake_case", async () => {
-    const { toSnakeCase } = await import("#lib/db/table.ts");
+    const { toSnakeCase } = await import("#shared/db/table.ts");
     expect(toSnakeCase("maxAttendees")).toBe("max_attendees");
     expect(toSnakeCase("thankYouUrl")).toBe("thank_you_url");
     expect(toSnakeCase("name")).toBe("name");
@@ -21,7 +21,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("buildInputKeyMap creates mapping from DB columns to input keys", async () => {
-    const { buildInputKeyMap } = await import("#lib/db/table.ts");
+    const { buildInputKeyMap } = await import("#shared/db/table.ts");
     const columns = ["max_attendees", "thank_you_url", "name"];
     const map = buildInputKeyMap(columns);
     expect(map).toEqual({
@@ -32,25 +32,25 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.generated creates generated column definition", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const def = col.generated<number>();
     expect(def.generated).toBe(true);
   });
 
   test("col.withDefault creates column with default", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const def = col.withDefault(() => "default-value");
     expect(def.default?.()).toBe("default-value");
   });
 
   test("col.simple creates empty column definition", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const def = col.simple<string>();
     expect(def).toEqual({});
   });
 
   test("col.transform creates column with custom transforms", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const write = (v: string) => v.toUpperCase();
     const read = (v: string) => v.toLowerCase();
     const def = col.transform(write, read);
@@ -59,7 +59,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.encrypted creates column with encrypt/decrypt transforms", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
     const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
     const def = col.encrypted(encrypt, decrypt);
@@ -68,7 +68,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.encryptedText passes through empty strings without encrypting", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
     const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
     const def = col.encryptedText(encrypt, decrypt);
@@ -80,14 +80,14 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const def = col.encryptedNullable(col.simple());
     expect(def.write).toBeUndefined();
     expect(def.read).toBeUndefined();
   });
 
   test("col.encryptedNullable handles null values", async () => {
-    const { col } = await import("#lib/db/table.ts");
+    const { col } = await import("#shared/db/table.ts");
     const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
     const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
     const def = col.encryptedNullable(col.encrypted(encrypt, decrypt));
@@ -98,7 +98,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable.findAll returns all rows", async () => {
-    const { col, defineTable } = await import("#lib/db/table.ts");
+    const { col, defineTable } = await import("#shared/db/table.ts");
 
     type TestRow = { id: number; name: string };
     type TestInput = { name: string };
@@ -127,7 +127,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable.update with no changes returns existing row", async () => {
-    const { col, defineTable } = await import("#lib/db/table.ts");
+    const { col, defineTable } = await import("#shared/db/table.ts");
 
     const event = await createTestEvent({
       maxAttendees: 10,
@@ -151,7 +151,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable with write transform transforms values on insert", async () => {
-    const { col, defineTable } = await import("#lib/db/table.ts");
+    const { col, defineTable } = await import("#shared/db/table.ts");
     type TestRow = {
       id: number;
       slug: string;
@@ -207,8 +207,8 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("insert with non-generated primary key uses empty initial row", async () => {
-    const { col, defineTable } = await import("#lib/db/table.ts");
-    const { getDb } = await import("#lib/db/client.ts");
+    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { getDb } = await import("#shared/db/client.ts");
 
     await getDb().execute(`
       CREATE TABLE IF NOT EXISTS kv_store (
@@ -241,7 +241,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("inputKeyMap maps single-word columns to themselves", async () => {
-    const { buildInputKeyMap } = await import("#lib/db/table.ts");
+    const { buildInputKeyMap } = await import("#shared/db/table.ts");
     const map = buildInputKeyMap(["name", "max_attendees"]);
     expect(map.name).toBe("name");
     expect(map.max_attendees).toBe("maxAttendees");
@@ -273,7 +273,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("rowToInput skips undefined row fields", async () => {
-    const { col, defineTable } = await import("#lib/db/table.ts");
+    const { col, defineTable } = await import("#shared/db/table.ts");
     type Row = { id: number; max_attendees: number; thank_you_url: string };
     type Input = { maxAttendees: number; thankYouUrl?: string };
     const table = defineTable<Row, Input>({

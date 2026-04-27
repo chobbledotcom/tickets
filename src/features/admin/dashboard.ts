@@ -2,24 +2,24 @@
  * Admin dashboard route
  */
 
-import { signCsrfToken } from "#lib/csrf.ts";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import {
-  decryptAttendees,
-  getActiveEventStats,
-  getNewestAttendeesRaw,
-} from "#lib/db/attendees.ts";
-import { getAllEvents } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { settings } from "#lib/db/settings.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { sortEvents } from "#lib/sort-events.ts";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import {
+  decryptAttendees,
+  getActiveEventStats,
+  getNewestAttendeesRaw,
+} from "#shared/db/attendees.ts";
+import { getAllEvents } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { sortEvents } from "#shared/sort-events.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";

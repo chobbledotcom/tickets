@@ -2,19 +2,19 @@
  * Join routes - public invite acceptance flow
  */
 
-import { createFormRoute } from "#lib/app-forms.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
+import { createFormRoute } from "#shared/app-forms.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import {
   decryptUsername,
   getUserByInviteCode,
   isInviteValid,
   setUserPassword,
-} from "#lib/db/users.ts";
-import { defineForm } from "#lib/forms.tsx";
-import type { User } from "#lib/types.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
+} from "#shared/db/users.ts";
+import { defineForm } from "#shared/forms.tsx";
+import type { User } from "#shared/types.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 
 export const joinForm = defineForm({

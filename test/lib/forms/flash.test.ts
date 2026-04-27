@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
+import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import {
   CsrfForm,
   Flash,
@@ -8,8 +8,8 @@ import {
   renderSuccess,
   setFormError,
   setFormSuccess,
-} from "#lib/forms.tsx";
-import { detectIframeMode } from "#lib/iframe.ts";
+} from "#shared/forms.tsx";
+import { detectIframeMode } from "#shared/iframe.ts";
 import { hasInputWithValue, setupTestEncryptionKey } from "#test-utils";
 
 beforeAll(async () => {

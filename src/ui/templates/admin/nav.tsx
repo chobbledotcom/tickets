@@ -2,12 +2,12 @@
  * Shared admin navigation component
  */
 
-import { settings } from "#lib/db/settings.ts";
-import { isReadOnly } from "#lib/env.ts";
-import { CsrfForm } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#lib/types.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { settings } from "#shared/db/settings.ts";
+import { isReadOnly } from "#shared/env.ts";
+import { CsrfForm } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession } from "#shared/types.ts";
 
 /** Read-only mode banner HTML */
 export const READ_ONLY_BANNER =

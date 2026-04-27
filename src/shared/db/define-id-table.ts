@@ -1,4 +1,4 @@
-import { defineTable, type TableSchema } from "#lib/db/table.ts";
+import { defineTable, type TableSchema } from "#shared/db/table.ts";
 
 /**
  * Helper for tables whose primary key column is `id`.

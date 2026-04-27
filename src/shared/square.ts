@@ -11,15 +11,15 @@
  */
 
 import { lazyRef, map } from "#fp";
-import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
-import { settings } from "#lib/db/settings.ts";
-import { fetchText } from "#lib/fetch.ts";
-import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
+import { settings } from "#shared/db/settings.ts";
+import { fetchText } from "#shared/fetch.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   computeHmacSha256,
   hmacToBase64,
   secureCompare,
-} from "#lib/payment-crypto.ts";
+} from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
   createWithClient,
@@ -27,13 +27,13 @@ import {
   errorMessage,
   PaymentUserError,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
-} from "#lib/payment-helpers.ts";
+} from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
   WebhookEvent,
   WebhookVerifyResult,
-} from "#lib/payments.ts";
-import { normalizePhone } from "#lib/phone.ts";
+} from "#shared/payments.ts";
+import { normalizePhone } from "#shared/phone.ts";
 
 /**
  * Square order metadata constraints (from Square API docs):

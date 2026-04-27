@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
-import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
+import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
 import {
   awaitTestRequest,
   createTestAttendeeWithToken,

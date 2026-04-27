@@ -2,10 +2,10 @@
  * Admin builder page template — create new Tickets instances
  */
 
-import { CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#lib/types.ts";
 import { builderForm } from "#routes/admin/builder.ts";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

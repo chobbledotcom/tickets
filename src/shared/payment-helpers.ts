@@ -4,9 +4,9 @@
  */
 
 import { map } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
-import type { ErrorCodeType, LogCategory } from "#lib/logger.ts";
-import { logDebug, logError } from "#lib/logger.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
+import { logDebug, logError } from "#shared/logger.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -14,8 +14,8 @@ import type {
   CheckoutSessionResult,
   SessionMetadata,
   ValidatedPaymentSession,
-} from "#lib/payments.ts";
-import type { ContactInfo } from "#lib/types.ts";
+} from "#shared/payments.ts";
+import type { ContactInfo } from "#shared/types.ts";
 
 /** Extract a human-readable message from an unknown caught value */
 export const errorMessage = (err: unknown): string =>

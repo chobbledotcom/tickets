@@ -3,7 +3,7 @@
  */
 
 import { lazyRef } from "#fp";
-import { getEnv } from "#lib/env.ts";
+import { getEnv } from "#shared/env.ts";
 import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
 /**

@@ -2,9 +2,9 @@
  * Setup page templates - initial configuration
  */
 
-import { COUNTRIES, DEFAULT_COUNTRY } from "#lib/countries.ts";
-import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
+import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 

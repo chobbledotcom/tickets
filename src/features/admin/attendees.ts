@@ -2,26 +2,26 @@
  * Admin attendee management routes
  */
 
-import { createAuthedFormRoute } from "#lib/app-forms.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
   deleteAttendee,
   updateCheckedIn,
-} from "#lib/db/attendees.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
-import { validateForm } from "#lib/forms.tsx";
-import { ErrorCode, logError } from "#lib/logger.ts";
+} from "#shared/db/attendees.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import { validateForm } from "#shared/forms.tsx";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   type AdminSession,
   type EventWithCount,
   isPaidEvent,
-} from "#lib/types.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+} from "#shared/types.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   adminDeleteAttendeePage,
   adminResendNotificationPage,

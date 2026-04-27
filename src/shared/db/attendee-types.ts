@@ -2,7 +2,7 @@
  * Types for attendee operations
  */
 
-import type { Attendee, ContactFields, ContactInfo } from "#lib/types.ts";
+import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
 
 /** Aggregated statistics for active events */
 export type ActiveEventStats = {

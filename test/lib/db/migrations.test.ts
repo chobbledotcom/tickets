@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#lib/db/client.ts";
-import { getAllEvents } from "#lib/db/events.ts";
+import { getDb } from "#shared/db/client.ts";
+import { getAllEvents } from "#shared/db/events.ts";
 import {
   initDb,
   LATEST_UPDATE,
   resetDatabase,
   SCHEMA_HASH,
-} from "#lib/db/migrations.ts";
-import { createSession } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/db/migrations.ts";
+import { createSession } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   createTestEvent,
   describeWithEnv,

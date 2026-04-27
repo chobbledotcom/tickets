@@ -15,33 +15,33 @@
  */
 
 import { lazyRef } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
-import { DEFAULT_COUNTRY, getCountry } from "#lib/countries.ts";
-import { decrypt, encrypt, encryptWithKey } from "#lib/crypto/encryption.ts";
-import { hashPassword } from "#lib/crypto/hashing.ts";
+import { registerCache } from "#shared/cache-registry.ts";
+import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
+import { decrypt, encrypt, encryptWithKey } from "#shared/crypto/encryption.ts";
+import { hashPassword } from "#shared/crypto/hashing.ts";
 import {
   deriveKEK,
   generateDataKey,
   generateKeyPair,
   unwrapKey,
   wrapKey,
-} from "#lib/crypto/keys.ts";
-import { getDb, queryAll } from "#lib/db/client.ts";
-import { deleteAllSessions } from "#lib/db/sessions.ts";
-import { createUser, invalidateUsersCache } from "#lib/db/users.ts";
-import { nowMs } from "#lib/now.ts";
-import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
-import type { PaymentProviderType, Settings, Theme } from "#lib/types.ts";
-import { isPaymentProvider } from "#lib/types.ts";
+} from "#shared/crypto/keys.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
+import { deleteAllSessions } from "#shared/db/sessions.ts";
+import { createUser, invalidateUsersCache } from "#shared/db/users.ts";
+import { nowMs } from "#shared/now.ts";
+import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
+import type { PaymentProviderType, Settings, Theme } from "#shared/types.ts";
+import { isPaymentProvider } from "#shared/types.ts";
 import {
   createAppleWalletReadSettings,
   createAppleWalletUpdateSettings,
-} from "#lib/wallets/apple-wallet-settings.ts";
+} from "#shared/wallets/apple-wallet-settings.ts";
 import {
   createGoogleWalletReadSettings,
   createGoogleWalletUpdateSettings,
-} from "#lib/wallets/google-wallet-settings.ts";
-import type { EncryptedUpdateFn } from "#lib/wallets/wallet-settings-types.ts";
+} from "#shared/wallets/google-wallet-settings.ts";
+import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 
 // ---------------------------------------------------------------------------
 // Setting keys

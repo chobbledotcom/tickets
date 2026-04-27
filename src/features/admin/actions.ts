@@ -2,15 +2,6 @@
  * Action handlers and data loading utilities for admin routes
  */
 
-import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendees } from "#lib/db/attendees.ts";
-import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
-import {
-  getAttendeeAnswersBatch,
-  getQuestionsWithEventIds,
-} from "#lib/db/questions.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
@@ -28,6 +19,15 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { decryptAttendees } from "#shared/db/attendees.ts";
+import { getEventWithAttendeesRaw } from "#shared/db/events.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsWithEventIds,
+} from "#shared/db/questions.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { Attendee, EventWithCount } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */

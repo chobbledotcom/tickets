@@ -1,8 +1,3 @@
-import { logActivity } from "#lib/db/activityLog.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { NamedResource } from "#lib/rest/resource.ts";
-import type { AdminSession } from "#lib/types.ts";
 import {
   createConfirmedHandlers,
   type FormGuard,
@@ -25,6 +20,11 @@ import {
   redirect,
 } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { NamedResource } from "#shared/rest/resource.ts";
+import type { AdminSession } from "#shared/types.ts";
 
 type CrudConfig<Row, Input> = {
   singular: string;

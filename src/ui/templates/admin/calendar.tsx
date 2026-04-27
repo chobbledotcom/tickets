@@ -3,9 +3,9 @@
  */
 
 import { map, pipe } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee } from "#lib/types.ts";
+import { formatDateLabel } from "#shared/dates.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession, Attendee } from "#shared/types.ts";
 import {
   buildSharedDetailRows,
   renderDetailRows,

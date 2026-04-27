@@ -4,7 +4,7 @@ import {
   constantTimeEqual,
   generateSecureToken,
   generateTicketToken,
-} from "#lib/crypto/utils.ts";
+} from "#shared/crypto/utils.ts";
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {

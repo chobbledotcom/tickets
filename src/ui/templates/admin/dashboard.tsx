@@ -7,23 +7,23 @@ import {
   getHeaderText,
   renderCells,
   resolveColumnLayout,
-} from "#lib/column-order.ts";
+} from "#shared/column-order.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
-} from "#lib/columns/event-columns.ts";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { formatCurrency } from "#lib/currency.ts";
-import type { ActiveEventStats } from "#lib/db/attendees.ts";
-import { isReadOnly } from "#lib/env.ts";
-import { Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+} from "#shared/columns/event-columns.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import type { ActiveEventStats } from "#shared/db/attendees.ts";
+import { isReadOnly } from "#shared/env.ts";
+import { Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
   Attendee,
   AttendeeTableRow,
   EventWithCount,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";

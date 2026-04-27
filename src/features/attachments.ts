@@ -6,16 +6,16 @@
  * Each download increments the attendee's attachment_downloads counter.
  */
 
-import { verifyAttachmentUrl } from "#lib/attachment-url.ts";
-import {
-  getAttendeeRaw,
-  incrementAttachmentDownloads,
-} from "#lib/db/attendees.ts";
-import { getEvent } from "#lib/db/events.ts";
-import { downloadImage, isStorageEnabled } from "#lib/storage.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
+import {
+  getAttendeeRaw,
+  incrementAttachmentDownloads,
+} from "#shared/db/attendees.ts";
+import { getEvent } from "#shared/db/events.ts";
+import { downloadImage, isStorageEnabled } from "#shared/storage.ts";
 
 /** Common MIME types by file extension */
 const EXT_MIME_MAP: Record<string, string> = {

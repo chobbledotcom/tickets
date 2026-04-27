@@ -1,4 +1,4 @@
-import { settings } from "#lib/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 
 /**
  * Validates a basic email format: something@something.something

@@ -2,9 +2,9 @@
  * Header Image form for settings
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
-import { formatBytes, MAX_IMAGE_SIZE } from "#lib/limits.ts";
-import { getImageProxyUrl } from "#lib/storage.ts";
+import { CsrfForm } from "#shared/forms.tsx";
+import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
+import { getImageProxyUrl } from "#shared/storage.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 
 export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>

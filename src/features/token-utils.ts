@@ -3,26 +3,26 @@
  */
 
 import { compact, unique } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
+import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
+import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import { getClientIp } from "#routes/url.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import {
   type AttendeeWithBookings,
   decryptAttendees,
   type EventAttendeeRow,
   getAttendeesByTokens,
-} from "#lib/db/attendees.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/db/attendees.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
   recordTokenFailure,
-} from "#lib/db/token-attempts.ts";
-import { addPendingWork } from "#lib/pending-work.ts";
-import { buildCheckinUrl } from "#lib/ticket-url.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
-import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
-import { getClientIp } from "#routes/url.ts";
+} from "#shared/db/token-attempts.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
+import { buildCheckinUrl } from "#shared/ticket-url.ts";
+import type { Attendee, EventWithCount } from "#shared/types.ts";
 
 /** Attendee paired with its event */
 export type TokenEntry = {

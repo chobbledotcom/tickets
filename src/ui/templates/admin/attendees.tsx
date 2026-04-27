@@ -2,21 +2,21 @@
  * Admin attendee page templates
  */
 
-import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeShort } from "#lib/dates.ts";
-import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { createLinkEventForm } from "#routes/admin/attendees-link-form.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
+import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   bookingConflictLabel,
   bookingKey,
   hasBookingConflicts,
   nonConflictAnswerLabel,
-} from "#lib/merge/attendee-merge.ts";
-import type { AttendeeMergeDiff } from "#lib/merge/attendee-merge-types.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
-import { createLinkEventForm } from "#routes/admin/attendees-link-form.ts";
+} from "#shared/merge/attendee-merge.ts";
+import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 

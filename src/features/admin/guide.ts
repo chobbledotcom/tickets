@@ -2,12 +2,15 @@
  * Admin guide route
  */
 
-import { getBunnyDnsSubdomainSuffix, isBunnyDnsEnabled } from "#lib/config.ts";
-import { settings } from "#lib/db/settings.ts";
-import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#lib/email.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { sessionPage } from "#routes/auth.ts";
 import { defineRoutes } from "#routes/router.ts";
+import {
+  getBunnyDnsSubdomainSuffix,
+  isBunnyDnsEnabled,
+} from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
+import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { adminGuidePage } from "#templates/admin/guide.tsx";
 
 /**

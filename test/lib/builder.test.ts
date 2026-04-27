@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { builderApi } from "#lib/builder.ts";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
+import { builderApi } from "#shared/builder.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 
 describeWithEnv(

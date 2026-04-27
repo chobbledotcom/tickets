@@ -3,11 +3,16 @@
  */
 
 import { map } from "#fp";
-import { createAuthedHandler } from "#lib/app-forms.ts";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendees } from "#lib/db/attendees.ts";
-import { getAttendeesByEventIds, getEvent } from "#lib/db/events.ts";
+import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { requireSessionOr } from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { decryptAttendees } from "#shared/db/attendees.ts";
+import { getAttendeesByEventIds, getEvent } from "#shared/db/events.ts";
 import {
   assignEventsToGroup,
   computeGroupSlugIndex,
@@ -19,21 +24,16 @@ import {
   isGroupSlugTaken,
   resetGroupEvents,
   validateGroupEventType,
-} from "#lib/db/groups.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { settings } from "#lib/db/settings.ts";
-import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { defineNamedResource } from "#lib/rest/resource.ts";
-import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
-import { sortEvents } from "#lib/sort-events.ts";
-import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
-import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { requireSessionOr } from "#routes/auth.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+} from "#shared/db/groups.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { settings } from "#shared/db/settings.ts";
+import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { defineNamedResource } from "#shared/rest/resource.ts";
+import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
+import { sortEvents } from "#shared/sort-events.ts";
+import { type Attendee, type Group, isPaidEvent } from "#shared/types.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,

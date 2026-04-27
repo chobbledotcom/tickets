@@ -2,14 +2,14 @@
  * Admin seed data routes - populate database with sample events and attendees
  */
 
-import { createAuthedFormRoute } from "#lib/app-forms.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { defineForm } from "#lib/forms.tsx";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { defineForm } from "#shared/forms.tsx";
+import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 
 /** Max events that can be created in a single seed operation */

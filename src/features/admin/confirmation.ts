@@ -4,9 +4,6 @@
 
 /* jscpd:ignore-start */
 import { asString } from "#fp";
-import { type AuthedBase, createAuthedHandler } from "#lib/app-forms.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
@@ -23,6 +20,9 @@ import {
   redirect,
 } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import { type AuthedBase, createAuthedHandler } from "#shared/app-forms.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import type { FormParams } from "#shared/form-data.ts";
 /* jscpd:ignore-end */
 
 /** Form guard: require auth + CSRF, call handler with session and form */

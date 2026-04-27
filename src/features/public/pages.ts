@@ -2,16 +2,16 @@
  * Public pages - home, events, terms, contact
  */
 
-import { getAllGroups } from "#lib/db/groups.ts";
-import { settings } from "#lib/db/settings.ts";
-import { loadSortedEvents } from "#lib/sort-events.ts";
-import type { EventWithCount, Group } from "#lib/types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   htmlResponse,
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
+import { getAllGroups } from "#shared/db/groups.ts";
+import { settings } from "#shared/db/settings.ts";
+import { loadSortedEvents } from "#shared/sort-events.ts";
+import type { EventWithCount, Group } from "#shared/types.ts";
 import {
   buildTicketEvent,
   homepagePage,

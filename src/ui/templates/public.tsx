@@ -3,26 +3,30 @@
  */
 
 import { map, pipe } from "#fp";
-import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
-import { daysAgo, formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import {
+  daysAgo,
+  formatDateLabel,
+  formatDatetimeLabel,
+} from "#shared/dates.ts";
 import type {
   QuestionEventMap,
   QuestionWithAnswers,
-} from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { isReadOnly } from "#lib/env.ts";
-import type { Field } from "#lib/forms.tsx";
-import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
-import { getIframeMode } from "#lib/iframe.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { renderMarkdown } from "#lib/markdown.ts";
-import { getImageProxyUrl } from "#lib/storage.ts";
+} from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { isReadOnly } from "#shared/env.ts";
+import type { Field } from "#shared/forms.tsx";
+import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { getIframeMode } from "#shared/iframe.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
+import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   type EventFields,
   type EventWithCount,
   type Group,
   isPaidEvent,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 

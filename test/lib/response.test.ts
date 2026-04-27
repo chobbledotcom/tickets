@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { parseFlashValue } from "#lib/cookies.ts";
-import { fail, ok } from "#lib/response.ts";
+import { parseFlashValue } from "#shared/cookies.ts";
+import { fail, ok } from "#shared/response.ts";
 import {
   expectFlash,
   expectRedirect,

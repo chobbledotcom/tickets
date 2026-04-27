@@ -4,35 +4,6 @@
  */
 
 import { once, reduce } from "#fp";
-import { loadEffectiveDomain } from "#lib/config.ts";
-import {
-  clearFlashCookie,
-  clearSessionCookie,
-  parseFlashValue,
-} from "#lib/cookies.ts";
-import { maybeRunPrunes } from "#lib/db/prune.ts";
-import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { settings } from "#lib/db/settings.ts";
-import { isReadOnly } from "#lib/env.ts";
-import {
-  hasFlash,
-  runWithFlashContext,
-  setFlashContext,
-} from "#lib/flash-context.ts";
-import { clearSavedFormData } from "#lib/forms.tsx";
-import { detectIframeMode } from "#lib/iframe.ts";
-import {
-  createRequestTimer,
-  ErrorCode,
-  formatRequestError,
-  logError,
-  logRequest,
-  runWithRequestId,
-} from "#lib/logger.ts";
-import { addPendingWork, flushPendingWork } from "#lib/pending-work.ts";
-import { runWithRequestCache } from "#lib/request-cache.ts";
-import { runWithSessionContext } from "#lib/session-context.ts";
-import { getRethrowErrors } from "#lib/test-overrides.ts";
 import { SessionKeyError } from "#routes/auth.ts";
 import {
   applySecurityHeaders,
@@ -54,6 +25,35 @@ import { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
+import { loadEffectiveDomain } from "#shared/config.ts";
+import {
+  clearFlashCookie,
+  clearSessionCookie,
+  parseFlashValue,
+} from "#shared/cookies.ts";
+import { maybeRunPrunes } from "#shared/db/prune.ts";
+import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { settings } from "#shared/db/settings.ts";
+import { isReadOnly } from "#shared/env.ts";
+import {
+  hasFlash,
+  runWithFlashContext,
+  setFlashContext,
+} from "#shared/flash-context.ts";
+import { clearSavedFormData } from "#shared/forms.tsx";
+import { detectIframeMode } from "#shared/iframe.ts";
+import {
+  createRequestTimer,
+  ErrorCode,
+  formatRequestError,
+  logError,
+  logRequest,
+  runWithRequestId,
+} from "#shared/logger.ts";
+import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
+import { runWithRequestCache } from "#shared/request-cache.ts";
+import { runWithSessionContext } from "#shared/session-context.ts";
+import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { readOnlyPage } from "#templates/public.tsx";
 
 /** Router function type - reuse from router.ts */

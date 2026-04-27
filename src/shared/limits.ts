@@ -6,7 +6,7 @@
  * env vars fall back to the default.
  */
 
-import { getEnv } from "#lib/env.ts";
+import { getEnv } from "#shared/env.ts";
 
 /**
  * Parse a string as a positive integer, falling back to the given default

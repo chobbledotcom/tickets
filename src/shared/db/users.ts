@@ -2,19 +2,24 @@
  * Users table operations
  */
 
-import { registerCache } from "#lib/cache-registry.ts";
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
+import { registerCache } from "#shared/cache-registry.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   hashPassword,
   hashSessionToken,
   hmacHash,
   verifyPassword,
-} from "#lib/crypto/hashing.ts";
-import { deriveKEK, wrapKey } from "#lib/crypto/keys.ts";
-import { deleteByFieldBatch, getDb, insert, queryAll } from "#lib/db/client.ts";
-import { now } from "#lib/now.ts";
-import { requestCache } from "#lib/request-cache.ts";
-import { type AdminLevel, isAdminLevel, type User } from "#lib/types.ts";
+} from "#shared/crypto/hashing.ts";
+import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
+import {
+  deleteByFieldBatch,
+  getDb,
+  insert,
+  queryAll,
+} from "#shared/db/client.ts";
+import { now } from "#shared/now.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
 const USER_SELECT =
   "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";

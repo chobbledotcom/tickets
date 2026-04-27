@@ -3,14 +3,14 @@
  * Generates a signed JWT and redirects to the Google Wallet save URL.
  */
 
-import { settings } from "#lib/db/settings.ts";
-import { buildGoogleWalletUrl } from "#lib/google-wallet.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
 } from "#routes/token-utils.ts";
+import { settings } from "#shared/db/settings.ts";
+import { buildGoogleWalletUrl } from "#shared/google-wallet.ts";
 
 /** Handle GET /gwallet/:token — redirect to Google Wallet save URL */
 const handleGoogleWalletGet = async (

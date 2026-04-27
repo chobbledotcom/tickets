@@ -1,5 +1,5 @@
-import { getEffectiveDomain } from "#lib/config.ts";
-import { SESSION_MAX_AGE_S } from "#lib/limits.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { SESSION_MAX_AGE_S } from "#shared/limits.ts";
 
 export const isSecureMode = (): boolean => getEffectiveDomain() !== "localhost";
 

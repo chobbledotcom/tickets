@@ -6,8 +6,8 @@
  * 2. Apply: the admin submits explicit decisions for each conflict.
  */
 
-import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
-import type { ContactInfo } from "#lib/types.ts";
+import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { ContactInfo } from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
 // Choice enums

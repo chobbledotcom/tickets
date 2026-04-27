@@ -78,25 +78,25 @@ const main = async () => {
 
   // 3. Measure DB client creation
   await measure("3. Import db/client + set client", async () => {
-    const { setDb } = await import("#lib/db/client.ts");
+    const { setDb } = await import("#shared/db/client.ts");
     setDb(client);
   });
 
   // 4. Measure initDb (first run - creates tables)
   await measure("4. initDb (cold - creates tables)", async () => {
-    const { initDb } = await import("#lib/db/migrations.ts");
+    const { initDb } = await import("#shared/db/migrations.ts");
     await initDb();
   });
 
   // 5. Measure initDb (warm - bails early)
   await measure("5. initDb (warm - version check only)", async () => {
-    const { initDb } = await import("#lib/db/migrations.ts");
+    const { initDb } = await import("#shared/db/migrations.ts");
     await initDb();
   });
 
   // 6. Measure isSetupComplete query
   await measure("6. isSetupComplete() query", async () => {
-    const { isSetupComplete } = await import("#lib/db/settings.ts");
+    const { isSetupComplete } = await import("#shared/db/settings.ts");
     await isSetupComplete();
   });
 
@@ -121,7 +121,7 @@ const main = async () => {
   // Complete setup to test caching
   log("Completing setup to test caching...\n");
   const { completeSetup, isSetupComplete } = await import(
-    "#lib/db/settings.ts"
+    "#shared/db/settings.ts"
   );
   await completeSetup("testpassword", "GBP");
 
@@ -149,7 +149,7 @@ const main = async () => {
 
   // Test session caching
   log("Testing session caching (10s TTL):\n");
-  const { createSession, getSession } = await import("#lib/db/sessions.ts");
+  const { createSession, getSession } = await import("#shared/db/sessions.ts");
 
   // Create a session
   await createSession("test-token", "test-csrf", Date.now() + 3600000);

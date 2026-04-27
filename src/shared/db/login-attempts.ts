@@ -2,10 +2,10 @@
  * Login attempts table operations (rate limiting)
  */
 
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { deleteByField, getDb, queryOne } from "#lib/db/client.ts";
-import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#lib/limits.ts";
-import { nowMs } from "#lib/now.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { deleteByField, getDb, queryOne } from "#shared/db/client.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
 
 type LoginAttemptRow = { attempts: number; locked_until: number | null };
 

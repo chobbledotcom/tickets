@@ -2,8 +2,8 @@
  * Payment page templates - success, cancel, error pages
  */
 
-import { getIframeMode } from "#lib/iframe.ts";
-import type { Attendee, Event } from "#lib/types.ts";
+import { getIframeMode } from "#shared/iframe.ts";
+import type { Attendee, Event } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**

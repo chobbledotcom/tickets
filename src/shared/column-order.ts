@@ -11,7 +11,7 @@
  */
 
 import { Liquid } from "liquidjs";
-import { formatCurrency } from "#lib/currency.ts";
+import { formatCurrency } from "#shared/currency.ts";
 
 // ---------------------------------------------------------------------------
 // Types

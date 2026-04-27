@@ -1,10 +1,10 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bracket } from "#fp";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import type { TestRequestOptions } from "#test-utils/internal.ts";
 
 export const mockRequestWithHost = (
@@ -311,8 +311,8 @@ export const withLocalStorageEnabled = async <T>(
 };
 
 export const mockProviderType = (
-  type: import("#lib/payments.ts").PaymentProviderType,
-): import("#lib/payments.ts").PaymentProviderType | null => type;
+  type: import("#shared/payments.ts").PaymentProviderType,
+): import("#shared/payments.ts").PaymentProviderType | null => type;
 
 export const stubFetchJson = (body: unknown) =>
   stub(globalThis, "fetch", () =>

@@ -4,8 +4,8 @@
  * Extracted from settings.ts to keep wallet-specific logic separate.
  */
 
-import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
-import { createWalletSettingsKit } from "#lib/wallets/wallet-settings-types.ts";
+import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
+import { createWalletSettingsKit } from "#shared/wallets/wallet-settings-types.ts";
 
 const kit = createWalletSettingsKit<
   GoogleWalletCredentials,

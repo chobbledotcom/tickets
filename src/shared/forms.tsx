@@ -4,9 +4,9 @@
 
 import { joinStrings, map, pipe } from "#fp";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
-import { getCurrentCsrfToken } from "#lib/csrf.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { appendIframeParam } from "#lib/iframe.ts";
+import { getCurrentCsrfToken } from "#shared/csrf.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { appendIframeParam } from "#shared/iframe.ts";
 
 const escapeHtml = (str: string): string =>
   str

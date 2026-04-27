@@ -11,10 +11,10 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import { createAndUploadBackup } from "#lib/db/backup.ts";
-import { getDb } from "#lib/db/client.ts";
-import { logDebug } from "#lib/logger.ts";
-import { isStorageEnabled } from "#lib/storage.ts";
+import { createAndUploadBackup } from "#shared/db/backup.ts";
+import { getDb } from "#shared/db/client.ts";
+import { logDebug } from "#shared/logger.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 

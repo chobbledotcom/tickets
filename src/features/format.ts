@@ -2,7 +2,7 @@
  * Formatting utilities for dates, errors, and display text
  */
 
-import { nowMs } from "#lib/now.ts";
+import { nowMs } from "#shared/now.ts";
 
 /** Check if an event's registration period has closed */
 export const isRegistrationClosed = (event: {

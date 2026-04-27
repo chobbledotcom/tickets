@@ -4,15 +4,18 @@
  */
 
 import { lazyRef, map } from "#fp";
-import { toBase64 } from "#lib/crypto/utils.ts";
-import { settings } from "#lib/db/settings.ts";
-import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
-import { getEnv } from "#lib/env.ts";
-import { fetchText } from "#lib/fetch.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
-import { buildCheckinUrl, buildTicketUrl } from "#lib/ticket-url.ts";
-import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
+import { toBase64 } from "#shared/crypto/utils.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  buildTemplateData,
+  renderEmailContent,
+} from "#shared/email-renderer.ts";
+import { getEnv } from "#shared/env.ts";
+import { fetchText } from "#shared/fetch.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
+import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
+import type { WebhookAttendee, WebhookEvent } from "#shared/webhook.ts";
 
 /** Event data needed for registration pipeline (extends webhook event with display + assignment fields) */
 export type EmailEvent = WebhookEvent & {

@@ -9,14 +9,14 @@
  * HMAC input: "qr-book:{slug}:{payloadB64url}"
  */
 
-import { hmacHash } from "#lib/crypto/hashing.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   base64ToBase64Url,
   constantTimeEqual,
   fromBase64,
   toBase64,
-} from "#lib/crypto/utils.ts";
-import { nowMs } from "#lib/now.ts";
+} from "#shared/crypto/utils.ts";
+import { nowMs } from "#shared/now.ts";
 
 const PREFIX = "qr1.";
 const DOMAIN = "qr-book:";

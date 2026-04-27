@@ -11,7 +11,7 @@ import {
   hasRequiredSessionMetadata,
   toCheckoutResult,
   withCheckoutError,
-} from "#lib/payment-helpers.ts";
+} from "#shared/payment-helpers.ts";
 import {
   type CheckoutIntent,
   isPaymentStatus,
@@ -19,7 +19,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
   type WebhookVerifyResult,
-} from "#lib/payments.ts";
+} from "#shared/payments.ts";
 import {
   createCheckoutSession,
   retrieveCheckoutSession,
@@ -27,7 +27,7 @@ import {
   setupWebhookEndpoint,
   refundPayment as stripeRefund,
   verifyWebhookSignature,
-} from "#lib/stripe.ts";
+} from "#shared/stripe.ts";
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {

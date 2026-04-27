@@ -2,8 +2,8 @@
  * Admin backup/restore page template
  */
 
-import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
-import type { AdminSession } from "#lib/types.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

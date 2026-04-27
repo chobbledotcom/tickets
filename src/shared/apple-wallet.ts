@@ -10,9 +10,9 @@
 
 import { zipSync } from "fflate";
 import forge from "node-forge";
-import { getDecimalPlaces } from "#lib/currency.ts";
-import { startOfHour } from "#lib/dates.ts";
-import { WALLET_ICONS } from "#lib/wallet-icons.ts";
+import { getDecimalPlaces } from "#shared/currency.ts";
+import { startOfHour } from "#shared/dates.ts";
+import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 
 // Force pure-JS mode so node-forge never attempts require("crypto").
 // The Bunny Edge runtime sets process.versions.node (via the node:process

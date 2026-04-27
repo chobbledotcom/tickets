@@ -14,8 +14,8 @@ import {
   sha1Hex,
   signManifest,
   trimAuthToken,
-} from "#lib/apple-wallet.ts";
-import { WALLET_ICONS } from "#lib/wallet-icons.ts";
+} from "#shared/apple-wallet.ts";
+import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 import { generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Type for eventTicket field groups in pass.json */

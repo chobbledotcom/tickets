@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#lib/db/client.ts";
+import { getDb, insert } from "#shared/db/client.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
   STALE_RESERVATION_MS,
-} from "#lib/db/processed-payments.ts";
-import { nowMs } from "#lib/now.ts";
+} from "#shared/db/processed-payments.ts";
+import { nowMs } from "#shared/now.ts";
 import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > processed payments", { db: true }, () => {

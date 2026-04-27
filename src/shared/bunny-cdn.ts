@@ -10,9 +10,9 @@ import {
   getBunnyDnsSubdomainSuffix,
   getBunnyDnsZoneId,
   getBunnyScriptId,
-} from "#lib/config.ts";
-import { type FetchResult, fetchText } from "#lib/fetch.ts";
-import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+} from "#shared/config.ts";
+import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 

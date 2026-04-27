@@ -3,10 +3,10 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { toMajorUnits } from "#lib/currency.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
-import type { Attendee } from "#lib/types.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { toMajorUnits } from "#shared/currency.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { Attendee } from "#shared/types.ts";
 
 /** Attendee with associated event info for calendar CSV */
 export type CalendarAttendee = Attendee & {

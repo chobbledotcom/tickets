@@ -7,11 +7,11 @@ import {
   CSS_PATH,
   IFRAME_RESIZER_CHILD_JS_PATH,
   JS_PATH,
-} from "#lib/asset-paths.ts";
-import { settings } from "#lib/db/settings.ts";
-import { DEMO_BANNER, isDemoMode } from "#lib/demo.ts";
-import { getImageProxyUrl } from "#lib/storage.ts";
-import type { Theme } from "#lib/types.ts";
+} from "#shared/asset-paths.ts";
+import { settings } from "#shared/db/settings.ts";
+import { DEMO_BANNER, isDemoMode } from "#shared/demo.ts";
+import { getImageProxyUrl } from "#shared/storage.ts";
+import type { Theme } from "#shared/types.ts";
 import { renderDebugFooter } from "#templates/admin/footer.tsx";
 
 export const escapeHtml = (str: string): string =>

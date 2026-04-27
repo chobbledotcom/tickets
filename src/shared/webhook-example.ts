@@ -9,7 +9,7 @@
  * an update here.
  */
 
-import type { WebhookPayload } from "#lib/webhook.ts";
+import type { WebhookPayload } from "#shared/webhook.ts";
 
 /** Example inputs used by both the fixture and the test */
 export const EXAMPLE_EVENT = {

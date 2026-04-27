@@ -2,13 +2,13 @@
  * Admin built site management routes - owner only
  */
 
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import {
   type BuiltSiteFormInput,
   builtSitesCrudTable,
   getAllBuiltSites,
-} from "#lib/db/built-sites.ts";
-import { defineNamedResource } from "#lib/rest/resource.ts";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+} from "#shared/db/built-sites.ts";
+import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteEditPage,

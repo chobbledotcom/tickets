@@ -4,9 +4,9 @@
  */
 
 import { renderSVG } from "uqr";
-import { getQuestionsForEvent } from "#lib/db/questions.ts";
-import { parseEventFields } from "#lib/event-fields.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import { getQuestionsForEvent } from "#shared/db/questions.ts";
+import { parseEventFields } from "#shared/event-fields.ts";
+import type { EventWithCount } from "#shared/types.ts";
 
 /**
  * Generate an SVG string for a QR code encoding the given text.

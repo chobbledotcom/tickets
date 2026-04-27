@@ -1,6 +1,6 @@
 import { mapParallel } from "#fp";
-import { getDb, resultRows } from "#lib/db/client.ts";
-import { trackQuery } from "#lib/db/query-log.ts";
+import { getDb, resultRows } from "#shared/db/client.ts";
+import { trackQuery } from "#shared/db/query-log.ts";
 
 /**
  * Execute a SQL query and map result rows through an async transformer.

@@ -6,16 +6,16 @@
  *   {{name}}, {{description}}, {{status}}, {{attendees}}, {{created}}
  */
 
-import { buildDefaultTemplate } from "#lib/column-order.ts";
+import { buildDefaultTemplate } from "#shared/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
-} from "#lib/columns/attendee-columns.ts";
+} from "#shared/columns/attendee-columns.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
-} from "#lib/columns/event-columns.ts";
-import { CsrfForm } from "#lib/forms.tsx";
+} from "#shared/columns/event-columns.ts";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 const eventDefault = buildDefaultTemplate(EVENT_DEFAULT_ORDER);

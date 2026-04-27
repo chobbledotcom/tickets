@@ -17,19 +17,19 @@ import {
   getHeaderText,
   renderCells,
   resolveColumnLayout,
-} from "#lib/column-order.ts";
+} from "#shared/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
-} from "#lib/columns/attendee-columns.ts";
-import type { Answer, QuestionWithAnswers } from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { CsrfForm } from "#lib/forms.tsx";
-import type { Attendee, AttendeeTableRow } from "#lib/types.ts";
+} from "#shared/columns/attendee-columns.ts";
+import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { CsrfForm } from "#shared/forms.tsx";
+import type { Attendee, AttendeeTableRow } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
-export { formatAddressInline } from "#lib/columns/attendee-columns.ts";
-export type { AttendeeTableRow } from "#lib/types.ts";
+export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
+export type { AttendeeTableRow } from "#shared/types.ts";
 
 /** Question data for displaying answers in the attendee table */
 export type TableQuestionData = {

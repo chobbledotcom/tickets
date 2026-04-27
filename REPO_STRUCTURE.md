@@ -1,15 +1,11 @@
 # Repository Structure Reference
 
-This document describes the **current** structure.
+This document describes the current structure.
 
 ## `src/` layout
 
 ```text
 src/
-  app/                     # runtime entrypoints
-    index.ts               # local/server bootstrap
-    edge.ts                # Bunny edge bootstrap
-
   features/
     admin/
     public/
@@ -32,6 +28,8 @@ src/
 
   docs/                    # API/doc endpoint content
   test-utils/              # shared test helpers/factories/mocks
+  index.ts                 # local/server bootstrap
+  edge.ts                  # Bunny edge bootstrap
   fp.ts                    # functional primitives
   test-utils.ts            # test utils barrel
   static.d.ts              # static module declarations
@@ -40,7 +38,7 @@ src/
 ## Import conventions
 
 - `#routes/*` resolves to `src/features/*`.
-- `#lib/*` resolves to `src/shared/*` (kept for compatibility and incremental refactors).
+- `#shared/*` resolves to `src/shared/*`.
 - `#templates/*` resolves to `src/ui/templates/*`.
 - `#static/*` resolves to `src/ui/static/*`.
 - `#jsx/*` resolves to `src/shared/jsx/*`.
@@ -48,7 +46,7 @@ src/
 ## Build/tooling conventions
 
 - Client bundle inputs live in `src/ui/client` and outputs are emitted to `src/ui/static`.
-- Runtime entry wrappers remain at `src/index.ts` and `src/edge.ts`, delegating to `src/app/*`.
+- Runtime entrypoints are `src/index.ts` and `src/edge.ts`.
 - Static file route handlers read from `src/ui/static`.
 
 ## Contributor guidance

@@ -9,7 +9,7 @@ import {
   localToUtc,
   todayInTz,
   utcToLocalInput,
-} from "#lib/timezone.ts";
+} from "#shared/timezone.ts";
 
 describe("timezone", () => {
   describe("DEFAULT_TIMEZONE", () => {

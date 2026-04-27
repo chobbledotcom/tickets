@@ -5,10 +5,6 @@
  */
 
 import { filter, map } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { updateCheckedIn } from "#lib/db/attendees.ts";
-import { settings } from "#lib/db/settings.ts";
-import type { Attendee } from "#lib/types.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -29,6 +25,10 @@ import {
   type TokenEntry,
 } from "#routes/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { updateCheckedIn } from "#shared/db/attendees.ts";
+import { settings } from "#shared/db/settings.ts";
+import type { Attendee } from "#shared/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 
 const formatTicketCount = (count: number): string => {

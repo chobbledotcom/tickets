@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#lib/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   test("updates quantity with capacity guard", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 5 });
     const result = await bookAttendee(event, {
       email: "link@test.com",
@@ -26,7 +26,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("rejects update that would exceed capacity", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 3 });
     const result = await bookAttendee(event, {
       email: "cap@test.com",
@@ -44,7 +44,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("updates date for daily event link", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createTestEvent({
       eventType: "daily",
       maxAttendees: 10,

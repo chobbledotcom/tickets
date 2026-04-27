@@ -2,7 +2,7 @@
  * Public API toggle form for advanced settings
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (

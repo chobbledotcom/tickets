@@ -2,24 +2,6 @@
  * Admin authentication routes - login and logout
  */
 
-import {
-  buildSessionCookie,
-  clearSessionCookie,
-  getSessionCookieName,
-} from "#lib/cookies.ts";
-import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto/keys.ts";
-import { verifySignedCsrfToken } from "#lib/csrf.ts";
-import {
-  clearLoginAttempts,
-  isLoginRateLimited,
-  recordFailedLogin,
-} from "#lib/db/login-attempts.ts";
-import { createSession, deleteSession } from "#lib/db/sessions.ts";
-import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
-import { validateForm } from "#lib/forms.tsx";
-import { nowMs } from "#lib/now.ts";
-import { fail, ok } from "#lib/response.ts";
-import { getSkipLoginDelay } from "#lib/test-overrides.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
   AUTH_FORM,
@@ -32,6 +14,24 @@ import { redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp, parseCookies } from "#routes/url.ts";
+import {
+  buildSessionCookie,
+  clearSessionCookie,
+  getSessionCookieName,
+} from "#shared/cookies.ts";
+import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { verifySignedCsrfToken } from "#shared/csrf.ts";
+import {
+  clearLoginAttempts,
+  isLoginRateLimited,
+  recordFailedLogin,
+} from "#shared/db/login-attempts.ts";
+import { createSession, deleteSession } from "#shared/db/sessions.ts";
+import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import { validateForm } from "#shared/forms.tsx";
+import { nowMs } from "#shared/now.ts";
+import { fail, ok } from "#shared/response.ts";
+import { getSkipLoginDelay } from "#shared/test-overrides.ts";
 import { type LoginFormValues, loginFields } from "#templates/fields.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */

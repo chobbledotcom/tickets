@@ -3,14 +3,14 @@
  */
 
 import { map } from "#fp";
-import { computeTicketTokenIndex } from "#lib/crypto/hashing.ts";
+import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
   AttendeeWithBookings,
   EventAttendeeRow,
-} from "#lib/db/attendee-types.ts";
-import { decryptAttendeeFields } from "#lib/db/attendees/pii.ts";
-import { inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
-import type { Attendee } from "#lib/types.ts";
+} from "#shared/db/attendee-types.ts";
+import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
+import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import type { Attendee } from "#shared/types.ts";
 
 /**
  * Attendee columns for JOIN queries — only the columns actually used at runtime.
@@ -23,7 +23,7 @@ const EA_COLS =
   "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in, ea.refunded, ea.price_paid, ea.attachment_downloads";
 
 /** SELECT clause for attendee + event_attendees JOINs (INNER JOIN context).
- * Derives `date` from start_at for backward compatibility with the Attendee type. */
+ * Derives `date` from start_at for the Attendee type shape. */
 export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so

@@ -2,8 +2,8 @@
  * Country form for settings
  */
 
-import { COUNTRIES, type CountryData } from "#lib/countries.ts";
-import { CsrfForm } from "#lib/forms.tsx";
+import { COUNTRIES, type CountryData } from "#shared/countries.ts";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 
 export const CountryForm = (s: SettingsPageState): JSX.Element => (

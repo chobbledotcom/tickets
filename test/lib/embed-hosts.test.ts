@@ -6,7 +6,7 @@ import {
   parseEmbedHosts,
   validateEmbedHosts,
   validateHostPattern,
-} from "#lib/embed-hosts.ts";
+} from "#shared/embed-hosts.ts";
 
 describe("embed-hosts", () => {
   describe("validateHostPattern", () => {

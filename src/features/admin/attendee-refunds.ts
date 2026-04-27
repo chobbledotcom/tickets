@@ -3,13 +3,6 @@
  */
 
 import { chunk, filter } from "#fp";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { markRefunded } from "#lib/db/attendees.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
-import { fail, ok } from "#lib/response.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   withDecryptedAttendees,
   withEventAttendeesAuth,
@@ -19,6 +12,13 @@ import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { markRefunded } from "#shared/db/attendees.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { getActivePaymentProvider } from "#shared/payments.ts";
+import { fail, ok } from "#shared/response.ts";
+import type { Attendee, EventWithCount } from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,

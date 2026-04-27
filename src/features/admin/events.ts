@@ -3,55 +3,6 @@
  */
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { toMinorUnits } from "#lib/currency.ts";
-import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
-import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
-import {
-  computeSlugIndex,
-  type EventInput,
-  eventsTable,
-  getEventWithCount,
-} from "#lib/db/events.ts";
-import { getAllGroups } from "#lib/db/groups.ts";
-import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
-import {
-  getAttendeeAnswersBatch,
-  getQuestionsForEvent,
-} from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-import {
-  applyDemoOverrides,
-  EVENT_DEMO_FIELDS,
-  isDemoMode,
-} from "#lib/demo.ts";
-import {
-  generateUniqueEventSlug,
-  performEventDelete,
-  validateEventInput,
-} from "#lib/events-actions.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
-import { defineResource } from "#lib/rest/resource.ts";
-import { normalizeSlug } from "#lib/slug.ts";
-import {
-  ATTACHMENT_ERROR_MESSAGES,
-  deleteFile,
-  generateAttachmentFilename,
-  IMAGE_ERROR_MESSAGES,
-  isStorageEnabled,
-  tryDeleteFile,
-  uploadAttachment,
-  uploadImage,
-  validateAttachment,
-  validateImage,
-} from "#lib/storage.ts";
-import type {
-  AdminSession,
-  Attendee,
-  EventWithCount,
-  Group,
-} from "#lib/types.ts";
 import {
   csvResponse,
   eventAttendeesLoader,
@@ -71,6 +22,58 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { toMinorUnits } from "#shared/currency.ts";
+import { formatDateLabel, normalizeDatetime } from "#shared/dates.ts";
+import {
+  getEventWithActivityLog,
+  logActivity,
+} from "#shared/db/activityLog.ts";
+import {
+  computeSlugIndex,
+  type EventInput,
+  eventsTable,
+  getEventWithCount,
+} from "#shared/db/events.ts";
+import { getAllGroups } from "#shared/db/groups.ts";
+import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+} from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  applyDemoOverrides,
+  EVENT_DEMO_FIELDS,
+  isDemoMode,
+} from "#shared/demo.ts";
+import {
+  generateUniqueEventSlug,
+  performEventDelete,
+  validateEventInput,
+} from "#shared/events-actions.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { defineResource } from "#shared/rest/resource.ts";
+import { normalizeSlug } from "#shared/slug.ts";
+import {
+  ATTACHMENT_ERROR_MESSAGES,
+  deleteFile,
+  generateAttachmentFilename,
+  IMAGE_ERROR_MESSAGES,
+  isStorageEnabled,
+  tryDeleteFile,
+  uploadAttachment,
+  uploadImage,
+  validateAttachment,
+  validateImage,
+} from "#shared/storage.ts";
+import type {
+  AdminSession,
+  Attendee,
+  EventWithCount,
+  Group,
+} from "#shared/types.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   type AttendeeFilter,

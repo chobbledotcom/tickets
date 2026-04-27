@@ -8,7 +8,7 @@
  * @module
  */
 
-export * from "#lib/api-example.ts";
+export * from "#shared/api-example.ts";
 export {
   buildWebhookPayload,
   logAndNotifyRegistration,
@@ -19,5 +19,5 @@ export {
   type WebhookEvent as WebhookPayloadEvent,
   type WebhookPayload,
   type WebhookTicket,
-} from "#lib/webhook.ts";
-export * from "#lib/webhook-example.ts";
+} from "#shared/webhook.ts";
+export * from "#shared/webhook-example.ts";

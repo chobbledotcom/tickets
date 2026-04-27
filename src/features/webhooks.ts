@@ -15,30 +15,6 @@
  */
 
 import { unique } from "#fp";
-import { calculateBookingFee } from "#lib/booking-fee.ts";
-import { getBookingFee, getEffectiveDomain } from "#lib/config.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  createAttendeeAtomic,
-  getAttendeesByTokens,
-} from "#lib/db/attendees.ts";
-import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import {
-  clearSessionTokens,
-  decryptSessionTokens,
-  finalizeSession,
-  type ProcessedPayment,
-  reserveSession,
-} from "#lib/db/processed-payments.ts";
-import { saveEventAnswers } from "#lib/db/questions.ts";
-import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
-import {
-  type BookingItem,
-  getActivePaymentProvider,
-  type ValidatedPaymentSession,
-} from "#lib/payments.ts";
-import type { EventWithCount } from "#lib/types.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { formatCreationError, isRegistrationClosed } from "#routes/format.ts";
 import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
@@ -61,6 +37,30 @@ import type {
   SessionValidation,
   ValidatedSession,
 } from "#routes/webhook-types.ts";
+import { calculateBookingFee } from "#shared/booking-fee.ts";
+import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  createAttendeeAtomic,
+  getAttendeesByTokens,
+} from "#shared/db/attendees.ts";
+import { getEvent, getEventWithCount } from "#shared/db/events.ts";
+import {
+  clearSessionTokens,
+  decryptSessionTokens,
+  finalizeSession,
+  type ProcessedPayment,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
+import { saveEventAnswers } from "#shared/db/questions.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import {
+  type BookingItem,
+  getActivePaymentProvider,
+  type ValidatedPaymentSession,
+} from "#shared/payments.ts";
+import type { EventWithCount } from "#shared/types.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
 /** User-facing message when the event price changed between checkout and payment */

@@ -1,7 +1,7 @@
 /** Shared types and helpers for wallet settings factories. */
 
 import { lazyRef } from "#fp";
-import { getEnv } from "#lib/env.ts";
+import { getEnv } from "#shared/env.ts";
 
 export type SnapFn = (key: string) => string;
 export type EncryptedUpdateFn = (key: string) => (v: string) => Promise<void>;

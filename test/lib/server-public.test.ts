@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { addDays } from "#lib/dates.ts";
-import { insertBuiltSite } from "#lib/db/built-sites.ts";
+import { handleRequest } from "#routes";
+import { formatCreationError } from "#routes/format.ts";
+import { addDays } from "#shared/dates.ts";
+import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
   questionsTable,
   setEventQuestions,
-} from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { resetStripeClient } from "#lib/stripe.ts";
-import { todayInTz } from "#lib/timezone.ts";
-import { handleRequest } from "#routes";
-import { formatCreationError } from "#routes/format.ts";
+} from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { resetStripeClient } from "#shared/stripe.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,
@@ -1141,7 +1141,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
       expectReservedRedirectWithTokens(response);
 
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       expect(attendees1.length).toBe(1);
@@ -1766,7 +1766,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify attendees were created
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       expect(attendees1.length).toBe(1);
@@ -1793,7 +1793,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify only event1 has an attendee
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       expect(attendees1.length).toBe(1);
@@ -1820,7 +1820,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify quantity was capped
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event1.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]?.quantity).toBe(2); // Capped at maxQuantity
@@ -2043,7 +2043,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock atomic create to fail (simulates race condition / capacity exceeded)
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
           reason: "capacity_exceeded" as const,
@@ -2111,7 +2111,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify attendees created for both events
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       expect(attendees1.length).toBe(1);
@@ -2256,7 +2256,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Only event2 should have an attendee
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       expect(attendees1.length).toBe(0);
@@ -2367,7 +2367,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       });
 
       // Now clear the provider to simulate no provider
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       await s.update.clearPaymentProvider();
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -2412,7 +2412,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock attendeesApi to fail (capacity exceeded)
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const originalFn = attendeesApi.createAttendeeAtomic;
       attendeesApi.createAttendeeAtomic = () =>
         Promise.resolve({
@@ -2509,7 +2509,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock createCheckoutSession to return no URL
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockCreate = stub(
         stripePaymentProvider,
         "createCheckoutSession",
@@ -2560,7 +2562,9 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockCreate = stub(
         stripePaymentProvider,
         "createCheckoutSession",
@@ -2639,7 +2643,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         maxAttendees: 50,
       });
 
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
           reason: "encryption_error",
@@ -2722,7 +2726,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify only event2 got an attendee
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       expect(attendees1.length).toBe(0);
@@ -2758,7 +2762,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Mock checkBatchAvailability via attendeesApi to return false,
       // simulating a race condition where event sells out between page load and check
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
         Promise.resolve(false),
       );
@@ -2921,7 +2925,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
       // returns null, while isPaymentsEnabled still returns true from the DB
-      const { paymentsApi } = await import("#lib/payments.ts");
+      const { paymentsApi } = await import("#shared/payments.ts");
       const mockConfigured = stub(
         paymentsApi,
         "getConfiguredProvider",
@@ -3858,7 +3862,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location") || "";
       expect(location).not.toContain("checkout");
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
     });
@@ -3874,7 +3878,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location") || "";
       expect(location).not.toContain("checkout");
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
     });
@@ -4234,7 +4238,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify booking went to the URL's event, not the injected one
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const targetAttendees = await getAttendeesRaw(target.id);
       const otherAttendees = await getAttendeesRaw(other.id);
       expect(targetAttendees.length).toBe(1);
@@ -4278,7 +4282,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify only event1 was booked; secret event was not
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees1 = await getAttendeesRaw(event1.id);
       const attendees2 = await getAttendeesRaw(event2.id);
       const secretAttendees = await getAttendeesRaw(secret.id);
@@ -4342,7 +4346,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify answers were saved
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
       const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
       expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
@@ -4456,7 +4460,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // With multi-event attendees, both events share one attendee.
       // The shared question's answer is saved once on the attendee.
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       const attendeeId = att1[0]!.id;
       const batch = await getAttendeeAnswersBatch([attendeeId]);
@@ -4505,7 +4509,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
 
       // With multi-event attendees, one attendee is linked to both events.
       // Both events' answers are stored on the same attendee.
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       const attendeeId = att1[0]!.id;
       const batch = await getAttendeeAnswersBatch([attendeeId]);
@@ -4547,7 +4551,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       expectReservedRedirectWithTokens(response);
 
       // Verify answer saved only for event1's attendee
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       expect(att1.length).toBe(1);
       const batch = await getAttendeeAnswersBatch([att1[0]!.id]);

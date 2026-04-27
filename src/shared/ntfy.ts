@@ -4,10 +4,10 @@
  * Only includes domain and error code - no personal or encrypted data
  */
 
-import { getEffectiveDomain } from "#lib/config.ts";
-import { getEnv } from "#lib/env.ts";
-import { fetchText } from "#lib/fetch.ts";
-import { ErrorCode, logErrorLocal } from "#lib/logger.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { getEnv } from "#shared/env.ts";
+import { fetchText } from "#shared/fetch.ts";
+import { ErrorCode, logErrorLocal } from "#shared/logger.ts";
 
 /**
  * Send an error notification to the configured ntfy URL

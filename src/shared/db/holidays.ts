@@ -3,14 +3,14 @@
  */
 
 import { filter } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { queryAndMap } from "#lib/db/query.ts";
-import { settings } from "#lib/db/settings.ts";
-import { col, defineTable, withCacheInvalidation } from "#lib/db/table.ts";
-import { requestCache } from "#lib/request-cache.ts";
-import { todayInTz } from "#lib/timezone.ts";
-import type { Holiday } from "#lib/types.ts";
+import { registerCache } from "#shared/cache-registry.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { queryAndMap } from "#shared/db/query.ts";
+import { settings } from "#shared/db/settings.ts";
+import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import { todayInTz } from "#shared/timezone.ts";
+import type { Holiday } from "#shared/types.ts";
 
 /** Holiday input fields for create/update (camelCase) */
 export type HolidayInput = {

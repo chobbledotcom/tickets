@@ -6,13 +6,13 @@
  * this interface so they never depend on a specific provider.
  */
 
-import { settings } from "#lib/db/settings.ts";
-import { logDebug } from "#lib/logger.ts";
+import { settings } from "#shared/db/settings.ts";
+import { logDebug } from "#shared/logger.ts";
 import {
   type ContactInfo,
   createTypeGuard,
   type PaymentProviderType,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -223,10 +223,14 @@ export const getActivePaymentProvider =
     logDebug("Payment", `Resolving payment provider: ${providerType}`);
 
     if (providerType === "stripe") {
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       return stripePaymentProvider;
     }
 
-    const { squarePaymentProvider } = await import("#lib/square-provider.ts");
+    const { squarePaymentProvider } = await import(
+      "#shared/square-provider.ts"
+    );
     return squarePaymentProvider;
   };

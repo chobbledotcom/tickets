@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
-import { createBackupZip } from "#lib/db/backup.ts";
-import { downloadRaw, uploadRaw } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
+import { createBackupZip } from "#shared/db/backup.ts";
+import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
   adminFormPost,

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getActivePaymentProvider } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("getActivePaymentProvider", { db: true }, () => {

@@ -15,12 +15,12 @@ import type {
   AttendeeInput,
   BatchAvailabilityItem,
   CreateAttendeeResult,
-} from "#lib/db/attendee-types.ts";
+} from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailabilityImpl,
   hasAvailableSpotsImpl,
-} from "#lib/db/attendees/capacity.ts";
-import { createAttendeeAtomicImpl } from "#lib/db/attendees/create.ts";
+} from "#shared/db/attendees/capacity.ts";
+import { createAttendeeAtomicImpl } from "#shared/db/attendees/create.ts";
 
 export type {
   ActiveEventStats,
@@ -33,7 +33,7 @@ export type {
   UpdateAttendeePIIInput,
   UpdateEventLinkInput,
   UpdateEventLinkResult,
-} from "#lib/db/attendee-types.ts";
+} from "#shared/db/attendee-types.ts";
 export {
   buildCapacityCheckedInsert,
   CAPACITY_EXCEEDED,
@@ -42,12 +42,12 @@ export {
   getDateAttendeeCount,
   getGroupAttendeeCount,
   getGroupMaxAttendees,
-} from "#lib/db/attendees/capacity.ts";
-export { buildAttendeeInsert } from "#lib/db/attendees/create.ts";
+} from "#shared/db/attendees/capacity.ts";
+export { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
 export {
   deleteAttendee,
   unlinkAttendeeFromEvent,
-} from "#lib/db/attendees/delete.ts";
+} from "#shared/db/attendees/delete.ts";
 export {
   buildPiiBlob,
   contactFields,
@@ -59,7 +59,7 @@ export {
   encryptPiiBlob,
   PII_BLOB_VERSION,
   parsePiiBlob,
-} from "#lib/db/attendees/pii.ts";
+} from "#shared/db/attendees/pii.ts";
 export {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
@@ -68,8 +68,8 @@ export {
   getAttendeesByTokens,
   getAttendeesRaw,
   getNewestAttendeesRaw,
-} from "#lib/db/attendees/queries.ts";
-export { getActiveEventStats } from "#lib/db/attendees/stats.ts";
+} from "#shared/db/attendees/queries.ts";
+export { getActiveEventStats } from "#shared/db/attendees/stats.ts";
 
 export {
   addEventLink,
@@ -78,7 +78,7 @@ export {
   updateAttendeePII,
   updateCheckedIn,
   updateEventLink,
-} from "#lib/db/attendees/update.ts";
+} from "#shared/db/attendees/update.ts";
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {

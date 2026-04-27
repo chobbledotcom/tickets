@@ -3,24 +3,24 @@
  */
 
 import {
+  deleteGroup,
+  generateUniqueGroupSlug,
+  validateGroupSlug,
+} from "#routes/admin/groups.ts";
+import {
   computeGroupSlugIndex,
   type GroupInput,
   getAllGroups,
   groupsTable,
-} from "#lib/db/groups.ts";
+} from "#shared/db/groups.ts";
 import {
   type DeleteBody,
   defineCrudApi,
   parseUpdateName,
   parseUpdateSlug,
-} from "#lib/rest/crud-api.ts";
-import { normalizeSlug } from "#lib/slug.ts";
-import type { Group } from "#lib/types.ts";
-import {
-  deleteGroup,
-  generateUniqueGroupSlug,
-  validateGroupSlug,
-} from "#routes/admin/groups.ts";
+} from "#shared/rest/crud-api.ts";
+import { normalizeSlug } from "#shared/slug.ts";
+import type { Group } from "#shared/types.ts";
 
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {

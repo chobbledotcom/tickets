@@ -3,10 +3,10 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
-import { formatDatetimeShort } from "#lib/dates.ts";
-import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { formatDatetimeShort } from "#shared/dates.ts";
+import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

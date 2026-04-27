@@ -5,17 +5,6 @@
  */
 
 import { filter, map, pipe } from "#fp";
-import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  type AttendeeWithBookings,
-  decryptAttendees,
-  getAttendeesByTokens,
-  getAttendeesRaw,
-  updateCheckedIn,
-} from "#lib/db/attendees.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import type { Attendee } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
@@ -32,6 +21,17 @@ import {
   resolveEntries,
   type TokenEntry,
 } from "#routes/token-utils.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  type AttendeeWithBookings,
+  decryptAttendees,
+  getAttendeesByTokens,
+  getAttendeesRaw,
+  updateCheckedIn,
+} from "#shared/db/attendees.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import type { Attendee } from "#shared/types.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
 const withEvent = withEntityLoader(getEventWithCount);

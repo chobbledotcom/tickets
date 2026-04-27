@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
-import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  resetHostEmailConfig,
+  setHostEmailConfigForTest,
+} from "#shared/email.ts";
 import {
   adminGet,
   assertAdminHtml,
@@ -121,7 +124,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains login lockout documentation", async () => {
       const { MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MS } = await import(
-        "#lib/limits.ts"
+        "#shared/limits.ts"
       );
       await assertAdminHtml(
         "/admin/guide",

@@ -3,20 +3,20 @@
  */
 
 import { mapParallel } from "#fp";
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { getDb, queryAll } from "#lib/db/client.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
   registerCache,
-} from "#lib/db/common-schema.ts";
-import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
-import { queryAndMap } from "#lib/db/query.ts";
-import { col, withCacheInvalidation } from "#lib/db/table.ts";
-import { requestCache } from "#lib/request-cache.ts";
-import type { Event, EventType, EventWithCount, Group } from "#lib/types.ts";
+} from "#shared/db/common-schema.ts";
+import { eventsTable, invalidateEventsCache } from "#shared/db/events.ts";
+import { queryAndMap } from "#shared/db/query.ts";
+import { col, withCacheInvalidation } from "#shared/db/table.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import type { Event, EventType, EventWithCount, Group } from "#shared/types.ts";
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {

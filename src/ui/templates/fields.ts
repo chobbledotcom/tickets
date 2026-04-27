@@ -2,24 +2,24 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
-import { formatCurrency } from "#lib/currency.ts";
-import { DAY_NAMES } from "#lib/dates.ts";
-import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { DAY_NAMES } from "#shared/dates.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   mergeEventFields,
   parseEventFields,
   withRequiredEmail,
-} from "#lib/event-fields.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { type Field, validateForm } from "#lib/forms.tsx";
+} from "#shared/event-fields.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { type Field, validateForm } from "#shared/forms.tsx";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
   MAX_IMAGE_SIZE,
   MAX_TEXTAREA_LENGTH,
-} from "#lib/limits.ts";
-import { normalizeSlug, validateSlug } from "#lib/slug.ts";
-import { isValidDatetime } from "#lib/timezone.ts";
+} from "#shared/limits.ts";
+import { normalizeSlug, validateSlug } from "#shared/slug.ts";
+import { isValidDatetime } from "#shared/timezone.ts";
 import {
   type AdminLevel,
   type ContactField,
@@ -28,7 +28,7 @@ import {
   type EventType,
   isContactField,
   isEventType,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces

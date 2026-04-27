@@ -7,14 +7,14 @@
  */
 
 import { filter, map, reduce } from "#fp";
-import type { EventAttendeeRow } from "#lib/db/attendee-types.ts";
-import { executeBatch, insert } from "#lib/db/client.ts";
-import { invalidateEventsCache } from "#lib/db/events.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import { executeBatch, insert } from "#shared/db/client.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
   saveAttendeeAnswersByQuestion,
-} from "#lib/db/questions.ts";
+} from "#shared/db/questions.ts";
 import type {
   ApplyAttendeeMergeInput,
   AttendeeMergeApplyResult,
@@ -27,7 +27,7 @@ import type {
   AttendeeMergeValidationResult,
   BookingConflictClass,
   BuildAttendeeMergeDiffInput,
-} from "#lib/merge/attendee-merge-types.ts";
+} from "#shared/merge/attendee-merge-types.ts";
 
 // ---------------------------------------------------------------------------
 // PII field definitions

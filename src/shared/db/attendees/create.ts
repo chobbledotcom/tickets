@@ -8,12 +8,15 @@ import type {
   BuildAttendeeInput,
   CreateAttendeeResult,
   EncryptedAttendeeData,
-} from "#lib/db/attendee-types.ts";
-import { buildCapacityCheckedInsert } from "#lib/db/attendees/capacity.ts";
-import { contactFields, encryptAttendeeFields } from "#lib/db/attendees/pii.ts";
-import { executeBatchWithResults, insert } from "#lib/db/client.ts";
-import { invalidateEventsCache } from "#lib/db/events.ts";
-import type { Attendee } from "#lib/types.ts";
+} from "#shared/db/attendee-types.ts";
+import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
+import {
+  contactFields,
+  encryptAttendeeFields,
+} from "#shared/db/attendees/pii.ts";
+import { executeBatchWithResults, insert } from "#shared/db/client.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
+import type { Attendee } from "#shared/types.ts";
 
 /** Build an INSERT statement for the attendees table from encrypted fields. */
 export const buildAttendeeInsert = (enc: EncryptedAttendeeData) =>

@@ -2,10 +2,10 @@
  * Admin built sites management page templates
  */
 
-import type { BuiltSite } from "#lib/db/built-sites.ts";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#lib/types.ts";
+import type { BuiltSite } from "#shared/db/built-sites.ts";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ErrorCode } from "#lib/logger.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import {
   buildMetadata,
   createWithClient,
@@ -13,8 +13,8 @@ import {
   singleEventAnswerIds,
   toBookingItems,
   toCheckoutResult,
-} from "#lib/payment-helpers.ts";
-import { isPaymentStatus, type SessionMetadata } from "#lib/payments.ts";
+} from "#shared/payment-helpers.ts";
+import { isPaymentStatus, type SessionMetadata } from "#shared/payments.ts";
 
 describe("payment-helpers", () => {
   describe("metadata round-trip: build → validate → extract", () => {

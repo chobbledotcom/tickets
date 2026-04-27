@@ -5,12 +5,12 @@
  * Messages are encrypted - only admins can read them.
  */
 
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import { col, defineTable } from "#lib/db/table.ts";
-import { nowIso } from "#lib/now.ts";
-import type { Event, EventWithCount } from "#lib/types.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import { col, defineTable } from "#shared/db/table.ts";
+import { nowIso } from "#shared/now.ts";
+import type { Event, EventWithCount } from "#shared/types.ts";
 
 /** Activity log entry */
 export interface ActivityLogEntry {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
+import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import { adminFormPost, describeWithEnv, expectFlash } from "#test-utils";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {

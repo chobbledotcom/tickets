@@ -3,9 +3,9 @@
  */
 
 import { filter, map, reduce } from "#fp";
-import type { ActiveEventStats } from "#lib/db/attendee-types.ts";
-import { inPlaceholders, queryOne } from "#lib/db/client.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { ActiveEventStats } from "#shared/db/attendee-types.ts";
+import { inPlaceholders, queryOne } from "#shared/db/client.ts";
+import type { EventWithCount } from "#shared/types.ts";
 
 /**
  * Get aggregated statistics for active events.

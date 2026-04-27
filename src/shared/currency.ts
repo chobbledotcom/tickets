@@ -5,7 +5,7 @@
  * and currency symbols. Reads the currency code directly from settings.
  */
 
-import { settings } from "#lib/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 
 /** Get the number of decimal places for a currency code */
 export const getDecimalPlaces = (currencyCode: string): number =>

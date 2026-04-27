@@ -2,22 +2,6 @@
  * Authentication and session utilities
  */
 
-import { getSessionCookieName } from "#lib/cookies.ts";
-import {
-  getPrivateKeyFromSession,
-  unwrapKeyWithToken,
-} from "#lib/crypto/keys.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
-import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
-import { getApiKeyByToken, touchApiKeyLastUsed } from "#lib/db/api-keys.ts";
-import { deleteSession, getSession } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { nowMs } from "#lib/now.ts";
-import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
-import type { AdminLevel } from "#lib/types.ts";
 import { parseFormData } from "#routes/csrf.ts";
 import {
   htmlResponse,
@@ -25,6 +9,22 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import {
+  getPrivateKeyFromSession,
+  unwrapKeyWithToken,
+} from "#shared/crypto/keys.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
+import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
+import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
+import { deleteSession, getSession } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { decryptAdminLevel, getUserById } from "#shared/db/users.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
+import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
+import type { AdminLevel } from "#shared/types.ts";
 
 // Re-export for callers that need it
 export { generateSecureToken };

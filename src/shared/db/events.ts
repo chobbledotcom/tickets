@@ -4,13 +4,13 @@
 
 import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter } from "#fp";
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { hmacHash } from "#lib/crypto/hashing.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
-} from "#lib/db/attendees.ts";
-import { dateToRange } from "#lib/db/capacity.ts";
+} from "#shared/db/attendees.ts";
+import { dateToRange } from "#shared/db/capacity.ts";
 import {
   executeBatch,
   getDb,
@@ -18,24 +18,24 @@ import {
   queryAll,
   queryBatch,
   resultRows,
-} from "#lib/db/client.ts";
+} from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
   registerCache,
-} from "#lib/db/common-schema.ts";
-import { col, withCacheInvalidation } from "#lib/db/table.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { nowIso } from "#lib/now.ts";
-import { requestCache } from "#lib/request-cache.ts";
+} from "#shared/db/common-schema.ts";
+import { col, withCacheInvalidation } from "#shared/db/table.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
+import { requestCache } from "#shared/request-cache.ts";
 import type {
   Attendee,
   Event,
   EventFields,
   EventType,
   EventWithCount,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
 /** Default bookable days (all days of the week) */

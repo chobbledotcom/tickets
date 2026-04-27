@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { setEffectiveDomainForTest } from "#lib/config.ts";
-import { PaymentUserError } from "#lib/payment-helpers.ts";
-import { squareApi } from "#lib/square.ts";
-import { squarePaymentProvider } from "#lib/square-provider.ts";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { PaymentUserError } from "#shared/payment-helpers.ts";
+import { squareApi } from "#shared/square.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 describe("square-provider", () => {

@@ -2,10 +2,6 @@
  * Shared utilities for admin attendee route handlers
  */
 
-import { decryptAttendeeOrNull } from "#lib/db/attendees.ts";
-import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
@@ -16,6 +12,10 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { decryptAttendeeOrNull } from "#shared/db/attendees.ts";
+import { getEventWithAttendeeRaw } from "#shared/db/events.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { Attendee, EventWithCount } from "#shared/types.ts";
 
 /** Attendee with event data */
 export type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };

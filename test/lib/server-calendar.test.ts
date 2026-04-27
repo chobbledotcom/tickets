@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { addDays } from "#lib/dates.ts";
-import { todayInTz } from "#lib/timezone.ts";
+import { addDays } from "#shared/dates.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   awaitTestRequest,
   createDailyTestEvent,

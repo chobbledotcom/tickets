@@ -5,29 +5,29 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { getBookingFeeAmount, itemsSubtotal } from "#lib/booking-fee.ts";
-import { settings } from "#lib/db/settings.ts";
-import { getEnv } from "#lib/env.ts";
-import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
-import { nowMs } from "#lib/now.ts";
+import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getEnv } from "#shared/env.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
 import {
   computeHmacSha256,
   hmacToHex,
   secureCompare,
-} from "#lib/payment-crypto.ts";
+} from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
-} from "#lib/payment-helpers.ts";
+} from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
   WebhookEvent,
   WebhookSetupResult,
   WebhookVerifyResult,
-} from "#lib/payments.ts";
+} from "#shared/payments.ts";
 
 /** Lazy-load Stripe SDK only when needed */
 const loadStripe = once(async () => {

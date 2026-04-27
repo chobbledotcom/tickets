@@ -7,16 +7,16 @@ import type {
   UpdateAttendeePIIInput,
   UpdateEventLinkInput,
   UpdateEventLinkResult,
-} from "#lib/db/attendee-types.ts";
+} from "#shared/db/attendee-types.ts";
 import {
   buildCapacityCheckedInsert,
   checkCapacityResult,
   dateToStartEnd,
-} from "#lib/db/attendees/capacity.ts";
-import { buildPiiBlob, encryptPiiBlob } from "#lib/db/attendees/pii.ts";
-import { buildCapacityCondition } from "#lib/db/capacity.ts";
-import { getDb } from "#lib/db/client.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/db/attendees/capacity.ts";
+import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
+import { buildCapacityCondition } from "#shared/db/capacity.ts";
+import { getDb } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
 
 /** Update a per-event status field on event_attendees */
 const updateEventAttendeeField =

@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
-import { addDays } from "#lib/dates.ts";
-import { settings } from "#lib/db/settings.ts";
-import { detectIframeMode } from "#lib/iframe.ts";
-import { todayInTz } from "#lib/timezone.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
+import { addDays } from "#shared/dates.ts";
+import { settings } from "#shared/db/settings.ts";
+import { detectIframeMode } from "#shared/iframe.ts";
+import { todayInTz } from "#shared/timezone.ts";
+import type { EventWithCount } from "#shared/types.ts";
 import {
   buildOgTags,
   buildTicketEvent,

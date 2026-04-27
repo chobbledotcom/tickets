@@ -4,14 +4,14 @@
 
 import { fromAbsolute } from "@internationalized/date";
 import { filter } from "#fp";
-import { settings } from "#lib/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   formatDatetimeInTz,
   formatDatetimeShortInTz,
   localToUtc,
   todayInTz,
-} from "#lib/timezone.ts";
-import type { Event, Holiday } from "#lib/types.ts";
+} from "#shared/timezone.ts";
+import type { Event, Holiday } from "#shared/types.ts";
 
 /** Day name lookup from Date.getUTCDay() index (Sunday=0) */
 export const DAY_NAMES = [

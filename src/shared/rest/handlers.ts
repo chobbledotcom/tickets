@@ -8,13 +8,13 @@
  */
 
 import type { InValue } from "@libsql/client";
-import type { FormParams } from "#lib/form-data.ts";
+import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import type {
   CreateResult,
   DeleteResult,
   Resource,
-} from "#lib/rest/resource.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+} from "#shared/rest/resource.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;

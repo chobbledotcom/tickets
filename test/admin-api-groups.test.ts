@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
 import {
   getAllGroups,
   getEventsByGroupId,
   groupsTable,
-} from "#lib/db/groups.ts";
-import { handleRequest } from "#routes";
+} from "#shared/db/groups.ts";
 import {
   apiRequest,
   assertJson,

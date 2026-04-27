@@ -18,8 +18,8 @@ import {
   addQueryLogEntry,
   isQueryLogEnabled,
   trackQuery,
-} from "#lib/db/query-log.ts";
-import { getEnv } from "#lib/env.ts";
+} from "#shared/db/query-log.ts";
+import { getEnv } from "#shared/env.ts";
 
 const createDbClient = (): Client => {
   const url = getEnv("DB_URL");

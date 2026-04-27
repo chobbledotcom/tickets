@@ -4,32 +4,6 @@
 
 /* jscpd:ignore-start */
 import { filter, map, pipe } from "#fp";
-import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  ATTENDEE_LEFT_JOIN_SELECT,
-  decryptAttendeeOrNull,
-  decryptAttendees,
-  type EventAttendeeRow,
-  getAttendeesByTokens,
-  updateAttendeePII,
-} from "#lib/db/attendees.ts";
-import { queryAll, queryOne } from "#lib/db/client.ts";
-import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import {
-  applyAttendeeMerge,
-  bookingKey,
-  buildAttendeeMergeDiff,
-  validateAttendeeMergeDecision,
-} from "#lib/merge/attendee-merge.ts";
-import type {
-  AttendeeMergeDecisionInput,
-  AttendeeMergeDiff,
-  MergeAnswerChoice,
-  MergeBookingChoice,
-  MergeValueChoice,
-} from "#lib/merge/attendee-merge-types.ts";
-import type { Attendee } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -37,6 +11,32 @@ import { applyFlash } from "#routes/csrf.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  ATTENDEE_LEFT_JOIN_SELECT,
+  decryptAttendeeOrNull,
+  decryptAttendees,
+  type EventAttendeeRow,
+  getAttendeesByTokens,
+  updateAttendeePII,
+} from "#shared/db/attendees.ts";
+import { queryAll, queryOne } from "#shared/db/client.ts";
+import { getQuestionsWithEventIds } from "#shared/db/questions.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import {
+  applyAttendeeMerge,
+  bookingKey,
+  buildAttendeeMergeDiff,
+  validateAttendeeMergeDecision,
+} from "#shared/merge/attendee-merge.ts";
+import type {
+  AttendeeMergeDecisionInput,
+  AttendeeMergeDiff,
+  MergeAnswerChoice,
+  MergeBookingChoice,
+  MergeValueChoice,
+} from "#shared/merge/attendee-merge-types.ts";
+import type { Attendee } from "#shared/types.ts";
 import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
 
 /* jscpd:ignore-end */

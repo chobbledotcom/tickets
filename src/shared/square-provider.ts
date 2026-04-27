@@ -12,27 +12,27 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
-import { logDebug } from "#lib/logger.ts";
+import { logDebug } from "#shared/logger.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   toCheckoutResult,
   withCheckoutError,
-} from "#lib/payment-helpers.ts";
+} from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
   PaymentProvider,
   ValidatedPaymentSession,
   WebhookEvent,
   WebhookSetupResult,
-} from "#lib/payments.ts";
+} from "#shared/payments.ts";
 import {
   createPaymentLink,
   refundPayment,
   retrieveOrder,
   retrievePayment,
   verifyWebhookSignature,
-} from "#lib/square.ts";
+} from "#shared/square.ts";
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {

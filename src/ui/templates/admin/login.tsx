@@ -2,9 +2,9 @@
  * Admin login page template
  */
 
-import { isDemoMode } from "#lib/demo.ts";
-import { CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { isDemoMode } from "#shared/demo.ts";
+import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { loginFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 

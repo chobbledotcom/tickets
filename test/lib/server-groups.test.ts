@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-
-import { signCsrfToken } from "#lib/csrf.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-
 import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
   adminGet,
@@ -379,8 +377,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
       await deleteTestGroup(group.id);
 
-      const { groupsTable } = await import("#lib/db/groups.ts");
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
 
       expect(await groupsTable.findById(group.id)).toBeNull();
       const existingEvent = await getEvent(event.id);
@@ -403,7 +401,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const { groupsTable } = await import("#lib/db/groups.ts");
+      const { groupsTable } = await import("#shared/db/groups.ts");
       const original = groupsTable.findById.bind(groupsTable);
       let calls = 0;
       const findByIdStub = stub(
@@ -633,7 +631,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com");
       const { questionsTable, answersTable, setEventQuestions } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       const q = await questionsTable.insert({ text: "Color" });
       await answersTable.insert({
@@ -802,7 +800,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Events added to group",
       )(response);
 
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const updated1 = await getEvent(event1.id);
       const updated2 = await getEvent(event2.id);
       expect(updated1?.group_id).toBe(group.id);
@@ -866,7 +864,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       )(response);
 
       // Verify event was NOT assigned
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const unchanged = await getEvent(dailyEvent.id);
       expect(unchanged?.group_id).toBe(0);
     });

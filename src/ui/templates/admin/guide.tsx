@@ -9,23 +9,23 @@ import {
   API_BOOK_REQUEST_JSON,
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
-} from "#lib/api-example.ts";
-import { buildDefaultTemplate } from "#lib/column-order.ts";
+} from "#shared/api-example.ts";
+import { buildDefaultTemplate } from "#shared/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
-} from "#lib/columns/attendee-columns.ts";
+} from "#shared/columns/attendee-columns.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
-} from "#lib/columns/event-columns.ts";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { formatCurrency } from "#lib/currency.ts";
-import type { Child } from "#lib/jsx/jsx-runtime.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#lib/limits.ts";
-import type { AdminSession } from "#lib/types.ts";
-import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
+} from "#shared/columns/event-columns.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
+import type { AdminSession } from "#shared/types.ts";
+import { WEBHOOK_EXAMPLE_JSON } from "#shared/webhook-example.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

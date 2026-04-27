@@ -2,11 +2,11 @@
  * Middleware functions for request processing
  */
 
-import { getEffectiveDomain, getEmbedHosts } from "#lib/config.ts";
-import { settings } from "#lib/db/settings.ts";
-import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/response.ts";
+import { getEffectiveDomain, getEmbedHosts } from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
+import { buildFrameAncestors } from "#shared/embed-hosts.ts";
 
 /**
  * Security headers for all responses

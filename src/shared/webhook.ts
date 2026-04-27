@@ -4,16 +4,16 @@
  */
 
 import { compact, unique } from "#fp";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { settings } from "#lib/db/settings.ts";
-import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
-import { fetchText } from "#lib/fetch.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { nowIso } from "#lib/now.ts";
-import { addPendingWork } from "#lib/pending-work.ts";
-import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
-import { buildTicketUrl } from "#lib/ticket-url.ts";
-import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
+import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
+import { fetchText } from "#shared/fetch.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
+import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
+import { buildTicketUrl } from "#shared/ticket-url.ts";
+import { type ContactInfo, isPaidEvent } from "#shared/types.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {

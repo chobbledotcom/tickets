@@ -6,9 +6,9 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import type { EventWithCount } from "#lib/types.ts";
-import { EXAMPLE_EVENT } from "#lib/webhook-example.ts";
 import { type PublicEvent, toPublicEvent } from "#routes/api.ts";
+import type { EventWithCount } from "#shared/types.ts";
+import { EXAMPLE_EVENT } from "#shared/webhook-example.ts";
 
 /** Example event matching the webhook example data */
 export const API_EXAMPLE_EVENT: EventWithCount = {

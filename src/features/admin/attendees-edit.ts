@@ -4,34 +4,34 @@
 
 /* jscpd:ignore-start */
 import { compact, filter, map, uniqueBy } from "#fp";
-import { getAvailableDates } from "#lib/dates.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import {
-  ATTENDEE_LEFT_JOIN_SELECT,
-  decryptAttendeeOrNull,
-  type EventAttendeeRow,
-  markRefunded,
-  updateAttendeePII,
-} from "#lib/db/attendees.ts";
-import { queryAll, queryOne } from "#lib/db/client.ts";
-import { getAllEvents, getEventWithCount } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import {
-  getAttendeeAnswersBatch,
-  getQuestionsForEvent,
-  type QuestionWithAnswers,
-  saveAttendeeAnswers,
-} from "#lib/db/questions.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#lib/demo.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { getAvailableDates } from "#shared/dates.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  ATTENDEE_LEFT_JOIN_SELECT,
+  decryptAttendeeOrNull,
+  type EventAttendeeRow,
+  markRefunded,
+  updateAttendeePII,
+} from "#shared/db/attendees.ts";
+import { queryAll, queryOne } from "#shared/db/client.ts";
+import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import {
+  getAttendeeAnswersBatch,
+  getQuestionsForEvent,
+  type QuestionWithAnswers,
+  saveAttendeeAnswers,
+} from "#shared/db/questions.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { getActivePaymentProvider } from "#shared/payments.ts";
+import type { Attendee, EventWithCount } from "#shared/types.ts";
 import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
 import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 

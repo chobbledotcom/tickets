@@ -3,7 +3,7 @@
  */
 
 import { lazyRef, ttlCache } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
+import { registerCache } from "#shared/cache-registry.ts";
 import {
   aesGcmDecryptRaw,
   aesGcmEncryptRaw,

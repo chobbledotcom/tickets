@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { WalletPassData } from "#routes/token-utils.ts";
 import {
   buildGoogleWalletUrl,
   buildJwtPayload,
   type GoogleWalletCredentials,
   isValidGooglePrivateKey,
   signJwt,
-} from "#lib/google-wallet.ts";
-import type { WalletPassData } from "#routes/token-utils.ts";
+} from "#shared/google-wallet.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 
 const makePassData = (

@@ -3,15 +3,6 @@
  * Access is strictly restricted to demo mode (DEMO_MODE=true).
  */
 
-/* jscpd:ignore-start */
-import { createFormRoute } from "#lib/app-forms.ts";
-import { clearSessionCookie } from "#lib/cookies.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { getAllEvents } from "#lib/db/events.ts";
-import { resetDatabase } from "#lib/db/migrations.ts";
-import { isDemoMode } from "#lib/demo.ts";
-import { defineForm } from "#lib/forms.tsx";
-import { deleteAllEventStorageFiles, isStorageEnabled } from "#lib/storage.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -20,6 +11,18 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+/* jscpd:ignore-start */
+import { createFormRoute } from "#shared/app-forms.ts";
+import { clearSessionCookie } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { getAllEvents } from "#shared/db/events.ts";
+import { resetDatabase } from "#shared/db/migrations.ts";
+import { isDemoMode } from "#shared/demo.ts";
+import { defineForm } from "#shared/forms.tsx";
+import {
+  deleteAllEventStorageFiles,
+  isStorageEnabled,
+} from "#shared/storage.ts";
 import {
   demoResetPage,
   RESET_DATABASE_PHRASE,

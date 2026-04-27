@@ -18,13 +18,13 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { logActivity } from "#lib/db/activityLog.ts";
-import type { Table } from "#lib/db/table.ts";
-import type { AdminSession } from "#lib/types.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { ADMIN_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import type { Table } from "#shared/db/table.ts";
+import type { AdminSession } from "#shared/types.ts";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };

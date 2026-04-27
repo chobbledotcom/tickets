@@ -9,9 +9,9 @@
  * The resulting URL format: https://pay.google.com/gp/v/save/{jwt}
  */
 
-import { getDecimalPlaces } from "#lib/currency.ts";
-import { startOfHour } from "#lib/dates.ts";
 import type { WalletPassData } from "#routes/token-utils.ts";
+import { getDecimalPlaces } from "#shared/currency.ts";
+import { startOfHour } from "#shared/dates.ts";
 
 /** Google Wallet credentials from service account */
 export type GoogleWalletCredentials = {

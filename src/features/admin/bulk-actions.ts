@@ -8,22 +8,6 @@
  * derived from two reference dates.
  */
 
-import {
-  applyNameReplacement,
-  computeDayOffset,
-  shiftUtcIsoByDays,
-} from "#lib/bulk-replace.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import {
-  getEventsByGroupId,
-  groupsTable,
-  setGroupEventsActive,
-} from "#lib/db/groups.ts";
-import { buildDuplicateEventInput } from "#lib/events-actions.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { sortEvents } from "#lib/sort-events.ts";
-import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import {
   generateUniqueGroupSlug,
@@ -33,6 +17,22 @@ import {
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import {
+  applyNameReplacement,
+  computeDayOffset,
+  shiftUtcIsoByDays,
+} from "#shared/bulk-replace.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import {
+  getEventsByGroupId,
+  groupsTable,
+  setGroupEventsActive,
+} from "#shared/db/groups.ts";
+import { buildDuplicateEventInput } from "#shared/events-actions.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { sortEvents } from "#shared/sort-events.ts";
+import type { AdminSession, EventWithCount, Group } from "#shared/types.ts";
 import {
   adminBulkActionsPage,
   adminDeactivateGroupPage,

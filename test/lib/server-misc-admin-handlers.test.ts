@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { FormParams } from "#lib/form-data.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { FormParams } from "#shared/form-data.ts";
 import {
   createTestEvent,
   describeWithEnv,
@@ -614,7 +614,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { loadQuestionData } = await import("#routes/admin/actions.ts");
       const { createTestAttendeeDirect } = await import("#test-utils");
       const { answersTable, eventQuestionsTable, questionsTable } =
-        await import("#lib/db/questions.ts");
+        await import("#shared/db/questions.ts");
 
       const event = await createTestEvent({ maxAttendees: 10 });
       const question = await questionsTable.insert({ text: "Food preference" });

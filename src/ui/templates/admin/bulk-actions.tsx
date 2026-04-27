@@ -4,7 +4,7 @@
  * Renders the bulk-actions landing page (a list of available operations)
  * and each per-action form page. The duplicate-group form embeds a JSON
  * payload of the source group's events plus the timezone; the client-side
- * admin bundle uses the shared `#lib/bulk-replace.ts` helpers to recompute
+ * admin bundle uses the shared `#shared/bulk-replace.ts` helpers to recompute
  * the preview as the user types.
  */
 
@@ -13,11 +13,11 @@ import {
   type DuplicatePreviewRow,
   formatIsoForPreview,
   type PreviewableEvent,
-} from "#lib/bulk-replace.ts";
-import { settings } from "#lib/db/settings.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
+} from "#shared/bulk-replace.ts";
+import { settings } from "#shared/db/settings.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession, EventWithCount, Group } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

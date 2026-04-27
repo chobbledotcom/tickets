@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decryptBytes, encryptBytes } from "#lib/crypto/encryption.ts";
+import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteAllEventStorageFiles,
@@ -21,8 +21,8 @@ import {
   uploadRaw,
   validateAttachment,
   validateImage,
-} from "#lib/storage.ts";
-import { setDeleteOverrideForTest } from "#lib/test-overrides.ts";
+} from "#shared/storage.ts";
+import { setDeleteOverrideForTest } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
   installUrlHandler,

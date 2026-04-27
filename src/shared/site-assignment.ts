@@ -4,13 +4,17 @@
  * All assignment logic is gated behind CAN_BUILD_SITES.
  */
 
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
   assignBuiltSite,
   getAssignableBuiltSites,
-} from "#lib/db/built-sites.ts";
-import { settings } from "#lib/db/settings.ts";
-import { getEmailConfig, getHostEmailConfig, sendEmail } from "#lib/email.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
+} from "#shared/db/built-sites.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  getEmailConfig,
+  getHostEmailConfig,
+  sendEmail,
+} from "#shared/email.ts";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {

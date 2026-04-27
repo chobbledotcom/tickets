@@ -7,11 +7,11 @@ import {
   bunnyCdnApi,
   checkSubdomainAvailable,
   registerBunnySubdomain,
-} from "#lib/bunny-cdn.ts";
+} from "#shared/bunny-cdn.ts";
 import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
-} from "#lib/config.ts";
+} from "#shared/config.ts";
 import {
   describeWithEnv,
   stubFetchRecorder,

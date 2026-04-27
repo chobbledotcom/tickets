@@ -3,13 +3,13 @@
  * GET /image/:filename — downloads, decrypts, and serves the image.
  */
 
+import { notFoundResponse } from "#routes/response.ts";
+import type { createRouter } from "#routes/router.ts";
 import {
   downloadImage,
   getMimeTypeFromFilename,
   isStorageEnabled,
-} from "#lib/storage.ts";
-import { notFoundResponse } from "#routes/response.ts";
-import type { createRouter } from "#routes/router.ts";
+} from "#shared/storage.ts";
 
 type RouterFn = ReturnType<typeof createRouter>;
 

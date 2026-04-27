@@ -4,9 +4,9 @@ import {
   getAllCacheStats,
   registerCache,
   resetCacheRegistry,
-} from "#lib/cache-registry.ts";
-import { getAllHolidays, holidaysTable } from "#lib/db/holidays.ts";
-import { requestCache, runWithRequestCache } from "#lib/request-cache.ts";
+} from "#shared/cache-registry.ts";
+import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
+import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils";
 
 describe("cache-registry", () => {

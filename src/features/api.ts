@@ -6,19 +6,19 @@
  */
 
 import { filter, map, pipe } from "#fp";
-import { processBooking } from "#lib/booking.ts";
-import { getAvailableDates } from "#lib/dates.ts";
-import { hasAvailableSpots } from "#lib/db/attendees.ts";
-import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { FormParams } from "#lib/form-data.ts";
-import { sortEvents } from "#lib/sort-events.ts";
-import { type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { processBooking } from "#shared/booking.ts";
+import { getAvailableDates } from "#shared/dates.ts";
+import { hasAvailableSpots } from "#shared/db/attendees.ts";
+import { getAllEvents, getEventWithCountBySlug } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { sortEvents } from "#shared/sort-events.ts";
+import { type EventWithCount, isPaidEvent } from "#shared/types.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================
@@ -185,7 +185,7 @@ const toFormParams = (body: Record<string, unknown>): FormParams =>
 
 /** Map a BookingResult to an API JSON response */
 const bookingResultToResponse = (
-  result: import("#lib/booking.ts").BookingResult,
+  result: import("#shared/booking.ts").BookingResult,
 ): Response => {
   switch (result.type) {
     case "success":

@@ -20,14 +20,14 @@
  * profile (timing of individual invalid-link clicks) small.
  */
 
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { deleteByField, getDb, queryOne } from "#lib/db/client.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { deleteByField, getDb, queryOne } from "#shared/db/client.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
-} from "#lib/limits.ts";
-import { nowMs } from "#lib/now.ts";
+} from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
 
 type TokenAttemptRow = {
   recent_tokens: string;

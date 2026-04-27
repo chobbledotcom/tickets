@@ -2,8 +2,8 @@
  * Change Password form for settings
  */
 
-import { CsrfForm, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { changePasswordFields } from "#templates/fields.ts";
 
 export const ChangePasswordForm = (): JSX.Element => (

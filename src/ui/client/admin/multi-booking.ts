@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { buildEmbedSnippets } from "#lib/embed.ts";
+import { buildEmbedSnippets } from "#shared/embed.ts";
 
 /** Multi-booking link builder: track checkbox selection order and
  * render a combined URL + embed snippets once 2+ events are selected. */

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
-import { FormParams } from "#lib/form-data.ts";
-import type { Field } from "#lib/forms.tsx";
-import { validateForm } from "#lib/forms.tsx";
+import { FormParams } from "#shared/form-data.ts";
+import type { Field } from "#shared/forms.tsx";
+import { validateForm } from "#shared/forms.tsx";
 
 const validateFormData = (fields: Field[], data: Record<string, string>) =>
   validateForm(new FormParams(data), fields);

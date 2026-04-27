@@ -16,8 +16,8 @@
  * pruned only when PRUNE_INTERVAL_MS has elapsed since its last run.
  */
 
-import { getDb } from "#lib/db/client.ts";
-import { settings } from "#lib/db/settings.ts";
+import { getDb } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
@@ -25,9 +25,9 @@ import {
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   parsePositiveInt,
-} from "#lib/limits.ts";
-import { logDebug } from "#lib/logger.ts";
-import { nowMs } from "#lib/now.ts";
+} from "#shared/limits.ts";
+import { logDebug } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
 
 /**
  * Delete finalized processed_payments rows older than the retention window.

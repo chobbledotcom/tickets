@@ -2,7 +2,7 @@
  * Confirmation Email Template form for advanced settings
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 

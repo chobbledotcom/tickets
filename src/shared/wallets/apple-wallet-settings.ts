@@ -4,8 +4,8 @@
  * Extracted from settings.ts to keep wallet-specific logic separate.
  */
 
-import type { SigningCredentials } from "#lib/apple-wallet.ts";
-import { createWalletSettingsKit } from "#lib/wallets/wallet-settings-types.ts";
+import type { SigningCredentials } from "#shared/apple-wallet.ts";
+import { createWalletSettingsKit } from "#shared/wallets/wallet-settings-types.ts";
 
 const kit = createWalletSettingsKit<
   SigningCredentials,

@@ -2,17 +2,17 @@
  * Sessions table operations
  */
 
-import { registerCache } from "#lib/cache-registry.ts";
-import { hashSessionToken } from "#lib/crypto/hashing.ts";
+import { registerCache } from "#shared/cache-registry.ts";
+import { hashSessionToken } from "#shared/crypto/hashing.ts";
 import {
   deleteByField,
   getDb,
   insert,
   queryAll,
   queryOne,
-} from "#lib/db/client.ts";
+} from "#shared/db/client.ts";
 
-import type { Session } from "#lib/types.ts";
+import type { Session } from "#shared/types.ts";
 
 /**
  * Session cache with TTL (10 seconds)

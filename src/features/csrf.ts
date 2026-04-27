@@ -2,17 +2,21 @@
  * Form parsing and CSRF utilities
  */
 
+import { getSearchParam } from "#routes/url.ts";
 import {
   CSRF_INVALID_FORM_MESSAGE,
   signCsrfToken,
   verifySignedCsrfToken,
-} from "#lib/csrf.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import { FormParams } from "#lib/form-data.ts";
-import { setFormError, setFormSuccess, setSavedFormData } from "#lib/forms.tsx";
-import { getSearchParam } from "#routes/url.ts";
+} from "#shared/csrf.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { FormParams } from "#shared/form-data.ts";
+import {
+  setFormError,
+  setFormSuccess,
+  setSavedFormData,
+} from "#shared/forms.tsx";
 
-export { FormParams } from "#lib/form-data.ts";
+export { FormParams } from "#shared/form-data.ts";
 
 /**
  * Parse form data from request

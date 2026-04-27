@@ -6,8 +6,8 @@
  * cell rendering, and guide documentation.
  */
 
-import type { ColumnDef, ColumnGenerators } from "#lib/column-order.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
+import type { EventWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 

@@ -3,27 +3,6 @@
  */
 
 import { compact } from "#fp";
-import { isPaymentsEnabled } from "#lib/config.ts";
-import { getAvailableDates } from "#lib/dates.ts";
-import type { CreateAttendeeResult } from "#lib/db/attendee-types.ts";
-import {
-  checkBatchAvailability,
-  createAttendeeAtomic,
-  deleteAttendee,
-} from "#lib/db/attendees.ts";
-import { getEventsBySlugsBatch } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getQuestionsWithEventIds } from "#lib/db/questions.ts";
-import { settings } from "#lib/db/settings.ts";
-import type { EmailEntry } from "#lib/email.ts";
-import { logDebug } from "#lib/logger.ts";
-import {
-  type CheckoutIntent,
-  type CheckoutItem,
-  getActivePaymentProvider,
-} from "#lib/payments.ts";
-import type { ContactInfo, Group } from "#lib/types.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   checkoutResponse,
@@ -31,6 +10,27 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { isPaymentsEnabled } from "#shared/config.ts";
+import { getAvailableDates } from "#shared/dates.ts";
+import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
+import {
+  checkBatchAvailability,
+  createAttendeeAtomic,
+  deleteAttendee,
+} from "#shared/db/attendees.ts";
+import { getEventsBySlugsBatch } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getQuestionsWithEventIds } from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import type { EmailEntry } from "#shared/email.ts";
+import { logDebug } from "#shared/logger.ts";
+import {
+  type CheckoutIntent,
+  type CheckoutItem,
+  getActivePaymentProvider,
+} from "#shared/payments.ts";
+import type { ContactInfo, Group } from "#shared/types.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
 import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
 import type {
@@ -69,7 +69,7 @@ export const runCheckoutFlow = (
   createSession: (
     provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
     baseUrl: string,
-  ) => Promise<import("#lib/payments.ts").CheckoutSessionResult>,
+  ) => Promise<import("#shared/payments.ts").CheckoutSessionResult>,
   onError: (msg: string, status: number) => Response,
 ): Promise<Response> => {
   logDebug("Payment", `Starting ${label} checkout`);

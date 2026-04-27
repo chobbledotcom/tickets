@@ -8,8 +8,8 @@
  * @module
  */
 
-export * from "#lib/config.ts";
-export * from "#lib/cookies.ts";
-export * from "#lib/env.ts";
-export * from "#lib/session-context.ts";
-export * from "#lib/types.ts";
+export * from "#shared/config.ts";
+export * from "#shared/cookies.ts";
+export * from "#shared/env.ts";
+export * from "#shared/session-context.ts";
+export * from "#shared/types.ts";

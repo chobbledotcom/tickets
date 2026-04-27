@@ -7,16 +7,16 @@
  */
 
 import {
-  API_EXAMPLE_EVENT,
-  API_EXAMPLE_PUBLIC_EVENT,
-} from "#lib/api-example.ts";
-import type { AdminEvent, EventWithCount } from "#lib/types.ts";
-import {
   type CreateEventBody,
   type DeleteEventBody,
   toAdminEvent,
   type UpdateEventBody,
 } from "#routes/admin/api.ts";
+import {
+  API_EXAMPLE_EVENT,
+  API_EXAMPLE_PUBLIC_EVENT,
+} from "#shared/api-example.ts";
+import type { AdminEvent, EventWithCount } from "#shared/types.ts";
 
 /** Example EventWithCount used as the source for admin API examples */
 export const ADMIN_API_EXAMPLE_EVENT: EventWithCount = API_EXAMPLE_EVENT;

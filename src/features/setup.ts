@@ -2,13 +2,6 @@
  * Setup routes - initial system configuration
  */
 
-import { isValidCountry } from "#lib/countries.ts";
-import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { settings } from "#lib/db/settings.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { validateForm } from "#lib/forms.tsx";
-import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -16,6 +9,13 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { isValidCountry } from "#shared/countries.ts";
+import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { validateForm } from "#shared/forms.tsx";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { type SetupFormValues, setupFields } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 

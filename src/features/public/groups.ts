@@ -2,15 +2,15 @@
  * Group ticket context and routing
  */
 
+import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
   getActiveEventsByGroupId,
   getGroupBySlugIndex,
-} from "#lib/db/groups.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { sortEvents } from "#lib/sort-events.ts";
-import type { Group } from "#lib/types.ts";
-import { notFoundResponse } from "#routes/response.ts";
+} from "#shared/db/groups.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { sortEvents } from "#shared/sort-events.ts";
+import type { Group } from "#shared/types.ts";
 import type { TicketEvent } from "#templates/public.tsx";
 import { getTicketContext } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";

@@ -3,4 +3,4 @@
  * Used by TypeScript in development mode
  */
 
-export { Fragment, jsx, jsxDEV, jsxs, Raw } from "#lib/jsx/jsx-runtime.ts";
+export { Fragment, jsx, jsxDEV, jsxs, Raw } from "#shared/jsx/jsx-runtime.ts";

@@ -2,9 +2,9 @@
  * Admin QR scanner page template
  */
 
-import { SCANNER_JS_PATH } from "#lib/asset-paths.ts";
-import { getCurrentCsrfToken } from "#lib/csrf.ts";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
+import { getCurrentCsrfToken } from "#shared/csrf.ts";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 

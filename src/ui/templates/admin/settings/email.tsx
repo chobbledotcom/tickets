@@ -2,9 +2,9 @@
  * Email Notifications form for advanced settings
  */
 
-import { MASK_SENTINEL } from "#lib/db/settings.ts";
-import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
-import { CsrfForm } from "#lib/forms.tsx";
+import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 export const EmailNotificationsForm = (

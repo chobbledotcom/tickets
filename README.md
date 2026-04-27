@@ -206,7 +206,7 @@ Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
 ## Repository layout
 
-For a proposed domain-first structure and incremental migration plan, see [`REPO_STRUCTURE.md`](./REPO_STRUCTURE.md).
+For the current repository layout and path conventions, see [`REPO_STRUCTURE.md`](./REPO_STRUCTURE.md).
 
 ---
 

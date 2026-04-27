@@ -8,8 +8,6 @@
  */
 
 import { reduce } from "#fp";
-import { enableQueryLog } from "#lib/db/query-log.ts";
-import { settings } from "#lib/db/settings.ts";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
@@ -36,6 +34,8 @@ import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
+import { enableQueryLog } from "#shared/db/query-log.ts";
+import { settings } from "#shared/db/settings.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [

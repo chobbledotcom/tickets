@@ -2,8 +2,8 @@
  * Deletion and event-link unlinking for attendees.
  */
 
-import { executeBatch, getDb, queryOne } from "#lib/db/client.ts";
-import { invalidateEventsCache } from "#lib/db/events.ts";
+import { executeBatch, getDb, queryOne } from "#shared/db/client.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
 
 /** Delete an attendee and all dependent data (payments, answers, event links) */
 const purgeAttendee = (attendeeId: number): Promise<void> =>

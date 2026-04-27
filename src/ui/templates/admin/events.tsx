@@ -3,16 +3,18 @@
  */
 
 import { filter, joinStrings, map, pipe } from "#fp";
-import { toMajorUnits } from "#lib/currency.ts";
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { formatCountdown } from "#routes/format.ts";
+import { toMajorUnits } from "#shared/currency.ts";
 import {
   formatDateLabel,
   formatDatetimeLabel,
   formatDatetimeShort,
-} from "#lib/dates.ts";
-import { settings } from "#lib/db/settings.ts";
-import { buildEmbedSnippets } from "#lib/embed.ts";
-import { isReadOnly } from "#lib/env.ts";
-import type { Field } from "#lib/forms.tsx";
+} from "#shared/dates.ts";
+import { settings } from "#shared/db/settings.ts";
+import { buildEmbedSnippets } from "#shared/embed.ts";
+import { isReadOnly } from "#shared/env.ts";
+import type { Field } from "#shared/forms.tsx";
 import {
   ConfirmForm,
   CsrfForm,
@@ -20,19 +22,17 @@ import {
   Flash,
   renderField,
   renderFields,
-} from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { isStorageEnabled } from "#lib/storage.ts";
-import { utcToLocalInput } from "#lib/timezone.ts";
+} from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
+import { utcToLocalInput } from "#shared/timezone.ts";
 import {
   type AdminSession,
   type Attendee,
   type EventWithCount,
   type Group,
   isPaidEvent,
-} from "#lib/types.ts";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { formatCountdown } from "#routes/format.ts";
+} from "#shared/types.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -58,14 +58,14 @@ export type DateOption = { value: string; label: string };
 /** Attendee filter type */
 export type AttendeeFilter = "all" | "in" | "out";
 
-/** Re-export shared detail functions for backwards compatibility */
+/** Re-export shared detail functions for template composition */
 export {
   calculateTotalRevenue,
   countCheckedIn,
   countCheckedInRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-/** Re-export formatAddressInline from shared module for backwards compatibility */
+/** Re-export formatAddressInline from shared module for template composition */
 export { formatAddressInline } from "#templates/attendee-table.tsx";
 
 import {

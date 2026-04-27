@@ -8,8 +8,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { verifyQrBookToken } from "#lib/qr-token.ts";
 import { handleRequest } from "#routes";
+import { verifyQrBookToken } from "#shared/qr-token.ts";
 import {
   adminFormPost,
   adminGet,

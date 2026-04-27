@@ -3,13 +3,13 @@
  */
 
 import { reduce } from "#fp";
-import { type CacheStat, getAllCacheStats } from "#lib/cache-registry.ts";
+import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   getQueryLog,
   getQueryLogStartTime,
   isQueryLogEnabled,
   type QueryLogEntry,
-} from "#lib/db/query-log.ts";
+} from "#shared/db/query-log.ts";
 
 /** Data passed to the footer renderer */
 export type DebugFooterData = {

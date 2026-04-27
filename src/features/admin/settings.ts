@@ -3,86 +3,6 @@
  * Owner-only access enforced via requireOwnerOr / withAuth
  */
 
-import {
-  isValidPemCertificate,
-  isValidPemPrivateKey,
-} from "#lib/apple-wallet.ts";
-import {
-  checkSubdomainAvailable,
-  getCdnHostname,
-  registerBunnySubdomain,
-  validateCustomDomain,
-} from "#lib/bunny-cdn.ts";
-import {
-  isValidBusinessEmail,
-  updateBusinessEmail,
-} from "#lib/business-email.ts";
-import { validateColumnTemplate } from "#lib/column-order.ts";
-import { ATTENDEE_TABLE_COLUMNS } from "#lib/columns/attendee-columns.ts";
-import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
-import {
-  getBunnyDnsSubdomainSuffix,
-  getEffectiveDomain,
-  isBunnyCdnEnabled,
-  isBunnyDnsEnabled,
-} from "#lib/config.ts";
-import { clearSessionCookie } from "#lib/cookies.ts";
-import { isValidCountry } from "#lib/countries.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { getAllEvents } from "#lib/db/events.ts";
-import { resetDatabase } from "#lib/db/migrations.ts";
-import {
-  type EmailTemplateType,
-  MAX_EMAIL_TEMPLATE_LENGTH,
-  settings,
-} from "#lib/db/settings.ts";
-import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
-import {
-  applyDemoOverrides,
-  isDemoMode,
-  TERMS_DEMO_FIELDS,
-} from "#lib/demo.ts";
-import {
-  EMAIL_PROVIDER_LABELS,
-  getEmailConfig,
-  getHostEmailConfig,
-  isEmailProvider,
-  sendTestEmail,
-} from "#lib/email.ts";
-import {
-  buildTemplateData,
-  renderTemplate,
-  validateTemplate,
-} from "#lib/email-renderer.ts";
-import {
-  DOMAIN_PATTERN,
-  parseEmbedHosts,
-  validateEmbedHosts,
-} from "#lib/embed-hosts.ts";
-import { getFlash } from "#lib/flash-context.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import { validateForm } from "#lib/forms.tsx";
-import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
-import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import type { PaymentProviderType } from "#lib/payments.ts";
-import { fail, ok } from "#lib/response.ts";
-import { testSquareConnection } from "#lib/square.ts";
-import {
-  deleteAllEventStorageFiles,
-  deleteFile,
-  IMAGE_ERROR_MESSAGES,
-  isStorageEnabled,
-  tryDeleteFile,
-  uploadImage,
-  validateImage,
-} from "#lib/storage.ts";
-import {
-  detectStripeKeyMode,
-  setupWebhookEndpoint,
-  testStripeConnection,
-} from "#lib/stripe.ts";
-import type { Theme } from "#lib/types.ts";
 import { demoResetForm } from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
@@ -103,6 +23,86 @@ import {
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import {
+  isValidPemCertificate,
+  isValidPemPrivateKey,
+} from "#shared/apple-wallet.ts";
+import {
+  checkSubdomainAvailable,
+  getCdnHostname,
+  registerBunnySubdomain,
+  validateCustomDomain,
+} from "#shared/bunny-cdn.ts";
+import {
+  isValidBusinessEmail,
+  updateBusinessEmail,
+} from "#shared/business-email.ts";
+import { validateColumnTemplate } from "#shared/column-order.ts";
+import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
+import { EVENT_TABLE_COLUMNS } from "#shared/columns/event-columns.ts";
+import {
+  getBunnyDnsSubdomainSuffix,
+  getEffectiveDomain,
+  isBunnyCdnEnabled,
+  isBunnyDnsEnabled,
+} from "#shared/config.ts";
+import { clearSessionCookie } from "#shared/cookies.ts";
+import { isValidCountry } from "#shared/countries.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { getAllEvents } from "#shared/db/events.ts";
+import { resetDatabase } from "#shared/db/migrations.ts";
+import {
+  type EmailTemplateType,
+  MAX_EMAIL_TEMPLATE_LENGTH,
+  settings,
+} from "#shared/db/settings.ts";
+import { getUserById, verifyUserPassword } from "#shared/db/users.ts";
+import {
+  applyDemoOverrides,
+  isDemoMode,
+  TERMS_DEMO_FIELDS,
+} from "#shared/demo.ts";
+import {
+  EMAIL_PROVIDER_LABELS,
+  getEmailConfig,
+  getHostEmailConfig,
+  isEmailProvider,
+  sendTestEmail,
+} from "#shared/email.ts";
+import {
+  buildTemplateData,
+  renderTemplate,
+  validateTemplate,
+} from "#shared/email-renderer.ts";
+import {
+  DOMAIN_PATTERN,
+  parseEmbedHosts,
+  validateEmbedHosts,
+} from "#shared/embed-hosts.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { validateForm } from "#shared/forms.tsx";
+import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import type { PaymentProviderType } from "#shared/payments.ts";
+import { fail, ok } from "#shared/response.ts";
+import { testSquareConnection } from "#shared/square.ts";
+import {
+  deleteAllEventStorageFiles,
+  deleteFile,
+  IMAGE_ERROR_MESSAGES,
+  isStorageEnabled,
+  tryDeleteFile,
+  uploadImage,
+  validateImage,
+} from "#shared/storage.ts";
+import {
+  detectStripeKeyMode,
+  setupWebhookEndpoint,
+  testStripeConnection,
+} from "#shared/stripe.ts";
+import type { Theme } from "#shared/types.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {

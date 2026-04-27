@@ -4,8 +4,8 @@
  * Payment provider and keys are configured via admin settings (stored encrypted in DB)
  */
 
-import { settings } from "#lib/db/settings.ts";
-import { getEnv, requireEnv } from "#lib/env.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getEnv, requireEnv } from "#shared/env.ts";
 
 /**
  * Check if payments are enabled (any provider configured with valid keys)
@@ -66,7 +66,7 @@ export const setEffectiveDomainForTest = (domain: string): void => {
 export const getEmbedHosts = async (): Promise<string[]> => {
   const raw = settings.embedHosts;
   if (!raw) return [];
-  const { parseEmbedHosts } = await import("#lib/embed-hosts.ts");
+  const { parseEmbedHosts } = await import("#shared/embed-hosts.ts");
   return parseEmbedHosts(raw);
 };
 

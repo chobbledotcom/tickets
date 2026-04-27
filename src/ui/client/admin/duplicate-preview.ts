@@ -11,7 +11,7 @@ import {
   type DuplicateReplacements,
   formatIsoForPreview,
   type PreviewableEvent,
-} from "#lib/bulk-replace.ts";
+} from "#shared/bulk-replace.ts";
 
 export const initDuplicatePreview = (): void => {
   const container = document.querySelector<HTMLElement>(

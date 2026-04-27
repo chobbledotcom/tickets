@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { createSession } from "#lib/db/sessions.ts";
-import { getAllUsers } from "#lib/db/users.ts";
 import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { createSession } from "#shared/db/sessions.ts";
+import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -201,7 +201,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "newpassword123",
       });
 
-      const { signCsrfToken } = await import("#lib/csrf.ts");
+      const { signCsrfToken } = await import("#shared/csrf.ts");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(

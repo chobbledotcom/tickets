@@ -3,25 +3,6 @@
  */
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
-import {
-  eventDateToCalendarDate,
-  formatDateLabel,
-  getAvailableDates,
-} from "#lib/dates.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendees } from "#lib/db/attendees.ts";
-import {
-  getAllDailyEvents,
-  getAllStandardEvents,
-  getAttendeesByEventIds,
-  getDailyEventAttendeeDates,
-  getDailyEventAttendeesByDate,
-} from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { settings } from "#lib/db/settings.ts";
-import { todayInTz } from "#lib/timezone.ts";
-import { type Attendee, type EventWithCount, isPaidEvent } from "#lib/types.ts";
 import {
   csvResponse,
   getDateFilter,
@@ -30,6 +11,29 @@ import {
 import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import {
+  eventDateToCalendarDate,
+  formatDateLabel,
+  getAvailableDates,
+} from "#shared/dates.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { decryptAttendees } from "#shared/db/attendees.ts";
+import {
+  getAllDailyEvents,
+  getAllStandardEvents,
+  getAttendeesByEventIds,
+  getDailyEventAttendeeDates,
+  getDailyEventAttendeesByDate,
+} from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { settings } from "#shared/db/settings.ts";
+import { todayInTz } from "#shared/timezone.ts";
+import {
+  type Attendee,
+  type EventWithCount,
+  isPaidEvent,
+} from "#shared/types.ts";
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,

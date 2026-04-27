@@ -3,23 +3,23 @@
  */
 
 import { joinStrings, map, pipe, reduce } from "#fp";
-import { resolveColumnLayout } from "#lib/column-order.ts";
+import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
-} from "#lib/columns/event-columns.ts";
-import { settings } from "#lib/db/settings.ts";
-import { buildEmbedSnippets } from "#lib/embed.ts";
-import { isReadOnly } from "#lib/env.ts";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+} from "#shared/columns/event-columns.ts";
+import { settings } from "#shared/db/settings.ts";
+import { buildEmbedSnippets } from "#shared/embed.ts";
+import { isReadOnly } from "#shared/env.ts";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
   type Attendee,
   type EventWithCount,
   type Group,
   isPaidEvent,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 import { EventRow, renderEventTable } from "#templates/admin/dashboard.tsx";
 import {
   buildSharedDetailRows,

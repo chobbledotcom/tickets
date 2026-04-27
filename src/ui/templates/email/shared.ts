@@ -3,7 +3,7 @@
  */
 
 import { map } from "#fp";
-import type { EmailEntry } from "#lib/email.ts";
+import type { EmailEntry } from "#shared/email.ts";
 
 export type EmailContent = { subject: string; html: string; text: string };
 

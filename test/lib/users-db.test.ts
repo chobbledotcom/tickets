@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#lib/crypto/encryption.ts";
-import { hashPassword, hmacHash } from "#lib/crypto/hashing.ts";
-import { getDb, insert } from "#lib/db/client.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { hashPassword, hmacHash } from "#shared/crypto/hashing.ts";
+import { getDb, insert } from "#shared/db/client.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -14,7 +14,7 @@ import {
   isInviteExpired,
   isInviteValid,
   verifyUserPassword,
-} from "#lib/db/users.ts";
+} from "#shared/db/users.ts";
 import {
   describeWithEnv,
   TEST_ADMIN_PASSWORD,
@@ -166,7 +166,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("isInviteValid returns false when invite was already used (empty decrypted hash)", async () => {
-      const { setUserPassword: setUserPwd } = await import("#lib/db/users.ts");
+      const { setUserPassword: setUserPwd } = await import(
+        "#shared/db/users.ts"
+      );
       const expiry = new Date(Date.now() + 86400000).toISOString();
       const user = await createInvitedUser(
         "used-invite",
@@ -177,7 +179,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       await setUserPwd(user.id, "newpassword123");
 
-      const { getUserById: getUser } = await import("#lib/db/users.ts");
+      const { getUserById: getUser } = await import("#shared/db/users.ts");
       const updatedUser = await getUser(user.id);
       const valid = await isInviteValid(updatedUser!);
       expect(valid).toBe(false);

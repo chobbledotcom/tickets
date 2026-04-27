@@ -2,25 +2,25 @@
  * Admin API key management routes
  */
 
-import {
-  ADMIN_API_ENDPOINTS,
-  PUBLIC_API_ENDPOINTS,
-} from "#lib/admin-api-example.ts";
-import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
-import {
-  createApiKey,
-  deleteApiKey,
-  getApiKeyForUser,
-  getApiKeysForUser,
-} from "#lib/db/api-keys.ts";
-import { defineForm } from "#lib/forms.tsx";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import {
+  ADMIN_API_ENDPOINTS,
+  PUBLIC_API_ENDPOINTS,
+} from "#shared/admin-api-example.ts";
+import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
+import {
+  createApiKey,
+  deleteApiKey,
+  getApiKeyForUser,
+  getApiKeysForUser,
+} from "#shared/db/api-keys.ts";
+import { defineForm } from "#shared/forms.tsx";
 import {
   adminApiDocsPage,
   adminApiKeysPage,

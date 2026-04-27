@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptBytes } from "#lib/crypto/encryption.ts";
-import { toMajorUnits } from "#lib/currency.ts";
-import { eventsTable, getEvent, getEventWithCount } from "#lib/db/events.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
+import { encryptBytes } from "#shared/crypto/encryption.ts";
+import { toMajorUnits } from "#shared/currency.ts";
+import { eventsTable, getEvent, getEventWithCount } from "#shared/db/events.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   cdnOkResponse,
   createTestEvent,
@@ -382,7 +382,7 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
 
-          const { getAllEvents } = await import("#lib/db/events.ts");
+          const { getAllEvents } = await import("#shared/db/events.ts");
           const events = await getAllEvents();
           const created = events.find((e) => e.name === "Image Test Event");
           expect(created).not.toBeUndefined();
@@ -407,7 +407,7 @@ describeWithEnv(
           );
           expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
 
-          const { getAllEvents } = await import("#lib/db/events.ts");
+          const { getAllEvents } = await import("#shared/db/events.ts");
           const events = await getAllEvents();
           const created = events.find((e) => e.name === "Bad Image Event");
           expect(created).not.toBeUndefined();
@@ -778,7 +778,7 @@ describeWithEnv(
           );
           expectRedirectWithFlash("/admin", "Event created")(response);
 
-          const events = await import("#lib/db/events.ts").then((m) =>
+          const events = await import("#shared/db/events.ts").then((m) =>
             m.getAllEvents(),
           );
           const created = events.find((e) => e.name === "Attachment Event");

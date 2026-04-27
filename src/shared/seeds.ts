@@ -4,15 +4,15 @@
  */
 
 import { map, reduce } from "#fp";
-import { encrypt } from "#lib/crypto/encryption.ts";
-import { hmacHash } from "#lib/crypto/hashing.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   buildAttendeeInsert,
   encryptAttendeeFields,
-} from "#lib/db/attendees.ts";
-import { executeBatch, insert, queryAll, rawSql } from "#lib/db/client.ts";
-import { invalidateEventsCache } from "#lib/db/events.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/db/attendees.ts";
+import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   DEMO_ADDRESSES,
   DEMO_EMAILS,
@@ -23,9 +23,9 @@ import {
   DEMO_PHONES,
   DEMO_SPECIAL_INSTRUCTIONS,
   randomChoice,
-} from "#lib/demo.ts";
-import { nowIso } from "#lib/now.ts";
-import { generateUniqueSlug, type SlugWithIndex } from "#lib/slug.ts";
+} from "#shared/demo.ts";
+import { nowIso } from "#shared/now.ts";
+import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 
 /** Max attendees per seeded event */
 export const SEED_MAX_ATTENDEES = 100_000;

@@ -7,15 +7,15 @@
  * with the token's values pre-filled.
  */
 
-import { getAvailableDates } from "#lib/dates.ts";
-import { getEventWithCountBySlug } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import type { CheckoutIntent } from "#lib/payments.ts";
-import { eventSupportsDirectCheckout } from "#lib/qr.ts";
-import { type QrBookPayload, verifyQrBookToken } from "#lib/qr-token.ts";
-import type { EventWithCount } from "#lib/types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
+import { getAvailableDates } from "#shared/dates.ts";
+import { getEventWithCountBySlug } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
+import { eventSupportsDirectCheckout } from "#shared/qr.ts";
+import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
+import type { EventWithCount } from "#shared/types.ts";
 import {
   buildTicketEvent,
   type QrPrefill,

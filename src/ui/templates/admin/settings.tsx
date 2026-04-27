@@ -2,7 +2,7 @@
  * Admin settings page template
  */
 
-import type { AdminSession, Theme } from "#lib/types.ts";
+import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { BusinessEmailForm } from "#templates/admin/settings/business-email.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";

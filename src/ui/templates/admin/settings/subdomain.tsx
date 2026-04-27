@@ -3,7 +3,7 @@
  */
 
 import type { SafeHtml } from "#jsx/jsx-runtime";
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 const SubdomainIntroProse = (): SafeHtml => (

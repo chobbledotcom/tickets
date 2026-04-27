@@ -10,7 +10,7 @@
 
 import type { InValue } from "@libsql/client";
 import { compact, filter, mapParallel, reduce } from "#fp";
-import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
+import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 
 /**
  * Column definition for a table

@@ -3,7 +3,7 @@
  * The ResetDatabaseForm component is reused in admin settings.
  */
 
-import { CsrfForm, Flash } from "#lib/forms.tsx";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */

@@ -5,8 +5,8 @@
  * so that the route handlers remain thin response formatters.
  */
 
-import { formatCurrency } from "#lib/currency.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import {
   computeSlugIndex,
   deleteEvent,
@@ -14,11 +14,11 @@ import {
   eventsTable,
   getEventWithCount,
   isSlugTaken,
-} from "#lib/db/events.ts";
-import { groupsTable, validateGroupEventType } from "#lib/db/groups.ts";
-import { generateUniqueSlug } from "#lib/slug.ts";
-import { deleteEventStorageFiles } from "#lib/storage.ts";
-import type { Event, EventWithCount } from "#lib/types.ts";
+} from "#shared/db/events.ts";
+import { groupsTable, validateGroupEventType } from "#shared/db/groups.ts";
+import { generateUniqueSlug } from "#shared/slug.ts";
+import { deleteEventStorageFiles } from "#shared/storage.ts";
+import type { Event, EventWithCount } from "#shared/types.ts";
 
 /** Generate a unique event slug, retrying on collision */
 export const generateUniqueEventSlug = (excludeEventId?: number) =>

@@ -2,9 +2,9 @@
  * Payment Provider, Stripe, Square, and Booking Fee forms for settings
  */
 
-import { MASK_SENTINEL } from "#lib/db/settings.ts";
-import { CsrfForm, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import {
   squareAccessTokenFields,

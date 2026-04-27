@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import type { EmailConfig, EmailMessage } from "#lib/email.ts";
-import { sendEmail } from "#lib/email.ts";
+import type { EmailConfig, EmailMessage } from "#shared/email.ts";
+import { sendEmail } from "#shared/email.ts";
 import { useFetchStub } from "#test-utils";
 
 const testConfig: EmailConfig = {

@@ -3,11 +3,11 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
-import type { EndpointDoc } from "#lib/admin-api-example.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#lib/types.ts";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
+import type { EndpointDoc } from "#shared/admin-api-example.ts";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 

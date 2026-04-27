@@ -2,9 +2,9 @@
  * Admin holiday management page templates
  */
 
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, Holiday } from "#lib/types.ts";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession, Holiday } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { holidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";

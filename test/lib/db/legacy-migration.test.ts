@@ -2,8 +2,8 @@ import { createClient, type ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { insert, setDb } from "#lib/db/client.ts";
-import { initDb } from "#lib/db/migrations.ts";
+import { insert, setDb } from "#shared/db/client.ts";
+import { initDb } from "#shared/db/migrations.ts";
 import { resetDb, setupTestEncryptionKey } from "#test-utils";
 
 /**

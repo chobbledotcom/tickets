@@ -4,10 +4,10 @@
  */
 
 import { lazyRef } from "#fp";
-import { getEnv } from "#lib/env.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { FieldValues } from "#lib/forms.tsx";
-import type { NamedResource } from "#lib/rest/resource.ts";
+import { getEnv } from "#shared/env.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { FieldValues } from "#shared/forms.tsx";
+import type { NamedResource } from "#shared/rest/resource.ts";
 
 // ---------------------------------------------------------------------------
 // Demo mode flag

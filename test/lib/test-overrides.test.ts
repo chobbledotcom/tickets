@@ -5,7 +5,7 @@ import {
   getSkipLoginDelay,
   setRethrowErrorsForTest,
   setSkipLoginDelayForTest,
-} from "#lib/test-overrides.ts";
+} from "#shared/test-overrides.ts";
 
 describe("test-overrides", () => {
   describe("getRethrowErrors", () => {

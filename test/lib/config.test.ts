@@ -8,8 +8,8 @@ import {
   loadEffectiveDomain,
   resetEffectiveDomain,
   setEffectiveDomainForTest,
-} from "#lib/config.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv, setupStripe } from "#test-utils";
 
 describeWithEnv("isPaymentsEnabled", { db: true }, () => {

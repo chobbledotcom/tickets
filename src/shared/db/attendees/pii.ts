@@ -7,16 +7,16 @@
  */
 
 import { map } from "#fp";
-import { computeTicketTokenIndex } from "#lib/crypto/hashing.ts";
-import { decryptAttendeePII, encryptAttendeePII } from "#lib/crypto/keys.ts";
-import { generateTicketToken } from "#lib/crypto/utils.ts";
+import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { decryptAttendeePII, encryptAttendeePII } from "#shared/crypto/keys.ts";
+import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
   EncryptedAttendeeData,
   EncryptInput,
-} from "#lib/db/attendee-types.ts";
-import { settings } from "#lib/db/settings.ts";
-import { nowIso } from "#lib/now.ts";
-import type { Attendee, ContactInfo, PiiBlob } from "#lib/types.ts";
+} from "#shared/db/attendee-types.ts";
+import { settings } from "#shared/db/settings.ts";
+import { nowIso } from "#shared/now.ts";
+import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;

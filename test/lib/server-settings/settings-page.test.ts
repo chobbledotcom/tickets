@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { setDemoModeForTest } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   awaitTestRequest,
   describeWithEnv,

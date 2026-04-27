@@ -2,7 +2,7 @@
  * Embed Hosts form for settings
  */
 
-import { CsrfForm } from "#lib/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 
 export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (

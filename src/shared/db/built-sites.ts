@@ -4,13 +4,13 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { registerCache } from "#lib/cache-registry.ts";
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { queryAll, queryOne } from "#lib/db/client.ts";
-import type { ColumnDef, Table } from "#lib/db/table.ts";
-import { col, defineTable, withCacheInvalidation } from "#lib/db/table.ts";
-import { nowIso } from "#lib/now.ts";
-import { requestCache } from "#lib/request-cache.ts";
+import { registerCache } from "#shared/cache-registry.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { queryAll, queryOne } from "#shared/db/client.ts";
+import type { ColumnDef, Table } from "#shared/db/table.ts";
+import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
+import { nowIso } from "#shared/now.ts";
+import { requestCache } from "#shared/request-cache.ts";
 
 /** Encrypted site data blob shape */
 export interface SiteDataBlob {

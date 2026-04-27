@@ -2,9 +2,9 @@
  * Join (invite) page templates
  */
 
-import { CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { joinForm } from "#routes/join.ts";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**

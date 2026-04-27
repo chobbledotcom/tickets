@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { enableQueryLog, runWithQueryLogContext } from "#lib/db/query-log.ts";
+import {
+  enableQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import {
   debugFooterHtml,
   renderDebugFooter,

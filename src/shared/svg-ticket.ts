@@ -4,10 +4,10 @@
  * suitable for email attachment. Contains no PII — only event details and booking metadata.
  */
 
-import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
-import { generateQrSvg } from "#lib/qr.ts";
 import type { WalletPassData } from "#routes/token-utils.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
+import { generateQrSvg } from "#shared/qr.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Non-PII ticket data for SVG rendering (extends shared wallet fields with display-formatted values) */

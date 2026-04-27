@@ -1,11 +1,14 @@
-import { createAuthedFormRoute, type FormValidator } from "#lib/app-forms.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { addEventLink, updateEventLink } from "#lib/db/attendees.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
-import { defineForm } from "#lib/forms.tsx";
-import type { EventWithCount } from "#lib/types.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import {
+  createAuthedFormRoute,
+  type FormValidator,
+} from "#shared/app-forms.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { addEventLink, updateEventLink } from "#shared/db/attendees.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
+import { defineForm } from "#shared/forms.tsx";
+import type { EventWithCount } from "#shared/types.ts";
 
 type EventLinkOption = {
   active: boolean;

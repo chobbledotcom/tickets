@@ -4,9 +4,9 @@ import {
   createAttendeeAtomic,
   decryptAttendees,
   getAttendeesRaw,
-} from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
-import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
+} from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   createTestEvent,
   describeWithEnv,

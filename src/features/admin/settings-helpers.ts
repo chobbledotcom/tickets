@@ -9,11 +9,11 @@
  * return SettingsFormHandler for use with settingsRoute/advancedSettingsRoute.
  */
 
-import { logActivity } from "#lib/db/activityLog.ts";
-import { isMaskSentinel } from "#lib/db/settings.ts";
-import type { FormParams } from "#lib/form-data.ts";
 import { type AuthSession, OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { isMaskSentinel } from "#shared/db/settings.ts";
+import type { FormParams } from "#shared/form-data.ts";
 
 // ── Types ───────────────────────────────────────────────────────────
 

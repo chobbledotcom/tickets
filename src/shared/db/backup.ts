@@ -12,16 +12,16 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { map, pipe } from "#fp";
-import { executeBatch, getDb, queryAll } from "#lib/db/client.ts";
+import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
   LATEST_UPDATE,
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
-} from "#lib/db/migrations.ts";
-import { requireEnv } from "#lib/env.ts";
-import { uploadRaw } from "#lib/storage.ts";
+} from "#shared/db/migrations.ts";
+import { requireEnv } from "#shared/env.ts";
+import { uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 

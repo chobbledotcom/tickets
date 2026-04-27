@@ -2,9 +2,9 @@
  * Admin attendee event-link management routes (add, unlink, update)
  */
 
-import { unlinkAttendeeFromEvent } from "#lib/db/attendees.ts";
-import { queryOne } from "#lib/db/client.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { unlinkAttendeeFromEvent } from "#shared/db/attendees.ts";
+import { queryOne } from "#shared/db/client.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
 
 export {
   handleAddEventLink,

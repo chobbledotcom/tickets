@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { FormParams } from "#lib/form-data.ts";
-import { type Field, validateForm } from "#lib/forms.tsx";
+import { FormParams } from "#shared/form-data.ts";
+import { type Field, validateForm } from "#shared/forms.tsx";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },

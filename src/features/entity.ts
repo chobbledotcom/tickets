@@ -2,14 +2,14 @@
  * Entity loading patterns for route handlers
  */
 
-import { createAuthedHandler } from "#lib/app-forms.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { AdminLevel } from "#lib/types.ts";
 import {
   type AuthSession,
   OWNER_FORM,
   requireSessionOr,
 } from "#routes/auth.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { AdminLevel } from "#shared/types.ts";
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.

@@ -4,9 +4,6 @@
  */
 
 import { map, pipe } from "#fp";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { settings } from "#lib/db/settings.ts";
-import { type EventWithCount, loadSortedEvents } from "#lib/sort-events.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   icsResponse,
@@ -14,6 +11,9 @@ import {
   rssResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
+import { type EventWithCount, loadSortedEvents } from "#shared/sort-events.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */

@@ -5,16 +5,16 @@
  */
 
 import { map, pipe } from "#fp";
-import { CsrfForm, Flash } from "#lib/forms.tsx";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   AttendeeTable,
   type AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 
-/** Re-export for backwards compatibility */
+/** Alias export used by check-in templates */
 export type { TokenEntry as CheckinEntry };
 
 /**

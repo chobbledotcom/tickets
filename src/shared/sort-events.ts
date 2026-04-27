@@ -6,10 +6,10 @@
  * Tier 2: Daily events                → sorted by next bookable date ASC, then name
  */
 
-import { getNextBookableDate } from "#lib/dates.ts";
-import { getAllEvents } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import type { Event, EventWithCount, Holiday } from "#lib/types.ts";
+import { getNextBookableDate } from "#shared/dates.ts";
+import { getAllEvents } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import type { Event, EventWithCount, Holiday } from "#shared/types.ts";
 
 export type { EventWithCount };
 

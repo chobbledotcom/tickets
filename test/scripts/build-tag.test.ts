@@ -13,7 +13,7 @@ import {
   isNewerVersion,
   parseReleaseTag,
   setBuildTimestampForTest,
-} from "#lib/update.ts";
+} from "#shared/update.ts";
 import { isoToTag } from "../../scripts/build-tag.ts";
 
 const RELEASE_TAG_FORMAT = /^v\d{4}-\d{2}-\d{2}-\d{6}$/;

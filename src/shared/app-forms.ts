@@ -1,6 +1,3 @@
-import { CSRF_INVALID_FORM_MESSAGE } from "#lib/csrf.ts";
-import type { FormParams } from "#lib/form-data.ts";
-import type { ValidationResult } from "#lib/forms.tsx";
 import {
   AUTH_FORM,
   type AuthPolicy,
@@ -9,6 +6,9 @@ import {
 } from "#routes/auth.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
 import { notFoundResponse } from "#routes/response.ts";
+import { CSRF_INVALID_FORM_MESSAGE } from "#shared/csrf.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { ValidationResult } from "#shared/forms.tsx";
 
 export type FormValidator<TValues> = {
   validate: (form: FormParams) => ValidationResult<TValues>;

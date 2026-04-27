@@ -8,15 +8,15 @@
 
 import { Liquid } from "liquidjs";
 import { lazyRef, map } from "#fp";
-import { formatCurrency } from "#lib/currency.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
-} from "#lib/db/settings.ts";
-import { settings } from "#lib/db/settings.ts";
-import type { EmailEntry } from "#lib/email.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
-import { isPaidEvent } from "#lib/types.ts";
+} from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
+import type { EmailEntry } from "#shared/email.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { isPaidEvent } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { eventNames } from "#templates/email/shared.ts";

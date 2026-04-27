@@ -8,20 +8,23 @@
  * can refresh the QR client-side (every minute) without a full reload.
  */
 
-import { createAuthedFormRoute, type FormValidator } from "#lib/app-forms.ts";
-import { getEffectiveDomain } from "#lib/config.ts";
-import { validatePrice } from "#lib/currency.ts";
-import { getAvailableDates } from "#lib/dates.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { FormParams } from "#lib/form-data.ts";
-import { eventSupportsDirectCheckout, generateQrSvg } from "#lib/qr.ts";
-import { buildQrBookPayload, signQrBookToken } from "#lib/qr-token.ts";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import {
+  createAuthedFormRoute,
+  type FormValidator,
+} from "#shared/app-forms.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { validatePrice } from "#shared/currency.ts";
+import { getAvailableDates } from "#shared/dates.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { eventSupportsDirectCheckout, generateQrSvg } from "#shared/qr.ts";
+import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import type {
   AdminEventQrResult,
   AdminEventQrValues,

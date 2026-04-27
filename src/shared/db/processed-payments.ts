@@ -13,10 +13,10 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
-import { decrypt, encrypt } from "#lib/crypto/encryption.ts";
-import { getDb, insert, queryOne } from "#lib/db/client.ts";
-import { STALE_RESERVATION_MS } from "#lib/limits.ts";
-import { nowIso, nowMs } from "#lib/now.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { getDb, insert, queryOne } from "#shared/db/client.ts";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
 
 export { STALE_RESERVATION_MS };
 

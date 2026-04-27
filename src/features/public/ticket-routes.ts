@@ -2,13 +2,16 @@
  * Route definitions, endpoint handlers, and the routeTicket router
  */
 
-import { getEffectiveDomain } from "#lib/config.ts";
-import { getEventWithCountBySlug } from "#lib/db/events.ts";
-import { computeGroupSlugIndex, getGroupBySlugIndex } from "#lib/db/groups.ts";
-import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
-import { generateQrSvg } from "#lib/qr.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { getEventWithCountBySlug } from "#shared/db/events.ts";
+import {
+  computeGroupSlugIndex,
+  getGroupBySlugIndex,
+} from "#shared/db/groups.ts";
+import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
+import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";

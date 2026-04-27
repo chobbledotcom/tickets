@@ -3,12 +3,12 @@
  */
 
 import { compact, filter, map, pipe } from "#fp";
+import { isRegistrationClosed } from "#routes/format.ts";
 import type {
   QuestionEventMap,
   QuestionWithAnswers,
-} from "#lib/db/questions.ts";
-import type { EventWithCount } from "#lib/types.ts";
-import { isRegistrationClosed } from "#routes/format.ts";
+} from "#shared/db/questions.ts";
+import type { EventWithCount } from "#shared/types.ts";
 import {
   buildTicketEvent,
   type QrPrefill,

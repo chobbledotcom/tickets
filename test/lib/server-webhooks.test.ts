@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
 import {
   answersTable,
   getAttendeeAnswersBatch,
   questionsTable,
   setEventQuestions,
-} from "#lib/db/questions.ts";
-import { setSuppressDebugLogs } from "#lib/logger.ts";
-import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
-import { handleRequest } from "#routes";
+} from "#shared/db/questions.ts";
+import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertJson,
   bookAttendee,
@@ -86,7 +86,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("returns 400 when signature verification fails", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -110,7 +112,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("acknowledges non-checkout events", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -143,7 +147,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("acknowledges webhook with unrecognized session metadata", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -189,7 +195,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -240,7 +248,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -280,14 +290,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify attendee was created with encrypted PII blob
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.pii_blob).not.toBe("");
 
         // Verify tokens ARE persisted in DB (webhook stores them for redirect to consume)
         const { isSessionProcessed } = await import(
-          "#lib/db/processed-payments.ts"
+          "#shared/db/processed-payments.ts"
         );
         const record = await isSessionProcessed("cs_webhook_test");
         expect(record?.ticket_tokens).not.toBe("");
@@ -310,7 +320,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -354,7 +366,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify attendees were created for both events
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
@@ -410,7 +422,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook returns error for invalid multi-ticket items", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -462,7 +476,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         paymentId: "pi_first",
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -523,7 +539,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Pre-reserve the session to simulate concurrent processing
       const { reserveSession: reserveSessionFn } = await import(
-        "#lib/db/processed-payments.ts"
+        "#shared/db/processed-payments.ts"
       );
       await reserveSessionFn("cs_webhook_concurrent");
 
@@ -639,7 +655,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         // Verify attendee was created with quantity 0, not silently converted to 1
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(0);
@@ -733,7 +749,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -772,7 +790,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify attendee was created with encrypted PII blob
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.pii_blob).not.toBe("");
@@ -784,7 +802,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook with non-array items in multi-ticket returns null", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -824,7 +844,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook with missing items in multi-ticket metadata acknowledges without processing", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -878,7 +900,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Pre-reserve the session to simulate concurrent processing
       const { reserveSession: reserveSessionFn } = await import(
-        "#lib/db/processed-payments.ts"
+        "#shared/db/processed-payments.ts"
       );
       await reserveSessionFn("cs_multi_concurrent");
 
@@ -917,7 +939,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Pre-reserve the session to simulate concurrent processing
       const { reserveSession: reserveSessionFn } = await import(
-        "#lib/db/processed-payments.ts"
+        "#shared/db/processed-payments.ts"
       );
       await reserveSessionFn("cs_single_concurrent");
 
@@ -979,7 +1001,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
@@ -1024,7 +1046,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(
@@ -1116,7 +1138,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       // Mock atomic create to return encryption error
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
           reason: "encryption_error",
@@ -1205,13 +1227,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const {
         reserveSession: reserveSessionFn,
         finalizeSession: finalizeSessionFn,
-      } = await import("#lib/db/processed-payments.ts");
+      } = await import("#shared/db/processed-payments.ts");
       await reserveSessionFn("cs_multi_already_done");
       await finalizeSessionFn("cs_multi_already_done", attendee.id, [
         attendee.ticket_token,
       ]);
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1268,7 +1292,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       await deactivateTestEvent(event2.id);
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1316,7 +1342,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
@@ -1345,7 +1371,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         quantity: 1,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1393,7 +1421,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
@@ -1405,7 +1433,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook handles non-checkout event type by acknowledging", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1460,7 +1490,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 300,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1520,7 +1552,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         answersTable,
         setEventQuestions,
         getAttendeeAnswersBatch,
-      } = await import("#lib/db/questions.ts");
+      } = await import("#shared/db/questions.ts");
       const q = await questionsTable.insert({ text: "Size?" });
       const a = await answersTable.insert({
         questionId: q.id,
@@ -1529,7 +1561,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       await setEventQuestions(event1.id, [q.id]);
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1566,7 +1600,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         // Verify answers were saved for the created attendee
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(1);
         const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
@@ -1580,7 +1614,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket webhook handles event not found without refund", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1648,7 +1684,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         quantity: 1,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1723,11 +1761,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const {
         reserveSession: reserveSessionFn,
         finalizeSession: finalizeSessionFn,
-      } = await import("#lib/db/processed-payments.ts");
+      } = await import("#shared/db/processed-payments.ts");
       await reserveSessionFn("cs_del_event_wh");
       await finalizeSessionFn("cs_del_event_wh", attResult.attendees[0]!.id);
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       // Use a non-existent event_id in metadata to trigger "Event not found" in alreadyProcessedResult
       const mockVerify = stub(
         stripePaymentProvider,
@@ -1780,7 +1820,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       await deactivateTestEvent(event.id);
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1832,7 +1874,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Session with missing items: metadata has _origin but no items field,
       // which means the session data is invalid.
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1893,7 +1937,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // Mock paymentsApi.getConfiguredProvider to return "stripe" on first call
       // (for webhook handler's initial check) then null on second call (for tryRefund).
       // This covers lines 135-141 where tryRefund has a payment reference but no provider.
-      const { paymentsApi } = await import("#lib/payments.ts");
+      const { paymentsApi } = await import("#shared/payments.ts");
       const origGetConfigured = paymentsApi.getConfiguredProvider;
       let callCount = 0;
       const mockGetConfigured = stub(
@@ -1906,7 +1950,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         },
       );
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -1959,7 +2005,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       // event2 does not exist (id 99999) — validation fails before any attendees are created
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2006,7 +2054,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(mockRefund.calls.length).toBe(0);
 
         // No attendees created (validation fails before creation pass)
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(0);
       } finally {
@@ -2047,7 +2095,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
@@ -2091,7 +2139,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
@@ -2109,7 +2157,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // Event type matches checkoutCompletedEventType but data lacks metadata
       // so extractSessionFromEvent returns null (covers lines 498-500)
       // and data object has no id/order_id so sessionId is null (covers lines 597-602)
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2148,7 +2198,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook returns pending when resolveWebhookSession returns skip", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2188,7 +2240,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook acknowledges when resolveWebhookSession returns null", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2236,7 +2290,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Mock createAttendeeAtomic to always fail with capacity_exceeded on first try
       // so createdAttendees stays empty and we hit lines 309-310
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
           reason: "capacity_exceeded",
@@ -2287,7 +2341,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
           reason: "capacity_exceeded",
@@ -2337,7 +2391,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2390,7 +2446,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 2500,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2428,7 +2486,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(
@@ -2449,7 +2507,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // amountTotal (1200) differs from expectedPrice (1000 * 1 = 1000)
       // Price changed after checkout was created — should refund
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2496,7 +2556,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify no attendee was created
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(0);
 
@@ -2524,7 +2584,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
       // Price changed after checkout was created — should refund
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2574,7 +2636,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify no attendees were created
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(0);
@@ -2627,7 +2689,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         await expectHtmlResponse(response, 409, "price", "changed", "refunded");
 
         // Verify no attendee was created
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(0);
 
@@ -2647,7 +2709,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2685,7 +2749,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
       } finally {
@@ -2701,7 +2765,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2739,7 +2805,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
       } finally {
@@ -2810,7 +2876,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2874,7 +2942,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2923,7 +2993,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify event1 attendee was rolled back
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
@@ -2958,7 +3028,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 300,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3001,7 +3073,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify daily event attendee has the date set
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(1);
         expect(attendees1[0]?.date).toBe("2026-02-10");
@@ -3024,7 +3096,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook ignores session with no _origin marker", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3076,7 +3150,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook ignores session with wrong _origin marker", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3127,7 +3203,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook ignores unrecognized session via fallback retrieval path", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3201,7 +3279,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
       await deactivateTestEvent(event.id);
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3255,7 +3335,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(refundLog).toBeDefined();
 
         // Verify refund was logged to activity log tagged to event
-        const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+        const { getEventActivityLog } = await import(
+          "#shared/db/activityLog.ts"
+        );
         const entries = await getEventActivityLog(event.id);
         const refundEntry = entries.find((e) =>
           e.message.includes("Automatic refund"),
@@ -3281,7 +3363,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3320,7 +3404,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         expect(response.status).toBe(200);
 
-        const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+        const { getEventActivityLog } = await import(
+          "#shared/db/activityLog.ts"
+        );
         const entries = await getEventActivityLog(event.id);
         const refundEntry = entries.find((e) =>
           e.message.includes("Automatic refund"),
@@ -3343,7 +3429,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3382,7 +3470,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify attendee was created with the actual amount paid (2500), not the minimum (1000)
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(
@@ -3410,7 +3498,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       // Event1 base 500, user entered 2000; Event2 base 1000, stays 1000
       // Total: 2000 + 1000 = 3000
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3452,7 +3542,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify both attendees were created with correct per-item prices
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
@@ -3483,7 +3573,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       // Same metadata shape as the pay-more test, but event1 has can_pay_more=false
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3545,7 +3637,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3604,7 +3698,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3662,7 +3758,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3710,7 +3808,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3758,7 +3858,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       // p=500 but event costs 1000*1=1000, and event is not can_pay_more
       const mockVerify = stub(
         stripePaymentProvider,
@@ -3818,7 +3920,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       // p=2000 is valid for can_pay_more (>= 1000), but amountTotal=1500 != sum(p)=2000
       const mockVerify = stub(
         stripePaymentProvider,
@@ -3881,7 +3985,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -3920,7 +4026,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify one attendee record was created (quantity=2 is stored on the record)
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]!.quantity).toBe(2);
@@ -3941,7 +4047,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -4029,7 +4137,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // One event is paid, so this triggers the payment flow.
       // Stub checkout creation to avoid flaky stripe-mock HTTP calls under
       // high concurrency — this test verifies webhook processing, not checkout.
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockCreate = stub(
         stripePaymentProvider,
         "createCheckoutSession",
@@ -4096,7 +4206,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         // Verify attendees were created
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const att1 = await getAttendeesRaw(event1.id);
         const att2 = await getAttendeesRaw(event2.id);
         expect(att1.length).toBe(1);
@@ -4163,7 +4273,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
 
