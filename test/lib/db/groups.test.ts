@@ -383,6 +383,67 @@ describeWithEnv("db > groups", { db: true }, () => {
       expect(await hasAvailableSpots(event.id, 1)).toBe(false);
     });
 
+    test("checkBatchAvailability rejects when one group is full and another has room", async () => {
+      const { e1: fullGroupEvent } = await createCappedGroupWithEvents(
+        2,
+        "full-grp",
+      );
+      const { e1: openGroupEvent } = await createCappedGroupWithEvents(
+        10,
+        "open-grp",
+      );
+
+      await book(fullGroupEvent.id, 2);
+
+      expect(
+        await checkBatchAvailability([
+          { eventId: fullGroupEvent.id, quantity: 1 },
+          { eventId: openGroupEvent.id, quantity: 1 },
+        ]),
+      ).toBe(false);
+
+      expect(
+        await checkBatchAvailability([
+          { eventId: openGroupEvent.id, quantity: 1 },
+        ]),
+      ).toBe(true);
+    });
+  });
+
+  describe("group remaining helpers", () => {
+    /** Build the same capped-group fixture used by the capacity tests. */
+    const createCappedGroupWithEvents = async (
+      groupMax: number,
+      slug: string,
+      overrides?: { eventType?: "standard" | "daily" },
+    ) => {
+      const group = await createTestGroup({
+        maxAttendees: groupMax,
+        name: slug,
+        slug,
+      });
+      const e1 = await createTestEvent({
+        eventType: overrides?.eventType,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `${slug}-a`,
+      });
+      const e2 = await createTestEvent({
+        eventType: overrides?.eventType,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `${slug}-b`,
+      });
+      return { e1, e2, group };
+    };
+
+    const book = (eventId: number, quantity: number, date?: string) =>
+      createAttendeeAtomic({
+        bookings: [{ date, eventId, quantity }],
+        email: `g${eventId}q${quantity}@example.com`,
+        name: `g-${eventId}-${quantity}`,
+      });
+
     test("getGroupRemainingByGroupId returns spots remaining for capped groups", async () => {
       const { e1, group } = await createCappedGroupWithEvents(5, "remaining");
       await book(e1.id, 2);
@@ -457,32 +518,6 @@ describeWithEnv("db > groups", { db: true }, () => {
         name: "no-group",
       });
       expect(await getGroupRemainingForEvent(ungrouped)).toBeUndefined();
-    });
-
-    test("checkBatchAvailability rejects when one group is full and another has room", async () => {
-      const { e1: fullGroupEvent } = await createCappedGroupWithEvents(
-        2,
-        "full-grp",
-      );
-      const { e1: openGroupEvent } = await createCappedGroupWithEvents(
-        10,
-        "open-grp",
-      );
-
-      await book(fullGroupEvent.id, 2);
-
-      expect(
-        await checkBatchAvailability([
-          { eventId: fullGroupEvent.id, quantity: 1 },
-          { eventId: openGroupEvent.id, quantity: 1 },
-        ]),
-      ).toBe(false);
-
-      expect(
-        await checkBatchAvailability([
-          { eventId: openGroupEvent.id, quantity: 1 },
-        ]),
-      ).toBe(true);
     });
   });
 });

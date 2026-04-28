@@ -405,13 +405,14 @@ export type TicketEvent = {
 };
 
 /** Build ticket event info from event.
- * When the event belongs to a group with a max_attendees limit, pass the
- * group's remaining capacity so the displayed sold-out state and purchasable
- * quantity reflect the smaller of the per-event and group-wide limits. */
+ * Pass `groupRemaining` when the event belongs to a group with a
+ * `max_attendees` limit so the displayed sold-out state and purchasable
+ * quantity reflect the smaller of the per-event and group-wide limits.
+ * Pass `undefined` when no group cap applies. */
 export const buildTicketEvent = (
   event: EventWithCount,
-  closed = false,
-  groupRemaining?: number,
+  closed: boolean,
+  groupRemaining: number | undefined,
 ): TicketEvent => {
   const eventRemaining = event.max_attendees - event.attendee_count;
   const spotsRemaining =

@@ -74,14 +74,15 @@ export type PublicEvent = {
 };
 
 /** Serialize an event to the public API shape (same data the web UI renders).
- * When the event belongs to a group with a max_attendees limit, pass the
- * group's remaining capacity so the API reports the group-aware sold-out
- * state. */
+ * Pass `groupRemaining` when the event belongs to a group with a
+ * `max_attendees` limit so the API reports the group-aware sold-out state;
+ * pass `undefined` when no group cap applies. `availableDates` is included
+ * only for daily events. */
 export const toPublicEvent = (
   event: EventWithCount,
-  closed = false,
-  availableDates?: string[],
-  groupRemaining?: number,
+  closed: boolean,
+  availableDates: string[] | undefined,
+  groupRemaining: number | undefined,
 ): PublicEvent => {
   const eventRemaining = event.max_attendees - event.attendee_count;
   const spotsRemaining =

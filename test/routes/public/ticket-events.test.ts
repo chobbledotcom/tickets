@@ -1,14 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getActiveEventsByGroupId } from "#lib/db/groups.ts";
-import {
-  buildTicketEventsForGroup,
-  buildTicketEventsWithGroupCapacity,
-} from "#routes/public/ticket-events.ts";
+import { buildTicketEventsWithGroupCapacity } from "#routes/public/ticket-events.ts";
 import {
   bookAttendee,
   createTestEvent,
   createTestGroup,
+  deactivateTestEvent,
   describeWithEnv,
 } from "#test-utils";
 
@@ -61,90 +59,35 @@ describeWithEnv("routes > public > ticket-events", { db: true }, () => {
       expect(ticketEvent!.isSoldOut).toBe(false);
       expect(ticketEvent!.event.id).toBe(e1.id);
     });
-  });
 
-  describe("buildTicketEventsForGroup", () => {
-    test("clamps spots using group's max minus summed attendee counts", async () => {
+    test("counts attendees on inactive sibling events toward group cap", async () => {
       const group = await createTestGroup({
-        maxAttendees: 5,
-        name: "for-group",
-        slug: "for-group",
+        maxAttendees: 4,
+        name: "inactive-sibling",
+        slug: "inactive-sibling",
       });
-      const e1 = await createTestEvent({
+      const inactive = await createTestEvent({
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 10,
-        name: "for-group-a",
+        name: "inactive-event",
       });
-      const e2 = await createTestEvent({
+      const active = await createTestEvent({
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 10,
-        name: "for-group-b",
+        name: "active-event",
       });
-      await bookAttendee(e1, { email: "y@test.com", name: "Y" });
-      await bookAttendee(e1, { email: "z@test.com", name: "Z" });
+      await bookAttendee(inactive, { email: "p@test.com", name: "P" });
+      await bookAttendee(inactive, { email: "q@test.com", name: "Q" });
+      await deactivateTestEvent(inactive.id);
 
+      // Only the active event reaches the public group page, but the two
+      // attendees on the inactive event still consume two spots of group cap.
       const events = await getActiveEventsByGroupId(group.id);
-      const ticketEvents = buildTicketEventsForGroup(group, events);
-      const ea = ticketEvents.find((t) => t.event.id === e1.id)!;
-      const eb = ticketEvents.find((t) => t.event.id === e2.id)!;
-      expect(ea.maxPurchasable).toBe(3);
-      expect(eb.maxPurchasable).toBe(3);
-    });
-
-    test("skips group cap when group is daily", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 1,
-        name: "for-group-daily",
-        slug: "for-group-daily",
-      });
-      await createTestEvent({
-        eventType: "daily",
-        groupId: group.id,
-        maxAttendees: 10,
-        maxQuantity: 4,
-        name: "for-group-daily-a",
-      });
-      const events = await getActiveEventsByGroupId(group.id);
-      const [ticketEvent] = buildTicketEventsForGroup(group, events);
-      expect(ticketEvent!.maxPurchasable).toBe(4);
-    });
-
-    test("skips group cap when group has no max set", async () => {
-      const group = await createTestGroup({
-        name: "for-group-uncapped",
-        slug: "for-group-uncapped",
-      });
-      await createTestEvent({
-        groupId: group.id,
-        maxAttendees: 8,
-        maxQuantity: 8,
-        name: "for-group-uncapped-a",
-      });
-      const events = await getActiveEventsByGroupId(group.id);
-      const [ticketEvent] = buildTicketEventsForGroup(group, events);
-      expect(ticketEvent!.maxPurchasable).toBe(8);
-    });
-
-    test("clamps remaining at zero when overbooked", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 1,
-        name: "for-group-overbooked",
-        slug: "for-group-overbooked",
-      });
-      const event = await createTestEvent({
-        groupId: group.id,
-        maxAttendees: 10,
-        maxQuantity: 10,
-        name: "for-group-overbooked-a",
-      });
-      await bookAttendee(event, { email: "aa@test.com", name: "AA" });
-
-      const events = await getActiveEventsByGroupId(group.id);
-      const [ticketEvent] = buildTicketEventsForGroup(group, events);
-      expect(ticketEvent!.isSoldOut).toBe(true);
-      expect(ticketEvent!.maxPurchasable).toBe(0);
+      expect(events.map((e) => e.id)).toEqual([active.id]);
+      const [ticketEvent] = await buildTicketEventsWithGroupCapacity(events);
+      expect(ticketEvent!.maxPurchasable).toBe(2);
     });
   });
 });

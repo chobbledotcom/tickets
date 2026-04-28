@@ -12,6 +12,7 @@ import type {
 import { buildCapacityCondition, dateToRange } from "#lib/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
+import type { EventType } from "#lib/types.ts";
 
 /** Shared failure result for capacity-exceeded */
 export const CAPACITY_EXCEEDED = {
@@ -144,7 +145,7 @@ export const getGroupRemainingByGroupId = async (
 type EventForGroupLookup = {
   id: number;
   group_id: number;
-  event_type: string;
+  event_type: EventType;
 };
 
 /**

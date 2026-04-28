@@ -81,7 +81,7 @@ describeWithEnv(
       const event = testEventWithCount({ attendee_count: 0 });
       const html = ticketPage({
         dates: [],
-        events: [buildTicketEvent(event)],
+        events: [buildTicketEvent(event, false, undefined)],
         slugs: [event.slug],
       });
       expect(html).toContain("Registration closed.");
