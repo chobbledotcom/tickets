@@ -1,0 +1,23 @@
+/** Spelled-out small numbers for descriptions */
+export const NUMBER_WORDS = [
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "seventeen",
+  "twenty-one",
+  "thirty",
+  "an alarming number of",
+  "an undisclosed number of",
+  "no fewer than four",
+  "approximately seven",
+  "exactly one",
+] as const;
