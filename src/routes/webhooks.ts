@@ -39,7 +39,10 @@ import {
 } from "#lib/payments.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import { formatCreationError, isRegistrationClosed } from "#routes/format.ts";
+import {
+  capacityErrorFormatter,
+  isRegistrationClosed,
+} from "#routes/format.ts";
 import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import {
@@ -299,17 +302,12 @@ const hasPriceMismatch = (
 };
 
 /** Format error for post-payment attendee creation failure */
-const formatPostPaymentError = (
-  reason: "capacity_exceeded" | "encryption_error",
-  eventName = "",
-): string =>
-  formatCreationError(
-    "Sorry, this event sold out while you were completing payment.",
-    (name) => `Sorry, ${name} sold out while you were completing payment.`,
-    "Registration failed.",
-    reason,
-    eventName,
-  );
+const formatPostPaymentError = capacityErrorFormatter({
+  fallback: "Registration failed.",
+  generic: "Sorry, this event sold out while you were completing payment.",
+  withName: (name) =>
+    `Sorry, ${name} sold out while you were completing payment.`,
+});
 
 /** Return success result for an already-processed session.
  * Accepts a finalized payment record where attendee_id is guaranteed non-null. */

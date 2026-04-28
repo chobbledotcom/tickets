@@ -10,19 +10,27 @@ export const isRegistrationClosed = (event: {
 }): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < nowMs();
 
-/** Format an attendee creation failure (capacity_exceeded / encryption_error).
- * Dispatches on reason and optional eventName. */
-export const formatCreationError = (
-  capacityMsg: string,
-  capacityMsgWithName: (name: string) => string,
-  fallbackMsg: string,
-  reason: "capacity_exceeded" | "encryption_error",
-  eventName: string,
-): string => {
-  if (reason !== "capacity_exceeded") return fallbackMsg;
-  if (eventName) return capacityMsgWithName(eventName);
-  return capacityMsg;
-};
+/**
+ * Build a formatter for capacity-related attendee creation errors.
+ * Returns a function `(reason, eventName) => message` that picks one of three
+ * messages based on the failure reason and whether an event name is known.
+ */
+export const capacityErrorFormatter =
+  (messages: {
+    /** Returned when the failure isn't capacity-related (e.g. encryption_error). */
+    fallback: string;
+    /** Returned for capacity_exceeded when no event name is available. */
+    generic: string;
+    /** Returned for capacity_exceeded with a known event name. */
+    withName: (name: string) => string;
+  }) =>
+  (
+    reason: "capacity_exceeded" | "encryption_error",
+    eventName = "",
+  ): string => {
+    if (reason !== "capacity_exceeded") return messages.fallback;
+    return eventName ? messages.withName(eventName) : messages.generic;
+  };
 
 /** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
 export const formatCountdown = (closesAt: string): string => {

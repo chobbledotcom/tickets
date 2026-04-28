@@ -13,7 +13,7 @@ import { settings } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
-import { formatCreationError } from "#routes/format.ts";
+import { capacityErrorFormatter } from "#routes/format.ts";
 import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertJson,
@@ -2664,27 +2664,23 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
   });
 
-  describe("formatCreationError", () => {
-    test("returns event-specific message for capacity_exceeded with event name", () => {
-      const result = formatCreationError(
-        "generic",
-        (name) => `${name} is full`,
-        "fallback",
-        "capacity_exceeded",
-        "My Event",
-      );
-      expect(result).toBe("My Event is full");
+  describe("capacityErrorFormatter", () => {
+    const format = capacityErrorFormatter({
+      fallback: "fallback",
+      generic: "generic",
+      withName: (name) => `${name} is full`,
     });
 
-    test("returns generic capacity message when event name is empty", () => {
-      const result = formatCreationError(
-        "generic",
-        (name) => `${name} is full`,
-        "fallback",
-        "capacity_exceeded",
-        "",
-      );
-      expect(result).toBe("generic");
+    test("returns the named message for capacity_exceeded with an event name", () => {
+      expect(format("capacity_exceeded", "My Event")).toBe("My Event is full");
+    });
+
+    test("returns the generic capacity message when no event name is given", () => {
+      expect(format("capacity_exceeded", "")).toBe("generic");
+    });
+
+    test("returns the fallback for non-capacity reasons", () => {
+      expect(format("encryption_error", "My Event")).toBe("fallback");
     });
   });
 
