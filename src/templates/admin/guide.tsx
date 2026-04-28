@@ -645,18 +645,18 @@ export const adminGuidePage = (
           </p>
           <p>
             Imagine if we <em>did</em> hold places during checkout. A sneaky
-            person could write a small program that opens the checkout page
-            over and over, grabbing every place, without ever paying. Real
-            visitors would see &ldquo;sold out&rdquo; even though nobody had
-            actually bought anything. When the holds expired, the program
-            could grab them all again. This is how ticket scalpers cause
-            problems on bigger sites.
+            person could write a small program that opens the checkout page over
+            and over, grabbing every place, without ever paying. Real visitors
+            would see &ldquo;sold out&rdquo; even though nobody had actually
+            bought anything. When the holds expired, the program could grab them
+            all again. This is how ticket scalpers cause problems on bigger
+            sites.
           </p>
           <p>
-            Because places only count once payment is finished, the only way
-            to &ldquo;hold&rdquo; a place is to actually pay for it. Real
-            money has to change hands &mdash; so the trick above doesn't
-            work, and real visitors get a fair chance at the tickets.
+            Because places only count once payment is finished, the only way to
+            &ldquo;hold&rdquo; a place is to actually pay for it. Real money has
+            to change hands &mdash; so the trick above doesn't work, and real
+            visitors get a fair chance at the tickets.
           </p>
           <p>
             The trade-off: very rarely, two people can finish paying for the
@@ -668,11 +668,11 @@ export const adminGuidePage = (
 
         <Q q="What if the event sells out while someone is paying?">
           <p>
-            If someone completes payment but the event has since sold out,
-            they are automatically refunded. They'll see a message explaining
-            the event is full and that their payment has been returned. This
-            is rare but possible &mdash; it's the trade-off described in the
-            previous question.
+            If someone completes payment but the event has since sold out, they
+            are automatically refunded. They'll see a message explaining the
+            event is full and that their payment has been returned. This is rare
+            but possible &mdash; it's the trade-off described in the previous
+            question.
           </p>
         </Q>
 
