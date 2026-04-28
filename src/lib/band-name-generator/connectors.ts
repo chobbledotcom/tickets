@@ -1,0 +1,21 @@
+/** Prepositional phrases connecting clauses without being entirely hard-coded */
+export const CONNECTORS = [
+  "with",
+  "featuring",
+  "accompanied by",
+  "fuelled by",
+  "propelled by",
+  "soundtracked by",
+  "garnished with",
+  "interrupted by",
+  "haunted by",
+  "supported by",
+  "underwritten by",
+  "invigilated by",
+  "officiated by",
+  "narrated by",
+  "punctuated by",
+  "occasionally upstaged by",
+  "loosely supervised by",
+  "barely tolerated by",
+] as const;

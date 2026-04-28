@@ -1,11 +1,70 @@
 /**
- * Procedural rock/heavy-metal band-name and venue generator for sample data.
+ * Procedural rock/heavy-metal band-name, venue, and gig-description
+ * generator for sample data.
  *
- * Combines large pools of weird adjectives, nouns, person names, suffixes,
- * venue types, and festival words via a small set of grammatical patterns.
- * All randomness flows through a seeded PRNG (mulberry32) so the same seed
- * produces the same names across runs — handy for tests and stable demos.
+ * Word pools live as one-file-per-list under `band-name-generator/`. This
+ * module composes them with a small set of slot-heavy templates and a
+ * seeded PRNG (mulberry32) so every output is deterministic given a seed
+ * yet the variety is enormous.
  */
+
+import { BAND_ADJECTIVES } from "#lib/band-name-generator/adjectives.ts";
+import { AGE_NOTES } from "#lib/band-name-generator/age-notes.ts";
+import { AUDIENCE_OUTCOMES } from "#lib/band-name-generator/audience-outcomes.ts";
+import { BAND_DESCRIPTORS } from "#lib/band-name-generator/band-descriptors.ts";
+import { BAND_VERBS } from "#lib/band-name-generator/band-verbs.ts";
+import { BUILDING_STATES } from "#lib/band-name-generator/building-states.ts";
+import { CONNECTORS } from "#lib/band-name-generator/connectors.ts";
+import { CROSSOVERS } from "#lib/band-name-generator/crossovers.ts";
+import { EVENT_TYPES } from "#lib/band-name-generator/event-types.ts";
+import { FESTIVAL_TYPES } from "#lib/band-name-generator/festival-types.ts";
+import { GENRES } from "#lib/band-name-generator/genres.ts";
+import { INTENSITIES } from "#lib/band-name-generator/intensities.ts";
+import { NOISE_VERBS } from "#lib/band-name-generator/noise-verbs.ts";
+import { BAND_NOUNS } from "#lib/band-name-generator/nouns.ts";
+import { NUMBER_WORDS } from "#lib/band-name-generator/number-words.ts";
+import { ODD_INSTRUMENTS } from "#lib/band-name-generator/odd-instruments.ts";
+import { BAND_PERSON_NAMES } from "#lib/band-name-generator/person-names.ts";
+import { PRIZES } from "#lib/band-name-generator/prizes.ts";
+import { PROHIBITIONS } from "#lib/band-name-generator/prohibitions.ts";
+import { REQUIREMENTS } from "#lib/band-name-generator/requirements.ts";
+import { SHOW_ITEMS } from "#lib/band-name-generator/show-items.ts";
+import { BAND_SUFFIXES } from "#lib/band-name-generator/suffixes.ts";
+import { TIMES } from "#lib/band-name-generator/times.ts";
+import { TOUR_ADJECTIVES } from "#lib/band-name-generator/tour-adjectives.ts";
+import { VENUE_TYPES } from "#lib/band-name-generator/venue-types.ts";
+import { WEIRD_VENUES } from "#lib/band-name-generator/weird-venues.ts";
+
+// Re-export every pool so existing call sites and tests can keep using
+// `import { BAND_ADJECTIVES } from "#lib/band-name-generator.ts"`.
+export {
+  AGE_NOTES,
+  AUDIENCE_OUTCOMES,
+  BAND_ADJECTIVES,
+  BAND_DESCRIPTORS,
+  BAND_NOUNS,
+  BAND_PERSON_NAMES,
+  BAND_SUFFIXES,
+  BAND_VERBS,
+  BUILDING_STATES,
+  CONNECTORS,
+  CROSSOVERS,
+  EVENT_TYPES,
+  FESTIVAL_TYPES,
+  GENRES,
+  INTENSITIES,
+  NOISE_VERBS,
+  NUMBER_WORDS,
+  ODD_INSTRUMENTS,
+  PRIZES,
+  PROHIBITIONS,
+  REQUIREMENTS,
+  SHOW_ITEMS,
+  TIMES,
+  TOUR_ADJECTIVES,
+  VENUE_TYPES,
+  WEIRD_VENUES,
+};
 
 /** A pseudo-random function returning a value in [0, 1) */
 export type Rand = () => number;
@@ -30,661 +89,23 @@ export const pickFrom = <T>(rand: Rand, arr: readonly T[]): T =>
   arr[Math.floor(rand() * arr.length)]!;
 
 // ---------------------------------------------------------------------------
-// Word pools
-// ---------------------------------------------------------------------------
-
-/** Weird, evocative adjectives suitable for metal/rock band names */
-export const BAND_ADJECTIVES = [
-  "Brutal",
-  "Equine",
-  "Mystic",
-  "Screaming",
-  "Savage",
-  "Eternal",
-  "Forbidden",
-  "Cursed",
-  "Crystal",
-  "Velvet",
-  "Iron",
-  "Black",
-  "Crimson",
-  "Ghastly",
-  "Howling",
-  "Roaring",
-  "Whispering",
-  "Burning",
-  "Frozen",
-  "Molten",
-  "Electric",
-  "Toxic",
-  "Radioactive",
-  "Phantom",
-  "Spectral",
-  "Skeletal",
-  "Demonic",
-  "Angelic",
-  "Holy",
-  "Unholy",
-  "Profane",
-  "Sacred",
-  "Vengeful",
-  "Wretched",
-  "Tragic",
-  "Tortured",
-  "Twisted",
-  "Bleeding",
-  "Pale",
-  "Withered",
-  "Reanimated",
-  "Drunken",
-  "Feral",
-  "Rabid",
-  "Mighty",
-  "Tyrannical",
-  "Imperial",
-  "Royal",
-  "Divine",
-  "Apocalyptic",
-  "Cosmic",
-  "Lunar",
-  "Solar",
-  "Stellar",
-  "Astral",
-  "Voidborn",
-  "Infernal",
-  "Diabolical",
-  "Sinister",
-  "Cataclysmic",
-  "Volcanic",
-  "Glacial",
-  "Granite",
-  "Marbled",
-  "Gilded",
-  "Tarnished",
-  "Mercurial",
-  "Mongolian",
-  "Jurassic",
-  "Chrome",
-  "Diesel",
-  "Atomic",
-  "Neon",
-  "Plastic",
-  "Wooden",
-  "Rusted",
-  "Festering",
-  "Slithering",
-  "Glowing",
-  "Magnetic",
-  "Thunderous",
-  "Subterranean",
-  "Hyperborean",
-  "Perpetual",
-  "Hooded",
-  "Velour",
-  "Magic",
-  "Naked",
-  "Hidden",
-  "Drowning",
-  "Choking",
-  "Greasy",
-  "Dusty",
-  "Rotting",
-  "Yelping",
-  "Polite",
-  "Ancient",
-  "Vintage",
-  "Final",
-  "Last",
-] as const;
-
-/** Concrete and abstract nouns that work as band-name subjects */
-export const BAND_NOUNS = [
-  "Fox",
-  "Garlic",
-  "Handshake",
-  "Hand",
-  "Wolf",
-  "Raven",
-  "Crow",
-  "Vulture",
-  "Spider",
-  "Scorpion",
-  "Serpent",
-  "Dragon",
-  "Hydra",
-  "Kraken",
-  "Octopus",
-  "Shark",
-  "Whale",
-  "Phoenix",
-  "Griffin",
-  "Behemoth",
-  "Tomb",
-  "Tower",
-  "Crypt",
-  "Cathedral",
-  "Temple",
-  "Throne",
-  "Crown",
-  "Skull",
-  "Bone",
-  "Blood",
-  "Fang",
-  "Claw",
-  "Wing",
-  "Eye",
-  "Heart",
-  "Spine",
-  "Mind",
-  "Soul",
-  "Ghost",
-  "Witch",
-  "Wizard",
-  "Warlock",
-  "Necromancer",
-  "Knight",
-  "Crusader",
-  "Marauder",
-  "Berserker",
-  "Viking",
-  "Templar",
-  "Reaper",
-  "Executioner",
-  "Hangman",
-  "Butcher",
-  "Doctor",
-  "Surgeon",
-  "Priest",
-  "Prophet",
-  "Oracle",
-  "Pilgrim",
-  "Wanderer",
-  "Vagabond",
-  "Mariner",
-  "Pirate",
-  "Monarch",
-  "Tyrant",
-  "Emperor",
-  "Beast",
-  "Hound",
-  "Stallion",
-  "Mongoose",
-  "Otter",
-  "Falcon",
-  "Eagle",
-  "Owl",
-  "Bat",
-  "Moth",
-  "Beetle",
-  "Toad",
-  "Frog",
-  "Newt",
-  "Cobra",
-  "Mantis",
-  "Hornet",
-  "Wasp",
-  "Locust",
-  "Cicada",
-  "Salmon",
-  "Pike",
-  "Eel",
-  "Squid",
-  "Tree",
-  "Forest",
-  "Mountain",
-  "River",
-  "Ocean",
-  "Storm",
-  "Tempest",
-  "Cyclone",
-  "Avalanche",
-  "Comet",
-  "Meteor",
-  "Nebula",
-  "Galaxy",
-  "Void",
-  "Abyss",
-  "Inferno",
-  "Pit",
-  "Cavern",
-  "Dungeon",
-  "Castle",
-  "Fortress",
-  "Citadel",
-  "Bastion",
-  "Hammer",
-  "Axe",
-  "Sword",
-  "Dagger",
-  "Mace",
-  "Whip",
-  "Chain",
-  "Anvil",
-  "Forge",
-  "Cauldron",
-  "Chalice",
-  "Goblet",
-  "Mirror",
-  "Compass",
-  "Lantern",
-  "Candle",
-  "Coffin",
-  "Casket",
-  "Sarcophagus",
-  "Pyre",
-  "Procession",
-  "Gallery",
-  "Pantheon",
-  "Tree",
-  "Rabbit",
-  "Badger",
-  "Goose",
-  "Duck",
-  "Pigeon",
-  "Sandwich",
-  "Onion",
-  "Turnip",
-  "Cabbage",
-  "Pickle",
-  "Trousers",
-  "Moustache",
-] as const;
-
-/** First names used for "{Adjective} {Name} and Friends"-style patterns */
-export const BAND_PERSON_NAMES = [
-  "David",
-  "Ozzy",
-  "Lemmy",
-  "Dio",
-  "Axl",
-  "Slash",
-  "Iggy",
-  "Bowie",
-  "Bruce",
-  "Eddie",
-  "Glenn",
-  "Henry",
-  "Tommy",
-  "Johnny",
-  "Ronnie",
-  "Vincent",
-  "Alice",
-  "Stevie",
-  "Jimmy",
-  "Roger",
-  "Trevor",
-  "Brian",
-  "Geoff",
-  "Maureen",
-  "Pamela",
-  "Cassandra",
-  "Susan",
-  "Beverly",
-  "Gladys",
-  "Doris",
-  "Mildred",
-  "Wilma",
-  "Bernard",
-  "Norman",
-  "Reginald",
-  "Cyril",
-  "Mortimer",
-  "Algernon",
-  "Cornelius",
-  "Bartholomew",
-] as const;
-
-/** Tail phrases that turn a noun phrase into a fully-realised band name */
-export const BAND_SUFFIXES = [
-  "of Doom",
-  "of Mercy",
-  "of Sorrow",
-  "of the Damned",
-  "of the Forsaken",
-  "and Friends",
-  "Reunited",
-  "Unleashed",
-  "Resurrected",
-  "Returns",
-  "Forever",
-  "Reborn",
-  "Triumphant",
-  "Ascendant",
-  "of the Apocalypse",
-  "of the Void",
-  "of the Storm",
-  "of the Abyss",
-  "of the North",
-  "of Chaos",
-  "of Madness",
-  "of Eternity",
-  "of the Crypt",
-  "and the Disciples",
-  "and the Acolytes",
-  "and the Pilgrims",
-  "and Sons",
-  "and Daughters",
-  "Experience",
-  "Project",
-  "Collective",
-  "Brigade",
-  "Brotherhood",
-  "Sisterhood",
-  "Cult",
-  "Coven",
-  "Convocation",
-  "Conspiracy",
-  "Manifesto",
-  "Revival",
-  "Live in Concert",
-  "MMXXVI",
-] as const;
-
-/** Indoor venue archetypes — concrete buildings/rooms */
-export const VENUE_TYPES = [
-  "Arena",
-  "Academy",
-  "Stadium",
-  "Auditorium",
-  "Hall",
-  "Theatre",
-  "Coliseum",
-  "Amphitheatre",
-  "Pavilion",
-  "Forum",
-  "Dome",
-  "Centre",
-  "Roundhouse",
-  "Tabernacle",
-  "Sanctuary",
-  "Crypt",
-  "Vault",
-  "Bunker",
-  "Warehouse",
-  "Factory",
-  "Mill",
-  "Foundry",
-  "Quarry",
-  "Depot",
-  "Garage",
-  "Lounge",
-  "Club",
-  "Den",
-  "Pit",
-  "Chamber",
-  "Ballroom",
-  "Workingmen's Club",
-  "Social Club",
-  "Working Men's Institute",
-] as const;
-
-/** Outdoor / event-style venue archetypes */
-export const FESTIVAL_TYPES = [
-  "Festival",
-  "Fest",
-  "Fair",
-  "Carnival",
-  "Convention",
-  "Summit",
-  "Showcase",
-  "Massacre",
-  "Slaughter",
-  "Bash",
-  "Jamboree",
-  "Riot",
-  "Reckoning",
-  "Pilgrimage",
-  "Procession",
-  "Reunion",
-  "Tour",
-  "Crusade",
-  "Onslaught",
-  "Weekender",
-] as const;
-
-/** Sub-genres used inside gig-description templates */
-export const GENRES = [
-  "doom",
-  "sludge",
-  "prog",
-  "hardcore",
-  "glam",
-  "thrash",
-  "death-metal",
-  "black-metal",
-  "stoner-rock",
-  "folk-metal",
-  "industrial",
-  "symphonic",
-  "hair-metal",
-  "gothic",
-  "drone",
-  "speed-metal",
-  "power-metal",
-  "psychobilly",
-  "darkwave",
-  "post-punk",
-  "shoegaze",
-  "grindcore",
-  "blackened-jazz",
-  "viking-metal",
-  "pirate-metal",
-  "doom-jazz",
-  "djent",
-  "crust-punk",
-] as const;
-
-/** Hyperbolic adjective phrases for sensory descriptions */
-export const INTENSITIES = [
-  "ear-splitting",
-  "brain-melting",
-  "head-splitting",
-  "ground-shaking",
-  "soul-crushing",
-  "deafening",
-  "earth-shattering",
-  "skin-peeling",
-  "bone-rattling",
-  "chest-thumping",
-  "thoroughly inadvisable",
-  "barely-legal",
-] as const;
-
-/** Concrete things you'd see / smell / regret at a gig */
-export const SHOW_ITEMS = [
-  "denim",
-  "leather",
-  "mead",
-  "regret",
-  "glory",
-  "smoke",
-  "lasers",
-  "dry ice",
-  "bandanas",
-  "studs",
-  "shredding solos",
-  "blast beats",
-  "double kicks",
-  "fog machines",
-  "questionable lyrics",
-  "obscure cover versions",
-  "extended drum solos",
-  "merch you'll regret on Monday",
-  "improvised pyrotechnics",
-  "spilled beer",
-] as const;
-
-/** Wildly out-of-place instruments for novelty descriptions */
-export const ODD_INSTRUMENTS = [
-  "theremin",
-  "ukulele",
-  "bagpipes",
-  "hurdy-gurdy",
-  "kazoo",
-  "glockenspiel",
-  "accordion",
-  "harp",
-  "sitar",
-  "mandolin",
-  "stylophone",
-  "didgeridoo",
-  "vacuum cleaner",
-  "Casio keyboard",
-] as const;
-
-/** Improbable buildings to be "converted into" a venue */
-export const WEIRD_VENUES = [
-  "lift shaft",
-  "granary",
-  "bus depot",
-  "brewery vat",
-  "postal sorting office",
-  "cattle market",
-  "abandoned multi-storey",
-  "decommissioned chapel",
-  "1980s leisure centre",
-  "shipping container",
-  "village butcher's freezer",
-  "art-deco cinema",
-  "Victorian bathhouse",
-] as const;
-
-/** Spelled-out small numbers for descriptions */
-export const NUMBER_WORDS = [
-  "two",
-  "three",
-  "four",
-  "five",
-  "six",
-  "seven",
-  "eight",
-  "twelve",
-] as const;
-
-/** Adjectives that qualify a "tour" */
-export const TOUR_ADJECTIVES = [
-  "farewell",
-  "reunion",
-  "comeback",
-  "retrospective",
-  "anniversary",
-  "definitely-the-last",
-  "victory",
-  "redemption",
-  "vengeance",
-] as const;
-
-/** Collective nouns for "the band's reputation" */
-export const BAND_DESCRIPTORS = [
-  "pioneers",
-  "warriors",
-  "legends",
-  "veterans",
-  "prophets",
-  "godfathers",
-  "stalwarts",
-  "diehards",
-  "originators",
-  "cult heroes",
-] as const;
-
-/** Themes for crossover/novelty acts */
-export const CROSSOVERS = [
-  "sea-shanty",
-  "druid",
-  "viking",
-  "pirate",
-  "robot",
-  "ghost",
-  "morris-dance",
-  "bagpipe",
-  "yodelling",
-  "yacht-rock",
-  "monster-truck",
-  "sci-fi",
-] as const;
-
-/** Verbs for "the band ___ed the venue" */
-export const NOISE_VERBS = [
-  "invade",
-  "descend on",
-  "tear through",
-  "assault",
-  "demolish",
-  "conquer",
-  "devastate",
-  "obliterate",
-  "occupy",
-  "set fire to",
-] as const;
-
-/** Audience-eligibility blurbs */
-export const AGE_NOTES = [
-  "all ages welcome",
-  "18+ only",
-  "14+ with parent",
-  "family-friendly",
-  "parental advisory in effect",
-  "strictly grown-ups",
-] as const;
-
-/** Things that are absolutely not allowed at this gig */
-export const PROHIBITIONS = [
-  "stage diving onto the pizza",
-  "phones above shoulder height",
-  "vuvuzelas",
-  "glitter cannons",
-  "throwing pints",
-  "uninvited cowbell",
-  "amateur pyrotechnics",
-  "crowdsurfing inflatables",
-  "audience requests",
-] as const;
-
-/** Items of clothing that are notionally compulsory */
-export const REQUIREMENTS = [
-  "sequins",
-  "leather",
-  "denim",
-  "mascara",
-  "hairspray",
-  "shoulder pads",
-  "bullet belts",
-  "tasselled jackets",
-  "shredded jeans",
-  "spandex",
-  "corpse paint",
-] as const;
-
-/** Karaoke / dress-up prize categories */
-export const PRIZES = [
-  "biggest hair",
-  "loudest scream",
-  "best devil horns",
-  "most convincing growl",
-  "longest air-guitar solo",
-  "deepest voice",
-  "most denim worn at once",
-  "most authentic mullet",
-] as const;
-
-/** Common gig start times */
-export const TIMES = ["6", "7", "7:30", "8", "8:30", "9", "10"] as const;
-
-// ---------------------------------------------------------------------------
 // Pattern templates
 // ---------------------------------------------------------------------------
 
 /**
- * A pool name that can appear inside a `{slot}` placeholder in a template.
- * `renderTemplate` walks the template once and substitutes each slot for a
- * fresh pick from the corresponding word pool.
+ * Lookup table mapping every `{slot}` placeholder to its word pool.
+ * `renderTemplate` walks each template once and substitutes each slot
+ * for a fresh pick from the corresponding pool.
  */
 const SLOT_POOLS: Record<string, readonly string[]> = {
   adj: BAND_ADJECTIVES,
   ageNote: AGE_NOTES,
   bandDescriptor: BAND_DESCRIPTORS,
+  bandVerb: BAND_VERBS,
+  buildingState: BUILDING_STATES,
+  connector: CONNECTORS,
   crossover: CROSSOVERS,
+  eventType: EVENT_TYPES,
   festival: FESTIVAL_TYPES,
   genre: GENRES,
   intensity: INTENSITIES,
@@ -692,6 +113,7 @@ const SLOT_POOLS: Record<string, readonly string[]> = {
   noun: BAND_NOUNS,
   number: NUMBER_WORDS,
   oddInstrument: ODD_INSTRUMENTS,
+  outcome: AUDIENCE_OUTCOMES,
   person: BAND_PERSON_NAMES,
   prize: PRIZES,
   prohibition: PROHIBITIONS,
@@ -753,28 +175,34 @@ const VENUE_PATTERNS = [
   "{person}'s {venue}",
 ] as const;
 
+// Description patterns lean heavily on slots so the connective tissue is
+// minimal — most words come from the pools and uniqueness is very high.
 const DESCRIPTION_PATTERNS = [
-  "An {intensity} night of {showItem}, {showItem}, and {showItem}",
-  "Doors at {time}, support from {number} local bands, headliners on at {time}",
-  "A {tourAdj} tour celebrating decades of riffs and regret",
-  "{genre} {bandDescriptor} return for one {tourAdj} show",
-  "All-day {genre} odyssey with {number} drum kits and at least one {oddInstrument}",
-  "{genre} triple bill — bring earplugs and a clear conscience",
-  "{genre}, {genre}, and one slightly out-of-tune {oddInstrument}",
-  "{genre} warriors {noiseVerb} the venue for a night of {showItem} and {showItem}",
-  "An unplugged evening reimagining the heaviest cuts on a single {oddInstrument}",
-  "{genre} matinee, {ageNote}, no {prohibition}",
-  "Power-ballad karaoke night, prizes for {prize}",
-  "{genre} revival showcase — {requirement} compulsory, {requirement} optional",
-  "{genre} collective performing inside a converted {weirdVenue}",
-  "{crossover} crossover act makes its triumphant debut",
-  "Symphonic {genre} night with the local orchestra and one very loud guitarist",
-  "A surprise album launch — strict no-phones policy strictly enforced",
-  "Tribute night running through the entire back catalogue, B-sides included",
-  "The reunion no one asked for and absolutely everyone will attend",
-  "{intensity} {genre} matinee — {ageNote}, no {prohibition}",
-  "Three-band bill: {genre}, {genre}, and {genre} acts assembled for one night only",
-  "{bandDescriptor} of {genre} {noiseVerb} the stage with {number} guitars",
+  "{intensity} {eventType} of {showItem}, {showItem}, and {showItem}",
+  "{intensity} {genre} {eventType} — {ageNote}, no {prohibition}",
+  "{tourAdj} {eventType} {connector} {genre} {bandDescriptor}",
+  "{genre} {bandDescriptor} {noiseVerb} the {venue}",
+  "{genre} {eventType} {connector} {number} {oddInstrument}",
+  "{number} bands, {number} {oddInstrument}s, one {buildingState} {weirdVenue}",
+  "{bandDescriptor} of {genre} {noiseVerb} the {venue} on a {eventType} of {showItem}",
+  "{intensity} {eventType} of {genre}, {genre}, and {showItem}",
+  "{genre} {eventType}, {ageNote}, no {prohibition}",
+  "{crossover} {genre} {eventType} {connector} {oddInstrument}",
+  "A {buildingState} {weirdVenue} hosts {genre} {bandDescriptor}",
+  "{genre} {eventType} — {requirement} compulsory, {requirement} optional",
+  "{genre} karaoke {eventType}, prizes for {prize}",
+  "{tourAdj} tour {connector} {outcome} and {outcome}",
+  "Doors at {time}, {genre} on at {time}, {outcome} by midnight",
+  "{genre} collective inside a {buildingState} {weirdVenue}",
+  "{bandDescriptor} {bandVerb} for one {tourAdj} {eventType}",
+  "{intensity} {genre} {eventType} {connector} {oddInstrument} solos",
+  "{genre} {bandDescriptor} {bandVerb} from the {weirdVenue}",
+  "{intensity} {showItem}, {intensity} {showItem}, one {oddInstrument}",
+  "{crossover} crossover {connector} {oddInstrument} and {showItem}",
+  "{tourAdj} {eventType} ending in {outcome}",
+  "{intensity} {genre} {connector} {requirement} and {requirement}",
+  "{number} {genre} acts {connector} {number} {oddInstrument}",
+  "{bandDescriptor} of {genre} return for one {tourAdj} {eventType}",
 ] as const;
 
 /** Generate a single band name using the supplied PRNG */
