@@ -62,26 +62,28 @@ const sendSiteAssignmentEmail = async (
       ? "Your new site is ready"
       : `Your ${assignments.length} new sites are ready`;
 
-  const siteListHtml = assignments
+  const greeting = `Your new site${
+    assignments.length > 1 ? "s are" : " is"
+  } ready!`;
+
+  const htmlList = assignments
     .map(
       (a) => `<li>${a.eventName}: <a href="${a.siteUrl}">${a.siteUrl}</a></li>`,
     )
     .join("");
 
-  const html = `<p>Your new site${
-    assignments.length > 1 ? "s are" : " is"
-  } ready!</p><ul>${siteListHtml}</ul>`;
-
-  const siteListText = assignments
+  const textList = assignments
     .map((a) => `- ${a.eventName}: ${a.siteUrl}`)
     .join("\n");
 
-  const text = `Your new site${
-    assignments.length > 1 ? "s are" : " is"
-  } ready!\n\n${siteListText}`;
-
   const replyTo = settings.businessEmail || undefined;
-  await sendEmail(config, { html, replyTo, subject, text, to });
+  await sendEmail(config, {
+    html: `<p>${greeting}</p><ul>${htmlList}</ul>`,
+    replyTo,
+    subject,
+    text: `${greeting}\n\n${textList}`,
+    to,
+  });
 };
 
 /** Assign sites and send notification email. Designed to be called via addPendingWork.
