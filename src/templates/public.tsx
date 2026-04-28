@@ -404,12 +404,17 @@ export type TicketEvent = {
   maxPurchasable: number;
 };
 
-/** Build ticket event info from event */
+/** Build ticket event info from event.
+ * When the event belongs to a group with a max_attendees limit, pass the
+ * group's remaining capacity so the displayed sold-out state and purchasable
+ * quantity reflect the smaller of the per-event and group-wide limits. */
 export const buildTicketEvent = (
   event: EventWithCount,
   closed = false,
+  groupRemaining = Number.POSITIVE_INFINITY,
 ): TicketEvent => {
-  const spotsRemaining = event.max_attendees - event.attendee_count;
+  const eventRemaining = event.max_attendees - event.attendee_count;
+  const spotsRemaining = Math.min(eventRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);

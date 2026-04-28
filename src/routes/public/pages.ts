@@ -6,18 +6,17 @@ import { getAllGroups } from "#lib/db/groups.ts";
 import { settings } from "#lib/db/settings.ts";
 import { loadSortedEvents } from "#lib/sort-events.ts";
 import type { EventWithCount, Group } from "#lib/types.ts";
-import { isRegistrationClosed } from "#routes/format.ts";
 import {
   htmlResponse,
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
 import {
-  buildTicketEvent,
   homepagePage,
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
+import { buildTicketEventsWithGroupCapacity } from "./types.ts";
 
 /** Active+visible filter for public event listings */
 const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;
@@ -55,9 +54,7 @@ export const handlePublicEvents = (): Response | Promise<Response> =>
       loadPublicGroups(),
       loadSortedEvents(isPublicEvent),
     ]);
-    const ticketEvents = events.map((e) =>
-      buildTicketEvent(e, isRegistrationClosed(e)),
-    );
+    const ticketEvents = await buildTicketEventsWithGroupCapacity(events);
     return htmlResponse(
       homepagePage(ticketEvents, settings.websiteTitle, groups),
     );

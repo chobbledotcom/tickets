@@ -29,7 +29,7 @@ const withActiveGroupEventsBySlug = async (
     getActiveEventsByGroupId(group.id),
     getActiveHolidays(),
   ]);
-  const activeEvents = getActiveEvents(sortEvents(events, holidays));
+  const activeEvents = await getActiveEvents(sortEvents(events, holidays));
   return activeEvents.length === 0
     ? notFoundResponse()
     : handler(group, activeEvents);

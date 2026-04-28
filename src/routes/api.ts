@@ -5,10 +5,13 @@
  * with the same data and validation as the web UI.
  */
 
-import { filter, map, pipe } from "#fp";
+import { filter, pipe } from "#fp";
 import { processBooking } from "#lib/booking.ts";
 import { getAvailableDates } from "#lib/dates.ts";
-import { hasAvailableSpots } from "#lib/db/attendees.ts";
+import {
+  getGroupRemainingForEvents,
+  hasAvailableSpots,
+} from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { FormParams } from "#lib/form-data.ts";
@@ -69,13 +72,18 @@ export type PublicEvent = {
   availableDates?: string[];
 };
 
-/** Serialize an event to the public API shape (same data the web UI renders) */
+/** Serialize an event to the public API shape (same data the web UI renders).
+ * When the event belongs to a group with a max_attendees limit, pass the
+ * group's remaining capacity so the API reports the group-aware sold-out
+ * state. */
 export const toPublicEvent = (
   event: EventWithCount,
   closed = false,
   availableDates?: string[],
+  groupRemaining = Number.POSITIVE_INFINITY,
 ): PublicEvent => {
-  const spotsRemaining = event.max_attendees - event.attendee_count;
+  const eventRemaining = event.max_attendees - event.attendee_count;
+  const spotsRemaining = Math.min(eventRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
@@ -147,11 +155,19 @@ const withActiveEvent =
 const handleListEvents = async (): Promise<Response> => {
   const allEvents = await getAllEvents();
   const holidays = await getActiveHolidays();
-  const events = pipe(
+  const visibleEvents = pipe(
     filter((e: EventWithCount) => e.active && !e.hidden),
     (active: EventWithCount[]) => sortEvents(active, holidays),
-    map((e: EventWithCount) => toPublicEvent(e, isRegistrationClosed(e))),
   )(allEvents);
+  const groupRemaining = await getGroupRemainingForEvents(visibleEvents);
+  const events = visibleEvents.map((e) =>
+    toPublicEvent(
+      e,
+      isRegistrationClosed(e),
+      undefined,
+      groupRemaining.get(e.id),
+    ),
+  );
   return apiResponse({ events });
 };
 
@@ -162,7 +178,15 @@ const handleGetEvent = withActiveEvent(async (_request, event) => {
   if (event.event_type === "daily") {
     availableDates = getAvailableDates(event, await getActiveHolidays());
   }
-  return apiResponse({ event: toPublicEvent(event, closed, availableDates) });
+  const groupRemaining = await getGroupRemainingForEvents([event]);
+  return apiResponse({
+    event: toPublicEvent(
+      event,
+      closed,
+      availableDates,
+      groupRemaining.get(event.id),
+    ),
+  });
 });
 
 /** GET /api/events/:slug/availability — check if spots are available */

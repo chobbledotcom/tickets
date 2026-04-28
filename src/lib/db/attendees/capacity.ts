@@ -3,6 +3,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { unique } from "#fp";
 import type {
   BatchAvailabilityItem,
   EventBooking,
@@ -103,6 +104,56 @@ export const checkCapacityResult = (result: {
   if (!result.rowsAffected) return CAPACITY_EXCEEDED;
   invalidateEventsCache();
   return { success: true };
+};
+
+/**
+ * Compute remaining group capacity for each given group id (only for groups
+ * with a non-zero max_attendees limit). Used by the public UI/API to surface
+ * group-aware sold-out state when an event is bought outside the group URL.
+ *
+ * Note: counts attendees across all dates for daily-event groups too — same
+ * total-based semantics as the per-event display already uses. Per-date
+ * enforcement still happens at booking time via buildCapacityCondition.
+ */
+export const getGroupRemainingByGroupId = async (
+  groupIds: number[],
+): Promise<Map<number, number>> => {
+  const ids = unique(groupIds.filter((id) => id > 0));
+  if (ids.length === 0) return new Map();
+  const rows = await queryAll<{
+    group_id: number;
+    max_attendees: number;
+    count: number;
+  }>(
+    `SELECT g.id as group_id, g.max_attendees,
+            COALESCE(SUM(ea.quantity), 0) as count
+     FROM groups g
+     LEFT JOIN events e ON e.group_id = g.id
+     LEFT JOIN event_attendees ea ON ea.event_id = e.id
+     WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
+     GROUP BY g.id`,
+    ids,
+  );
+  return new Map(
+    rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
+  );
+};
+
+/**
+ * Look up group remaining capacity for a list of events. Returns a map keyed
+ * by event id (only includes events whose group has a positive max_attendees).
+ */
+export const getGroupRemainingForEvents = async (
+  events: { id: number; group_id: number }[],
+): Promise<Map<number, number>> => {
+  const groupIds = events.map((e) => e.group_id);
+  const groupMap = await getGroupRemainingByGroupId(groupIds);
+  const result = new Map<number, number>();
+  for (const event of events) {
+    const remaining = groupMap.get(event.group_id);
+    if (remaining !== undefined) result.set(event.id, remaining);
+  }
+  return result;
 };
 
 /**

@@ -42,6 +42,8 @@ export {
   getDateAttendeeCount,
   getGroupAttendeeCount,
   getGroupMaxAttendees,
+  getGroupRemainingByGroupId,
+  getGroupRemainingForEvents,
 } from "#lib/db/attendees/capacity.ts";
 export { buildAttendeeInsert } from "#lib/db/attendees/create.ts";
 export {

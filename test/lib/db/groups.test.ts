@@ -3,6 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
+  getGroupRemainingByGroupId,
+  getGroupRemainingForEvents,
   hasAvailableSpots,
 } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -378,6 +380,53 @@ describeWithEnv("db > groups", { db: true }, () => {
 
       await book(event.id, 1);
       expect(await hasAvailableSpots(event.id, 1)).toBe(false);
+    });
+
+    test("getGroupRemainingByGroupId returns spots remaining for capped groups", async () => {
+      const { e1, group } = await createCappedGroupWithEvents(5, "remaining");
+      await book(e1.id, 2);
+
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.get(group.id)).toBe(3);
+    });
+
+    test("getGroupRemainingByGroupId omits groups with no max set", async () => {
+      const group = await createTestGroup({
+        name: "unbounded",
+        slug: "unbounded",
+      });
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.has(group.id)).toBe(false);
+    });
+
+    test("getGroupRemainingByGroupId returns empty map for empty input", async () => {
+      const map = await getGroupRemainingByGroupId([]);
+      expect(map.size).toBe(0);
+    });
+
+    test("getGroupRemainingByGroupId reports zero when group is exactly full", async () => {
+      const { e1, group } = await createCappedGroupWithEvents(2, "exact-fill");
+      await book(e1.id, 2);
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.get(group.id)).toBe(0);
+    });
+
+    test("getGroupRemainingForEvents keys remaining by event id", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(6, "for-events");
+      await book(e1.id, 4);
+
+      const map = await getGroupRemainingForEvents([e1, e2]);
+      expect(map.get(e1.id)).toBe(2);
+      expect(map.get(e2.id)).toBe(2);
+    });
+
+    test("getGroupRemainingForEvents skips ungrouped events", async () => {
+      const ungrouped = await createTestEvent({
+        maxAttendees: 50,
+        name: "loner",
+      });
+      const map = await getGroupRemainingForEvents([ungrouped]);
+      expect(map.has(ungrouped.id)).toBe(false);
     });
 
     test("checkBatchAvailability rejects when one group is full and another has room", async () => {

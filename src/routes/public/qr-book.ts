@@ -8,6 +8,7 @@
  */
 
 import { getAvailableDates } from "#lib/dates.ts";
+import { getGroupRemainingForEvents } from "#lib/db/attendees.ts";
 import { getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import type { CheckoutIntent } from "#lib/payments.ts";
@@ -127,7 +128,12 @@ const dispatchVerified = async (
   if (await canSkipToCheckout(event, payload)) {
     return skipToCheckout(request, event, payload);
   }
-  const ticketEvent = buildTicketEvent(event, isRegistrationClosed(event));
+  const groupRemaining = await getGroupRemainingForEvents([event]);
+  const ticketEvent = buildTicketEvent(
+    event,
+    isRegistrationClosed(event),
+    groupRemaining.get(event.id),
+  );
   const prefill = buildPrefill(event, payload, token);
   return handleTicket(
     request,
