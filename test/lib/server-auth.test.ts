@@ -3,7 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
-import { setSkipLoginDelayForTest } from "#lib/test-overrides.ts";
+import { setSkipLoginDelay } from "#lib/test-overrides.ts";
 import { handleRequest } from "#routes";
 import {
   assertAdminHtml,
@@ -468,11 +468,11 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("login timing delay", () => {
     afterEach(() => {
-      setSkipLoginDelayForTest(true);
+      setSkipLoginDelay(true);
     });
 
     test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
-      setSkipLoginDelayForTest(false);
+      setSkipLoginDelay(false);
       const start = Date.now();
       const response = await handleRequest(
         await mockAdminLoginRequest({

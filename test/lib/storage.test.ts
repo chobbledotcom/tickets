@@ -22,7 +22,7 @@ import {
   validateAttachment,
   validateImage,
 } from "#lib/storage.ts";
-import { setDeleteOverrideForTest } from "#lib/test-overrides.ts";
+import { setDeleteOverride } from "#lib/test-overrides.ts";
 import {
   describeWithEnv,
   installUrlHandler,
@@ -91,13 +91,13 @@ describeWithEnv(
 
       test("throws the configured override error before touching storage", async () => {
         await withLocalStorageEnabled(async () => {
-          setDeleteOverrideForTest(new Error("forced delete failure"));
+          setDeleteOverride(new Error("forced delete failure"));
           try {
             await expect(deleteFile("any-file.jpg")).rejects.toThrow(
               "forced delete failure",
             );
           } finally {
-            setDeleteOverrideForTest(null);
+            setDeleteOverride(null);
           }
         });
       });

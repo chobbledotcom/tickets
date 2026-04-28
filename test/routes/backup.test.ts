@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { uploadRaw } from "#lib/storage.ts";
-import { setDeleteOverrideForTest } from "#lib/test-overrides.ts";
+import { setDeleteOverride } from "#lib/test-overrides.ts";
 import { handleRequest } from "#routes";
 import {
   describeWithEnv,
@@ -22,7 +22,7 @@ describeWithEnv("backup routes", { db: true }, () => {
         await Deno.writeTextFile(pendingFile, "stale data");
 
         // Make deleteFile throw
-        setDeleteOverrideForTest(new Error("delete failed"));
+        setDeleteOverride(new Error("delete failed"));
         try {
           const response = await handleRequest(
             mockRequest("/admin/backup", { headers: { cookie } }),
@@ -32,7 +32,7 @@ describeWithEnv("backup routes", { db: true }, () => {
           const html = await response.text();
           expect(html).toContain("Backup");
         } finally {
-          setDeleteOverrideForTest(null);
+          setDeleteOverride(null);
         }
       });
     });
@@ -77,7 +77,7 @@ describeWithEnv("backup routes", { db: true }, () => {
         const csrfToken = await signCsrfToken();
 
         // Make deleteFile throw during cleanup
-        setDeleteOverrideForTest(new Error("cleanup failed"));
+        setDeleteOverride(new Error("cleanup failed"));
 
         try {
           // Use URL-encoded form (action handlers default to form mode)
@@ -105,7 +105,7 @@ describeWithEnv("backup routes", { db: true }, () => {
           const location = response.headers.get("location");
           expect(location).toContain("/admin/backup");
         } finally {
-          setDeleteOverrideForTest(null);
+          setDeleteOverride(null);
         }
       });
     });
