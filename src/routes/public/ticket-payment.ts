@@ -31,13 +31,13 @@ import {
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { TicketEvent } from "#templates/public.tsx";
+import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
-import {
-  type AsyncHandler,
-  buildTicketEventsWithGroupCapacity,
-  type EventQty,
-  type TicketCtx,
-  type TicketSharedContext,
+import type {
+  AsyncHandler,
+  EventQty,
+  TicketCtx,
+  TicketSharedContext,
 } from "./types.ts";
 
 /** Try to redirect to checkout, or return error using provided handler.

@@ -9,7 +9,8 @@ import { filter, pipe } from "#fp";
 import { processBooking } from "#lib/booking.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import {
-  getGroupRemainingForEvents,
+  getGroupRemainingByEventId,
+  getGroupRemainingForEvent,
   hasAvailableSpots,
 } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
@@ -80,10 +81,13 @@ export const toPublicEvent = (
   event: EventWithCount,
   closed = false,
   availableDates?: string[],
-  groupRemaining = Number.POSITIVE_INFINITY,
+  groupRemaining?: number,
 ): PublicEvent => {
   const eventRemaining = event.max_attendees - event.attendee_count;
-  const spotsRemaining = Math.min(eventRemaining, groupRemaining);
+  const spotsRemaining =
+    groupRemaining === undefined
+      ? eventRemaining
+      : Math.min(eventRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
@@ -159,7 +163,7 @@ const handleListEvents = async (): Promise<Response> => {
     filter((e: EventWithCount) => e.active && !e.hidden),
     (active: EventWithCount[]) => sortEvents(active, holidays),
   )(allEvents);
-  const groupRemaining = await getGroupRemainingForEvents(visibleEvents);
+  const groupRemaining = await getGroupRemainingByEventId(visibleEvents);
   const events = visibleEvents.map((e) =>
     toPublicEvent(
       e,
@@ -178,13 +182,12 @@ const handleGetEvent = withActiveEvent(async (_request, event) => {
   if (event.event_type === "daily") {
     availableDates = getAvailableDates(event, await getActiveHolidays());
   }
-  const groupRemaining = await getGroupRemainingForEvents([event]);
   return apiResponse({
     event: toPublicEvent(
       event,
       closed,
       availableDates,
-      groupRemaining.get(event.id),
+      await getGroupRemainingForEvent(event),
     ),
   });
 });

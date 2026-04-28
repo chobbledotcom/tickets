@@ -111,9 +111,10 @@ export const checkCapacityResult = (result: {
  * with a non-zero max_attendees limit). Used by the public UI/API to surface
  * group-aware sold-out state when an event is bought outside the group URL.
  *
- * Note: counts attendees across all dates for daily-event groups too — same
- * total-based semantics as the per-event display already uses. Per-date
- * enforcement still happens at booking time via buildCapacityCondition.
+ * Note: this is a non-date-aware count, so it should only be used for groups
+ * containing standard events. Daily-event groups use per-date enforcement at
+ * booking time via buildCapacityCondition; surfacing a cumulative count here
+ * would falsely mark dates with room as sold out.
  */
 export const getGroupRemainingByGroupId = async (
   groupIds: number[],
@@ -139,21 +140,41 @@ export const getGroupRemainingByGroupId = async (
   );
 };
 
+/** Event shape required to look up group remaining for display. */
+type EventForGroupLookup = {
+  id: number;
+  group_id: number;
+  event_type: string;
+};
+
 /**
  * Look up group remaining capacity for a list of events. Returns a map keyed
- * by event id (only includes events whose group has a positive max_attendees).
+ * by event id; only includes standard events whose group has a positive
+ * max_attendees. Daily events are skipped because their group cap is enforced
+ * per date at booking time, and a cumulative count here would mislead the
+ * sold-out display for dates that still have room.
  */
-export const getGroupRemainingForEvents = async (
-  events: { id: number; group_id: number }[],
+export const getGroupRemainingByEventId = async (
+  events: EventForGroupLookup[],
 ): Promise<Map<number, number>> => {
-  const groupIds = events.map((e) => e.group_id);
+  const standard = events.filter((e) => e.event_type !== "daily");
+  const groupIds = standard.map((e) => e.group_id);
   const groupMap = await getGroupRemainingByGroupId(groupIds);
   const result = new Map<number, number>();
-  for (const event of events) {
+  for (const event of standard) {
     const remaining = groupMap.get(event.group_id);
     if (remaining !== undefined) result.set(event.id, remaining);
   }
   return result;
+};
+
+/** Convenience wrapper for a single event. Returns undefined when no group
+ * cap applies (no group, no limit, or daily event). */
+export const getGroupRemainingForEvent = async (
+  event: EventForGroupLookup,
+): Promise<number | undefined> => {
+  const map = await getGroupRemainingByEventId([event]);
+  return map.get(event.id);
 };
 
 /**

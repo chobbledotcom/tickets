@@ -16,7 +16,7 @@ import {
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
-import { buildTicketEventsWithGroupCapacity } from "./types.ts";
+import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 
 /** Active+visible filter for public event listings */
 const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;

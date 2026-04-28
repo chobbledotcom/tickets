@@ -411,10 +411,13 @@ export type TicketEvent = {
 export const buildTicketEvent = (
   event: EventWithCount,
   closed = false,
-  groupRemaining = Number.POSITIVE_INFINITY,
+  groupRemaining?: number,
 ): TicketEvent => {
   const eventRemaining = event.max_attendees - event.attendee_count;
-  const spotsRemaining = Math.min(eventRemaining, groupRemaining);
+  const spotsRemaining =
+    groupRemaining === undefined
+      ? eventRemaining
+      : Math.min(eventRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
     isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
