@@ -10,7 +10,7 @@ import type {
 } from "#lib/db/questions.ts";
 import type { FormParams } from "#lib/form-data.ts";
 import type { EventFields } from "#lib/types.ts";
-import { formatCreationError } from "#routes/format.ts";
+import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { extractContact, mergeEventFields } from "#templates/fields.ts";
 import { type TicketEvent, ticketPage } from "#templates/public.tsx";
@@ -37,17 +37,11 @@ export const parseCustomPrice = (
 ) => validatePrice(form.getString(fieldName), minPrice, maxPrice);
 
 /** Format error message for failed attendee creation */
-export const formatAtomicError = (
-  reason: "capacity_exceeded" | "encryption_error",
-  eventName = "",
-): string =>
-  formatCreationError(
-    "Sorry, not enough spots available",
-    (name) => `Sorry, ${name} no longer has enough spots available`,
-    "Registration failed. Please try again.",
-    reason,
-    eventName,
-  );
+export const formatAtomicError = capacityErrorFormatter({
+  fallback: "Registration failed. Please try again.",
+  generic: "Sorry, not enough spots available",
+  withName: (name) => `Sorry, ${name} no longer has enough spots available`,
+});
 
 /** Parse and validate answers for custom questions from form data.
  * Returns answer IDs if valid, or an error message if any required question is unanswered. */

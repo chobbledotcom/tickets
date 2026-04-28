@@ -668,10 +668,8 @@ describeWithEnv("API Keys", { db: true }, () => {
       const { apiKey } = await createTestApiKeyFull("Touch Test Key");
 
       // Make touchApiKeyLastUsed throw via test hook
-      const { setTouchOverrideForTest } = await import(
-        "#lib/test-overrides.ts"
-      );
-      setTouchOverrideForTest(new Error("touch failed"));
+      const { setTouchOverride } = await import("#lib/test-overrides.ts");
+      setTouchOverride(new Error("touch failed"));
 
       try {
         const response = await handleRequest(
@@ -680,7 +678,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         // Request should succeed despite touchApiKeyLastUsed throwing
         expect(response.status).toBe(200);
       } finally {
-        setTouchOverrideForTest(null);
+        setTouchOverride(null);
       }
     });
   });
