@@ -442,6 +442,235 @@ export const FESTIVAL_TYPES = [
   "Weekender",
 ] as const;
 
+/** Sub-genres used inside gig-description templates */
+export const GENRES = [
+  "doom",
+  "sludge",
+  "prog",
+  "hardcore",
+  "glam",
+  "thrash",
+  "death-metal",
+  "black-metal",
+  "stoner-rock",
+  "folk-metal",
+  "industrial",
+  "symphonic",
+  "hair-metal",
+  "gothic",
+  "drone",
+  "speed-metal",
+  "power-metal",
+  "psychobilly",
+  "darkwave",
+  "post-punk",
+  "shoegaze",
+  "grindcore",
+  "blackened-jazz",
+  "viking-metal",
+  "pirate-metal",
+  "doom-jazz",
+  "djent",
+  "crust-punk",
+] as const;
+
+/** Hyperbolic adjective phrases for sensory descriptions */
+export const INTENSITIES = [
+  "ear-splitting",
+  "brain-melting",
+  "head-splitting",
+  "ground-shaking",
+  "soul-crushing",
+  "deafening",
+  "earth-shattering",
+  "skin-peeling",
+  "bone-rattling",
+  "chest-thumping",
+  "thoroughly inadvisable",
+  "barely-legal",
+] as const;
+
+/** Concrete things you'd see / smell / regret at a gig */
+export const SHOW_ITEMS = [
+  "denim",
+  "leather",
+  "mead",
+  "regret",
+  "glory",
+  "smoke",
+  "lasers",
+  "dry ice",
+  "bandanas",
+  "studs",
+  "shredding solos",
+  "blast beats",
+  "double kicks",
+  "fog machines",
+  "questionable lyrics",
+  "obscure cover versions",
+  "extended drum solos",
+  "merch you'll regret on Monday",
+  "improvised pyrotechnics",
+  "spilled beer",
+] as const;
+
+/** Wildly out-of-place instruments for novelty descriptions */
+export const ODD_INSTRUMENTS = [
+  "theremin",
+  "ukulele",
+  "bagpipes",
+  "hurdy-gurdy",
+  "kazoo",
+  "glockenspiel",
+  "accordion",
+  "harp",
+  "sitar",
+  "mandolin",
+  "stylophone",
+  "didgeridoo",
+  "vacuum cleaner",
+  "Casio keyboard",
+] as const;
+
+/** Improbable buildings to be "converted into" a venue */
+export const WEIRD_VENUES = [
+  "lift shaft",
+  "granary",
+  "bus depot",
+  "brewery vat",
+  "postal sorting office",
+  "cattle market",
+  "abandoned multi-storey",
+  "decommissioned chapel",
+  "1980s leisure centre",
+  "shipping container",
+  "village butcher's freezer",
+  "art-deco cinema",
+  "Victorian bathhouse",
+] as const;
+
+/** Spelled-out small numbers for descriptions */
+export const NUMBER_WORDS = [
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "twelve",
+] as const;
+
+/** Adjectives that qualify a "tour" */
+export const TOUR_ADJECTIVES = [
+  "farewell",
+  "reunion",
+  "comeback",
+  "retrospective",
+  "anniversary",
+  "definitely-the-last",
+  "victory",
+  "redemption",
+  "vengeance",
+] as const;
+
+/** Collective nouns for "the band's reputation" */
+export const BAND_DESCRIPTORS = [
+  "pioneers",
+  "warriors",
+  "legends",
+  "veterans",
+  "prophets",
+  "godfathers",
+  "stalwarts",
+  "diehards",
+  "originators",
+  "cult heroes",
+] as const;
+
+/** Themes for crossover/novelty acts */
+export const CROSSOVERS = [
+  "sea-shanty",
+  "druid",
+  "viking",
+  "pirate",
+  "robot",
+  "ghost",
+  "morris-dance",
+  "bagpipe",
+  "yodelling",
+  "yacht-rock",
+  "monster-truck",
+  "sci-fi",
+] as const;
+
+/** Verbs for "the band ___ed the venue" */
+export const NOISE_VERBS = [
+  "invade",
+  "descend on",
+  "tear through",
+  "assault",
+  "demolish",
+  "conquer",
+  "devastate",
+  "obliterate",
+  "occupy",
+  "set fire to",
+] as const;
+
+/** Audience-eligibility blurbs */
+export const AGE_NOTES = [
+  "all ages welcome",
+  "18+ only",
+  "14+ with parent",
+  "family-friendly",
+  "parental advisory in effect",
+  "strictly grown-ups",
+] as const;
+
+/** Things that are absolutely not allowed at this gig */
+export const PROHIBITIONS = [
+  "stage diving onto the pizza",
+  "phones above shoulder height",
+  "vuvuzelas",
+  "glitter cannons",
+  "throwing pints",
+  "uninvited cowbell",
+  "amateur pyrotechnics",
+  "crowdsurfing inflatables",
+  "audience requests",
+] as const;
+
+/** Items of clothing that are notionally compulsory */
+export const REQUIREMENTS = [
+  "sequins",
+  "leather",
+  "denim",
+  "mascara",
+  "hairspray",
+  "shoulder pads",
+  "bullet belts",
+  "tasselled jackets",
+  "shredded jeans",
+  "spandex",
+  "corpse paint",
+] as const;
+
+/** Karaoke / dress-up prize categories */
+export const PRIZES = [
+  "biggest hair",
+  "loudest scream",
+  "best devil horns",
+  "most convincing growl",
+  "longest air-guitar solo",
+  "deepest voice",
+  "most denim worn at once",
+  "most authentic mullet",
+] as const;
+
+/** Common gig start times */
+export const TIMES = ["6", "7", "7:30", "8", "8:30", "9", "10"] as const;
+
 // ---------------------------------------------------------------------------
 // Pattern templates
 // ---------------------------------------------------------------------------
@@ -453,18 +682,46 @@ export const FESTIVAL_TYPES = [
  */
 const SLOT_POOLS: Record<string, readonly string[]> = {
   adj: BAND_ADJECTIVES,
+  ageNote: AGE_NOTES,
+  bandDescriptor: BAND_DESCRIPTORS,
+  crossover: CROSSOVERS,
   festival: FESTIVAL_TYPES,
+  genre: GENRES,
+  intensity: INTENSITIES,
+  noiseVerb: NOISE_VERBS,
   noun: BAND_NOUNS,
+  number: NUMBER_WORDS,
+  oddInstrument: ODD_INSTRUMENTS,
   person: BAND_PERSON_NAMES,
+  prize: PRIZES,
+  prohibition: PROHIBITIONS,
+  requirement: REQUIREMENTS,
+  showItem: SHOW_ITEMS,
   suffix: BAND_SUFFIXES,
+  time: TIMES,
+  tourAdj: TOUR_ADJECTIVES,
   venue: VENUE_TYPES,
+  weirdVenue: WEIRD_VENUES,
 };
 
-/** Replace each `{slot}` in `template` with a random pick from the pool */
-const renderTemplate = (template: string, rand: Rand): string =>
-  template.replace(/\{(\w+)\}/g, (_, key: string) =>
+/** Reconcile `a`/`an` with the actual word that ended up in the slot */
+const fixArticles = (s: string): string =>
+  s
+    .replace(/\bAn ([^aeiouAEIOU])/g, "A $1")
+    .replace(/\bA ([aeiouAEIOU])/g, "An $1");
+
+/**
+ * Replace each `{slot}` in `template` with a random pick from the matching
+ * pool, then capitalise the first character and tidy up `a`/`an` so patterns
+ * that begin with a lowercase pool entry still read as a proper sentence.
+ */
+const renderTemplate = (template: string, rand: Rand): string => {
+  const filled = template.replace(/\{(\w+)\}/g, (_, key: string) =>
     pickFrom(rand, SLOT_POOLS[key]!),
   );
+  const articled = fixArticles(filled);
+  return articled.charAt(0).toUpperCase() + articled.slice(1);
+};
 
 const BAND_PATTERNS = [
   "The {adj} {noun}",
@@ -496,6 +753,30 @@ const VENUE_PATTERNS = [
   "{person}'s {venue}",
 ] as const;
 
+const DESCRIPTION_PATTERNS = [
+  "An {intensity} night of {showItem}, {showItem}, and {showItem}",
+  "Doors at {time}, support from {number} local bands, headliners on at {time}",
+  "A {tourAdj} tour celebrating decades of riffs and regret",
+  "{genre} {bandDescriptor} return for one {tourAdj} show",
+  "All-day {genre} odyssey with {number} drum kits and at least one {oddInstrument}",
+  "{genre} triple bill — bring earplugs and a clear conscience",
+  "{genre}, {genre}, and one slightly out-of-tune {oddInstrument}",
+  "{genre} warriors {noiseVerb} the venue for a night of {showItem} and {showItem}",
+  "An unplugged evening reimagining the heaviest cuts on a single {oddInstrument}",
+  "{genre} matinee, {ageNote}, no {prohibition}",
+  "Power-ballad karaoke night, prizes for {prize}",
+  "{genre} revival showcase — {requirement} compulsory, {requirement} optional",
+  "{genre} collective performing inside a converted {weirdVenue}",
+  "{crossover} crossover act makes its triumphant debut",
+  "Symphonic {genre} night with the local orchestra and one very loud guitarist",
+  "A surprise album launch — strict no-phones policy strictly enforced",
+  "Tribute night running through the entire back catalogue, B-sides included",
+  "The reunion no one asked for and absolutely everyone will attend",
+  "{intensity} {genre} matinee — {ageNote}, no {prohibition}",
+  "Three-band bill: {genre}, {genre}, and {genre} acts assembled for one night only",
+  "{bandDescriptor} of {genre} {noiseVerb} the stage with {number} guitars",
+] as const;
+
 /** Generate a single band name using the supplied PRNG */
 const generateBandName = (rand: Rand): string =>
   renderTemplate(pickFrom(rand, BAND_PATTERNS), rand);
@@ -503,6 +784,10 @@ const generateBandName = (rand: Rand): string =>
 /** Generate a single venue / location name using the supplied PRNG */
 const generateVenueName = (rand: Rand): string =>
   renderTemplate(pickFrom(rand, VENUE_PATTERNS), rand);
+
+/** Generate a single gig-description blurb using the supplied PRNG */
+const generateDescription = (rand: Rand): string =>
+  renderTemplate(pickFrom(rand, DESCRIPTION_PATTERNS), rand);
 
 // ---------------------------------------------------------------------------
 // Bulk generation
@@ -513,6 +798,9 @@ export const DEFAULT_BAND_SEED = 0xb1eed1ed;
 
 /** Seed used to build the venue arrays exposed from `lib/demo.ts` */
 export const DEFAULT_VENUE_SEED = 0x57a6ed00;
+
+/** Seed used to build the description arrays exposed from `lib/demo.ts` */
+export const DEFAULT_DESCRIPTION_SEED = 0xde5c0f6c;
 
 const seededList =
   (gen: (rand: Rand) => string) =>
@@ -526,3 +814,6 @@ export const generateBandNames = seededList(generateBandName);
 
 /** Generate `count` venue names, deterministic given `seed` */
 export const generateVenueNames = seededList(generateVenueName);
+
+/** Generate `count` gig-description blurbs, deterministic given `seed` */
+export const generateDescriptions = seededList(generateDescription);

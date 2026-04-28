@@ -6,9 +6,11 @@ import {
   BAND_PERSON_NAMES,
   BAND_SUFFIXES,
   DEFAULT_BAND_SEED,
+  DEFAULT_DESCRIPTION_SEED,
   DEFAULT_VENUE_SEED,
   FESTIVAL_TYPES,
   generateBandNames,
+  generateDescriptions,
   generateVenueNames,
   VENUE_TYPES,
 } from "#lib/band-name-generator.ts";
@@ -67,6 +69,37 @@ describe("generateVenueNames", () => {
     const venueWords = [...VENUE_TYPES, ...FESTIVAL_TYPES];
     for (const name of generateVenueNames(40, DEFAULT_VENUE_SEED)) {
       expect(venueWords.some((w) => name.includes(w))).toBe(true);
+    }
+  });
+});
+
+describe("generateDescriptions", () => {
+  test("returns exactly `count` descriptions", () => {
+    expect(generateDescriptions(40, DEFAULT_DESCRIPTION_SEED).length).toBe(40);
+  });
+
+  test("is deterministic for the same seed", () => {
+    expect(generateDescriptions(20, 42)).toEqual(generateDescriptions(20, 42));
+  });
+
+  test("differs between seeds", () => {
+    expect(generateDescriptions(10, 1)).not.toEqual(
+      generateDescriptions(10, 2),
+    );
+  });
+
+  test("every description starts with a capital letter", () => {
+    for (const d of generateDescriptions(40, DEFAULT_DESCRIPTION_SEED)) {
+      expect(d.length).toBeGreaterThan(0);
+      expect(d[0]).toBe(d[0]!.toUpperCase());
+    }
+  });
+
+  test("articles agree with the following word", () => {
+    for (const d of generateDescriptions(80, DEFAULT_DESCRIPTION_SEED)) {
+      // No "An <consonant>" or "A <vowel>" left after fixArticles runs.
+      expect(d).not.toMatch(/\bAn [^aeiouAEIOU]/);
+      expect(d).not.toMatch(/\bA [aeiouAEIOU]/);
     }
   });
 });

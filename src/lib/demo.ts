@@ -6,8 +6,10 @@
 import { lazyRef } from "#fp";
 import {
   DEFAULT_BAND_SEED,
+  DEFAULT_DESCRIPTION_SEED,
   DEFAULT_VENUE_SEED,
   generateBandNames,
+  generateDescriptions,
   generateVenueNames,
 } from "#lib/band-name-generator.ts";
 import { getEnv } from "#lib/env.ts";
@@ -422,27 +424,15 @@ export const DEMO_EVENT_NAMES = generateBandNames(
   DEFAULT_BAND_SEED,
 ) as readonly string[];
 
-/** Demo event descriptions — rock-themed gig blurbs */
-export const DEMO_EVENT_DESCRIPTIONS = [
-  "An ear-splitting night of denim, leather, and shredding solos",
-  "Doors at 7, support from three local bands, headliners on at 10",
-  "A retrospective tour celebrating 30 years of riffs and regret",
-  "Black metal pioneers return for one apocalyptic farewell show",
-  "All-day prog odyssey with three drum kits and at least one harp",
-  "Stoner-rock triple bill — bring earplugs and a clear conscience",
-  "Sludge, doom, and one slightly out-of-tune theremin",
-  "Folk-metal warriors invade the venue for a night of mead and mosh",
-  "An unplugged evening reimagining the heaviest cuts on a single ukulele",
-  "The reunion no one asked for and absolutely everyone will attend",
-  "Hardcore matinee, all ages welcome, no stage diving onto the pizza",
-  "Power-ballad karaoke night, prizes for biggest hair",
-  "Glam revival showcase — sequins compulsory, gravity optional",
-  "Industrial noise collective performing inside a converted lift shaft",
-  "Death-metal sea shanty crossover act makes its triumphant debut",
-  "Symphonic night with the local orchestra and one very loud guitarist",
-  "A surprise album launch — strict no-phones policy strictly enforced",
-  "Tribute night running through the entire back catalogue, B-sides included",
-] as const;
+/**
+ * Demo event descriptions — rock-themed gig blurbs assembled from word pools.
+ * Like the names above, the list is procedurally generated but seeded so it
+ * stays deterministic across runs.
+ */
+export const DEMO_EVENT_DESCRIPTIONS = generateDescriptions(
+  40,
+  DEFAULT_DESCRIPTION_SEED,
+) as readonly string[];
 
 /**
  * Demo event locations — pretend rock-venue / festival listings.
