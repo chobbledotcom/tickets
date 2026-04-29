@@ -411,7 +411,6 @@ describeWithEnv("db > groups", { db: true }, () => {
   });
 
   describe("group remaining helpers", () => {
-    /** Build the same capped-group fixture used by the capacity tests. */
     const createCappedGroupWithEvents = async (
       groupMax: number,
       slug: string,

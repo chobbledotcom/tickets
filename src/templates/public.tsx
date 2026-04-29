@@ -404,11 +404,8 @@ export type TicketEvent = {
   maxPurchasable: number;
 };
 
-/** Build ticket event info from event.
- * Pass `groupRemaining` when the event belongs to a group with a
- * `max_attendees` limit so the displayed sold-out state and purchasable
- * quantity reflect the smaller of the per-event and group-wide limits.
- * Pass `undefined` when no group cap applies. */
+/** `groupRemaining`, when defined, clamps the displayed sold-out state and
+ * `maxPurchasable` to the group's combined cap. */
 export const buildTicketEvent = (
   event: EventWithCount,
   closed: boolean,

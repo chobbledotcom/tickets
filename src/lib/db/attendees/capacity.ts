@@ -80,21 +80,13 @@ export const checkCapacityResult = (result: {
   return { success: true };
 };
 
-/** Map of remaining capacity keyed by group id or event id. */
 type RemainingMap = Map<number, number>;
 
 /**
- * Compute remaining group capacity (max_attendees − attendees) for the given
- * groups in a single query. Only groups with `max_attendees > 0` appear in
- * the result map.
- *
- * The date filter mirrors the booking-time SQL in `buildCapacityCondition`:
- * standard events always count, and daily-event groups count only attendees
- * matching the given date. When `date` is null, daily-event attendees are
- * counted across all dates — useful for booking-time enforcement when the
- * caller has already validated a date upstream, but a misleading aggregate
- * for display. Display callers (`getGroupRemainingByEventId`) skip daily
- * groups when no date is given.
+ * Per-group remaining capacity. Groups with `max_attendees <= 0` (no cap)
+ * are omitted from the map. With `date = null`, daily-event attendees count
+ * cumulatively — correct for booking-time enforcement after upstream date
+ * validation, misleading for display.
  */
 export const getGroupRemainingByGroupId = async (
   groupIds: number[],
@@ -123,7 +115,6 @@ export const getGroupRemainingByGroupId = async (
   );
 };
 
-/** Event shape required to look up group remaining for display. */
 type EventForGroupLookup = {
   id: number;
   group_id: number;
@@ -131,13 +122,9 @@ type EventForGroupLookup = {
 };
 
 /**
- * Look up group remaining capacity for a list of events. Returns a map keyed
- * by event id; only includes events whose group has a positive max_attendees.
- *
- * Daily events are skipped when no `date` is given because their group cap is
- * enforced per-date — surfacing a cumulative count would mislead the sold-out
- * display for dates that still have room. Pass a `date` (e.g. once the user
- * picks one) to get the remaining capacity for that specific date.
+ * Per-event view of group remaining capacity. Daily events are dropped when
+ * `date` is null — their cap is per-date, so a cumulative count would
+ * misreport spots that other dates still have.
  */
 export const getGroupRemainingByEventId = async (
   events: EventForGroupLookup[],
@@ -158,8 +145,8 @@ export const getGroupRemainingByEventId = async (
   return result;
 };
 
-/** Convenience wrapper for a single event. Returns undefined when no group
- * cap applies (no group, no limit, or daily event without a date). */
+/** Returns `undefined` when no group cap applies: ungrouped, uncapped
+ * group, or daily event without a `date`. */
 export const getGroupRemainingForEvent = async (
   event: EventForGroupLookup,
   date: string | null = null,
@@ -204,7 +191,6 @@ export const checkBatchAvailabilityImpl = async (
   });
   if (!eventOk) return false;
 
-  // Group capacity check: one query for all groups, then per-group sum.
   const groupIds = unique(
     rows.filter((r) => r.group_id > 0).map((r) => r.group_id),
   );

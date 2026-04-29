@@ -10,7 +10,6 @@
 
 import type { InValue } from "@libsql/client";
 
-/** A reusable SQL fragment with its positional bind arguments. */
 export type SqlFragment = { sql: string; args: InValue[] };
 
 /** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */
@@ -23,20 +22,12 @@ export const dateToRange = (
 };
 
 /**
- * SQL fragment deciding whether an `event_attendees` row counts toward a
- * group's used capacity for a given date.
+ * Whether an `event_attendees` row should count toward its group's cap on
+ * the given date. Standard events always count; daily events count only
+ * when their booking overlaps the date. With `date = null` every row
+ * counts — useful after upstream date validation, misleading for display.
  *
- *   - Standard events always count.
- *   - Daily events count only when their booking overlaps the date.
- *   - When `date` is null, every row counts — callers that want per-date
- *     scope pass a non-null date upstream.
- *
- * Used by both the booking-time SQL in `buildCapacityCondition` and the
- * read-side SQL in `getGroupRemainingByGroupId` so the two never drift.
- *
- * Produces `(? IS NULL OR <eventAlias>.event_type != 'daily' OR
- * (<attendeeAlias>.start_at < ? AND <attendeeAlias>.end_at > ?))` plus its
- * three positional args `[date, endAt, startAt]`.
+ * Args order: `[date, endAt, startAt]`.
  */
 export const buildGroupAttendeePredicate = (
   eventAlias: string,

@@ -82,8 +82,6 @@ describeWithEnv("routes > public > ticket-events", { db: true }, () => {
       await bookAttendee(inactive, { email: "q@test.com", name: "Q" });
       await deactivateTestEvent(inactive.id);
 
-      // Only the active event reaches the public group page, but the two
-      // attendees on the inactive event still consume two spots of group cap.
       const events = await getActiveEventsByGroupId(group.id);
       expect(events.map((e) => e.id)).toEqual([active.id]);
       const [ticketEvent] = await buildTicketEventsWithGroupCapacity(events);

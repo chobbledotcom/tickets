@@ -237,9 +237,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const sibling = await createTestEvent({
         groupId: group.id,
         maxAttendees: 10,
-        // Pick a maxQuantity strictly larger than the group remaining we
-        // expect (group cap 5 - 3 booked = 2) so the assertion proves the
-        // group clamp, not the per-event maxQuantity.
+        // Larger than expected group remaining (5 − 3 = 2) so the assertion
+        // proves the group clamp, not the per-event maxQuantity.
         maxQuantity: 10,
         name: "Sibling2",
       });
