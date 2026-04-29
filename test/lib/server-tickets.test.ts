@@ -114,7 +114,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("returns null for non-GET methods", async () => {
-    const { routeTicketView } = await import("#routes/tickets.ts");
+    const { routeTicketView } = await import("#routes/tickets/index.ts");
     const request = new Request("http://localhost/t/some-token", {
       method: "POST",
     });

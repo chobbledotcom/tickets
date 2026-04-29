@@ -7,7 +7,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { adminApiRoutes, toAdminEvent } from "#routes/admin/api.ts";
-import { apiRoutes, toPublicEvent } from "#routes/api.ts";
+import { apiRoutes, toPublicEvent } from "#routes/api/index.ts";
 import {
   ADMIN_API_ENDPOINTS,
   ADMIN_API_EXAMPLE_ADMIN_EVENT,

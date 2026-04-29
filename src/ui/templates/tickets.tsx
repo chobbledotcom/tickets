@@ -3,7 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
-import type { TokenEntry } from "#routes/token-utils.ts";
+import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";

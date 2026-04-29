@@ -23,7 +23,7 @@ import {
   lookupAttendees,
   resolveEntries,
   type TokenEntry,
-} from "#routes/token-utils.ts";
+} from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { updateCheckedIn } from "#shared/db/attendees.ts";

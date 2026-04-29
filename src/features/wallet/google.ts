@@ -8,7 +8,7 @@ import {
   createTokenRoute,
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
-} from "#routes/token-utils.ts";
+} from "#routes/tickets/token-utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildGoogleWalletUrl } from "#shared/google-wallet.ts";
 

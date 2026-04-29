@@ -12,7 +12,7 @@ import {
   type TokenEntry,
   type TokenRouteFn,
   withTokenRateLimit,
-} from "#routes/token-utils.ts";
+} from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";

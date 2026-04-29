@@ -13,7 +13,7 @@
  */
 
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { buildPkpassForToken } from "#routes/wallet.ts";
+import { buildPkpassForToken } from "#routes/wallet/index.ts";
 import {
   type SigningCredentials,
   trimAuthToken,

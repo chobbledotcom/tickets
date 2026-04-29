@@ -9,7 +9,7 @@ import {
   createTokenRoute,
   lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
-} from "#routes/token-utils.ts";
+} from "#routes/tickets/token-utils.ts";
 import { buildPkpass, type SigningCredentials } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";

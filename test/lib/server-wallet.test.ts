@@ -227,7 +227,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   });
 
   test("returns null for non-GET methods", async () => {
-    const { routeWallet } = await import("#routes/wallet.ts");
+    const { routeWallet } = await import("#routes/wallet/index.ts");
     const request = new Request("http://localhost/wallet/some-token", {
       method: "POST",
     });

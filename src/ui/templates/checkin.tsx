@@ -5,7 +5,7 @@
  */
 
 import { map, pipe } from "#fp";
-import type { TokenEntry } from "#routes/token-utils.ts";
+import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {

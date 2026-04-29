@@ -9,7 +9,7 @@
  * The resulting URL format: https://pay.google.com/gp/v/save/{jwt}
  */
 
-import type { WalletPassData } from "#routes/token-utils.ts";
+import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { startOfHour } from "#shared/dates.ts";
 
