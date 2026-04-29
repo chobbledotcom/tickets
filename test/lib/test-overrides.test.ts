@@ -10,14 +10,14 @@ import {
 describe("test-overrides", () => {
   describe("getRethrowErrors", () => {
     test("returns null from initializer after reset", () => {
-      setRethrowErrorsForTest(null);
+      setRethrowErrors(null);
       expect(getRethrowErrors()).toBeNull();
     });
   });
 
   describe("getSkipLoginDelay", () => {
     test("returns false from initializer after reset", () => {
-      setSkipLoginDelayForTest(false);
+      setSkipLoginDelay(false);
       expect(getSkipLoginDelay()).toBe(false);
     });
   });

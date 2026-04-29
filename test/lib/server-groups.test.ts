@@ -961,27 +961,30 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(updated.max_attendees).toBe(30);
     });
 
-    test("detail page shows attendees with max when set", async () => {
+    test("detail page shows Group Attendees with cap when set", async () => {
       const group = await createTestGroup({
         maxAttendees: 100,
         name: "Detail Max",
         slug: "detail-max",
       });
 
-      await assertAdminHtml(`/admin/groups/${group.id}`, "0 / 100");
+      await assertAdminHtml(
+        `/admin/groups/${group.id}`,
+        "Group Attendees",
+        "0 / 100",
+      );
     });
 
-    test("detail page shows plain attendee count when no group max set", async () => {
+    test("detail page shows Group Attendees with no-cap note when uncapped", async () => {
       const group = await createTestGroup({
         name: "Detail No Max",
         slug: "detail-no-max",
       });
 
-      // Attendees row should show just "0" not "0 / X"
       await assertAdminHtml(
         `/admin/groups/${group.id}`,
-        "<th>Attendees</th>",
-        "<td>0</td>",
+        "Group Attendees",
+        "(no group cap)",
       );
     });
   });

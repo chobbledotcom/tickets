@@ -84,6 +84,7 @@ import {
   adminEventNewPage,
   adminEventPage,
   adminReactivateEventPage,
+  type GroupContext,
 } from "#templates/admin/events.tsx";
 import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
@@ -385,6 +386,22 @@ const applyDateFilter = (
   };
 };
 
+/** Fetch group + current usage when the event sits in a capped group, so the
+ * detail page can render a row for the shared cap. Returns undefined for
+ * ungrouped or uncapped groups. */
+const loadGroupContext = async (
+  event: EventWithCount,
+  dateFilter: string | null,
+): Promise<GroupContext | undefined> => {
+  if (event.group_id === 0) return undefined;
+  const group = await groupsTable.findById(event.group_id);
+  if (!group || group.max_attendees <= 0) return undefined;
+  const remainingMap = await getGroupRemainingByGroupId([group.id], dateFilter);
+  // group.max_attendees > 0 guarantees the helper returns an entry for it.
+  const remaining = remainingMap.get(group.id) as number;
+  return { attendeeCount: group.max_attendees - remaining, group };
+};
+
 /** Render event page with attendee list and optional filter */
 const renderEventPage = async (
   request: Request,
@@ -407,12 +424,13 @@ const renderEventPage = async (
           request,
         );
         const attendeeIds = filteredByDate.map((a) => a.id);
-        const [flash, phonePrefix, questions, attendeeAnswerMap] =
+        const [flash, phonePrefix, questions, attendeeAnswerMap, groupContext] =
           await Promise.all([
             Promise.resolve(getFlash()),
             Promise.resolve(settings.phonePrefix),
             getQuestionsForEvent(event.id),
             getAttendeeAnswersBatch(attendeeIds),
+            loadGroupContext(event, dateFilter),
           ]);
         const questionData =
           questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
@@ -426,6 +444,7 @@ const renderEventPage = async (
             dateFilter,
             errorMessage: flash.error,
             event,
+            groupContext,
             phonePrefix,
             questionData,
             session,

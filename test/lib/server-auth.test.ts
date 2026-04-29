@@ -468,11 +468,11 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("login timing delay", () => {
     afterEach(() => {
-      setSkipLoginDelayForTest(true);
+      setSkipLoginDelay(true);
     });
 
     test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
-      setSkipLoginDelayForTest(false);
+      setSkipLoginDelay(false);
       const start = Date.now();
       const response = await handleRequest(
         await mockAdminLoginRequest({

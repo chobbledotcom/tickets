@@ -201,17 +201,46 @@ const buildAttendeeRows = (
   )(attendees);
 };
 
-/** Sum attendee_count across all events in the group */
 const totalAttendeeCount = reduce(
   (sum: number, e: EventWithCount) => sum + e.attendee_count,
   0,
 );
 
-/** Sum max_attendees across all events in the group */
-const totalMaxAttendees = reduce(
-  (sum: number, e: EventWithCount) => sum + e.max_attendees,
-  0,
-);
+/** Render the group-attendees row. The cap fragment is omitted when the
+ * group is uncapped so the displayed total isn't conflated with a fake
+ * limit. */
+const GroupAttendeesRow = ({
+  group,
+  attendeeCount,
+}: {
+  group: Group;
+  attendeeCount: number;
+}): JSX.Element => {
+  if (group.max_attendees <= 0) {
+    return (
+      <tr>
+        <th>Group Attendees</th>
+        <td>
+          {attendeeCount} <small>(no group cap)</small>
+        </td>
+      </tr>
+    );
+  }
+  const remaining = Math.max(0, group.max_attendees - attendeeCount);
+  const overCap = attendeeCount >= group.max_attendees;
+  const nearCap = attendeeCount >= group.max_attendees * 0.9;
+  return (
+    <tr>
+      <th>Group Attendees</th>
+      <td>
+        <span class={overCap || nearCap ? "danger-text" : ""}>
+          {attendeeCount} / {group.max_attendees} &mdash; {remaining} remain
+        </span>{" "}
+        <small>across all events in the group</small>
+      </td>
+    </tr>
+  );
+};
 
 /**
  * Admin group detail page - shows group info, events in group, and add-events form
@@ -246,14 +275,13 @@ export const adminGroupDetailPage = (
   const hasPaidEvent = events.some(isPaidEvent);
   const totalCount = totalAttendeeCount(events);
   const tableRows = buildAttendeeRows(attendees, events);
-  const effectiveCapacity =
-    group.max_attendees > 0 ? group.max_attendees : totalMaxAttendees(events);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
     hasPaidEvent,
-    maxCapacity: effectiveCapacity,
+    maxCapacity: 0,
     questionData,
+    skipAttendees: true,
   });
 
   return String(
@@ -335,6 +363,7 @@ export const adminGroupDetailPage = (
                   <td>Yes &mdash; not shown in public events list</td>
                 </tr>
               )}
+              <GroupAttendeesRow attendeeCount={totalCount} group={group} />
               <Raw html={renderDetailRows(sharedRows)} />
             </tbody>
           </table>

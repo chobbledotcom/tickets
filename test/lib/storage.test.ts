@@ -91,13 +91,13 @@ describeWithEnv(
 
       test("throws the configured override error before touching storage", async () => {
         await withLocalStorageEnabled(async () => {
-          setDeleteOverrideForTest(new Error("forced delete failure"));
+          setDeleteOverride(new Error("forced delete failure"));
           try {
             await expect(deleteFile("any-file.jpg")).rejects.toThrow(
               "forced delete failure",
             );
           } finally {
-            setDeleteOverrideForTest(null);
+            setDeleteOverride(null);
           }
         });
       });

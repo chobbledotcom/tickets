@@ -405,89 +405,35 @@ export const DEMO_SPECIAL_INSTRUCTIONS = [
   "Bringing own mobility scooter",
 ] as const;
 
-/** Demo event names */
-export const DEMO_EVENT_NAMES = [
-  "Village Quiz Night",
-  "Summer Fete",
-  "Charity Fun Run",
-  "Christmas Market",
-  "Spring Concert",
-  "Harvest Festival",
-  "Bonfire Night",
-  "Easter Egg Hunt",
-  "Open Mic Night",
-  "Barn Dance",
-  "Bake-Off Competition",
-  "Community Litter Pick",
-  "Seniors Tea Party",
-  "Kids Craft Workshop",
-  "Photography Walk",
-  "Book Club Launch",
-  "Film Night: Outdoor Cinema",
-  "Yoga in the Park",
-  "Parish Council Meeting",
-  "Dog Show",
-  "Plant Sale",
-  "Pub Crawl for Charity",
-  "Ceilidh Night",
-  "Jumble Sale",
-  "Stargazing Evening",
-  "Pancake Race",
-  "Halloween Trail",
-  "Lantern Parade",
-  "New Year's Ceilidh",
-  "May Day Celebration",
-] as const;
+/**
+ * Demo event names — pretend rock/heavy-metal band listings.
+ * Generated procedurally from a seeded PRNG so the list stays deterministic
+ * across runs (tests rely on this) but offers far more variety than a
+ * hand-curated list while staying on-theme.
+ */
+export const DEMO_EVENT_NAMES = generateBandNames(
+  60,
+  DEFAULT_BAND_SEED,
+) as readonly string[];
 
-/** Demo event descriptions */
-export const DEMO_EVENT_DESCRIPTIONS = [
-  "A fun evening of trivia and prizes",
-  "Annual village celebration with stalls and games",
-  "5K run through the village green",
-  "Festive market with local crafts and food",
-  "Live music from local performers",
-  "Celebrating the autumn harvest",
-  "Bring your best bakes and compete for the golden whisk",
-  "Help keep our village beautiful with a community clean-up",
-  "An afternoon of tea, cake, and conversation",
-  "Get creative with arts and crafts for ages 5-12",
-  "Explore the countryside through a camera lens",
-  "Monthly meetup to discuss our latest read",
-  "Classic films under the stars, bring blankets and popcorn",
-  "Relaxing yoga session suitable for all levels",
-  "Your chance to share songs, poems, and stories",
-  "A traditional dance evening with live folk music",
-  "Show off your four-legged friend and win prizes",
-  "Browse affordable second-hand treasures",
-  "Join our astronomy group for a night of constellation spotting",
-  "A spooky trail through the woods for all ages",
-  "Walk through the village with handmade lanterns",
-  "Ring in the new year with music, dancing, and haggis",
-  "Celebrate spring with maypole dancing and Morris dancers",
-  "Pick up bedding plants, herbs, and homegrown veg",
-] as const;
+/**
+ * Demo event descriptions — rock-themed gig blurbs assembled from word pools.
+ * Like the names above, the list is procedurally generated but seeded so it
+ * stays deterministic across runs.
+ */
+export const DEMO_EVENT_DESCRIPTIONS = generateDescriptions(
+  40,
+  DEFAULT_DESCRIPTION_SEED,
+) as readonly string[];
 
-/** Demo event locations */
-export const DEMO_EVENT_LOCATIONS = [
-  "Village Hall, Main Street",
-  "The Green, Church Road",
-  "Community Centre, Park Lane",
-  "St Mary's Church Hall",
-  "The Recreation Ground",
-  "Memorial Park Pavilion",
-  "The Old Barn, Farm Road",
-  "Cricket Pavilion, Sports Ground",
-  "Library Meeting Room",
-  "The Riverside Meadow",
-  "Scout Hut, Oak Avenue",
-  "Town Square",
-  "Allotment Gardens",
-  "Primary School Hall",
-  "The Anchor Pub, Harbour Street",
-  "Bandstand, Victoria Park",
-  "Heritage Centre, Market Place",
-  "Woodland Trail Car Park",
-] as const;
+/**
+ * Demo event locations — pretend rock-venue / festival listings.
+ * Procedurally generated from the venue word pools using a seeded PRNG.
+ */
+export const DEMO_EVENT_LOCATIONS = generateVenueNames(
+  40,
+  DEFAULT_VENUE_SEED,
+) as readonly string[];
 
 /** Demo group names */
 export const DEMO_GROUP_NAMES = [

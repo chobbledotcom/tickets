@@ -12,9 +12,10 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortEvents } from "#shared/sort-events.ts";
 import type { Group } from "#shared/types.ts";
 import type { TicketEvent } from "#templates/public.tsx";
+import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 import { getTicketContext } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
-import { type AsyncHandler, getActiveEvents } from "./types.ts";
+import type { AsyncHandler } from "./types.ts";
 
 /** Load group by slug and its active events, return 404 if empty */
 const withActiveGroupEventsBySlug = async (
@@ -29,7 +30,9 @@ const withActiveGroupEventsBySlug = async (
     getActiveEventsByGroupId(group.id),
     getActiveHolidays(),
   ]);
-  const activeEvents = getActiveEvents(sortEvents(events, holidays));
+  const activeEvents = await buildTicketEventsWithGroupCapacity(
+    sortEvents(events, holidays),
+  );
   return activeEvents.length === 0
     ? notFoundResponse()
     : handler(group, activeEvents);

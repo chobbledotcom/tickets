@@ -679,7 +679,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         // Request should succeed despite touchApiKeyLastUsed throwing
         expect(response.status).toBe(200);
       } finally {
-        setTouchOverrideForTest(null);
+        setTouchOverride(null);
       }
     });
   });

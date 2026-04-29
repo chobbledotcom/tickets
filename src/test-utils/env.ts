@@ -14,21 +14,21 @@ import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 export const setupTestEncryptionKey = (): void => {
   setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
   setFastPbkdf2ForTest(true);
-  setSkipLoginDelayForTest(true);
+  setSkipLoginDelay(true);
   setRsaKeySizeForTest(1024);
   setSuppressRequestLogs(true);
   setSuppressDebugLogs(true);
-  setRethrowErrorsForTest(true);
+  setRethrowErrors(true);
 };
 
 export const clearTestEncryptionKey = (): void => {
   setEncryptionKeyForTest("");
   setFastPbkdf2ForTest(null);
-  setSkipLoginDelayForTest(false);
+  setSkipLoginDelay(false);
   setRsaKeySizeForTest(null);
   setSuppressRequestLogs(null);
   setSuppressDebugLogs(null);
-  setRethrowErrorsForTest(null);
+  setRethrowErrors(null);
 };
 
 const _realGet = Deno.env.get.bind(Deno.env);

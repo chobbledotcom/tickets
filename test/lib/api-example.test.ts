@@ -20,12 +20,22 @@ import {
 
 describe("API example", () => {
   test("toPublicEvent output matches the documented example", () => {
-    const result = toPublicEvent(API_EXAMPLE_EVENT);
+    const result = toPublicEvent(
+      API_EXAMPLE_EVENT,
+      false,
+      undefined,
+      undefined,
+    );
     expect(result).toEqual(API_EXAMPLE_PUBLIC_EVENT);
   });
 
   test("example has all PublicEvent keys", () => {
-    const result = toPublicEvent(API_EXAMPLE_EVENT);
+    const result = toPublicEvent(
+      API_EXAMPLE_EVENT,
+      false,
+      undefined,
+      undefined,
+    );
     const resultKeys = Object.keys(result).sort();
     const exampleKeys = Object.keys(API_EXAMPLE_PUBLIC_EVENT).sort();
     expect(exampleKeys).toEqual(resultKeys);

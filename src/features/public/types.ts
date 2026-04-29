@@ -60,15 +60,6 @@ export const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
 export const parseSlugs = (slug: string): string[] =>
   slug.split("+").filter((s) => s.length > 0);
 
-/** Filter and transform events to active ticket events */
-export const getActiveEvents = (
-  events: (EventWithCount | null)[],
-): TicketEvent[] =>
-  pipe(
-    filter((e: EventWithCount) => e.active),
-    map((e: EventWithCount) => buildTicketEvent(e, isRegistrationClosed(e))),
-  )(compact(events));
-
 /** Set noindex signal header on response for hidden events */
 export const applyHiddenNoindex = (
   response: Response,

@@ -61,7 +61,7 @@ describe("ticketPage (single event)", () => {
       baseUrl: opts?.baseUrl,
       dates: opts?.dates ?? [],
       error: opts?.error,
-      events: [buildTicketEvent(ev, opts?.isClosed)],
+      events: [buildTicketEvent(ev, opts?.isClosed ?? false, undefined)],
       questions: opts?.questions,
       slugs: [ev.slug],
       terms: opts?.terms,
@@ -374,6 +374,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
       buildTicketEvent(
         testEventWithCount({
@@ -383,6 +385,8 @@ describe("ticketPage", () => {
           name: "Event B",
           slug: "cd34e",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
@@ -399,6 +403,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({
@@ -420,6 +426,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const questions = [
@@ -451,6 +459,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
@@ -469,6 +479,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
@@ -485,6 +497,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
@@ -500,6 +514,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
@@ -518,6 +534,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
@@ -536,6 +554,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c"] });
@@ -555,6 +575,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
       buildTicketEvent(
         testEventWithCount({
@@ -564,6 +586,8 @@ describe("ticketPage", () => {
           name: "Event B",
           slug: "cd34e",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
@@ -581,6 +605,8 @@ describe("ticketPage", () => {
           name: "Event A",
           slug: "ab12c",
         }),
+        false,
+        undefined,
       ),
       buildTicketEvent(
         testEventWithCount({
@@ -590,6 +616,8 @@ describe("ticketPage", () => {
           name: "Event B",
           slug: "cd34e",
         }),
+        false,
+        undefined,
       ),
     ];
     const html = ticketPage({ events, slugs: ["ab12c", "cd34e"] });
@@ -604,7 +632,7 @@ describe("ticketPage event date and location", () => {
     else detectIframeMode("https://example.com/");
     return ticketPage({
       dates: [],
-      events: [buildTicketEvent(ev)],
+      events: [buildTicketEvent(ev, false, undefined)],
       slugs: [ev.slug],
     });
   };
@@ -921,7 +949,7 @@ describeWithEnv(
       const renderSingleEvent = (ev: EventWithCount) =>
         ticketPage({
           dates: [],
-          events: [buildTicketEvent(ev)],
+          events: [buildTicketEvent(ev, false, undefined)],
           slugs: [ev.slug],
           terms: null,
         });
@@ -957,6 +985,8 @@ describeWithEnv(
               image_url: "img-a.jpg",
               name: "Event A",
             }),
+            false,
+            undefined,
           ),
           buildTicketEvent(
             testEventWithCount({
@@ -964,6 +994,8 @@ describeWithEnv(
               image_url: "img-b.jpg",
               name: "Event B",
             }),
+            false,
+            undefined,
           ),
         ];
         const html = ticketPage({ events, slugs: ["slug-a", "slug-b"] });
@@ -975,6 +1007,8 @@ describeWithEnv(
         const events = [
           buildTicketEvent(
             testEventWithCount({ id: 1, image_url: "", name: "Event A" }),
+            false,
+            undefined,
           ),
         ];
         const html = ticketPage({ events, slugs: ["slug-a"] });

@@ -130,13 +130,12 @@ const prepareAttendee = async (
   unitPrice: number,
 ) => {
   const pricePaid = unitPrice * quantity;
-  // createSeeds guards on settings.publicKey before calling prepareAttendee,
-  // so encryptAttendeeFields cannot return null here.
+  const paymentId = unitPrice > 0 ? `seed_${eventId}_${quantity}_${pricePaid}` : "";
   const enc = (await encryptAttendeeFields({
     address: randomChoice(DEMO_ADDRESSES),
     email: randomChoice(DEMO_EMAILS),
     name: randomChoice(DEMO_NAMES),
-    paymentId: "",
+    paymentId,
     phone: randomChoice(DEMO_PHONES),
     pricePaid,
     special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),

@@ -52,7 +52,12 @@ describe("endpoint docs", () => {
       (e: EndpointDoc) => e.method === "GET" && e.path === "/api/events",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realPublicEvent = toPublicEvent(ADMIN_API_EXAMPLE_EVENT);
+    const realPublicEvent = toPublicEvent(
+      ADMIN_API_EXAMPLE_EVENT,
+      false,
+      undefined,
+      undefined,
+    );
     const realKeys = Object.keys(realPublicEvent).sort();
     const exampleKeys = Object.keys(parsed.events[0]).sort();
     expect(exampleKeys).toEqual(realKeys);

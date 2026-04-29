@@ -3,6 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
+  getGroupRemainingByEventId,
+  getGroupRemainingByGroupId,
+  getGroupRemainingForEvent,
   hasAvailableSpots,
 } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -404,6 +407,156 @@ describeWithEnv("db > groups", { db: true }, () => {
           { eventId: openGroupEvent.id, quantity: 1 },
         ]),
       ).toBe(true);
+    });
+  });
+
+  describe("group remaining helpers", () => {
+    const createCappedGroupWithEvents = async (
+      groupMax: number,
+      slug: string,
+      overrides?: { eventType?: "standard" | "daily" },
+    ) => {
+      const group = await createTestGroup({
+        maxAttendees: groupMax,
+        name: slug,
+        slug,
+      });
+      const e1 = await createTestEvent({
+        eventType: overrides?.eventType,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `${slug}-a`,
+      });
+      const e2 = await createTestEvent({
+        eventType: overrides?.eventType,
+        groupId: group.id,
+        maxAttendees: 10,
+        name: `${slug}-b`,
+      });
+      return { e1, e2, group };
+    };
+
+    const book = (eventId: number, quantity: number, date?: string) =>
+      createAttendeeAtomic({
+        bookings: [{ date, eventId, quantity }],
+        email: `g${eventId}q${quantity}@example.com`,
+        name: `g-${eventId}-${quantity}`,
+      });
+
+    test("getGroupRemainingByGroupId returns spots remaining for capped groups", async () => {
+      const { e1, group } = await createCappedGroupWithEvents(5, "remaining");
+      await book(e1.id, 2);
+
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.get(group.id)).toBe(3);
+    });
+
+    test("getGroupRemainingByGroupId omits groups with no max set", async () => {
+      const group = await createTestGroup({
+        name: "unbounded",
+        slug: "unbounded",
+      });
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.has(group.id)).toBe(false);
+    });
+
+    test("getGroupRemainingByGroupId returns empty map for empty input", async () => {
+      const map = await getGroupRemainingByGroupId([]);
+      expect(map.size).toBe(0);
+    });
+
+    test("getGroupRemainingByGroupId reports zero when group is exactly full", async () => {
+      const { e1, group } = await createCappedGroupWithEvents(2, "exact-fill");
+      await book(e1.id, 2);
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.get(group.id)).toBe(0);
+    });
+
+    test("getGroupRemainingByEventId keys remaining by event id", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(6, "for-events");
+      await book(e1.id, 4);
+
+      const map = await getGroupRemainingByEventId([e1, e2]);
+      expect(map.get(e1.id)).toBe(2);
+      expect(map.get(e2.id)).toBe(2);
+    });
+
+    test("getGroupRemainingByEventId skips ungrouped events", async () => {
+      const ungrouped = await createTestEvent({
+        maxAttendees: 50,
+        name: "loner",
+      });
+      const map = await getGroupRemainingByEventId([ungrouped]);
+      expect(map.has(ungrouped.id)).toBe(false);
+    });
+
+    test("getGroupRemainingByEventId skips daily events", async () => {
+      const { e1 } = await createCappedGroupWithEvents(3, "daily-skip", {
+        eventType: "daily",
+      });
+      const map = await getGroupRemainingByEventId([e1]);
+      expect(map.has(e1.id)).toBe(false);
+    });
+
+    test("getGroupRemainingForEvent returns remaining for standard event", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(4, "single-evt");
+      await book(e1.id, 1);
+      expect(await getGroupRemainingForEvent(e2)).toBe(3);
+    });
+
+    test("getGroupRemainingForEvent returns undefined for daily event", async () => {
+      const { e1 } = await createCappedGroupWithEvents(3, "single-daily", {
+        eventType: "daily",
+      });
+      expect(await getGroupRemainingForEvent(e1)).toBeUndefined();
+    });
+
+    test("getGroupRemainingForEvent returns undefined when no group", async () => {
+      const ungrouped = await createTestEvent({
+        maxAttendees: 50,
+        name: "no-group",
+      });
+      expect(await getGroupRemainingForEvent(ungrouped)).toBeUndefined();
+    });
+
+    test("getGroupRemainingByGroupId is per-date for daily-event groups", async () => {
+      const { e1, group } = await createCappedGroupWithEvents(
+        4,
+        "by-id-daily",
+        {
+          eventType: "daily",
+        },
+      );
+      await book(e1.id, 3, "2026-09-01");
+      await book(e1.id, 1, "2026-09-02");
+
+      const onSep1 = await getGroupRemainingByGroupId([group.id], "2026-09-01");
+      const onSep2 = await getGroupRemainingByGroupId([group.id], "2026-09-02");
+      expect(onSep1.get(group.id)).toBe(1);
+      expect(onSep2.get(group.id)).toBe(3);
+    });
+
+    test("getGroupRemainingByEventId returns daily events when date is given", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(4, "by-evt-daily", {
+        eventType: "daily",
+      });
+      await book(e1.id, 1, "2026-10-01");
+
+      const onOct1 = await getGroupRemainingByEventId([e1, e2], "2026-10-01");
+      expect(onOct1.get(e1.id)).toBe(3);
+      expect(onOct1.get(e2.id)).toBe(3);
+    });
+
+    test("getGroupRemainingForEvent returns per-date remaining for daily event", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(
+        5,
+        "single-daily-date",
+        { eventType: "daily" },
+      );
+      await book(e1.id, 2, "2026-11-15");
+
+      expect(await getGroupRemainingForEvent(e2, "2026-11-15")).toBe(3);
+      expect(await getGroupRemainingForEvent(e2, "2026-11-16")).toBe(5);
     });
   });
 });

@@ -127,7 +127,11 @@ const dispatchVerified = async (
   if (await canSkipToCheckout(event, payload)) {
     return skipToCheckout(request, event, payload);
   }
-  const ticketEvent = buildTicketEvent(event, isRegistrationClosed(event));
+  const ticketEvent = buildTicketEvent(
+    event,
+    isRegistrationClosed(event),
+    await getGroupRemainingForEvent(event),
+  );
   const prefill = buildPrefill(event, payload, token);
   return handleTicket(
     request,

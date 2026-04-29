@@ -32,6 +32,7 @@ import {
 import type { ContactInfo, Group } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
+import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
 import type {
   AsyncHandler,
@@ -247,9 +248,7 @@ export const withActiveEvents = async (
 ): Promise<Response> => {
   const events = await getEventsBySlugsBatch(slugs);
   const active = compact(events).filter((e) => e.active);
-  const activeEvents = active.map((e) =>
-    buildTicketEvent(e, isRegistrationClosed(e)),
-  );
+  const activeEvents = await buildTicketEventsWithGroupCapacity(active);
   return activeEvents.length === 0 ? notFoundResponse() : handler(activeEvents);
 };
 
