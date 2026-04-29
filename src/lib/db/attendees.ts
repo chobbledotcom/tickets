@@ -40,8 +40,6 @@ export {
   checkCapacityResult,
   dateToStartEnd,
   getDateAttendeeCount,
-  getGroupAttendeeCount,
-  getGroupMaxAttendees,
   getGroupRemainingByEventId,
   getGroupRemainingByGroupId,
   getGroupRemainingForEvent,

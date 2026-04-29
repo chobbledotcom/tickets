@@ -519,5 +519,45 @@ describeWithEnv("db > groups", { db: true }, () => {
       });
       expect(await getGroupRemainingForEvent(ungrouped)).toBeUndefined();
     });
+
+    test("getGroupRemainingByGroupId is per-date for daily-event groups", async () => {
+      const { e1, group } = await createCappedGroupWithEvents(
+        4,
+        "by-id-daily",
+        {
+          eventType: "daily",
+        },
+      );
+      await book(e1.id, 3, "2026-09-01");
+      await book(e1.id, 1, "2026-09-02");
+
+      const onSep1 = await getGroupRemainingByGroupId([group.id], "2026-09-01");
+      const onSep2 = await getGroupRemainingByGroupId([group.id], "2026-09-02");
+      expect(onSep1.get(group.id)).toBe(1);
+      expect(onSep2.get(group.id)).toBe(3);
+    });
+
+    test("getGroupRemainingByEventId returns daily events when date is given", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(4, "by-evt-daily", {
+        eventType: "daily",
+      });
+      await book(e1.id, 1, "2026-10-01");
+
+      const onOct1 = await getGroupRemainingByEventId([e1, e2], "2026-10-01");
+      expect(onOct1.get(e1.id)).toBe(3);
+      expect(onOct1.get(e2.id)).toBe(3);
+    });
+
+    test("getGroupRemainingForEvent returns per-date remaining for daily event", async () => {
+      const { e1, e2 } = await createCappedGroupWithEvents(
+        5,
+        "single-daily-date",
+        { eventType: "daily" },
+      );
+      await book(e1.id, 2, "2026-11-15");
+
+      expect(await getGroupRemainingForEvent(e2, "2026-11-15")).toBe(3);
+      expect(await getGroupRemainingForEvent(e2, "2026-11-16")).toBe(5);
+    });
   });
 });
