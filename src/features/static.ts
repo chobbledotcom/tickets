@@ -12,7 +12,7 @@ import {
   handleRobotsTxt,
   handleScannerJs,
 } from "#routes/assets.ts";
-import { handleHealthCheck } from "#routes/health.ts";
+import { handleHealthCheck } from "#routes/api/health.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 
 /** Static routes definition */

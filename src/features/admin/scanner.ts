@@ -20,7 +20,7 @@ import {
   decryptTokenEntries,
   resolveEntries,
   type TokenEntry,
-} from "#routes/token-utils.ts";
+} from "#routes/tickets/token-utils.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttendeeWithBookings,

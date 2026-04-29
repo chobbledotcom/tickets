@@ -29,7 +29,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { parseTokens } from "#routes/token-utils.ts";
+import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type {
   BookingIntent,
@@ -39,7 +39,7 @@ import type {
   PaymentResult,
   SessionValidation,
   ValidatedSession,
-} from "#routes/webhook-types.ts";
+} from "#routes/api/webhook-types.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";

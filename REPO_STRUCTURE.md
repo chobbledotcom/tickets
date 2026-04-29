@@ -8,7 +8,10 @@ This document describes the current structure.
 src/
   features/
     admin/
+    api/
     public/
+    tickets/
+    wallet/
     ...                    # HTTP routing and route handlers grouped by feature
 
   shared/                  # reusable/server-side modules

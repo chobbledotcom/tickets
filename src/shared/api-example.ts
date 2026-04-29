@@ -6,7 +6,7 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import { type PublicEvent, toPublicEvent } from "#routes/api.ts";
+import { type PublicEvent, toPublicEvent } from "#routes/api/index.ts";
 import type { EventWithCount } from "#shared/types.ts";
 import { EXAMPLE_EVENT } from "#shared/webhook-example.ts";
 

@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toPublicEvent } from "#routes/api.ts";
+import { toPublicEvent } from "#routes/api/index.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,

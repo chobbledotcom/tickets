@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { WalletPassData } from "#routes/token-utils.ts";
+import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import {
   buildGoogleWalletUrl,
   buildJwtPayload,

@@ -95,7 +95,7 @@ const loadSetupRoutes = once(async () => {
 
 /** Lazy-load payment/webhook routes */
 const loadPaymentRoutes = once(async () => {
-  const { routePayment } = await import("#routes/webhooks.ts");
+  const { routePayment } = await import("#routes/api/webhooks.ts");
   return routePayment;
 });
 
@@ -107,7 +107,7 @@ const loadJoinRoutes = once(async () => {
 
 /** Lazy-load ticket view routes */
 const loadTicketViewRoutes = once(async () => {
-  const { routeTicketView } = await import("#routes/tickets.ts");
+  const { routeTicketView } = await import("#routes/tickets/index.ts");
   return routeTicketView;
 });
 
@@ -145,27 +145,27 @@ const loadAttachmentRoutes = once(async () => {
 
 /** Lazy-load Apple Wallet pass routes */
 const loadWalletRoutes = once(async () => {
-  const { routeWallet } = await import("#routes/wallet.ts");
+  const { routeWallet } = await import("#routes/wallet/index.ts");
   return routeWallet;
 });
 
 /** Lazy-load Google Wallet pass routes */
 const loadGoogleWalletRoutes = once(async () => {
-  const { routeGoogleWallet } = await import("#routes/google-wallet.ts");
+  const { routeGoogleWallet } = await import("#routes/wallet/google.ts");
   return routeGoogleWallet;
 });
 
 /** Lazy-load Apple Wallet web service routes (v1 API for pass updates) */
 const loadWalletWebserviceRoutes = once(async () => {
   const { routeWalletWebservice } = await import(
-    "#routes/wallet-webservice.ts"
+    "#routes/wallet/webservice.ts"
   );
   return routeWalletWebservice;
 });
 
 /** Lazy-load public API routes */
 const loadApiRoutes = once(async () => {
-  const { routeApi } = await import("#routes/api.ts");
+  const { routeApi } = await import("#routes/api/index.ts");
   return routeApi;
 });
 

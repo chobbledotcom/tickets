@@ -105,7 +105,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   });
 
   test("returns null for non-GET methods", async () => {
-    const { routeGoogleWallet } = await import("#routes/google-wallet.ts");
+    const { routeGoogleWallet } = await import("#routes/wallet/google.ts");
     const request = new Request("http://localhost/gwallet/some-token", {
       method: "POST",
     });
