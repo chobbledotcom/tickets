@@ -3,14 +3,20 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { unique } from "#fp";
 import type {
   BatchAvailabilityItem,
   EventBooking,
   UpdateEventLinkResult,
 } from "#lib/db/attendee-types.ts";
-import { buildCapacityCondition, dateToRange } from "#lib/db/capacity.ts";
-import { inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
+import {
+  buildCapacityCondition,
+  buildGroupAttendeePredicate,
+  dateToRange,
+} from "#lib/db/capacity.ts";
+import { inPlaceholders, queryAll } from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
+import type { EventType } from "#lib/types.ts";
 
 /** Shared failure result for capacity-exceeded */
 export const CAPACITY_EXCEEDED = {
@@ -36,37 +42,6 @@ export const getDateAttendeeCount = async (
   const rows = await queryAll<{ count: number }>(
     "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND start_at < ? AND end_at > ?",
     [eventId, endAt, startAt],
-  );
-  return rows[0]!.count;
-};
-
-/** Get a group's max_attendees limit (0 = no limit) */
-export const getGroupMaxAttendees = async (
-  groupId: number,
-): Promise<number> => {
-  const row = await queryOne<{ max_attendees: number }>(
-    "SELECT max_attendees FROM groups WHERE id = ?",
-    [groupId],
-  );
-  return row?.max_attendees ?? 0;
-};
-
-/**
- * Count total attendees across all events in a group.
- * Date-aware: standard events always count, daily events only count matching date.
- */
-export const getGroupAttendeeCount = async (
-  groupId: number,
-  date: string | null,
-): Promise<number> => {
-  const range = date ? dateToRange(date) : null;
-  const rows = await queryAll<{ count: number }>(
-    `SELECT COALESCE(SUM(ea.quantity), 0) as count
-     FROM event_attendees ea
-     JOIN events e ON e.id = ea.event_id
-     WHERE e.group_id = ?
-       AND (? IS NULL OR e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
-    [groupId, date, range?.endAt ?? null, range?.startAt ?? null],
   );
   return rows[0]!.count;
 };
@@ -105,6 +80,81 @@ export const checkCapacityResult = (result: {
   return { success: true };
 };
 
+type RemainingMap = Map<number, number>;
+
+/**
+ * Per-group remaining capacity. Groups with `max_attendees <= 0` (no cap)
+ * are omitted from the map. With `date = null`, daily-event attendees count
+ * cumulatively — correct for booking-time enforcement after upstream date
+ * validation, misleading for display.
+ */
+export const getGroupRemainingByGroupId = async (
+  groupIds: number[],
+  date: string | null = null,
+): Promise<RemainingMap> => {
+  const ids = unique(groupIds.filter((id) => id > 0));
+  if (ids.length === 0) return new Map();
+  const predicate = buildGroupAttendeePredicate("e", "ea", date);
+  const rows = await queryAll<{
+    group_id: number;
+    max_attendees: number;
+    count: number;
+  }>(
+    `SELECT g.id as group_id, g.max_attendees,
+            COALESCE(SUM(ea.quantity), 0) as count
+     FROM groups g
+     LEFT JOIN events e ON e.group_id = g.id
+     LEFT JOIN event_attendees ea ON ea.event_id = e.id
+       AND ${predicate.sql}
+     WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
+     GROUP BY g.id`,
+    [...predicate.args, ...ids],
+  );
+  return new Map(
+    rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
+  );
+};
+
+type EventForGroupLookup = {
+  id: number;
+  group_id: number;
+  event_type: EventType;
+};
+
+/**
+ * Per-event view of group remaining capacity. Daily events are dropped when
+ * `date` is null — their cap is per-date, so a cumulative count would
+ * misreport spots that other dates still have.
+ */
+export const getGroupRemainingByEventId = async (
+  events: EventForGroupLookup[],
+  date: string | null = null,
+): Promise<RemainingMap> => {
+  const candidates = date
+    ? events
+    : events.filter((e) => e.event_type !== "daily");
+  const groupMap = await getGroupRemainingByGroupId(
+    candidates.map((e) => e.group_id),
+    date,
+  );
+  const result: RemainingMap = new Map();
+  for (const event of candidates) {
+    const remaining = groupMap.get(event.group_id);
+    if (remaining !== undefined) result.set(event.id, remaining);
+  }
+  return result;
+};
+
+/** Returns `undefined` when no group cap applies: ungrouped, uncapped
+ * group, or daily event without a `date`. */
+export const getGroupRemainingForEvent = async (
+  event: EventForGroupLookup,
+  date: string | null = null,
+): Promise<number | undefined> => {
+  const map = await getGroupRemainingByEventId([event], date);
+  return map.get(event.id);
+};
+
 /**
  * Check availability for multiple events in a single query.
  * Uses a JOIN with conditional date filtering: daily events check per-date
@@ -141,21 +191,19 @@ export const checkBatchAvailabilityImpl = async (
   });
   if (!eventOk) return false;
 
-  // Group capacity check: collect unique group IDs with limits
-  const groupIds = new Set<number>();
-  for (const row of rows) {
-    if (row.group_id > 0) groupIds.add(row.group_id);
-  }
-  for (const groupId of groupIds) {
-    const groupLimit = await getGroupMaxAttendees(groupId);
-    if (groupLimit <= 0) continue;
-    const groupCount = await getGroupAttendeeCount(groupId, date ?? null);
-    // Sum requested quantities for events in this group
+  const groupIds = unique(
+    rows.filter((r) => r.group_id > 0).map((r) => r.group_id),
+  );
+  const remainingByGroupId = await getGroupRemainingByGroupId(
+    groupIds,
+    date ?? null,
+  );
+  for (const [groupId, remaining] of remainingByGroupId) {
     const requestedInGroup = items.reduce((sum, item) => {
       const row = counts.get(item.eventId);
       return row && row.group_id === groupId ? sum + item.quantity : sum;
     }, 0);
-    if (groupCount + requestedInGroup > groupLimit) return false;
+    if (requestedInGroup > remaining) return false;
   }
   return true;
 };
@@ -176,14 +224,12 @@ export const hasAvailableSpotsImpl = async (
   }
   // Check group capacity if event belongs to a group with a limit
   if (event.group_id > 0) {
-    const groupLimit = await getGroupMaxAttendees(event.group_id);
-    if (groupLimit > 0) {
-      const groupCount = await getGroupAttendeeCount(
-        event.group_id,
-        date ?? null,
-      );
-      if (groupCount + quantity > groupLimit) return false;
-    }
+    const remainingByGroupId = await getGroupRemainingByGroupId(
+      [event.group_id],
+      date ?? null,
+    );
+    const remaining = remainingByGroupId.get(event.group_id);
+    if (remaining !== undefined && quantity > remaining) return false;
   }
   return true;
 };

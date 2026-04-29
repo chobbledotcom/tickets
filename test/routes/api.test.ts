@@ -8,6 +8,7 @@ import {
   createDailyTestEvent,
   createTestAttendeeDirect,
   createTestEvent,
+  createTestGroup,
   deactivateTestEvent,
   describeWithEnv,
   setupStripe,
@@ -194,6 +195,61 @@ describeWithEnv("Public API", { db: true }, () => {
       const { events } = await fetchEventsList();
       expect(events[0]!.isSoldOut).toBe(true);
       expect(events[0]!.maxPurchasable).toBe(0);
+    });
+
+    test("sets isSoldOut when sibling event has filled the group cap", async () => {
+      const group = await createTestGroup({
+        maxAttendees: 2,
+        name: "shared-cap",
+        slug: "shared-cap",
+      });
+      const filler = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Filler",
+      });
+      const sibling = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Sibling",
+      });
+      await createTestAttendeeDirect(filler.id, "A", "a@test.com");
+      await createTestAttendeeDirect(filler.id, "B", "b@test.com");
+
+      const { events } = await fetchEventsList();
+      const siblingEvent = events.find((e) => e.slug === sibling.slug)!;
+      expect(siblingEvent.isSoldOut).toBe(true);
+      expect(siblingEvent.maxPurchasable).toBe(0);
+    });
+
+    test("clamps maxPurchasable to remaining group capacity", async () => {
+      const group = await createTestGroup({
+        maxAttendees: 5,
+        name: "tight-cap",
+        slug: "tight-cap",
+      });
+      const filler = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 1,
+        name: "Filler2",
+      });
+      const sibling = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        // Larger than expected group remaining (5 − 3 = 2) so the assertion
+        // proves the group clamp, not the per-event maxQuantity.
+        maxQuantity: 10,
+        name: "Sibling2",
+      });
+      await createTestAttendeeDirect(filler.id, "C", "c@test.com");
+      await createTestAttendeeDirect(filler.id, "D", "d@test.com");
+      await createTestAttendeeDirect(filler.id, "E", "e@test.com");
+
+      const { events } = await fetchEventsList();
+      const siblingEvent = events.find((e) => e.slug === sibling.slug)!;
+      expect(siblingEvent.isSoldOut).toBe(false);
+      expect(siblingEvent.maxPurchasable).toBe(2);
     });
   });
 

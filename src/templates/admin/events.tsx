@@ -215,6 +215,14 @@ const DateSelector = ({
 };
 
 /** Options for rendering the admin event detail page */
+/** Group + current attendee count, supplied when the event is in a capped
+ * group so the detail page can show group-wide capacity beneath the
+ * event's own. Only the cap > 0 case needs surfacing. */
+export type GroupContext = {
+  group: Group;
+  attendeeCount: number;
+};
+
 export type AdminEventPageOptions = {
   event: EventWithCount;
   attendees: Attendee[];
@@ -228,6 +236,7 @@ export type AdminEventPageOptions = {
   phonePrefix?: string;
   successMessage?: string;
   questionData?: TableQuestionData;
+  groupContext?: GroupContext;
 };
 
 /** Top action nav for the event detail page */
@@ -386,7 +395,7 @@ const AttendeesSummaryRow = ({
   completeQuantitySum: number;
 }): JSX.Element => (
   <tr>
-    <th>Attendees{dailySuffix}</th>
+    <th>Event Attendees{dailySuffix}</th>
     <td>
       <AttendeeCountDisplay
         adjustedCount={adjustedCount}
@@ -405,6 +414,38 @@ const AttendeesSummaryRow = ({
   </tr>
 );
 
+/** Group capacity row shown below the event-attendees row when the event
+ * belongs to a capped group. The label makes the group source explicit so
+ * admins see why a not-yet-full event might still be sold out. */
+const GroupAttendeesRow = ({
+  group,
+  groupAttendeeCount,
+  dailySuffix,
+}: {
+  group: Group;
+  groupAttendeeCount: number;
+  dailySuffix: string;
+}): JSX.Element => {
+  const remaining = Math.max(0, group.max_attendees - groupAttendeeCount);
+  const overCap = groupAttendeeCount >= group.max_attendees;
+  const nearCap = groupAttendeeCount >= group.max_attendees * 0.9;
+  return (
+    <tr>
+      <th>Group Attendees{dailySuffix}</th>
+      <td>
+        <span class={overCap || nearCap ? "danger-text" : ""}>
+          {groupAttendeeCount} / {group.max_attendees} &mdash; {remaining}{" "}
+          remain
+        </span>{" "}
+        <small>
+          across all events in{" "}
+          <a href={`/admin/groups/${group.id}`}>{group.name}</a>
+        </small>
+      </td>
+    </tr>
+  );
+};
+
 /** Event details table - all event metadata rows */
 const EventDetailsTable = ({
   event,
@@ -417,6 +458,7 @@ const EventDetailsTable = ({
   dailySuffix,
   adjustedCount,
   completeQuantitySum,
+  groupContext,
   sharedRowsHtml,
 }: {
   event: EventWithCount;
@@ -429,6 +471,7 @@ const EventDetailsTable = ({
   dailySuffix: string;
   adjustedCount: number;
   completeQuantitySum: number;
+  groupContext: GroupContext | undefined;
   sharedRowsHtml: string;
 }): JSX.Element => (
   <article>
@@ -569,6 +612,13 @@ const EventDetailsTable = ({
             event={event}
             isDaily={isDaily}
           />
+          {groupContext && (
+            <GroupAttendeesRow
+              dailySuffix={dailySuffix}
+              group={groupContext.group}
+              groupAttendeeCount={groupContext.attendeeCount}
+            />
+          )}
           <Raw html={sharedRowsHtml} />
         </tbody>
       </table>
@@ -763,6 +813,7 @@ export const adminEventPage = ({
   phonePrefix,
   successMessage,
   questionData,
+  groupContext,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -830,6 +881,7 @@ export const adminEventPage = ({
         embedIframeCode={embedIframeCode}
         embedScriptCode={embedScriptCode}
         event={event}
+        groupContext={groupContext}
         isDaily={isDaily}
         sharedRowsHtml={renderDetailRows(sharedRows)}
         ticketUrl={ticketUrl}

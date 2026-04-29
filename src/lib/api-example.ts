@@ -47,8 +47,12 @@ export const API_EXAMPLE_EVENT: EventWithCount = {
 };
 
 /** The example PublicEvent, produced by toPublicEvent */
-export const API_EXAMPLE_PUBLIC_EVENT: PublicEvent =
-  toPublicEvent(API_EXAMPLE_EVENT);
+export const API_EXAMPLE_PUBLIC_EVENT: PublicEvent = toPublicEvent(
+  API_EXAMPLE_EVENT,
+  false,
+  undefined,
+  undefined,
+);
 
 /** Example list response JSON */
 export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(

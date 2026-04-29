@@ -2,18 +2,12 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
-import { compact, filter, map, pipe } from "#fp";
 import type {
   QuestionEventMap,
   QuestionWithAnswers,
 } from "#lib/db/questions.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  buildTicketEvent,
-  type QrPrefill,
-  type TicketEvent,
-} from "#templates/public.tsx";
+import type { QrPrefill, TicketEvent } from "#templates/public.tsx";
 
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {
@@ -59,15 +53,6 @@ export const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
 /** Parse slugs from a slug string (may contain + separator for multiple events) */
 export const parseSlugs = (slug: string): string[] =>
   slug.split("+").filter((s) => s.length > 0);
-
-/** Filter and transform events to active ticket events */
-export const getActiveEvents = (
-  events: (EventWithCount | null)[],
-): TicketEvent[] =>
-  pipe(
-    filter((e: EventWithCount) => e.active),
-    map((e: EventWithCount) => buildTicketEvent(e, isRegistrationClosed(e))),
-  )(compact(events));
 
 /** Set noindex signal header on response for hidden events */
 export const applyHiddenNoindex = (
