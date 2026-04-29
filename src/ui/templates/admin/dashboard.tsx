@@ -223,7 +223,7 @@ export const adminDashboardPage = (
 
       {!isReadOnly() && (
         <p>
-          <a href="/admin/event/new">Add Event</a>
+          <a href="/admin/event/new">Add Events</a>
         </p>
       )}
 

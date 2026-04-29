@@ -15,6 +15,15 @@
  */
 
 import { unique } from "#fp";
+import type {
+  BookingIntent,
+  EventPriceValidation,
+  EventValidation,
+  PaymentFailureResult,
+  PaymentResult,
+  SessionValidation,
+  ValidatedSession,
+} from "#routes/api/webhook-types.ts";
 import {
   capacityErrorFormatter,
   isRegistrationClosed,
@@ -31,15 +40,6 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
-import type {
-  BookingIntent,
-  EventPriceValidation,
-  EventValidation,
-  PaymentFailureResult,
-  PaymentResult,
-  SessionValidation,
-  ValidatedSession,
-} from "#routes/api/webhook-types.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";

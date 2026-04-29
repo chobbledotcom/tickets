@@ -2,6 +2,7 @@
  * Static routes - health check and assets (always available)
  */
 
+import { handleHealthCheck } from "#routes/api/health.ts";
 import {
   handleAdminJs,
   handleEmbedJs,
@@ -12,7 +13,6 @@ import {
   handleRobotsTxt,
   handleScannerJs,
 } from "#routes/assets.ts";
-import { handleHealthCheck } from "#routes/api/health.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 
 /** Static routes definition */

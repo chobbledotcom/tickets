@@ -360,8 +360,8 @@ describe("code quality", () => {
       // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
       "shared/update.ts:setBuildTimestampForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
-      "features/api.ts:apiRoutes",
-      "features/admin/api.ts:adminApiRoutes",
+      "shared/features/api.ts:apiRoutes",
+      "shared/features/admin/api.ts:adminApiRoutes",
       // Storage delete override for testing fire-and-forget error handling
       "shared/test-overrides.ts:getDeleteOverride",
       "shared/test-overrides.ts:setDeleteOverride",
