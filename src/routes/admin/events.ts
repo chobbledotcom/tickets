@@ -7,13 +7,14 @@ import { getEffectiveDomain } from "#lib/config.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
+import { getGroupRemainingByGroupId } from "#lib/db/attendees.ts";
 import {
   computeSlugIndex,
   type EventInput,
   eventsTable,
   getEventWithCount,
 } from "#lib/db/events.ts";
-import { getAllGroups } from "#lib/db/groups.ts";
+import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   getAttendeeAnswersBatch,
@@ -81,6 +82,7 @@ import {
   adminEventNewPage,
   adminEventPage,
   adminReactivateEventPage,
+  type GroupContext,
 } from "#templates/admin/events.tsx";
 import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
@@ -382,6 +384,22 @@ const applyDateFilter = (
   };
 };
 
+/** Fetch group + current usage when the event sits in a capped group, so the
+ * detail page can render a row for the shared cap. Returns undefined for
+ * ungrouped or uncapped groups. */
+const loadGroupContext = async (
+  event: EventWithCount,
+  dateFilter: string | null,
+): Promise<GroupContext | undefined> => {
+  if (event.group_id === 0) return undefined;
+  const group = await groupsTable.findById(event.group_id);
+  if (!group || group.max_attendees <= 0) return undefined;
+  const remainingMap = await getGroupRemainingByGroupId([group.id], dateFilter);
+  // group.max_attendees > 0 guarantees the helper returns an entry for it.
+  const remaining = remainingMap.get(group.id) as number;
+  return { attendeeCount: group.max_attendees - remaining, group };
+};
+
 /** Render event page with attendee list and optional filter */
 const renderEventPage = async (
   request: Request,
@@ -404,12 +422,13 @@ const renderEventPage = async (
           request,
         );
         const attendeeIds = filteredByDate.map((a) => a.id);
-        const [flash, phonePrefix, questions, attendeeAnswerMap] =
+        const [flash, phonePrefix, questions, attendeeAnswerMap, groupContext] =
           await Promise.all([
             Promise.resolve(getFlash()),
             Promise.resolve(settings.phonePrefix),
             getQuestionsForEvent(event.id),
             getAttendeeAnswersBatch(attendeeIds),
+            loadGroupContext(event, dateFilter),
           ]);
         const questionData =
           questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
@@ -423,6 +442,7 @@ const renderEventPage = async (
             dateFilter,
             errorMessage: flash.error,
             event,
+            groupContext,
             phonePrefix,
             questionData,
             session,

@@ -309,6 +309,62 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(html).toContain(">Edit<");
     });
 
+    test("shows Group Attendees row when event is in a capped group", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        maxAttendees: 100,
+      });
+      const { bookAttendee, createTestEvent, createTestGroup } = await import(
+        "#test-utils"
+      );
+      const { eventsTable } = await import("#lib/db/events.ts");
+      const group = await createTestGroup({
+        maxAttendees: 20,
+        name: "Capped Group",
+        slug: "capped-grp",
+      });
+      await eventsTable.update(event.id, { groupId: group.id });
+      // Sibling event in the same group with bookings: proves the row's
+      // count is the group-wide total, not just the current event's.
+      const sibling = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        name: "Sibling",
+      });
+      await bookAttendee(sibling, {
+        email: "a@test.com",
+        name: "A",
+        quantity: 4,
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Group Attendees");
+      expect(html).toContain("4 / 20");
+      expect(html).toContain("16 remain");
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+    });
+
+    test("omits Group Attendees row when group is uncapped", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        maxAttendees: 100,
+      });
+      const { createTestGroup } = await import("#test-utils");
+      const { eventsTable } = await import("#lib/db/events.ts");
+      const group = await createTestGroup({
+        name: "Uncapped",
+        slug: "uncapped-grp",
+      });
+      await eventsTable.update(event.id, { groupId: group.id });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).not.toContain("Group Attendees");
+    });
+
     test("shows question answer summary when questions assigned", async () => {
       const { event, cookie } = await setupEventAndLogin({
         maxAttendees: 100,
