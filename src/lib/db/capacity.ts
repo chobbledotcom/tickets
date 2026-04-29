@@ -10,6 +10,9 @@
 
 import type { InValue } from "@libsql/client";
 
+/** A reusable SQL fragment with its positional bind arguments. */
+export type SqlFragment = { sql: string; args: InValue[] };
+
 /** Convert a date string ("YYYY-MM-DD") to start_at/end_at pair for full-day range */
 export const dateToRange = (
   date: string,
@@ -17,6 +20,34 @@ export const dateToRange = (
   const ms = new Date(`${date}T00:00:00Z`).getTime();
   const nextDay = new Date(ms + 86_400_000).toISOString();
   return { endAt: nextDay, startAt: `${date}T00:00:00Z` };
+};
+
+/**
+ * SQL fragment deciding whether an `event_attendees` row counts toward a
+ * group's used capacity for a given date.
+ *
+ *   - Standard events always count.
+ *   - Daily events count only when their booking overlaps the date.
+ *   - When `date` is null, every row counts — callers that want per-date
+ *     scope pass a non-null date upstream.
+ *
+ * Used by both the booking-time SQL in `buildCapacityCondition` and the
+ * read-side SQL in `getGroupRemainingByGroupId` so the two never drift.
+ *
+ * Produces `(? IS NULL OR <eventAlias>.event_type != 'daily' OR
+ * (<attendeeAlias>.start_at < ? AND <attendeeAlias>.end_at > ?))` plus its
+ * three positional args `[date, endAt, startAt]`.
+ */
+export const buildGroupAttendeePredicate = (
+  eventAlias: string,
+  attendeeAlias: string,
+  date: string | null,
+): SqlFragment => {
+  const range = date ? dateToRange(date) : null;
+  return {
+    args: [date, range?.endAt ?? null, range?.startAt ?? null],
+    sql: `(? IS NULL OR ${eventAlias}.event_type != 'daily' OR (${attendeeAlias}.start_at < ? AND ${attendeeAlias}.end_at > ?))`,
+  };
 };
 
 /**
@@ -28,7 +59,7 @@ export const buildCapacityCondition = (
   qty: number,
   date: string | null,
   excludeAttendeeId?: number,
-): { sql: string; args: InValue[] } => {
+): SqlFragment => {
   const range = date ? dateToRange(date) : null;
   const endAt = range?.endAt ?? null;
   const startAt = range?.startAt ?? null;
@@ -48,6 +79,7 @@ export const buildCapacityCondition = (
   const groupExclude = excludeAttendeeId
     ? "AND ea3.attendee_id != ?\n                  "
     : "";
+  const groupPredicate = buildGroupAttendeePredicate("e2", "ea3", date);
   const groupCapacityCheck = `
           AND (
             SELECT CASE
@@ -58,7 +90,7 @@ export const buildCapacityCondition = (
                 FROM event_attendees ea3
                 JOIN events e2 ON e2.id = ea3.event_id
                 WHERE e2.group_id = ev.group_id
-                  ${groupExclude}AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
+                  ${groupExclude}AND ${groupPredicate.sql}
               ) + ? <= g.max_attendees THEN 1
               ELSE 0
             END
@@ -67,8 +99,8 @@ export const buildCapacityCondition = (
             WHERE ev.id = ?
           ) = 1`;
   const groupCapacityArgs: InValue[] = excludeAttendeeId
-    ? [excludeAttendeeId, date, endAt, startAt, qty, eventId]
-    : [date, endAt, startAt, qty, eventId];
+    ? [excludeAttendeeId, ...groupPredicate.args, qty, eventId]
+    : [...groupPredicate.args, qty, eventId];
 
   return {
     args: [...capacityArgs, qty, eventId, ...groupCapacityArgs],

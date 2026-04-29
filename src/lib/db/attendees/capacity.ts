@@ -9,7 +9,11 @@ import type {
   EventBooking,
   UpdateEventLinkResult,
 } from "#lib/db/attendee-types.ts";
-import { buildCapacityCondition, dateToRange } from "#lib/db/capacity.ts";
+import {
+  buildCapacityCondition,
+  buildGroupAttendeePredicate,
+  dateToRange,
+} from "#lib/db/capacity.ts";
 import { inPlaceholders, queryAll } from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
 import type { EventType } from "#lib/types.ts";
@@ -98,7 +102,7 @@ export const getGroupRemainingByGroupId = async (
 ): Promise<RemainingMap> => {
   const ids = unique(groupIds.filter((id) => id > 0));
   if (ids.length === 0) return new Map();
-  const range = date ? dateToRange(date) : null;
+  const predicate = buildGroupAttendeePredicate("e", "ea", date);
   const rows = await queryAll<{
     group_id: number;
     max_attendees: number;
@@ -109,10 +113,10 @@ export const getGroupRemainingByGroupId = async (
      FROM groups g
      LEFT JOIN events e ON e.group_id = g.id
      LEFT JOIN event_attendees ea ON ea.event_id = e.id
-       AND (? IS NULL OR e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))
+       AND ${predicate.sql}
      WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
      GROUP BY g.id`,
-    [date, range?.endAt ?? null, range?.startAt ?? null, ...ids],
+    [...predicate.args, ...ids],
   );
   return new Map(
     rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
