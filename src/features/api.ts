@@ -13,6 +13,10 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
 import { getAvailableDates } from "#shared/dates.ts";
+import {
+  getGroupRemainingByEventId,
+  getGroupRemainingForEvent,
+} from "#shared/db/attendees/capacity.ts";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";

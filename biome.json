@@ -15,6 +15,7 @@
       "**/*.js",
       "**/*.ts",
       "**/*.tsx",
+      "!src/static",
       "!src/ui/static",
       "!src/ui/client/scanner.js"
     ]

@@ -3,7 +3,7 @@
  */
 
 import { filter, map } from "#fp";
-import { formatCreationError } from "#routes/format.ts";
+import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
 import type {
@@ -12,7 +12,6 @@ import type {
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { EventFields } from "#shared/types.ts";
-import { capacityErrorFormatter } from "#routes/format.ts";
 import { extractContact, mergeEventFields } from "#templates/fields.ts";
 import { type TicketEvent, ticketPage } from "#templates/public.tsx";
 import type { EventQty, TicketCtx } from "./types.ts";

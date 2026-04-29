@@ -13,7 +13,7 @@ import {
   generateDescriptions,
   generateVenueNames,
   VENUE_TYPES,
-} from "#lib/band-name-generator.ts";
+} from "#shared/band-name-generator.ts";
 
 describe("generateBandNames", () => {
   test("returns exactly `count` names", () => {

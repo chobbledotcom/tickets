@@ -2,18 +2,12 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
-import { compact, filter, map, pipe } from "#fp";
-import { isRegistrationClosed } from "#routes/format.ts";
 import type {
   QuestionEventMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import type { EventWithCount } from "#shared/types.ts";
-import {
-  buildTicketEvent,
-  type QrPrefill,
-  type TicketEvent,
-} from "#templates/public.tsx";
+import type { QrPrefill, TicketEvent } from "#templates/public.tsx";
 
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {

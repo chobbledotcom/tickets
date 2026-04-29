@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createSession, getSession } from "#shared/db/sessions.ts";
-import { setSkipLoginDelayForTest } from "#shared/test-overrides.ts";
+import { setSkipLoginDelay } from "#shared/test-overrides.ts";
 import {
   assertAdminHtml,
   assertPublicHtml,

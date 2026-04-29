@@ -130,7 +130,8 @@ const prepareAttendee = async (
   unitPrice: number,
 ) => {
   const pricePaid = unitPrice * quantity;
-  const paymentId = unitPrice > 0 ? `seed_${eventId}_${quantity}_${pricePaid}` : "";
+  const paymentId =
+    unitPrice > 0 ? `seed_${eventId}_${quantity}_${pricePaid}` : "";
   const enc = (await encryptAttendeeFields({
     address: randomChoice(DEMO_ADDRESSES),
     email: randomChoice(DEMO_EMAILS),

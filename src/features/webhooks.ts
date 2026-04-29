@@ -15,7 +15,10 @@
  */
 
 import { unique } from "#fp";
-import { formatCreationError, isRegistrationClosed } from "#routes/format.ts";
+import {
+  capacityErrorFormatter,
+  isRegistrationClosed,
+} from "#routes/format.ts";
 import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import {

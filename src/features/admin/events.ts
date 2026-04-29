@@ -29,13 +29,14 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
+import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
 import {
   computeSlugIndex,
   type EventInput,
   eventsTable,
   getEventWithCount,
 } from "#shared/db/events.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import { getAllGroups, groupsTable } from "#shared/db/groups.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   getAttendeeAnswersBatch,

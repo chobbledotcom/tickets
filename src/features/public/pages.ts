@@ -2,7 +2,6 @@
  * Public pages - home, events, terms, contact
  */
 
-import { isRegistrationClosed } from "#routes/format.ts";
 import {
   htmlResponse,
   notFoundResponse,

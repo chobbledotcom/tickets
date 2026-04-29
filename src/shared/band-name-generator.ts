@@ -8,32 +8,32 @@
  * yet the variety is enormous.
  */
 
-import { BAND_ADJECTIVES } from "#lib/band-name-generator/adjectives.ts";
-import { AGE_NOTES } from "#lib/band-name-generator/age-notes.ts";
-import { AUDIENCE_OUTCOMES } from "#lib/band-name-generator/audience-outcomes.ts";
-import { BAND_DESCRIPTORS } from "#lib/band-name-generator/band-descriptors.ts";
-import { BAND_VERBS } from "#lib/band-name-generator/band-verbs.ts";
-import { BUILDING_STATES } from "#lib/band-name-generator/building-states.ts";
-import { CONNECTORS } from "#lib/band-name-generator/connectors.ts";
-import { CROSSOVERS } from "#lib/band-name-generator/crossovers.ts";
-import { EVENT_TYPES } from "#lib/band-name-generator/event-types.ts";
-import { FESTIVAL_TYPES } from "#lib/band-name-generator/festival-types.ts";
-import { GENRES } from "#lib/band-name-generator/genres.ts";
-import { INTENSITIES } from "#lib/band-name-generator/intensities.ts";
-import { NOISE_VERBS } from "#lib/band-name-generator/noise-verbs.ts";
-import { BAND_NOUNS } from "#lib/band-name-generator/nouns.ts";
-import { NUMBER_WORDS } from "#lib/band-name-generator/number-words.ts";
-import { ODD_INSTRUMENTS } from "#lib/band-name-generator/odd-instruments.ts";
-import { BAND_PERSON_NAMES } from "#lib/band-name-generator/person-names.ts";
-import { PRIZES } from "#lib/band-name-generator/prizes.ts";
-import { PROHIBITIONS } from "#lib/band-name-generator/prohibitions.ts";
-import { REQUIREMENTS } from "#lib/band-name-generator/requirements.ts";
-import { SHOW_ITEMS } from "#lib/band-name-generator/show-items.ts";
-import { BAND_SUFFIXES } from "#lib/band-name-generator/suffixes.ts";
-import { TIMES } from "#lib/band-name-generator/times.ts";
-import { TOUR_ADJECTIVES } from "#lib/band-name-generator/tour-adjectives.ts";
-import { VENUE_TYPES } from "#lib/band-name-generator/venue-types.ts";
-import { WEIRD_VENUES } from "#lib/band-name-generator/weird-venues.ts";
+import { BAND_ADJECTIVES } from "#shared/band-name-generator/adjectives.ts";
+import { AGE_NOTES } from "#shared/band-name-generator/age-notes.ts";
+import { AUDIENCE_OUTCOMES } from "#shared/band-name-generator/audience-outcomes.ts";
+import { BAND_DESCRIPTORS } from "#shared/band-name-generator/band-descriptors.ts";
+import { BAND_VERBS } from "#shared/band-name-generator/band-verbs.ts";
+import { BUILDING_STATES } from "#shared/band-name-generator/building-states.ts";
+import { CONNECTORS } from "#shared/band-name-generator/connectors.ts";
+import { CROSSOVERS } from "#shared/band-name-generator/crossovers.ts";
+import { EVENT_TYPES } from "#shared/band-name-generator/event-types.ts";
+import { FESTIVAL_TYPES } from "#shared/band-name-generator/festival-types.ts";
+import { GENRES } from "#shared/band-name-generator/genres.ts";
+import { INTENSITIES } from "#shared/band-name-generator/intensities.ts";
+import { NOISE_VERBS } from "#shared/band-name-generator/noise-verbs.ts";
+import { BAND_NOUNS } from "#shared/band-name-generator/nouns.ts";
+import { NUMBER_WORDS } from "#shared/band-name-generator/number-words.ts";
+import { ODD_INSTRUMENTS } from "#shared/band-name-generator/odd-instruments.ts";
+import { BAND_PERSON_NAMES } from "#shared/band-name-generator/person-names.ts";
+import { PRIZES } from "#shared/band-name-generator/prizes.ts";
+import { PROHIBITIONS } from "#shared/band-name-generator/prohibitions.ts";
+import { REQUIREMENTS } from "#shared/band-name-generator/requirements.ts";
+import { SHOW_ITEMS } from "#shared/band-name-generator/show-items.ts";
+import { BAND_SUFFIXES } from "#shared/band-name-generator/suffixes.ts";
+import { TIMES } from "#shared/band-name-generator/times.ts";
+import { TOUR_ADJECTIVES } from "#shared/band-name-generator/tour-adjectives.ts";
+import { VENUE_TYPES } from "#shared/band-name-generator/venue-types.ts";
+import { WEIRD_VENUES } from "#shared/band-name-generator/weird-venues.ts";
 
 // Re-export every pool so existing call sites and tests can keep using
 // `import { BAND_ADJECTIVES } from "#lib/band-name-generator.ts"`.

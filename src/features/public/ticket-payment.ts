@@ -3,7 +3,6 @@
  */
 
 import { compact } from "#fp";
-import { isRegistrationClosed } from "#routes/format.ts";
 import {
   checkoutResponse,
   errorRedirect,
@@ -31,7 +30,7 @@ import {
 } from "#shared/payments.ts";
 import type { ContactInfo, Group } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
-import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
+import type { TicketEvent } from "#templates/public.tsx";
 import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
 import type {

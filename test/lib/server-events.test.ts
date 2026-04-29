@@ -316,7 +316,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const { bookAttendee, createTestEvent, createTestGroup } = await import(
         "#test-utils"
       );
-      const { eventsTable } = await import("#lib/db/events.ts");
+      const { eventsTable } = await import("#shared/db/events.ts");
       const group = await createTestGroup({
         maxAttendees: 20,
         name: "Capped Group",
@@ -351,7 +351,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         maxAttendees: 100,
       });
       const { createTestGroup } = await import("#test-utils");
-      const { eventsTable } = await import("#lib/db/events.ts");
+      const { eventsTable } = await import("#shared/db/events.ts");
       const group = await createTestGroup({
         name: "Uncapped",
         slug: "uncapped-grp",

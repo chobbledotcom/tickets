@@ -1,6 +1,6 @@
-import { getGroupRemainingByEventId } from "#lib/db/attendees.ts";
-import type { EventWithCount } from "#lib/types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { getGroupRemainingByEventId } from "#shared/db/attendees.ts";
+import type { EventWithCount } from "#shared/types.ts";
 import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
 
 export const buildTicketEventsWithGroupCapacity = async (

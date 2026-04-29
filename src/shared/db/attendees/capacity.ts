@@ -9,9 +9,14 @@ import type {
   EventBooking,
   UpdateEventLinkResult,
 } from "#shared/db/attendee-types.ts";
-import { buildCapacityCondition, dateToRange } from "#shared/db/capacity.ts";
-import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  buildCapacityCondition,
+  buildGroupAttendeePredicate,
+  dateToRange,
+} from "#shared/db/capacity.ts";
+import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#shared/db/events.ts";
+import type { EventType } from "#shared/types.ts";
 
 /** Shared failure result for capacity-exceeded */
 export const CAPACITY_EXCEEDED = {

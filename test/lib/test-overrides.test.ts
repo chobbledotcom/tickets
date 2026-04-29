@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   getRethrowErrors,
   getSkipLoginDelay,
-  setRethrowErrorsForTest,
-  setSkipLoginDelayForTest,
+  setRethrowErrors,
+  setSkipLoginDelay,
 } from "#shared/test-overrides.ts";
 
 describe("test-overrides", () => {

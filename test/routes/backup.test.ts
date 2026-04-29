@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { uploadRaw } from "#shared/storage.ts";
-import { setDeleteOverrideForTest } from "#shared/test-overrides.ts";
+import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
   mockRequest,

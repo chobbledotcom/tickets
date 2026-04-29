@@ -4,6 +4,14 @@
  */
 
 import { lazyRef } from "#fp";
+import {
+  DEFAULT_BAND_SEED,
+  DEFAULT_DESCRIPTION_SEED,
+  DEFAULT_VENUE_SEED,
+  generateBandNames,
+  generateDescriptions,
+  generateVenueNames,
+} from "#shared/band-name-generator.ts";
 import { getEnv } from "#shared/env.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FieldValues } from "#shared/forms.tsx";

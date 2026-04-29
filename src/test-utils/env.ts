@@ -5,10 +5,7 @@ import {
   setSuppressDebugLogs,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
-import {
-  setRethrowErrorsForTest,
-  setSkipLoginDelayForTest,
-} from "#shared/test-overrides.ts";
+import { setRethrowErrors, setSkipLoginDelay } from "#shared/test-overrides.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 
 export const setupTestEncryptionKey = (): void => {

@@ -22,7 +22,7 @@ import {
   validateAttachment,
   validateImage,
 } from "#shared/storage.ts";
-import { setDeleteOverrideForTest } from "#shared/test-overrides.ts";
+import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
   installUrlHandler,

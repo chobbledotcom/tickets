@@ -10,6 +10,7 @@
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getAvailableDates } from "#shared/dates.ts";
+import { getGroupRemainingForEvent } from "#shared/db/attendees/capacity.ts";
 import { getEventWithCountBySlug } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
