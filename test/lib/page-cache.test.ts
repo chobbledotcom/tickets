@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { encrypt } from "#lib/crypto/encryption.ts";
-import { getDb } from "#lib/db/client.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   CONFIG_KEYS,
   SETTINGS_CACHE_TTL_MS,
   settings,
-} from "#lib/db/settings.ts";
+} from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("page content cache", { db: true }, () => {
@@ -203,10 +203,10 @@ describeWithEnv("page content cache", { db: true }, () => {
 
   describe("cache stats after invalidation", () => {
     test("settings cache reports 0 entries after invalidation", async () => {
-      const { getAllCacheStats } = await import("#lib/cache-registry.ts");
+      const { getAllCacheStats } = await import("#shared/cache-registry.ts");
 
       // Load settings to populate cache
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       await s.loadAll();
 
       const before = getAllCacheStats().find((s) => s.name === "settings");

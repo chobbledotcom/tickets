@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { settings } from "#lib/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   constructTestWebhookEvent,
   createCheckoutSession,
@@ -17,8 +17,8 @@ import {
   stripeApi,
   testStripeConnection,
   verifyWebhookSignature,
-} from "#lib/stripe.ts";
-import { stripePaymentProvider } from "#lib/stripe-provider.ts";
+} from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   createTestDb,
   describeWithEnv,
@@ -321,7 +321,7 @@ describeWithEnv(
       });
 
       test("includes booking fee line item when fee is set", async () => {
-        const { settings: s } = await import("#lib/db/settings.ts");
+        const { settings: s } = await import("#shared/db/settings.ts");
         await s.update.bookingFee("5");
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();

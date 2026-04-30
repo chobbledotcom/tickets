@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { deleteAttendee, getAttendee } from "#lib/db/attendees.ts";
+import { deleteAttendee, getAttendee } from "#shared/db/attendees.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
-} from "#lib/db/processed-payments.ts";
+} from "#shared/db/processed-payments.ts";
 import {
   createTestAttendee,
   createTestEvent,

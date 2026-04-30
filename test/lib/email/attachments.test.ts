@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildSvgTicketData, buildTicketAttachments } from "#lib/email.ts";
+import { buildSvgTicketData, buildTicketAttachments } from "#shared/email.ts";
 import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
 
 describeWithEnv("buildSvgTicketData", { db: true }, () => {

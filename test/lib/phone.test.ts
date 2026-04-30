@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { normalizePhone } from "#lib/phone.ts";
+import { normalizePhone } from "#shared/phone.ts";
 
 describe("normalizePhone", () => {
   test("strips non-numeric characters and adds prefix for leading zero", () => {

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { renderQuestions } from "#templates/public.tsx";
 
 describe("renderQuestions", () => {

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ATTENDEE_TABLE_COLUMNS } from "#lib/columns/attendee-columns.ts";
-import { EVENT_TABLE_COLUMNS } from "#lib/columns/event-columns.ts";
-import type { AttendeeTableRow } from "#lib/types.ts";
+import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
+import { EVENT_TABLE_COLUMNS } from "#shared/columns/event-columns.ts";
+import type { AttendeeTableRow } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import {
   setupTestEncryptionKey,

@@ -1,0 +1,87 @@
+/**
+ * Route definitions, endpoint handlers, and the routeTicket router
+ */
+
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { getEventWithCountBySlug } from "#shared/db/events.ts";
+import {
+  computeGroupSlugIndex,
+  getGroupBySlugIndex,
+} from "#shared/db/groups.ts";
+import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
+import { generateQrSvg } from "#shared/qr.ts";
+import { successPage } from "#templates/payment.tsx";
+import { handleGroupTicketBySlug } from "./groups.ts";
+import { handleQrBookGet } from "./qr-book.ts";
+import { handleTicketBySlugs } from "./ticket-submit.ts";
+import { parseSlugs } from "./types.ts";
+
+/** Get the email from-address if email is configured. Returns empty string if not. */
+export const getFromEmailIfConfigured = async (): Promise<string> => {
+  const config = (await getEmailConfig()) ?? getHostEmailConfig();
+  return config?.fromAddress ?? "";
+};
+
+/** Handle GET /ticket/reserved - reservation success page */
+const handleReservedGet = async (request: Request): Promise<Response> => {
+  const url = new URL(request.url);
+  const tokensParam = url.searchParams.get("tokens");
+  const normalizedTokens = tokensParam?.replaceAll(" ", "+") ?? "";
+  const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
+  const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
+  const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
+
+  return htmlResponse(successPage({ fromEmail, ticketUrl }));
+};
+
+/** Handle ticket request: try events by slugs, fall back to group for single slugs */
+const handleTicketBySlug = async (
+  request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const slugs = parseSlugs(slug);
+  const response = await handleTicketBySlugs(request, slugs);
+  // For single slugs, fall back to group lookup on 404
+  if (response.status === 404 && slugs.length === 1) {
+    return handleGroupTicketBySlug(request, slugs[0]!);
+  }
+  return response;
+};
+
+/** Generate a QR code SVG response for a given slug */
+const qrResponse = async (slug: string): Promise<Response> => {
+  const ticketUrl = `https://${getEffectiveDomain()}/ticket/${slug}`;
+  const svg = await generateQrSvg(ticketUrl);
+  return new Response(svg, {
+    headers: { "content-type": "image/svg+xml" },
+  });
+};
+
+/** Handle GET /ticket/:slug/qr (event first, then group fallback) */
+export const handleTicketQrGet = async (
+  _request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const event = await getEventWithCountBySlug(slug);
+  if (event) return qrResponse(slug);
+
+  const slugIndex = await computeGroupSlugIndex(slug);
+  const group = await getGroupBySlugIndex(slugIndex);
+  if (group) return qrResponse(slug);
+
+  return notFoundResponse();
+};
+
+/** Public ticket routes */
+const publicRoutes = defineRoutes({
+  "GET /ticket/:slug": handleTicketBySlug,
+  "GET /ticket/:slug/qr": handleTicketQrGet,
+  "GET /ticket/:slug/qr-book": handleQrBookGet,
+  "GET /ticket/reserved": handleReservedGet,
+  "POST /ticket/:slug": handleTicketBySlug,
+});
+
+/** Route ticket requests */
+export const routeTicket = createRouter(publicRoutes);

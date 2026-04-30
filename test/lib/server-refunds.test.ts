@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import type { EventInput } from "#lib/db/events.ts";
-import { paymentsApi } from "#lib/payments.ts";
-import type { Attendee, Event } from "#lib/types.ts";
 import { handleRequest } from "#routes";
+import type { EventInput } from "#shared/db/events.ts";
+import { paymentsApi } from "#shared/payments.ts";
+import type { Attendee, Event } from "#shared/types.ts";
 import {
   assertAdminHtml,
   awaitTestRequest,
@@ -88,7 +88,7 @@ const submitRefundAll = (
   );
 
 const markAsRefunded = async (attendeeId: number, eventId: number) => {
-  const { markRefunded } = await import("#lib/db/attendees.ts");
+  const { markRefunded } = await import("#shared/db/attendees.ts");
   await markRefunded(attendeeId, eventId);
 };
 
@@ -104,7 +104,9 @@ const withRefundMock = async (
         mockProviderType("stripe"),
       ),
     async () => {
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockRefund =
         typeof refundBehavior === "function"
           ? stub(stripePaymentProvider, "refundPayment", refundBehavior)

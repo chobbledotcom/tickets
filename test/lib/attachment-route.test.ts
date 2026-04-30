@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { signAttachmentUrl } from "#lib/attachment-url.ts";
-import { encryptBytes } from "#lib/crypto/encryption.ts";
-import { getAttendeeRaw } from "#lib/db/attendees.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
 import { getMimeType } from "#routes/attachments.ts";
+import { signAttachmentUrl } from "#shared/attachment-url.ts";
+import { encryptBytes } from "#shared/crypto/encryption.ts";
+import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   createTestAttendeeWithToken,
   describeWithEnv,

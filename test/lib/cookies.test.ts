@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { parseCookies } from "#routes/url.ts";
 import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
-} from "#lib/config.ts";
+} from "#shared/config.ts";
 import {
   buildFlashCookie,
   buildSessionCookie,
@@ -12,8 +13,7 @@ import {
   getSessionCookieName,
   isSecureMode,
   parseFlashValue,
-} from "#lib/cookies.ts";
-import { parseCookies } from "#routes/url.ts";
+} from "#shared/cookies.ts";
 
 /** Assert common cookie attributes for dev (localhost) mode */
 const expectDevCookieAttributes = (cookie: string) => {

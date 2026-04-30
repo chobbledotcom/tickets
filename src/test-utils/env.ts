@@ -1,8 +1,11 @@
-import { setEncryptionKeyForTest } from "#lib/crypto/encryption.ts";
-import { setFastPbkdf2ForTest } from "#lib/crypto/hashing.ts";
-import { setRsaKeySizeForTest } from "#lib/crypto/keys.ts";
-import { setSuppressDebugLogs, setSuppressRequestLogs } from "#lib/logger.ts";
-import { setRethrowErrors, setSkipLoginDelay } from "#lib/test-overrides.ts";
+import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
+import { setFastPbkdf2ForTest } from "#shared/crypto/hashing.ts";
+import { setRsaKeySizeForTest } from "#shared/crypto/keys.ts";
+import {
+  setSuppressDebugLogs,
+  setSuppressRequestLogs,
+} from "#shared/logger.ts";
+import { setRethrowErrors, setSkipLoginDelay } from "#shared/test-overrides.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 
 export const setupTestEncryptionKey = (): void => {

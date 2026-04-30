@@ -5,13 +5,13 @@ import {
   getAllActivityLog,
   getEventActivityLog,
   logActivity,
-} from "#lib/db/activityLog.ts";
+} from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
   decryptAttendees,
   getAttendeesRaw,
-} from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
+} from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   computeSlugIndex,
   deleteEvent,
@@ -25,12 +25,12 @@ import {
   isSlugTaken,
   writeClosesAt,
   writeEventDate,
-} from "#lib/db/events.ts";
+} from "#shared/db/events.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
-} from "#lib/db/processed-payments.ts";
+} from "#shared/db/processed-payments.ts";
 import {
   bookAttendee,
   createTestAttendee,
@@ -344,7 +344,7 @@ describeWithEnv("db > events", { db: true }, () => {
 
       await deleteEvent(event.id);
 
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       const rows = await getDb().execute(
         "SELECT COUNT(*) as count FROM attendees",
       );
@@ -369,7 +369,9 @@ describeWithEnv("db > events", { db: true }, () => {
 
   describe("unlinkAttendeeFromEvent", () => {
     test("removes link and preserves attendee", async () => {
-      const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
+      const { unlinkAttendeeFromEvent } = await import(
+        "#shared/db/attendees.ts"
+      );
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const result = await createAttendeeAtomic({
@@ -393,7 +395,9 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("deletes orphaned attendee", async () => {
-      const { unlinkAttendeeFromEvent } = await import("#lib/db/attendees.ts");
+      const { unlinkAttendeeFromEvent } = await import(
+        "#shared/db/attendees.ts"
+      );
       const event = await createTestEvent({ maxAttendees: 50 });
       const result = await bookAttendee(event, {
         email: "orphan@example.com",
@@ -408,7 +412,7 @@ describeWithEnv("db > events", { db: true }, () => {
       );
 
       expect(attendeeDeleted).toBe(true);
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       const rows = await getDb().execute(
         "SELECT COUNT(*) as count FROM attendees",
       );
@@ -520,7 +524,7 @@ describeWithEnv("db > events", { db: true }, () => {
 
   describe("writeClosesAt", () => {
     test("encrypts empty string for no deadline", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const result = await writeClosesAt("");
       expect(typeof result).toBe("string");
       expect(result).not.toBe("");
@@ -529,14 +533,14 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("encrypts null as empty string", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const result = await writeClosesAt(null);
       const decrypted = await decrypt(result as unknown as string);
       expect(decrypted).toBe("");
     });
 
     test("normalizes datetime-local string without timezone as UTC", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const input = "2099-06-15T14:30";
       const result = await writeClosesAt(input);
       const decrypted = await decrypt(result as unknown as string);
@@ -544,14 +548,14 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("handles already-normalized ISO string", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const result = await writeClosesAt("2099-06-15T14:30:00.000Z");
       const decrypted = await decrypt(result as unknown as string);
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
     });
 
     test("normalizes timezone offset to UTC", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const input = "2099-06-15T14:30:00-05:00";
       const result = await writeClosesAt(input);
       const decrypted = await decrypt(result as unknown as string);
@@ -561,7 +565,7 @@ describeWithEnv("db > events", { db: true }, () => {
 
   describe("writeEventDate", () => {
     test("encrypts empty string for no date", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const result = await writeEventDate("");
       expect(typeof result).toBe("string");
       expect(result).not.toBe("");
@@ -570,7 +574,7 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("normalizes datetime-local string without timezone as UTC", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const input = "2026-06-15T14:00";
       const result = await writeEventDate(input);
       const decrypted = await decrypt(result);
@@ -578,14 +582,14 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("handles already-normalized ISO string", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const result = await writeEventDate("2026-06-15T14:00:00.000Z");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
     });
 
     test("normalizes timezone offset to UTC", async () => {
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const input = "2026-06-15T14:00:00+02:00";
       const result = await writeEventDate(input);
       const decrypted = await decrypt(result);
@@ -594,7 +598,7 @@ describeWithEnv("db > events", { db: true }, () => {
 
     test("returns empty string for invalid datetime", async () => {
       const errorSpy = spy(console, "error");
-      const { decrypt } = await import("#lib/crypto/encryption.ts");
+      const { decrypt } = await import("#shared/crypto/encryption.ts");
       const result = await writeEventDate("not-a-dateZ");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("");

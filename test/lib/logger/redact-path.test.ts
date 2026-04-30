@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { redactPath } from "#lib/logger.ts";
+import { redactPath } from "#shared/logger.ts";
 
 describe("redactPath", () => {
   test("redacts ticket slugs", () => {

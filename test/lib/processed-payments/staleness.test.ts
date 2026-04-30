@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#lib/db/client.ts";
+import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
   deleteStaleReservation,
@@ -9,7 +9,7 @@ import {
   isSessionProcessed,
   reserveSession,
   STALE_RESERVATION_MS,
-} from "#lib/db/processed-payments.ts";
+} from "#shared/db/processed-payments.ts";
 import {
   createTestAttendee,
   createTestEvent,

@@ -44,7 +44,7 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
   });
 
   test("is NOT injected for public (non-admin) pages", async () => {
-    const { settings } = await import("#lib/db/settings.ts");
+    const { settings } = await import("#shared/db/settings.ts");
     await settings.update.showPublicSite(true);
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();

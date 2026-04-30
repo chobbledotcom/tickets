@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { decryptWithKey, encryptWithKey } from "#lib/crypto/encryption.ts";
+import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
 import {
   deriveKEK,
   generateDataKey,
@@ -14,8 +14,8 @@ import {
   unwrapKeyWithToken,
   wrapKey,
   wrapKeyWithToken,
-} from "#lib/crypto/keys.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
+} from "#shared/crypto/keys.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("KEK derivation", { encryptionKey: true }, () => {

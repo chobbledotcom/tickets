@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
+import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   createInvitedUser,
   getUserByUsername,
   hasPassword,
-} from "#lib/db/users.ts";
-import { handleRequest } from "#routes";
+} from "#shared/db/users.ts";
 import {
   assertPublicHtml,
   createTestInvite,
@@ -145,7 +145,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("join flow (expired invite)", () => {
     test("GET /join/:code returns 410 for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const { hashInviteCode } = await import("#lib/db/users.ts");
+      const { hashInviteCode } = await import("#shared/db/users.ts");
       const codeHash = await hashInviteCode("expired-code-123");
       await createInvitedUser("expired-join", "manager", codeHash, expiry);
 
@@ -157,7 +157,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("POST /join/:code returns 410 for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const { hashInviteCode } = await import("#lib/db/users.ts");
+      const { hashInviteCode } = await import("#shared/db/users.ts");
       const codeHash = await hashInviteCode("expired-post-123");
       await createInvitedUser("expired-post-user", "manager", codeHash, expiry);
 

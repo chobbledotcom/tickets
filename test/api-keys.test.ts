@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { buildSessionCookie } from "#lib/cookies.ts";
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { unwrapKeyWithToken } from "#lib/crypto/keys.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
-
-import { signCsrfToken } from "#lib/csrf.ts";
+import { handleRequest } from "#routes";
+import { buildSessionCookie } from "#shared/cookies.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import {
   countApiKeysForUser,
   createApiKey,
@@ -16,10 +16,9 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
   touchApiKeyLastUsed,
-} from "#lib/db/api-keys.ts";
-import { getDb, insert } from "#lib/db/client.ts";
-import { createSession } from "#lib/db/sessions.ts";
-import { handleRequest } from "#routes";
+} from "#shared/db/api-keys.ts";
+import { getDb, insert } from "#shared/db/client.ts";
+import { createSession } from "#shared/db/sessions.ts";
 import {
   assertJson,
   createTestApiKeyFull,
@@ -483,7 +482,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       await createTestEvent({ name: "Touch Fail Test" });
       const { apiKey } = await createTestApiKeyFull("Resilient Auth");
 
-      const apiKeysModule = await import("#lib/db/api-keys.ts");
+      const apiKeysModule = await import("#shared/db/api-keys.ts");
       const stubTouch = stub(
         apiKeysModule.apiKeysApi,
         "touchApiKeyLastUsed",
@@ -668,7 +667,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const { apiKey } = await createTestApiKeyFull("Touch Test Key");
 
       // Make touchApiKeyLastUsed throw via test hook
-      const { setTouchOverride } = await import("#lib/test-overrides.ts");
+      const { setTouchOverride } = await import("#shared/test-overrides.ts");
       setTouchOverride(new Error("touch failed"));
 
       try {

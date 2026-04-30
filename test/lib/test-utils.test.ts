@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { settings } from "#lib/db/settings.ts";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   awaitTestRequest,
   createTestAttendee,
@@ -50,7 +50,7 @@ describe("test-utils", () => {
   describe("createTestDb", () => {
     test("creates an in-memory database that can execute queries", async () => {
       await createTestDb();
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       const result = await getDb().execute("SELECT 1 as test");
       expect(result.rows.length).toBe(1);
       expect(result.columns).toContain("test");
@@ -60,7 +60,7 @@ describe("test-utils", () => {
   describe("resetDb", () => {
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
-      const { getDb, insert } = await import("#lib/db/client.ts");
+      const { getDb, insert } = await import("#shared/db/client.ts");
       // Insert data into the first DB
       await getDb().execute(
         insert("events", {
@@ -292,7 +292,7 @@ describe("test-utils", () => {
 
     test("returns csrf_token when session exists", async () => {
       await createTestDb();
-      const { createSession } = await import("#lib/db/sessions.ts");
+      const { createSession } = await import("#shared/db/sessions.ts");
       await createSession(
         "test-sess-token",
         "test-csrf-value",
@@ -474,14 +474,14 @@ describe("test-utils", () => {
     test("configures Stripe as payment provider", async () => {
       await createTestDbWithSetup();
       await setupStripe();
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       expect(s.paymentProvider).toBe("stripe");
     });
 
     test("accepts a custom key", async () => {
       await createTestDbWithSetup();
       await setupStripe("sk_test_custom");
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       expect(s.paymentProvider).toBe("stripe");
     });
   });
@@ -617,7 +617,7 @@ describe("test-utils", () => {
       const event = await createTestEvent();
       expect(event.active).toBe(true);
       await deactivateTestEvent(event.id);
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated!.active).toBe(false);
     });
@@ -694,7 +694,7 @@ describe("test-utils", () => {
 
     test("returns start_at/end_at/quantity for the first booking", async () => {
       const { createDailyTestEvent } = await import("#test-utils");
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
       const event = await createDailyTestEvent({ maxAttendees: 10 });
       const result = await createAttendeeAtomic({
         bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 3 }],

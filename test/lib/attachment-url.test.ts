@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { signAttachmentUrl, verifyAttachmentUrl } from "#lib/attachment-url.ts";
+import {
+  signAttachmentUrl,
+  verifyAttachmentUrl,
+} from "#shared/attachment-url.ts";
 import { matchGroup, setupTestEncryptionKey } from "#test-utils";
 
 describe("signAttachmentUrl", () => {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getActiveEventStats } from "#lib/db/attendees.ts";
-import { getAllEvents } from "#lib/db/events.ts";
+import { getActiveEventStats } from "#shared/db/attendees.ts";
+import { getAllEvents } from "#shared/db/events.ts";
 import {
   createPaidTestAttendee,
   createTestEvent,

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { ErrorCode } from "#lib/logger.ts";
-import { sendNtfyError } from "#lib/ntfy.ts";
+import { ErrorCode } from "#shared/logger.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {

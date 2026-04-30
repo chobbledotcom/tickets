@@ -1,0 +1,40 @@
+/**
+ * Google Wallet pass route - /gwallet/:token
+ * Generates a signed JWT and redirects to the Google Wallet save URL.
+ */
+
+import { notFoundResponse } from "#routes/response.ts";
+import {
+  createTokenRoute,
+  lookupSingleTokenPassData,
+  WALLET_CACHE_CONTROL,
+} from "#routes/tickets/token-utils.ts";
+import { settings } from "#shared/db/settings.ts";
+import { buildGoogleWalletUrl } from "#shared/google-wallet.ts";
+
+/** Handle GET /gwallet/:token — redirect to Google Wallet save URL */
+const handleGoogleWalletGet = async (
+  _request: Request,
+  tokens: string[],
+): Promise<Response> => {
+  const config = settings.googleWallet.config;
+  if (!config) return notFoundResponse();
+
+  const result = await lookupSingleTokenPassData(tokens);
+  if (!result.ok) return result.response;
+
+  const saveUrl = await buildGoogleWalletUrl(result.passData, config);
+
+  return new Response(null, {
+    headers: {
+      "Cache-Control": WALLET_CACHE_CONTROL,
+      Location: saveUrl,
+    },
+    status: 302,
+  });
+};
+
+/** Route Google Wallet pass requests */
+export const routeGoogleWallet = createTokenRoute("gwallet", {
+  GET: handleGoogleWalletGet,
+});

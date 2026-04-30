@@ -5,7 +5,7 @@ import {
   hmacToBase64,
   hmacToHex,
   secureCompare,
-} from "#lib/payment-crypto.ts";
+} from "#shared/payment-crypto.ts";
 
 const encode = (s: string) => new TextEncoder().encode(s);
 

@@ -166,12 +166,12 @@ describeWithEnv(
     });
 
     test("groups on events page show Registration Closed in read-only mode", async () => {
-      const { settings } = await import("#lib/db/settings.ts");
+      const { settings } = await import("#shared/db/settings.ts");
       const { groupsTable, computeGroupSlugIndex } = await import(
-        "#lib/db/groups.ts"
+        "#shared/db/groups.ts"
       );
       const { eventsTable, computeSlugIndex } = await import(
-        "#lib/db/events.ts"
+        "#shared/db/events.ts"
       );
       await settings.update.showPublicSite(true);
       const slugIndex = await computeGroupSlugIndex("ro-group");

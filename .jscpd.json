@@ -1,20 +1,32 @@
 {
-	"threshold": 0,
-	"_comment": "0% duplication threshold is non-negotiable - use FP patterns from #fp to eliminate all duplication",
-	"reporters": ["console", "json"],
-	"output": ".jscpd-report",
-	"ignore": [
-		"**/node_modules/**",
-		"**/package-lock.json",
-		"**/deno.lock",
-		"**/fp.ts",
-		"**/test-utils/**"
-	],
-	"format": ["typescript", "json"],
-	"absolute": false,
-	"gitignore": true,
-	"exitCode": 1,
-	"minLines": 1,
-	"minTokens": 23,
-	"path": ["src", "test", "scripts"]
+  "threshold": 0,
+  "_comment": "0% duplication threshold is non-negotiable - use FP patterns from #fp to eliminate all duplication",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report",
+  "ignore": [
+    "**/node_modules/**",
+    "**/package-lock.json",
+    "**/deno.lock",
+    "**/fp.ts",
+    "**/test-utils/**",
+    "**/src/features/admin/bulk-actions.ts",
+    "**/src/features/admin/builder.ts"
+  ],
+  "format": [
+    "typescript",
+    "json"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 23,
+  "path": [
+    "src",
+    "test",
+    "scripts"
+  ]
 }

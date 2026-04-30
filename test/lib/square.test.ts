@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { settings } from "#lib/db/settings.ts";
-import { PaymentUserError } from "#lib/payment-helpers.ts";
-import type { WebhookEvent } from "#lib/payments.ts";
+import { settings } from "#shared/db/settings.ts";
+import { PaymentUserError } from "#shared/payment-helpers.ts";
+import type { WebhookEvent } from "#shared/payments.ts";
 import {
   type CreatePaymentLinkInput,
   constructTestWebhookEvent,
@@ -15,8 +15,8 @@ import {
   squareApi,
   testSquareConnection,
   verifyWebhookSignature,
-} from "#lib/square.ts";
-import { squarePaymentProvider } from "#lib/square-provider.ts";
+} from "#shared/square.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 /** Mock implementation function type (accepts unknown args, returns unknown) */
@@ -432,7 +432,7 @@ describe("square", () => {
     });
 
     test("includes booking fee line item when fee is set", async () => {
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       await s.update.bookingFee("2.5");
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");

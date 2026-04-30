@@ -1,0 +1,174 @@
+/**
+ * Email template renderer using LiquidJS
+ *
+ * Renders Liquid templates for registration emails. Templates have access to
+ * a safe, explicitly-scoped data object — no access to process.env, filesystem,
+ * or network. LiquidJS parses templates to an AST (no eval/new Function).
+ */
+
+import { Liquid } from "liquidjs";
+import { lazyRef, map } from "#fp";
+import { formatCurrency } from "#shared/currency.ts";
+import type {
+  EmailTemplateFormat,
+  EmailTemplateType,
+} from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
+import type { EmailEntry } from "#shared/email.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { isPaidEvent } from "#shared/types.ts";
+import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
+import { eventNames } from "#templates/email/shared.ts";
+
+/** Create a configured Liquid engine with custom filters */
+const createEngine = (): Liquid => {
+  const engine = new Liquid({ strictFilters: true, strictVariables: false });
+
+  engine.registerFilter("currency", (v: string | number) => formatCurrency(v));
+
+  engine.registerFilter(
+    "pluralize",
+    (count: number, singular: string, plural: string) =>
+      count === 1 ? singular : plural,
+  );
+
+  return engine;
+};
+
+/** Lazy-initialized singleton engine instance */
+const [getEngine, setEngine] = lazyRef<Liquid>(createEngine);
+
+/** For testing: reset the engine (so filters can be re-registered after currency changes) */
+export const resetEngine = (): void => {
+  setEngine(null);
+};
+
+/** Template entry shape exposed to Liquid templates */
+type TemplateEntry = {
+  event: {
+    name: string;
+    slug: string;
+    is_paid: boolean;
+  };
+  attendee: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    special_instructions: string;
+    quantity: number;
+    price_paid: string;
+    date: string | null;
+  };
+};
+
+/** Data object passed to Liquid templates */
+export type TemplateData = {
+  entries: TemplateEntry[];
+  event_names: string;
+  attendee: TemplateEntry["attendee"];
+  ticket_url: string;
+  currency: string;
+};
+
+/** Build the data object exposed to Liquid templates */
+export const buildTemplateData = (
+  entries: EmailEntry[],
+  currency: string,
+  ticketUrl: string,
+): TemplateData => {
+  const templateEntries: TemplateEntry[] = map(
+    ({ event, attendee }: EmailEntry): TemplateEntry => ({
+      attendee: {
+        address: attendee.address,
+        date: attendee.date,
+        email: attendee.email,
+        name: attendee.name,
+        phone: attendee.phone,
+        price_paid: attendee.price_paid,
+        quantity: attendee.quantity,
+        special_instructions: attendee.special_instructions,
+      },
+      event: {
+        is_paid: isPaidEvent(event),
+        name: event.name,
+        slug: event.slug,
+      },
+    }),
+  )(entries);
+
+  return {
+    attendee: templateEntries[0]!.attendee,
+    currency,
+    entries: templateEntries,
+    event_names: eventNames(entries),
+    ticket_url: ticketUrl,
+  };
+};
+
+/** Render a single Liquid template string with the given data */
+export const renderTemplate = async (
+  template: string,
+  data: TemplateData,
+): Promise<string> => {
+  const result = await getEngine().parseAndRender(template, data);
+  return result.trim();
+};
+
+/** Render all 3 parts (subject, html, text) using custom templates with fallback to defaults */
+export const renderEmailContent = async (
+  type: EmailTemplateType,
+  data: TemplateData,
+): Promise<EmailContent> => {
+  const defaults = DEFAULT_TEMPLATES[type];
+  const custom = settings.email.templateSet(type);
+
+  const [subject, html, text] = await Promise.all([
+    safeRender(
+      custom.subject || defaults.subject,
+      data,
+      defaults.subject,
+      type,
+      "subject",
+    ),
+    safeRender(custom.html || defaults.html, data, defaults.html, type, "html"),
+    safeRender(custom.text || defaults.text, data, defaults.text, type, "text"),
+  ]);
+
+  return { html, subject, text };
+};
+
+/** Render a template, falling back to default on error */
+const safeRender = async (
+  template: string,
+  data: TemplateData,
+  fallbackTemplate: string,
+  type: EmailTemplateType,
+  format: EmailTemplateFormat,
+): Promise<string> => {
+  try {
+    return await renderTemplate(template, data);
+  } catch (error) {
+    logError({
+      code: ErrorCode.EMAIL_TEMPLATE_RENDER,
+      detail: `template render error (${type}/${format}): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    });
+    return await renderTemplate(fallbackTemplate, data);
+  }
+};
+
+/**
+ * Validate a Liquid template by parsing it (no rendering).
+ * Returns null if valid, or an error message string if invalid.
+ */
+export const validateTemplate = (template: string): string | null => {
+  try {
+    getEngine().parse(template);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+};

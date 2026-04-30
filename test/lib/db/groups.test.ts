@@ -7,9 +7,9 @@ import {
   getGroupRemainingByGroupId,
   getGroupRemainingForEvent,
   hasAvailableSpots,
-} from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
-import { getEvent } from "#lib/db/events.ts";
+} from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import { getEvent } from "#shared/db/events.ts";
 import {
   computeGroupSlugIndex,
   getActiveEventsByGroupId,
@@ -18,7 +18,7 @@ import {
   groupsTable,
   isGroupSlugTaken,
   resetGroupEvents,
-} from "#lib/db/groups.ts";
+} from "#shared/db/groups.ts";
 import {
   bookAttendee,
   createTestEvent,

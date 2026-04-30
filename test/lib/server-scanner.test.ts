@@ -182,8 +182,8 @@ const setupLoginAndRawScan = async (
 
 /** Point an attendee at a non-existent event to simulate orphan */
 const orphanAttendee = async (token: string) => {
-  const { getDb } = await import("#lib/db/client.ts");
-  const { computeTicketTokenIndex } = await import("#lib/crypto/hashing.ts");
+  const { getDb } = await import("#shared/db/client.ts");
+  const { computeTicketTokenIndex } = await import("#shared/crypto/hashing.ts");
   const tokenIndex = await computeTicketTokenIndex(token);
   await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
   await getDb().execute({
@@ -315,7 +315,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
     test("datalist excludes refunded attendees", async () => {
       const { getAttendeesByTokens, markRefunded } = await import(
-        "#lib/db/attendees.ts"
+        "#shared/db/attendees.ts"
       );
       const { event, token } = await createTestAttendeeWithToken(
         "Carol Refunded",
@@ -378,7 +378,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
     test("returns refunded status for refunded attendee", async () => {
       const { getAttendeesByTokens, markRefunded } = await import(
-        "#lib/db/attendees.ts"
+        "#shared/db/attendees.ts"
       );
       const { event, token, session } = await setupScanTest(
         "Refund",
@@ -503,8 +503,8 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns 500 when private key is unavailable", async () => {
-      const { getDb } = await import("#lib/db/client.ts");
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { getDb } = await import("#shared/db/client.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
 
       // Remove wrapped_private_key from settings to make key derivation fail
       await getDb().execute({

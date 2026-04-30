@@ -10,7 +10,7 @@
  * @module
  */
 
-export * from "#lib/business-email.ts";
-export * from "#lib/email.ts";
-export * from "#lib/email-renderer.ts";
-export * from "#lib/ntfy.ts";
+export * from "#shared/business-email.ts";
+export * from "#shared/email.ts";
+export * from "#shared/email-renderer.ts";
+export * from "#shared/ntfy.ts";

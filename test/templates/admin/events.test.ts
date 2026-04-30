@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { detectIframeMode } from "#lib/iframe.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { detectIframeMode } from "#shared/iframe.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   adminDuplicateEventPage,
   adminEventEditPage,

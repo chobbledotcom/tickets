@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   bookAttendee,
   createTestEvent,
@@ -73,7 +73,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
 
         // Verify attendees created for both events
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
@@ -296,7 +296,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         await expectHtmlResponse(response, 409, "sold out", "refunded");
 
         // Verify rollback: event1 should have no attendees since they were rolled back
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
@@ -389,7 +389,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(html).toContain("Thank you for your order");
 
         // Should still only have one attendee
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
       } finally {

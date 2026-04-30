@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { FormParams } from "#lib/form-data.ts";
-import { defineForm } from "#lib/forms.tsx";
+import { FormParams } from "#shared/form-data.ts";
+import { defineForm } from "#shared/forms.tsx";
 
 describe("defineForm", () => {
   test("validates and parses typed values", () => {

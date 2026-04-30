@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
+import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   awaitTestRequest,
@@ -49,7 +49,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns error when payment not verified", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       const event = await createTestEvent({
@@ -90,7 +90,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns error for invalid session metadata", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
@@ -120,7 +120,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("rejects payment for inactive event and refunds", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       const event = await createTestEvent({
@@ -173,7 +173,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("refunds payment when event is sold out at confirmation time", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       // Create event with only 1 spot
@@ -240,7 +240,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns error when session not found", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
@@ -260,7 +260,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns error for invalid session metadata", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
@@ -289,7 +289,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns error when event not found", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
@@ -319,7 +319,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("shows cancel page with link back to ticket form", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       const event = await createTestEvent({
@@ -356,7 +356,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("shows cancel page for ticket session", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       const event = await createTestEvent({
@@ -401,7 +401,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns 404 for ticket session with invalid items", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
@@ -486,7 +486,9 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       // Mock createCheckoutSession to return a validation error result
       const { stub } = await import("@std/testing/mock");
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
       const mockCreate = stub(
         stripePaymentProvider,
         "createCheckoutSession",
@@ -578,7 +580,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("returns error when event not found in session metadata without refund", async () => {
       const { spy, stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
@@ -613,7 +615,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("creates attendee and shows success when payment verified", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
 
       await setupStripe();
 
@@ -663,14 +665,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           );
 
           // Verify attendee was created with encrypted PII blob
-          const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
           const attendees = await getAttendeesRaw(event.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.pii_blob).not.toBe("");
 
           // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
           const { isSessionProcessed } = await import(
-            "#lib/db/processed-payments.ts"
+            "#shared/db/processed-payments.ts"
           );
           const record = await isSessionProcessed("cs_test_paid");
           expect(record?.ticket_tokens).toBe("");
@@ -680,7 +682,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("handles replay of same session (idempotent)", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
 
       await setupStripe();
 
@@ -731,7 +733,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("handles multiple quantity purchase", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
 
       await setupStripe();
 
@@ -772,7 +774,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           expect(response.status).toBe(200);
 
           // Verify attendee was created with correct quantity
-          const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
           const attendees = await getAttendeesRaw(event.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(3);
@@ -813,8 +815,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
     test("handles encryption error during payment confirmation", async () => {
       const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#lib/stripe.ts");
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
 
       await setupStripe();
 

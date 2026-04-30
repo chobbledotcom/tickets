@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
 import {
   awaitTestRequest,
   createTestAttendeeWithToken,
@@ -107,7 +107,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
       "Orphan",
       "orphan@test.com",
     );
-    const { getDb } = await import("#lib/db/client.ts");
+    const { getDb } = await import("#shared/db/client.ts");
     await getDb().execute({
       args: [attendee.id],
       sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
@@ -227,7 +227,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   });
 
   test("returns null for non-GET methods", async () => {
-    const { routeWallet } = await import("#routes/wallet.ts");
+    const { routeWallet } = await import("#routes/wallet/index.ts");
     const request = new Request("http://localhost/wallet/some-token", {
       method: "POST",
     });

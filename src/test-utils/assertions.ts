@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { parseFlashValue } from "#lib/cookies.ts";
+import { parseFlashValue } from "#shared/cookies.ts";
 
 export const FLASH_TEST_ID = "t001";
 

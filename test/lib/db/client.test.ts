@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, insert, rawSql, setDb } from "#lib/db/client.ts";
+import { getDb, insert, rawSql, setDb } from "#shared/db/client.ts";
 import { describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("db > client", { db: true }, () => {

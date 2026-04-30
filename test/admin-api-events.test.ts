@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
+import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import {
   eventsTable,
   getEventWithCount,
   invalidateEventsCache,
-} from "#lib/db/events.ts";
-import { handleRequest } from "#routes";
-import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
+} from "#shared/db/events.ts";
 import {
   apiRequest,
   assertJson,

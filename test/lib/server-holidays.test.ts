@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-
-import { getSessionCookieName } from "#lib/cookies.ts";
 import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   adminFormPost,
   adminGet,
@@ -385,7 +384,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       await deleteTestHoliday(holiday.id);
 
       // Verify it's gone
-      const { holidaysTable } = await import("#lib/db/holidays.ts");
+      const { holidaysTable } = await import("#shared/db/holidays.ts");
       const found = await holidaysTable.findById(holiday.id);
       expect(found).toBeNull();
     });
@@ -406,7 +405,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       );
 
       // Verify holiday still exists
-      const { holidaysTable } = await import("#lib/db/holidays.ts");
+      const { holidaysTable } = await import("#shared/db/holidays.ts");
       const found = await holidaysTable.findById(holiday.id);
       expect(found).not.toBeNull();
     });
@@ -481,7 +480,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         name: "Past Holiday",
         startDate: "2020-01-01",
       });
-      const { getActiveHolidays } = await import("#lib/db/holidays.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
       const active = await getActiveHolidays();
       expect(active.length).toBe(1);
       expect(active[0]!.name).toBe("Future Holiday");

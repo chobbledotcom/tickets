@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { SettingsData } from "#lib/db/settings.ts";
-import { settings } from "#lib/db/settings.ts";
+import type { SettingsData } from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 
 export const withSetting = async <T>(
   overrides: Partial<SettingsData>,
@@ -36,7 +36,7 @@ export const testWithSetting = (
 };
 
 export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
-  const { settings: s } = await import("#lib/db/settings.ts");
+  const { settings: s } = await import("#shared/db/settings.ts");
   await s.update.stripe.secretKey(key);
   await s.update.paymentProvider("stripe");
 };
@@ -46,7 +46,7 @@ export const stubWebhookVerify = async (eventData: {
   type: string;
   data: { object: Record<string, unknown> };
 }) => {
-  const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
   return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
     Promise.resolve({ event: eventData, valid: true as const }),
   );

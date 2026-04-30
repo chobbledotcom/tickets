@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
   awaitTestRequest,

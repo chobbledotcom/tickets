@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { builderApi } from "#lib/builder.ts";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { getAllBuiltSites } from "#lib/db/built-sites.ts";
-import { settings } from "#lib/db/settings.ts";
+import { builderApi } from "#shared/builder.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { getAllBuiltSites } from "#shared/db/built-sites.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
   awaitTestRequest,

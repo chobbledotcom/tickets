@@ -6,7 +6,7 @@ import {
   extractViewBox,
   generateSvgTicket,
   type SvgTicketData,
-} from "#lib/svg-ticket.ts";
+} from "#shared/svg-ticket.ts";
 import { describeWithEnv } from "#test-utils";
 
 const makeTicketData = (

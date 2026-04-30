@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   answersTable,
   deleteAnswer,
@@ -17,7 +17,7 @@ import {
   saveAttendeeAnswers,
   setEventQuestions,
   swapAnswerOrder,
-} from "#lib/db/questions.ts";
+} from "#shared/db/questions.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
 
 /** Create a test attendee directly via the DB (bypasses routes) */

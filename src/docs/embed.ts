@@ -9,8 +9,8 @@
  * @module
  */
 
-export * from "#lib/bunny-cdn.ts";
-export * from "#lib/embed.ts";
-export * from "#lib/embed-hosts.ts";
-export * from "#lib/iframe.ts";
-export * from "#lib/storage.ts";
+export * from "#shared/bunny-cdn.ts";
+export * from "#shared/embed.ts";
+export * from "#shared/embed-hosts.ts";
+export * from "#shared/iframe.ts";
+export * from "#shared/storage.ts";

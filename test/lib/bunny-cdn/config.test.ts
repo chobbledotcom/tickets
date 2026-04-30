@@ -4,7 +4,7 @@ import {
   getBunnyScriptId,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
-} from "#lib/config.ts";
+} from "#shared/config.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv(

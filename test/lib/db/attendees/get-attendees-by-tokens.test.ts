@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesByTokens } from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {

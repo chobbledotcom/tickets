@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { FormParams } from "#lib/form-data.ts";
+import { FormParams } from "#shared/form-data.ts";
 
 describe("FormParams.getString", () => {
   test("returns the trimmed value when the key is present", () => {

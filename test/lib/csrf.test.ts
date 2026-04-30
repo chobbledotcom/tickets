@@ -4,7 +4,7 @@ import {
   isSignedCsrfToken,
   signCsrfToken,
   verifySignedCsrfToken,
-} from "#lib/csrf.ts";
+} from "#shared/csrf.ts";
 import { setupTestEncryptionKey } from "#test-utils";
 
 describe("signCsrfToken", () => {

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#lib/csrf.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";

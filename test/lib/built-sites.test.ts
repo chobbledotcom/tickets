@@ -9,7 +9,7 @@ import {
   getAssignableBuiltSites,
   insertBuiltSite,
   parseSiteDataBlob,
-} from "#lib/db/built-sites.ts";
+} from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("built-sites", { db: true }, () => {

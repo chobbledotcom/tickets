@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
 import {
   assertJson,
   createTestAttendeeWithToken,

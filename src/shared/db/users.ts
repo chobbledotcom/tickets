@@ -1,0 +1,304 @@
+/**
+ * Users table operations
+ */
+
+import { registerCache } from "#shared/cache-registry.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import {
+  hashPassword,
+  hashSessionToken,
+  hmacHash,
+  verifyPassword,
+} from "#shared/crypto/hashing.ts";
+import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
+import {
+  deleteByFieldBatch,
+  getDb,
+  insert,
+  queryAll,
+} from "#shared/db/client.ts";
+import { now } from "#shared/now.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
+
+const USER_SELECT =
+  "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
+
+const usersCache = requestCache(() => queryAll<User>(USER_SELECT));
+
+const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
+
+registerCache(() => ({ entries: usersCache.size(), name: "users" }));
+
+/** Invalidate the users cache (for testing or after writes). */
+export const invalidateUsersCache = (): void => {
+  usersCache.invalidate();
+};
+
+/** Shared user creation logic */
+const insertUser = async (opts: {
+  username: string;
+  adminLevel: AdminLevel;
+  passwordHash: string;
+  wrappedDataKey: string | null;
+  inviteCodeHash: string | null;
+  inviteExpiry: string | null;
+}): Promise<User> => {
+  const usernameIndex = await hmacHash(opts.username.toLowerCase());
+  const encryptedUsername = await encrypt(opts.username.toLowerCase());
+  const encryptedAdminLevel = await encrypt(opts.adminLevel);
+  const encryptedPasswordHash = opts.passwordHash
+    ? await encrypt(opts.passwordHash)
+    : "";
+  const encryptedInviteCode = opts.inviteCodeHash
+    ? await encrypt(opts.inviteCodeHash)
+    : null;
+  const encryptedInviteExpiry = opts.inviteExpiry
+    ? await encrypt(opts.inviteExpiry)
+    : null;
+
+  const values = {
+    admin_level: encryptedAdminLevel,
+    invite_code_hash: encryptedInviteCode,
+    invite_expiry: encryptedInviteExpiry,
+    password_hash: encryptedPasswordHash,
+    username_hash: encryptedUsername,
+    username_index: usernameIndex,
+    wrapped_data_key: opts.wrappedDataKey,
+  };
+  const result = await getDb().execute(insert("users", values));
+
+  invalidateUsersCache();
+  const id = Number(result.lastInsertRowid);
+  return { id, ...values };
+};
+
+/**
+ * Create a new user with encrypted fields
+ */
+export const createUser = (
+  username: string,
+  passwordHash: string,
+  wrappedDataKey: string | null,
+  adminLevel: AdminLevel,
+): Promise<User> =>
+  insertUser({
+    adminLevel,
+    inviteCodeHash: null,
+    inviteExpiry: null,
+    passwordHash,
+    username,
+    wrappedDataKey,
+  });
+
+/**
+ * Create an invited user (no password yet, has invite code)
+ */
+export const createInvitedUser = (
+  username: string,
+  adminLevel: AdminLevel,
+  inviteCodeHash: string,
+  inviteExpiry: string,
+): Promise<User> =>
+  insertUser({
+    adminLevel,
+    inviteCodeHash,
+    inviteExpiry,
+    passwordHash: "",
+    username,
+    wrappedDataKey: null,
+  });
+
+/**
+ * Look up a user by username (using blind index, from cache)
+ */
+export const getUserByUsername = async (
+  username: string,
+): Promise<User | null> => {
+  const usernameIndex = await hmacHash(username.toLowerCase());
+  const users = await loadAllUsers();
+  return users.find((u) => u.username_index === usernameIndex) ?? null;
+};
+
+/**
+ * Get a user by ID (from cache)
+ */
+export const getUserById = async (id: number): Promise<User | null> => {
+  const users = await loadAllUsers();
+  return users.find((u) => u.id === id) ?? null;
+};
+
+/**
+ * Check if a username is already taken
+ */
+export const isUsernameTaken = async (username: string): Promise<boolean> => {
+  const user = await getUserByUsername(username);
+  return user !== null;
+};
+
+/**
+ * Get all users (for admin user management page, from cache)
+ */
+export const getAllUsers = (): Promise<User[]> => loadAllUsers();
+
+/**
+ * Verify a user's password (decrypt stored hash, then verify)
+ * Returns the decrypted password hash if valid (needed for KEK derivation)
+ */
+export const verifyUserPassword = async (
+  user: User,
+  password: string,
+): Promise<string | null> => {
+  if (!user.password_hash) return null;
+  const decryptedHash = await decrypt(user.password_hash);
+  const isValid = await verifyPassword(password, decryptedHash);
+  return isValid ? decryptedHash : null;
+};
+
+/**
+ * Decrypt a user's admin level
+ */
+export const decryptAdminLevel = async (user: User): Promise<AdminLevel> => {
+  const level = await decrypt(user.admin_level);
+  if (!isAdminLevel(level)) {
+    throw new Error(`Invalid admin level: ${level}`);
+  }
+  return level;
+};
+
+/**
+ * Decrypt a user's username
+ */
+export const decryptUsername = (user: User): Promise<string> =>
+  decrypt(user.username_hash);
+
+/**
+ * Set a user's password (for invite flow)
+ */
+export const setUserPassword = async (
+  userId: number,
+  password: string,
+): Promise<string> => {
+  const passwordHash = await hashPassword(password);
+  const encryptedHash = await encrypt(passwordHash);
+  const encryptedNull = await encrypt("");
+
+  await getDb().execute({
+    args: [encryptedHash, encryptedNull, encryptedNull, userId],
+    sql: "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
+  });
+  invalidateUsersCache();
+
+  return passwordHash;
+};
+
+/**
+ * Activate a user by wrapping the data key with their KEK
+ */
+export const activateUser = async (
+  userId: number,
+  dataKey: CryptoKey,
+  decryptedPasswordHash: string,
+): Promise<void> => {
+  const kek = await deriveKEK(decryptedPasswordHash);
+  const wrappedDataKey = await wrapKey(dataKey, kek);
+
+  await getDb().execute({
+    args: [wrappedDataKey, userId],
+    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = ?",
+  });
+  invalidateUsersCache();
+};
+
+/**
+ * Delete a user and all their sessions and API keys
+ */
+export const deleteUser = async (userId: number): Promise<void> => {
+  await deleteByFieldBatch([
+    { field: "user_id", table: "api_keys", value: userId },
+    { field: "user_id", table: "sessions", value: userId },
+    { field: "id", table: "users", value: userId },
+  ]);
+  invalidateUsersCache();
+};
+
+/**
+ * Find a user by invite code hash
+ * Scans all users, decrypts invite_code_hash, and compares
+ */
+export const getUserByInviteCode = async (
+  inviteCode: string,
+): Promise<User | null> => {
+  const codeHash = await hashInviteCode(inviteCode);
+  const users = await getAllUsers();
+
+  for (const user of users) {
+    if (!user.invite_code_hash) continue;
+    const decryptedHash = await decrypt(user.invite_code_hash);
+    if (decryptedHash === codeHash) return user;
+  }
+
+  return null;
+};
+
+/**
+ * Hash an invite code using SHA-256
+ */
+export const hashInviteCode = (code: string): Promise<string> =>
+  hashSessionToken(code);
+
+/**
+ * Check if a user's invite is still valid (not expired, has invite code)
+ */
+export const isInviteValid = async (user: User): Promise<boolean> => {
+  if (!user.invite_code_hash) return false;
+
+  const decryptedHash = await decrypt(user.invite_code_hash);
+  if (!decryptedHash) return false;
+
+  if (!user.invite_expiry) return false;
+
+  const decryptedExpiry = await decrypt(user.invite_expiry);
+  if (!decryptedExpiry) return false;
+  return new Date(decryptedExpiry) > now();
+};
+
+/**
+ * Check if a user's invite has expired.
+ * Callers should skip this for users who have already set a password.
+ */
+export const isInviteExpired = async (user: User): Promise<boolean> =>
+  user.invite_code_hash !== null && !(await isInviteValid(user));
+
+/**
+ * Check if a user has set their password (password_hash is non-empty encrypted value)
+ */
+export const hasPassword = async (user: User): Promise<boolean> => {
+  if (!user.password_hash) return false;
+  const decrypted = await decrypt(user.password_hash);
+  return decrypted.length > 0;
+};
+
+/**
+ * Stubbable API for testing
+ */
+export const usersApi = {
+  activateUser,
+  createInvitedUser,
+  createUser,
+  decryptAdminLevel,
+  decryptUsername,
+  deleteUser,
+  getAllUsers,
+  getUserById,
+  getUserByInviteCode,
+  getUserByUsername,
+  hashInviteCode,
+  hasPassword,
+  invalidateUsersCache,
+  isInviteExpired,
+  isInviteValid,
+  isUsernameTaken,
+  setUserPassword,
+  verifyUserPassword,
+};

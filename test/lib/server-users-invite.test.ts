@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllUsers } from "#lib/db/users.ts";
+import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   awaitTestRequest,

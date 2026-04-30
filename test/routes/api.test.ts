@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
 import {
   assertJson,
   createDailyTestEvent,
@@ -125,10 +125,12 @@ describeWithEnv("Public API", { db: true }, () => {
 
   /** Stub a stripe checkout method and run a test, restoring after */
   const withCheckoutStub = async (
-    stubResult: import("#lib/payments.ts").CheckoutSessionResult,
+    stubResult: import("#shared/payments.ts").CheckoutSessionResult,
     fn: () => Promise<void>,
   ) => {
-    const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
     const mockCreate = stub(
       stripePaymentProvider,
       "createCheckoutSession",
@@ -682,7 +684,7 @@ describeWithEnv("Public API", { db: true }, () => {
     });
 
     test("returns 500 on encryption error for free event", async () => {
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 10 });
       const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
@@ -761,7 +763,7 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(200);
 
       // Verify booking went to target (URL slug), not other (injected id)
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const targetAttendees = await getAttendeesRaw(target.id);
       const otherAttendees = await getAttendeesRaw(other.id);
       expect(targetAttendees.length).toBe(1);
@@ -779,7 +781,7 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(404);
 
       // Verify no booking was created
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(0);
     });
@@ -796,7 +798,7 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(200);
 
       // Booking goes to URL slug, body slug is ignored
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const targetAttendees = await getAttendeesRaw(target.id);
       const otherAttendees = await getAttendeesRaw(other.id);
       expect(targetAttendees.length).toBe(1);

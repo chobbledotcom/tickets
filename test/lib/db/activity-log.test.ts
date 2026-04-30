@@ -5,7 +5,7 @@ import {
   getEventActivityLog,
   getEventWithActivityLog,
   logActivity,
-} from "#lib/db/activityLog.ts";
+} from "#shared/db/activityLog.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > activity log", { db: true }, () => {

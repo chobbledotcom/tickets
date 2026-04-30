@@ -1,0 +1,111 @@
+/**
+ * Attachment download route — serves encrypted event attachments from Bunny CDN.
+ * GET /attachment/:id?a=attendeeId&exp=timestamp&sig=hmacSignature
+ *
+ * URLs are signed with HMAC and time-limited (1 hour) to prevent sharing.
+ * Each download increments the attendee's attachment_downloads counter.
+ */
+
+import { notFoundResponse } from "#routes/response.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
+import {
+  getAttendeeRaw,
+  incrementAttachmentDownloads,
+} from "#shared/db/attendees.ts";
+import { getEvent } from "#shared/db/events.ts";
+import { downloadImage, isStorageEnabled } from "#shared/storage.ts";
+
+/** Common MIME types by file extension */
+const EXT_MIME_MAP: Record<string, string> = {
+  ".csv": "text/csv",
+  ".doc": "application/msword",
+  ".docx":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx":
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".svg": "image/svg+xml",
+  ".txt": "text/plain",
+  ".wav": "audio/wav",
+  ".webp": "image/webp",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".zip": "application/zip",
+};
+
+/** Get MIME type from a filename's extension, defaulting to octet-stream */
+export const getMimeType = (filename: string): string => {
+  const dotIndex = filename.lastIndexOf(".");
+  if (dotIndex === -1) return "application/octet-stream";
+  const ext = filename.slice(dotIndex).toLowerCase();
+  return EXT_MIME_MAP[ext] ?? "application/octet-stream";
+};
+
+/** Return a 403 forbidden response */
+const forbiddenResponse = (): Response =>
+  new Response("Forbidden", { status: 403 });
+
+/** Handle GET /attachment/:id */
+const handleAttachmentDownload: TypedRouteHandler<
+  "GET /attachment/:id"
+> = async (request, { id }) => {
+  if (!isStorageEnabled()) return notFoundResponse();
+
+  // Extract and validate query params
+  const url = new URL(request.url);
+  const attendeeIdStr = url.searchParams.get("a");
+  const exp = url.searchParams.get("exp");
+  const sig = url.searchParams.get("sig");
+  if (!attendeeIdStr || !exp || !sig) return forbiddenResponse();
+
+  const attendeeId = Number.parseInt(attendeeIdStr, 10);
+  if (Number.isNaN(attendeeId)) return forbiddenResponse();
+
+  // Verify signature and expiry
+  const valid = await verifyAttachmentUrl(id, attendeeId, exp, sig);
+  if (!valid) return forbiddenResponse();
+
+  // Look up event and verify it has an attachment
+  const event = await getEvent(id);
+  if (!event?.attachment_url) return notFoundResponse();
+
+  // Verify attendee exists and belongs to this event
+  const attendee = await getAttendeeRaw(attendeeId);
+  if (!attendee || attendee.event_id !== id) return forbiddenResponse();
+
+  // Download and decrypt from CDN
+  const data = await downloadImage(event.attachment_url);
+  if (!data) return notFoundResponse();
+
+  // Increment download counter (fire-and-forget)
+  await incrementAttachmentDownloads(attendeeId, id);
+
+  // Serve with Content-Disposition for proper download filename
+  const contentType = getMimeType(event.attachment_name);
+  return new Response(data.buffer as BodyInit, {
+    headers: {
+      "cache-control": "public, max-age=3600",
+      "content-disposition": `attachment; filename="${event.attachment_name.replace(
+        /"/g,
+        '\\"',
+      )}"`,
+      "content-type": contentType,
+    },
+  });
+};
+
+/** Attachment routes */
+const attachmentRoutes = defineRoutes({
+  "GET /attachment/:id": handleAttachmentDownload,
+});
+
+export { attachmentRoutes };

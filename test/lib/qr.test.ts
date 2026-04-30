@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { generateQrSvg } from "#lib/qr.ts";
+import { generateQrSvg } from "#shared/qr.ts";
 
 describe("generateQrSvg", () => {
   test("returns an SVG string for a URL", async () => {

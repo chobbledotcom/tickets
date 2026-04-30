@@ -5,8 +5,8 @@ import {
   getDecimalPlaces,
   toMajorUnits,
   toMinorUnits,
-} from "#lib/currency.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/currency.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   createTestDbWithSetup,
   resetDb,

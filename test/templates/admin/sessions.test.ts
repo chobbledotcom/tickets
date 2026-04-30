@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#lib/csrf.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { setupTestEncryptionKey } from "#test-utils";
 

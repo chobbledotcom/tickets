@@ -4,8 +4,8 @@ import {
   isValidBusinessEmail,
   normalizeBusinessEmail,
   updateBusinessEmail,
-} from "#lib/business-email.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/business-email.ts";
+import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("business-email", { db: true }, () => {

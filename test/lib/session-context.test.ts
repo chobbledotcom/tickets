@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { AuthSession } from "#routes/auth.ts";
 import {
   getCachedSession,
   runWithSessionContext,
   setCachedSession,
-} from "#lib/session-context.ts";
-import type { AuthSession } from "#routes/auth.ts";
+} from "#shared/session-context.ts";
 
 const makeSession = (token = "tok"): AuthSession => ({
   adminLevel: "owner",

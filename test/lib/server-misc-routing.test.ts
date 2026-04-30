@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  resetEffectiveDomain,
-  setEffectiveDomainForTest,
-} from "#lib/config.ts";
-import { settings } from "#lib/db/settings.ts";
-import { detectIframeMode } from "#lib/iframe.ts";
-import { runWithRequestId } from "#lib/logger.ts";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import {
   redirect,
   redirectResponse,
   temporaryErrorResponse,
 } from "#routes/response.ts";
+import {
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
+} from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
+import { detectIframeMode } from "#shared/iframe.ts";
+import { runWithRequestId } from "#shared/logger.ts";
 import {
   createTestDb,
   createTestEvent,
@@ -239,8 +239,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("returns null when wrappedPrivateKey is not set in DB", async () => {
-      const { getDb: getDbFn } = await import("#lib/db/client.ts");
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       await getDbFn().execute({
         args: [],
         sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
@@ -593,9 +593,9 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("rethrows unhandled errors in test mode", async () => {
-      const { getDb: getDbFn } = await import("#lib/db/client.ts");
-      const { invalidateEventsCache } = await import("#lib/db/events.ts");
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const { invalidateEventsCache } = await import("#shared/db/events.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       const db = getDbFn();
       invalidateEventsCache();
       await s.loadAll();
@@ -615,8 +615,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
-      const { getDb: getDbFn } = await import("#lib/db/client.ts");
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
 
       await getDbFn().execute({
         args: [],

@@ -1,11 +1,11 @@
 import type { Row } from "@libsql/client";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { generateSecureToken } from "#lib/crypto/utils.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { createApiKey } from "#lib/db/api-keys.ts";
-import type { EventInput } from "#lib/db/events.ts";
-import { getSession } from "#lib/db/sessions.ts";
-import type { Event } from "#lib/types.ts";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { createApiKey } from "#shared/db/api-keys.ts";
+import type { EventInput } from "#shared/db/events.ts";
+import { getSession } from "#shared/db/sessions.ts";
+import type { Event } from "#shared/types.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
   getCachedAdminSession,
@@ -58,8 +58,8 @@ export const getTestSession = async (): Promise<{
 
   const cached = getCachedAdminSession();
   if (cached) {
-    const { getDb } = await import("#lib/db/client.ts");
-    const { insert } = await import("#lib/db/client.ts");
+    const { getDb } = await import("#shared/db/client.ts");
+    const { insert } = await import("#shared/db/client.ts");
     await getDb().execute(
       insert("sessions", {
         csrf_token: cached.sessionRow.csrf_token,
@@ -90,19 +90,19 @@ export const createTestManagerSession = async (
   token = "mgr-session",
   username = "testmanager",
 ): Promise<string> => {
-  const { encrypt: enc } = await import("#lib/crypto/encryption.ts");
-  const { hmacHash } = await import("#lib/crypto/hashing.ts");
+  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
+  const { hmacHash } = await import("#shared/crypto/hashing.ts");
   const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
-    "#lib/crypto/keys.ts"
+    "#shared/crypto/keys.ts"
   );
-  const { getDb } = await import("#lib/db/client.ts");
-  const { insert } = await import("#lib/db/client.ts");
-  const { createSession } = await import("#lib/db/sessions.ts");
+  const { getDb } = await import("#shared/db/client.ts");
+  const { insert } = await import("#shared/db/client.ts");
+  const { createSession } = await import("#shared/db/sessions.ts");
   const {
     getUserByUsername,
     verifyUserPassword,
     invalidateUsersCache: invalidateUsers,
-  } = await import("#lib/db/users.ts");
+  } = await import("#shared/db/users.ts");
 
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
   if (!user) throw new Error("Admin user not found");
@@ -172,7 +172,7 @@ export const createTestApiKeyFull = async (
 };
 
 const getTestDataKey = async (): Promise<CryptoKey> => {
-  const { unwrapKeyWithToken } = await import("#lib/crypto/keys.ts");
+  const { unwrapKeyWithToken } = await import("#shared/crypto/keys.ts");
   const cookie = await testCookie();
   const sessionMatch = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),

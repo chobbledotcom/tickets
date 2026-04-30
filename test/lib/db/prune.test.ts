@@ -9,25 +9,25 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { hmacHash } from "#lib/crypto/hashing.ts";
-import { getDb, insert } from "#lib/db/client.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { getDb, insert } from "#shared/db/client.ts";
 import {
   maybeRunPrunes,
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
   pruneTokenAttempts,
-} from "#lib/db/prune.ts";
-import { createSession, getAllSessions } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
+} from "#shared/db/prune.ts";
+import { createSession, getAllSessions } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
-} from "#lib/limits.ts";
-import { nowMs } from "#lib/now.ts";
+} from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils";
 
 /**

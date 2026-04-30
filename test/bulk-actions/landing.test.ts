@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { eventsTable } from "#lib/db/events.ts";
 import { handleRequest } from "#routes";
+import { eventsTable } from "#shared/db/events.ts";
 import {
   adminGet,
   createTestEvent,

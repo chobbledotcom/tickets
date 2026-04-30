@@ -4,7 +4,7 @@ import {
   appendIframeParam,
   detectIframeMode,
   getIframeMode,
-} from "#lib/iframe.ts";
+} from "#shared/iframe.ts";
 
 describe("iframe", () => {
   afterEach(() => {

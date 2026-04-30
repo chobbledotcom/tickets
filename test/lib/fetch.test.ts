@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { fetchText } from "#lib/fetch.ts";
+import { fetchText } from "#shared/fetch.ts";
 
 describe("fetchText", () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;

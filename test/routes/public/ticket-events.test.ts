@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getActiveEventsByGroupId } from "#lib/db/groups.ts";
 import { buildTicketEventsWithGroupCapacity } from "#routes/public/ticket-events.ts";
+import { getActiveEventsByGroupId } from "#shared/db/groups.ts";
 import {
   bookAttendee,
   createTestEvent,

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { encrypt } from "#lib/crypto/encryption.ts";
-import { hashPassword } from "#lib/crypto/hashing.ts";
-import { getDb, insert } from "#lib/db/client.ts";
-import { createSession } from "#lib/db/sessions.ts";
-import { getUserByUsername, invalidateUsersCache } from "#lib/db/users.ts";
 import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { hashPassword } from "#shared/crypto/hashing.ts";
+import { getDb, insert } from "#shared/db/client.ts";
+import { createSession } from "#shared/db/sessions.ts";
+import { getUserByUsername, invalidateUsersCache } from "#shared/db/users.ts";
 import {
   adminFormPost,
   assertAdminHtmlWithCookie,
@@ -151,7 +151,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("utils.ts edge cases", () => {
     test("withOwnerAuthForm returns 403 for manager role", async () => {
-      const { hmacHash } = await import("#lib/crypto/hashing.ts");
+      const { hmacHash } = await import("#shared/crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute(
         insert("users", {
@@ -172,7 +172,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         2,
       );
 
-      const { signCsrfToken } = await import("#lib/csrf.ts");
+      const { signCsrfToken } = await import("#shared/csrf.ts");
       const signedCsrf = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
@@ -203,10 +203,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const { withAuth } = await import("#routes/auth.ts");
       const { jsonResponse } = await import("#routes/response.ts");
-      const { runWithSessionContext } = await import("#lib/session-context.ts");
+      const { runWithSessionContext } = await import(
+        "#shared/session-context.ts"
+      );
 
       const response = await runWithSessionContext(async () => {
-        const { signCsrfToken } = await import("#lib/csrf.ts");
+        const { signCsrfToken } = await import("#shared/csrf.ts");
         const signedCsrf = await signCsrfToken();
         return withAuth(
           mockRequest("/test", {

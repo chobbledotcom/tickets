@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
-import { queryAll } from "#lib/db/client.ts";
-import type { QuestionWithAnswers } from "#lib/db/questions.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { queryAll } from "#shared/db/client.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   answersTable,
   getAttendeeAnswersByQuestion,
   questionsTable,
   saveAttendeeAnswers,
   setEventQuestions,
-} from "#lib/db/questions.ts";
+} from "#shared/db/questions.ts";
 import {
   applyAttendeeMerge,
   bookingConflictLabel,
@@ -18,11 +18,11 @@ import {
   hasBookingConflicts,
   nonConflictAnswerLabel,
   validateAttendeeMergeDecision,
-} from "#lib/merge/attendee-merge.ts";
+} from "#shared/merge/attendee-merge.ts";
 import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
-} from "#lib/merge/attendee-merge-types.ts";
+} from "#shared/merge/attendee-merge-types.ts";
 import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
 
 /** Create a test attendee directly via the DB */
@@ -135,7 +135,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         conflictClass: "duplicate" as const,
         eventId: 1,
         sourceBooking:
-          {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
         startAt: null,
         targetBooking: null,
       };
@@ -147,7 +147,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         conflictClass: "conflicting_metadata" as const,
         eventId: 1,
         sourceBooking:
-          {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+          {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
         startAt: null,
         targetBooking: null,
       };
@@ -162,7 +162,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           conflictClass: "moveable" as const,
           eventId: 1,
           sourceBooking:
-            {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+            {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
           startAt: null,
           targetBooking: null,
         },
@@ -176,7 +176,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           conflictClass: "moveable" as const,
           eventId: 1,
           sourceBooking:
-            {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+            {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
           startAt: null,
           targetBooking: null,
         },
@@ -184,7 +184,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           conflictClass: "duplicate" as const,
           eventId: 2,
           sourceBooking:
-            {} as import("#lib/db/attendee-types.ts").EventAttendeeRow,
+            {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
           startAt: null,
           targetBooking: null,
         },

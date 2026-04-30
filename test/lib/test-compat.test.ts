@@ -365,7 +365,7 @@ describe("test-compat", () => {
         slug: "delete-group-helper",
       });
       await deleteTestGroup(group.id);
-      const { groupsTable } = await import("#lib/db/groups.ts");
+      const { groupsTable } = await import("#shared/db/groups.ts");
       expect(await groupsTable.findById(group.id)).toBeNull();
     });
   });

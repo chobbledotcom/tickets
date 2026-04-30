@@ -4,7 +4,7 @@ import {
   decryptAttendees,
   getAttendeesRaw,
   updateCheckedIn,
-} from "#lib/db/attendees.ts";
+} from "#shared/db/attendees.ts";
 import {
   createTestAttendee,
   createTestEvent,

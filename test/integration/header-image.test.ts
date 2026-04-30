@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
   assertAdminHtml,

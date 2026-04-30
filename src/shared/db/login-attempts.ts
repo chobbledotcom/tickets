@@ -1,0 +1,89 @@
+/**
+ * Login attempts table operations (rate limiting)
+ */
+
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { deleteByField, getDb, queryOne } from "#shared/db/client.ts";
+import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
+
+type LoginAttemptRow = { attempts: number; locked_until: number | null };
+
+/** Hash IP and query login attempts, then apply handler function */
+const withHashedIpAttempts = async <T>(
+  ip: string,
+  handler: (hashedIp: string, row: LoginAttemptRow | null) => Promise<T>,
+): Promise<T> => {
+  const hashedIp = await hmacHash(ip);
+  const row = await queryOne<LoginAttemptRow>(
+    "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
+    [hashedIp],
+  );
+  return handler(hashedIp, row);
+};
+
+/** Check if lockout is active, resetting expired locks */
+const checkLockout = async (
+  hashedIp: string,
+  row: LoginAttemptRow | null,
+): Promise<boolean> => {
+  if (!row) return false;
+
+  const currentMs = nowMs();
+
+  // Check if currently locked out
+  if (row.locked_until && row.locked_until > currentMs) {
+    return true;
+  }
+
+  // If lockout expired, reset
+  if (row.locked_until && row.locked_until <= currentMs) {
+    await deleteByField("login_attempts", "ip", hashedIp);
+  }
+
+  return false;
+};
+
+/** Record attempt and return whether account is now locked */
+const recordAttempt = async (
+  hashedIp: string,
+  row: LoginAttemptRow | null,
+): Promise<boolean> => {
+  const newAttempts = (row?.attempts ?? 0) + 1;
+
+  if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+    const lockedUntil = nowMs() + LOGIN_LOCKOUT_MS;
+    await getDb().execute({
+      args: [hashedIp, newAttempts, lockedUntil],
+      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+    });
+    return true;
+  }
+
+  await getDb().execute({
+    args: [hashedIp, newAttempts],
+    sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+  });
+  return false;
+};
+
+/**
+ * Check if IP is rate limited for login
+ */
+export const isLoginRateLimited = (ip: string): Promise<boolean> =>
+  withHashedIpAttempts(ip, checkLockout);
+
+/**
+ * Record a failed login attempt
+ * Returns true if the account is now locked
+ */
+export const recordFailedLogin = (ip: string): Promise<boolean> =>
+  withHashedIpAttempts(ip, recordAttempt);
+
+/**
+ * Clear login attempts for an IP (on successful login)
+ */
+export const clearLoginAttempts = async (ip: string): Promise<void> => {
+  const hashedIp = await hmacHash(ip);
+  await deleteByField("login_attempts", "ip", hashedIp);
+};

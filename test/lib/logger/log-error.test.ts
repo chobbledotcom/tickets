@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { ErrorCode, logError, logErrorLocal } from "#lib/logger.ts";
-import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
+import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   createTestDbWithSetup,
   createTestEvent,
