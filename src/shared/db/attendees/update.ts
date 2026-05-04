@@ -109,7 +109,7 @@ export const checkGroupCapAfterDurationChange = async (
     "SELECT max_attendees FROM groups WHERE id = ?",
     [groupId],
   );
-  const groupLimit = cap[0]?.max_attendees ?? 0;
+  const groupLimit = cap[0]!.max_attendees;
   if (groupLimit <= 0) return null;
 
   const rows = await queryAll<{ start_at: string; end_at: string }>(
@@ -135,7 +135,7 @@ export const checkGroupCapAfterDurationChange = async (
            AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
         [groupId, dayEnd, dayStart],
       );
-      if ((counted[0]?.count ?? 0) > groupLimit) return day;
+      if (counted[0]!.count > groupLimit) return day;
     }
   }
   return null;

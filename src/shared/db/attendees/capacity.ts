@@ -306,8 +306,7 @@ const aggregateDemand = <K>(
 ): Map<K, DemandBucket> => {
   const buckets = new Map<K, DemandBucket>();
   for (const item of items) {
-    const ev = eventsById.get(item.eventId);
-    if (!ev) continue;
+    const ev = eventsById.get(item.eventId)!;
     const key = keyOf(ev);
     if (key === null) continue;
     let bucket = buckets.get(key);
