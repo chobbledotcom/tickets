@@ -10,7 +10,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAvailableDates } from "#lib/dates.ts";
+import { getAvailableDates } from "#shared/dates.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
@@ -18,10 +18,10 @@ import {
   getAttendeesRaw,
   hasAvailableSpots,
   unlinkAttendeeFromEvent,
-} from "#lib/db/attendees.ts";
-import { getEvent, getEventWithCount } from "#lib/db/events.ts";
-import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { buildTemplateData } from "#lib/email-renderer.ts";
+} from "#shared/db/attendees.ts";
+import { getEvent, getEventWithCount } from "#shared/db/events.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { buildTemplateData } from "#shared/email-renderer.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   adminFormPost,
@@ -621,7 +621,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       const fresh = (await getEventWithCount(event.id))!;
       const html = ticketPage({
         dates: ["2026-08-10", "2026-08-11"],
-        events: [buildTicketEvent(fresh)],
+        events: [buildTicketEvent(fresh, false, undefined)],
         slugs: [event.slug],
       });
       expect(html).toContain("each booking reserves 3 days");
@@ -635,7 +635,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       const fresh = (await getEventWithCount(event.id))!;
       const html = ticketPage({
         dates: ["2026-08-10"],
-        events: [buildTicketEvent(fresh)],
+        events: [buildTicketEvent(fresh, false, undefined)],
         slugs: [event.slug],
       });
       expect(html).not.toContain("each booking reserves");
@@ -933,7 +933,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       const attendeeId = result.attendees[0]!.id;
 
       // Unlink from the multi-day event.
-      const { addEventLink } = await import("#lib/db/attendees.ts");
+      const { addEventLink } = await import("#shared/db/attendees.ts");
       await unlinkAttendeeFromEvent(attendeeId, event.id);
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
 
@@ -985,7 +985,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       if (!x.success) throw new Error("setup");
       await bookAttendee(event, { date: "2026-06-12", durationDays: 1, quantity: 2 });
       // Day 12: X(2) + other(2) = 4. Admin bumps X to 4 → 4+2=6 > 5.
-      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const { updateEventLink } = await import("#shared/db/attendees.ts");
       const result = await updateEventLink(x.attendees[0]!.id, event.id, {
         date: "2026-06-12",
         durationDays: 2,
@@ -1004,7 +1004,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       });
       if (!result.success) throw new Error("setup");
 
-      const { updateEventLink } = await import("#lib/db/attendees.ts");
+      const { updateEventLink } = await import("#shared/db/attendees.ts");
       const moved = await updateEventLink(result.attendees[0]!.id, event.id, {
         date: "2026-06-10",
         durationDays: 2,

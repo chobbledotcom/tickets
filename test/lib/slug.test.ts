@@ -5,7 +5,7 @@ import {
   generateUniqueSlug,
   normalizeSlug,
   validateSlug,
-} from "#lib/slug.ts";
+} from "#shared/slug.ts";
 
 describe("slug", () => {
   describe("generateSlug", () => {

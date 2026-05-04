@@ -1,7 +1,7 @@
 import process from "node:process";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getEnv, isReadOnly, requireEnv } from "#lib/env.ts";
+import { getEnv, isReadOnly, requireEnv } from "#shared/env.ts";
 import { describeWithEnv } from "#test-utils";
 
 // Unique per-file prefix so parallel workers can't see each other's state

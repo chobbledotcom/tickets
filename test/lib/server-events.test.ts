@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { addDays } from "#lib/dates.ts";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { getDb, insert } from "#lib/db/client.ts";
-import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-import { nowMs } from "#lib/now.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
-import { todayInTz } from "#lib/timezone.ts";
 import { handleRequest } from "#routes";
 import { formatCountdown } from "#routes/format.ts";
 import { withCookie } from "#routes/response.ts";
+import { addDays } from "#shared/dates.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import { getDb, insert } from "#shared/db/client.ts";
+import { eventsTable, invalidateEventsCache } from "#shared/db/events.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import { nowMs } from "#shared/now.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   adminFormPost,
   adminGet,
@@ -87,7 +87,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin", "Event created")(response);
 
       // Verify event was actually created
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.name).toBe("New Event");
@@ -112,7 +112,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin", "Event created")(response);
 
       // Verify webhook_url was cleared
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.webhook_url).toBe("");
@@ -139,7 +139,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expectRedirectWithFlash("/admin", "Event created")(response);
 
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const event = await getEvent(1);
       expect(event?.group_id).toBe(group.id);
     });
@@ -161,7 +161,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expectStatus(400)(response);
 
-      const { getAllEvents } = await import("#lib/db/events.ts");
+      const { getAllEvents } = await import("#shared/db/events.ts");
       const events = await getAllEvents();
       const match = events.find((e) => e.name === "Bad Group Event");
       expect(match).toBeUndefined();
@@ -309,13 +309,69 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(html).toContain(">Edit<");
     });
 
+    test("shows Group Attendees row when event is in a capped group", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        maxAttendees: 100,
+      });
+      const { bookAttendee, createTestEvent, createTestGroup } = await import(
+        "#test-utils"
+      );
+      const { eventsTable } = await import("#shared/db/events.ts");
+      const group = await createTestGroup({
+        maxAttendees: 20,
+        name: "Capped Group",
+        slug: "capped-grp",
+      });
+      await eventsTable.update(event.id, { groupId: group.id });
+      // Sibling event in the same group with bookings: proves the row's
+      // count is the group-wide total, not just the current event's.
+      const sibling = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        name: "Sibling",
+      });
+      await bookAttendee(sibling, {
+        email: "a@test.com",
+        name: "A",
+        quantity: 4,
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Group Attendees");
+      expect(html).toContain("4 / 20");
+      expect(html).toContain("16 remain");
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
+    });
+
+    test("omits Group Attendees row when group is uncapped", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        maxAttendees: 100,
+      });
+      const { createTestGroup } = await import("#test-utils");
+      const { eventsTable } = await import("#shared/db/events.ts");
+      const group = await createTestGroup({
+        name: "Uncapped",
+        slug: "uncapped-grp",
+      });
+      await eventsTable.update(event.id, { groupId: group.id });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).not.toContain("Group Attendees");
+    });
+
     test("shows question answer summary when questions assigned", async () => {
       const { event, cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         name: "Q Event",
       });
       const { questionsTable, answersTable, setEventQuestions } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       const q = await questionsTable.insert({ text: "Size" });
       await answersTable.insert({
@@ -639,7 +695,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         answersTable,
         setEventQuestions,
         saveAttendeeAnswers,
-      } = await import("#lib/db/questions.ts");
+      } = await import("#shared/db/questions.ts");
       const q = await questionsTable.insert({ text: "Shirt Size" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -801,7 +857,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin/event/1", "Event updated")(response);
 
       // Verify the event was updated
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(1);
       expect(updated?.max_attendees).toBe(200);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
@@ -833,7 +889,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin/event/1", "Event updated")(response);
 
       // Verify webhook_url was cleared
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(1);
       expect(updated?.webhook_url).toBe("");
     });
@@ -871,7 +927,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         "Event updated",
       )(response);
 
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const updated = await getEvent(event.id);
       expect(updated?.group_id).toBe(group2.id);
     });
@@ -996,7 +1052,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         "Event updated",
       )(response);
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.slug).toBe("new-custom-slug");
     });
@@ -1025,7 +1081,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         "Event updated",
       )(response);
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.slug).toBe("my-custom-slug");
     });
@@ -1137,7 +1193,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         "Event updated",
       )(response);
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.slug).toBe(event.slug);
       expect(updated?.max_attendees).toBe(100);
@@ -1206,7 +1262,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin/event/1", "Event deactivated")(response);
 
       // Verify event is now inactive
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const deactivatedEvent = await getEventWithCount(1);
       expect(deactivatedEvent?.active).toBe(false);
     });
@@ -1304,7 +1360,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin/event/1", "Event reactivated")(response);
 
       // Verify event is now active
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const activeEvent = await getEventWithCount(1);
       expect(activeEvent?.active).toBe(true);
     });
@@ -1497,7 +1553,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expectRedirectWithFlash("/admin", "Event deleted")(response);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const deletedEvent = await getEvent(1);
       expect(deletedEvent).toBeNull();
     });
@@ -1554,8 +1610,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify event and attendees were deleted
-      const { getEvent } = await import("#lib/db/events.ts");
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getEvent(event.id);
       expect(deleted).toBeNull();
 
@@ -1577,7 +1633,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1618,7 +1674,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1655,7 +1711,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const event = await getEventWithCount(1);
       expect(event?.can_pay_more).toBe(true);
       expect(event?.unit_price).toBe(1000);
@@ -1677,7 +1733,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const event = await getEventWithCount(1);
       expect(event?.can_pay_more).toBe(false);
     });
@@ -1702,7 +1758,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.can_pay_more).toBe(true);
     });
@@ -1714,7 +1770,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         canPayMore: true,
         maxPrice: 50000,
       });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.max_price).toBe(50000);
       expect(saved?.can_pay_more).toBe(true);
@@ -1722,7 +1778,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("max_price defaults to 10000 when not set", async () => {
       const event = await createTestEvent({ canPayMore: true });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.max_price).toBe(10000);
     });
@@ -1752,7 +1808,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("allows max_price less than unit_price + 100 when can_pay_more is off", async () => {
       const event = await createTestEvent({ maxPrice: 1050, unitPrice: 1000 });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.max_price).toBe(1050);
     });
@@ -1768,7 +1824,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         unitPrice: 1000,
       });
       await updateTestEvent(event.id, { maxPrice: 25000 });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.max_price).toBe(25000);
     });
@@ -1872,8 +1928,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify both event and attendees deleted
-      const { getEvent } = await import("#lib/db/events.ts");
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect(await getEvent(event.id)).toBeNull();
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
@@ -2033,7 +2089,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expectRedirectWithFlash("/admin", "Event deleted")(response);
 
-      const { getEvent: getEventFn } = await import("#lib/db/events.ts");
+      const { getEvent: getEventFn } = await import("#shared/db/events.ts");
       const deleted = await getEventFn(event.id);
       expect(deleted).toBeNull();
     });
@@ -2086,7 +2142,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       );
       expectRedirectWithFlash("/admin", "Event deleted")(response);
 
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(0);
     });
@@ -2094,7 +2150,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
   describe("routes/admin/events.ts (eventErrorPage notFound)", () => {
     test("event edit validation error returns 404 when event was deleted", async () => {
-      const { eventsTable } = await import("#lib/db/events.ts");
+      const { eventsTable } = await import("#shared/db/events.ts");
 
       const event1 = await createTestEvent({
         maxAttendees: 50,
@@ -2111,7 +2167,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
           const row = await originalFindById(id as number);
           if (row) {
             // Delete the event from DB so getEventWithCount returns null
-            const { getDb } = await import("#lib/db/client.ts");
+            const { getDb } = await import("#shared/db/client.ts");
             await getDb().execute({
               args: [id as number],
               sql: "DELETE FROM events WHERE id = ?",
@@ -2173,7 +2229,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       // updateResource.update which calls requireExists -> table.findById.
       // We spy on findById to return null, simulating the event being deleted
       // between the initial check and the update.
-      const { eventsTable: table } = await import("#lib/db/events.ts");
+      const { eventsTable: table } = await import("#shared/db/events.ts");
       const findByIdStub2 = stub(table, "findById", () =>
         Promise.resolve(null),
       );
@@ -2204,7 +2260,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const closesAt = "2099-06-15T14:30";
       const event = await createTestEvent({ closesAt });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBe("2099-06-15T14:30:00.000Z");
     });
@@ -2212,7 +2268,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("creates event without closes_at (defaults to null)", async () => {
       const event = await createTestEvent();
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBeNull();
     });
@@ -2222,7 +2278,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const closesAt = "2099-12-31T23:59";
       await updateTestEvent(event.id, { closesAt });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.closes_at).toBe("2099-12-31T23:59:00.000Z");
     });
@@ -2231,7 +2287,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
       await updateTestEvent(event.id, { closesAt: "" });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.closes_at).toBeNull();
     });
@@ -2384,7 +2440,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
       expect(saved?.location).toBe("Village Hall");
@@ -2396,7 +2452,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         date: "2026-12-25T18:00",
         location: "Town Centre",
       });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.date).toBe("2026-12-25T18:00:00.000Z");
       expect(updated?.location).toBe("Town Centre");
@@ -2405,7 +2461,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("clears event date by setting to empty string", async () => {
       const event = await createTestEvent({ date: "2026-06-15T14:00" });
       await updateTestEvent(event.id, { date: "" });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.date).toBe("");
     });
@@ -2562,7 +2618,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         minimumDaysBefore: 2,
       });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("daily");
       expect(saved?.bookable_days).toEqual(["Monday", "Wednesday", "Friday"]);
@@ -2573,7 +2629,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("creates standard event with default daily config", async () => {
       const event = await createTestEvent();
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("standard");
       expect(saved?.bookable_days).toEqual([
@@ -2649,7 +2705,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         minimumDaysBefore: 0,
       });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.event_type).toBe("daily");
       expect(updated?.bookable_days).toEqual(["Saturday", "Sunday"]);
@@ -2666,7 +2722,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       });
       await updateTestEvent(event.id, { eventType: "standard" });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.event_type).toBe("standard");
     });
@@ -2703,7 +2759,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("creates event with non_transferable flag", async () => {
       const event = await createTestEvent({ nonTransferable: true });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.non_transferable).toBe(true);
     });
@@ -2711,7 +2767,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("creates event without non_transferable by default", async () => {
       const event = await createTestEvent();
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.non_transferable).toBe(false);
     });
@@ -2751,7 +2807,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const event = await createTestEvent();
       await updateTestEvent(event.id, { nonTransferable: true });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.non_transferable).toBe(true);
     });
@@ -2761,7 +2817,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         name: "Edit Target",
       });
 
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const event = (await getEventWithCount(1))!;
 
       const response = await handleRequest(
@@ -2807,7 +2863,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         ),
       );
 
-      const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+      const { getEventActivityLog } = await import("#shared/db/activityLog.ts");
       const logs = await getEventActivityLog(event.id);
       const updateLog = logs.find((l: { message: string }) =>
         l.message.includes("updated"),
@@ -3135,14 +3191,14 @@ describeWithEnv("server (admin events)", { db: true }, () => {
   describe("hidden events", () => {
     test("creates event with hidden enabled", async () => {
       const event = await createTestEvent({ hidden: true });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.hidden).toBe(true);
     });
 
     test("creates event with hidden disabled by default", async () => {
       const event = await createTestEvent();
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.hidden).toBe(false);
     });
@@ -3150,7 +3206,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("updates event to enable hidden", async () => {
       const event = await createTestEvent();
       await updateTestEvent(event.id, { hidden: true });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.hidden).toBe(true);
     });
@@ -3158,7 +3214,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("updates event to enable can_pay_more via updateTestEvent", async () => {
       const event = await createTestEvent({ unitPrice: 1000 });
       await updateTestEvent(event.id, { canPayMore: true });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.can_pay_more).toBe(true);
     });
@@ -3166,7 +3222,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
     test("updates event to disable hidden", async () => {
       const event = await createTestEvent({ hidden: true });
       await updateTestEvent(event.id, { hidden: false });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.hidden).toBe(false);
     });
@@ -3244,7 +3300,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         // Debug: verify env overlay is working
-        const { getEnv } = await import("#lib/env.ts");
+        const { getEnv } = await import("#shared/env.ts");
         const { isBuilderEnabled } = await import("#routes/admin/builder.ts");
         console.log(
           "[DEBUG] Deno.env.get('CAN_BUILD_SITES'):",
@@ -3268,7 +3324,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
         }
 
         const event = await createTestEvent({ assignBuiltSite: true });
-        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const { getEventWithCount } = await import("#shared/db/events.ts");
         const saved = await getEventWithCount(event.id);
         expect(saved?.assign_built_site).toBe(true);
       } finally {
@@ -3278,7 +3334,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
 
     test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
       const event = await createTestEvent({ assignBuiltSite: true });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const { getEventWithCount } = await import("#shared/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.assign_built_site).toBe(false);
     });
@@ -3287,7 +3343,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const event = await createTestEvent();
-        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const { getEventWithCount } = await import("#shared/db/events.ts");
         const saved = await getEventWithCount(event.id);
         expect(saved?.assign_built_site).toBe(false);
       } finally {
@@ -3300,7 +3356,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       try {
         const event = await createTestEvent();
         await updateTestEvent(event.id, { assignBuiltSite: true });
-        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const { getEventWithCount } = await import("#shared/db/events.ts");
         const updated = await getEventWithCount(event.id);
         expect(updated?.assign_built_site).toBe(true);
       } finally {

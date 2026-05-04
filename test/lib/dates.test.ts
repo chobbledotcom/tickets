@@ -13,8 +13,8 @@ import {
   getAvailableDates,
   getNextBookableDate,
   normalizeDatetime,
-} from "#lib/dates.ts";
-import { todayInTz } from "#lib/timezone.ts";
+} from "#shared/dates.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import { describeWithEnv, testEvent, testWithSetting } from "#test-utils";
 

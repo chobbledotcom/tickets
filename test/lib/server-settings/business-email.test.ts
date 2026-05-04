@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { settings } from "#lib/db/settings.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
   describeWithEnv,
@@ -54,7 +54,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("clears business email when empty string", async () => {
-      const { updateBusinessEmail } = await import("#lib/business-email.ts");
+      const { updateBusinessEmail } = await import("#shared/business-email.ts");
 
       // First set an email
       await updateBusinessEmail("old@example.com");

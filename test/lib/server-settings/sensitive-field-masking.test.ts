@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#lib/db/settings.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import {
   awaitTestRequest,
   describeWithEnv,
@@ -22,7 +22,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("sensitive field masking", () => {
     test("shows mask sentinel for configured Stripe key", async () => {
-      const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL } = await import("#shared/db/settings.ts");
       await settings.update.paymentProvider("stripe");
 
       await withMocks(
@@ -59,7 +59,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("shows mask sentinel for configured Square token", async () => {
-      const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL } = await import("#shared/db/settings.ts");
       await settings.update.paymentProvider("square");
 
       // Configure Square credentials
@@ -85,7 +85,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("shows mask sentinel for configured email API key", async () => {
       const { MASK_SENTINEL, settings: s } = await import(
-        "#lib/db/settings.ts"
+        "#shared/db/settings.ts"
       );
 
       await s.update.email.provider("resend");
@@ -101,7 +101,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("submitting sentinel for Stripe key does not overwrite existing key", async () => {
       const { MASK_SENTINEL, settings: s } = await import(
-        "#lib/db/settings.ts"
+        "#shared/db/settings.ts"
       );
       await settings.update.paymentProvider("stripe");
 
@@ -148,7 +148,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("submitting sentinel for Square token preserves token but updates location", async () => {
       const { MASK_SENTINEL, settings: s } = await import(
-        "#lib/db/settings.ts"
+        "#shared/db/settings.ts"
       );
       await settings.update.paymentProvider("square");
 
@@ -184,7 +184,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("submitting sentinel for Square webhook key does not overwrite", async () => {
-      const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
+      const { MASK_SENTINEL } = await import("#shared/db/settings.ts");
 
       // Configure webhook key
       await handleRequest(
@@ -216,7 +216,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("submitting sentinel for email API key does not overwrite existing key", async () => {
       const { MASK_SENTINEL, settings: s } = await import(
-        "#lib/db/settings.ts"
+        "#shared/db/settings.ts"
       );
 
       // Configure email with API key
@@ -251,7 +251,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("submitting new value still updates the key", async () => {
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       await settings.update.paymentProvider("stripe");
 
       await withMocks(
@@ -294,7 +294,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("empty Stripe key with existing key is a no-op", async () => {
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       await settings.update.paymentProvider("stripe");
 
       await withMocks(

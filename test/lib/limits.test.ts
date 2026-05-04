@@ -21,7 +21,7 @@ import {
   readLimit,
   SESSION_MAX_AGE_S,
   STALE_RESERVATION_MS,
-} from "#lib/limits.ts";
+} from "#shared/limits.ts";
 import { setTestEnv } from "#test-utils";
 
 describe("limits", () => {

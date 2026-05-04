@@ -19,12 +19,12 @@
  */
 
 export * from "#fp";
-export * from "#lib/cache-registry.ts";
-export * from "#lib/currency.ts";
-export * from "#lib/logger.ts";
-export * from "#lib/markdown.ts";
-export * from "#lib/now.ts";
-export * from "#lib/pending-work.ts";
-export * from "#lib/phone.ts";
-export * from "#lib/slug.ts";
-export * from "#lib/timezone.ts";
+export * from "#shared/cache-registry.ts";
+export * from "#shared/currency.ts";
+export * from "#shared/logger.ts";
+export * from "#shared/markdown.ts";
+export * from "#shared/now.ts";
+export * from "#shared/pending-work.ts";
+export * from "#shared/phone.ts";
+export * from "#shared/slug.ts";
+export * from "#shared/timezone.ts";

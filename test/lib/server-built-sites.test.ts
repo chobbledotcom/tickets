@@ -59,7 +59,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
 
     test("shows Assigned status for assigned sites", async () => {
       const { insertBuiltSite, assignBuiltSite } = await import(
-        "#lib/db/built-sites.ts"
+        "#shared/db/built-sites.ts"
       );
       await insertBuiltSite(
         "Taken Site",
@@ -68,7 +68,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         "",
         true,
       );
-      const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
+      const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
       const sites = await getAllBuiltSites();
       await assignBuiltSite(sites[0]!.id, 42, 7);
 
@@ -308,7 +308,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const site = await createTestBuiltSite({ name: "To Delete" });
       await deleteTestBuiltSite(site.id);
 
-      const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
+      const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
       const found = await builtSitesCrudTable.findById(site.id);
       expect(found).toBeNull();
     });
@@ -328,7 +328,7 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         false,
       );
 
-      const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
+      const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
       const found = await builtSitesCrudTable.findById(site.id);
       expect(found).not.toBeNull();
     });

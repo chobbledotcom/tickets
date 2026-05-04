@@ -1,19 +1,19 @@
-import { parseFlashValue } from "#lib/cookies.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { toMajorUnits } from "#lib/currency.ts";
-import type { CreateAttendeeResult } from "#lib/db/attendee-types.ts";
-import { getAttendeesRaw } from "#lib/db/attendees.ts";
-import type { BuiltSiteFormInput } from "#lib/db/built-sites.ts";
-import { type EventInput, getEventWithCount } from "#lib/db/events.ts";
-import type { GroupInput } from "#lib/db/groups.ts";
-import type { HolidayInput } from "#lib/db/holidays.ts";
+import { parseFlashValue } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { toMajorUnits } from "#shared/currency.ts";
+import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
+import { type EventInput, getEventWithCount } from "#shared/db/events.ts";
+import type { GroupInput } from "#shared/db/groups.ts";
+import type { HolidayInput } from "#shared/db/holidays.ts";
 import type {
   Attendee,
   Event,
   EventWithCount,
   Group,
   Holiday,
-} from "#lib/types.ts";
+} from "#shared/types.ts";
 import { testEventInput } from "#test-utils/factories.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
@@ -206,7 +206,7 @@ export const createTestEvent = (
     "/admin/event",
     buildCreateEventForm(input),
     async () => {
-      const { getAllEvents } = await import("#lib/db/events.ts");
+      const { getAllEvents } = await import("#shared/db/events.ts");
       const events = await getAllEvents();
       return events[0] as Event;
     },
@@ -324,7 +324,7 @@ export const createTestAttendeeDirect = async (
   address = "",
   special_instructions = "",
 ): Promise<{ attendee: Attendee; token: string }> => {
-  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
 
   const result = await createAttendeeAtomic({
     address,
@@ -383,7 +383,7 @@ export const createPaidTestAttendee = async (
   pricePaid = 500,
   quantity = 1,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
   const result = await createAttendeeAtomic({
     bookings: [{ eventId, pricePaid, quantity }],
     email,
@@ -397,8 +397,8 @@ export const bookAttendee = async (
   event: Pick<Event, "id">,
   opts: BookAttendeeOpts = {},
 ): Promise<CreateAttendeeResult> => {
-  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-  const booking: import("#lib/db/attendee-types.ts").EventBooking = {
+  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const booking: import("#shared/db/attendee-types.ts").EventBooking = {
     eventId: event.id,
   };
   if (opts.date !== undefined) booking.date = opts.date;
@@ -424,7 +424,7 @@ export const createDailyTestAttendee = async (
   date: string,
   eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
 ): Promise<{ event: Event; attendee: Attendee; token: string }> => {
-  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
   const event = await createDailyTestEvent(eventOverrides);
   const result = await createAttendeeAtomic({
     bookings: [{ date, eventId: event.id }],
@@ -457,7 +457,7 @@ export const createTestGroup = async (
       ...(input.hidden ? { hidden: "1" } : {}),
     },
     async () => {
-      const { getAllGroups } = await import("#lib/db/groups.ts");
+      const { getAllGroups } = await import("#shared/db/groups.ts");
       const groups = await getAllGroups();
       return groups[groups.length - 1] as Group;
     },
@@ -482,7 +482,7 @@ export const updateTestGroup = async (
   groupId: number,
   updates: Partial<Omit<GroupInput, "slugIndex">>,
 ): Promise<Group> => {
-  const { groupsTable } = await import("#lib/db/groups.ts");
+  const { groupsTable } = await import("#shared/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
@@ -506,7 +506,7 @@ export const updateTestGroup = async (
 };
 
 export const deleteTestGroup = async (groupId: number): Promise<void> => {
-  const { groupsTable } = await import("#lib/db/groups.ts");
+  const { groupsTable } = await import("#shared/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
   return doAuthenticatedFormRequest(
@@ -534,7 +534,7 @@ export const createTestHoliday = (
       start_date: input.startDate,
     },
     async () => {
-      const { getAllHolidays } = await import("#lib/db/holidays.ts");
+      const { getAllHolidays } = await import("#shared/db/holidays.ts");
       const holidays = await getAllHolidays();
       return holidays[holidays.length - 1] as Holiday;
     },
@@ -546,7 +546,7 @@ export const updateTestHoliday = async (
   holidayId: number,
   updates: Partial<HolidayInput>,
 ): Promise<Holiday> => {
-  const { holidaysTable } = await import("#lib/db/holidays.ts");
+  const { holidaysTable } = await import("#shared/db/holidays.ts");
   const existing = (await holidaysTable.findById(holidayId)) as Holiday;
 
   return doAuthenticatedFormRequest(
@@ -565,7 +565,7 @@ export const updateTestHoliday = async (
 };
 
 export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
-  const { holidaysTable } = await import("#lib/db/holidays.ts");
+  const { holidaysTable } = await import("#shared/db/holidays.ts");
   const existing = (await holidaysTable.findById(holidayId)) as Holiday;
 
   return doAuthenticatedFormRequest(
@@ -578,7 +578,7 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
 
 export const createTestBuiltSite = (
   overrides: Partial<BuiltSiteFormInput> = {},
-): Promise<import("#lib/db/built-sites.ts").BuiltSite> => {
+): Promise<import("#shared/db/built-sites.ts").BuiltSite> => {
   const input: BuiltSiteFormInput = {
     assignable: overrides.assignable ?? false,
     bunnyScriptId: overrides.bunnyScriptId ?? "",
@@ -599,11 +599,11 @@ export const createTestBuiltSite = (
       ...(input.assignable ? { assignable: "1" } : {}),
     },
     async () => {
-      const { getAllBuiltSites } = await import("#lib/db/built-sites.ts");
+      const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
       const sites = await getAllBuiltSites();
       return sites[
         sites.length - 1
-      ] as import("#lib/db/built-sites.ts").BuiltSite;
+      ] as import("#shared/db/built-sites.ts").BuiltSite;
     },
     "create built site",
   );
@@ -612,11 +612,11 @@ export const createTestBuiltSite = (
 export const updateTestBuiltSite = async (
   siteId: number,
   updates: Partial<BuiltSiteFormInput>,
-): Promise<import("#lib/db/built-sites.ts").BuiltSite> => {
-  const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
+): Promise<import("#shared/db/built-sites.ts").BuiltSite> => {
+  const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
   const existing = (await builtSitesCrudTable.findById(
     siteId,
-  )) as import("#lib/db/built-sites.ts").BuiltSite;
+  )) as import("#shared/db/built-sites.ts").BuiltSite;
 
   const assignable = updates.assignable ?? existing.assignable;
   return doAuthenticatedFormRequest(
@@ -631,17 +631,17 @@ export const updateTestBuiltSite = async (
     },
     async () => {
       const updated = await builtSitesCrudTable.findById(siteId);
-      return updated as import("#lib/db/built-sites.ts").BuiltSite;
+      return updated as import("#shared/db/built-sites.ts").BuiltSite;
     },
     "update built site",
   );
 };
 
 export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
-  const { builtSitesCrudTable } = await import("#lib/db/built-sites.ts");
+  const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
   const existing = (await builtSitesCrudTable.findById(
     siteId,
-  )) as import("#lib/db/built-sites.ts").BuiltSite;
+  )) as import("#shared/db/built-sites.ts").BuiltSite;
 
   return doAuthenticatedFormRequest(
     `/admin/built-sites/${siteId}/delete`,

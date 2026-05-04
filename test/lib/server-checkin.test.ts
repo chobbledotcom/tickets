@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { formatDateLabel } from "#lib/dates.ts";
 import { handleRequest } from "#routes";
+import { formatDateLabel } from "#shared/dates.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -130,7 +130,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         "Orphan",
         "orphan@test.com",
       );
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
         args: [event.id],
         sql: "DELETE FROM event_attendees WHERE event_id = ?",
@@ -333,7 +333,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
 
     test("blocks check-in for refunded attendee", async () => {
       const { getAttendeesByTokens, markRefunded } = await import(
-        "#lib/db/attendees.ts"
+        "#shared/db/attendees.ts"
       );
       const { event, token, session } = await setupCheckinTest(
         "Refund",
@@ -352,7 +352,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
 
     test("blocks check-out for refunded attendee", async () => {
       const { getAttendeesByTokens, markRefunded } = await import(
-        "#lib/db/attendees.ts"
+        "#shared/db/attendees.ts"
       );
       const { event, token, session } = await setupCheckinTest(
         "Refund2",

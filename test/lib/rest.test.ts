@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { col, defineTable, type Table } from "#lib/db/table.ts";
-import { FormParams } from "#lib/form-data.ts";
-import type { Field, FieldValues } from "#lib/forms.tsx";
-import { createHandler, deleteHandler } from "#lib/rest/handlers.ts";
-import { defineResource, type Resource } from "#lib/rest/resource.ts";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { col, defineTable, type Table } from "#shared/db/table.ts";
+import { FormParams } from "#shared/form-data.ts";
+import type { Field, FieldValues } from "#shared/forms.tsx";
+import { createHandler, deleteHandler } from "#shared/rest/handlers.ts";
+import { defineResource, type Resource } from "#shared/rest/resource.ts";
 import {
   createTestDb,
   describeWithEnv,
@@ -103,7 +103,7 @@ const importantItemData = { name: "Important Item", value: 10 } as const;
 
 /** Create test_items table in the current database */
 const createTestItemsTable = async () => {
-  const { getDb } = await import("#lib/db/client.ts");
+  const { getDb } = await import("#shared/db/client.ts");
   await getDb().execute(`
     CREATE TABLE IF NOT EXISTS test_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

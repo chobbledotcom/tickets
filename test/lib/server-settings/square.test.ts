@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { settings } from "#lib/db/settings.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-import { squareApi } from "#lib/square.ts";
 import { handleRequest } from "#routes";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import { squareApi } from "#shared/square.ts";
 import {
   adminFormPost,
   assertJson,

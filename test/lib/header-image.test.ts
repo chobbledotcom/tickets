@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptBytes } from "#lib/crypto/encryption.ts";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { encryptBytes } from "#shared/crypto/encryption.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
   assertAdminHtml,
@@ -161,7 +161,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           "mgr-header-session",
           "headerimgmgr",
         );
-        const { signCsrfToken } = await import("#lib/csrf.ts");
+        const { signCsrfToken } = await import("#shared/csrf.ts");
         const signedCsrf = await signCsrfToken();
         const response = await submitHeaderJpeg(
           "logo.jpg",

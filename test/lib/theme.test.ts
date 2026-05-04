@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("settings.theme from DB", { db: true }, () => {

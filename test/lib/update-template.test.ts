@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#lib/types.ts";
-import { GITHUB_RELEASES_URL } from "#lib/update.ts";
+import type { AdminSession } from "#shared/types.ts";
+import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import {
   adminUpdatePage,
   type UpdatePageState,

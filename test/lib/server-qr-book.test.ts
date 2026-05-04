@@ -12,19 +12,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { toMinorUnits } from "#lib/currency.ts";
-import { addDays } from "#lib/dates.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import { settings } from "#lib/db/settings.ts";
-import { paymentsApi } from "#lib/payments.ts";
+import { handleRequest } from "#routes";
+import { toMinorUnits } from "#shared/currency.ts";
+import { addDays } from "#shared/dates.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import { settings } from "#shared/db/settings.ts";
+import { paymentsApi } from "#shared/payments.ts";
 import {
   buildQrBookPayload,
   QR_TOKEN_MAX_AGE_S,
   signQrBookToken,
-} from "#lib/qr-token.ts";
-import { stripePaymentProvider } from "#lib/stripe-provider.ts";
-import { todayInTz } from "#lib/timezone.ts";
-import { handleRequest } from "#routes";
+} from "#shared/qr-token.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   awaitTestRequest,
   createDailyTestEvent,

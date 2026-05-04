@@ -4,7 +4,7 @@ import {
   calculateBookingFee,
   getBookingFeeAmount,
   itemsSubtotal,
-} from "#lib/booking-fee.ts";
+} from "#shared/booking-fee.ts";
 import { testWithSetting } from "#test-utils";
 
 describe("calculateBookingFee", () => {

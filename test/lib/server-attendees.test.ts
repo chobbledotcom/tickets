@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { attendeesApi } from "#lib/db/attendees.ts";
+import { handleRequest } from "#routes";
+import { attendeesApi } from "#shared/db/attendees.ts";
 import {
   answersTable,
   questionsTable,
   setEventQuestions,
-} from "#lib/db/questions.ts";
-import { paymentsApi } from "#lib/payments.ts";
-import { handleRequest } from "#routes";
+} from "#shared/db/questions.ts";
+import { paymentsApi } from "#shared/payments.ts";
 import {
   adminAttendeeAction,
   adminEventPage,
@@ -213,7 +213,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
     });
@@ -261,7 +261,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectRedirectWithFlash("/admin/event/1", "Attendee deleted")(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deletedAttendee = await getAttendeeRaw(1);
       expect(deletedAttendee).toBeNull();
     });
@@ -371,7 +371,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
     });
@@ -464,7 +464,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Incomplete registration removed",
       )(response);
 
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
     });
@@ -850,8 +850,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("adds attendee to daily event with date", async () => {
-      const { addDays } = await import("#lib/dates.ts");
-      const { todayInTz } = await import("#lib/timezone.ts");
+      const { addDays } = await import("#shared/dates.ts");
+      const { todayInTz } = await import("#shared/timezone.ts");
       const futureDate = addDays(todayInTz("UTC"), 7);
 
       const { event, cookie, csrfToken } = await setupEventAndLogin({
@@ -1059,9 +1059,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Badge User",
         "badge@example.com",
       );
-      const { updateCheckedIn } = await import("#lib/db/attendees.ts");
+      const { updateCheckedIn } = await import("#shared/db/attendees.ts");
       await updateCheckedIn(attendee.id, event.id, true);
-      const { invalidateEventsCache } = await import("#lib/db/events.ts");
+      const { invalidateEventsCache } = await import("#shared/db/events.ts");
       invalidateEventsCache();
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -1375,7 +1375,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
       expect(updated!.quantity).toBe(3);
     });
@@ -1475,7 +1475,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const attendee = result.attendees[0]!;
 
       // Manually set event to inactive after creating attendee
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
         args: [inactiveEvent.id],
         sql: "UPDATE events SET active = 0 WHERE id = ?",
@@ -1771,7 +1771,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         expect(response.status).toBe(302);
 
         // Verify activity was logged
-        const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+        const { getEventActivityLog } = await import(
+          "#shared/db/activityLog.ts"
+        );
         const logs = await getEventActivityLog(event.id);
         const resendLog = logs.find((l: { message: string }) =>
           l.message.includes("Notification re-sent"),
@@ -1817,7 +1819,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const { markRefunded } = await import("#lib/db/attendees.ts");
+      const { markRefunded } = await import("#shared/db/attendees.ts");
       const result = await bookAttendee(event, {
         email: "refunded@example.com",
         name: "Refunded User",
@@ -1958,7 +1960,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           ),
         async () => {
           const { stripePaymentProvider } = await import(
-            "#lib/stripe-provider.ts"
+            "#shared/stripe-provider.ts"
           );
           const mockRefunded = stub(
             stripePaymentProvider,
@@ -2000,7 +2002,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           ),
         async () => {
           const { stripePaymentProvider } = await import(
-            "#lib/stripe-provider.ts"
+            "#shared/stripe-provider.ts"
           );
           const mockRefunded = stub(
             stripePaymentProvider,
@@ -2066,7 +2068,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("pre-selects existing answer on edit page", async () => {
       const { attendee, a1 } = await setupQuestionAndAttendee();
-      const { saveAttendeeAnswers } = await import("#lib/db/questions.ts");
+      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
       const response = await awaitTestRequest(
@@ -2110,7 +2112,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getAttendeeAnswersBatch } = await import("#lib/db/questions.ts");
+      const { getAttendeeAnswersBatch } = await import(
+        "#shared/db/questions.ts"
+      );
       const answers = await getAttendeeAnswersBatch([attendee.id]);
       expect(answers.get(attendee.id)).toEqual([a2.id]);
     });
@@ -2118,7 +2122,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("updates answer from one option to another", async () => {
       const { event, attendee, q, a1, a2 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
@@ -2144,7 +2148,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("clears answers when no question field submitted", async () => {
       const { event, attendee, a1 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
@@ -2185,7 +2189,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getAttendeeAnswersBatch } = await import("#lib/db/questions.ts");
+      const { getAttendeeAnswersBatch } = await import(
+        "#shared/db/questions.ts"
+      );
       const answers = await getAttendeeAnswersBatch([attendee.id]);
       const attendeeAnswers = answers.get(attendee.id) ?? [];
       expect(attendeeAnswers.length).toBe(0);
@@ -2216,7 +2222,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify attendee is linked to both events
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(event1.id);
       const att2 = await getAttendeesRaw(event2.id);
       expect(att1.length).toBe(1);
@@ -2312,7 +2318,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const { createAttendeeAtomic: create } = await import(
-        "#lib/db/attendees.ts"
+        "#shared/db/attendees.ts"
       );
       const result = await create({
         bookings: [{ eventId: event1.id }, { eventId: event2.id }],
@@ -2328,7 +2334,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Attendee still linked to event2
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(event1.id)).length).toBe(0);
       expect((await getAttendeesRaw(event2.id)).length).toBe(1);
     });
@@ -2371,7 +2377,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const raw = await getAttendeesRaw(event.id);
       expect(raw[0]!.quantity).toBe(5);
     });
@@ -2427,7 +2433,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { event_id: String(event2.id) },
       );
       expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const raw = await getAttendeesRaw(event2.id);
       expect(raw[0]!.quantity).toBe(1);
     });
@@ -2468,7 +2474,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { date: "", event_id: String(event2.id), quantity: "1" },
       );
       expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const raw = await getAttendeesRaw(event2.id);
       expect(raw[0]!.date).toBeNull();
     });
@@ -2490,7 +2496,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { date: "2026-04-07", event_id: String(event2.id) },
       );
       expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const raw = await getAttendeesRaw(event2.id);
       expect(raw[0]!.date).toBe("2026-04-07");
     });
@@ -2586,7 +2592,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const raw = await getAttendeesRaw(event.id);
       expect(raw[0]!.quantity).toBe(1);
     });
@@ -2817,7 +2823,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )(response);
 
       // Source attendee should be deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(source.id);
       expect(deleted).toBeNull();
 
@@ -2826,7 +2832,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(surviving).not.toBeNull();
 
       // Target should now have both event links
-      const targetEventLinks = await import("#lib/db/client.ts").then((m) =>
+      const targetEventLinks = await import("#shared/db/client.ts").then((m) =>
         m.queryAll<{ event_id: number }>(
           "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
           [target.id],
@@ -2956,11 +2962,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("Merged"), true);
 
       // Source deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       expect(await getAttendeeRaw(source.id)).toBeNull();
 
       // Target still has exactly one link to the event (conflict was skipped)
-      const { queryAll } = await import("#lib/db/client.ts");
+      const { queryAll } = await import("#shared/db/client.ts");
       const links = await queryAll<{ event_id: number }>(
         "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
         [target.id],
@@ -3164,11 +3170,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Assign different answers
       const { saveAttendeeAnswers: save } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       await save([target.id], [a1.id]);
       // Need source attendee ID
-      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save([sourceData!.id], [a2.id]);
 
@@ -3218,8 +3224,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#lib/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+        await import("#shared/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save([target.id], [a1.id]); // Small
       await save([sourceData!.id], [a2.id]); // Large
@@ -3356,8 +3362,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#lib/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+        await import("#shared/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save([target.id], [a1.id]);
       await save([sourceData!.id], [a2.id]);
@@ -3410,8 +3416,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#lib/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+        await import("#shared/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save([target.id], [a1.id]);
       await save([sourceData!.id], [a2.id]);
@@ -3460,8 +3466,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Only source has an answer — no conflict
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#lib/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#lib/db/attendees.ts");
+        await import("#shared/db/questions.ts");
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save([sourceData!.id], [a1.id]);
 
@@ -3508,7 +3514,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Only target has an answer — no conflict
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#lib/db/questions.ts");
+        await import("#shared/db/questions.ts");
       await save([target.id], [a1.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);

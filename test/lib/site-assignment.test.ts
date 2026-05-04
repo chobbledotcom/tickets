@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getAllBuiltSites, insertBuiltSite } from "#lib/db/built-sites.ts";
-import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
-import { assignAndNotifyBuiltSites } from "#lib/site-assignment.ts";
+import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import {
+  resetHostEmailConfig,
+  setHostEmailConfigForTest,
+} from "#shared/email.ts";
+import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv, makeTestEntry, setTestEnv } from "#test-utils";
 
 /** Build an entry with assign_built_site for testing */
@@ -154,7 +157,7 @@ describeWithEnv(
       test("uses DB email config when available and includes reply-to", async () => {
         // Configure email via DB settings (not host config) so getEmailConfig()
         // returns non-null, covering the left branch of the ?? operator
-        const { settings } = await import("#lib/db/settings.ts");
+        const { settings } = await import("#shared/db/settings.ts");
         await settings.update.email.provider("resend");
         await settings.update.email.apiKey("re_db_key");
         await settings.update.email.fromAddress("db@example.com");

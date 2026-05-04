@@ -4,7 +4,7 @@ import {
   formatBuildDate,
   isNewerVersion,
   setBuildTimestampForTest,
-} from "#lib/update.ts";
+} from "#shared/update.ts";
 
 describe("update", () => {
   afterEach(() => {

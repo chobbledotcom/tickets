@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
-import { resetEngine } from "#lib/email-renderer.ts";
 import { handleRequest } from "#routes";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { resetEngine } from "#shared/email-renderer.ts";
 import {
   assertJson,
   awaitTestRequest,

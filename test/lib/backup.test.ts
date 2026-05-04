@@ -15,10 +15,14 @@ import {
   restoreFromSql,
   restoreFromZip,
   splitStatements,
-} from "#lib/db/backup.ts";
-import { getDb, queryAll } from "#lib/db/client.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import { initDb, SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "#lib/db/migrations.ts";
+} from "#shared/db/backup.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import {
+  initDb,
+  SCHEMA_HASH,
+  SCHEMA_TABLE_NAMES,
+} from "#shared/db/migrations.ts";
 import { createTestEvent, describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {

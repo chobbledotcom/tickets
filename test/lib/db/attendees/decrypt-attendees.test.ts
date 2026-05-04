@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decryptAttendees, getAttendeesRaw } from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
+import { decryptAttendees, getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   bookAttendee,
   createTestAttendee,
@@ -183,7 +183,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
 
 describeWithEnv("db > attendees > decryptAttendeeOrNull", { db: true }, () => {
   test("returns null when row is null", async () => {
-    const { decryptAttendeeOrNull } = await import("#lib/db/attendees.ts");
+    const { decryptAttendeeOrNull } = await import("#shared/db/attendees.ts");
     const privateKey = await getTestPrivateKey();
     const result = await decryptAttendeeOrNull(null, privateKey);
     expect(result).toBeNull();

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   assertJson,
   assertPublicHtml,
@@ -190,7 +190,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ returns 503 when completeSetup fails", async () => {
         const { stub } = await import("@std/testing/mock");
-        const { settings } = await import("#lib/db/settings.ts");
+        const { settings } = await import("#shared/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(await getResponse.text());

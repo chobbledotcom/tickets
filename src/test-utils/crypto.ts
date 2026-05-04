@@ -8,8 +8,8 @@
  */
 
 import forge from "node-forge";
-import type { SigningCredentials } from "#lib/apple-wallet.ts";
-import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
+import type { SigningCredentials } from "#shared/apple-wallet.ts";
+import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
 
 let _testCerts: SigningCredentials | null = null;
 
@@ -87,9 +87,9 @@ export const generateGoogleTestCreds = (): GoogleWalletCredentials => {
 
 export const getTestDataKey = async (): Promise<CryptoKey> => {
   const { testCookie } = await import("#test-utils/session.ts");
-  const { getSessionCookieName } = await import("#lib/cookies.ts");
-  const { unwrapKeyWithToken } = await import("#lib/crypto/keys.ts");
-  const { getSession } = await import("#lib/db/sessions.ts");
+  const { getSessionCookieName } = await import("#shared/cookies.ts");
+  const { unwrapKeyWithToken } = await import("#shared/crypto/keys.ts");
+  const { getSession } = await import("#shared/db/sessions.ts");
   const cookie = await testCookie();
   const sessionMatch = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
@@ -100,14 +100,14 @@ export const getTestDataKey = async (): Promise<CryptoKey> => {
 };
 
 export const getTestPrivateKey = async (): Promise<CryptoKey> => {
-  const { decryptWithKey } = await import("#lib/crypto/encryption.ts");
+  const { decryptWithKey } = await import("#shared/crypto/encryption.ts");
   const { deriveKEK, importPrivateKey, unwrapKey } = await import(
-    "#lib/crypto/keys.ts"
+    "#shared/crypto/keys.ts"
   );
   const { getUserByUsername, verifyUserPassword } = await import(
-    "#lib/db/users.ts"
+    "#shared/db/users.ts"
   );
-  const { settings } = await import("#lib/db/settings.ts");
+  const { settings } = await import("#shared/db/settings.ts");
   const { TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD } = await import(
     "#test-utils/internal.ts"
   );

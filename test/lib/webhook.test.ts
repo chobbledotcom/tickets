@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { flushPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
@@ -11,7 +11,7 @@ import {
   sendWebhook,
   type WebhookEvent,
   type WebhookPayload,
-} from "#lib/webhook.ts";
+} from "#shared/webhook.ts";
 import {
   createTestDbWithSetup,
   createTestEvent,
@@ -86,7 +86,7 @@ describe("webhook", () => {
 
   describeWithEnv("buildWebhookPayload", { db: true }, () => {
     beforeEach(async () => {
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       s.invalidateCache();
     });
 
@@ -222,7 +222,7 @@ describe("webhook", () => {
     });
 
     test("includes business_email when set", async () => {
-      const { updateBusinessEmail } = await import("#lib/business-email.ts");
+      const { updateBusinessEmail } = await import("#shared/business-email.ts");
       await updateBusinessEmail("contact@example.com");
 
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
@@ -437,7 +437,7 @@ describe("webhook", () => {
 
   describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     test("sends webhook when event has webhook_url", async () => {
-      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
       const dbEvent = await createTestEvent({
         webhookUrl: "https://example.com/hook",
       });
@@ -455,7 +455,7 @@ describe("webhook", () => {
     });
 
     test("does not send webhook when event has no webhook_url", async () => {
-      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
       const dbEvent = await createTestEvent();
       const event = makeEvent(eventFromDb(dbEvent, ""));
 
@@ -468,7 +468,7 @@ describe("webhook", () => {
 
   describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     test("sends webhooks for multi-event registration", async () => {
-      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
       const dbEventA = await createTestEvent({
         webhookUrl: "https://hook.com",
       });
@@ -490,7 +490,7 @@ describe("webhook", () => {
     });
 
     test("does not send webhook when no events have webhook URLs", async () => {
-      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
       const dbEventA = await createTestEvent();
       const dbEventB = await createTestEvent();
       const entries = [

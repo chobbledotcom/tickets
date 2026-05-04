@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { uploadRaw } from "#lib/storage.ts";
-import { setDeleteOverrideForTest } from "#lib/test-overrides.ts";
 import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { uploadRaw } from "#shared/storage.ts";
+import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
   mockRequest,
@@ -22,7 +22,7 @@ describeWithEnv("backup routes", { db: true }, () => {
         await Deno.writeTextFile(pendingFile, "stale data");
 
         // Make deleteFile throw
-        setDeleteOverrideForTest(new Error("delete failed"));
+        setDeleteOverride(new Error("delete failed"));
         try {
           const response = await handleRequest(
             mockRequest("/admin/backup", { headers: { cookie } }),
@@ -32,7 +32,7 @@ describeWithEnv("backup routes", { db: true }, () => {
           const html = await response.text();
           expect(html).toContain("Backup");
         } finally {
-          setDeleteOverrideForTest(null);
+          setDeleteOverride(null);
         }
       });
     });
@@ -43,8 +43,8 @@ describeWithEnv("backup routes", { db: true }, () => {
       const cookie = await testCookie();
 
       // Create a valid session with owner role
-      const { getDb } = await import("#lib/db/client.ts");
-      const { encrypt } = await import("#lib/crypto/encryption.ts");
+      const { getDb } = await import("#shared/db/client.ts");
+      const { encrypt } = await import("#shared/crypto/encryption.ts");
 
       // Ensure user 1 is owner
       const adminLevel = await encrypt("owner");
@@ -56,7 +56,7 @@ describeWithEnv("backup routes", { db: true }, () => {
       // Create a minimal valid backup zip
       const { zipSync } = await import("fflate");
       const encoder = new TextEncoder();
-      const { SCHEMA_HASH } = await import("#lib/db/migrations.ts");
+      const { SCHEMA_HASH } = await import("#shared/db/migrations.ts");
       const zipData = zipSync({
         "manifest.json": encoder.encode(
           JSON.stringify({
@@ -77,7 +77,7 @@ describeWithEnv("backup routes", { db: true }, () => {
         const csrfToken = await signCsrfToken();
 
         // Make deleteFile throw during cleanup
-        setDeleteOverrideForTest(new Error("cleanup failed"));
+        setDeleteOverride(new Error("cleanup failed"));
 
         try {
           // Use URL-encoded form (action handlers default to form mode)
@@ -105,7 +105,7 @@ describeWithEnv("backup routes", { db: true }, () => {
           const location = response.headers.get("location");
           expect(location).toContain("/admin/backup");
         } finally {
-          setDeleteOverrideForTest(null);
+          setDeleteOverride(null);
         }
       });
     });

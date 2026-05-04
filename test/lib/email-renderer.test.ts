@@ -3,15 +3,15 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
 import { map } from "#fp";
-import { settings } from "#lib/db/settings.ts";
-import type { TemplateData } from "#lib/email-renderer.ts";
+import { settings } from "#shared/db/settings.ts";
+import type { TemplateData } from "#shared/email-renderer.ts";
 import {
   buildTemplateData,
   renderEmailContent,
   renderTemplate,
   resetEngine,
   validateTemplate,
-} from "#lib/email-renderer.ts";
+} from "#shared/email-renderer.ts";
 import {
   describeWithEnv,
   makeTestEntry as makeEntry,

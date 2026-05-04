@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-
-import { signCsrfToken } from "#lib/csrf.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-
 import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
   adminGet,
@@ -379,8 +377,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
       await deleteTestGroup(group.id);
 
-      const { groupsTable } = await import("#lib/db/groups.ts");
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
 
       expect(await groupsTable.findById(group.id)).toBeNull();
       const existingEvent = await getEvent(event.id);
@@ -403,7 +401,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const { groupsTable } = await import("#lib/db/groups.ts");
+      const { groupsTable } = await import("#shared/db/groups.ts");
       const original = groupsTable.findById.bind(groupsTable);
       let calls = 0;
       const findByIdStub = stub(
@@ -633,7 +631,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com");
       const { questionsTable, answersTable, setEventQuestions } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       const q = await questionsTable.insert({ text: "Color" });
       await answersTable.insert({
@@ -802,7 +800,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Events added to group",
       )(response);
 
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const updated1 = await getEvent(event1.id);
       const updated2 = await getEvent(event2.id);
       expect(updated1?.group_id).toBe(group.id);
@@ -866,7 +864,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       )(response);
 
       // Verify event was NOT assigned
-      const { getEvent } = await import("#lib/db/events.ts");
+      const { getEvent } = await import("#shared/db/events.ts");
       const unchanged = await getEvent(dailyEvent.id);
       expect(unchanged?.group_id).toBe(0);
     });
@@ -963,27 +961,30 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(updated.max_attendees).toBe(30);
     });
 
-    test("detail page shows attendees with max when set", async () => {
+    test("detail page shows Group Attendees with cap when set", async () => {
       const group = await createTestGroup({
         maxAttendees: 100,
         name: "Detail Max",
         slug: "detail-max",
       });
 
-      await assertAdminHtml(`/admin/groups/${group.id}`, "0 / 100");
+      await assertAdminHtml(
+        `/admin/groups/${group.id}`,
+        "Group Attendees",
+        "0 / 100",
+      );
     });
 
-    test("detail page shows plain attendee count when no group max set", async () => {
+    test("detail page shows Group Attendees with no-cap note when uncapped", async () => {
       const group = await createTestGroup({
         name: "Detail No Max",
         slug: "detail-no-max",
       });
 
-      // Attendees row should show just "0" not "0 / X"
       await assertAdminHtml(
         `/admin/groups/${group.id}`,
-        "<th>Attendees</th>",
-        "<td>0</td>",
+        "Group Attendees",
+        "(no group cap)",
       );
     });
   });

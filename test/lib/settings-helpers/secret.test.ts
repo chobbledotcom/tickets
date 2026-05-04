@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { MASK_SENTINEL } from "#lib/db/settings.ts";
-import { FormParams } from "#lib/form-data.ts";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import {
   processSecretField,
   secretFieldHandler,
 } from "#routes/admin/settings-helpers.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv, expectFlash, expectRedirect } from "#test-utils";
 
 const formFrom = (data: Record<string, string>): FormParams =>

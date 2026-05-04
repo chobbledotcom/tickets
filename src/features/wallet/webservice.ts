@@ -1,0 +1,89 @@
+/**
+ * Apple Wallet web service endpoints for automatic pass updates.
+ *
+ * Implements the minimal subset of Apple's PassKit web service protocol:
+ * - POST /v1/devices/:device/registrations/:passType/:token → 201 (stub)
+ * - DELETE /v1/devices/:device/registrations/:passType/:token → 200 (stub)
+ * - GET /v1/devices/:device/registrations/:passType → always returns all tokens
+ * - GET /v1/passes/:passType/:token → serves fresh .pkpass
+ * - POST /v1/log → 200 (stub)
+ *
+ * No device tracking or update timestamps — always says "everything is updated"
+ * so devices re-download the pass on every manual refresh.
+ */
+
+import { createRouter, defineRoutes } from "#routes/router.ts";
+import { buildPkpassForToken } from "#routes/wallet/index.ts";
+import {
+  type SigningCredentials,
+  trimAuthToken,
+} from "#shared/apple-wallet.ts";
+import { settings } from "#shared/db/settings.ts";
+import { logDebug } from "#shared/logger.ts";
+
+const JSON_HEADERS = { "Content-Type": "application/json" } as const;
+
+/** Verify passType matches config, then run handler. Returns failure status on mismatch. */
+const withVerifiedPass =
+  (failStatus: number) =>
+  (handler: (config: SigningCredentials) => Response | Promise<Response>) =>
+  (passType: string): Response | Promise<Response> => {
+    const config = settings.appleWallet.config;
+    return config && passType === config.passTypeId
+      ? handler(config)
+      : new Response(null, { status: failStatus });
+  };
+
+/** Stub: accept device registration */
+const handleRegister = () => new Response(null, { status: 201 });
+
+/** Stub: accept device unregistration */
+const handleUnregister = () => new Response(null, { status: 200 });
+
+/** Return all tokens for this pass type — always says "updated" */
+const handleGetTokens = (
+  request: Request,
+  params: { _device: string; passType: string },
+) =>
+  withVerifiedPass(204)((_config) => {
+    const authHeader = request.headers.get("Authorization") ?? "";
+    const rawToken = authHeader.replace(/^ApplePass\s+/i, "");
+    if (!rawToken) {
+      logDebug("Wallet", "Registrations request without Authorization header");
+      return new Response(null, { status: 204 });
+    }
+    const token = trimAuthToken(rawToken);
+
+    // Ignore passesUpdatedSince — always return the token as updated
+    return new Response(
+      JSON.stringify({
+        lastUpdated: String(Date.now()),
+        serialNumbers: [token],
+      }),
+      { headers: JSON_HEADERS, status: 200 },
+    );
+  })(params.passType);
+
+/** Serve a fresh .pkpass for the given token */
+const handleGetPass = (
+  _request: Request,
+  params: { passType: string; token: string },
+) =>
+  withVerifiedPass(404)((config) => buildPkpassForToken(params.token, config))(
+    params.passType,
+  );
+
+/** Stub: accept log messages from devices */
+const handleLog = () => new Response(null, { status: 200 });
+
+export const routeWalletWebservice = createRouter(
+  defineRoutes({
+    "DELETE /v1/devices/:_device/registrations/:_passType/:_token":
+      handleUnregister,
+    "GET /v1/devices/:_device/registrations/:passType": handleGetTokens,
+    "GET /v1/passes/:passType/:token": handleGetPass,
+    "POST /v1/devices/:_device/registrations/:_passType/:_token":
+      handleRegister,
+    "POST /v1/log": handleLog,
+  }),
+);

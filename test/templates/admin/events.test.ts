@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { detectIframeMode } from "#lib/iframe.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { detectIframeMode } from "#shared/iframe.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   adminDuplicateEventPage,
   adminEventEditPage,
@@ -115,9 +115,54 @@ describe("adminEventPage", () => {
       event,
       session: TEST_SESSION,
     });
-    expect(html).toContain("Attendees");
+    expect(html).toContain("Event Attendees");
     expect(html).toContain("2 / 100");
     expect(html).toContain("98 remain");
+  });
+
+  test("renders no Group Attendees row when groupContext is omitted", () => {
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Group Attendees");
+  });
+
+  test("shows Group Attendees row with count, cap, remaining, and link", () => {
+    const group = testGroup({
+      id: 7,
+      max_attendees: 50,
+      name: "Summer Festival",
+    });
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      groupContext: { attendeeCount: 30, group },
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Group Attendees");
+    expect(html).toContain("30 / 50");
+    expect(html).toContain("20 remain");
+    expect(html).toContain('href="/admin/groups/7"');
+    expect(html).toContain("Summer Festival");
+    expect(html).toContain("across all events");
+  });
+
+  test("Group Attendees row gets danger-text when at or near cap", () => {
+    const group = testGroup({ id: 8, max_attendees: 10 });
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      groupContext: { attendeeCount: 10, group },
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("danger-text");
+    expect(html).toContain("10 / 10");
+    expect(html).toContain("0 remain");
   });
 
   test("shows checked in row with 0 of 0 when no attendees", () => {

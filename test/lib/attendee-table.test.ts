@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
+import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import {
   AttendeeTable,
   type AttendeeTableOptions,

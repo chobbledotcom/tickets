@@ -3,8 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import {
   createAttendeeAtomic,
   recomputeEventBookingRanges,
-} from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
+} from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   createDailyTestEvent,
   createTestEvent,

@@ -7,7 +7,7 @@ import {
   getQueryLogStartTime,
   isQueryLogEnabled,
   runWithQueryLogContext,
-} from "#lib/db/query-log.ts";
+} from "#shared/db/query-log.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog", () => {

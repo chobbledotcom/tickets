@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { createSession, getSession } from "#lib/db/sessions.ts";
-import { setSkipLoginDelayForTest } from "#lib/test-overrides.ts";
 import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { createSession, getSession } from "#shared/db/sessions.ts";
+import { setSkipLoginDelay } from "#shared/test-overrides.ts";
 import {
   assertAdminHtml,
   assertPublicHtml,
@@ -419,7 +419,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("POST /admin/login (user without wrapped data key)", () => {
     test("returns 302 with error when user has no wrapped data key (not activated)", async () => {
       // Null out the user's wrapped_data_key to simulate an unactivated user
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
         args: [],
         sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
@@ -444,7 +444,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("routes/admin/auth.ts (wrappedDataKey corrupted path)", () => {
     test("login fails when wrapped data key cannot be unwrapped", async () => {
       // Corrupt the user's wrapped_data_key so unwrapKey throws
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
         args: [],
         sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
@@ -468,11 +468,11 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("login timing delay", () => {
     afterEach(() => {
-      setSkipLoginDelayForTest(true);
+      setSkipLoginDelay(true);
     });
 
     test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
-      setSkipLoginDelayForTest(false);
+      setSkipLoginDelay(false);
       const start = Date.now();
       const response = await handleRequest(
         await mockAdminLoginRequest({
@@ -489,7 +489,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
     test("login returns error redirect when user has null wrappedDataKey", async () => {
       // Null out user's wrapped_data_key
-      const { getDb } = await import("#lib/db/client.ts");
+      const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
         args: [],
         sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",

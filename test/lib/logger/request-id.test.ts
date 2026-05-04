@@ -9,7 +9,7 @@ import {
   logRequest,
   runWithRequestId,
   setSuppressRequestLogs,
-} from "#lib/logger.ts";
+} from "#shared/logger.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {

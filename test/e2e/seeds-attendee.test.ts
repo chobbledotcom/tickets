@@ -10,13 +10,13 @@
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateEventsCache } from "#lib/db/events.ts";
-import { invalidateGroupsCache } from "#lib/db/groups.ts";
-import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
-import { resetSessionCache } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { invalidateUsersCache } from "#lib/db/users.ts";
-import { DEMO_EVENT_NAMES } from "#lib/demo.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateGroupsCache } from "#shared/db/groups.ts";
+import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { resetSessionCache } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
+import { DEMO_EVENT_NAMES } from "#shared/demo.ts";
 
 import {
   clearTestEncryptionKey,

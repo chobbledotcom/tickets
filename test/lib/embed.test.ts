@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildEmbedSnippets } from "#lib/embed.ts";
+import { buildEmbedSnippets } from "#shared/embed.ts";
 
 describe("embed", () => {
   describe("buildEmbedSnippets", () => {

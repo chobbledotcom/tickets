@@ -24,7 +24,9 @@ const createQuestion = async (text: string): Promise<number> => {
   expect(response.status).toBe(302);
   expectFlash(response, "Question created");
   // Get the ID from the DB
-  const { getAllQuestionsWithAnswers } = await import("#lib/db/questions.ts");
+  const { getAllQuestionsWithAnswers } = await import(
+    "#shared/db/questions.ts"
+  );
   const questions = await getAllQuestionsWithAnswers();
   const found = questions.find((q) => q.text === text);
   expect(found).toBeTruthy();
@@ -40,7 +42,7 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
   expect(response.status).toBe(302);
   expectFlash(response, "Answer added");
   // Get the answer ID from the DB
-  const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
+  const { getQuestionWithAnswers } = await import("#shared/db/questions.ts");
   const question = await getQuestionWithAnswers(questionId);
   const found = question!.answers.find((a) => a.text === text);
   expect(found).toBeTruthy();
@@ -153,7 +155,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the question was updated
-      const { questionsTable } = await import("#lib/db/questions.ts");
+      const { questionsTable } = await import("#shared/db/questions.ts");
       const updated = await questionsTable.findById(id);
       expect(updated!.text).toBe("After edit");
     });
@@ -239,7 +241,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(id, "Second");
       await addAnswer(id, "Third");
 
-      const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
       const question = await getQuestionWithAnswers(id);
       expect(question!.answers[0]!.text).toBe("First");
       expect(question!.answers[0]!.sort_order).toBe(0);
@@ -294,7 +298,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
 
       // Verify it's gone
-      const { questionsTable } = await import("#lib/db/questions.ts");
+      const { questionsTable } = await import("#shared/db/questions.ts");
       const found = await questionsTable.findById(id);
       expect(found).toBeNull();
     });
@@ -313,7 +317,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
 
       // Verify still exists
-      const { questionsTable } = await import("#lib/db/questions.ts");
+      const { questionsTable } = await import("#shared/db/questions.ts");
       const found = await questionsTable.findById(id);
       expect(found).not.toBeNull();
     });
@@ -429,7 +433,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify answer is gone
-      const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
     });
@@ -449,7 +455,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
 
       // Verify answer still exists
-      const { getQuestionWithAnswers } = await import("#lib/db/questions.ts");
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeTruthy();
     });
@@ -513,7 +521,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Shirt size?");
 
       // Assign the question to the event
-      const { setEventQuestions } = await import("#lib/db/questions.ts");
+      const { setEventQuestions } = await import("#shared/db/questions.ts");
       await setEventQuestions(event.id, [qId]);
 
       const { response } = await adminGet(`/admin/event/${event.id}/questions`);
@@ -569,7 +577,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the questions are assigned
-      const { getEventQuestionIds } = await import("#lib/db/questions.ts");
+      const { getEventQuestionIds } = await import("#shared/db/questions.ts");
       const assigned = await getEventQuestionIds(event.id);
       expect(assigned.length).toBe(1);
       expect(assigned[0]).toBe(q1);
@@ -586,7 +594,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Questions updated",
       )(response);
 
-      const { getEventQuestionIds } = await import("#lib/db/questions.ts");
+      const { getEventQuestionIds } = await import("#shared/db/questions.ts");
       const assigned = await getEventQuestionIds(event.id);
       expect(assigned.length).toBe(0);
     });
@@ -598,7 +606,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Assign q1 first
       const { setEventQuestions, getEventQuestionIds } = await import(
-        "#lib/db/questions.ts"
+        "#shared/db/questions.ts"
       );
       await setEventQuestions(event.id, [q1]);
 

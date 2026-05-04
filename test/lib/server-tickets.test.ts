@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { formatCurrency } from "#lib/currency.ts";
-import { formatDateLabel } from "#lib/dates.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import { clearTokenAttempts } from "#lib/db/token-attempts.ts";
-import { MAX_TOKEN_404S } from "#lib/limits.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/dates.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
+import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import {
   awaitTestRequest,
   createDailyTestAttendee,
@@ -114,7 +114,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("returns null for non-GET methods", async () => {
-    const { routeTicketView } = await import("#routes/tickets.ts");
+    const { routeTicketView } = await import("#routes/tickets/index.ts");
     const request = new Request("http://localhost/t/some-token", {
       method: "POST",
     });

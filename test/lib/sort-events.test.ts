@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { addDays } from "#lib/dates.ts";
-import { sortEvents } from "#lib/sort-events.ts";
-import { todayInTz } from "#lib/timezone.ts";
-import type { EventWithCount, Holiday } from "#lib/types.ts";
+import { addDays } from "#shared/dates.ts";
+import { sortEvents } from "#shared/sort-events.ts";
+import { todayInTz } from "#shared/timezone.ts";
+import type { EventWithCount, Holiday } from "#shared/types.ts";
 import { describeWithEnv, testEvent, testEventWithCount } from "#test-utils";
 
 const today = () => todayInTz("UTC");

@@ -203,6 +203,11 @@ Deploy to: [DigitalOcean](https://cloud.digitalocean.com/apps/new?repo=https://g
 
 Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
+
+## Repository layout
+
+For the current repository layout and path conventions, see [`REPO_STRUCTURE.md`](./REPO_STRUCTURE.md).
+
 ---
 
 ## Development

@@ -19,7 +19,7 @@ await buildStaticAssets();
 const BUILD_TS = Math.floor(Date.now() / 1000);
 
 // Read static assets at build time for inlining (client bundles freshly built above)
-const rawCss = await Deno.readTextFile("./src/static/mvp.css");
+const rawCss = await Deno.readTextFile("./src/ui/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
 const JS = "application/javascript; charset=utf-8";
@@ -50,13 +50,15 @@ const ASSET_DEFS: [string, string, string, string][] = [
 ];
 
 const STATIC_ASSETS: Record<string, string> = {
-  "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
+  "favicon.svg": await Deno.readTextFile("./src/ui/static/favicon.svg"),
   "mvp.css": minifiedCss,
 };
 
 for (const [filename] of ASSET_DEFS) {
   if (filename === "favicon.svg" || filename === "mvp.css") continue;
-  STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
+  STATIC_ASSETS[filename] = await Deno.readTextFile(
+    `./src/ui/static/${filename}`,
+  );
 }
 
 // Subpath overrides: use platform-specific entry points for certain packages
@@ -116,7 +118,7 @@ const inlineAssetsPlugin: Plugin = {
   name: "inline-assets",
   setup(build) {
     // Replace build-info module with actual build metadata
-    build.onResolve({ filter: /lib\/build-info\.ts$/ }, (args) => ({
+    build.onResolve({ filter: /build-info\.ts$/ }, (args) => ({
       namespace: "inline-build-info",
       path: args.path,
     }));
@@ -127,7 +129,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     // Replace asset paths module with cache-busted version
-    build.onResolve({ filter: /lib\/asset-paths\.ts$/ }, (args) => ({
+    build.onResolve({ filter: /asset-paths\.ts$/ }, (args) => ({
       namespace: "inline-asset-paths",
       path: args.path,
     }));
@@ -138,10 +140,13 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     // Replace the assets module with inlined content
-    build.onResolve({ filter: /routes\/assets\.ts$/ }, (args) => ({
-      namespace: "inline-assets",
-      path: args.path,
-    }));
+    build.onResolve(
+      { filter: /(features\/assets\.ts$|#routes\/assets\.ts$)/ },
+      (args) => ({
+        namespace: "inline-assets",
+        path: args.path,
+      }),
+    );
 
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
       contents: buildAssetsModule(),

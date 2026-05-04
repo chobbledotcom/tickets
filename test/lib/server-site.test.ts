@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#lib/db/settings.ts";
-import { MAX_TEXTAREA_LENGTH } from "#lib/limits.ts";
 import { handleRequest } from "#routes";
+import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminFormPost,
   awaitTestRequest,

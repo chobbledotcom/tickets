@@ -1,15 +1,15 @@
-import type { BuiltSite } from "#lib/db/built-sites.ts";
-import type { EventInput } from "#lib/db/events.ts";
-import type { EmailEntry, EmailEvent } from "#lib/email.ts";
-import type { SessionMetadata } from "#lib/payments.ts";
+import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { EventInput } from "#shared/db/events.ts";
+import type { EmailEntry, EmailEvent } from "#shared/email.ts";
+import type { SessionMetadata } from "#shared/payments.ts";
 import type {
   Attendee,
   Event,
   EventWithCount,
   Group,
   Holiday,
-} from "#lib/types.ts";
-import type { WebhookAttendee } from "#lib/webhook.ts";
+} from "#shared/types.ts";
+import type { WebhookAttendee } from "#shared/webhook.ts";
 import { generateTestEventName } from "#test-utils/internal.ts";
 
 export const testEvent = (overrides: Partial<Event> = {}): Event => ({

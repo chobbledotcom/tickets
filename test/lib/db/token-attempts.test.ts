@@ -13,12 +13,12 @@ import {
   clearTokenAttempts,
   isTokenRateLimited,
   recordTokenFailure,
-} from "#lib/db/token-attempts.ts";
+} from "#shared/db/token-attempts.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
-} from "#lib/limits.ts";
+} from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils";
 
 const makeTokens = (prefix: string, count: number): string[] =>

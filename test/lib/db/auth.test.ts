@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decryptWithKey } from "#lib/crypto/encryption.ts";
-import { deriveKEK, importPrivateKey, unwrapKey } from "#lib/crypto/keys.ts";
-import { getAttendee } from "#lib/db/attendees.ts";
-import { getDb, insert } from "#lib/db/client.ts";
+import { decryptWithKey } from "#shared/crypto/encryption.ts";
+import { deriveKEK, importPrivateKey, unwrapKey } from "#shared/crypto/keys.ts";
+import { getAttendee } from "#shared/db/attendees.ts";
+import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
   recordFailedLogin,
-} from "#lib/db/login-attempts.ts";
-import { createSession, getSession } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
+} from "#shared/db/login-attempts.ts";
+import { createSession, getSession } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import {
   bookAttendee,
   createTestEvent,
@@ -69,7 +69,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
 
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       const success = await s.updateUserPassword(
         user!.id,
         "pbkdf2:bogus:hash",

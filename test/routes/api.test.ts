@@ -1,13 +1,14 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
 import {
   assertJson,
   createDailyTestEvent,
   createTestAttendeeDirect,
   createTestEvent,
+  createTestGroup,
   deactivateTestEvent,
   describeWithEnv,
   setupStripe,
@@ -124,10 +125,12 @@ describeWithEnv("Public API", { db: true }, () => {
 
   /** Stub a stripe checkout method and run a test, restoring after */
   const withCheckoutStub = async (
-    stubResult: import("#lib/payments.ts").CheckoutSessionResult,
+    stubResult: import("#shared/payments.ts").CheckoutSessionResult,
     fn: () => Promise<void>,
   ) => {
-    const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
     const mockCreate = stub(
       stripePaymentProvider,
       "createCheckoutSession",
@@ -194,6 +197,61 @@ describeWithEnv("Public API", { db: true }, () => {
       const { events } = await fetchEventsList();
       expect(events[0]!.isSoldOut).toBe(true);
       expect(events[0]!.maxPurchasable).toBe(0);
+    });
+
+    test("sets isSoldOut when sibling event has filled the group cap", async () => {
+      const group = await createTestGroup({
+        maxAttendees: 2,
+        name: "shared-cap",
+        slug: "shared-cap",
+      });
+      const filler = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Filler",
+      });
+      const sibling = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        name: "Sibling",
+      });
+      await createTestAttendeeDirect(filler.id, "A", "a@test.com");
+      await createTestAttendeeDirect(filler.id, "B", "b@test.com");
+
+      const { events } = await fetchEventsList();
+      const siblingEvent = events.find((e) => e.slug === sibling.slug)!;
+      expect(siblingEvent.isSoldOut).toBe(true);
+      expect(siblingEvent.maxPurchasable).toBe(0);
+    });
+
+    test("clamps maxPurchasable to remaining group capacity", async () => {
+      const group = await createTestGroup({
+        maxAttendees: 5,
+        name: "tight-cap",
+        slug: "tight-cap",
+      });
+      const filler = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 1,
+        name: "Filler2",
+      });
+      const sibling = await createTestEvent({
+        groupId: group.id,
+        maxAttendees: 10,
+        // Larger than expected group remaining (5 − 3 = 2) so the assertion
+        // proves the group clamp, not the per-event maxQuantity.
+        maxQuantity: 10,
+        name: "Sibling2",
+      });
+      await createTestAttendeeDirect(filler.id, "C", "c@test.com");
+      await createTestAttendeeDirect(filler.id, "D", "d@test.com");
+      await createTestAttendeeDirect(filler.id, "E", "e@test.com");
+
+      const { events } = await fetchEventsList();
+      const siblingEvent = events.find((e) => e.slug === sibling.slug)!;
+      expect(siblingEvent.isSoldOut).toBe(false);
+      expect(siblingEvent.maxPurchasable).toBe(2);
     });
   });
 
@@ -626,7 +684,7 @@ describeWithEnv("Public API", { db: true }, () => {
     });
 
     test("returns 500 on encryption error for free event", async () => {
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
       const event = await createTestEvent({ maxAttendees: 10 });
       const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
@@ -705,7 +763,7 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(200);
 
       // Verify booking went to target (URL slug), not other (injected id)
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const targetAttendees = await getAttendeesRaw(target.id);
       const otherAttendees = await getAttendeesRaw(other.id);
       expect(targetAttendees.length).toBe(1);
@@ -723,7 +781,7 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(404);
 
       // Verify no booking was created
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(0);
     });
@@ -740,7 +798,7 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(200);
 
       // Booking goes to URL slug, body slug is ignored
-      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const targetAttendees = await getAttendeesRaw(target.id);
       const otherAttendees = await getAttendeesRaw(other.id);
       expect(targetAttendees.length).toBe(1);

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
   adminGet,

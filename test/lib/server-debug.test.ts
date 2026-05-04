@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
-import { settings } from "#lib/db/settings.ts";
-import { LIMIT_ENTRIES } from "#lib/limits.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { settings } from "#shared/db/settings.ts";
+import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import {
   adminDebugPage,
   type DebugPageState,

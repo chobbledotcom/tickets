@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#lib/db/client.ts";
-import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
-import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
+import { getDb } from "#shared/db/client.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import {
   describeWithEnv,
   TEST_ADMIN_PASSWORD,
@@ -230,7 +230,7 @@ describeWithEnv("db > settings", { db: true }, () => {
       const passwordHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(passwordHash).toBeTruthy();
 
-      const { settings: s } = await import("#lib/db/settings.ts");
+      const { settings: s } = await import("#shared/db/settings.ts");
       const result = await s.updateUserPassword(
         user!.id,
         passwordHash!,

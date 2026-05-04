@@ -1,0 +1,162 @@
+/**
+ * Site builder — creates new Tickets instances via the Bunny API.
+ *
+ * Flow:
+ * 1. Fetch latest release code from GitHub
+ * 2. Create a new Bunny edge script with the code
+ * 3. Enable cookies on the linked pull zone (DisableCookies: false)
+ * 4. Set secrets: user-provided (DB_URL, DB_TOKEN), generated (DB_ENCRYPTION_KEY),
+ *    and copied from host (email, wallet, ntfy, storage, DNS config)
+ * 5. Test database connection
+ * 6. Publish the script
+ * 7. Record the built site in the local database
+ */
+
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { toBase64 } from "#shared/crypto/utils.ts";
+import { getEnv } from "#shared/env.ts";
+import { fetchText } from "#shared/fetch.ts";
+import { fetchLatestRelease } from "#shared/update.ts";
+
+/** Secrets copied from the host environment (if set) */
+const HOST_SECRET_KEYS = [
+  "NTFY_URL",
+  "STORAGE_ZONE_NAME",
+  "STORAGE_ZONE_KEY",
+  "HOST_EMAIL_PROVIDER",
+  "HOST_EMAIL_API_KEY",
+  "HOST_EMAIL_FROM_ADDRESS",
+  "BUNNY_API_KEY",
+  "BUNNY_DNS_ZONE_ID",
+  "BUNNY_DNS_SUBDOMAIN_SUFFIX",
+  "APPLE_WALLET_PASS_TYPE_ID",
+  "APPLE_WALLET_TEAM_ID",
+  "APPLE_WALLET_SIGNING_CERT",
+  "APPLE_WALLET_SIGNING_KEY",
+  "APPLE_WALLET_WWDR_CERT",
+  "GOOGLE_WALLET_ISSUER_ID",
+  "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
+  "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
+] as const;
+
+export type BuildSiteInput = {
+  siteName: string;
+  dbUrl: string;
+  dbToken: string;
+};
+
+export type BuildSiteResult =
+  | { ok: true; scriptId: number; defaultHostname: string }
+  | { ok: false; error: string };
+
+/** Generate a random 32-byte base64 encryption key */
+export const generateEncryptionKey = (): string => {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return toBase64(bytes);
+};
+
+/** Test a libsql database connection by running a simple query */
+export const testDbConnection = async (
+  dbUrl: string,
+  dbToken: string,
+): Promise<{ ok: true } | { ok: false; error: string }> => {
+  try {
+    const { createClient } = await import("@libsql/client");
+    const client = createClient({ authToken: dbToken, url: dbUrl });
+    await client.execute("SELECT 1");
+    return { ok: true };
+  } catch (e) {
+    return { error: (e as Error).message, ok: false };
+  }
+};
+
+/** Set multiple secrets on a Bunny edge script, collecting errors */
+const setSecrets = async (
+  scriptId: number,
+  secrets: [name: string, value: string][],
+): Promise<string[]> => {
+  const errors: string[] = [];
+  for (const [name, value] of secrets) {
+    const result = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
+    if (!result.ok) errors.push(result.error);
+  }
+  return errors;
+};
+
+/**
+ * Build a new site: create edge script, configure secrets, publish.
+ */
+export const buildSite = async (
+  input: BuildSiteInput,
+): Promise<BuildSiteResult> => {
+  const fullName = `Tickets - ${input.siteName}`;
+
+  // 1. Fetch latest release code
+  let code: string;
+  try {
+    const release = await fetchLatestRelease();
+    if (!release.assetUrl) {
+      return { error: "No release asset found on GitHub", ok: false };
+    }
+    const assetResponse = await fetchText(release.assetUrl);
+    if (!assetResponse.ok) {
+      return {
+        error: `Failed to download release: ${assetResponse.status}`,
+        ok: false,
+      };
+    }
+    code = assetResponse.text;
+  } catch (e) {
+    return {
+      error: `Failed to fetch release: ${(e as Error).message}`,
+      ok: false,
+    };
+  }
+
+  // 2. Create edge script
+  const createResult = await bunnyCdnApi.createEdgeScript(fullName, code);
+  if (!createResult.ok) return createResult;
+
+  const { scriptId, pullZoneId, defaultHostname } = createResult;
+
+  // 3. Enable cookies on the linked pull zone
+  const pzResult = await bunnyCdnApi.updatePullZone(pullZoneId, {
+    DisableCookies: false,
+  });
+  if (!pzResult.ok) return pzResult;
+
+  // 4. Generate encryption key
+  const encryptionKey = builderApi.generateEncryptionKey();
+
+  // 5. Set secrets
+  const secrets: [string, string][] = [
+    ["DB_URL", input.dbUrl],
+    ["DB_TOKEN", input.dbToken],
+    ["DB_ENCRYPTION_KEY", encryptionKey],
+    ["BUNNY_SCRIPT_ID", String(scriptId)],
+  ];
+
+  // Copy host secrets that are set
+  for (const key of HOST_SECRET_KEYS) {
+    const value = getEnv(key);
+    if (value) secrets.push([key, value]);
+  }
+
+  const secretErrors = await setSecrets(scriptId, secrets);
+  if (secretErrors.length > 0) {
+    return { error: `Failed to set secrets: ${secretErrors[0]}`, ok: false };
+  }
+
+  // 6. Publish
+  const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
+  if (!publishResult.ok) return publishResult;
+
+  return { defaultHostname, ok: true, scriptId };
+};
+
+/** Stubbable API for testing */
+export const builderApi = {
+  buildSite,
+  generateEncryptionKey,
+  testDbConnection,
+};

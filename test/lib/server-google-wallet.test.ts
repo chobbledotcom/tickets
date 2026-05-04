@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { settings } from "#lib/db/settings.ts";
-import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
+import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
 import {
   awaitTestRequest,
   createTestAttendeeWithToken,
@@ -105,7 +105,7 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   });
 
   test("returns null for non-GET methods", async () => {
-    const { routeGoogleWallet } = await import("#routes/google-wallet.ts");
+    const { routeGoogleWallet } = await import("#routes/wallet/google.ts");
     const request = new Request("http://localhost/gwallet/some-token", {
       method: "POST",
     });

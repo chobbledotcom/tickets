@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#lib/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import {
   bookAttendee,
   createDailyTestEvent,
@@ -11,7 +11,7 @@ import {
 
 describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   test("updates quantity with capacity guard", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 5 });
     const result = await bookAttendee(event, { quantity: 2 });
     if (!result.success) throw new Error("setup");
@@ -24,7 +24,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("rejects update that would exceed capacity", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 3 });
     const result = await bookAttendee(event, { quantity: 2 });
     if (!result.success) throw new Error("setup");
@@ -36,7 +36,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("updates date for daily event link", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createDailyTestEvent({ maxAttendees: 10 });
     const result = await bookAttendee(event, { date: "2026-04-07" });
     if (!result.success) throw new Error("setup");
@@ -49,7 +49,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("admits a multi-day update whose range contains non-overlapping bookings", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 2 });
     await bookAttendee(event, { date: "2026-06-01", durationDays: 1 });
     await bookAttendee(event, { date: "2026-06-03", durationDays: 1 });
@@ -64,7 +64,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("returns capacity_exceeded for non-existent (attendee, event) pair", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const event = await createTestEvent({ maxAttendees: 5 });
     expect(
       (await updateEventLink(999_999, event.id, { date: null, quantity: 1 }))
@@ -73,7 +73,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("self-excludes on a group-capped daily event", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const group = await createTestGroup({ maxAttendees: 2 });
     const event = await createDailyTestEvent({ groupId: group.id, maxAttendees: 5 });
     const own = await bookAttendee(event, { date: "2026-07-01", quantity: 2 });
@@ -87,7 +87,7 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
   });
 
   test("self-excludes on a group-capped standard event", async () => {
-    const { updateEventLink } = await import("#lib/db/attendees.ts");
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
     const group = await createTestGroup({ maxAttendees: 3 });
     const event = await createTestEvent({
       eventType: "standard",

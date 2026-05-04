@@ -1,11 +1,12 @@
 /**
  * Tests that the API example in the documentation matches the real
  * toPublicEvent() output. If the shape changes, this test fails and
- * forces an update to src/lib/api-example.ts (and thus the admin guide).
+ * forces an update to src/shared/api-example.ts (and thus the admin guide).
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { toPublicEvent } from "#routes/api/index.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,
@@ -15,17 +16,26 @@ import {
   API_EXAMPLE_PUBLIC_EVENT,
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
-} from "#lib/api-example.ts";
-import { toPublicEvent } from "#routes/api.ts";
+} from "#shared/api-example.ts";
 
 describe("API example", () => {
   test("toPublicEvent output matches the documented example", () => {
-    const result = toPublicEvent(API_EXAMPLE_EVENT);
+    const result = toPublicEvent(
+      API_EXAMPLE_EVENT,
+      false,
+      undefined,
+      undefined,
+    );
     expect(result).toEqual(API_EXAMPLE_PUBLIC_EVENT);
   });
 
   test("example has all PublicEvent keys", () => {
-    const result = toPublicEvent(API_EXAMPLE_EVENT);
+    const result = toPublicEvent(
+      API_EXAMPLE_EVENT,
+      false,
+      undefined,
+      undefined,
+    );
     const resultKeys = Object.keys(result).sort();
     const exampleKeys = Object.keys(API_EXAMPLE_PUBLIC_EVENT).sort();
     expect(exampleKeys).toEqual(resultKeys);

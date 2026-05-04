@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { eventsTable } from "#lib/db/events.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
 import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,

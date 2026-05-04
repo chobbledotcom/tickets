@@ -7,6 +7,7 @@ import {
   describe,
   it as test,
 } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
@@ -23,9 +24,8 @@ import {
   resetDemoMode,
   setDemoModeForTest,
   wrapResourceForDemo,
-} from "#lib/demo.ts";
-import { FormParams } from "#lib/form-data.ts";
-import { handleRequest } from "#routes";
+} from "#shared/demo.ts";
+import { FormParams } from "#shared/form-data.ts";
 import {
   createTestDbWithSetup,
   describeWithEnv,

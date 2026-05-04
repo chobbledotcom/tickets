@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ColumnGenerators } from "#lib/column-order.ts";
+import type { ColumnGenerators } from "#shared/column-order.ts";
 import {
   buildDefaultTemplate,
   getHeaderText,
@@ -8,15 +8,15 @@ import {
   renderFilteredValue,
   resolveColumnLayout,
   validateColumnTemplate,
-} from "#lib/column-order.ts";
+} from "#shared/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
-} from "#lib/columns/attendee-columns.ts";
+} from "#shared/columns/attendee-columns.ts";
 import {
   EVENT_DEFAULT_ORDER,
   EVENT_TABLE_COLUMNS,
-} from "#lib/columns/event-columns.ts";
+} from "#shared/columns/event-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { setupTestEncryptionKey, testEventWithCount } from "#test-utils";
 

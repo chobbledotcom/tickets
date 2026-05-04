@@ -8,7 +8,7 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
-} from "#lib/db/sessions.ts";
+} from "#shared/db/sessions.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > sessions", { db: true }, () => {

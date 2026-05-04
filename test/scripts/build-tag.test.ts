@@ -1,6 +1,6 @@
 /**
  * Tests for the release-tag format shared between build-edge.ts (which
- * writes .build-tag) and src/lib/update.ts (which parses tags from
+ * writes .build-tag) and src/shared/update.ts (which parses tags from
  * GitHub releases to decide whether a newer version is available).
  *
  * Any drift between these two halves silently breaks self-update, so the
@@ -13,7 +13,7 @@ import {
   isNewerVersion,
   parseReleaseTag,
   setBuildTimestampForTest,
-} from "#lib/update.ts";
+} from "#shared/update.ts";
 import { isoToTag } from "../../scripts/build-tag.ts";
 
 const RELEASE_TAG_FORMAT = /^v\d{4}-\d{2}-\d{2}-\d{6}$/;

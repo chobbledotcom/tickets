@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { CSS_PATH, JS_PATH } from "#lib/asset-paths.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
+import { CSS_PATH, JS_PATH } from "#shared/asset-paths.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -81,7 +81,7 @@ describeWithEnv(
       const event = testEventWithCount({ attendee_count: 0 });
       const html = ticketPage({
         dates: [],
-        events: [buildTicketEvent(event)],
+        events: [buildTicketEvent(event, false, undefined)],
         slugs: [event.slug],
       });
       expect(html).toContain("Registration closed.");

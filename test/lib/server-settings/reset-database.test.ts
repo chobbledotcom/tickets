@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { eventsTable } from "#lib/db/events.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-import { runWithStorageConfig } from "#lib/storage.ts";
+import { eventsTable } from "#shared/db/events.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   adminFormPost,
   assertFormRedirect,

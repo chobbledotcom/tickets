@@ -1,17 +1,20 @@
 import { createClient, type InValue, type Row } from "@libsql/client";
 import { afterEach, beforeEach, describe } from "@std/testing/bdd";
-import { resetEffectiveDomain } from "#lib/config.ts";
-import { signCsrfToken } from "#lib/csrf.ts";
-import { getDb, insert, queryOne, setDb } from "#lib/db/client.ts";
-import { invalidateEventsCache } from "#lib/db/events.ts";
-import { invalidateGroupsCache } from "#lib/db/groups.ts";
-import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
-import { initDb } from "#lib/db/migrations.ts";
-import { resetSessionCache } from "#lib/db/sessions.ts";
-import { settings } from "#lib/db/settings.ts";
-import { invalidateUsersCache } from "#lib/db/users.ts";
-import { setDemoModeForTest } from "#lib/demo.ts";
-import { resetHostEmailConfig, setHostEmailConfigForTest } from "#lib/email.ts";
+import { resetEffectiveDomain } from "#shared/config.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateGroupsCache } from "#shared/db/groups.ts";
+import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { initDb } from "#shared/db/migrations.ts";
+import { resetSessionCache } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import {
+  resetHostEmailConfig,
+  setHostEmailConfigForTest,
+} from "#shared/email.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
@@ -131,18 +134,18 @@ const createDirectAdminSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
-  const { generateSecureToken } = await import("#lib/crypto/utils.ts");
+  const { generateSecureToken } = await import("#shared/crypto/utils.ts");
   const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
-    "#lib/crypto/keys.ts"
+    "#shared/crypto/keys.ts"
   );
   const { createSession: createDbSession } = await import(
-    "#lib/db/sessions.ts"
+    "#shared/db/sessions.ts"
   );
-  const { buildSessionCookie } = await import("#lib/cookies.ts");
+  const { buildSessionCookie } = await import("#shared/cookies.ts");
   const { getUserByUsername, verifyUserPassword } = await import(
-    "#lib/db/users.ts"
+    "#shared/db/users.ts"
   );
-  const { nowMs } = await import("#lib/now.ts");
+  const { nowMs } = await import("#shared/now.ts");
 
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
   if (!user?.wrapped_data_key) {

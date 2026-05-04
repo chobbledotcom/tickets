@@ -7,8 +7,8 @@ import {
   encryptWithKey,
   setEncryptionKeyForTest,
   validateEncryptionKey,
-} from "#lib/crypto/encryption.ts";
-import { generateDataKey } from "#lib/crypto/keys.ts";
+} from "#shared/crypto/encryption.ts";
+import { generateDataKey } from "#shared/crypto/keys.ts";
 import {
   clearTestEncryptionKey,
   describeWithEnv,

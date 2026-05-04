@@ -4,8 +4,8 @@ import {
   mergeEventFields,
   parseEventFields,
   withRequiredEmail,
-} from "#lib/event-fields.ts";
-import { CONTACT_FIELDS } from "#lib/types.ts";
+} from "#shared/event-fields.ts";
+import { CONTACT_FIELDS } from "#shared/types.ts";
 
 describe("event-fields", () => {
   describe("parseEventFields", () => {

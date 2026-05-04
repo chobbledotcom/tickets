@@ -6,7 +6,7 @@ import {
   computeDayOffset,
   formatIsoForPreview,
   shiftUtcIsoByDays,
-} from "#lib/bulk-replace.ts";
+} from "#shared/bulk-replace.ts";
 
 describe("bulk-replace", () => {
   describe("applyNameReplacement", () => {

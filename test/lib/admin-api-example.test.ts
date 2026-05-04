@@ -1,20 +1,20 @@
 /**
  * Tests that the admin API examples match the real toAdminEvent() output.
  * If the shape changes, this test fails and forces an update to
- * src/lib/admin-api-example.ts (and thus the API docs page).
+ * src/shared/admin-api-example.ts (and thus the API docs page).
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { adminApiRoutes, toAdminEvent } from "#routes/admin/api.ts";
+import { apiRoutes, toPublicEvent } from "#routes/api/index.ts";
 import {
   ADMIN_API_ENDPOINTS,
   ADMIN_API_EXAMPLE_ADMIN_EVENT,
   ADMIN_API_EXAMPLE_EVENT,
   type EndpointDoc,
   PUBLIC_API_ENDPOINTS,
-} from "#lib/admin-api-example.ts";
-import { adminApiRoutes, toAdminEvent } from "#routes/admin/api.ts";
-import { apiRoutes, toPublicEvent } from "#routes/api.ts";
+} from "#shared/admin-api-example.ts";
 
 describe("admin API example", () => {
   test("toAdminEvent output matches the documented example", () => {
@@ -52,7 +52,12 @@ describe("endpoint docs", () => {
       (e: EndpointDoc) => e.method === "GET" && e.path === "/api/events",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realPublicEvent = toPublicEvent(ADMIN_API_EXAMPLE_EVENT);
+    const realPublicEvent = toPublicEvent(
+      ADMIN_API_EXAMPLE_EVENT,
+      false,
+      undefined,
+      undefined,
+    );
     const realKeys = Object.keys(realPublicEvent).sort();
     const exampleKeys = Object.keys(parsed.events[0]).sort();
     expect(exampleKeys).toEqual(realKeys);

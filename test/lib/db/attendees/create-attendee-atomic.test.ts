@@ -4,9 +4,16 @@ import {
   createAttendeeAtomic,
   decryptAttendees,
   getAttendeesRaw,
-} from "#lib/db/attendees.ts";
-import { dateToRange } from "#lib/db/capacity.ts";
-import { getDb } from "#lib/db/client.ts";
+} from "#shared/db/attendees.ts";
+import { dateToRange } from "#shared/db/capacity.ts";
+import { getDb } from "#shared/db/client.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  createDailyTestEvent,
+  createTestEvent,
+  describeWithEnv,
+  getTestPrivateKey,
+} from "#test-utils";
 
 /** Fetch raw start_at/end_at for an event (getAttendeesRaw drops them). */
 const getRange = async (
@@ -18,13 +25,6 @@ const getRange = async (
   });
   return res.rows[0] as unknown as { start_at: string; end_at: string };
 };
-import { CONFIG_KEYS, settings } from "#lib/db/settings.ts";
-import {
-  createDailyTestEvent,
-  createTestEvent,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
 
 describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("succeeds when capacity available", async () => {

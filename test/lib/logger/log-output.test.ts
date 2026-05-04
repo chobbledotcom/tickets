@@ -7,7 +7,7 @@ import {
   logRequest,
   setSuppressDebugLogs,
   setSuppressRequestLogs,
-} from "#lib/logger.ts";
+} from "#shared/logger.ts";
 
 describe("logRequest", () => {
   let debugSpy: Spy;

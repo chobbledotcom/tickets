@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
   describeWithEnv,
   stubFetchJson,

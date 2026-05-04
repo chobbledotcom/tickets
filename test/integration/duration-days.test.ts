@@ -9,9 +9,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
-import { getDb } from "#lib/db/client.ts";
-import { getEvent } from "#lib/db/events.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import { getEvent } from "#shared/db/events.ts";
 import {
   createDailyTestEvent,
   describeWithEnv,
