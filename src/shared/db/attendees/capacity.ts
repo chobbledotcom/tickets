@@ -196,17 +196,32 @@ export const checkCapacityResult = (result: {
 // can self-exclude an attendee row cleanly.
 // ---------------------------------------------------------------------------
 
+/** Expand a daily-event range into individual day strings.
+ * Clamps duration to >= 1 to defend against bogus 0/negative inputs. */
+const expandDailyRange = (date: string, durationDays: number): string[] => {
+  const duration = Math.max(1, Math.floor(durationDays));
+  return Array.from({ length: duration }, (_, i) => addDays(date, i));
+};
+
+/** Async every-day predicate: short-circuits to false on the first failed day. */
+const everyDay = async <T>(
+  days: T[],
+  check: (day: T) => Promise<boolean>,
+): Promise<boolean> => {
+  for (const day of days) {
+    if (!(await check(day))) return false;
+  }
+  return true;
+};
+
 /** Enumerate every day in [date, date + durationDays) for per-day checks,
  * or a single [null] for non-daily / date-less bookings. */
 const capacityCheckDays = (
   isDaily: boolean,
   date: string | null | undefined,
   durationDays: number,
-): (string | null)[] => {
-  if (!isDaily || !date) return [null];
-  const duration = Math.max(1, Math.floor(durationDays));
-  return Array.from({ length: duration }, (_, i) => addDays(date, i));
-};
+): (string | null)[] =>
+  !isDaily || !date ? [null] : expandDailyRange(date, durationDays);
 
 const loadForDay = async (
   eventId: number,
@@ -220,40 +235,6 @@ const loadForDay = async (
     "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id != ?",
     [eventId, excludeAttendeeId],
   ))!.count;
-};
-
-const checkEventCapForDays = async (
-  eventId: number,
-  quantity: number,
-  days: (string | null)[],
-  excludeAttendeeId: number | undefined,
-  event: { max_attendees: number; attendee_count: number },
-): Promise<boolean> => {
-  for (const day of days) {
-    const load = await loadForDay(
-      eventId,
-      day,
-      excludeAttendeeId,
-      event.attendee_count,
-    );
-    if (load + quantity > event.max_attendees) return false;
-  }
-  return true;
-};
-
-const checkGroupCapForDays = async (
-  groupId: number,
-  quantity: number,
-  days: (string | null)[],
-  excludeAttendeeId: number | undefined,
-): Promise<boolean> => {
-  for (const day of days) {
-    const remaining = (
-      await getGroupRemainingByGroupId([groupId], day, excludeAttendeeId)
-    ).get(groupId);
-    if (remaining !== undefined && quantity > remaining) return false;
-  }
-  return true;
 };
 
 /**
@@ -279,21 +260,71 @@ export const checkEventAvailability = async (
     date,
     durationDays,
   );
-  const eventOk = await checkEventCapForDays(
-    eventId,
-    quantity,
-    days,
-    excludeAttendeeId,
-    event,
-  );
+  const eventOk = await everyDay(days, async (day) => {
+    const load = await loadForDay(
+      eventId,
+      day,
+      excludeAttendeeId,
+      event.attendee_count,
+    );
+    return load + quantity <= event.max_attendees;
+  });
   if (!eventOk) return false;
   if (event.group_id <= 0) return true;
-  return checkGroupCapForDays(
-    event.group_id,
-    quantity,
-    days,
-    excludeAttendeeId,
-  );
+  return everyDay(days, async (day) => {
+    const remaining = (
+      await getGroupRemainingByGroupId([event.group_id], day, excludeAttendeeId)
+    ).get(event.group_id);
+    return remaining === undefined || quantity <= remaining;
+  });
+};
+
+type EventRow = {
+  id: number;
+  max_attendees: number;
+  group_id: number;
+  event_type: EventType;
+  attendee_count: number;
+};
+
+type DemandBucket = { perDay: Map<string, number>; total: number };
+
+/**
+ * Aggregate batch items into per-key demand buckets. The `keyOf(event)`
+ * callback selects which bucket each item contributes to (returning null
+ * skips the item). Daily events with a date contribute per-day; everything
+ * else contributes to a single total per bucket.
+ *
+ * Used twice: once keyed by event id (for event-cap checks), once keyed by
+ * group id (for group-cap checks).
+ */
+const aggregateDemand = <K>(
+  items: BatchAvailabilityItem[],
+  eventsById: Map<number, EventRow>,
+  date: string | null | undefined,
+  keyOf: (ev: EventRow) => K | null,
+): Map<K, DemandBucket> => {
+  const buckets = new Map<K, DemandBucket>();
+  for (const item of items) {
+    const ev = eventsById.get(item.eventId);
+    if (!ev) continue;
+    const key = keyOf(ev);
+    if (key === null) continue;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { perDay: new Map(), total: 0 };
+      buckets.set(key, bucket);
+    }
+    const duration = Math.max(1, item.durationDays ?? 1);
+    if (ev.event_type === "daily" && date) {
+      for (const day of expandDailyRange(date, duration)) {
+        bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
+      }
+    } else {
+      bucket.total += item.quantity;
+    }
+  }
+  return buckets;
 };
 
 /**
@@ -312,13 +343,7 @@ export const checkBatchAvailabilityImpl = async (
   if (items.some((i) => i.quantity < 0)) return false;
   const eventIds = items.map((i) => i.eventId);
 
-  const eventRows = await queryAll<{
-    id: number;
-    max_attendees: number;
-    group_id: number;
-    event_type: EventType;
-    attendee_count: number;
-  }>(
+  const eventRows = await queryAll<EventRow>(
     `SELECT e.id, e.max_attendees, e.group_id, e.event_type,
             COALESCE(SUM(ea.quantity), 0) as attendee_count
      FROM events e
@@ -329,88 +354,39 @@ export const checkBatchAvailabilityImpl = async (
   );
   const eventsById = new Map(eventRows.map((r) => [r.id, r]));
 
-  const daysOfRange = (startDate: string, durationDays: number): string[] => {
-    const duration = Math.max(1, Math.floor(durationDays));
-    return Array.from({ length: duration }, (_, i) => addDays(startDate, i));
-  };
+  // Every item must reference a known event.
+  if (items.some((i) => !eventsById.has(i.eventId))) return false;
 
-  // Per-day demand by (eventId, day) → quantity. Non-daily / date-less
-  // demand is aggregated per event.
-  const perDayDemand = new Map<number, Map<string, number>>();
-  const totalDemand = new Map<number, number>();
-
-  for (const item of items) {
-    const ev = eventsById.get(item.eventId);
-    if (!ev) return false;
-    const duration = Math.max(1, item.durationDays ?? 1);
-    if (ev.event_type === "daily" && date) {
-      const dayMap =
-        perDayDemand.get(item.eventId) ?? new Map<string, number>();
-      for (const day of daysOfRange(date, duration)) {
-        dayMap.set(day, (dayMap.get(day) ?? 0) + item.quantity);
-      }
-      perDayDemand.set(item.eventId, dayMap);
-    } else {
-      totalDemand.set(
-        item.eventId,
-        (totalDemand.get(item.eventId) ?? 0) + item.quantity,
-      );
-    }
-  }
-
-  // Per-day event-cap checks.
-  for (const [eventId, dayMap] of perDayDemand) {
+  // Event-cap checks: per-day where applicable, total for non-daily/date-less.
+  const eventDemand = aggregateDemand(items, eventsById, date, (ev) => ev.id);
+  for (const [eventId, bucket] of eventDemand) {
     const ev = eventsById.get(eventId)!;
-    for (const [day, qty] of dayMap) {
+    for (const [day, qty] of bucket.perDay) {
       const existing = await getDateAttendeeCount(eventId, day);
       if (existing + qty > ev.max_attendees) return false;
     }
+    if (bucket.total > 0 && ev.attendee_count + bucket.total > ev.max_attendees)
+      return false;
   }
 
-  // Total-cap checks for non-daily demand.
-  for (const [eventId, qty] of totalDemand) {
-    const ev = eventsById.get(eventId)!;
-    if (ev.attendee_count + qty > ev.max_attendees) return false;
-  }
-
-  // Group caps: per-day across the union of requested days in the group.
-  const groupIds = unique(
-    eventRows.filter((r) => r.group_id > 0).map((r) => r.group_id),
+  // Group-cap checks: per-day across the union of requested days in the group.
+  const groupDemand = aggregateDemand(items, eventsById, date, (ev) =>
+    ev.group_id > 0 ? ev.group_id : null,
   );
-  for (const groupId of groupIds) {
-    const groupDayDemand = new Map<string, number>();
-    let groupNonDailyDemand = 0;
-    for (const item of items) {
-      const ev = eventsById.get(item.eventId);
-      if (!ev || ev.group_id !== groupId) continue;
-      const duration = Math.max(1, item.durationDays ?? 1);
-      if (ev.event_type === "daily" && date) {
-        for (const day of daysOfRange(date, duration)) {
-          groupDayDemand.set(
-            day,
-            (groupDayDemand.get(day) ?? 0) + item.quantity,
-          );
-        }
-      } else {
-        groupNonDailyDemand += item.quantity;
-      }
-    }
-
-    // For each requested day, check group remaining including non-daily demand.
-    for (const [day, qty] of groupDayDemand) {
+  for (const [groupId, bucket] of groupDemand) {
+    for (const [day, qty] of bucket.perDay) {
       const remaining = (await getGroupRemainingByGroupId([groupId], day)).get(
         groupId,
       );
-      if (remaining !== undefined && qty + groupNonDailyDemand > remaining)
+      if (remaining !== undefined && qty + bucket.total > remaining)
         return false;
     }
     // Pure non-daily demand against baseline group occupancy.
-    if (groupDayDemand.size === 0 && groupNonDailyDemand > 0) {
+    if (bucket.perDay.size === 0 && bucket.total > 0) {
       const remaining = (await getGroupRemainingByGroupId([groupId], null)).get(
         groupId,
       );
-      if (remaining !== undefined && groupNonDailyDemand > remaining)
-        return false;
+      if (remaining !== undefined && bucket.total > remaining) return false;
     }
   }
   return true;
