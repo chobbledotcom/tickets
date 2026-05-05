@@ -17,10 +17,8 @@ import {
 } from "#shared/db/attendees/capacity.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { addDays } from "#shared/dates.ts";
 
 /** Update a per-event status field on event_attendees */
 const updateEventAttendeeField =
@@ -72,73 +70,6 @@ export const updateAttendeePII = async (
     args: [encryptedPiiBlob, attendeeId],
     sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
-};
-
-/**
- * Recompute `end_at` on all existing `event_attendees` rows for an event
- * based on a new `duration_days` value. Leaves NULL-start rows alone.
- * The `.000Z` suffix matches the format fresh inserts produce via
- * toISOString() so raw-row dumps stay consistent.
- */
-export const recomputeEventBookingRanges = async (
-  eventId: number,
-  durationDays: number,
-): Promise<void> => {
-  const duration = Math.max(1, Math.floor(durationDays));
-  await getDb().execute({
-    args: [duration, eventId],
-    sql: `UPDATE event_attendees
-           SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
-           WHERE event_id = ? AND start_at IS NOT NULL`,
-  });
-  invalidateEventsCache();
-};
-
-/**
- * After a duration change on a grouped event, check whether any day in any
- * existing booking's new range now exceeds the group cap. Returns the first
- * over-capacity day, or null if everything fits.
- * Call AFTER recomputeEventBookingRanges so end_at is already updated.
- */
-export const checkGroupCapAfterDurationChange = async (
-  eventId: number,
-  groupId: number,
-): Promise<string | null> => {
-  if (groupId <= 0) return null;
-  const cap = await queryAll<{ max_attendees: number }>(
-    "SELECT max_attendees FROM groups WHERE id = ?",
-    [groupId],
-  );
-  const groupLimit = cap[0]!.max_attendees;
-  if (groupLimit <= 0) return null;
-
-  const rows = await queryAll<{ start_at: string; end_at: string }>(
-    "SELECT DISTINCT start_at, end_at FROM event_attendees WHERE event_id = ? AND start_at IS NOT NULL",
-    [eventId],
-  );
-  for (const row of rows) {
-    const startDate = row.start_at.slice(0, 10);
-    const endMs = new Date(row.end_at).getTime();
-    const startMs = new Date(row.start_at).getTime();
-    const days = Math.round((endMs - startMs) / 86_400_000);
-    for (let i = 0; i < days; i++) {
-      const day = addDays(startDate, i);
-      const dayStart = `${day}T00:00:00Z`;
-      const dayEnd = new Date(
-        new Date(dayStart).getTime() + 86_400_000,
-      ).toISOString();
-      const counted = await queryAll<{ count: number }>(
-        `SELECT COALESCE(SUM(ea.quantity), 0) as count
-         FROM event_attendees ea
-         JOIN events e ON e.id = ea.event_id
-         WHERE e.group_id = ?
-           AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
-        [groupId, dayEnd, dayStart],
-      );
-      if (counted[0]!.count > groupLimit) return day;
-    }
-  }
-  return null;
 };
 
 /**
