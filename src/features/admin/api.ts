@@ -66,6 +66,7 @@ export type CreateEventBody = {
   bookable_days?: string[];
   minimum_days_before?: number;
   maximum_days_after?: number;
+  duration_days?: number;
   non_transferable?: boolean;
   can_pay_more?: boolean;
   hidden?: boolean;
@@ -115,6 +116,7 @@ const optionalFields: FieldMapping[] = [
   ["bookable_days", "bookableDays", "string[]"],
   ["minimum_days_before", "minimumDaysBefore", "number"],
   ["maximum_days_after", "maximumDaysAfter", "number"],
+  ["duration_days", "durationDays", "number"],
   ["non_transferable", "nonTransferable", "boolean"],
   ["can_pay_more", "canPayMore", "boolean"],
   ["hidden", "hidden", "boolean"],

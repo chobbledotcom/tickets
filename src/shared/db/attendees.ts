@@ -74,8 +74,10 @@ export { getActiveEventStats } from "#shared/db/attendees/stats.ts";
 
 export {
   addEventLink,
+  checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   markRefunded,
+  recomputeEventBookingRanges,
   updateAttendeePII,
   updateCheckedIn,
   updateEventLink,

@@ -341,6 +341,10 @@ const DailyScheduleRows = ({
         days from today
       </td>
     </tr>
+    <tr>
+      <th>Booking Duration</th>
+      <td>{event.duration_days} day(s)</td>
+    </tr>
   </>
 );
 
@@ -1057,6 +1061,7 @@ export const adminEventEditPage = (
       <CsrfForm
         action={`/admin/event/${event.id}/edit`}
         enctype="multipart/form-data"
+        id="event-edit-form"
       >
         <Raw html={renderFields(fields, eventToFieldValues(event))} />
         <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
@@ -1064,7 +1069,22 @@ export const adminEventEditPage = (
         {storageEnabled && event.image_url && (
           <Raw html={renderEventImage(event, "event-image-full")} />
         )}
-        <button type="submit">Save Changes</button>
+        <div
+          id="duration-warning"
+          data-duration-original={event.duration_days}
+          hidden
+        >
+          <p>
+            <strong>Warning:</strong> Changing booking duration will update
+            existing bookings for this event.
+          </p>
+          <label>
+            <input type="checkbox" id="duration-warning-confirm" />I understand
+          </label>
+        </div>
+        <button type="submit" id="event-edit-submit">
+          Save Changes
+        </button>
       </CsrfForm>
       {storageEnabled && event.image_url && (
         <CsrfForm action={`/admin/event/${event.id}/image/delete`}>

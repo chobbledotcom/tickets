@@ -4,6 +4,10 @@
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
 import {
+  checkGroupCapAfterDurationChange,
+  recomputeEventBookingRanges,
+} from "#shared/db/attendees.ts";
+import {
   csvResponse,
   eventAttendeesLoader,
   getDateFilter,
@@ -125,6 +129,7 @@ const extractCommonFields = (values: EventFormValues) => {
     closesAt,
     date,
     description: values.description,
+    durationDays: Math.max(1, Math.min(90, values.duration_days ?? 1)),
     eventType: values.event_type || "standard",
     fields: values.fields || "",
     groupId: Number(values.group_id) || 0,
@@ -530,12 +535,39 @@ const handleAdminEventEditPost: TypedRouteHandler<
 
       const result = await updateResource.update(id, form);
       if (result.ok) {
+        // If duration changed on a daily event, reconcile existing booking ranges
+        // so stored end_at values match the event's current policy.
+        let durationWarning = "";
+        if (
+          result.row.event_type === "daily" &&
+          result.row.duration_days !== existing.duration_days
+        ) {
+          await recomputeEventBookingRanges(
+            result.row.id,
+            result.row.duration_days,
+          );
+          await logActivity(
+            `Event '${result.row.name}' duration changed to ${result.row.duration_days} day(s)`,
+            result.row,
+          );
+          const overDay = await checkGroupCapAfterDurationChange(
+            result.row.id,
+            result.row.group_id,
+          );
+          if (overDay) {
+            durationWarning = ` Warning: group capacity exceeded on ${overDay}`;
+            await logActivity(
+              `Duration change caused group capacity overflow on ${overDay}`,
+              result.row,
+            );
+          }
+        }
         await logActivity(`Event '${result.row.name}' updated`, result.row);
         return processUploadsAndRedirect(
           formData,
           id,
           `/admin/event/${result.row.id}`,
-          "Event updated",
+          `Event updated${durationWarning}`,
           existing.image_url,
           existing.attachment_url,
         );
@@ -587,6 +619,7 @@ const handleAdminEventExport: TypedRouteHandler<
           eventLocation: event.location,
         },
         questionData,
+        event.duration_days,
       );
       const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = dateFilter

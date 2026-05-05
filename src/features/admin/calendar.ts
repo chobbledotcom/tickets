@@ -116,6 +116,7 @@ const buildCalendarAttendees = (
     const event = eventById.get(a.event_id)!;
     return {
       ...a,
+      durationDays: event.duration_days,
       eventDate: event.date,
       eventId: event.id,
       eventLocation: event.location,

@@ -273,6 +273,25 @@ describe("eventFields — event_type", () => {
   });
 });
 
+describe("eventFields — duration_days", () => {
+  for (const value of ["", "1", "90"]) {
+    test(`accepts ${JSON.stringify(value)}`, () => {
+      expectValid(eventFields, eventForm({ duration_days: value }));
+    });
+  }
+  const invalid: [value: string, error: string][] = [
+    ["0", "Booking Duration (days) must be at least 1"],
+    ["-5", "Booking Duration (days) must be at least 1"],
+    ["91", "Booking Duration (days) must be at most 90"],
+    ["1.5", "Booking Duration (days) must be a whole number"],
+  ];
+  for (const [value, error] of invalid) {
+    test(`rejects ${JSON.stringify(value)}`, () => {
+      expectInvalid(error)(eventFields, eventForm({ duration_days: value }));
+    });
+  }
+});
+
 describe("eventFields — bookable_days", () => {
   test("accepts valid day names", () => {
     expectValid(
