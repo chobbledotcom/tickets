@@ -44,6 +44,57 @@ describe("adminEventEditPage group select", () => {
   });
 });
 
+describe("adminEventEditPage duration warning", () => {
+  test("includes duration warning + confirmation gate with current duration", () => {
+    const event = testEventWithCount({
+      duration_days: 3,
+      event_type: "daily",
+    });
+    const html = adminEventEditPage(event, [], TEST_SESSION);
+    expect(html).toContain(
+      "Changing booking duration will update existing bookings",
+    );
+    expect(html).toContain('id="duration-warning"');
+    expect(html).toContain('id="duration-warning-confirm"');
+    // The current duration is exposed via a data attribute so the bundled
+    // admin script can compare against the form's input.
+    expect(html).toContain('data-duration-original="3"');
+  });
+});
+
+describe("adminEventPage duration display", () => {
+  test("shows booking duration row for daily events", () => {
+    const event = testEventWithCount({
+      attendee_count: 0,
+      duration_days: 3,
+      event_type: "daily",
+    });
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Booking Duration");
+    expect(html).toContain("3 day(s)");
+  });
+
+  test("omits booking duration row for standard events", () => {
+    const event = testEventWithCount({
+      attendee_count: 0,
+      duration_days: 1,
+      event_type: "standard",
+    });
+    const html = adminEventPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Booking Duration");
+  });
+});
+
 describe("adminEventPage", () => {
   const event = testEventWithCount({ attendee_count: 2 });
 

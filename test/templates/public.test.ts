@@ -916,6 +916,24 @@ describe("ticketViewPage event date and location", () => {
     expect(html).toContain("2 Tickets");
     expect(html).not.toContain("Your Purchase");
   });
+
+  test("renders multi-day booking range when daily event has duration > 1", () => {
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ date: "2026-06-12" }),
+          event: testEventWithCount({
+            duration_days: 3,
+            event_type: "daily",
+          }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(cards);
+    // duration=3 starting 2026-06-12 → covers 12, 13, 14 inclusive.
+    expect(html).toContain("12–14 June 2026");
+  });
 });
 
 describeWithEnv(
