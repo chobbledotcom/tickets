@@ -3,8 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
 import {
   bookAttendee,
+  createDailyTestEvent,
   createTestAttendee,
   createTestEvent,
+  createTestGroup,
   describeWithEnv,
 } from "#test-utils";
 
@@ -15,64 +17,46 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
   });
 
   test("returns true when spots available", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 2,
-      thankYouUrl: "https://example.com",
-    });
-    const result = await hasAvailableSpots(event.id);
-    expect(result).toBe(true);
+    const event = await createTestEvent({ maxAttendees: 2 });
+    expect(await hasAvailableSpots(event.id)).toBe(true);
   });
 
   test("returns true when some spots taken", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 2,
-      thankYouUrl: "https://example.com",
-    });
+    const event = await createTestEvent({ maxAttendees: 2 });
     await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-
-    const result = await hasAvailableSpots(event.id);
-    expect(result).toBe(true);
+    expect(await hasAvailableSpots(event.id)).toBe(true);
   });
 
   test("returns false when event is full", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 2,
-      thankYouUrl: "https://example.com",
-    });
+    const event = await createTestEvent({ maxAttendees: 2 });
     await createTestAttendee(event.id, event.slug, "John", "john@example.com");
     await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
-
-    const result = await hasAvailableSpots(event.id);
-    expect(result).toBe(false);
+    expect(await hasAvailableSpots(event.id)).toBe(false);
   });
 
   test("checks per-date capacity for daily events", async () => {
-    const event = await createTestEvent({
-      bookableDays: [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ],
-      eventType: "daily",
-      maxAttendees: 1,
-      maximumDaysAfter: 14,
-      minimumDaysBefore: 0,
+    const event = await createDailyTestEvent({ maxAttendees: 1 });
+    await bookAttendee(event, { date: "2026-02-10" });
+    expect(await hasAvailableSpots(event.id, 1, "2026-02-10")).toBe(false);
+    expect(await hasAvailableSpots(event.id, 1, "2026-02-11")).toBe(true);
+  });
+
+  test("multi-day range: every day must have room (event cap)", async () => {
+    const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 2 });
+    await bookAttendee(event, { date: "2026-05-03", durationDays: 1, quantity: 2 });
+    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 3)).toBe(false);
+    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 1)).toBe(true);
+  });
+
+  test("multi-day range: every day must have room (group cap)", async () => {
+    const group = await createTestGroup({ maxAttendees: 2 });
+    const event = await createDailyTestEvent({
+      durationDays: 2,
+      groupId: group.id,
+      maxAttendees: 100,
     });
-
-    await bookAttendee(event, {
-      date: "2026-02-10",
-      email: "day@example.com",
-      name: "Day User",
-    });
-
-    const full = await hasAvailableSpots(event.id, 1, "2026-02-10");
-    expect(full).toBe(false);
-
-    const available = await hasAvailableSpots(event.id, 1, "2026-02-11");
-    expect(available).toBe(true);
+    const sibling = await createDailyTestEvent({ groupId: group.id, maxAttendees: 100 });
+    await bookAttendee(sibling, { date: "2026-05-02", quantity: 2 });
+    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 2)).toBe(false);
   });
 });
