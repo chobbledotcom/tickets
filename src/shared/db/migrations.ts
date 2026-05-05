@@ -34,7 +34,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add token rate-limit table with window_start/last_attempt";
+  "add duration_days to events";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
