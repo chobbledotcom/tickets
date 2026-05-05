@@ -31,6 +31,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   created: "2024-01-01T00:00:00Z",
   date: "",
   description: "",
+  duration_days: 1,
   event_type: "standard",
   fields: "email",
   group_id: 0,
