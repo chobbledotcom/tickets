@@ -32,8 +32,8 @@ describeWithEnv(
         () => {
           const items = getSettingsNagItems();
           expect(items).toHaveLength(1);
-          expect(items[0].id).toBe("payment-provider");
-          expect(items[0].href).toBeTruthy();
+          expect(items[0]!.id).toBe("payment-provider");
+          expect(items[0]!.href).toBeTruthy();
         },
       );
     });
@@ -49,8 +49,8 @@ describeWithEnv(
         () => {
           const items = getSettingsNagItems();
           expect(items).toHaveLength(1);
-          expect(items[0].id).toBe("business-email");
-          expect(items[0].href).toBeTruthy();
+          expect(items[0]!.id).toBe("business-email");
+          expect(items[0]!.href).toBeTruthy();
         },
       );
     });
@@ -66,8 +66,8 @@ describeWithEnv(
         () => {
           const items = getSettingsNagItems();
           expect(items).toHaveLength(1);
-          expect(items[0].id).toBe("domain");
-          expect(items[0].href).toBeTruthy();
+          expect(items[0]!.id).toBe("domain");
+          expect(items[0]!.href).toBeTruthy();
         },
       );
     });
@@ -83,12 +83,12 @@ describeWithEnv(
         () => {
           const items = getSettingsNagItems();
           expect(items).toHaveLength(3);
-          expect(items[0].id).toBe("payment-provider");
-          expect(items[0].href).toBeTruthy();
-          expect(items[1].id).toBe("business-email");
-          expect(items[1].href).toBeTruthy();
-          expect(items[2].id).toBe("domain");
-          expect(items[2].href).toBeTruthy();
+          expect(items[0]!.id).toBe("payment-provider");
+          expect(items[0]!.href).toBeTruthy();
+          expect(items[1]!.id).toBe("business-email");
+          expect(items[1]!.href).toBeTruthy();
+          expect(items[2]!.id).toBe("domain");
+          expect(items[2]!.href).toBeTruthy();
         },
       );
     });
