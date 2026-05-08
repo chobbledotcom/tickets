@@ -31,8 +31,16 @@ import { deleteAllSessions } from "#shared/db/sessions.ts";
 import { createUser, invalidateUsersCache } from "#shared/db/users.ts";
 import { nowMs } from "#shared/now.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
-import type { PaymentProviderType, Settings, Theme } from "#shared/types.ts";
-import { isPaymentProvider } from "#shared/types.ts";
+import type {
+  PaymentProviderSetting,
+  PaymentProviderType,
+  Settings,
+  Theme,
+} from "#shared/types.ts";
+import {
+  isPaymentProvider,
+  isPaymentProviderSetting,
+} from "#shared/types.ts";
 import {
   createAppleWalletReadSettings,
   createAppleWalletUpdateSettings,
@@ -229,6 +237,7 @@ type SpecificFields = {
   show_public_site: boolean;
   show_public_api: boolean;
   payment_provider: PaymentProviderType | null;
+  payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
   square_sandbox: boolean;
   currency: string;
@@ -245,6 +254,7 @@ const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   payment_provider: null,
+  payment_provider_setting: null,
   phone_prefix: "+44",
   show_public_api: false,
   show_public_site: false,
@@ -379,6 +389,8 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.payment_provider =
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
+  data.payment_provider_setting =
+    rawProvider && isPaymentProviderSetting(rawProvider) ? rawProvider : null;
   data.booking_fee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
   data.square_sandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
 
@@ -695,6 +707,9 @@ export const settings = {
   get paymentProvider(): PaymentProviderType | null {
     return snap("payment_provider");
   },
+  get paymentProviderSetting(): PaymentProviderSetting | null {
+    return snap("payment_provider_setting");
+  },
   get phonePrefix(): string {
     return snap("phone_prefix");
   },
@@ -793,6 +808,7 @@ export const settings = {
     clearPaymentProvider: async (): Promise<void> => {
       await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
       data.payment_provider = null;
+      data.payment_provider_setting = null;
     },
     contactPageText: encryptedUpdate(CONFIG_KEYS.CONTACT_PAGE_TEXT),
     country: async (v: string): Promise<void> => {
@@ -838,10 +854,16 @@ export const settings = {
     latestScriptVersionName: plaintextUpdate(
       CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     ),
-    paymentProvider: rawUpdate(
-      CONFIG_KEYS.PAYMENT_PROVIDER,
-      "payment_provider",
-    ) as (v: PaymentProviderType) => Promise<void>,
+    paymentProvider: async (v: PaymentProviderType): Promise<void> => {
+      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
+      data.payment_provider = v;
+      data.payment_provider_setting = v;
+    },
+    setPaymentProviderNone: async (): Promise<void> => {
+      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+      data.payment_provider = null;
+      data.payment_provider_setting = "none";
+    },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
     showPublicSite: boolUpdate(
       CONFIG_KEYS.SHOW_PUBLIC_SITE,
