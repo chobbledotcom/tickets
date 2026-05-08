@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# grunt — dispatch a one-shot prompt to opencode.ai Zen (Go subscription).
+#
+# Usage:
+#   scripts/grunt [-m MODEL] [-s SYSTEM] [-f FILE]... [-t MAX_TOKENS] [-j] [PROMPT]
+#
+# Flags:
+#   -m MODEL       Model id (default: deepseek-v4-flash). See `scripts/grunt --models`.
+#   -s SYSTEM      System prompt. May be passed multiple times (concatenated with blank lines).
+#   -f FILE        Attach a file. Repeatable. Each file is appended to the user message
+#                  as a fenced block headed by its path.
+#   -t MAX_TOKENS  Max output tokens (default: 4096).
+#   -j             Print the raw JSON response instead of just the assistant text.
+#   --models       List available models for this account and exit.
+#   -h, --help     Show this help.
+#
+# Input: PROMPT may be passed as a positional arg, or piped on stdin (or both — stdin
+# is appended after the positional arg, separated by a blank line). At least one
+# source of prompt text is required.
+#
+# Output: assistant message text on stdout. Reasoning-only finishes (where the model
+# spent all its tokens thinking and produced no content) emit a single line to stderr
+# and exit 2 — bump -t and retry.
+#
+# Auth: reads OPENCODE_API_KEY from the environment and trims surrounding whitespace.
+# Exits 1 if unset.
+#
+# Designed for parallel fan-out:
+#   ( scripts/grunt -f a.ts "summarize" > a.out ) &
+#   ( scripts/grunt -f b.ts "summarize" > b.out ) &
+#   wait
+
+set -euo pipefail
+
+ENDPOINT="https://opencode.ai/zen/go/v1"
+DEFAULT_MODEL="deepseek-v4-flash"
+
+usage() { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; }
+
+model="$DEFAULT_MODEL"
+system_parts=()
+files=()
+max_tokens=4096
+raw_json=0
+list_models=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -m) model="$2"; shift 2 ;;
+    -s) system_parts+=("$2"); shift 2 ;;
+    -f) files+=("$2"); shift 2 ;;
+    -t) max_tokens="$2"; shift 2 ;;
+    -j) raw_json=1; shift ;;
+    --models) list_models=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    -*) echo "grunt: unknown flag: $1" >&2; exit 64 ;;
+    *) break ;;
+  esac
+done
+
+key="${OPENCODE_API_KEY:-}"
+key="${key#"${key%%[![:space:]]*}"}"
+key="${key%"${key##*[![:space:]]}"}"
+if [[ -z "$key" ]]; then
+  echo "grunt: OPENCODE_API_KEY is not set" >&2
+  exit 1
+fi
+
+if (( list_models )); then
+  curl -fsS "$ENDPOINT/models" -H "Authorization: Bearer $key" \
+    | python3 -c 'import json,sys;[print(m["id"]) for m in json.load(sys.stdin)["data"]]'
+  exit 0
+fi
+
+prompt="${1:-}"
+if [[ ! -t 0 ]]; then
+  stdin_text=$(cat)
+  if [[ -n "$stdin_text" ]]; then
+    [[ -n "$prompt" ]] && prompt="$prompt"$'\n\n'"$stdin_text" || prompt="$stdin_text"
+  fi
+fi
+if [[ -z "$prompt" && ${#files[@]} -eq 0 ]]; then
+  echo "grunt: no prompt (pass as arg, on stdin, or via -f)" >&2
+  exit 64
+fi
+
+for f in "${files[@]}"; do
+  [[ -r "$f" ]] || { echo "grunt: cannot read file: $f" >&2; exit 66; }
+  prompt+=$'\n\n'"### $f"$'\n```\n'"$(cat "$f")"$'\n```'
+done
+
+system=""
+if (( ${#system_parts[@]} > 0 )); then
+  system=$(printf '%s\n\n' "${system_parts[@]}")
+fi
+
+body=$(
+  jq -n \
+    --arg model "$model" \
+    --arg system "$system" \
+    --arg prompt "$prompt" \
+    --argjson max_tokens "$max_tokens" \
+    '{model:$model, max_tokens:$max_tokens,
+      messages: ((if $system == "" then [] else [{role:"system",content:$system}] end)
+                + [{role:"user",content:$prompt}])}'
+)
+
+response=$(curl -fsS "$ENDPOINT/chat/completions" \
+  -H "Authorization: Bearer $key" \
+  -H "Content-Type: application/json" \
+  --data-binary "$body")
+
+if (( raw_json )); then
+  printf '%s\n' "$response"
+  exit 0
+fi
+
+python3 - "$response" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+if "error" in d:
+    sys.stderr.write(f"grunt: api error: {d['error'].get('message','?')}\n")
+    sys.exit(1)
+msg = d["choices"][0]["message"]
+text = msg.get("content") or ""
+if not text.strip():
+    reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
+    sys.stderr.write(
+        f"grunt: model produced reasoning only (finish={d['choices'][0].get('finish_reason')}); "
+        f"raise -t. reasoning preview: {reasoning[:200]!r}\n"
+    )
+    sys.exit(2)
+sys.stdout.write(text)
+if not text.endswith("\n"):
+    sys.stdout.write("\n")
+PY
