@@ -8,6 +8,7 @@ import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
+import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
 
 /** Read-only mode banner HTML */
 export const READ_ONLY_BANNER =
@@ -33,6 +34,7 @@ const navLink = (href: string, label: string, active: string): JSX.Element => (
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
   <>
     {isReadOnly() && <Raw html={READ_ONLY_BANNER} />}
+    {session.adminLevel === "owner" && <SettingsNagBanner />}
     <nav id="main-nav">
       <ul>
         {navLink("/admin/", "Events", active)}

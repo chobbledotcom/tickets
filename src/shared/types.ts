@@ -57,6 +57,21 @@ const PAYMENT_PROVIDERS: readonly PaymentProviderType[] = ["stripe", "square"];
 /** Type guard: check if a string is a valid PaymentProviderType */
 export const isPaymentProvider = createTypeGuard(PAYMENT_PROVIDERS);
 
+/** Persisted payment-provider setting: an explicit provider, "none" (admin saved
+ *  payments-disabled), or absent (never saved — drives the settings nag). */
+export type PaymentProviderSetting = PaymentProviderType | "none";
+
+const PAYMENT_PROVIDER_SETTINGS: readonly PaymentProviderSetting[] = [
+  "stripe",
+  "square",
+  "none",
+];
+
+/** Type guard: check if a string is a valid PaymentProviderSetting */
+export const isPaymentProviderSetting = createTypeGuard(
+  PAYMENT_PROVIDER_SETTINGS,
+);
+
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
 

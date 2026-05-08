@@ -337,7 +337,7 @@ const handlePaymentProviderPost = settingsHandler({
     v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
   save: (v) =>
     v === "none"
-      ? settings.update.clearPaymentProvider()
+      ? settings.update.setPaymentProviderNone()
       : settings.update.paymentProvider(v as PaymentProviderType),
   validate: (v) =>
     v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
