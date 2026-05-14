@@ -127,6 +127,19 @@ export const checkAvailability = (
     date,
   );
 
+/**
+ * Shared booking-date fields (date + durationDays). Keeps the payment and
+ * webhook flows aligned: both read duration from the event at insert time.
+ */
+export const bookingDateFields = (
+  event: Pick<TicketEvent["event"], "event_type" | "duration_days">,
+  date: string | null,
+): { date: string | null; durationDays: number } => ({
+  date: event.event_type === "daily" ? date : null,
+  durationDays:
+    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1,
+});
+
 /** Build registration items from events and quantities */
 export const buildRegistrationItems = (
   events: TicketEvent[],
@@ -171,11 +184,16 @@ export const handlePaymentFlow = (
 const buildBookings = (
   selected: EventQty[],
   date: string | null,
-): { eventId: number; quantity: number; date: string | null }[] =>
+): {
+  eventId: number;
+  quantity: number;
+  date: string | null;
+  durationDays: number;
+}[] =>
   selected.map(({ event, qty }) => ({
-    date: event.event_type === "daily" ? date : null,
     eventId: event.id,
     quantity: qty,
+    ...bookingDateFields(event, date),
   }));
 
 /**

@@ -106,6 +106,40 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
       expect(data.entries[0]!.attendee.date).toBe("2026-04-15");
     });
+
+    // Helper for the date_range_label tests — every case follows the same
+    // makeEntry → buildTemplateData → read label flow.
+    const dateRangeLabelFor = (
+      event: Partial<Parameters<typeof makeEntry>[0]>,
+      attendee: Partial<Parameters<typeof makeEntry>[1]>,
+    ): string =>
+      buildTemplateData(
+        [makeEntry(event, attendee)],
+        "GBP",
+        "https://example.com/t/ABC",
+      ).entries[0]!.attendee.date_range_label;
+
+    test("date_range_label: single-day daily booking formats as a date", () => {
+      expect(
+        dateRangeLabelFor(
+          { duration_days: 1, event_type: "daily" },
+          { date: "2026-04-15" },
+        ),
+      ).toContain("15 April");
+    });
+
+    test("date_range_label: multi-day booking uses en dash", () => {
+      expect(
+        dateRangeLabelFor(
+          { duration_days: 3, event_type: "daily" },
+          { date: "2026-04-15" },
+        ),
+      ).toBe("15\u201317 April 2026");
+    });
+
+    test("date_range_label: empty when no booking date", () => {
+      expect(dateRangeLabelFor({}, { date: null })).toBe("");
+    });
   });
 
   describe("renderTemplate", () => {
@@ -113,6 +147,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       attendee: {
         address: "123 St",
         date: null,
+        date_range_label: "",
         email: "jane@test.com",
         name: "Jane",
         phone: "555",
@@ -126,6 +161,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
           attendee: {
             address: "123 St",
             date: null,
+            date_range_label: "",
             email: "jane@test.com",
             name: "Jane",
             phone: "555",

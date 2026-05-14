@@ -67,6 +67,23 @@ export const createAttendeeAtomicImpl = async (
   if (bookings.length === 0) {
     return { reason: "capacity_exceeded", success: false };
   }
+  // Reject negative quantities outright — the atomic insert would happily
+  // store a negative row and skew future capacity sums.
+  if (bookings.some((b) => (b.quantity ?? 1) < 0)) {
+    return { reason: "capacity_exceeded", success: false };
+  }
+  // Reject duplicate (event_id, date) pairs in a single cart. The
+  // event_attendees unique index is on (event_id, attendee_id, start_at),
+  // so two rows with the same tuple would violate it — silently dropping
+  // one insert and delivering a half-fulfilled booking.
+  const seenKeys = new Set<string>();
+  for (const b of bookings) {
+    const key = `${b.eventId}|${b.date ?? ""}`;
+    if (seenKeys.has(key)) {
+      return { reason: "capacity_exceeded", success: false };
+    }
+    seenKeys.add(key);
+  }
 
   const contactInfo = { address, email, name, phone, special_instructions };
   // Use first booking's pricePaid for encryption (PII blob is shared)

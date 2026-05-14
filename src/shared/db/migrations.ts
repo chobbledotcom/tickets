@@ -86,6 +86,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
+        ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
         {

@@ -90,6 +90,42 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       );
     });
 
+    test("persists duration_days for daily events", async () => {
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          body: {
+            duration_days: 3,
+            event_type: "daily",
+            max_attendees: 20,
+            name: "Multi-day Workshop",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.event.duration_days).toBe(3);
+          expect(body.event.event_type).toBe("daily");
+        },
+      );
+    });
+
+    test("defaults duration_days to 1 when omitted", async () => {
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          body: {
+            event_type: "daily",
+            max_attendees: 20,
+            name: "Single-day Workshop",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.event.duration_days).toBe(1);
+        },
+      );
+    });
+
     test("creates event with all optional fields", async () => {
       await assertJson(
         apiRequest("/api/admin/events", {

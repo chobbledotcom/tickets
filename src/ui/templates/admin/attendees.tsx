@@ -4,7 +4,10 @@
 
 import { createLinkEventForm } from "#routes/admin/attendees-link-form.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
+import {
+  formatDateRangeLabel,
+  formatDatetimeShort,
+} from "#shared/dates.ts";
 import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
@@ -334,7 +337,11 @@ export const adminEditAttendeePage = (
                 <td>
                   <a href={`/admin/event/${evt.id}`}>{evt.name}</a>
                 </td>
-                <td>{linkDate ? formatDateLabel(linkDate) : ""}</td>
+                <td>
+                  {linkDate
+                    ? formatDateRangeLabel(booking.start_at, booking.end_at)
+                    : ""}
+                </td>
                 <td>
                   <CsrfForm
                     action={`/admin/attendees/${attendee.id}/event/${evt.id}`}
@@ -578,7 +585,12 @@ const MergeBookingsDecisionTable = ({
             {diff.bookingItems.map((item) => {
               const key = bookingKey(item.eventId, item.startAt);
               const name = `booking_${key}`;
-              const dateStr = item.startAt ? item.startAt.slice(0, 10) : "—";
+              const dateStr = item.startAt
+                ? formatDateRangeLabel(
+                    item.startAt,
+                    item.sourceBooking.end_at,
+                  )
+                : "—";
 
               if (item.conflictClass === "moveable") {
                 return (

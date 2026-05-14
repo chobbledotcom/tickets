@@ -250,10 +250,10 @@ export const buildOgTags = (
 };
 
 /** Render a date selector dropdown for daily events */
-const renderDateSelector = (dates: string[], selected = ""): string =>
+const renderDateSelector = (dates: string[], selected = "", durationDays = 1): string =>
   dates.length === 0
     ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
-    : `<label for="date">Select Date</label>
+    : `<label for="date">Select Date${durationDays > 1 ? ` <small>(each booking reserves ${durationDays} days)</small>` : ""}</label>
        <select name="date" id="date" required>
          <option value="">— Select a date —</option>
          ${dates
@@ -622,6 +622,7 @@ const TicketPageForm = ({
   slugs,
   fields,
   hasDaily,
+  durationDays,
   dates,
   eventRows,
   hideQuantity,
@@ -634,6 +635,7 @@ const TicketPageForm = ({
   slugs: string[];
   fields: Field[];
   hasDaily: boolean;
+  durationDays: number;
   dates: string[] | undefined;
   eventRows: string;
   hideQuantity: boolean;
@@ -652,7 +654,13 @@ const TicketPageForm = ({
       )}
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (
-        <Raw html={renderDateSelector(dates, qrPrefill?.date ?? "")} />
+        <Raw
+          html={renderDateSelector(
+            dates,
+            qrPrefill?.date ?? "",
+            durationDays,
+          )}
+        />
       )}
 
       {hideQuantity || isSingleEvent ? (
@@ -747,6 +755,7 @@ export const ticketPage = ({
       ) : (
         <TicketPageForm
           dates={dates}
+          durationDays={singleEvent?.duration_days ?? 1}
           eventRows={eventRows}
           fields={fields}
           hasDaily={hasDaily}
