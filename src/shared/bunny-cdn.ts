@@ -104,7 +104,7 @@ const okOrError = (response: FetchResult, label: string): BunnyApiResult =>
   response.ok ? { ok: true } : parseBunnyError(response, label);
 
 /** Parse a Bunny API error response into a BunnyApiResult. */
-const parseBunnyError = (
+export const parseBunnyError = (
   response: FetchResult,
   label: string,
 ): BunnyApiResult & { ok: false } => {

@@ -6,6 +6,7 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
+import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { getEnv } from "#shared/env.ts";
@@ -46,21 +47,6 @@ const dbApiHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
 });
 
-/** Parse a Bunny Database API error response. */
-const parseDbError = (
-  response: { status: number; text: string },
-  label: string,
-): { ok: false; error: string } => {
-  let message = response.text;
-  try {
-    const json = JSON.parse(response.text);
-    if (json.Message) message = json.Message;
-  } catch {
-    /* use raw text */
-  }
-  return { error: `${label} failed (${response.status}): ${message}`, ok: false };
-};
-
 /**
  * Create a new Bunny database with the given name.
  * Returns the database URL and a full-access token.
@@ -83,7 +69,7 @@ const createDatabaseImpl = async (
   });
 
   if (!createRes.ok) {
-    return parseDbError(createRes, "Create database");
+    return parseBunnyError(createRes, "Create database");
   }
 
   const createData: CreateDbResponse = JSON.parse(createRes.text);
@@ -95,7 +81,7 @@ const createDatabaseImpl = async (
   });
 
   if (!getRes.ok) {
-    return parseDbError(getRes, "Get database");
+    return parseBunnyError(getRes, "Get database");
   }
 
   const getData: GetDbResponse = JSON.parse(getRes.text);
@@ -112,7 +98,7 @@ const createDatabaseImpl = async (
   );
 
   if (!tokenRes.ok) {
-    return parseDbError(tokenRes, "Generate database token");
+    return parseBunnyError(tokenRes, "Generate database token");
   }
 
   const tokenData: GenerateTokenResponse = JSON.parse(tokenRes.text);
