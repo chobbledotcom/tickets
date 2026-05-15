@@ -73,7 +73,7 @@ const createDatabaseImpl = async (
       name,
       primary_regions: EUROPEAN_REGIONS,
       replicas_regions: EUROPEAN_REGIONS,
-      storage_region: "DE",
+      storage_region: "UK",
     }),
     headers: dbApiHeaders(),
     method: "POST",
