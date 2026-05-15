@@ -12,8 +12,12 @@ const stubOptimalRegions = (
 ) =>
   (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (init?.method === "HEAD") {
-      const headers = probeServerHeader ? { server: probeServerHeader } : {};
-      return Promise.resolve(new Response("", { headers, status: 200 }));
+      return Promise.resolve(
+        new Response("", {
+          headers: probeServerHeader ? { server: probeServerHeader } : undefined,
+          status: 200,
+        }),
+      );
     }
     if (String(input).includes("/v1/config/optimal")) {
       if (optimal === null) {
