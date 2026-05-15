@@ -215,14 +215,14 @@ describeWithEnv(
     test("createDatabase returns error when token generation fails with JSON body", async () => {
       await withMocks(
         () =>
-          stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.endsWith("/v2/databases")) {
+          stub(globalThis, "fetch", (_input: string | URL | Request) => {
+            const path = String(_input);
+            if (path.endsWith("/v2/databases")) {
               return Promise.resolve(
                 new Response(JSON.stringify({ db_id: "db_tok" }), { status: 200 }),
               );
             }
-            if (url.includes("/v2/databases/db_tok") && !url.includes("/auth")) {
+            if (path.includes("/v2/databases/db_tok") && !path.includes("/auth")) {
               return Promise.resolve(
                 new Response(
                   JSON.stringify({ db: { db_id: "db_tok", name: "T", url: "libsql://t.net" } }),

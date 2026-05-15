@@ -774,27 +774,27 @@ describeWithEnv(
             }),
           ),
           encKeyStub: stub(builderApi, "generateEncryptionKey", () => "key=="),
-          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
+          fetchStub: stub(globalThis, "fetch", (_input: string | URL | Request) => {
+            const href = String(_input);
+            if (href.includes("releases/latest")) {
               return Promise.resolve(
                 new Response(
                   JSON.stringify({
                     assets: [
                       {
-                        browser_download_url: "https://example.com/s.ts",
+                        browser_download_url: "https://example.com/notoken.ts",
                         name: "bunny-script.ts",
                       },
                     ],
-                    name: "T",
-                    published_at: "2026-01-01T00:00:00Z",
-                    tag_name: "v2026-01-01-000000",
+                    name: "NoToken",
+                    published_at: "2026-02-01T00:00:00Z",
+                    tag_name: "v2026-02-01-000000",
                   }),
                   { status: 200 },
                 ),
               );
             }
-            return Promise.resolve(new Response("code", { status: 200 }));
+            return Promise.resolve(new Response("/* notoken */", { status: 200 }));
           }),
           publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
