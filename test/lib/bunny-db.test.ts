@@ -1,74 +1,93 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyDbApi, getBunnyDbRegion } from "#shared/bunny-db.ts";
-import { describeWithEnv, setTestEnv, withMocks } from "#test-utils";
+import { bunnyDbApi } from "#shared/bunny-db.ts";
+import { describeWithEnv, withMocks } from "#test-utils";
+
+/** Stub a successful CDN probe returning a server token and optimal region response. */
+const stubOptimalRegions = (
+  fetchStub: (input: string | URL | Request, init?: RequestInit) => Promise<Response>,
+  probeServerHeader: string | null,
+  optimal: object | null,
+) =>
+  (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    if (init?.method === "HEAD") {
+      return Promise.resolve(
+        new Response("", {
+          headers: probeServerHeader ? { server: probeServerHeader } : undefined,
+          status: 200,
+        }),
+      );
+    }
+    if (String(input).includes("/v1/config/optimal")) {
+      if (optimal === null) {
+        return Promise.resolve(new Response("error", { status: 503 }));
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify(optimal), { status: 200 }),
+      );
+    }
+    return fetchStub(input, init);
+  };
 
 describeWithEnv(
   "bunny-db",
   { env: { BUNNY_API_KEY: "test-api-key" } },
   () => {
-    test("getBunnyDbRegion returns BUNNY_DB_REGION env var when set", () => {
-      const restore = setTestEnv({ BUNNY_DB_REGION: "NY" });
-      try {
-        expect(getBunnyDbRegion()).toBe("NY");
-      } finally {
-        restore();
-      }
-    });
-
-    test("getBunnyDbRegion defaults to DE when BUNNY_DB_REGION is not set", () => {
-      const restore = setTestEnv({ BUNNY_DB_REGION: undefined });
-      try {
-        expect(getBunnyDbRegion()).toBe("DE");
-      } finally {
-        restore();
-      }
-    });
-
     test("createDatabase calls create, get, and token endpoints", async () => {
       const fetchCalls: string[] = [];
 
       await withMocks(
         () =>
-          stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            fetchCalls.push(url);
+          stub(
+            globalThis,
+            "fetch",
+            stubOptimalRegions(
+              (input: string | URL | Request) => {
+                const url = String(input);
+                fetchCalls.push(url);
 
-            if (url.endsWith("/v2/databases") && !url.includes("/auth")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ db_id: "db_test123" }), {
-                  status: 200,
-                }),
-              );
-            }
+                if (url.endsWith("/v2/databases") && !url.includes("/auth")) {
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ db_id: "db_test123" }), {
+                      status: 200,
+                    }),
+                  );
+                }
 
-            if (url.includes("/v2/databases/db_test123") && !url.includes("/auth")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    db: {
-                      db_id: "db_test123",
-                      name: "My Site",
-                      url: "libsql://my-site.lite.bunnydb.net",
-                    },
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
+                if (
+                  url.includes("/v2/databases/db_test123") &&
+                  !url.includes("/auth")
+                ) {
+                  return Promise.resolve(
+                    new Response(
+                      JSON.stringify({
+                        db: {
+                          db_id: "db_test123",
+                          name: "My Site",
+                          url: "libsql://my-site.lite.bunnydb.net",
+                        },
+                      }),
+                      { status: 200 },
+                    ),
+                  );
+                }
 
-            if (url.includes("/auth/generate")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({ expires_at: null, token: "bny_token_abc" }),
-                  { status: 200 },
-                ),
-              );
-            }
+                if (url.includes("/auth/generate")) {
+                  return Promise.resolve(
+                    new Response(
+                      JSON.stringify({ expires_at: null, token: "bny_token_abc" }),
+                      { status: 200 },
+                    ),
+                  );
+                }
 
-            return Promise.resolve(new Response("unexpected", { status: 500 }));
-          }),
+                return Promise.resolve(new Response("unexpected", { status: 500 }));
+              },
+              "cdn-token",
+              { primary_regions: [{ id: "DE" }], replica_regions: [], storage_region: { id: "DE" } },
+            ),
+          ),
         async () => {
           const result = await bunnyDbApi.createDatabase("My Site");
 
@@ -84,50 +103,185 @@ describeWithEnv(
       );
     });
 
-    test("createDatabase sends correct request body with region", async () => {
+    test("createDatabase sends detected optimal regions in create request body", async () => {
       let createBody: unknown;
 
       await withMocks(
         () =>
-          stub(globalThis, "fetch", (input: string | URL | Request, init?: RequestInit) => {
-            const url = String(input);
+          stub(
+            globalThis,
+            "fetch",
+            stubOptimalRegions(
+              (input: string | URL | Request, init?: RequestInit) => {
+                const url = String(input);
 
-            if (url.endsWith("/v2/databases")) {
-              createBody = JSON.parse(init?.body as string);
-              return Promise.resolve(
-                new Response(JSON.stringify({ db_id: "db_abc" }), {
-                  status: 200,
-                }),
-              );
-            }
+                if (url.endsWith("/v2/databases")) {
+                  createBody = JSON.parse(init?.body as string);
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ db_id: "db_abc" }), {
+                      status: 200,
+                    }),
+                  );
+                }
 
-            if (url.includes("/v2/databases/db_abc") && !url.includes("/auth")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    db: { db_id: "db_abc", name: "Test", url: "libsql://x.bunnydb.net" },
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
+                if (
+                  url.includes("/v2/databases/db_abc") &&
+                  !url.includes("/auth")
+                ) {
+                  return Promise.resolve(
+                    new Response(
+                      JSON.stringify({
+                        db: { db_id: "db_abc", name: "Test", url: "libsql://x.bunnydb.net" },
+                      }),
+                      { status: 200 },
+                    ),
+                  );
+                }
 
-            if (url.includes("/auth/generate")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ token: "tok" }), { status: 200 }),
-              );
-            }
+                if (url.includes("/auth/generate")) {
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ token: "tok" }), { status: 200 }),
+                  );
+                }
 
-            return Promise.resolve(new Response("unexpected", { status: 500 }));
-          }),
+                return Promise.resolve(new Response("unexpected", { status: 500 }));
+              },
+              "cdn-location-xyz",
+              {
+                primary_regions: [{ id: "NY" }, { id: "LA" }],
+                replica_regions: [{ id: "SG" }],
+                storage_region: { id: "NY" },
+              },
+            ),
+          ),
         async () => {
           await bunnyDbApi.createDatabase("Test");
 
           expect(createBody).toEqual({
             name: "Test",
-            primary_regions: ["DE"],
+            primary_regions: ["NY", "LA"],
+            replicas_regions: ["SG"],
+            storage_region: "NY",
+          });
+        },
+      );
+    });
+
+    test("createDatabase sends empty regions when optimal region detection is unavailable", async () => {
+      let createBody: unknown;
+
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            stubOptimalRegions(
+              (input: string | URL | Request, init?: RequestInit) => {
+                const url = String(input);
+
+                if (url.endsWith("/v2/databases")) {
+                  createBody = JSON.parse(init?.body as string);
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ db_id: "db_fb" }), {
+                      status: 200,
+                    }),
+                  );
+                }
+
+                if (
+                  url.includes("/v2/databases/db_fb") &&
+                  !url.includes("/auth")
+                ) {
+                  return Promise.resolve(
+                    new Response(
+                      JSON.stringify({
+                        db: { db_id: "db_fb", name: "FB", url: "libsql://fb.bunnydb.net" },
+                      }),
+                      { status: 200 },
+                    ),
+                  );
+                }
+
+                if (url.includes("/auth/generate")) {
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ token: "tok" }), { status: 200 }),
+                  );
+                }
+
+                return Promise.resolve(new Response("unexpected", { status: 500 }));
+              },
+              null,
+              null,
+            ),
+          ),
+        async () => {
+          await bunnyDbApi.createDatabase("FB");
+
+          expect(createBody).toEqual({
+            name: "FB",
+            primary_regions: [],
             replicas_regions: [],
-            storage_region: "DE",
+            storage_region: undefined,
+          });
+        },
+      );
+    });
+
+    test("createDatabase handles partial optimal config response", async () => {
+      let createBody: unknown;
+
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            stubOptimalRegions(
+              (input: string | URL | Request, init?: RequestInit) => {
+                const url = String(input);
+
+                if (url.endsWith("/v2/databases")) {
+                  createBody = JSON.parse(init?.body as string);
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ db_id: "db_part" }), {
+                      status: 200,
+                    }),
+                  );
+                }
+
+                if (
+                  url.includes("/v2/databases/db_part") &&
+                  !url.includes("/auth")
+                ) {
+                  return Promise.resolve(
+                    new Response(
+                      JSON.stringify({
+                        db: { db_id: "db_part", name: "Part", url: "libsql://part.bunnydb.net" },
+                      }),
+                      { status: 200 },
+                    ),
+                  );
+                }
+
+                if (url.includes("/auth/generate")) {
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ token: "tok" }), { status: 200 }),
+                  );
+                }
+
+                return Promise.resolve(new Response("unexpected", { status: 500 }));
+              },
+              null,
+              {},
+            ),
+          ),
+        async () => {
+          await bunnyDbApi.createDatabase("Part");
+
+          expect(createBody).toEqual({
+            name: "Part",
+            primary_regions: [],
+            replicas_regions: [],
+            storage_region: undefined,
           });
         },
       );
@@ -138,31 +292,46 @@ describeWithEnv(
 
       await withMocks(
         () =>
-          stub(globalThis, "fetch", (input: string | URL | Request, init?: RequestInit) => {
-            const url = String(input);
-            const accessKey = (init?.headers as Record<string, string>)?.["AccessKey"];
-            if (accessKey) headers.push(accessKey);
+          stub(
+            globalThis,
+            "fetch",
+            stubOptimalRegions(
+              (input: string | URL | Request, init?: RequestInit) => {
+                const url = String(input);
+                const accessKey = (init?.headers as Record<string, string>)?.[
+                  "AccessKey"
+                ];
+                if (accessKey) headers.push(accessKey);
 
-            if (url.endsWith("/v2/databases")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ db_id: "db_hdr" }), { status: 200 }),
-              );
-            }
-            if (url.includes("/v2/databases/db_hdr") && !url.includes("/auth")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({ db: { db_id: "db_hdr", name: "H", url: "libsql://h.net" } }),
-                  { status: 200 },
-                ),
-              );
-            }
-            if (url.includes("/auth/generate")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ token: "t" }), { status: 200 }),
-              );
-            }
-            return Promise.resolve(new Response("", { status: 500 }));
-          }),
+                if (url.endsWith("/v2/databases")) {
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ db_id: "db_hdr" }), { status: 200 }),
+                  );
+                }
+                if (
+                  url.includes("/v2/databases/db_hdr") &&
+                  !url.includes("/auth")
+                ) {
+                  return Promise.resolve(
+                    new Response(
+                      JSON.stringify({
+                        db: { db_id: "db_hdr", name: "H", url: "libsql://h.net" },
+                      }),
+                      { status: 200 },
+                    ),
+                  );
+                }
+                if (url.includes("/auth/generate")) {
+                  return Promise.resolve(
+                    new Response(JSON.stringify({ token: "t" }), { status: 200 }),
+                  );
+                }
+                return Promise.resolve(new Response("", { status: 500 }));
+              },
+              "cdn-token",
+              { primary_regions: [{ id: "DE" }], replica_regions: [], storage_region: { id: "DE" } },
+            ),
+          ),
         async () => {
           await bunnyDbApi.createDatabase("H");
           expect(headers.every((h) => h === "test-api-key")).toBe(true);
@@ -198,7 +367,9 @@ describeWithEnv(
               );
             }
             return Promise.resolve(
-              new Response(JSON.stringify({ Message: "Database not found" }), { status: 404 }),
+              new Response(JSON.stringify({ Message: "Database not found" }), {
+                status: 404,
+              }),
             );
           }),
         async () => {
@@ -222,10 +393,15 @@ describeWithEnv(
                 new Response(JSON.stringify({ db_id: "db_tok" }), { status: 200 }),
               );
             }
-            if (url.includes("/v2/databases/db_tok") && !url.includes("/auth")) {
+            if (
+              url.includes("/v2/databases/db_tok") &&
+              !url.includes("/auth")
+            ) {
               return Promise.resolve(
                 new Response(
-                  JSON.stringify({ db: { db_id: "db_tok", name: "T", url: "libsql://t.net" } }),
+                  JSON.stringify({
+                    db: { db_id: "db_tok", name: "T", url: "libsql://t.net" },
+                  }),
                   { status: 200 },
                 ),
               );
