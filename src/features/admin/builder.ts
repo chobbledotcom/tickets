@@ -104,8 +104,8 @@ const builderPost = createAuthedFormRoute({
 
     const result = await settings.withCurrentTask("builder", () =>
       builderApi.buildSite({
-        dbToken: values.db_token || undefined,
-        dbUrl: values.db_url || undefined,
+        dbToken: values.db_token ?? undefined,
+        dbUrl: values.db_url ?? undefined,
         siteName: values.site_name,
       }),
     );
