@@ -6,16 +6,14 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
+import { map } from "#fp";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { fetchText } from "#shared/fetch.ts";
-import { getEnv } from "#shared/env.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
-
-/** Region to use when creating a new database (short Bunny region code). */
-export const getBunnyDbRegion = (): string =>
-  getEnv("BUNNY_DB_REGION") ?? "DE";
+const CDN_PROBE_URL = "https://bunny.net/index.html";
+const CONFIG_API_BASE = "https://api.bunny.net";
 
 type DbApiResult<T> = { ok: true } & T | { ok: false; error: string };
 
@@ -35,6 +33,12 @@ interface GenerateTokenResponse {
   token: string;
 }
 
+interface OptimalConfig {
+  primary_regions?: Array<{ id: string }>;
+  replica_regions?: Array<{ id: string }>;
+  storage_region?: { id: string };
+}
+
 export interface CreateDatabaseResult {
   dbId: string;
   dbUrl: string;
@@ -47,6 +51,34 @@ const dbApiHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
 });
 
+const mapId = map((r: { id: string }) => r.id);
+
+/** Detect optimal regions via CDN location probe, returning empty arrays on failure. */
+const getOptimalRegions = async (): Promise<{
+  primaryRegions: string[];
+  replicasRegions: string[];
+  storageRegion: string | undefined;
+}> => {
+  const probeRes = await fetch(CDN_PROBE_URL, { method: "HEAD" });
+  const cdnToken = probeRes.headers.get("server") ?? "";
+
+  const optimalRes = await fetchText(
+    `${CONFIG_API_BASE}/v1/config/optimal?cdn_server_token=${encodeURIComponent(cdnToken)}`,
+    { headers: dbApiHeaders() },
+  );
+
+  if (!optimalRes.ok) {
+    return { primaryRegions: [], replicasRegions: [], storageRegion: undefined };
+  }
+
+  const data: OptimalConfig = JSON.parse(optimalRes.text);
+  return {
+    primaryRegions: mapId(data.primary_regions ?? []),
+    replicasRegions: mapId(data.replica_regions ?? []),
+    storageRegion: data.storage_region?.id,
+  };
+};
+
 /**
  * Create a new Bunny database with the given name.
  * Returns the database URL and a full-access token.
@@ -54,15 +86,16 @@ const dbApiHeaders = (): Record<string, string> => ({
 const createDatabaseImpl = async (
   name: string,
 ): Promise<DbApiResult<CreateDatabaseResult>> => {
-  const region = getBunnyDbRegion();
+  const { primaryRegions, replicasRegions, storageRegion } =
+    await getOptimalRegions();
 
   // 1. Create the database
   const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
     body: JSON.stringify({
       name,
-      primary_regions: [region],
-      replicas_regions: [],
-      storage_region: region,
+      primary_regions: primaryRegions,
+      replicas_regions: replicasRegions,
+      storage_region: storageRegion,
     }),
     headers: dbApiHeaders(),
     method: "POST",
@@ -76,9 +109,10 @@ const createDatabaseImpl = async (
   const dbId = createData.db_id;
 
   // 2. Fetch database details to get the connection URL
-  const getRes = await fetchText(`${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}`, {
-    headers: dbApiHeaders(),
-  });
+  const getRes = await fetchText(
+    `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}`,
+    { headers: dbApiHeaders() },
+  );
 
   if (!getRes.ok) {
     return parseBunnyError(getRes, "Get database");
