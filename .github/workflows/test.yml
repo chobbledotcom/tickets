@@ -61,7 +61,24 @@ jobs:
           STRIPE_MOCK_HOST: localhost
           STRIPE_MOCK_PORT: "12111"
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-        run: deno task test:coverage
+        run: set -o pipefail && deno task test:coverage 2>&1 | tee test-output.log
+
+      - name: Surface test failures in step summary
+        if: failure()
+        run: |
+          {
+            echo "## Test failure diagnostics"
+            echo ""
+            echo "### Last 200 lines of test output"
+            echo '```'
+            tail -200 test-output.log || echo "(no test-output.log)"
+            echo '```'
+            echo ""
+            echo "### Lines matching FAILED / Error / AssertionError / uncovered"
+            echo '```'
+            grep -E "FAILED|error:|Error:|AssertionError|uncovered|coverage|Branch coverage|Line coverage" test-output.log | head -80 || echo "(no matches)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate HTML coverage report
         if: always()
