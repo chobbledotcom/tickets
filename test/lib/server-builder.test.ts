@@ -193,6 +193,24 @@ describeWithEnv(
       );
     });
 
+    test("POST /admin/builder passes empty token to testDbConnection when db_token omitted", async () => {
+      await withMocks(
+        () => ({
+          dbTestStub: stub(builderApi, "testDbConnection", () =>
+            Promise.resolve({ error: "no auth", ok: false as const }),
+          ),
+        }),
+        async ({ dbTestStub }) => {
+          await adminFormPost("/admin/builder", {
+            db_url: "libsql://test.turso.io",
+            site_name: "NoTokenSite",
+          });
+          expect(dbTestStub.calls).toHaveLength(1);
+          expect(dbTestStub.calls[0]!.args[1]).toBe("");
+        },
+      );
+    });
+
     test("POST /admin/builder creates site and records it on success with provided db", async () => {
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
