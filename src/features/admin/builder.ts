@@ -67,17 +67,17 @@ export const builderForm = defineForm({
       type: "text" as const,
     },
     {
+      hint: "Leave blank to auto-provision a new Bunny database",
       label: "Database URL",
       name: "db_url",
       placeholder: "libsql://your-db.turso.io",
-      required: true,
       type: "url" as const,
     },
     {
+      hint: "Leave blank to auto-provision a new Bunny database",
       label: "Database Token",
       name: "db_token",
       placeholder: "Token for the database",
-      required: true,
       type: "password" as const,
     },
   ] as const,
@@ -89,21 +89,23 @@ const builderPost = createAuthedFormRoute({
   form: builderForm,
   onInvalid: ({ error }) => errorRedirect(BUILDER_PATH, error),
   onValid: async ({ form, values }) => {
-    const dbTest = await builderApi.testDbConnection(
-      values.db_url,
-      values.db_token,
-    );
-    if (!dbTest.ok) {
-      return errorRedirect(
-        BUILDER_PATH,
-        `Database connection failed: ${dbTest.error}`,
+    if (values.db_url) {
+      const dbTest = await builderApi.testDbConnection(
+        values.db_url,
+        values.db_token ?? "",
       );
+      if (!dbTest.ok) {
+        return errorRedirect(
+          BUILDER_PATH,
+          `Database connection failed: ${dbTest.error}`,
+        );
+      }
     }
 
     const result = await settings.withCurrentTask("builder", () =>
       builderApi.buildSite({
-        dbToken: values.db_token,
-        dbUrl: values.db_url,
+        dbToken: values.db_token ?? undefined,
+        dbUrl: values.db_url ?? undefined,
         siteName: values.site_name,
       }),
     );
@@ -116,8 +118,8 @@ const builderPost = createAuthedFormRoute({
     await insertBuiltSite(
       values.site_name,
       buildResult.defaultHostname,
-      values.db_url,
-      values.db_token,
+      buildResult.dbUrl,
+      buildResult.dbToken,
       form.getString("assignable") === "1",
       String(buildResult.scriptId),
     );

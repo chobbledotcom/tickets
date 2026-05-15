@@ -5,6 +5,13 @@ import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getAllBuiltSites } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
+
+const MOCK_DB_RESULT = {
+  dbId: "db_auto123",
+  dbToken: "auto-token",
+  dbUrl: "libsql://auto.lite.bunnydb.net",
+  ok: true as const,
+};
 import {
   adminFormPost,
   awaitTestRequest,
@@ -22,6 +29,9 @@ import {
 
 /** Stub all Bunny + GitHub APIs for a successful build */
 const stubSuccessfulBuild = () => ({
+  createDbStub: stub(builderApi, "createDatabase", () =>
+    Promise.resolve(MOCK_DB_RESULT),
+  ),
   createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
     Promise.resolve({
       defaultHostname: "https://test-42.b-cdn.net",
@@ -158,35 +168,7 @@ describeWithEnv(
       );
     });
 
-    test("POST /admin/builder returns error when db_url is empty", async () => {
-      const { response } = await adminFormPost("/admin/builder", {
-        db_token: "token",
-        db_url: "",
-        site_name: "Test",
-      });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Database URL is required"),
-        false,
-      );
-    });
-
-    test("POST /admin/builder returns error when db_token is empty", async () => {
-      const { response } = await adminFormPost("/admin/builder", {
-        db_token: "",
-        db_url: "libsql://test.turso.io",
-        site_name: "Test",
-      });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Database Token is required"),
-        false,
-      );
-    });
-
-    test("POST /admin/builder returns error when db connection fails", async () => {
+    test("POST /admin/builder returns error when db connection fails with provided URL", async () => {
       await withMocks(
         () =>
           stub(builderApi, "testDbConnection", () =>
@@ -211,7 +193,25 @@ describeWithEnv(
       );
     });
 
-    test("POST /admin/builder creates site and records it on success", async () => {
+    test("POST /admin/builder passes empty token to testDbConnection when db_token omitted", async () => {
+      await withMocks(
+        () => ({
+          dbTestStub: stub(builderApi, "testDbConnection", () =>
+            Promise.resolve({ error: "no auth", ok: false as const }),
+          ),
+        }),
+        async ({ dbTestStub }) => {
+          await adminFormPost("/admin/builder", {
+            db_url: "libsql://test.turso.io",
+            site_name: "NoTokenSite",
+          });
+          expect(dbTestStub.calls).toHaveLength(1);
+          expect(dbTestStub.calls[0]!.args[1]).toBe("");
+        },
+      );
+    });
+
+    test("POST /admin/builder creates site and records it on success with provided db", async () => {
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
           db_token: "token123",
@@ -222,7 +222,7 @@ describeWithEnv(
         expectRedirect(response, "/admin/builder");
         expectFlash(response, expect.stringContaining("created successfully"));
 
-        // Verify site was recorded with db credentials
+        // Verify site was recorded with db credentials from buildResult
         const sites = await getAllBuiltSites();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("My Test Site");
@@ -231,6 +231,24 @@ describeWithEnv(
         expect(sites[0]!.dbToken).toBe("token123");
         expect(sites[0]!.bunnyScriptId).toBe("42");
         expect(sites[0]!.assignable).toBe(false);
+      });
+    });
+
+    test("POST /admin/builder auto-creates database when db_url is blank", async () => {
+      await withMocks(stubSuccessfulBuild, async () => {
+        const { response } = await adminFormPost("/admin/builder", {
+          db_url: "",
+          site_name: "Auto DB Site",
+        });
+
+        expectRedirect(response, "/admin/builder");
+        expectFlash(response, expect.stringContaining("created successfully"));
+
+        const sites = await getAllBuiltSites();
+        expect(sites).toHaveLength(1);
+        expect(sites[0]!.name).toBe("Auto DB Site");
+        expect(sites[0]!.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
+        expect(sites[0]!.dbToken).toBe(MOCK_DB_RESULT.dbToken);
       });
     });
 
@@ -302,6 +320,8 @@ describeWithEnv(
         () => ({
           buildStub: stub(builderApi, "buildSite", () =>
             Promise.resolve({
+              dbToken: "tok",
+              dbUrl: "libsql://test.io",
               defaultHostname: "https://test.b-cdn.net",
               ok: true as const,
               scriptId: 1,

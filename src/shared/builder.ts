@@ -3,16 +3,16 @@
  *
  * Flow:
  * 1. Fetch latest release code from GitHub
+ * 1b. Auto-provision a Bunny database if dbUrl/dbToken not supplied
  * 2. Create a new Bunny edge script with the code
  * 3. Enable cookies on the linked pull zone (DisableCookies: false)
- * 4. Set secrets: user-provided (DB_URL, DB_TOKEN), generated (DB_ENCRYPTION_KEY),
- *    and copied from host (email, wallet, ntfy, storage, DNS config)
- * 5. Test database connection
- * 6. Publish the script
- * 7. Record the built site in the local database
+ * 4. Set secrets: DB credentials, generated DB_ENCRYPTION_KEY,
+ *    and host secrets copied from the host environment
+ * 5. Publish the script
  */
 
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { bunnyDbApi, type CreateDatabaseResult } from "#shared/bunny-db.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
@@ -41,12 +41,14 @@ const HOST_SECRET_KEYS = [
 
 export type BuildSiteInput = {
   siteName: string;
-  dbUrl: string;
-  dbToken: string;
+  /** Leave blank to auto-provision a new Bunny database via the API. */
+  dbUrl?: string;
+  /** Leave blank to auto-provision a new Bunny database via the API. */
+  dbToken?: string;
 };
 
 export type BuildSiteResult =
-  | { ok: true; scriptId: number; defaultHostname: string }
+  | { ok: true; scriptId: number; defaultHostname: string; dbUrl: string; dbToken: string }
   | { ok: false; error: string };
 
 /** Generate a random 32-byte base64 encryption key */
@@ -113,6 +115,16 @@ export const buildSite = async (
     };
   }
 
+  // 1b. Auto-provision database if credentials not supplied
+  let dbCredentials: Pick<CreateDatabaseResult, "dbUrl" | "dbToken">;
+  if (input.dbUrl) {
+    dbCredentials = { dbToken: input.dbToken ?? "", dbUrl: input.dbUrl };
+  } else {
+    const dbResult = await builderApi.createDatabase(input.siteName);
+    if (!dbResult.ok) return dbResult;
+    dbCredentials = { dbToken: dbResult.dbToken, dbUrl: dbResult.dbUrl };
+  }
+
   // 2. Create edge script
   const createResult = await bunnyCdnApi.createEdgeScript(fullName, code);
   if (!createResult.ok) return createResult;
@@ -130,8 +142,8 @@ export const buildSite = async (
 
   // 5. Set secrets
   const secrets: [string, string][] = [
-    ["DB_URL", input.dbUrl],
-    ["DB_TOKEN", input.dbToken],
+    ["DB_URL", dbCredentials.dbUrl],
+    ["DB_TOKEN", dbCredentials.dbToken],
     ["DB_ENCRYPTION_KEY", encryptionKey],
     ["BUNNY_SCRIPT_ID", String(scriptId)],
   ];
@@ -151,12 +163,13 @@ export const buildSite = async (
   const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
   if (!publishResult.ok) return publishResult;
 
-  return { defaultHostname, ok: true, scriptId };
+  return { dbToken: dbCredentials.dbToken, dbUrl: dbCredentials.dbUrl, defaultHostname, ok: true, scriptId };
 };
 
 /** Stubbable API for testing */
 export const builderApi = {
   buildSite,
+  createDatabase: bunnyDbApi.createDatabase,
   generateEncryptionKey,
   testDbConnection,
 };

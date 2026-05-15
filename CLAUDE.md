@@ -117,6 +117,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
+- `BUNNY_DB_REGION` - Bunny database region for auto-provisioned databases (defaults to `DE` for Frankfurt; e.g. `NY`, `LA`, `SG`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
 - `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (e.g. `pass.com.example.tickets`)
 - `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (e.g. `ABC1234567`)
