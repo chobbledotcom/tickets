@@ -756,5 +756,68 @@ describeWithEnv(
         },
       );
     });
+
+    test("buildSite uses empty string dbToken when dbUrl provided without dbToken", async () => {
+      const secretsSet: [string, string][] = [];
+
+      await withMocks(
+        () => ({
+          createDbStub: stub(builderApi, "createDatabase", () =>
+            Promise.resolve(MOCK_DB_RESULT),
+          ),
+          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
+            Promise.resolve({
+              defaultHostname: "https://test.b-cdn.net",
+              ok: true as const,
+              pullZoneId: 1,
+              scriptId: 1,
+            }),
+          ),
+          encKeyStub: stub(builderApi, "generateEncryptionKey", () => "key=="),
+          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
+            const url = String(input);
+            if (url.includes("releases/latest")) {
+              return Promise.resolve(
+                new Response(
+                  JSON.stringify({
+                    assets: [
+                      {
+                        browser_download_url: "https://example.com/s.ts",
+                        name: "bunny-script.ts",
+                      },
+                    ],
+                    name: "T",
+                    published_at: "2026-01-01T00:00:00Z",
+                    tag_name: "v2026-01-01-000000",
+                  }),
+                  { status: 200 },
+                ),
+              );
+            }
+            return Promise.resolve(new Response("code", { status: 200 }));
+          }),
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+          secretStub: stub(
+            bunnyCdnApi,
+            "setEdgeScriptSecret",
+            (_id: number, name: string, value: string) => {
+              secretsSet.push([name, value]);
+              return Promise.resolve({ ok: true as const });
+            },
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+        }),
+        async ({ createDbStub }) => {
+          await builderApi.buildSite({ dbUrl: "libsql://provided.io", siteName: "NoToken" });
+          expect(createDbStub.calls.length).toBe(0);
+          const dbTokenSecret = secretsSet.find(([n]) => n === "DB_TOKEN");
+          expect(dbTokenSecret![1]).toBe("");
+        },
+      );
+    });
   },
 );

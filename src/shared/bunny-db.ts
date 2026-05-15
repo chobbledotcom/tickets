@@ -55,7 +55,6 @@ const parseDbError = (
   try {
     const json = JSON.parse(response.text);
     if (json.Message) message = json.Message;
-    else if (json.message) message = json.message;
   } catch {
     /* use raw text */
   }

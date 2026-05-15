@@ -187,7 +187,7 @@ describeWithEnv(
       );
     });
 
-    test("createDatabase returns error when get database endpoint fails", async () => {
+    test("createDatabase returns error when get database endpoint fails with JSON Message", async () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", (input: string | URL | Request) => {
@@ -197,19 +197,22 @@ describeWithEnv(
                 new Response(JSON.stringify({ db_id: "db_err" }), { status: 200 }),
               );
             }
-            return Promise.resolve(new Response("Server Error", { status: 500 }));
+            return Promise.resolve(
+              new Response(JSON.stringify({ Message: "Database not found" }), { status: 404 }),
+            );
           }),
         async () => {
           const result = await bunnyDbApi.createDatabase("Err");
           expect(result.ok).toBe(false);
           if (!result.ok) {
-            expect(result.error).toContain("Get database failed (500)");
+            expect(result.error).toContain("Get database failed (404)");
+            expect(result.error).toContain("Database not found");
           }
         },
       );
     });
 
-    test("createDatabase returns error when token generation fails", async () => {
+    test("createDatabase returns error when token generation fails with JSON body", async () => {
       await withMocks(
         () =>
           stub(globalThis, "fetch", (input: string | URL | Request) => {
@@ -227,7 +230,9 @@ describeWithEnv(
                 ),
               );
             }
-            return Promise.resolve(new Response("Unauthorized", { status: 401 }));
+            return Promise.resolve(
+              new Response(JSON.stringify({ code: 401 }), { status: 401 }),
+            );
           }),
         async () => {
           const result = await bunnyDbApi.createDatabase("T");
