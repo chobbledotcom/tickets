@@ -30,7 +30,7 @@ export const EUROPEAN_REGIONS = [
   "UK",
 ];
 
-type DbApiResult<T> = { ok: true } & T | { ok: false; error: string };
+type DbApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 interface CreateDbResponse {
   db_id: string;
@@ -73,6 +73,7 @@ const createDatabaseImpl = async (
       name,
       primary_regions: EUROPEAN_REGIONS,
       replicas_regions: EUROPEAN_REGIONS,
+      storage_region: "DE",
     }),
     headers: dbApiHeaders(),
     method: "POST",
