@@ -757,6 +757,55 @@ describeWithEnv(
       );
     });
 
+    test("buildSite uses provided code without fetching from GitHub", async () => {
+      const fetchedUrls: string[] = [];
+      const deployedCode: string[] = [];
+
+      await withMocks(
+        () => ({
+          createDbStub: stub(builderApi, "createDatabase", () =>
+            Promise.resolve(MOCK_DB_RESULT),
+          ),
+          createStub: stub(
+            bunnyCdnApi,
+            "createEdgeScript",
+            (_name: string, code: string) => {
+              deployedCode.push(code);
+              return Promise.resolve({
+                defaultHostname: "https://test.b-cdn.net",
+                ok: true as const,
+                pullZoneId: 1,
+                scriptId: 1,
+              });
+            },
+          ),
+          encKeyStub: stub(builderApi, "generateEncryptionKey", () => "key=="),
+          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
+            fetchedUrls.push(String(input));
+            return Promise.resolve(new Response("should-not-be-called", { status: 500 }));
+          }),
+          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+          secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
+            Promise.resolve({ ok: true as const }),
+          ),
+        }),
+        async () => {
+          const result = await builderApi.buildSite({
+            code: "console.log('local-bundle')",
+            siteName: "Local",
+          });
+          expect(result.ok).toBe(true);
+          expect(fetchedUrls.some((u) => u.includes("github"))).toBe(false);
+          expect(deployedCode).toEqual(["console.log('local-bundle')"]);
+        },
+      );
+    });
+
     test("buildSite uses empty string dbToken when dbUrl provided without dbToken", async () => {
       const secretsSet: [string, string][] = [];
 

@@ -45,6 +45,12 @@ export type BuildSiteInput = {
   dbUrl?: string;
   /** Leave blank to auto-provision a new Bunny database via the API. */
   dbToken?: string;
+  /**
+   * Pre-built bundle source to deploy. When omitted, the latest GitHub
+   * release asset is fetched (used by /admin/builder). The CLI builder
+   * passes a freshly-built local bundle here.
+   */
+  code?: string;
 };
 
 export type BuildSiteResult =
@@ -93,26 +99,30 @@ export const buildSite = async (
 ): Promise<BuildSiteResult> => {
   const fullName = `Tickets - ${input.siteName}`;
 
-  // 1. Fetch latest release code
+  // 1. Source the bundle code: caller-supplied or latest GitHub release
   let code: string;
-  try {
-    const release = await fetchLatestRelease();
-    if (!release.assetUrl) {
-      return { error: "No release asset found on GitHub", ok: false };
-    }
-    const assetResponse = await fetchText(release.assetUrl);
-    if (!assetResponse.ok) {
+  if (input.code !== undefined) {
+    code = input.code;
+  } else {
+    try {
+      const release = await fetchLatestRelease();
+      if (!release.assetUrl) {
+        return { error: "No release asset found on GitHub", ok: false };
+      }
+      const assetResponse = await fetchText(release.assetUrl);
+      if (!assetResponse.ok) {
+        return {
+          error: `Failed to download release: ${assetResponse.status}`,
+          ok: false,
+        };
+      }
+      code = assetResponse.text;
+    } catch (e) {
       return {
-        error: `Failed to download release: ${assetResponse.status}`,
+        error: `Failed to fetch release: ${(e as Error).message}`,
         ok: false,
       };
     }
-    code = assetResponse.text;
-  } catch (e) {
-    return {
-      error: `Failed to fetch release: ${(e as Error).message}`,
-      ok: false,
-    };
   }
 
   // 1b. Auto-provision database if credentials not supplied
