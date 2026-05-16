@@ -120,7 +120,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
           name: "Test",
           primary_regions: EUROPEAN_REGIONS,
           replicas_regions: EUROPEAN_REGIONS,
-          storage_region: "Europe",
+          storage_region: null,
         });
       },
     );
