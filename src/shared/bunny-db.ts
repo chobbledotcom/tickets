@@ -6,16 +6,38 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
-import { map } from "#fp";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { fetchText } from "#shared/fetch.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
-const CDN_PROBE_URL = "https://bunny.net/index.html";
-const CONFIG_API_BASE = "https://api.bunny.net";
 
-type DbApiResult<T> = { ok: true } & T | { ok: false; error: string };
+/**
+ * Storage region for new databases. Bunny only exposes two storage zones —
+ * `eu-west-1` (EU) and `us-east-1` (NA) — confirmed via
+ * `GET /database/v1/config`. See scripts/bunny-regions.ts.
+ */
+export const STORAGE_REGION = "eu-west-1";
+
+/** All European Bunny database node IDs. */
+export const EUROPEAN_REGIONS = [
+  "AMS",
+  "AT",
+  "BU",
+  "CZ",
+  "DE",
+  "DK",
+  "ES",
+  "FR",
+  "GR",
+  "HR",
+  "IT",
+  "PL",
+  "SE",
+  "UK",
+];
+
+type DbApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 interface CreateDbResponse {
   db_id: string;
@@ -33,12 +55,6 @@ interface GenerateTokenResponse {
   token: string;
 }
 
-interface OptimalConfig {
-  primary_regions?: Array<{ id: string }>;
-  replica_regions?: Array<{ id: string }>;
-  storage_region?: { id: string };
-}
-
 export interface CreateDatabaseResult {
   dbId: string;
   dbUrl: string;
@@ -51,34 +67,6 @@ const dbApiHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
 });
 
-const mapId = map((r: { id: string }) => r.id);
-
-/** Detect optimal regions via CDN location probe, returning empty arrays on failure. */
-const getOptimalRegions = async (): Promise<{
-  primaryRegions: string[];
-  replicasRegions: string[];
-  storageRegion: string | undefined;
-}> => {
-  const probeRes = await fetch(CDN_PROBE_URL, { method: "HEAD" });
-  const cdnToken = probeRes.headers.get("server") ?? "";
-
-  const optimalRes = await fetchText(
-    `${CONFIG_API_BASE}/v1/config/optimal?cdn_server_token=${encodeURIComponent(cdnToken)}`,
-    { headers: dbApiHeaders() },
-  );
-
-  if (!optimalRes.ok) {
-    return { primaryRegions: [], replicasRegions: [], storageRegion: undefined };
-  }
-
-  const data: OptimalConfig = JSON.parse(optimalRes.text);
-  return {
-    primaryRegions: mapId(data.primary_regions ?? []),
-    replicasRegions: mapId(data.replica_regions ?? []),
-    storageRegion: data.storage_region?.id,
-  };
-};
-
 /**
  * Create a new Bunny database with the given name.
  * Returns the database URL and a full-access token.
@@ -86,16 +74,13 @@ const getOptimalRegions = async (): Promise<{
 const createDatabaseImpl = async (
   name: string,
 ): Promise<DbApiResult<CreateDatabaseResult>> => {
-  const { primaryRegions, replicasRegions, storageRegion } =
-    await getOptimalRegions();
-
-  // 1. Create the database
+  // 1. Create the database with all European nodes as primaries and replicas
   const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
     body: JSON.stringify({
       name,
-      primary_regions: primaryRegions,
-      replicas_regions: replicasRegions,
-      storage_region: storageRegion,
+      primary_regions: EUROPEAN_REGIONS,
+      replicas_regions: EUROPEAN_REGIONS,
+      storage_region: STORAGE_REGION,
     }),
     headers: dbApiHeaders(),
     method: "POST",
