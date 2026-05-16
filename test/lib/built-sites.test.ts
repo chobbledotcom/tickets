@@ -4,7 +4,6 @@ import {
   assignBuiltSite,
   buildSiteDataBlob,
   builtSitesCrudTable,
-  countAssignableSites,
   getAllBuiltSites,
   getAssignableBuiltSites,
   insertBuiltSite,
@@ -329,20 +328,6 @@ describeWithEnv("built-sites", { db: true }, () => {
       const sites = await getAllBuiltSites();
       const site = sites.find((s) => s.name === "Default Site")!;
       expect(site.assignable).toBe(false);
-    });
-
-    test("countAssignableSites counts only assignable sites", async () => {
-      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", true);
-      await insertBuiltSite("Site B", "b.b-cdn.net", "", "", true);
-      await insertBuiltSite("Site C", "c.b-cdn.net", "", "", false);
-      const count = await countAssignableSites();
-      expect(count).toBe(2);
-    });
-
-    test("countAssignableSites returns 0 when no assignable sites", async () => {
-      await insertBuiltSite("Site A", "a.b-cdn.net", "", "", false);
-      const count = await countAssignableSites();
-      expect(count).toBe(0);
     });
 
     test("getAssignableBuiltSites filters to assignable only", async () => {

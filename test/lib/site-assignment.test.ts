@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   resetHostEmailConfig,
@@ -8,6 +9,26 @@ import {
 } from "#shared/email.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv, makeTestEntry, setTestEnv } from "#test-utils";
+
+const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
+  let counter = 0;
+  return stub(builderApi, "buildSite", (input: BuildSiteInput) => {
+    counter++;
+    onCall?.(input);
+    return Promise.resolve({
+      dbToken: `token-${counter}`,
+      dbUrl: `libsql://auto-${counter}.test`,
+      defaultHostname: `auto-${counter}.b-cdn.net`,
+      ok: true as const,
+      scriptId: 1000 + counter,
+    });
+  });
+};
+
+const stubBuildSiteFailure = () =>
+  stub(builderApi, "buildSite", () =>
+    Promise.resolve({ error: "build failed", ok: false as const }),
+  );
 
 /** Build an entry with assign_built_site for testing */
 const siteEntry = (
@@ -104,14 +125,20 @@ describeWithEnv(
         expect(assigned[1]!.assignedEventId).toBe(2);
       });
 
-      test("does not assign when no assignable sites available", async () => {
+      test("does not assign when no sites available and buildSite fails", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", false);
+        const buildStub = stubBuildSiteFailure();
+        try {
+          await assignAndNotifyBuiltSites([siteEntry()]);
 
-        await assignAndNotifyBuiltSites([siteEntry()]);
-
-        const sites = await getAllBuiltSites();
-        expect(sites[0]!.assignedAttendeeId).toBeNull();
-        expect(fetchStub.calls.length).toBe(0);
+          const sites = await getAllBuiltSites();
+          const existing = sites.find((s) => s.name === "Site A")!;
+          expect(existing.assignedAttendeeId).toBeNull();
+          expect(buildStub.calls.length).toBe(1);
+          expect(fetchStub.calls.length).toBe(0);
+        } finally {
+          buildStub.restore();
+        }
       });
 
       test("no-ops for empty entries", async () => {
@@ -119,15 +146,54 @@ describeWithEnv(
         expect(fetchStub.calls.length).toBe(0);
       });
 
-      test("assigns only available sites when fewer than needed", async () => {
+      test("auto-builds when no assignable sites are available", async () => {
+        const buildStub = stubBuildSiteSuccess();
+        try {
+          await assignAndNotifyBuiltSites([siteEntry()]);
+
+          const sites = await getAllBuiltSites();
+          expect(sites).toHaveLength(1);
+          expect(sites[0]!.bunnyUrl).toBe("auto-1.b-cdn.net");
+          expect(sites[0]!.assignedAttendeeId).not.toBeNull();
+          expect(buildStub.calls.length).toBe(1);
+          expect(fetchStub.calls.length).toBe(1);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
+      test("auto-builds remaining sites when fewer assignable than needed", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        const builtNames: string[] = [];
+        const buildStub = stubBuildSiteSuccess((input) => {
+          builtNames.push(input.siteName);
+        });
+        try {
+          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
 
-        await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
+          const sites = await getAllBuiltSites();
+          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(3);
+          expect(buildStub.calls.length).toBe(2);
+          expect(fetchStub.calls.length).toBe(1);
+        } finally {
+          buildStub.restore();
+        }
+      });
 
-        const sites = await getAllBuiltSites();
-        const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
-        expect(assigned).toHaveLength(1);
-        expect(fetchStub.calls.length).toBe(1);
+      test("uses sequential zero-padded names for auto-built sites", async () => {
+        await insertBuiltSite("Manual", "manual.b-cdn.net", "", "", false);
+        const builtNames: string[] = [];
+        const buildStub = stubBuildSiteSuccess((input) => {
+          builtNames.push(input.siteName);
+        });
+        try {
+          await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
+
+          expect(builtNames).toEqual(["00002", "00003"]);
+        } finally {
+          buildStub.restore();
+        }
       });
 
       test("sends email with plural subject for multiple sites", async () => {

@@ -5,8 +5,12 @@
  */
 
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { builderApi } from "#shared/builder.ts";
 import {
   assignBuiltSite,
+  type BuiltSite,
+  builtSitesCrudTable,
+  getAllBuiltSites,
   getAssignableBuiltSites,
 } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -15,6 +19,7 @@ import {
   getHostEmailConfig,
   sendEmail,
 } from "#shared/email.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {
@@ -26,6 +31,31 @@ type SiteAssignmentEntry = {
 type SiteAssignment = {
   siteUrl: string;
   eventName: string;
+};
+
+/** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
+const nextSiteName = async (): Promise<string> =>
+  String((await getAllBuiltSites()).length + 1).padStart(5, "0");
+
+/** Build a new site on-demand and insert it as an assignable record. */
+const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
+  const name = await nextSiteName();
+  const result = await builderApi.buildSite({ siteName: name });
+  if (!result.ok) {
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `Failed to auto-build site '${name}': ${result.error}`,
+    });
+    return null;
+  }
+  return builtSitesCrudTable.insert({
+    assignable: true,
+    bunnyScriptId: String(result.scriptId),
+    bunnyUrl: result.defaultHostname,
+    dbToken: result.dbToken,
+    dbUrl: result.dbUrl,
+    name,
+  });
 };
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
@@ -42,8 +72,8 @@ const assignSitesForEntries = async (
   for (const { event, attendee } of needsSite) {
     const qty = attendee.quantity;
     for (let i = 0; i < qty; i++) {
-      const site = available[idx];
-      if (!site) break; // edge case: ran out (paid booking race)
+      const site = available[idx] ?? (await buildSiteForAssignment());
+      if (!site) break;
       await assignBuiltSite(site.id, attendee.id, event.id);
       assignments.push({ eventName: event.name, siteUrl: site.bunnyUrl });
       idx++;

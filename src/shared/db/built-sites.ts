@@ -6,7 +6,7 @@
 import type { InValue } from "@libsql/client";
 import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -284,16 +284,6 @@ export const insertBuiltSite = (
 /** Get all built sites, decrypted and sorted by name */
 export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
   builtSitesCache.getAll();
-
-/** Count assignable sites (fast SQL, no decryption) */
-export const countAssignableSites = async (): Promise<number> => {
-  // COUNT(*) always returns exactly one row
-  const row = (await queryOne<{ cnt: number }>(
-    "SELECT COUNT(*) as cnt FROM built_sites WHERE assignable = 1",
-    [],
-  ))!;
-  return row.cnt;
-};
 
 /** Get all assignable built sites */
 export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
