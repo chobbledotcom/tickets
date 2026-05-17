@@ -117,6 +117,7 @@ export interface Event {
   thank_you_url: string;
   unit_price: number;
   webhook_url: string;
+  duration_days: number;
 }
 
 export interface Attendee extends ContactInfo {

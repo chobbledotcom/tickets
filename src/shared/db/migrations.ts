@@ -34,7 +34,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add token rate-limit table with window_start/last_attempt";
+  "add duration_days to events";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -86,6 +86,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
+        ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
         {

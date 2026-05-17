@@ -49,6 +49,8 @@ export type EventBooking = {
   quantity?: number;
   pricePaid?: number;
   date?: string | null;
+  /** Booking duration in days (defaults to 1 for 1-day bookings). Only meaningful when date is set. */
+  durationDays?: number;
 };
 
 /** Input for creating an attendee atomically (one or more events) */
@@ -82,7 +84,12 @@ export type AttendeeWithBookings = {
 };
 
 /** Item for batch availability check */
-export type BatchAvailabilityItem = { eventId: number; quantity: number };
+export type BatchAvailabilityItem = {
+  eventId: number;
+  quantity: number;
+  /** Duration in days for multi-day bookings (defaults to 1 when absent). */
+  durationDays?: number;
+};
 
 /** Input for updating attendee PII (shared across events) */
 export type UpdateAttendeePIIInput = {
@@ -101,6 +108,8 @@ export type UpdateAttendeePIIInput = {
 export type UpdateEventLinkInput = {
   quantity: number;
   date: string | null;
+  /** Duration in days (defaults to 1). Only meaningful when date is set. */
+  durationDays?: number;
 };
 
 /** Result of updating an event link */

@@ -24,6 +24,7 @@ export const API_EXAMPLE_EVENT: EventWithCount = {
   date: "Sat 20 Aug 2025, 10:00 AM",
   description:
     "A hands-on workshop covering watercolours and sketching techniques. All materials provided.",
+  duration_days: 1,
   event_type: "standard",
   fields: "email",
   group_id: 0,

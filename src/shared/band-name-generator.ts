@@ -36,7 +36,7 @@ import { VENUE_TYPES } from "#shared/band-name-generator/venue-types.ts";
 import { WEIRD_VENUES } from "#shared/band-name-generator/weird-venues.ts";
 
 // Re-export every pool so existing call sites and tests can keep using
-// `import { BAND_ADJECTIVES } from "#lib/band-name-generator.ts"`.
+// `import { BAND_ADJECTIVES } from "#shared/band-name-generator.ts"`.
 export {
   AGE_NOTES,
   AUDIENCE_OUTCOMES,
