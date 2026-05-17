@@ -1202,3 +1202,27 @@ describeWithEnv(
     });
   },
 );
+
+describe("adminEventPage Renewal tag", () => {
+  test("renders Renewal tag for tier events with months_per_unit > 0", () => {
+    const event = testEventWithCount({ months_per_unit: 3 });
+    const html = adminEventPage({
+      allowedDomain: "",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Renewal");
+  });
+
+  test("does not render Renewal tag for events with months_per_unit = 0", () => {
+    const event = testEventWithCount({ months_per_unit: 0 });
+    const html = adminEventPage({
+      allowedDomain: "",
+      attendees: [],
+      event,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Renewal");
+  });
+});
