@@ -319,21 +319,51 @@ month (Jan 31 + 1mo → Feb 28/29). Lives in a new `src/shared/dates.ts`
 - `built_sites` admin index gains a `Read-only from` column,
   formatted (`"in 14 days"`, `"expired 3 days ago"`, `"never"`).
 - Per-site detail page (`/admin/built-sites/<id>/edit`) gains a
-  "Renewal" panel:
-  - Current renewal token (regenerable via "Rotate token" button —
-    POST to `/admin/built-sites/<id>/rotate-renewal-token`).
+  "Renewal" panel. The panel has two modes:
+
+  **Provisioned** (site has both `renewal_token_index` and
+  `renewal_tier_event_id`):
+  - Current renewal URL + copy-to-clipboard.
   - Current tier event (selectable dropdown of qualifying tier
-    events — POST to `/admin/built-sites/<id>/set-renewal-tier`).
-  - "Re-sync deadline" button — re-pushes the host-side
-    `read_only_from` to the edge script
-    (`/admin/built-sites/<id>/re-sync-deadline`). Primary recovery
-    path for failed Bunny pushes during initial assignment or
-    renewal.
-  - "Override deadline" form — pick an arbitrary date, host persists
-    and pushes (`/admin/built-sites/<id>/override-deadline`). For
-    support comps / disputes.
-  - Both rotate-token and set-tier admin actions push the new
-    `RENEWAL_URL` to the edge.
+    events — POST `/admin/built-sites/<id>/set-renewal-tier`).
+  - "Rotate token" button → POST
+    `/admin/built-sites/<id>/rotate-renewal-token`. Generates new
+    token, pushes new `RENEWAL_URL` to the edge, invalidates the
+    old URL on next lookup.
+  - "Bump deadline by N months" form → POST
+    `/admin/built-sites/<id>/bump-deadline`. Adds N months to the
+    current `read_only_from` (clamped via `addMonthsIso`) and
+    pushes. For support comps / promo months without a real
+    payment. `base = max(now, read_only_from)` so a comp on an
+    expired site starts the clock from now.
+  - "Override deadline" form → POST
+    `/admin/built-sites/<id>/override-deadline`. Pick an arbitrary
+    date; host persists and pushes. For dispute resolution / hard
+    resets.
+  - "Re-sync deadline" button → POST
+    `/admin/built-sites/<id>/re-sync-deadline`. Re-pushes the
+    host-side `read_only_from` (and `RENEWAL_URL`) to the edge.
+    Primary recovery path for failed Bunny pushes.
+
+  **Unprovisioned** (site lacks token and/or tier — covers
+  legacy sites built before this feature, sites where assignment
+  hit a Bunny push failure, and admin-created sites that never
+  went through the assignment flow):
+  - "Provision renewal" form → POST
+    `/admin/built-sites/<id>/provision-renewal`. Fields:
+    tier event (dropdown of qualifying tier events) + initial
+    months (number, ≥ 1). On submit: generate token, persist
+    `renewal_token_index` + v:2 blob `rt` + `renewal_tier_event_id`,
+    compute `read_only_from = addMonthsIso(now, months)`, push all
+    three secrets to the edge via `pushReadOnlyFrom` (with
+    `renewalUrl` arg set), persist `read_only_from`.
+  - The "Override deadline" and "Bump deadline" forms are also
+    available in this mode — they work without a token (just push
+    `READ_ONLY_FROM`, no `RENEWAL_URL`). The customer's site will
+    go read-only on the deadline but won't show a "Renew now"
+    link until provisioned. Useful for setting a deadline on
+    legacy sites before deciding on a renewal flow for them.
+
 - The selling-event admin form
   (`src/ui/templates/admin/events.tsx`, `src/ui/templates/fields.ts`):
   - Add `initial_site_months` field (number input, min 1, default 1),
@@ -706,33 +736,68 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
   - List page: add `Read-only from` column using a formatter
     (`formatDeadlineLabel(iso, nowIso())`): `"never"`,
     `"expired N days ago"`, `"in N days"`, `"today"`.
-  - Detail/edit page: new "Renewal" panel below the existing fields:
-    - Current deadline (formatted) + raw ISO in a `<details>`.
-    - Renewal URL with copy-to-clipboard.
-    - Tier event: `<select>` of qualifying tier events, "Save"
-      button → POST `/admin/built-sites/<id>/set-renewal-tier`.
-    - "Rotate token" button → POST
-      `/admin/built-sites/<id>/rotate-renewal-token`. Confirms
-      with native `confirm()` ("The old URL will stop working").
-    - "Re-sync deadline" button → POST
-      `/admin/built-sites/<id>/re-sync-deadline`. Re-pushes
-      `read_only_from`, `RENEWAL_URL` to the edge.
-    - "Override deadline" form: date input → POST
-      `/admin/built-sites/<id>/override-deadline`. Server validates,
-      converts to ISO, calls `pushReadOnlyFrom`.
+  - Detail/edit page: new "Renewal" panel below the existing fields.
+    Branches on `isProvisioned(site)` (= site has both
+    `renewal_token_index !== ""` and `renewal_tier_event_id !== null`):
+    - **Provisioned mode** renders:
+      - Current deadline (formatted) + raw ISO in a `<details>`.
+      - Renewal URL with copy-to-clipboard.
+      - Tier event `<select>` + "Save" → POST
+        `/admin/built-sites/<id>/set-renewal-tier`.
+      - "Rotate token" button → POST
+        `/admin/built-sites/<id>/rotate-renewal-token`. Confirms
+        with native `confirm()` ("The old URL will stop working").
+      - "Bump deadline" form: months number input → POST
+        `/admin/built-sites/<id>/bump-deadline`.
+      - "Override deadline" form: date input → POST
+        `/admin/built-sites/<id>/override-deadline`.
+      - "Re-sync deadline" button → POST
+        `/admin/built-sites/<id>/re-sync-deadline`.
+    - **Unprovisioned mode** renders:
+      - Current deadline (might be set even without a token).
+      - "Provision renewal" form: tier `<select>` + initial months
+        number input → POST `/admin/built-sites/<id>/provision-renewal`.
+      - "Bump deadline" + "Override deadline" forms (work without a
+        token — they push only `READ_ONLY_FROM`).
 - `src/features/admin/built-sites.ts`
-  - Four new POST routes (one per button). Each owner-gated.
+  - Six new POST routes, each owner-gated. Pure handlers; UI logic
+    lives in the templates.
   - `rotate-renewal-token`: `generateRenewalToken()` →
     `builtSitesTable.update(id, { renewalTokenIndex, /* blob with new rt */ })`
     → `pushReadOnlyFrom(site, currentDeadline, newRenewalUrl)`.
+    Rejects when the site is unprovisioned (no existing token to
+    rotate — caller should use "Provision renewal" instead).
   - `set-renewal-tier`: validate the picked event is a qualifying
     tier event, update `renewal_tier_event_id`. No edge-script
-    write needed (the tier is resolved server-side at /renew/).
-  - `re-sync-deadline`: call `pushReadOnlyFrom(site,
-    site.read_only_from)`. If `read_only_from` is empty,
-    error-flash to admin: "no deadline to sync yet — use Override".
-  - `override-deadline`: parse date, build ISO, call
-    `pushReadOnlyFrom`.
+    write needed (tier is resolved server-side at /renew/).
+    Rejects unprovisioned sites — tier is part of provisioning.
+  - `bump-deadline`: parse months (≥ 1, ≤ 120). Compute
+    `base = max(now, read_only_from || now)`, then
+    `newIso = addMonthsIso(base, months)`. Call `pushReadOnlyFrom(site, newIso)`
+    (no `renewalUrl` arg — not rotating). Works on both provisioned
+    and unprovisioned sites. Logs to activity log:
+    `"Admin bumped '${site.name}' deadline by N month(s)"`.
+  - `override-deadline`: parse date (HTML `date` input, no time
+    component → coerce to `T23:59:59Z`). Build ISO, call
+    `pushReadOnlyFrom`. Works on both provisioned and unprovisioned
+    sites. Logs to activity log.
+  - `re-sync-deadline`: requires a non-empty
+    `read_only_from`. Call `pushReadOnlyFrom(site,
+    site.read_only_from, isProvisioned(site) ? renewalUrlFor(token) : undefined)`.
+    Provisioned mode also re-pushes `RENEWAL_URL`. Error-flash to
+    admin when `read_only_from` is empty: "no deadline to sync".
+  - `provision-renewal`: form fields = tier event id + initial
+    months (≥ 1). Validate tier event is qualifying. Generate token
+    via `generateRenewalToken()`. Compute
+    `cutoff = addMonthsIso(nowIso(), months)`.
+    `builtSitesTable.update(id, { renewalTokenIndex,
+    renewalTierEventId, /* blob with new rt */, readOnlyFrom: "" /* set by pushReadOnlyFrom on success */ })`.
+    Call `pushReadOnlyFrom(site, cutoff, renewalUrlFor(token))`.
+    On Bunny failure, leave `read_only_from` empty so admin can
+    retry; the token + tier remain set. Rejects sites that are
+    already provisioned (use "Rotate token" + "Set tier" instead).
+    Logs to activity log:
+    `"Admin provisioned renewals for '${site.name}' (tier=${tierName}, ${months}mo)"`.
 - `src/ui/templates/admin/events.tsx`,
   `src/ui/templates/fields.ts`
   - Add `initial_site_months` field to event form. Hidden unless
@@ -759,16 +824,45 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 
 - `test/templates/admin/built-sites.test.ts`
   - List page renders the formatted deadline column.
-  - Detail page shows the renewal URL, tier dropdown, all four
-    action buttons.
+  - Provisioned site: detail page shows renewal URL, tier
+    dropdown, Rotate / Bump / Override / Re-sync forms.
+  - Unprovisioned site: detail page shows Provision Renewal form,
+    plus Bump / Override forms (no Rotate, no Re-sync — or
+    Re-sync disabled with explanatory text).
 - `test/admin-built-sites-actions.test.ts` (new)
-  - `rotate-renewal-token` issues a new token, pushes a new
-    `RENEWAL_URL` to the edge, persists, old token 404s on /renew.
-  - `set-renewal-tier` updates the column; rejects non-qualifying
-    event IDs.
-  - `re-sync-deadline` re-pushes the stored deadline; errors when
+  - `rotate-renewal-token` on a provisioned site issues a new
+    token, pushes a new `RENEWAL_URL` to the edge, persists, old
+    token 404s on /renew.
+  - `rotate-renewal-token` on an unprovisioned site → 400 "use
+    Provision Renewal".
+  - `set-renewal-tier` on a provisioned site updates the column;
+    rejects non-qualifying event IDs.
+  - `set-renewal-tier` on an unprovisioned site → 400.
+  - `bump-deadline` on a future-dated site bumps from current
+    deadline; on an expired site bumps from now; on a deadline-less
+    site bumps from now. Pushes once, persists once.
+  - `bump-deadline` works without a token (no `RENEWAL_URL`
+    re-push).
+  - `bump-deadline` rejects months ≤ 0 or > 120.
+  - `override-deadline` accepts a future date, pushes, persists,
+    works without a token.
+  - `override-deadline` rejects past dates? **Decision: allow
+    past dates** — admin might intentionally lock a site. Soft
+    confirm via JS, no server-side rejection.
+  - `re-sync-deadline` re-pushes the stored deadline; pushes
+    `RENEWAL_URL` too when site is provisioned; errors when
     deadline is empty.
-  - `override-deadline` accepts a future date, pushes, persists.
+  - `provision-renewal` on an unprovisioned site generates a token,
+    sets the tier, computes the deadline, pushes all three secrets,
+    persists everything. `/renew/?t=<new-token>` route works
+    immediately afterward.
+  - `provision-renewal` on a provisioned site → 400 "already
+    provisioned".
+  - `provision-renewal` Bunny failure: token + tier persist,
+    `read_only_from` stays empty so admin can retry via
+    `re-sync-deadline` (after fixing the upstream issue).
+  - All actions logged to the activity log with a human-readable
+    message.
 - `test/admin-api-events.test.ts`
   - `initial_site_months` round-trips on save.
   - `months_per_unit` round-trips on save.
@@ -828,7 +922,8 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 | Tier event deleted while customers have it assigned | `applyRenewalsForEntries` sees `event.id === site.renewalTierEventId` is false (deleted event isn't in the attendee→event list); admin should reassign tier before deleting. Phase 6 admin event-delete guard could enforce: "this event is the renewal tier for N sites; reassign first." Optional; logging is the floor. |
 | Admin accidentally publishes a renewal tier event | `months_per_unit > 0` requires `purchase_only=1 && hidden=1` on save (Phase 6 validation). |
 | Admin sets `months_per_unit` on a non-tier event by accident | Same form validation: the field is gated on the tier "shape". Defensive `pickTierEvent` only matches the full predicate. |
-| Site assignment runs with zero tier events | Assignment aborts cleanly per-entry, logs + ntfy. Customer payment captured → admin support ticket → create tier event → click "Re-sync deadline" (which would need to also generate the missing token and pick a tier — alternative: a one-off admin "Provision renewal for this site" button). |
+| Site assignment runs with zero tier events | Assignment aborts cleanly per-entry, logs + ntfy. Customer payment captured → admin support ticket → admin creates a tier event → clicks "Provision renewal" on the affected built site (Phase 6 unprovisioned-mode action). |
+| Bunny push failure during initial assignment leaves site half-provisioned | Token + tier persist on the row but `read_only_from` is empty. Site shows as provisioned (the predicate is `token !== "" && tier !== null`). "Re-sync deadline" errors gracefully ("no deadline to sync"); admin uses "Override deadline" or "Bump deadline" to set one, both of which work without an existing `read_only_from`. |
 | Malformed `READ_ONLY_FROM` locks customer out | Fail open: invalid value treated as "no cutoff", logged. |
 | Clock skew between host and edge | Both run on Bunny's infra; ms-level skew is irrelevant at month granularity. |
 | `initial_site_months=0` on a paid built-site sale | Form rejects on save; assignment defensively re-checks and skips on 0 (API-bypass). |
@@ -852,7 +947,7 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 | Webhook side-effect | `webhook.ts` | `applyRenewalsForEntries` |
 | Date math | new `dates.ts` | `addMonthsIso` (clamped) |
 | Admin events form | `fields.ts`, `templates/admin/events.tsx`, `features/admin/events.ts` | Two new fields, two new validations, Renewal tag |
-| Admin built-sites surface | `templates/admin/built-sites.tsx`, `features/admin/built-sites.ts` | Deadline column, renewal panel, 4 action POST routes |
+| Admin built-sites surface | `templates/admin/built-sites.tsx`, `features/admin/built-sites.ts` | Deadline column, renewal panel (provisioned + unprovisioned modes), 6 action POST routes (rotate-token, set-tier, bump-deadline, override-deadline, re-sync-deadline, provision-renewal) |
 | Tests | ~9 test files | All additive |
 
 Roughly **13–15 source files**, **8–10 test files**.
@@ -900,6 +995,13 @@ Roughly **13–15 source files**, **8–10 test files**.
 16. **Bunny secret propagation:** confirmed — `setEdgeScriptSecret`
     propagates without republish. No `publishEdgeScript` call in
     `pushReadOnlyFrom`.
+17. **Legacy / unprovisioned sites can be set up via the admin UI.**
+    Phase 6 ships a "Provision renewal" action on the built-site
+    detail page (generates token, picks tier, sets initial
+    deadline, pushes secrets). Same panel hosts "Bump deadline"
+    and "Override deadline" actions that work on *any* site —
+    provisioned, unprovisioned, legacy, or with a known-bad state.
+    No separate migration / backfill required for legacy rows.
 
 ## Still to confirm
 
@@ -909,17 +1011,11 @@ Roughly **13–15 source files**, **8–10 test files**.
    index or drop the unique constraint and rely on application-layer
    uniqueness (tokens are 32 random bytes — collision probability is
    negligible).
-2. **"Provision renewal for legacy site" admin button.** Sites that
-   existed pre-Phase-1 will have empty `renewal_token_index` and
-   `renewal_tier_event_id`. Phase 6's "Re-sync deadline" needs a
-   sibling action that *initialises* the renewal state for a legacy
-   site (generate token + pick tier + compute initial cutoff from
-   admin input + push). Worth adding to Phase 6.
-3. **Square's session metadata field-length limit (255).** The
+2. **Square's session metadata field-length limit (255).** The
    `site_token` is ~43 chars (32 bytes base64url) — well under the
    limit but worth a one-line check in the existing
    `enforceMetadataLimits` to be future-proof.
-4. **Phase 8 (out of scope but obvious next):** cron over
+3. **Phase 8 (out of scope but obvious next):** cron over
    `built_sites` whose `read_only_from ∈ [now, now +
    READ_ONLY_WARN_DAYS]` and send a renewal-nudge email. Land after
    v1 ships.
