@@ -3,12 +3,10 @@
  */
 
 import { reduce } from "#fp";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { countAssignableSites } from "#shared/db/built-sites.ts";
 import { saveEventAnswers } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -45,21 +43,6 @@ import {
   type TicketContextProvider,
   type TicketCtx,
 } from "./types.ts";
-
-/** Sum quantity needed across events with assign_built_site enabled */
-const totalSitesNeeded = (
-  events: TicketEvent[],
-  quantities: Map<number, number>,
-): number => {
-  let total = 0;
-  for (const { event } of events) {
-    if (event.assign_built_site) {
-      // quantities is always populated for every event by parseQuantities
-      total += quantities.get(event.id)!;
-    }
-  }
-  return total;
-};
 
 /** Validate fields, terms and event availability. Returns Response on error, or parsed field values. */
 const validateFormAndAvailability = (
@@ -149,20 +132,6 @@ const applyQrTokenOverride = async (
   for (const { event } of ctx.events) {
     if (!event.can_pay_more) customPrices.set(event.id, payload.v);
   }
-};
-
-/** Verify built site availability when the builder feature is enabled */
-const checkBuiltSiteAvailability = async (
-  ctx: TicketCtx,
-  quantities: Map<number, number>,
-): Promise<Response | null> => {
-  const sitesNeeded = totalSitesNeeded(ctx.events, quantities);
-  if (sitesNeeded <= 0 || !isBuilderEnabled()) return null;
-  const availableSites = await countAssignableSites();
-  if (availableSites < sitesNeeded) {
-    return ticketFormErrorResponse(ctx)("Sorry, not enough sites available");
-  }
-  return null;
 };
 
 type AnswerInfo = {
@@ -288,9 +257,6 @@ const processSubmission = async (
     quantities,
     customPricesResult,
   );
-
-  const siteCheckError = await checkBuiltSiteAvailability(ctx, quantities);
-  if (siteCheckError) return siteCheckError;
 
   const info: AnswerInfo = {
     activeQuestions,

@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { capacityErrorFormatter } from "#routes/format.ts";
+import { builderApi } from "#shared/builder.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
@@ -4609,28 +4610,31 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
   });
 
-  describe("built site availability check", () => {
-    test("blocks registration when no assignable sites available", async () => {
+  describe("built site assignment", () => {
+    test("registration succeeds when no sites available — auto-build is attempted in the background", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      const buildStub = stub(builderApi, "buildSite", () =>
+        Promise.resolve({ error: "stubbed", ok: false as const }),
+      );
       try {
         const event = await createTestEvent({
           assignBuiltSite: true,
           maxAttendees: 10,
           thankYouUrl: "",
         });
-        // No assignable sites created
         const response = await submitTicketForm(event.slug, {
           email: "test@example.com",
           name: "Test User",
         });
-        expect(response.status).toBe(302);
-        expectFlash(response, "Sorry, not enough sites available", false);
+        expectReservedRedirectWithTokens(response);
+        expect(buildStub.calls.length).toBe(1);
       } finally {
+        buildStub.restore();
         restore();
       }
     });
 
-    test("allows registration when assignable sites are available", async () => {
+    test("registration succeeds when assignable sites are available", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
         const event = await createTestEvent({
@@ -4647,23 +4651,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       } finally {
         restore();
       }
-    });
-
-    test("skips check when CAN_BUILD_SITES is not set", async () => {
-      // Create event with flag enabled so assign_built_site is saved
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
-      const event = await createTestEvent({
-        assignBuiltSite: true,
-        maxAttendees: 10,
-        thankYouUrl: "",
-      });
-      restore();
-      // Now CAN_BUILD_SITES is not set — booking should succeed despite no sites
-      const response = await submitTicketForm(event.slug, {
-        email: "test@example.com",
-        name: "Test User",
-      });
-      expectReservedRedirectWithTokens(response);
     });
   });
 });
