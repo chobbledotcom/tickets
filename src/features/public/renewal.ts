@@ -4,26 +4,24 @@
  */
 
 import { requireCsrfForm } from "#routes/csrf.ts";
-import {
-  htmlResponse,
-  notFoundResponse,
-} from "#routes/response.ts";
-import { getBaseUrl } from "#routes/url.ts";
 import { runCheckoutFlow } from "#routes/public/ticket-payment.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { getBaseUrl } from "#routes/url.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { getEventWithCount } from "#shared/db/events.ts";
-import {
-  type CheckoutIntent,
-  type CheckoutItem,
-} from "#shared/payments.ts";
-import { renewalPage, renewalErrorPage } from "#templates/public/renewal.tsx";
+import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import { renewalErrorPage, renewalPage } from "#templates/public/renewal.tsx";
 
 /** Look up a built site by renewal token. Returns null if token is missing/invalid/tier unassigned. */
 const resolveRenewalSite = async (
   token: string | null,
 ): Promise<
-  | { ok: true; site: Awaited<ReturnType<typeof getBuiltSiteByRenewalTokenIndex>> & object }
+  | {
+      ok: true;
+      site: Awaited<ReturnType<typeof getBuiltSiteByRenewalTokenIndex>> &
+        object;
+    }
   | { ok: false; response: Response }
 > => {
   if (!token) return { ok: false, response: notFoundResponse() };
@@ -31,7 +29,8 @@ const resolveRenewalSite = async (
   const tokenIndex = await hmacHash(token);
   const site = await getBuiltSiteByRenewalTokenIndex(tokenIndex);
   if (!site) return { ok: false, response: notFoundResponse() };
-  if (site.renewalTierEventId == null) return { ok: false, response: notFoundResponse() };
+  if (site.renewalTierEventId == null)
+    return { ok: false, response: notFoundResponse() };
 
   return { ok: true, site };
 };
@@ -46,7 +45,12 @@ export const handleRenewalGet = async (request: Request): Promise<Response> => {
   const site = resolved.site;
 
   const tierEvent = await getEventWithCount(site.renewalTierEventId!);
-  if (!tierEvent || !tierEvent.active || !tierEvent.purchase_only || tierEvent.months_per_unit <= 0) {
+  if (
+    !tierEvent ||
+    !tierEvent.active ||
+    !tierEvent.purchase_only ||
+    tierEvent.months_per_unit <= 0
+  ) {
     return htmlResponse(renewalErrorPage({ siteName: site.name }));
   }
 
@@ -54,7 +58,9 @@ export const handleRenewalGet = async (request: Request): Promise<Response> => {
 };
 
 /** POST /renew/?t=<token> — process the renewal form submission */
-export const handleRenewalPost = async (request: Request): Promise<Response> => {
+export const handleRenewalPost = async (
+  request: Request,
+): Promise<Response> => {
   const url = new URL(request.url);
   const token = url.searchParams.get("t");
 
@@ -63,12 +69,25 @@ export const handleRenewalPost = async (request: Request): Promise<Response> => 
   const site = resolved.site;
 
   const tierEvent = await getEventWithCount(site.renewalTierEventId!);
-  if (!tierEvent || !tierEvent.active || !tierEvent.purchase_only || tierEvent.months_per_unit <= 0) {
+  if (
+    !tierEvent ||
+    !tierEvent.active ||
+    !tierEvent.purchase_only ||
+    tierEvent.months_per_unit <= 0
+  ) {
     return htmlResponse(renewalErrorPage({ siteName: site.name }));
   }
 
   const csrfResult = await requireCsrfForm(request, () =>
-    htmlResponse(renewalPage({ site, tierEvent, token: token!, error: "CSRF token invalid" }), 403),
+    htmlResponse(
+      renewalPage({
+        error: "CSRF token invalid",
+        site,
+        tierEvent,
+        token: token!,
+      }),
+      403,
+    ),
   );
   if (!csrfResult.ok) return csrfResult.response;
 
@@ -88,7 +107,7 @@ export const handleRenewalPost = async (request: Request): Promise<Response> => 
   };
 
   const errorRedirect = (msg: string, _status: number) =>
-    htmlResponse(renewalPage({ site, tierEvent, token: token!, error: msg }));
+    htmlResponse(renewalPage({ error: msg, site, tierEvent, token: token! }));
 
   const baseUrl = getBaseUrl(request);
 
@@ -104,13 +123,10 @@ export const handleRenewalPost = async (request: Request): Promise<Response> => 
         items: [item],
         name,
         phone: "",
-        special_instructions: "",
         siteToken: token!,
+        special_instructions: "",
       };
-      return provider.createCheckoutSession(
-        checkoutIntent,
-        baseUrl,
-      );
+      return provider.createCheckoutSession(checkoutIntent, baseUrl);
     },
     errorRedirect,
   );

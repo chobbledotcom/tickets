@@ -4,9 +4,11 @@
 
 import { lazyRef } from "#fp";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { htmlResponse, redirectResponse } from "#routes/response.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
+import { htmlResponse, redirectResponse } from "#routes/response.ts";
 import type { RouteParams } from "#routes/router.ts";
+import { addMonthsIso } from "#shared/dates.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
   builtSitesCrudTable,
@@ -15,18 +17,16 @@ import {
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { getAllEvents } from "#shared/db/events.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
+import { isProvisioned } from "#shared/renewal-helpers.ts";
+import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   generateRenewalToken,
   pushReadOnlyFrom,
   renewalUrlFor,
 } from "#shared/site-assignment.ts";
-import { addMonthsIso } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso, nowMs } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
-import { defineNamedResource } from "#shared/rest/resource.ts";
-import { isProvisioned } from "#shared/renewal-helpers.ts";
 import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteEditPage,
@@ -61,8 +61,8 @@ const getQualifyingTierEvents = async (): Promise<
 > => {
   const events = await getAllEvents();
   return events
-    .filter((e) =>
-      e.purchase_only && e.hidden && e.months_per_unit > 0 && e.active
+    .filter(
+      (e) => e.purchase_only && e.hidden && e.months_per_unit > 0 && e.active,
     )
     .map((e) => ({
       id: e.id,
@@ -78,12 +78,7 @@ const crud = createOwnerCrudHandlers({
   listPath: "/admin/built-sites",
   renderDelete: adminBuiltSiteDeletePage,
   renderEdit: (site, session, error) =>
-    adminBuiltSiteEditPage(
-      site,
-      session,
-      getQualifyingTierEventsSync(),
-      error,
-    ),
+    adminBuiltSiteEditPage(site, session, getQualifyingTierEventsSync(), error),
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
   resource: builtSitesResource,
@@ -104,22 +99,21 @@ const [getTierEventsCache, setTierEventsCache] = lazyRef<TierEvent[] | null>(
 const getQualifyingTierEventsSync = () => getTierEventsCache() ?? [];
 
 /** Owner-gated POST handler wrapper */
-const ownerPost = (
-  handler: (
-    site: BuiltSite,
-    form: { getString: (key: string) => string },
-    requestId: number,
-  ) => Promise<Response>,
-) =>
-async (request: Request, params: RouteParams): Promise<Response> => {
-  setTierEventsCache(await getQualifyingTierEvents());
-  const id = Number(params.id);
-  if (!id) return redirectResponse("/admin/built-sites");
-  const site = await builtSitesCrudTable.findById(id);
-  if (!site) return redirectResponse("/admin/built-sites");
-  const csrfResult = await requireCsrfForm(
-    request,
-    () =>
+const ownerPost =
+  (
+    handler: (
+      site: BuiltSite,
+      form: { getString: (key: string) => string },
+      requestId: number,
+    ) => Promise<Response>,
+  ) =>
+  async (request: Request, params: RouteParams): Promise<Response> => {
+    setTierEventsCache(await getQualifyingTierEvents());
+    const id = Number(params.id);
+    if (!id) return redirectResponse("/admin/built-sites");
+    const site = await builtSitesCrudTable.findById(id);
+    if (!site) return redirectResponse("/admin/built-sites");
+    const csrfResult = await requireCsrfForm(request, () =>
       htmlResponse(
         adminBuiltSiteEditPage(
           site,
@@ -129,157 +123,146 @@ async (request: Request, params: RouteParams): Promise<Response> => {
         ),
         403,
       ),
-  );
-  if (!csrfResult.ok) return csrfResult.response;
-  return handler(site, csrfResult.form, id);
-};
+    );
+    if (!csrfResult.ok) return csrfResult.response;
+    return handler(site, csrfResult.form, id);
+  };
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
-const handleRotateToken = ownerPost(
-  async (site, _form, id) => {
-    if (!isProvisioned(site)) {
-      return redirectResponse(`/admin/built-sites/${id}/edit`);
-    }
-    const { token, index } = await generateRenewalToken();
-    const newUrl = renewalUrlFor(token);
-    const pushResult = await pushReadOnlyFrom(
-      site,
-      site.readOnlyFrom || nowIso(),
-      newUrl,
-    );
-    if (pushResult.ok) {
-      await updateBuiltSiteRenewalState(id, {
-        renewalTokenIndex: index,
-        renewalToken: token,
-      });
-      await logActivity(`Rotated renewal token for '${site.name}'`);
-    } else {
-      logError({
-        code: ErrorCode.CDN_REQUEST,
-        detail: `Rotate token push failed for site ${id}: ${pushResult.error}`,
-      });
-    }
+const handleRotateToken = ownerPost(async (site, _form, id) => {
+  if (!isProvisioned(site)) {
     return redirectResponse(`/admin/built-sites/${id}/edit`);
-  },
-);
+  }
+  const { token, index } = await generateRenewalToken();
+  const newUrl = renewalUrlFor(token);
+  const pushResult = await pushReadOnlyFrom(
+    site,
+    site.readOnlyFrom || nowIso(),
+    newUrl,
+  );
+  if (pushResult.ok) {
+    await updateBuiltSiteRenewalState(id, {
+      renewalToken: token,
+      renewalTokenIndex: index,
+    });
+    await logActivity(`Rotated renewal token for '${site.name}'`);
+  } else {
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `Rotate token push failed for site ${id}: ${pushResult.error}`,
+    });
+  }
+  return redirectResponse(`/admin/built-sites/${id}/edit`);
+});
 
 /** POST /admin/built-sites/:id/set-renewal-tier */
-const handleSetRenewalTier = ownerPost(
-  async (site, form, id) => {
-    if (!isProvisioned(site)) {
-      return redirectResponse(`/admin/built-sites/${id}/edit`);
-    }
-    const tierEventId = Number(form.getString("tier_event_id"));
-    const tierEvents = getQualifyingTierEventsSync();
-    if (!tierEvents.some((te) => te.id === tierEventId)) {
-      return redirectResponse(`/admin/built-sites/${id}/edit`);
-    }
-    await updateBuiltSiteRenewalState(id, { renewalTierEventId: tierEventId });
-    await logActivity(
-      `Set renewal tier for '${site.name}' to event #${tierEventId}`,
-    );
+const handleSetRenewalTier = ownerPost(async (site, form, id) => {
+  if (!isProvisioned(site)) {
     return redirectResponse(`/admin/built-sites/${id}/edit`);
-  },
-);
+  }
+  const tierEventId = Number(form.getString("tier_event_id"));
+  const tierEvents = getQualifyingTierEventsSync();
+  if (!tierEvents.some((te) => te.id === tierEventId)) {
+    return redirectResponse(`/admin/built-sites/${id}/edit`);
+  }
+  await updateBuiltSiteRenewalState(id, { renewalTierEventId: tierEventId });
+  await logActivity(
+    `Set renewal tier for '${site.name}' to event #${tierEventId}`,
+  );
+  return redirectResponse(`/admin/built-sites/${id}/edit`);
+});
 
 /** POST /admin/built-sites/:id/bump-deadline */
-const handleBumpDeadline = ownerPost(
-  async (site, form, id) => {
-    let months = Number.parseInt(form.getString("months") || "1", 10);
-    if (!Number.isFinite(months) || months < 1) months = 1;
-    if (months > 120) months = 120;
-    const base = site.readOnlyFrom && Date.parse(site.readOnlyFrom) > 0
+const handleBumpDeadline = ownerPost(async (site, form, id) => {
+  let months = Number.parseInt(form.getString("months") || "1", 10);
+  if (!Number.isFinite(months) || months < 1) months = 1;
+  if (months > 120) months = 120;
+  const base =
+    site.readOnlyFrom && Date.parse(site.readOnlyFrom) > 0
       ? Math.max(nowMs(), Date.parse(site.readOnlyFrom))
       : nowMs();
-    const newIso = addMonthsIso(new Date(base).toISOString(), months);
-    await pushReadOnlyFrom(site, newIso);
-    await logActivity(
-      `Admin bumped '${site.name}' deadline by ${months} month(s)`,
-    );
-    return redirectResponse(`/admin/built-sites/${id}/edit`);
-  },
-);
+  const newIso = addMonthsIso(new Date(base).toISOString(), months);
+  await pushReadOnlyFrom(site, newIso);
+  await logActivity(
+    `Admin bumped '${site.name}' deadline by ${months} month(s)`,
+  );
+  return redirectResponse(`/admin/built-sites/${id}/edit`);
+});
 
 /** POST /admin/built-sites/:id/override-deadline */
-const handleOverrideDeadline = ownerPost(
-  async (site, form, id) => {
-    const dateStr = form.getString("date");
-    if (!dateStr) return redirectResponse(`/admin/built-sites/${id}/edit`);
-    const cutoffIso = `${dateStr}T23:59:59Z`;
-    await pushReadOnlyFrom(site, cutoffIso);
-    await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
-    return redirectResponse(`/admin/built-sites/${id}/edit`);
-  },
-);
+const handleOverrideDeadline = ownerPost(async (site, form, id) => {
+  const dateStr = form.getString("date");
+  if (!dateStr) return redirectResponse(`/admin/built-sites/${id}/edit`);
+  const cutoffIso = `${dateStr}T23:59:59Z`;
+  await pushReadOnlyFrom(site, cutoffIso);
+  await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
+  return redirectResponse(`/admin/built-sites/${id}/edit`);
+});
 
 /** POST /admin/built-sites/:id/re-sync-deadline */
-const handleReSyncDeadline = ownerPost(
-  async (site, _form, id) => {
-    if (!site.readOnlyFrom) {
-      return redirectResponse(`/admin/built-sites/${id}/edit`);
-    }
-    const renewalUrl = isProvisioned(site)
-      ? renewalUrlFor((await getBuiltSiteRenewalToken(site)) ?? "")
-      : undefined;
-    await pushReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
-    await logActivity(`Admin re-synced deadline for '${site.name}'`);
+const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
+  if (!site.readOnlyFrom) {
     return redirectResponse(`/admin/built-sites/${id}/edit`);
-  },
-);
+  }
+  const renewalUrl = isProvisioned(site)
+    ? renewalUrlFor((await getBuiltSiteRenewalToken(site)) ?? "")
+    : undefined;
+  await pushReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
+  await logActivity(`Admin re-synced deadline for '${site.name}'`);
+  return redirectResponse(`/admin/built-sites/${id}/edit`);
+});
 
 /** POST /admin/built-sites/:id/provision-renewal */
-const handleProvisionRenewal = ownerPost(
-  async (site, form, id) => {
-    if (isProvisioned(site)) {
-      return redirectResponse(`/admin/built-sites/${id}/edit`);
-    }
-    const tierEventId = Number(form.getString("tier_event_id"));
-    const tierEvents = getQualifyingTierEventsSync();
-    if (!tierEvents.some((te) => te.id === tierEventId)) {
-      return redirectResponse(`/admin/built-sites/${id}/edit`);
-    }
-    let months = Number.parseInt(form.getString("months") || "1", 10);
-    if (!Number.isFinite(months) || months < 1) months = 1;
-
-    const { token, index } = await generateRenewalToken();
-    const cutoff = addMonthsIso(nowIso(), months);
-    const renewalUrl = renewalUrlFor(token);
-
-    const pushResult = await pushReadOnlyFrom(site, cutoff, renewalUrl);
-    if (pushResult.ok) {
-      await updateBuiltSiteRenewalState(id, {
-        renewalTokenIndex: index,
-        renewalTierEventId: tierEventId,
-        renewalToken: token,
-        readOnlyFrom: cutoff,
-      });
-    } else {
-      logError({
-        code: ErrorCode.CDN_REQUEST,
-        detail: `Provision push failed for site ${id}: ${pushResult.error}`,
-      });
-      sendNtfyError("CDN_REQUEST");
-      await updateBuiltSiteRenewalState(id, {
-        renewalTokenIndex: index,
-        renewalTierEventId: tierEventId,
-        renewalToken: token,
-      });
-    }
-
-    await logActivity(
-      `Admin provisioned renewals for '${site.name}' (tier #${tierEventId}, ${months}mo)`,
-    );
+const handleProvisionRenewal = ownerPost(async (site, form, id) => {
+  if (isProvisioned(site)) {
     return redirectResponse(`/admin/built-sites/${id}/edit`);
-  },
-);
+  }
+  const tierEventId = Number(form.getString("tier_event_id"));
+  const tierEvents = getQualifyingTierEventsSync();
+  if (!tierEvents.some((te) => te.id === tierEventId)) {
+    return redirectResponse(`/admin/built-sites/${id}/edit`);
+  }
+  let months = Number.parseInt(form.getString("months") || "1", 10);
+  if (!Number.isFinite(months) || months < 1) months = 1;
+
+  const { token, index } = await generateRenewalToken();
+  const cutoff = addMonthsIso(nowIso(), months);
+  const renewalUrl = renewalUrlFor(token);
+
+  const pushResult = await pushReadOnlyFrom(site, cutoff, renewalUrl);
+  if (pushResult.ok) {
+    await updateBuiltSiteRenewalState(id, {
+      readOnlyFrom: cutoff,
+      renewalTierEventId: tierEventId,
+      renewalToken: token,
+      renewalTokenIndex: index,
+    });
+  } else {
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `Provision push failed for site ${id}: ${pushResult.error}`,
+    });
+    sendNtfyError("CDN_REQUEST");
+    await updateBuiltSiteRenewalState(id, {
+      renewalTierEventId: tierEventId,
+      renewalToken: token,
+      renewalTokenIndex: index,
+    });
+  }
+
+  await logActivity(
+    `Admin provisioned renewals for '${site.name}' (tier #${tierEventId}, ${months}mo)`,
+  );
+  return redirectResponse(`/admin/built-sites/${id}/edit`);
+});
 
 /** Built site routes */
 export const builtSitesRoutes = {
   ...crud.routes,
-  "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
-  "POST /admin/built-sites/:id/set-renewal-tier": handleSetRenewalTier,
   "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
   "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
-  "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
   "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
+  "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
+  "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+  "POST /admin/built-sites/:id/set-renewal-tier": handleSetRenewalTier,
 };

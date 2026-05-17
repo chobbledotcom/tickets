@@ -3,11 +3,10 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { addMonthsIso } from "#shared/dates.ts";
+import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import {
-  getAllActivityLog,
-} from "#shared/db/activityLog.ts";
+import { addMonthsIso } from "#shared/dates.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   getAllBuiltSites,
   getBuiltSiteRenewalToken,
@@ -19,7 +18,6 @@ import {
   createTestEvent,
   describeWithEnv,
 } from "#test-utils";
-import { handleRequest } from "#routes";
 import { mockRequest } from "#test-utils/mocks.ts";
 
 const NOW_MS = 1_700_000_000_000;
@@ -28,9 +26,9 @@ const provisionSite = async (siteId: number, tierEventId: number) => {
   const { generateRenewalToken } = await import("#shared/site-assignment.ts");
   const { index, token } = await generateRenewalToken();
   await updateBuiltSiteRenewalState(siteId, {
+    renewalTierEventId: tierEventId,
     renewalToken: token,
     renewalTokenIndex: index,
-    renewalTierEventId: tierEventId,
   });
   return token;
 };
@@ -74,11 +72,15 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(newToken).not.toBe(oldToken);
 
-      const restartedSite = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+      const restartedSite = (await getAllBuiltSites()).find(
+        (s) => s.id === site.id,
+      )!;
       expect(restartedSite.renewalTokenIndex).not.toBeNull();
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Rotated renewal token"))).toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Rotated renewal token")),
+      ).toBe(true);
     });
 
     test("redirects on unprovisioned site (no-op)", async () => {
@@ -169,12 +171,13 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           readOnlyFrom: new Date(NOW_MS + 10 * 86400000).toISOString(),
         });
 
-        await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "3" },
-        );
+        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+          months: "3",
+        });
 
-        const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+        const updated = (await getAllBuiltSites()).find(
+          (s) => s.id === site.id,
+        )!;
         const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
         expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
       } finally {
@@ -193,12 +196,13 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           readOnlyFrom: new Date(NOW_MS - 30 * 86400000).toISOString(),
         });
 
-        await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "6" },
-        );
+        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+          months: "6",
+        });
 
-        const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+        const updated = (await getAllBuiltSites()).find(
+          (s) => s.id === site.id,
+        )!;
         const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
         expect(updated.readOnlyFrom).toBe(expected);
       } finally {
@@ -214,12 +218,13 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           name: "Bump No Deadline",
         });
 
-        await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "2" },
-        );
+        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+          months: "2",
+        });
 
-        const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+        const updated = (await getAllBuiltSites()).find(
+          (s) => s.id === site.id,
+        )!;
         const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 2);
         expect(updated.readOnlyFrom).toBe(expected);
       } finally {
@@ -243,7 +248,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map((c: any) => c.args[1] as string);
+      const secretNames = (secretStub.calls as any[]).map(
+        (c: any) => c.args[1] as string,
+      );
       expect(secretNames).not.toContain("RENEWAL_URL");
     });
 
@@ -260,7 +267,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const logs = await getAllActivityLog();
-      const bumpLog = logs.find((l) => l.message.includes("bumped") && l.message.includes("1 month"));
+      const bumpLog = logs.find(
+        (l) => l.message.includes("bumped") && l.message.includes("1 month"),
+      );
       expect(bumpLog).toBeDefined();
     });
 
@@ -311,7 +320,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map((c: any) => c.args[1] as string);
+      const secretNames = (secretStub.calls as any[]).map(
+        (c: any) => c.args[1] as string,
+      );
       expect(secretNames).not.toContain("RENEWAL_URL");
     });
 
@@ -320,7 +331,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6022",
         name: "Override Empty",
       });
-      await updateBuiltSiteRenewalState(site.id, { readOnlyFrom: "2027-01-01T00:00:00Z" });
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2027-01-01T00:00:00Z",
+      });
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/override-deadline`,
@@ -359,7 +372,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map((c: any) => c.args[1] as string);
+      const secretNames = (secretStub.calls as any[]).map(
+        (c: any) => c.args[1] as string,
+      );
       expect(secretNames).toContain("READ_ONLY_FROM");
       expect(secretNames).toContain("RENEWAL_URL");
     });
@@ -383,7 +398,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map((c: any) => c.args[1] as string);
+      const secretNames = (secretStub.calls as any[]).map(
+        (c: any) => c.args[1] as string,
+      );
       expect(secretNames).toContain("READ_ONLY_FROM");
       expect(secretNames).not.toContain("RENEWAL_URL");
     });
@@ -474,12 +491,14 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
 
       try {
-        await adminFormPost(
-          `/admin/built-sites/${site.id}/provision-renewal`,
-          { months: "3", tier_event_id: String(tier.id) },
-        );
+        await adminFormPost(`/admin/built-sites/${site.id}/provision-renewal`, {
+          months: "3",
+          tier_event_id: String(tier.id),
+        });
 
-        const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+        const updated = (await getAllBuiltSites()).find(
+          (s) => s.id === site.id,
+        )!;
         expect(updated.renewalTierEventId).toBe(tier.id);
         expect(updated.renewalTokenIndex).not.toBeNull();
         expect(updated.readOnlyFrom).toBe("");

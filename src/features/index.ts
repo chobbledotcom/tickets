@@ -180,10 +180,12 @@ const loadRenewalRoutes = once(async () => {
   const { handleRenewalGet, handleRenewalPost } = await import(
     "#routes/public/renewal.ts"
   );
-  return createRouter(defineRoutes({
-    "GET /renew": handleRenewalGet,
-    "POST /renew": handleRenewalPost,
-  }));
+  return createRouter(
+    defineRoutes({
+      "GET /renew": handleRenewalGet,
+      "POST /renew": handleRenewalPost,
+    }),
+  );
 });
 
 export type { PaymentCspConfig } from "#routes/middleware.ts";

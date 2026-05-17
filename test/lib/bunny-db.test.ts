@@ -184,10 +184,8 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   test("createDatabase returns error when create endpoint fails", async () => {
     await withMocks(
       () =>
-        stub(
-          globalThis,
-          "fetch",
-          () => Promise.resolve(new Response("Forbidden", { status: 403 })),
+        stub(globalThis, "fetch", () =>
+          Promise.resolve(new Response("Forbidden", { status: 403 })),
         ),
       async () => {
         const result = await bunnyDbApi.createDatabase("Bad");

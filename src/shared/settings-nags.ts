@@ -1,5 +1,5 @@
-import { settings } from "#shared/db/settings.ts";
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
+import { settings } from "#shared/db/settings.ts";
 
 /**
  * Unique identifiers for settings nags that prompt the admin to complete
@@ -29,17 +29,18 @@ export const getSettingsNagItems = (): NagItem[] => {
 
   if (settings.paymentProviderSetting === null) {
     items.push({
-      id: "payment-provider",
-      label: "Choose a payment provider on the settings page (saving \"None\" is fine).",
       href: "/admin/settings#settings-payment-provider",
+      id: "payment-provider",
+      label:
+        'Choose a payment provider on the settings page (saving "None" is fine).',
     });
   }
 
   if (settings.businessEmail === "") {
     items.push({
+      href: "/admin/settings#settings-business-email",
       id: "business-email",
       label: "Set a business email so users have a contact address.",
-      href: "/admin/settings#settings-business-email",
     });
   }
 
@@ -49,9 +50,10 @@ export const getSettingsNagItems = (): NagItem[] => {
     (isBunnyCdnEnabled() || isBunnyDnsEnabled())
   ) {
     items.push({
-      id: "domain",
-      label: "Set either a custom domain or a host subdomain in advanced settings.",
       href: "/admin/settings-advanced#settings-custom-domain",
+      id: "domain",
+      label:
+        "Set either a custom domain or a host subdomain in advanced settings.",
     });
   }
 

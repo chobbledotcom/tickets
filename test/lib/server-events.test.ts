@@ -2230,10 +2230,8 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       // We spy on findById to return null, simulating the event being deleted
       // between the initial check and the update.
       const { eventsTable: table } = await import("#shared/db/events.ts");
-      const findByIdStub2 = stub(
-        table,
-        "findById",
-        () => Promise.resolve(null),
+      const findByIdStub2 = stub(table, "findById", () =>
+        Promise.resolve(null),
       );
 
       try {
@@ -2868,7 +2866,7 @@ describeWithEnv("server (admin events)", { db: true }, () => {
       const { getEventActivityLog } = await import("#shared/db/activityLog.ts");
       const logs = await getEventActivityLog(event.id);
       const updateLog = logs.find((l: { message: string }) =>
-        l.message.includes("updated")
+        l.message.includes("updated"),
       );
       expect(updateLog).toBeDefined();
       expect(updateLog?.message).toContain(event.name);

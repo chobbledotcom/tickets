@@ -45,10 +45,7 @@ export const parseWarnDays = (
 };
 
 /** Pure helper: is the site read-only based on a cutoff timestamp? */
-export const isReadOnlyFromCutoff = (
-  now: number,
-  cutoff: string,
-): boolean => {
+export const isReadOnlyFromCutoff = (now: number, cutoff: string): boolean => {
   const parsed = Date.parse(cutoff);
   if (Number.isNaN(parsed)) return false;
   return now >= parsed;

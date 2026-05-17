@@ -60,7 +60,13 @@ export type BuildSiteInput = {
 };
 
 export type BuildSiteResult =
-  | { ok: true; scriptId: number; defaultHostname: string; dbUrl: string; dbToken: string }
+  | {
+      ok: true;
+      scriptId: number;
+      defaultHostname: string;
+      dbUrl: string;
+      dbToken: string;
+    }
   | { ok: false; error: string };
 
 /** Generate a random 32-byte base64 encryption key */
@@ -190,7 +196,13 @@ export const buildSite = async (
   const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
   if (!publishResult.ok) return publishResult;
 
-  return { dbToken: dbCredentials.dbToken, dbUrl: dbCredentials.dbUrl, defaultHostname, ok: true, scriptId };
+  return {
+    dbToken: dbCredentials.dbToken,
+    dbUrl: dbCredentials.dbUrl,
+    defaultHostname,
+    ok: true,
+    scriptId,
+  };
 };
 
 /** Stubbable API for testing */

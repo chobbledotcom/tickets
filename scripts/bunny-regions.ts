@@ -41,9 +41,9 @@ if (!res.ok) {
 const config: BunnyConfig = await res.json();
 
 const fmt = (rs: BunnyRegion[]) =>
-  rs.map((r) => `  ${r.id.padEnd(12)} ${r.group.padEnd(6)} ${r.name}`).join(
-    "\n",
-  );
+  rs
+    .map((r) => `  ${r.id.padEnd(12)} ${r.group.padEnd(6)} ${r.name}`)
+    .join("\n");
 
 console.log("Storage zones (use the id as `storage_region`):");
 console.log(fmt(config.storage_region_available));

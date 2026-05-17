@@ -8,7 +8,12 @@ import {
 import { testBuiltSite } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
-const NO_TIERS: { id: number; name: string; unit_price: number; months_per_unit: number }[] = [];
+const NO_TIERS: {
+  id: number;
+  name: string;
+  unit_price: number;
+  months_per_unit: number;
+}[] = [];
 
 beforeAll(async () => {
   await signCsrfToken();
@@ -32,13 +37,17 @@ describe("adminBuiltSitesPage", () => {
 
 describe("adminBuiltSiteEditPage — provisioned site", () => {
   const provisionedSite = testBuiltSite({
-    renewalTokenIndex: "some-index",
-    renewalTierEventId: 5,
     readOnlyFrom: "2027-01-15T00:00:00Z",
+    renewalTierEventId: 5,
+    renewalTokenIndex: "some-index",
   });
 
   test("shows renewal URL, tier dropdown, rotate/bump/override/re-sync forms", () => {
-    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION, NO_TIERS);
+    const html = adminBuiltSiteEditPage(
+      provisionedSite,
+      TEST_SESSION,
+      NO_TIERS,
+    );
     expect(html).toContain("Renewal URL");
     expect(html).toContain("tier_event_id");
     expect(html).toContain("rotate-renewal-token");
@@ -52,13 +61,17 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
 
 describe("adminBuiltSiteEditPage — unprovisioned site", () => {
   const unprovisionedSite = testBuiltSite({
-    renewalTokenIndex: null,
-    renewalTierEventId: null,
     readOnlyFrom: "",
+    renewalTierEventId: null,
+    renewalTokenIndex: null,
   });
 
   test("shows Provision Renewal form, bump/override forms; no Rotate/Re-sync", () => {
-    const html = adminBuiltSiteEditPage(unprovisionedSite, TEST_SESSION, NO_TIERS);
+    const html = adminBuiltSiteEditPage(
+      unprovisionedSite,
+      TEST_SESSION,
+      NO_TIERS,
+    );
     expect(html).toContain("Provision renewal");
     expect(html).toContain("provision-renewal");
     expect(html).toContain("bump-deadline");

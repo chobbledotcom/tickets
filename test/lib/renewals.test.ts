@@ -2,24 +2,18 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import {
-  getAllActivityLog,
-} from "#shared/db/activityLog.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   getAllBuiltSites,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { applyRenewalsForEntries } from "#shared/webhook.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import {
-  createTestEvent,
-  describeWithEnv,
-  makeTestEntry,
-} from "#test-utils";
+import { createTestEvent, describeWithEnv, makeTestEntry } from "#test-utils";
 
 const NOW_MS = 1_700_000_000_000;
 
@@ -38,9 +32,9 @@ const setupRenewalSite = async (tierEventId: number, readOnlyFrom: string) => {
   const site = sites.find((s) => s.name === "Renewal Site")!;
   await updateBuiltSiteRenewalState(site.id, {
     readOnlyFrom,
+    renewalTierEventId: tierEventId,
     renewalToken: token,
     renewalTokenIndex: tokenIndex,
-    renewalTierEventId: tierEventId,
   });
   return { site, token };
 };
@@ -183,10 +177,7 @@ describeWithEnv("renewals", { db: true }, () => {
 
   test("siteToken present but no matching site logs error, no Bunny call", async () => {
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeTestEntry(
-        { months_per_unit: 1 },
-        { quantity: 1 },
-      );
+      const entry = makeTestEntry({ months_per_unit: 1 }, { quantity: 1 });
       await applyRenewalsForEntries([entry], "nonexistent-token-xyz");
 
       expect(secretStub.calls.length).toBe(0);
@@ -200,7 +191,10 @@ describeWithEnv("renewals", { db: true }, () => {
       purchaseOnly: true,
       unitPrice: 500,
     });
-    const { token, site } = await setupRenewalSite(tier.id, "2026-01-31T00:00:00Z");
+    const { token, site } = await setupRenewalSite(
+      tier.id,
+      "2026-01-31T00:00:00Z",
+    );
 
     const fakeJan = new Date("2026-01-15T00:00:00Z").getTime();
     await withFakeTimeAndStub(fakeJan, async () => {

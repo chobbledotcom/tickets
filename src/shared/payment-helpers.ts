@@ -121,7 +121,11 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
   Partial<
     Pick<
       BookingIntent,
-      "phone" | "address" | "special_instructions" | "eventAnswerIds" | "siteToken"
+      | "phone"
+      | "address"
+      | "special_instructions"
+      | "eventAnswerIds"
+      | "siteToken"
     >
   >;
 

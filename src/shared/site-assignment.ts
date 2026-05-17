@@ -4,9 +4,14 @@
  * All assignment logic is gated behind CAN_BUILD_SITES.
  */
 
+import { sort } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { builderApi } from "#shared/builder.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import {
   assignBuiltSite,
   type BuiltSite,
@@ -17,19 +22,14 @@ import {
 } from "#shared/db/built-sites.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import { settings } from "#shared/db/settings.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { addMonthsIso } from "#shared/dates.ts";
 import {
   getEmailConfig,
   getHostEmailConfig,
   sendEmail,
 } from "#shared/email.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
 import { nowIso } from "#shared/now.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
-import { sort } from "#fp";
+import { sendNtfyError } from "#shared/ntfy.ts";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {
@@ -75,7 +75,7 @@ const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
 
 /** Pick the cheapest qualifying tier event (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
 export const pickTierEvent = async (): Promise<
-  (Awaited<ReturnType<typeof getAllEvents>>[number]) | null
+  Awaited<ReturnType<typeof getAllEvents>>[number] | null
 > => {
   const events = await getAllEvents();
   const qualifying = events.filter(
@@ -149,8 +149,7 @@ const assignSitesForEntries = async (
     if (event.initial_site_months <= 0) {
       logError({
         code: ErrorCode.DATA_INVALID,
-        detail:
-          `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
+        detail: `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
       });
       continue;
     }
@@ -164,8 +163,7 @@ const assignSitesForEntries = async (
       if (!tierEvent) {
         logError({
           code: ErrorCode.CONFIG_MISSING,
-          detail:
-            `No qualifying tier event found for site assignment (event ${event.id})`,
+          detail: `No qualifying tier event found for site assignment (event ${event.id})`,
         });
         sendNtfyError("CONFIG_MISSING");
         continue;
@@ -180,22 +178,21 @@ const assignSitesForEntries = async (
       const pushResult = await pushReadOnlyFrom(site, cutoff, renewalUrl);
       if (pushResult.ok) {
         await updateBuiltSiteRenewalState(site.id, {
-          renewalTokenIndex: tokenIndex,
+          readOnlyFrom: cutoff,
           renewalTierEventId: tierEvent.id,
           renewalToken: token,
-          readOnlyFrom: cutoff,
+          renewalTokenIndex: tokenIndex,
         });
       } else {
         logError({
           code: ErrorCode.CDN_REQUEST,
-          detail:
-            `Failed to push READ_ONLY_FROM for site ${site.id}: ${pushResult.error}`,
+          detail: `Failed to push READ_ONLY_FROM for site ${site.id}: ${pushResult.error}`,
         });
         sendNtfyError("CDN_REQUEST");
         await updateBuiltSiteRenewalState(site.id, {
-          renewalTokenIndex: tokenIndex,
           renewalTierEventId: tierEvent.id,
           renewalToken: token,
+          renewalTokenIndex: tokenIndex,
         });
       }
 
@@ -215,9 +212,10 @@ const sendSiteAssignmentEmail = async (
   const config = getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
-  const subject = assignments.length === 1
-    ? "Your new site is ready"
-    : `Your ${assignments.length} new sites are ready`;
+  const subject =
+    assignments.length === 1
+      ? "Your new site is ready"
+      : `Your ${assignments.length} new sites are ready`;
 
   const greeting = `Your new site${
     assignments.length > 1 ? "s are" : " is"

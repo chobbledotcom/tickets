@@ -31,9 +31,9 @@ const setupRenewalSite = async (tierEventId: number) => {
   const site = sites.find((s) => s.name === "Renewal Test Site")!;
   await updateBuiltSiteRenewalState(site.id, {
     readOnlyFrom: "2026-09-01T00:00:00Z",
+    renewalTierEventId: tierEventId,
     renewalToken: token,
     renewalTokenIndex: tokenIndex,
-    renewalTierEventId: tierEventId,
   });
   return { site, token };
 };
@@ -79,9 +79,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     test("returns 404 when site has no renewal tier configured", async () => {
       await insertBuiltSite("No Tier Site", "notier.b-cdn.net");
 
-      const response = await handleRequest(
-        mockRequest("/renew/?t=some-token"),
-      );
+      const response = await handleRequest(mockRequest("/renew/?t=some-token"));
       expect(response.status).toBe(404);
     });
 
@@ -167,11 +165,15 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       const getHtml = await getResponse.text();
       const csrf = extractCsrfToken(getHtml)!;
 
-      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-        Promise.resolve({
-          checkoutUrl: "https://checkout.stripe.com/renew",
-          sessionId: "cs_renew_test",
-        }));
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            checkoutUrl: "https://checkout.stripe.com/renew",
+            sessionId: "cs_renew_test",
+          }),
+      );
 
       try {
         const response = await handleRequest(
@@ -185,7 +187,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         expect(response.status).toBe(302);
 
         const call = mockCreate.calls[0];
-        const intent = call!.args[0] as import("#shared/payments.ts").CheckoutIntent;
+        const intent = call!
+          .args[0] as import("#shared/payments.ts").CheckoutIntent;
         expect(intent.siteToken).toBe(token);
         expect(intent.items[0]!.quantity).toBe(3);
         expect(intent.items[0]!.eventId).toBe(tier.id);
@@ -213,11 +216,15 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       const getHtml = await getResponse.text();
       const csrf = extractCsrfToken(getHtml)!;
 
-      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-        Promise.resolve({
-          checkoutUrl: "https://checkout.stripe.com/renew",
-          sessionId: "cs_renew_zero",
-        }));
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            checkoutUrl: "https://checkout.stripe.com/renew",
+            sessionId: "cs_renew_zero",
+          }),
+      );
 
       try {
         await handleRequest(
@@ -229,7 +236,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
           }),
         );
 
-        const intent = mockCreate.calls[0]!.args[0] as import("#shared/payments.ts").CheckoutIntent;
+        const intent = mockCreate.calls[0]!
+          .args[0] as import("#shared/payments.ts").CheckoutIntent;
         expect(intent.items[0]!.quantity).toBe(1);
       } finally {
         mockCreate.restore();
@@ -254,11 +262,15 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       const getHtml = await getResponse.text();
       const csrf = extractCsrfToken(getHtml)!;
 
-      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-        Promise.resolve({
-          checkoutUrl: "https://checkout.stripe.com/renew",
-          sessionId: "cs_renew_over",
-        }));
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            checkoutUrl: "https://checkout.stripe.com/renew",
+            sessionId: "cs_renew_over",
+          }),
+      );
 
       try {
         await handleRequest(
@@ -270,7 +282,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
           }),
         );
 
-        const intent = mockCreate.calls[0]!.args[0] as import("#shared/payments.ts").CheckoutIntent;
+        const intent = mockCreate.calls[0]!
+          .args[0] as import("#shared/payments.ts").CheckoutIntent;
         expect(intent.items[0]!.quantity).toBe(5);
       } finally {
         mockCreate.restore();

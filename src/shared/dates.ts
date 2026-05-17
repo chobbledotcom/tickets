@@ -62,8 +62,21 @@ export const addMonthsIso = (fromIso: string, months: number): string => {
   if (months === 0) return d.toISOString();
   const originalDay = d.getUTCDate();
   const targetMonth = d.getUTCMonth() + months;
-  const targetDate = new Date(Date.UTC(d.getUTCFullYear(), targetMonth, 1, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds()));
-  const maxDay = daysInMonth(targetDate.getUTCFullYear(), targetDate.getUTCMonth() + 1);
+  const targetDate = new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      targetMonth,
+      1,
+      d.getUTCHours(),
+      d.getUTCMinutes(),
+      d.getUTCSeconds(),
+      d.getUTCMilliseconds(),
+    ),
+  );
+  const maxDay = daysInMonth(
+    targetDate.getUTCFullYear(),
+    targetDate.getUTCMonth() + 1,
+  );
   targetDate.setUTCDate(Math.min(originalDay, maxDay));
   return targetDate.toISOString();
 };

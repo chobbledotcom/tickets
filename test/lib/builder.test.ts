@@ -586,10 +586,8 @@ describeWithEnv(
 
       await withMocks(
         () => ({
-          createDbStub: stub(
-            builderApi,
-            "createDatabase",
-            () => Promise.resolve(MOCK_DB_RESULT),
+          createDbStub: stub(builderApi, "createDatabase", () =>
+            Promise.resolve(MOCK_DB_RESULT),
           ),
           createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
             Promise.resolve({
@@ -599,32 +597,42 @@ describeWithEnv(
               scriptId: 42,
             }),
           ),
-          encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
-          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    assets: [
-                      {
-                        browser_download_url: "https://example.com/script.ts",
-                        name: "bunny-script.ts",
-                      },
-                    ],
-                    name: "Test Release",
-                    published_at: "2026-01-01T00:00:00Z",
-                    tag_name: "v2026-01-01-000000",
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-            if (url.includes("example.com/script.ts")) {
-              return Promise.resolve(new Response("console.log('code')", { status: 200 }));
-            }
-            return Promise.resolve(new Response("error", { status: 500 }));
-          }),
+          encKeyStub: stub(
+            builderApi,
+            "generateEncryptionKey",
+            () => "dGVzdGtleQ==",
+          ),
+          fetchStub: stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      assets: [
+                        {
+                          browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
+                        },
+                      ],
+                      name: "Test Release",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
+                    }),
+                    { status: 200 },
+                  ),
+                );
+              }
+              if (url.includes("example.com/script.ts")) {
+                return Promise.resolve(
+                  new Response("console.log('code')", { status: 200 }),
+                );
+              }
+              return Promise.resolve(new Response("error", { status: 500 }));
+            },
+          ),
           publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
           ),
@@ -664,30 +672,37 @@ describeWithEnv(
       await withMocks(
         () => ({
           createDbStub: stub(builderApi, "createDatabase", () =>
-            Promise.resolve({ error: "Create database failed (403): Forbidden", ok: false as const }),
+            Promise.resolve({
+              error: "Create database failed (403): Forbidden",
+              ok: false as const,
+            }),
           ),
-          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    assets: [
-                      {
-                        browser_download_url: "https://example.com/script.ts",
-                        name: "bunny-script.ts",
-                      },
-                    ],
-                    name: "Test",
-                    published_at: "2026-01-01T00:00:00Z",
-                    tag_name: "v2026-01-01-000000",
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-            return Promise.resolve(new Response("code", { status: 200 }));
-          }),
+          fetchStub: stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      assets: [
+                        {
+                          browser_download_url: "https://example.com/script.ts",
+                          name: "bunny-script.ts",
+                        },
+                      ],
+                      name: "Test",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
+                    }),
+                    { status: 200 },
+                  ),
+                );
+              }
+              return Promise.resolve(new Response("code", { status: 200 }));
+            },
+          ),
         }),
         async () => {
           const result = await builderApi.buildSite({ siteName: "Fail Site" });
@@ -714,28 +729,32 @@ describeWithEnv(
             }),
           ),
           encKeyStub: stub(builderApi, "generateEncryptionKey", () => "key=="),
-          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    assets: [
-                      {
-                        browser_download_url: "https://example.com/s.ts",
-                        name: "bunny-script.ts",
-                      },
-                    ],
-                    name: "T",
-                    published_at: "2026-01-01T00:00:00Z",
-                    tag_name: "v2026-01-01-000000",
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-            return Promise.resolve(new Response("code", { status: 200 }));
-          }),
+          fetchStub: stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      assets: [
+                        {
+                          browser_download_url: "https://example.com/s.ts",
+                          name: "bunny-script.ts",
+                        },
+                      ],
+                      name: "T",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
+                    }),
+                    { status: 200 },
+                  ),
+                );
+              }
+              return Promise.resolve(new Response("code", { status: 200 }));
+            },
+          ),
           publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
           ),
@@ -780,10 +799,16 @@ describeWithEnv(
             },
           ),
           encKeyStub: stub(builderApi, "generateEncryptionKey", () => "key=="),
-          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-            fetchedUrls.push(String(input));
-            return Promise.resolve(new Response("should-not-be-called", { status: 500 }));
-          }),
+          fetchStub: stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request) => {
+              fetchedUrls.push(String(input));
+              return Promise.resolve(
+                new Response("should-not-be-called", { status: 500 }),
+              );
+            },
+          ),
           publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
           ),
@@ -823,28 +848,32 @@ describeWithEnv(
             }),
           ),
           encKeyStub: stub(builderApi, "generateEncryptionKey", () => "key=="),
-          fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-            const url = String(input);
-            if (url.includes("releases/latest")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    assets: [
-                      {
-                        browser_download_url: "https://example.com/s.ts",
-                        name: "bunny-script.ts",
-                      },
-                    ],
-                    name: "T",
-                    published_at: "2026-01-01T00:00:00Z",
-                    tag_name: "v2026-01-01-000000",
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-            return Promise.resolve(new Response("code", { status: 200 }));
-          }),
+          fetchStub: stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request) => {
+              const url = String(input);
+              if (url.includes("releases/latest")) {
+                return Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      assets: [
+                        {
+                          browser_download_url: "https://example.com/s.ts",
+                          name: "bunny-script.ts",
+                        },
+                      ],
+                      name: "T",
+                      published_at: "2026-01-01T00:00:00Z",
+                      tag_name: "v2026-01-01-000000",
+                    }),
+                    { status: 200 },
+                  ),
+                );
+              }
+              return Promise.resolve(new Response("code", { status: 200 }));
+            },
+          ),
           publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
             Promise.resolve({ ok: true as const }),
           ),
@@ -861,7 +890,10 @@ describeWithEnv(
           ),
         }),
         async ({ createDbStub }) => {
-          await builderApi.buildSite({ dbUrl: "libsql://provided.io", siteName: "NoToken" });
+          await builderApi.buildSite({
+            dbUrl: "libsql://provided.io",
+            siteName: "NoToken",
+          });
           expect(createDbStub.calls.length).toBe(0);
           const dbTokenSecret = secretsSet.find(([n]) => n === "DB_TOKEN");
           expect(dbTokenSecret![1]).toBe("");

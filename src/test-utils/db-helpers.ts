@@ -60,6 +60,7 @@ const buildCreateEventForm = (
     fields: input.fields ?? "email",
     group_id: String(input.groupId ?? 0),
     hidden: bool(input.hidden),
+    initial_site_months: String(initialSiteMonths),
     location: input.location ?? "",
     max_attendees: String(input.maxAttendees),
     max_price: toMajorUnits(input.maxPrice),
@@ -67,7 +68,6 @@ const buildCreateEventForm = (
     maximum_days_after: optionalNumber(input.maximumDaysAfter),
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
     months_per_unit: String(input.monthsPerUnit ?? 0),
-    initial_site_months: String(initialSiteMonths),
     name: input.name,
     non_transferable: bool(input.nonTransferable),
     purchase_only: bool(input.purchaseOnly),
@@ -105,6 +105,7 @@ const buildUpdateNumericFields = (
     : pickField(updates.initialSiteMonths, existing.initial_site_months);
   return {
     group_id: String(pickField(updates.groupId, existing.group_id)),
+    initial_site_months: String(initialSiteMonths),
     max_attendees: String(
       pickField(updates.maxAttendees, existing.max_attendees),
     ),
@@ -116,11 +117,10 @@ const buildUpdateNumericFields = (
     minimum_days_before: String(
       pickField(updates.minimumDaysBefore, existing.minimum_days_before),
     ),
-    unit_price: formatPrice(updates.unitPrice, existing.unit_price),
     months_per_unit: String(
       pickField(updates.monthsPerUnit, existing.months_per_unit),
     ),
-    initial_site_months: String(initialSiteMonths),
+    unit_price: formatPrice(updates.unitPrice, existing.unit_price),
   };
 };
 
@@ -506,8 +506,8 @@ export const updateTestGroup = async (
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      terms_and_conditions: updates.termsAndConditions ??
-        existing.terms_and_conditions,
+      terms_and_conditions:
+        updates.termsAndConditions ?? existing.terms_and_conditions,
       ...(hidden ? { hidden: "1" } : {}),
     },
     async () => {

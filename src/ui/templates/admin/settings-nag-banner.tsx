@@ -7,7 +7,9 @@ export const SettingsNagBanner = (): JSX.Element | null => {
   }
   return (
     <aside class="settings-nag-banner" role="status">
-      <p><strong>Finish setting up your site:</strong></p>
+      <p>
+        <strong>Finish setting up your site:</strong>
+      </p>
       <ul>
         {items.map((item) => (
           <li>

@@ -390,10 +390,10 @@ describeWithEnv("built-sites", { db: true }, () => {
       const site = sites.find((s) => s.name === "Token Site")!;
 
       await updateBuiltSiteRenewalState(site.id, {
-        renewalTokenIndex: "test-index-abc",
+        readOnlyFrom: "2026-07-01T00:00:00Z",
         renewalTierEventId: 5,
         renewalToken: "raw-token-123",
-        readOnlyFrom: "2026-07-01T00:00:00Z",
+        renewalTokenIndex: "test-index-abc",
       });
 
       const found = await getBuiltSiteByRenewalTokenIndex("test-index-abc");
@@ -456,10 +456,10 @@ describeWithEnv("built-sites", { db: true }, () => {
       });
 
       await updateBuiltSiteRenewalState(site.id, {
-        renewalTokenIndex: "idx-123",
+        readOnlyFrom: "2026-08-01T00:00:00Z",
         renewalTierEventId: 3,
         renewalToken: "secret-token",
-        readOnlyFrom: "2026-08-01T00:00:00Z",
+        renewalTokenIndex: "idx-123",
       });
 
       const updated = await builtSitesCrudTable.update(site.id, {
@@ -490,9 +490,9 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(updatedAfterFirst.renewalTierEventId).toBeNull();
 
       await updateBuiltSiteRenewalState(site.id, {
-        renewalTokenIndex: "idx-456",
         renewalTierEventId: 7,
         renewalToken: "tok-456",
+        renewalTokenIndex: "idx-456",
       });
       const afterSecond = await getBuiltSiteByRenewalTokenIndex("idx-456");
       expect(afterSecond).not.toBeNull();

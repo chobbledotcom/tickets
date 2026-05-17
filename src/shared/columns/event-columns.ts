@@ -71,8 +71,10 @@ const price: EventCol = {
 };
 
 const renewal: EventCol = {
-  cell: (e) => (e.months_per_unit > 0 ? `Renewal (${e.months_per_unit}mo)` : ""),
-  description: "Whether this event is a renewal tier and its duration in months",
+  cell: (e) =>
+    e.months_per_unit > 0 ? `Renewal (${e.months_per_unit}mo)` : "",
+  description:
+    "Whether this event is a renewal tier and its duration in months",
   label: "Renewal",
   rawValue: (e) => e.months_per_unit,
 };

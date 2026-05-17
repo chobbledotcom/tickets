@@ -162,19 +162,19 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   group_id: col.withDefault(() => 0),
   hidden: col.boolean(false),
   image_url: col.encryptedText(encrypt, decrypt),
+  initial_site_months: col.withDefault(() => 0),
   location: col.encryptedText(encrypt, decrypt),
   max_attendees: col.simple<number>(),
   max_price: col.withDefault(() => 0),
   max_quantity: col.withDefault(() => 1),
   maximum_days_after: col.withDefault(() => 90),
   minimum_days_before: col.withDefault(() => 1),
+  months_per_unit: col.withDefault(() => 0),
   non_transferable: col.boolean(false),
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
   webhook_url: col.encryptedText(encrypt, decrypt),
-  months_per_unit: col.withDefault(() => 0),
-  initial_site_months: col.withDefault(() => 0),
 });
 
 export const eventsTable = withCacheInvalidation(rawEventsTable, () =>

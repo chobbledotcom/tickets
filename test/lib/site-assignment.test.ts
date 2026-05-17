@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import {
   getAllBuiltSites,
   getAssignableBuiltSites,
@@ -13,7 +14,6 @@ import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
-import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   assignAndNotifyBuiltSites,
@@ -301,10 +301,7 @@ describeWithEnv(
     });
 
     describe("renewal at site assignment", () => {
-      const createTierEvent = (
-        unitPrice = 500,
-        monthsPerUnit = 1,
-      ) =>
+      const createTierEvent = (unitPrice = 500, monthsPerUnit = 1) =>
         createTestEvent({
           hidden: true,
           maxAttendees: 1000,
@@ -339,9 +336,7 @@ describeWithEnv(
         expect(readOnlyFromCall).toBeDefined();
         expect(readOnlyFromCall![2].slice(0, 10)).toBe(expectedCutoff);
 
-        const renewalUrlCall = secretCalls.find(
-          (c) => c[1] === "RENEWAL_URL",
-        );
+        const renewalUrlCall = secretCalls.find((c) => c[1] === "RENEWAL_URL");
         expect(renewalUrlCall).toBeDefined();
         expect(renewalUrlCall![2]).toContain("/renew/?t=");
       });
@@ -349,9 +344,7 @@ describeWithEnv(
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
-        await assignAndNotifyBuiltSites([
-          siteEntry({ initialSiteMonths: 0 }),
-        ]);
+        await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 0 })]);
 
         const sites = await getAllBuiltSites();
         const site = sites.find((s) => s.name === "Site A")!;
@@ -365,7 +358,12 @@ describeWithEnv(
         const events = await getAllEvents();
         const { deactivateTestEvent } = await import("#test-utils");
         for (const ev of events) {
-          if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
+          if (
+            ev.months_per_unit > 0 &&
+            ev.purchase_only &&
+            ev.hidden &&
+            ev.active
+          ) {
             await deactivateTestEvent(ev.id);
           }
         }
@@ -413,9 +411,7 @@ describeWithEnv(
 
         const buildStub = stubBuildSiteSuccess();
         try {
-          await assignAndNotifyBuiltSites([
-            siteEntry({ quantity: 3 }),
-          ]);
+          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
 
           const sites = await getAllBuiltSites();
           const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
@@ -468,12 +464,12 @@ describeWithEnv(
         );
         const buildStub = stubBuildSiteSuccess();
         try {
-          await assignAndNotifyBuiltSites([
-            siteEntry({ quantity: 3 }),
-          ]);
+          await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
 
           const allSites = await getAllBuiltSites();
-          const assigned = allSites.filter((s) => s.assignedAttendeeId !== null);
+          const assigned = allSites.filter(
+            (s) => s.assignedAttendeeId !== null,
+          );
           expect(assigned).toHaveLength(3);
 
           const failedSite = assigned.find(

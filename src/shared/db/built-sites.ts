@@ -129,7 +129,14 @@ const toRawInput = (
   renewalToken?: string,
 ): BuiltSiteInput => ({
   assignable: assignable ? 1 : 0,
-  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId, renewalToken),
+  siteData: buildSiteDataBlob(
+    name,
+    bunnyUrl,
+    dbUrl,
+    dbToken,
+    bunnyScriptId,
+    renewalToken,
+  ),
 });
 
 /** Parse a decrypted site data blob */
@@ -284,7 +291,15 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const existingToken = await getBuiltSiteRenewalToken(existing);
     const row = (await builtSitesTable.update(
       id,
-      toRawInput(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId, assignable, existingToken ?? undefined),
+      toRawInput(
+        name,
+        bunnyUrl,
+        dbUrl,
+        dbToken,
+        bunnyScriptId,
+        assignable,
+        existingToken ?? undefined,
+      ),
     )) as BuiltSiteRow;
     return rowToBuiltSite(row);
   },
@@ -375,9 +390,15 @@ export const updateBuiltSiteRenewalState = async (
       existing.bunnyScriptId,
       token,
     ),
-    ...(updates.renewalTokenIndex !== undefined ? { renewalTokenIndex: updates.renewalTokenIndex } : {}),
-    ...(updates.renewalTierEventId !== undefined ? { renewalTierEventId: updates.renewalTierEventId } : {}),
-    ...(updates.readOnlyFrom !== undefined ? { readOnlyFrom: updates.readOnlyFrom } : {}),
+    ...(updates.renewalTokenIndex !== undefined
+      ? { renewalTokenIndex: updates.renewalTokenIndex }
+      : {}),
+    ...(updates.renewalTierEventId !== undefined
+      ? { renewalTierEventId: updates.renewalTierEventId }
+      : {}),
+    ...(updates.readOnlyFrom !== undefined
+      ? { readOnlyFrom: updates.readOnlyFrom }
+      : {}),
   })) as BuiltSiteRow;
   return rowToBuiltSite(row);
 };

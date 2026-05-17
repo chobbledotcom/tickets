@@ -5,8 +5,8 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { isProvisioned, formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -121,12 +121,17 @@ export const adminBuiltSiteNewPage = (
 export const adminBuiltSiteEditPage = (
   site: BuiltSite,
   session: AdminSession,
-  tierEvents: { id: number; name: string; unit_price: number; months_per_unit: number }[],
+  tierEvents: {
+    id: number;
+    name: string;
+    unit_price: number;
+    months_per_unit: number;
+  }[],
   error?: string,
 ): string => {
   const provisioned = isProvisioned(site);
   const renewalUrl = site.renewalTokenIndex
-    ? `https://${typeof globalThis !== "undefined" ? location?.host ?? "localhost" : "localhost"}/renew/?t=<token>`
+    ? `https://${typeof globalThis !== "undefined" ? (location?.host ?? "localhost") : "localhost"}/renew/?t=<token>`
     : "";
 
   return String(
@@ -144,36 +149,62 @@ export const adminBuiltSiteEditPage = (
       <h2>Renewal</h2>
       {provisioned ? (
         <div class="prose">
-          <p><strong>Current deadline:</strong> {formatDeadlineLabel(site.readOnlyFrom)}
-            {site.readOnlyFrom && <Raw html={`<details><summary>Raw ISO</summary><code>${site.readOnlyFrom}</code></details>`} />}
+          <p>
+            <strong>Current deadline:</strong>{" "}
+            {formatDeadlineLabel(site.readOnlyFrom)}
+            {site.readOnlyFrom && (
+              <Raw
+                html={`<details><summary>Raw ISO</summary><code>${site.readOnlyFrom}</code></details>`}
+              />
+            )}
           </p>
-          <p><strong>Renewal URL:</strong> <code>{renewalUrl}</code></p>
+          <p>
+            <strong>Renewal URL:</strong> <code>{renewalUrl}</code>
+          </p>
 
           <CsrfForm action={`/admin/built-sites/${site.id}/set-renewal-tier`}>
             <label for="tier_event_id">Tier event</label>
-            <select name="tier_event_id" id="tier_event_id">
+            <select id="tier_event_id" name="tier_event_id">
               {tierEvents.map((te) => (
-                <option value={te.id} selected={te.id === site.renewalTierEventId}>
-                  {te.name} ({te.months_per_unit}mo / {te.unit_price ? `${te.unit_price}¢` : "free"})
+                <option
+                  selected={te.id === site.renewalTierEventId}
+                  value={te.id}
+                >
+                  {te.name} ({te.months_per_unit}mo /{" "}
+                  {te.unit_price ? `${te.unit_price}¢` : "free"})
                 </option>
               ))}
             </select>
             <button type="submit">Save tier</button>
           </CsrfForm>
 
-          <CsrfForm action={`/admin/built-sites/${site.id}/rotate-renewal-token`}>
-            <button type="submit" onclick="return confirm('The old URL will stop working. Continue?')">Rotate token</button>
+          <CsrfForm
+            action={`/admin/built-sites/${site.id}/rotate-renewal-token`}
+          >
+            <button
+              onclick="return confirm('The old URL will stop working. Continue?')"
+              type="submit"
+            >
+              Rotate token
+            </button>
           </CsrfForm>
 
           <CsrfForm action={`/admin/built-sites/${site.id}/bump-deadline`}>
             <label for="bump_months">Bump deadline by months</label>
-            <input type="number" name="months" id="bump_months" min="1" max="120" value="1" />
+            <input
+              id="bump_months"
+              max="120"
+              min="1"
+              name="months"
+              type="number"
+              value="1"
+            />
             <button type="submit">Bump</button>
           </CsrfForm>
 
           <CsrfForm action={`/admin/built-sites/${site.id}/override-deadline`}>
             <label for="override_date">Override deadline</label>
-            <input type="date" name="date" id="override_date" />
+            <input id="override_date" name="date" type="date" />
             <button type="submit">Override</button>
           </CsrfForm>
 
@@ -183,32 +214,43 @@ export const adminBuiltSiteEditPage = (
         </div>
       ) : (
         <div class="prose">
-          <p><strong>Current deadline:</strong> {formatDeadlineLabel(site.readOnlyFrom)}</p>
+          <p>
+            <strong>Current deadline:</strong>{" "}
+            {formatDeadlineLabel(site.readOnlyFrom)}
+          </p>
 
           <h3>Provision renewal</h3>
           <CsrfForm action={`/admin/built-sites/${site.id}/provision-renewal`}>
             <label for="provision_tier_event_id">Tier event</label>
-            <select name="tier_event_id" id="provision_tier_event_id">
+            <select id="provision_tier_event_id" name="tier_event_id">
               {tierEvents.map((te) => (
                 <option value={te.id}>
-                  {te.name} ({te.months_per_unit}mo / {te.unit_price ? `${te.unit_price}¢` : "free"})
+                  {te.name} ({te.months_per_unit}mo /{" "}
+                  {te.unit_price ? `${te.unit_price}¢` : "free"})
                 </option>
               ))}
             </select>
             <label for="provision_months">Initial months</label>
-            <input type="number" name="months" id="provision_months" min="1" max="120" value="1" />
+            <input
+              id="provision_months"
+              max="120"
+              min="1"
+              name="months"
+              type="number"
+              value="1"
+            />
             <button type="submit">Provision</button>
           </CsrfForm>
 
           <h3>Bump deadline</h3>
           <CsrfForm action={`/admin/built-sites/${site.id}/bump-deadline`}>
-            <input type="number" name="months" min="1" max="120" value="1" />
+            <input max="120" min="1" name="months" type="number" value="1" />
             <button type="submit">Bump</button>
           </CsrfForm>
 
           <h3>Override deadline</h3>
           <CsrfForm action={`/admin/built-sites/${site.id}/override-deadline`}>
-            <input type="date" name="date" />
+            <input name="date" type="date" />
             <button type="submit">Override</button>
           </CsrfForm>
         </div>

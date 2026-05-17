@@ -4,7 +4,12 @@
 
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isReadOnly, isReadOnlyWarning, getReadOnlyCutoffIso, getRenewalUrl } from "#shared/env.ts";
+import {
+  getReadOnlyCutoffIso,
+  getRenewalUrl,
+  isReadOnly,
+  isReadOnlyWarning,
+} from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -18,15 +23,15 @@ const renderReadOnlyBanner = (
   renewalUrl: string | null,
 ): JSX.Element | null => {
   if (readOnly) {
-    const link = renewalUrl
-      ? ` — <a href="${renewalUrl}">Renew now</a>`
-      : "";
-    return <Raw html={`<div class="read-only-banner">This site is in read-only mode${link}</div>`} />;
+    const link = renewalUrl ? ` — <a href="${renewalUrl}">Renew now</a>` : "";
+    return (
+      <Raw
+        html={`<div class="read-only-banner">This site is in read-only mode${link}</div>`}
+      />
+    );
   }
   if (warning) {
-    const link = renewalUrl
-      ? ` — <a href="${renewalUrl}">Renew now</a>`
-      : "";
+    const link = renewalUrl ? ` — <a href="${renewalUrl}">Renew now</a>` : "";
     const dateStr = cutoffIso ? new Date(cutoffIso).toLocaleDateString() : "";
     const msg = dateStr
       ? `Your site expires on ${dateStr}${link}`
@@ -55,7 +60,12 @@ const navLink = (href: string, label: string, active: string): JSX.Element => (
  */
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
   <>
-    {renderReadOnlyBanner(isReadOnly(), isReadOnlyWarning(), getReadOnlyCutoffIso(), getRenewalUrl())}
+    {renderReadOnlyBanner(
+      isReadOnly(),
+      isReadOnlyWarning(),
+      getReadOnlyCutoffIso(),
+      getRenewalUrl(),
+    )}
     {session.adminLevel === "owner" && <SettingsNagBanner />}
     <nav id="main-nav">
       <ul>

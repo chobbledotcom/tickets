@@ -33,8 +33,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE =
-  "add monthly renewals to events + built_sites";
+export const LATEST_UPDATE = "add monthly renewals to events + built_sites";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 

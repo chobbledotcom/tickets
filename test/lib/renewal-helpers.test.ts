@@ -6,32 +6,32 @@ import { testBuiltSite } from "#test-utils";
 describe("isProvisioned", () => {
   test("returns true when both renewalTokenIndex and renewalTierEventId are set", () => {
     const site = testBuiltSite({
-      renewalTokenIndex: "abc123",
       renewalTierEventId: 5,
+      renewalTokenIndex: "abc123",
     });
     expect(isProvisioned(site)).toBe(true);
   });
 
   test("returns false when renewalTokenIndex is null", () => {
     const site = testBuiltSite({
-      renewalTokenIndex: null,
       renewalTierEventId: 5,
+      renewalTokenIndex: null,
     });
     expect(isProvisioned(site)).toBe(false);
   });
 
   test("returns false when renewalTierEventId is null", () => {
     const site = testBuiltSite({
-      renewalTokenIndex: "abc123",
       renewalTierEventId: null,
+      renewalTokenIndex: "abc123",
     });
     expect(isProvisioned(site)).toBe(false);
   });
 
   test("returns false when both are null", () => {
     const site = testBuiltSite({
-      renewalTokenIndex: null,
       renewalTierEventId: null,
+      renewalTokenIndex: null,
     });
     expect(isProvisioned(site)).toBe(false);
   });
@@ -50,9 +50,7 @@ describe("formatDeadlineLabel", () => {
   });
 
   test("returns 'today' for same-day cutoff", () => {
-    expect(formatDeadlineLabel("2026-05-17T18:00:00.000Z", NOW)).toBe(
-      "today",
-    );
+    expect(formatDeadlineLabel("2026-05-17T18:00:00.000Z", NOW)).toBe("today");
   });
 
   test("returns exact future day count", () => {
