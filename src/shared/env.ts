@@ -70,17 +70,17 @@ export const isReadOnly = (): boolean => {
   if (getEnv("READ_ONLY") === "true") return true;
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
-  const parsed = Date.parse(cutoff);
-  if (Number.isNaN(parsed)) {
-    void import("#shared/logger.ts").then(({ ErrorCode, logError }) => {
+  if (Number.isNaN(Date.parse(cutoff))) {
+    void (async () => {
+      const { ErrorCode, logError } = await import("#shared/logger.ts");
       logError({
         code: ErrorCode.DATA_INVALID,
         detail: `READ_ONLY_FROM unparseable: ${cutoff}`,
       });
-    });
+    })();
     return false;
   }
-  return Date.now() >= parsed;
+  return isReadOnlyFromCutoff(Date.now(), cutoff);
 };
 
 /** Check if the site should show a pre-expiry warning banner */
@@ -88,10 +88,8 @@ export const isReadOnlyWarning = (): boolean => {
   if (isReadOnly()) return false;
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
-  const parsed = Date.parse(cutoff);
-  if (Number.isNaN(parsed)) return false;
   const warnDays = parseWarnDays(getEnv("READ_ONLY_WARN_DAYS"));
-  return Date.now() >= parsed - warnDays * 86_400_000;
+  return isInWarningWindow(Date.now(), cutoff, warnDays);
 };
 
 /** Get the READ_ONLY_FROM cutoff ISO string, or null if not set */

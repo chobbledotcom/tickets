@@ -33,7 +33,12 @@ import { sort } from "#fp";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {
-  event: { id: number; name: string; assign_built_site: boolean; initial_site_months: number };
+  event: {
+    id: number;
+    name: string;
+    assign_built_site: boolean;
+    initial_site_months: number;
+  };
   attendee: { id: number; email: string; quantity: number };
 };
 
@@ -144,18 +149,9 @@ const assignSitesForEntries = async (
     if (event.initial_site_months <= 0) {
       logError({
         code: ErrorCode.DATA_INVALID,
-        detail: `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
+        detail:
+          `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
       });
-      continue;
-    }
-
-    const tierEvent = await pickTierEvent();
-    if (!tierEvent) {
-      logError({
-        code: ErrorCode.CONFIG_MISSING,
-        detail: `No qualifying tier event found for site assignment (event ${event.id})`,
-      });
-      sendNtfyError("CONFIG_MISSING");
       continue;
     }
 
@@ -163,6 +159,18 @@ const assignSitesForEntries = async (
     for (let i = 0; i < qty; i++) {
       const site = available[idx] ?? (await buildSiteForAssignment());
       if (!site) break;
+
+      const tierEvent = await pickTierEvent();
+      if (!tierEvent) {
+        logError({
+          code: ErrorCode.CONFIG_MISSING,
+          detail:
+            `No qualifying tier event found for site assignment (event ${event.id})`,
+        });
+        sendNtfyError("CONFIG_MISSING");
+        continue;
+      }
+
       await assignBuiltSite(site.id, attendee.id, event.id);
 
       const { token, index: tokenIndex } = await generateRenewalToken();
@@ -180,7 +188,8 @@ const assignSitesForEntries = async (
       } else {
         logError({
           code: ErrorCode.CDN_REQUEST,
-          detail: `Failed to push READ_ONLY_FROM for site ${site.id}: ${pushResult.error}`,
+          detail:
+            `Failed to push READ_ONLY_FROM for site ${site.id}: ${pushResult.error}`,
         });
         sendNtfyError("CDN_REQUEST");
         await updateBuiltSiteRenewalState(site.id, {
@@ -206,10 +215,9 @@ const sendSiteAssignmentEmail = async (
   const config = getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
-  const subject =
-    assignments.length === 1
-      ? "Your new site is ready"
-      : `Your ${assignments.length} new sites are ready`;
+  const subject = assignments.length === 1
+    ? "Your new site is ready"
+    : `Your ${assignments.length} new sites are ready`;
 
   const greeting = `Your new site${
     assignments.length > 1 ? "s are" : " is"

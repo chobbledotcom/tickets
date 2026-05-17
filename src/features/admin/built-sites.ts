@@ -2,6 +2,7 @@
  * Admin built site management routes - owner only
  */
 
+import { lazyRef } from "#fp";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
@@ -89,14 +90,18 @@ const crud = createOwnerCrudHandlers({
   singular: "Built site",
 });
 
-/** Synchronous cache for qualifying tier events (loaded per-request) */
-let _tierEventsCache: {
+type TierEvent = {
   id: number;
   name: string;
   unit_price: number;
   months_per_unit: number;
-}[] | null = null;
-const getQualifyingTierEventsSync = () => _tierEventsCache ?? [];
+};
+
+/** Synchronous cache for qualifying tier events (loaded per-request) */
+const [getTierEventsCache, setTierEventsCache] = lazyRef<TierEvent[] | null>(
+  () => null,
+);
+const getQualifyingTierEventsSync = () => getTierEventsCache() ?? [];
 
 /** Owner-gated POST handler wrapper */
 const ownerPost = (
@@ -107,7 +112,7 @@ const ownerPost = (
   ) => Promise<Response>,
 ) =>
 async (request: Request, params: RouteParams): Promise<Response> => {
-  _tierEventsCache = await getQualifyingTierEvents();
+  setTierEventsCache(await getQualifyingTierEvents());
   const id = Number(params.id);
   if (!id) return redirectResponse("/admin/built-sites");
   const site = await builtSitesCrudTable.findById(id);
@@ -119,7 +124,7 @@ async (request: Request, params: RouteParams): Promise<Response> => {
         adminBuiltSiteEditPage(
           site,
           { adminLevel: "owner" },
-          _tierEventsCache ?? [],
+          getQualifyingTierEventsSync(),
           "CSRF token invalid",
         ),
         403,
@@ -165,7 +170,7 @@ const handleSetRenewalTier = ownerPost(
       return redirectResponse(`/admin/built-sites/${id}/edit`);
     }
     const tierEventId = Number(form.getString("tier_event_id"));
-    const tierEvents = _tierEventsCache ?? [];
+    const tierEvents = getQualifyingTierEventsSync();
     if (!tierEvents.some((te) => te.id === tierEventId)) {
       return redirectResponse(`/admin/built-sites/${id}/edit`);
     }
@@ -229,7 +234,7 @@ const handleProvisionRenewal = ownerPost(
       return redirectResponse(`/admin/built-sites/${id}/edit`);
     }
     const tierEventId = Number(form.getString("tier_event_id"));
-    const tierEvents = _tierEventsCache ?? [];
+    const tierEvents = getQualifyingTierEventsSync();
     if (!tierEvents.some((te) => te.id === tierEventId)) {
       return redirectResponse(`/admin/built-sites/${id}/edit`);
     }

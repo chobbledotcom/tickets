@@ -194,6 +194,46 @@ describe("payment-helpers", () => {
       expect("answer_ids" in metadata).toBe(false);
     });
 
+    test("buildMetadata includes site_token when present", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "renew@example.com",
+        items: [{ e: 5, p: 1500, q: 3 }],
+        name: "Renewer",
+        siteToken: "abc123token",
+      });
+      expect(metadata.site_token).toBe("abc123token");
+    });
+
+    test("buildMetadata omits site_token when absent", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "x@x.com",
+        items: [{ e: 1, p: 0, q: 1 }],
+        name: "X",
+      });
+      expect("site_token" in metadata).toBe(false);
+    });
+
+    test("extractSessionMetadata surfaces site_token when present", () => {
+      const extracted = extractSessionMetadata({
+        email: "renew@example.com",
+        items: "[]",
+        name: "Renewer",
+        site_token: "abc123token",
+      } as SessionMetadata);
+      expect(extracted.site_token).toBe("abc123token");
+    });
+
+    test("extractSessionMetadata defaults site_token to empty string", () => {
+      const extracted = extractSessionMetadata({
+        email: "x@x.com",
+        items: "[]",
+        name: "X",
+      } as SessionMetadata);
+      expect(extracted.site_token).toBe("");
+    });
+
     test("toBookingItems produces compact items with total price", () => {
       const items = [
         { eventId: 10, name: "B", quantity: 3, slug: "b", unitPrice: 700 },

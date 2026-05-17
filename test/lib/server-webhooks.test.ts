@@ -664,6 +664,41 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("extractIntent surfaces siteToken from metadata", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_site_token",
+          metadata: {
+            email: "renew@example.com",
+            items: singleItem(event.id, 1, 1000),
+            name: "Renewer",
+            site_token: "my-renewal-token-abc",
+          },
+          payment_intent: "pi_site_token",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_site_token"),
+        );
+        expect(redirectResponse.status).toBe(302);
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
     test("payment success reads orderId param for Square redirect", async () => {
       await setupStripe();
 

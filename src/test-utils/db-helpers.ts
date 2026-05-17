@@ -42,6 +42,9 @@ const buildCreateEventForm = (
 ): Record<string, string> => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
+  const initialSiteMonths = input.assignBuiltSite
+    ? (input.initialSiteMonths ?? 1)
+    : (input.initialSiteMonths ?? 0);
   return {
     assign_built_site: bool(input.assignBuiltSite),
     bookable_days: input.bookableDays
@@ -64,7 +67,7 @@ const buildCreateEventForm = (
     maximum_days_after: optionalNumber(input.maximumDaysAfter),
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
     months_per_unit: String(input.monthsPerUnit ?? 0),
-    initial_site_months: String(input.initialSiteMonths ?? 0),
+    initial_site_months: String(initialSiteMonths),
     name: input.name,
     non_transferable: bool(input.nonTransferable),
     purchase_only: bool(input.purchaseOnly),
@@ -92,23 +95,34 @@ const buildUpdateBoolFields = (
 const buildUpdateNumericFields = (
   updates: Partial<EventInput>,
   existing: EventWithCount,
-): Record<string, string> => ({
-  group_id: String(pickField(updates.groupId, existing.group_id)),
-  max_attendees: String(
-    pickField(updates.maxAttendees, existing.max_attendees),
-  ),
-  max_price: toMajorUnits(pickField(updates.maxPrice, existing.max_price)),
-  max_quantity: String(pickField(updates.maxQuantity, existing.max_quantity)),
-  maximum_days_after: String(
-    pickField(updates.maximumDaysAfter, existing.maximum_days_after),
-  ),
-  minimum_days_before: String(
-    pickField(updates.minimumDaysBefore, existing.minimum_days_before),
-  ),
-  unit_price: formatPrice(updates.unitPrice, existing.unit_price),
-  months_per_unit: String(pickField(updates.monthsPerUnit, existing.months_per_unit)),
-  initial_site_months: String(pickField(updates.initialSiteMonths, existing.initial_site_months)),
-});
+): Record<string, string> => {
+  const assignsBuiltSite = pickField(
+    updates.assignBuiltSite,
+    existing.assign_built_site,
+  );
+  const initialSiteMonths = assignsBuiltSite
+    ? pickField(updates.initialSiteMonths, existing.initial_site_months || 1)
+    : pickField(updates.initialSiteMonths, existing.initial_site_months);
+  return {
+    group_id: String(pickField(updates.groupId, existing.group_id)),
+    max_attendees: String(
+      pickField(updates.maxAttendees, existing.max_attendees),
+    ),
+    max_price: toMajorUnits(pickField(updates.maxPrice, existing.max_price)),
+    max_quantity: String(pickField(updates.maxQuantity, existing.max_quantity)),
+    maximum_days_after: String(
+      pickField(updates.maximumDaysAfter, existing.maximum_days_after),
+    ),
+    minimum_days_before: String(
+      pickField(updates.minimumDaysBefore, existing.minimum_days_before),
+    ),
+    unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+    months_per_unit: String(
+      pickField(updates.monthsPerUnit, existing.months_per_unit),
+    ),
+    initial_site_months: String(initialSiteMonths),
+  };
+};
 
 const buildUpdateStringFields = (
   updates: Partial<EventInput>,
@@ -492,8 +506,8 @@ export const updateTestGroup = async (
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      terms_and_conditions:
-        updates.termsAndConditions ?? existing.terms_and_conditions,
+      terms_and_conditions: updates.termsAndConditions ??
+        existing.terms_and_conditions,
       ...(hidden ? { hidden: "1" } : {}),
     },
     async () => {
