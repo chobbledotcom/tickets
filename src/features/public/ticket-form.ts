@@ -108,7 +108,7 @@ export const ticketResponse =
 
 /** Ticket form error redirect (after CSRF passed) */
 export const ticketFormErrorResponse = (ctx: TicketCtx) => {
-  const url = `/ticket/${ctx.slugs.join("+")}`;
+  const url = ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`;
   return (error: string, _status = 400) => errorRedirect(url, error);
 };
 

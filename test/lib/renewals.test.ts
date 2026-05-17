@@ -16,7 +16,7 @@ import {
 
 const NOW_MS = 1_700_000_000_000;
 
-const setupRenewalSite = async (tierEventId: number, readOnlyFrom: string) => {
+const setupRenewalSite = async (readOnlyFrom: string) => {
   await insertBuiltSite(
     "Renewal Site",
     "renewal.b-cdn.net",
@@ -27,9 +27,7 @@ const setupRenewalSite = async (tierEventId: number, readOnlyFrom: string) => {
   );
   const sites = await getAllBuiltSites();
   const site = sites.find((s) => s.name === "Renewal Site")!;
-  const { token } = await provisionTestBuiltSite(site.id, tierEventId, {
-    readOnlyFrom,
-  });
+  const { token } = await provisionTestBuiltSite(site.id, { readOnlyFrom });
   return { site, token };
 };
 
@@ -61,7 +59,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const futureDate = new Date(NOW_MS + 10 * 86400000).toISOString();
-    const { token, site } = await setupRenewalSite(tier.id, futureDate);
+    const { token, site } = await setupRenewalSite(futureDate);
 
     await withFakeTimeAndStub(NOW_MS, async (_secretStub) => {
       const entry = makeTestEntry(
@@ -85,7 +83,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const pastDate = new Date(NOW_MS - 30 * 86400000).toISOString();
-    const { token, site } = await setupRenewalSite(tier.id, pastDate);
+    const { token, site } = await setupRenewalSite(pastDate);
 
     await withFakeTimeAndStub(NOW_MS, async () => {
       const entry = makeTestEntry(
@@ -109,7 +107,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(tier.id, baseDate);
+    const { token, site } = await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async () => {
       const entry = makeTestEntry(
@@ -133,7 +131,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token } = await setupRenewalSite(tier.id, baseDate);
+    const { token } = await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
       const entry = makeTestEntry(
@@ -156,7 +154,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    await setupRenewalSite(tier.id, baseDate);
+    await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
       const entry = makeTestEntry(
@@ -185,10 +183,7 @@ describeWithEnv("renewals", { db: true }, () => {
       purchaseOnly: true,
       unitPrice: 500,
     });
-    const { token, site } = await setupRenewalSite(
-      tier.id,
-      "2026-01-31T00:00:00Z",
-    );
+    const { token, site } = await setupRenewalSite("2026-01-31T00:00:00Z");
 
     const fakeJan = new Date("2026-01-15T00:00:00Z").getTime();
     await withFakeTimeAndStub(fakeJan, async () => {
@@ -212,7 +207,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(tier.id, baseDate);
+    const { token, site } = await setupRenewalSite(baseDate);
 
     const fakeTime = new FakeTime(NOW_MS);
     const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -242,7 +237,7 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(tier.id, baseDate);
+    const { token, site } = await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
       const entry = makeTestEntry(

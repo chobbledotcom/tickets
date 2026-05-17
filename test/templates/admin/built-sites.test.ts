@@ -8,12 +8,6 @@ import {
 import { testBuiltSite } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
-const NO_TIERS: {
-  id: number;
-  name: string;
-  unit_price: number;
-  months_per_unit: number;
-}[] = [];
 
 beforeAll(async () => {
   await signCsrfToken();
@@ -38,33 +32,25 @@ describe("adminBuiltSitesPage", () => {
 describe("adminBuiltSiteEditPage — provisioned site", () => {
   const provisionedSite = testBuiltSite({
     readOnlyFrom: "2027-01-15T00:00:00Z",
-    renewalTierEventId: 5,
     renewalToken: "real-customer-renewal-token",
     renewalTokenIndex: "some-index",
   });
 
-  test("shows renewal URL, tier dropdown, rotate/bump/override/re-sync forms", () => {
-    const html = adminBuiltSiteEditPage(
-      provisionedSite,
-      TEST_SESSION,
-      NO_TIERS,
-    );
+  test("shows renewal URL and rotate/bump/override/re-sync forms; no tier picker", () => {
+    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
     expect(html).toContain("Renewal URL");
-    expect(html).toContain("tier_event_id");
     expect(html).toContain("rotate-renewal-token");
     expect(html).toContain("bump-deadline");
     expect(html).toContain("override-deadline");
     expect(html).toContain("re-sync-deadline");
     expect(html).toContain("Rotate token");
     expect(html).toContain("Re-sync deadline");
+    expect(html).not.toContain("tier_event_id");
+    expect(html).not.toContain("set-renewal-tier");
   });
 
   test("renders the actual renewal URL (token, not placeholder)", () => {
-    const html = adminBuiltSiteEditPage(
-      provisionedSite,
-      TEST_SESSION,
-      NO_TIERS,
-    );
+    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
     // The real token must appear inside a /renew/?t=… URL. The previous
     // implementation rendered "<token>" literally with a bogus host — guard
     // against regression by asserting both the path shape and the token.
@@ -76,21 +62,17 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
 describe("adminBuiltSiteEditPage — unprovisioned site", () => {
   const unprovisionedSite = testBuiltSite({
     readOnlyFrom: "",
-    renewalTierEventId: null,
     renewalTokenIndex: null,
   });
 
-  test("shows Provision Renewal form, bump/override forms; no Rotate/Re-sync", () => {
-    const html = adminBuiltSiteEditPage(
-      unprovisionedSite,
-      TEST_SESSION,
-      NO_TIERS,
-    );
+  test("shows Provision Renewal form, bump/override forms; no Rotate/Re-sync; no tier picker", () => {
+    const html = adminBuiltSiteEditPage(unprovisionedSite, TEST_SESSION);
     expect(html).toContain("Provision renewal");
     expect(html).toContain("provision-renewal");
     expect(html).toContain("bump-deadline");
     expect(html).toContain("override-deadline");
     expect(html).not.toContain("rotate-renewal-token");
     expect(html).not.toContain("re-sync-deadline");
+    expect(html).not.toContain("tier_event_id");
   });
 });

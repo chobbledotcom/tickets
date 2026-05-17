@@ -21,6 +21,12 @@ export type TicketCtx = {
   groupName?: string;
   groupDescription?: string;
   qrPrefill?: QrPrefill;
+  /** Override the form action and error redirect URL (e.g. `/renew/?t=...`).
+   * Defaults to `/ticket/<slugs>` when unset. */
+  actionUrl?: string;
+  /** When set, threaded into the CheckoutIntent so the payments webhook can
+   * bump a built site's READ_ONLY_FROM after a successful renewal purchase. */
+  siteToken?: string;
 };
 
 /** Possibly-async response handler */
@@ -36,6 +42,8 @@ export type TicketSharedContext = {
   questionEventMap: QuestionEventMap;
   groupName?: string;
   groupDescription?: string;
+  actionUrl?: string;
+  siteToken?: string;
 };
 
 /** Shared context provider for ticket pages */

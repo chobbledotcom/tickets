@@ -34,10 +34,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
   let secretStub: SecretStub;
 
   beforeEach(() => {
-    secretStub = stub(
-      bunnyCdnApi,
-      "setEdgeScriptSecret",
-      () => Promise.resolve({ ok: true as const }),
+    secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.resolve({ ok: true as const }),
     );
   });
 
@@ -47,20 +45,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
 
   describe("POST /admin/built-sites/:id/rotate-renewal-token", () => {
     test("rotates token on a provisioned site and pushes new RENEWAL_URL", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
       const site = await createTestBuiltSite({
         bunnyScriptId: "6001",
         name: "Rotate Site",
       });
-      const { token: oldToken } = await provisionTestBuiltSite(
-        site.id,
-        tier.id,
-      );
+      const { token: oldToken } = await provisionTestBuiltSite(site.id);
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/rotate-renewal-token`,
@@ -101,77 +90,6 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       )(response);
 
       expect(secretStub.calls.length).toBe(0);
-    });
-  });
-
-  describe("POST /admin/built-sites/:id/set-renewal-tier", () => {
-    test("updates tier on a provisioned site", async () => {
-      const tier1 = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const tier2 = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 3,
-        purchaseOnly: true,
-        unitPrice: 1200,
-      });
-      const site = await createTestBuiltSite({
-        bunnyScriptId: "6002",
-        name: "Set Tier Site",
-      });
-      await provisionTestBuiltSite(site.id, tier1.id);
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/set-renewal-tier`,
-        { tier_event_id: String(tier2.id) },
-      );
-      expectRedirectWithFlash(
-        `/admin/built-sites/${site.id}/edit`,
-        "Renewal tier updated",
-      )(response);
-
-      const updated = await findSite(site.id);
-      expect(updated.renewalTierEventId).toBe(tier2.id);
-    });
-
-    test("rejects non-qualifying tier event id", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const site = await createTestBuiltSite({
-        bunnyScriptId: "6003",
-        name: "Bad Tier Site",
-      });
-      await provisionTestBuiltSite(site.id, tier.id);
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/set-renewal-tier`,
-        { tier_event_id: "99999" },
-      );
-      expectRedirectWithFlash(
-        `/admin/built-sites/${site.id}/edit`,
-        "Choose a valid renewal tier",
-        false,
-      )(response);
-
-      const updated = await findSite(site.id);
-      expect(updated.renewalTierEventId).toBe(tier.id);
-    });
-
-    test("redirects on unprovisioned site", async () => {
-      const site = await createTestBuiltSite({ name: "Unprovisioned Tier" });
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/set-renewal-tier`,
-        { tier_event_id: "1" },
-      );
-      expect(response.status).toBe(302);
     });
   });
 
@@ -248,10 +166,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Bump No Token",
       });
       secretStub.restore();
-      secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -373,26 +289,18 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
 
   describe("POST /admin/built-sites/:id/re-sync-deadline", () => {
     test("re-pushes stored deadline and RENEWAL_URL when provisioned", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
       const site = await createTestBuiltSite({
         bunnyScriptId: "6030",
         name: "Resync Site",
       });
-      await provisionTestBuiltSite(site.id, tier.id);
+      await provisionTestBuiltSite(site.id);
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2027-03-15T00:00:00Z",
       });
 
       secretStub.restore();
-      secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -420,10 +328,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -458,8 +364,9 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
   });
 
   describe("POST /admin/built-sites/:id/provision-renewal", () => {
-    test("provisions an unprovisioned site with token, tier, and deadline", async () => {
-      const tier = await createTestEvent({
+    test("provisions an unprovisioned site with token and deadline (no tier id stored)", async () => {
+      // A qualifying tier must exist so the customer has something to pick at /renew.
+      await createTestEvent({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -472,12 +379,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/provision-renewal`,
-        { months: "3", tier_event_id: String(tier.id) },
+        { months: "3" },
       );
       expect(response.status).toBe(302);
 
       const updated = await findSite(site.id);
-      expect(updated.renewalTierEventId).toBe(tier.id);
       expect(updated.renewalTokenIndex).not.toBeNull();
       expect(updated.renewalToken).not.toBeNull();
       expect(updated.readOnlyFrom).not.toBe("");
@@ -488,28 +394,28 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       expect(renewResponse.status).toBe(200);
     });
 
-    test("redirects on already provisioned site", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
+    test("rejects when no qualifying tier event exists", async () => {
       const site = await createTestBuiltSite({
         bunnyScriptId: "6041",
-        name: "Already Provisioned",
+        name: "No Tier Provision",
       });
-      await provisionTestBuiltSite(site.id, tier.id);
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/provision-renewal`,
-        { months: "3", tier_event_id: String(tier.id) },
+        { months: "3" },
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Create a qualifying renewal tier event before provisioning",
+        false,
+      )(response);
+
+      const updated = await findSite(site.id);
+      expect(updated.renewalTokenIndex).toBeNull();
     });
 
-    test("Bunny failure: token + tier persist but read_only_from stays empty", async () => {
-      const tier = await createTestEvent({
+    test("redirects on already provisioned site", async () => {
+      await createTestEvent({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -517,24 +423,42 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
       const site = await createTestBuiltSite({
         bunnyScriptId: "6042",
+        name: "Already Provisioned",
+      });
+      await provisionTestBuiltSite(site.id);
+
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/provision-renewal`,
+        { months: "3" },
+      );
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Renewal is already provisioned for this site",
+        false,
+      )(response);
+    });
+
+    test("Bunny failure: token persists but read_only_from stays empty", async () => {
+      await createTestEvent({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "6043",
         name: "Provision Fail",
       });
 
       secretStub.restore();
-      const failStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () =>
-          Promise.resolve({ error: "edge push failed", ok: false as const }),
+      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
 
       try {
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/provision-renewal`,
-          {
-            months: "3",
-            tier_event_id: String(tier.id),
-          },
+          { months: "3" },
         );
         expectRedirectWithFlash(
           `/admin/built-sites/${site.id}/edit`,
@@ -543,7 +467,6 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         )(response);
 
         const updated = await findSite(site.id);
-        expect(updated.renewalTierEventId).toBe(tier.id);
         expect(updated.renewalTokenIndex).not.toBeNull();
         expect(updated.readOnlyFrom).toBe("");
       } finally {

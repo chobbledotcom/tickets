@@ -5,9 +5,9 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { nowMs } from "#shared/now.ts";
 
-/** Is a built site provisioned for renewals? (has both token index and tier event) */
+/** Is a built site provisioned for renewals? (has a renewal token index) */
 export const isProvisioned = (site: BuiltSite): boolean =>
-  site.renewalTokenIndex !== null && site.renewalTierEventId !== null;
+  site.renewalTokenIndex !== null;
 
 /** Format a read_only_from ISO string for display in the admin UI */
 export const formatDeadlineLabel = (iso: string, now = nowMs()): string => {

@@ -33,7 +33,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add monthly renewals to events + built_sites";
+export const LATEST_UPDATE = "drop built_sites.renewal_tier_event_id";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -366,7 +366,6 @@ const SCHEMA: [name: string, table: Table][] = [
         ["assigned_event_id", "INTEGER DEFAULT NULL"],
         ["created", "TEXT NOT NULL"],
         ["renewal_token_index", "TEXT DEFAULT NULL"],
-        ["renewal_tier_event_id", "INTEGER DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [

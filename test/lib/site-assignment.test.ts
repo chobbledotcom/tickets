@@ -310,7 +310,7 @@ describeWithEnv(
         });
 
       test("generates renewal token and pushes READ_ONLY_FROM + RENEWAL_URL on assignment", async () => {
-        const tier = await createTierEvent();
+        await createTierEvent();
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
 
         await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 3 })]);
@@ -318,7 +318,6 @@ describeWithEnv(
         const sites = await getAllBuiltSites();
         const assigned = sites.find((s) => s.name === "Site A")!;
         expect(assigned.renewalTokenIndex).not.toBeNull();
-        expect(assigned.renewalTierEventId).toBe(tier.id);
         expect(assigned.readOnlyFrom).toBeTruthy();
 
         expect(assigned.renewalToken).not.toBeNull();
@@ -388,8 +387,8 @@ describeWithEnv(
         expect(result!.id).toBe(cheap.id);
       });
 
-      test("with two qualifying tier events, cheapest is used as site tier", async () => {
-        const cheap = await createTierEvent(300);
+      test("with two qualifying tier events, assignment still succeeds (tier is picked at renew time)", async () => {
+        await createTierEvent(300);
         await createTierEvent(900);
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2002");
@@ -398,7 +397,8 @@ describeWithEnv(
 
         const sites = await getAllBuiltSites();
         const assigned = sites.find((s) => s.name === "Site A")!;
-        expect(assigned.renewalTierEventId).toBe(cheap.id);
+        expect(assigned.renewalTokenIndex).not.toBeNull();
+        expect(assigned.readOnlyFrom).toBeTruthy();
       });
 
       test("with quantity=3, three independent tokens and secret pushes are created", async () => {

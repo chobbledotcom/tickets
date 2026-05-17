@@ -37,7 +37,6 @@ export interface BuiltSiteRow {
   created: string;
   id: number;
   read_only_from: string;
-  renewal_tier_event_id: number | null;
   renewal_token_index: string | null;
   site_data: string;
 }
@@ -49,7 +48,6 @@ export type BuiltSiteInput = {
   assignedAttendeeId?: number | null;
   assignedEventId?: number | null;
   renewalTokenIndex?: string | null;
-  renewalTierEventId?: number | null;
   readOnlyFrom?: string;
 };
 
@@ -66,7 +64,6 @@ export interface BuiltSite {
   id: number;
   name: string;
   readOnlyFrom: string;
-  renewalTierEventId: number | null;
   /** Plain renewal token from the v:2 site-data blob. Null when not provisioned. */
   renewalToken: string | null;
   renewalTokenIndex: string | null;
@@ -95,7 +92,6 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
     created: createdCol,
     id: idCol,
     read_only_from: col.withDefault(() => ""),
-    renewal_tier_event_id: nullCol,
     renewal_token_index: nullStrCol,
     site_data: col.encrypted<string>(encrypt, decrypt),
   },
@@ -160,7 +156,6 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     id: row.id,
     name: blob.n,
     readOnlyFrom: row.read_only_from ?? "",
-    renewalTierEventId: row.renewal_tier_event_id ?? null,
     renewalToken: blob.rt ?? null,
     renewalTokenIndex: row.renewal_token_index ?? null,
   };
@@ -261,7 +256,6 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     id: idCol,
     name: {} as ColumnDef<string>,
     readOnlyFrom: {} as ColumnDef<string>,
-    renewalTierEventId: {} as ColumnDef<number | null>,
     renewalToken: {} as ColumnDef<string | null>,
     renewalTokenIndex: {} as ColumnDef<string | null>,
   },
@@ -368,12 +362,11 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   return rowToBuiltSite(decrypted);
 };
 
-/** Update built site renewal state: token index, tier, deadline, and v:2 blob together */
+/** Update built site renewal state: token index, deadline, and v:2 blob together */
 export const updateBuiltSiteRenewalState = (
   siteId: number,
   updates: {
     renewalTokenIndex?: string | null;
-    renewalTierEventId?: number | null;
     readOnlyFrom?: string;
     renewalToken?: string;
   },
@@ -391,9 +384,6 @@ export const updateBuiltSiteRenewalState = (
       ),
       ...(updates.renewalTokenIndex !== undefined
         ? { renewalTokenIndex: updates.renewalTokenIndex }
-        : {}),
-      ...(updates.renewalTierEventId !== undefined
-        ? { renewalTierEventId: updates.renewalTierEventId }
         : {}),
       ...(updates.readOnlyFrom !== undefined
         ? { readOnlyFrom: updates.readOnlyFrom }

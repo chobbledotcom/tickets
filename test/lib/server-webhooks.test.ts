@@ -691,7 +691,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const seedSite = (await getAllBuiltSites()).find(
         (s) => s.name === "Token Site",
       )!;
-      const { token } = await provisionTestBuiltSite(seedSite.id, tier.id, {
+      const { token } = await provisionTestBuiltSite(seedSite.id, {
         readOnlyFrom: "2026-09-01T00:00:00Z",
       });
 

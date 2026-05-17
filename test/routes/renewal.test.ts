@@ -2,15 +2,10 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import {
-  getAllBuiltSites,
-  insertBuiltSite,
-  updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
+import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  assertPublicHtml,
   createTestEvent,
   deactivateTestEvent,
   describeWithEnv,
@@ -22,11 +17,11 @@ import {
   setupStripe,
 } from "#test-utils";
 
-const setupRenewalSite = async (tierEventId: number) => {
+const setupRenewalSite = async () => {
   await insertBuiltSite("Renewal Test Site", "renewal.b-cdn.net");
   const sites = await getAllBuiltSites();
   const site = sites.find((s) => s.name === "Renewal Test Site")!;
-  const { token } = await provisionTestBuiltSite(site.id, tierEventId, {
+  const { token } = await provisionTestBuiltSite(site.id, {
     readOnlyFrom: "2026-09-01T00:00:00Z",
   });
   return { site, token };
@@ -38,24 +33,78 @@ describeWithEnv("routes > renewal", { db: true }, () => {
   });
 
   describe("GET /renew/", () => {
-    test("renders renewal form with site name and tier price for valid token", async () => {
-      const tier = await createTestEvent({
+    test("renders renewal picker with every qualifying tier event", async () => {
+      const monthly = await createTestEvent({
         hidden: true,
         maxAttendees: 100,
+        monthsPerUnit: 1,
+        name: "Monthly tier",
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const annual = await createTestEvent({
+        hidden: true,
+        maxAttendees: 100,
+        monthsPerUnit: 12,
+        name: "Annual tier",
+        purchaseOnly: true,
+        unitPrice: 5000,
+      });
+      const { token } = await setupRenewalSite();
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Renew Renewal Test Site",
+      );
+      // Both tiers must appear as separately-selectable picker rows.
+      expect(html).toContain(`quantity_${monthly.id}`);
+      expect(html).toContain(`quantity_${annual.id}`);
+      expect(html).toContain("Monthly tier");
+      expect(html).toContain("Annual tier");
+      // The form posts back to /renew/?t=… so the token survives submission.
+      expect(html).toContain(`/renew/?t=${encodeURIComponent(token)}`);
+      expect(html).toContain("csrf_token");
+    });
+
+    test("shows the current deadline in the page", async () => {
+      await createTestEvent({
+        hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const { token } = await setupRenewalSite(tier.id);
-
-      const html = await assertPublicHtml(
-        `/renew/?t=${encodeURIComponent(token)}`,
-        "Renew Renewal Test Site",
-        "per month",
+      const { token } = await setupRenewalSite();
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
+      const html = await response.text();
       expect(html).toContain("01/09/2026");
-      expect(html).toContain("csrf_token");
-      expect(html).toContain("Pay and Renew");
+    });
+
+    test("omits the 'current deadline' wording when no deadline is set", async () => {
+      await createTestEvent({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      // A provisioned site whose readOnlyFrom was never populated (e.g. CDN
+      // push failed during initial provisioning) still renders a usable picker.
+      await insertBuiltSite("No Deadline Site", "nd.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "No Deadline Site")!;
+      const { token } = await provisionTestBuiltSite(site.id);
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+      const html = await response.text();
+      expect(html).toContain("Pick a tier and quantity below");
+      expect(html).not.toContain("Current deadline:");
     });
 
     test("returns 404 for unknown token", async () => {
@@ -70,78 +119,50 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 when site has no renewal tier configured", async () => {
-      await insertBuiltSite("No Tier Site", "notier.b-cdn.net");
-
-      const response = await handleRequest(mockRequest("/renew/?t=some-token"));
-      expect(response.status).toBe(404);
-    });
-
-    test("renders error page when tier event is inactive", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      await deactivateTestEvent(tier.id);
-      const { token } = await setupRenewalSite(tier.id);
-
-      const html = await expectHtmlResponse(
-        await handleRequest(
-          mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-        ),
-        200,
-        "Renewal Unavailable",
-        "no longer valid",
-      );
-      expect(html).not.toContain("Pay and Renew");
-    });
-
-    test("renders error page when tier event is missing from database", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const { token, site } = await setupRenewalSite(tier.id);
-
-      await updateBuiltSiteRenewalState(site.id, {
-        renewalTierEventId: 99999,
-      });
+    test("renders error page when no qualifying tier events exist", async () => {
+      const { token } = await setupRenewalSite();
 
       const response = await handleRequest(
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Renewal Unavailable");
-      expect(html).not.toContain("Pay and Renew");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Renewal Unavailable",
+        "no longer valid",
+      );
+      expect(html).not.toContain("quantity_");
     });
 
-    test("renders error page when tier event has months_per_unit <= 0", async () => {
-      const tier = await createTestEvent({
+    test("excludes inactive tier events from the picker", async () => {
+      const active = await createTestEvent({
         hidden: true,
-        monthsPerUnit: 0,
+        monthsPerUnit: 1,
+        name: "Active tier",
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const { token } = await setupRenewalSite(tier.id);
+      const stale = await createTestEvent({
+        hidden: true,
+        monthsPerUnit: 1,
+        name: "Stale tier",
+        purchaseOnly: true,
+        unitPrice: 700,
+      });
+      await deactivateTestEvent(stale.id);
+      const { token } = await setupRenewalSite();
 
-      const html = await expectHtmlResponse(
-        await handleRequest(
-          mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-        ),
-        200,
-        "Renewal Unavailable",
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
-      expect(html).not.toContain("Pay and Renew");
+      const html = await response.text();
+      expect(html).toContain(`quantity_${active.id}`);
+      expect(html).not.toContain(`quantity_${stale.id}`);
     });
   });
 
   describe("POST /renew/", () => {
-    test("creates checkout session with site_token in metadata and quantity=3", async () => {
+    test("creates checkout session for the chosen tier with siteToken in intent", async () => {
       await setupStripe();
       const tier = await createTestEvent({
         hidden: true,
@@ -151,13 +172,12 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const { token } = await setupRenewalSite(tier.id);
+      const { token } = await setupRenewalSite();
 
       const getResponse = await handleRequest(
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
-      const getHtml = await getResponse.text();
-      const csrf = extractCsrfToken(getHtml)!;
+      const csrf = extractCsrfToken(await getResponse.text())!;
 
       const mockCreate = stub(
         stripePaymentProvider,
@@ -175,26 +195,26 @@ describeWithEnv("routes > renewal", { db: true }, () => {
             csrf_token: csrf,
             email: "renew@example.com",
             name: "Renewer",
-            quantity: "3",
+            [`quantity_${tier.id}`]: "3",
           }),
         );
         expect(response.status).toBe(302);
 
-        const call = mockCreate.calls[0];
-        const intent = call!
+        const intent = mockCreate.calls[0]!
           .args[0] as import("#shared/payments.ts").CheckoutIntent;
         expect(intent.siteToken).toBe(token);
-        expect(intent.items[0]!.quantity).toBe(3);
+        expect(intent.items).toHaveLength(1);
         expect(intent.items[0]!.eventId).toBe(tier.id);
+        expect(intent.items[0]!.quantity).toBe(3);
         expect(intent.items[0]!.unitPrice).toBe(500);
       } finally {
         mockCreate.restore();
       }
     });
 
-    test("clamps quantity=0 to 1", async () => {
+    test("creates a multi-item checkout when more than one tier is selected", async () => {
       await setupStripe();
-      const tier = await createTestEvent({
+      const monthly = await createTestEvent({
         hidden: true,
         maxAttendees: 100,
         maxQuantity: 12,
@@ -202,21 +222,31 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const { token } = await setupRenewalSite(tier.id);
+      const annual = await createTestEvent({
+        hidden: true,
+        maxAttendees: 100,
+        maxQuantity: 12,
+        monthsPerUnit: 12,
+        purchaseOnly: true,
+        unitPrice: 5000,
+      });
+      const { token } = await setupRenewalSite();
 
-      const getResponse = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
-      const getHtml = await getResponse.text();
-      const csrf = extractCsrfToken(getHtml)!;
+      const csrf = extractCsrfToken(
+        await (
+          await handleRequest(
+            mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+          )
+        ).text(),
+      )!;
 
       const mockCreate = stub(
         stripePaymentProvider,
         "createCheckoutSession",
         () =>
           Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/renew",
-            sessionId: "cs_renew_zero",
+            checkoutUrl: "https://checkout.stripe.com/multi",
+            sessionId: "cs_multi",
           }),
       );
 
@@ -226,82 +256,55 @@ describeWithEnv("routes > renewal", { db: true }, () => {
             csrf_token: csrf,
             email: "renew@example.com",
             name: "Renewer",
-            quantity: "0",
+            [`quantity_${monthly.id}`]: "2",
+            [`quantity_${annual.id}`]: "1",
           }),
         );
-
         const intent = mockCreate.calls[0]!
           .args[0] as import("#shared/payments.ts").CheckoutIntent;
-        expect(intent.items[0]!.quantity).toBe(1);
+        expect(intent.siteToken).toBe(token);
+        const ids = intent.items.map((i) => i.eventId).sort();
+        expect(ids).toEqual([monthly.id, annual.id].sort());
       } finally {
         mockCreate.restore();
       }
     });
 
-    test("clamps quantity exceeding max_quantity down", async () => {
-      await setupStripe();
+    test("redirects (no checkout) when CSRF token is missing", async () => {
       const tier = await createTestEvent({
         hidden: true,
         maxAttendees: 100,
-        maxQuantity: 5,
         monthsPerUnit: 1,
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const { token } = await setupRenewalSite(tier.id);
-
-      const getResponse = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
-      const getHtml = await getResponse.text();
-      const csrf = extractCsrfToken(getHtml)!;
+      const { token } = await setupRenewalSite();
 
       const mockCreate = stub(
         stripePaymentProvider,
         "createCheckoutSession",
         () =>
           Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/renew",
-            sessionId: "cs_renew_over",
+            checkoutUrl: "https://checkout.stripe.com/should-not-run",
+            sessionId: "cs_should_not_run",
           }),
       );
 
       try {
-        await handleRequest(
+        const response = await handleRequest(
           mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
-            csrf_token: csrf,
             email: "renew@example.com",
             name: "Renewer",
-            quantity: "99",
+            [`quantity_${tier.id}`]: "1",
           }),
         );
-
-        const intent = mockCreate.calls[0]!
-          .args[0] as import("#shared/payments.ts").CheckoutIntent;
-        expect(intent.items[0]!.quantity).toBe(5);
+        // Standard ticket-form behavior: missing CSRF → redirect back to the
+        // form (no payment session created).
+        expect(response.status).toBe(302);
+        expect(mockCreate.calls.length).toBe(0);
       } finally {
         mockCreate.restore();
       }
-    });
-
-    test("returns 403 without CSRF token", async () => {
-      const tier = await createTestEvent({
-        hidden: true,
-        maxAttendees: 100,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const { token } = await setupRenewalSite(tier.id);
-
-      const response = await handleRequest(
-        mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
-          email: "renew@example.com",
-          name: "Renewer",
-          quantity: "1",
-        }),
-      );
-      expect(response.status).toBe(403);
     });
   });
 });

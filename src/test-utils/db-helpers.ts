@@ -590,13 +590,12 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
 };
 
 /**
- * Provision a test built site for renewals: writes a fresh token + HMAC index +
- * tier event id directly via updateBuiltSiteRenewalState. Skips the admin route
- * intentionally — admin-route coverage lives in test/admin-built-sites-actions.test.ts.
+ * Provision a test built site for renewals: writes a fresh token + HMAC index
+ * directly via updateBuiltSiteRenewalState. Skips the admin route intentionally
+ * — admin-route coverage lives in test/admin-built-sites-actions.test.ts.
  */
 export const provisionTestBuiltSite = async (
   siteId: number,
-  tierEventId: number,
   opts: { readOnlyFrom?: string } = {},
 ): Promise<{ token: string; tokenIndex: string }> => {
   const { generateRenewalToken } = await import("#shared/site-assignment.ts");
@@ -605,7 +604,6 @@ export const provisionTestBuiltSite = async (
   );
   const { index, token } = await generateRenewalToken();
   await updateBuiltSiteRenewalState(siteId, {
-    renewalTierEventId: tierEventId,
     renewalToken: token,
     renewalTokenIndex: index,
     ...(opts.readOnlyFrom !== undefined

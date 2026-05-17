@@ -214,20 +214,18 @@ const pushAndPersist =
 
 /**
  * Provision a site for renewals: generate a token, push initial secrets,
- * persist the full renewal state. On push failure persists the token/tier so
+ * persist the full renewal state. On push failure persists the token so
  * an admin can re-sync without re-provisioning; leaves readOnlyFrom empty so
  * the host doesn't lie about the customer-facing deadline. Single DB write.
  */
 export const provisionSiteRenewal = async (
   site: BuiltSite,
-  tierEventId: number,
   months: number,
   errorContext: string,
 ): Promise<{ token: string; cutoff: string; pushOk: boolean }> => {
   const tokenData = await generateRenewalToken();
   const cutoff = addMonthsIso(nowIso(), months);
   const renewalState = {
-    renewalTierEventId: tierEventId,
     renewalToken: tokenData.token,
     renewalTokenIndex: tokenData.index,
   } as const;
@@ -258,15 +256,15 @@ export const rotateRenewalToken = async (
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
-/** Assign a site and configure its renewal state with a known tier event. */
-const assignSiteWithRenewal = async (
-  { attendee, event, site }: AssignmentContext,
-  tierEvent: TierEvent,
-): Promise<SiteAssignment> => {
+/** Assign a site and provision its renewal token. */
+const assignSiteWithRenewal = async ({
+  attendee,
+  event,
+  site,
+}: AssignmentContext): Promise<SiteAssignment> => {
   await assignBuiltSite(site.id, attendee.id, event.id);
   await provisionSiteRenewal(
     site,
-    tierEvent.id,
     event.initial_site_months,
     `Failed to push initial READ_ONLY_FROM for site ${site.id}`,
   );
@@ -282,6 +280,8 @@ const assignSitesForEntries = async (
   );
   if (needsSite.length === 0) return [];
 
+  // Gate: at least one qualifying renewal tier must exist or the customer
+  // will land on an empty picker at /renew. Fail loud at sale time instead.
   const tierEvent = await pickTierEvent();
   if (!tierEvent) {
     logError({
@@ -312,9 +312,7 @@ const assignSitesForEntries = async (
       const site = available[idx] ?? (await buildSiteForAssignment());
       if (!site) break;
 
-      assignments.push(
-        await assignSiteWithRenewal({ attendee, event, site }, tierEvent),
-      );
+      assignments.push(await assignSiteWithRenewal({ attendee, event, site }));
       idx++;
     }
   }

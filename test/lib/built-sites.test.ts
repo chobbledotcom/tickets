@@ -167,7 +167,6 @@ describeWithEnv("built-sites", { db: true }, () => {
         id: 1,
         name: "Test",
         readOnlyFrom: "",
-        renewalTierEventId: null,
         renewalToken: null,
         renewalTokenIndex: null,
       };
@@ -188,7 +187,6 @@ describeWithEnv("built-sites", { db: true }, () => {
         id: 42,
         name: "Mirror",
         readOnlyFrom: "",
-        renewalTierEventId: null,
         renewalToken: null,
         renewalTokenIndex: null,
       };
@@ -382,7 +380,6 @@ describeWithEnv("built-sites", { db: true }, () => {
       const site = sites.find((s) => s.name === "Renewal Site")!;
       expect(site.readOnlyFrom).toBe("");
       expect(site.renewalTokenIndex).toBeNull();
-      expect(site.renewalTierEventId).toBeNull();
     });
 
     test("getBuiltSiteByRenewalTokenIndex returns matching site", async () => {
@@ -392,7 +389,6 @@ describeWithEnv("built-sites", { db: true }, () => {
 
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2026-07-01T00:00:00Z",
-        renewalTierEventId: 5,
         renewalToken: "raw-token-123",
         renewalTokenIndex: "test-index-abc",
       });
@@ -400,7 +396,6 @@ describeWithEnv("built-sites", { db: true }, () => {
       const found = await getBuiltSiteByRenewalTokenIndex("test-index-abc");
       expect(found).not.toBeNull();
       expect(found!.name).toBe("Token Site");
-      expect(found!.renewalTierEventId).toBe(5);
       expect(found!.readOnlyFrom).toBe("2026-07-01T00:00:00Z");
     });
 
@@ -458,7 +453,6 @@ describeWithEnv("built-sites", { db: true }, () => {
 
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2026-08-01T00:00:00Z",
-        renewalTierEventId: 3,
         renewalToken: "secret-token",
         renewalTokenIndex: "idx-123",
       });
@@ -469,7 +463,6 @@ describeWithEnv("built-sites", { db: true }, () => {
 
       expect(updated!.name).toBe("Token Preserve Updated");
       expect(updated!.renewalTokenIndex).toBe("idx-123");
-      expect(updated!.renewalTierEventId).toBe(3);
       expect(updated!.readOnlyFrom).toBe("2026-08-01T00:00:00Z");
       expect(updated!.renewalToken).toBe("secret-token");
     });
@@ -486,16 +479,14 @@ describeWithEnv("built-sites", { db: true }, () => {
       const updatedAfterFirst = afterFirst.find((s) => s.id === site.id)!;
       expect(updatedAfterFirst.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
       expect(updatedAfterFirst.renewalTokenIndex).toBeNull();
-      expect(updatedAfterFirst.renewalTierEventId).toBeNull();
 
       await updateBuiltSiteRenewalState(site.id, {
-        renewalTierEventId: 7,
         renewalToken: "tok-456",
         renewalTokenIndex: "idx-456",
       });
       const afterSecond = await getBuiltSiteByRenewalTokenIndex("idx-456");
       expect(afterSecond).not.toBeNull();
-      expect(afterSecond!.renewalTierEventId).toBe(7);
+      expect(afterSecond!.renewalTokenIndex).toBe("idx-456");
       expect(afterSecond!.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
     });
   });

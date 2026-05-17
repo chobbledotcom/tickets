@@ -225,9 +225,10 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const errorResponse = await awaitTestRequest(
         `/admin/built-sites/${site.id}/edit?flash=${FLASH_TEST_ID}`,
         {
-          cookie: `${cookie}; ${
-            flashCookieHeader("Choose a deadline date", false)
-          }`,
+          cookie: `${cookie}; ${flashCookieHeader(
+            "Choose a deadline date",
+            false,
+          )}`,
         },
       );
       await expectHtmlResponse(errorResponse, 200, "Choose a deadline date");

@@ -175,7 +175,13 @@ const handlePaidPath = async (
     );
   }
   const eventAnswerIds = computeEventAnswerMap(ctx, info);
-  const intent = { ...contact, date, eventAnswerIds, items };
+  const intent = {
+    ...contact,
+    date,
+    eventAnswerIds,
+    items,
+    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
+  };
   return handlePaymentFlow(request, intent, ctx);
 };
 
@@ -281,7 +287,8 @@ const processSubmission = async (
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   withCsrfForm(
     request,
-    (message) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, message),
+    (message) =>
+      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, message),
     (form) => {
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       return processSubmission(request, ctx, form);

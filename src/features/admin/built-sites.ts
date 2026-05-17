@@ -17,26 +17,22 @@ import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
   builtSitesCrudTable,
   getAllBuiltSites,
-  updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
-import { getAllEvents } from "#shared/db/events.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   addMonthsToRenewalDeadline,
-  isQualifyingTierEvent,
+  pickTierEvent,
   provisionSiteRenewal,
   renewalUrlFor,
   rotateRenewalToken,
   syncReadOnlyFrom,
-  type TierEvent as FullTierEvent,
 } from "#shared/site-assignment.ts";
 import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteEditPage,
   adminBuiltSiteNewPage,
   adminBuiltSitesPage,
-  type RenewalTierOption,
 } from "#templates/admin/built-sites.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 
@@ -60,28 +56,12 @@ const builtSitesResource = defineNamedResource({
   toInput: extractBuiltSiteInput,
 });
 
-/** Tier-event options visible in the admin renewal panel */
-const toTierOption = (e: FullTierEvent): RenewalTierOption => ({
-  id: e.id,
-  months_per_unit: e.months_per_unit,
-  name: e.name,
-  unit_price: e.unit_price,
-});
-
-const loadTierOptions = async (): Promise<RenewalTierOption[]> => {
-  const events = await getAllEvents();
-  return events.filter(isQualifyingTierEvent).map(toTierOption);
-};
-
 const crud = createOwnerCrudHandlers({
   getAll: getAllBuiltSites,
   getName: (s) => s.name,
   listPath: "/admin/built-sites",
   renderDelete: adminBuiltSiteDeletePage,
-  // editGet is overridden below so we can pre-load tier options;
-  // this fallback is only hit by editPost on validation failure.
-  renderEdit: (site, session, error) =>
-    adminBuiltSiteEditPage(site, session, [], error),
+  renderEdit: adminBuiltSiteEditPage,
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
   resource: builtSitesResource,
@@ -109,7 +89,7 @@ const editPushOk = (
   pushOk: boolean,
   success: string,
   failure: string,
-): Response => pushOk ? editSuccess(id, success) : editError(id, failure);
+): Response => (pushOk ? editSuccess(id, success) : editError(id, failure));
 
 /** Max months any single bump/provision can request — guards against form tampering. */
 const MAX_RENEWAL_MONTHS = 120;
@@ -122,57 +102,54 @@ const readClampedMonths = (form: {
   return Math.min(months, MAX_RENEWAL_MONTHS);
 };
 
-type TierForm = { getString: (key: string) => string };
-
-const readAllowedTierId =
-  (provisioned: boolean, tiers: RenewalTierOption[]) =>
-  (site: BuiltSite, form: TierForm): number | null => {
-    if (isProvisioned(site) !== provisioned) return null;
-    const tierEventId = Number(form.getString("tier_event_id"));
-    return tiers.some(({ id }) => id === tierEventId) ? tierEventId : null;
-  };
+type AdminForm = { getString: (key: string) => string };
 
 type OwnerPostHandler = (
   site: BuiltSite,
-  form: TierForm,
-  tiers: RenewalTierOption[],
+  form: AdminForm,
   id: number,
 ) => Promise<Response>;
 
-/** Owner-gated POST handler wrapper: loads tier options, authenticates, parses CSRF. */
+/** Owner-gated wrapper that also resolves `:id` → site or returns 404. */
+const withOwnerAndSite = (
+  request: Request,
+  params: RouteParams,
+  handler: (
+    found: { id: number; site: BuiltSite },
+    session: import("#shared/types.ts").AdminSession,
+  ) => Promise<Response>,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const id = Number(params.id);
+    const site = id ? await builtSitesCrudTable.findById(id) : null;
+    return site ? handler({ id, site }, session) : notFoundResponse();
+  });
+
+/** Owner-gated POST handler wrapper: authenticates, parses CSRF. */
 const ownerPost =
   (handler: OwnerPostHandler) =>
   (request: Request, params: RouteParams): Promise<Response> =>
-    requireOwnerOr(request, async () => {
-      const id = Number(params.id);
-      if (!id) return notFoundResponse();
-      const site = await builtSitesCrudTable.findById(id);
-      if (!site) return notFoundResponse();
-      const csrfResult = await requireCsrfForm(
-        request,
-        () => htmlResponse("CSRF token invalid", 403),
+    withOwnerAndSite(request, params, async ({ id, site }) => {
+      const csrfResult = await requireCsrfForm(request, () =>
+        htmlResponse("CSRF token invalid", 403),
       );
       if (!csrfResult.ok) return csrfResult.response;
-      const tiers = await loadTierOptions();
-      return handler(site, csrfResult.form, tiers, id);
+      return handler(site, csrfResult.form, id);
     });
 
-/** GET /admin/built-sites/:id/edit — pre-loads tier options for the renewal panel. */
+/** GET /admin/built-sites/:id/edit */
 const handleEditGet = (request: Request, params: RouteParams) =>
-  requireOwnerOr(request, async (session) => {
-    const id = Number(params.id);
-    if (!id) return notFoundResponse();
-    const site = await builtSitesCrudTable.findById(id);
-    if (!site) return notFoundResponse();
+  withOwnerAndSite(request, params, ({ site }, session) => {
     const flash = applyFlash(request);
-    const tiers = await loadTierOptions();
-    return htmlResponse(
-      adminBuiltSiteEditPage(site, session, tiers, flash.error, flash.success),
+    return Promise.resolve(
+      htmlResponse(
+        adminBuiltSiteEditPage(site, session, flash.error, flash.success),
+      ),
     );
   });
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
-const handleRotateToken = ownerPost(async (site, _form, _tiers, id) => {
+const handleRotateToken = ownerPost(async (site, _form, id) => {
   if (!isProvisioned(site)) {
     return editError(id, "Renewal is not provisioned for this site");
   }
@@ -191,19 +168,8 @@ const handleRotateToken = ownerPost(async (site, _form, _tiers, id) => {
   );
 });
 
-/** POST /admin/built-sites/:id/set-renewal-tier */
-const handleSetRenewalTier = ownerPost(async (site, form, tiers, id) => {
-  const tierEventId = readAllowedTierId(true, tiers)(site, form);
-  if (tierEventId === null) return editError(id, "Choose a valid renewal tier");
-  await updateBuiltSiteRenewalState(id, { renewalTierEventId: tierEventId });
-  await logActivity(
-    `Set renewal tier for '${site.name}' to event #${tierEventId}`,
-  );
-  return editSuccess(id, "Renewal tier updated");
-});
-
 /** POST /admin/built-sites/:id/bump-deadline */
-const handleBumpDeadline = ownerPost(async (site, form, _tiers, id) => {
+const handleBumpDeadline = ownerPost(async (site, form, id) => {
   const months = readClampedMonths(form);
   const newIso = addMonthsToRenewalDeadline(site, months);
   const result = await syncReadOnlyFrom(site, newIso);
@@ -221,7 +187,7 @@ const handleBumpDeadline = ownerPost(async (site, form, _tiers, id) => {
 });
 
 /** POST /admin/built-sites/:id/override-deadline */
-const handleOverrideDeadline = ownerPost(async (site, form, _tiers, id) => {
+const handleOverrideDeadline = ownerPost(async (site, form, id) => {
   const dateStr = form.getString("date");
   if (!dateStr) return editError(id, "Choose a deadline date");
   const cutoffIso = `${dateStr}T23:59:59Z`;
@@ -238,11 +204,12 @@ const handleOverrideDeadline = ownerPost(async (site, form, _tiers, id) => {
 });
 
 /** POST /admin/built-sites/:id/re-sync-deadline */
-const handleReSyncDeadline = ownerPost(async (site, _form, _tiers, id) => {
+const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
   if (!site.readOnlyFrom) return editError(id, "No deadline to re-sync");
-  const renewalUrl = isProvisioned(site) && site.renewalToken
-    ? renewalUrlFor(site.renewalToken)
-    : undefined;
+  const renewalUrl =
+    isProvisioned(site) && site.renewalToken
+      ? renewalUrlFor(site.renewalToken)
+      : undefined;
   const result = await syncReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
   if (result.ok) {
     await logActivity(`Admin re-synced deadline for '${site.name}'`);
@@ -255,20 +222,31 @@ const handleReSyncDeadline = ownerPost(async (site, _form, _tiers, id) => {
   );
 });
 
-/** POST /admin/built-sites/:id/provision-renewal */
-const handleProvisionRenewal = ownerPost(async (site, form, tiers, id) => {
-  const tierEventId = readAllowedTierId(false, tiers)(site, form);
-  if (tierEventId === null) return editError(id, "Choose a valid renewal tier");
+/** POST /admin/built-sites/:id/provision-renewal
+ *
+ * Gates on the existence of at least one qualifying renewal tier event so an
+ * admin doesn't generate a token that would dead-end at an empty /renew picker.
+ * (The customer picks the actual tier at renew time.) */
+const handleProvisionRenewal = ownerPost(async (site, form, id) => {
+  if (isProvisioned(site)) {
+    return editError(id, "Renewal is already provisioned for this site");
+  }
+  const tier = await pickTierEvent();
+  if (!tier) {
+    return editError(
+      id,
+      "Create a qualifying renewal tier event before provisioning",
+    );
+  }
   const months = readClampedMonths(form);
   const result = await provisionSiteRenewal(
     site,
-    tierEventId,
     months,
     `Provision push failed for site ${id}`,
   );
   if (result.pushOk) {
     await logActivity(
-      `Admin provisioned renewals for '${site.name}' (tier #${tierEventId}, ${months}mo)`,
+      `Admin provisioned renewals for '${site.name}' (${months}mo)`,
     );
   }
   return editPushOk(
@@ -282,12 +260,11 @@ const handleProvisionRenewal = ownerPost(async (site, form, tiers, id) => {
 /** Built site routes */
 export const builtSitesRoutes = {
   ...crud.routes,
-  // Override the CRUD-provided edit GET with a tier-event-loading variant.
+  // Override the CRUD-provided edit GET to pick up flash messages.
   "GET /admin/built-sites/:id/edit": handleEditGet,
   "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
   "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
   "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
   "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
   "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
-  "POST /admin/built-sites/:id/set-renewal-tier": handleSetRenewalTier,
 };

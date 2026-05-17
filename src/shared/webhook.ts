@@ -183,14 +183,16 @@ export const applyRenewalsForEntries = async (
   }
 
   for (const entry of entries) {
-    if (entry.event.id !== site.renewalTierEventId) continue;
-
+    // The customer picks the tier at /renew time, so accept any tier-shaped
+    // entry (months_per_unit > 0 is gated by the event form to require
+    // purchase_only + hidden, so this filter doesn't need to re-check those).
     const months = entry.attendee.quantity * entry.event.months_per_unit;
     if (months <= 0) continue;
 
-    const newIso = addMonthsToRenewalDeadline(site, months);
-    const result = await syncReadOnlyFrom(site, newIso);
-
+    const result = await syncReadOnlyFrom(
+      site,
+      addMonthsToRenewalDeadline(site, months),
+    );
     if (result.ok) {
       await logActivity(
         `Renewal of '${site.name}' for ${months} month(s)`,

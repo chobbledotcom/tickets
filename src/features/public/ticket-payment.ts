@@ -163,7 +163,8 @@ export const handlePaymentFlow = (
     `ticket items=${intent.items.length}`,
     request,
     (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
-    (msg) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, msg),
+    (msg) =>
+      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, msg),
   );
 
 /** Handle free ticket registration */

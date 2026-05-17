@@ -4,35 +4,13 @@ import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { testBuiltSite } from "#test-utils";
 
 describe("isProvisioned", () => {
-  test("returns true when both renewalTokenIndex and renewalTierEventId are set", () => {
-    const site = testBuiltSite({
-      renewalTierEventId: 5,
-      renewalTokenIndex: "abc123",
-    });
+  test("returns true when renewalTokenIndex is set", () => {
+    const site = testBuiltSite({ renewalTokenIndex: "abc123" });
     expect(isProvisioned(site)).toBe(true);
   });
 
   test("returns false when renewalTokenIndex is null", () => {
-    const site = testBuiltSite({
-      renewalTierEventId: 5,
-      renewalTokenIndex: null,
-    });
-    expect(isProvisioned(site)).toBe(false);
-  });
-
-  test("returns false when renewalTierEventId is null", () => {
-    const site = testBuiltSite({
-      renewalTierEventId: null,
-      renewalTokenIndex: "abc123",
-    });
-    expect(isProvisioned(site)).toBe(false);
-  });
-
-  test("returns false when both are null", () => {
-    const site = testBuiltSite({
-      renewalTierEventId: null,
-      renewalTokenIndex: null,
-    });
+    const site = testBuiltSite({ renewalTokenIndex: null });
     expect(isProvisioned(site)).toBe(false);
   });
 });

@@ -12,14 +12,6 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
-/** Tier-event option shape consumed by the renewal panel select inputs. */
-export type RenewalTierOption = {
-  id: number;
-  name: string;
-  unit_price: number;
-  months_per_unit: number;
-};
-
 /**
  * Admin built sites list page
  */
@@ -41,7 +33,9 @@ export const adminBuiltSitesPage = (
         <a href="/admin/built-sites/new">Add Built Site</a>{" "}
         <a href="/admin/builder">Build New Site</a>
       </p>
-      {sites.length === 0 ? <p>No built sites recorded.</p> : (
+      {sites.length === 0 ? (
+        <p>No built sites recorded.</p>
+      ) : (
         <div>
           <div class="table-scroll">
             <table>
@@ -67,13 +61,12 @@ export const adminBuiltSitesPage = (
                       {site.assignedAttendeeId
                         ? `Assigned (attendee #${site.assignedAttendeeId})`
                         : site.assignable
-                        ? "Available"
-                        : "Not assignable"}
+                          ? "Available"
+                          : "Not assignable"}
                     </td>
                     <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
                     <td>
-                      <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>
-                      {" "}
+                      <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
                       <a href={`/admin/built-sites/${site.id}/delete`}>
                         Delete
                       </a>
@@ -123,31 +116,6 @@ export const adminBuiltSiteNewPage = (
     </Layout>,
   );
 
-const renderTierLabel = (te: RenewalTierOption): string =>
-  `${te.name} (${te.months_per_unit}mo / ${
-    te.unit_price ? `${te.unit_price}¢` : "free"
-  })`;
-
-type TierSelectProps = {
-  id: string;
-  tiers: RenewalTierOption[];
-  selectedId?: number | null;
-};
-
-const TierSelect = ({
-  id,
-  tiers,
-  selectedId,
-}: TierSelectProps): JSX.Element => (
-  <select id={id} name="tier_event_id">
-    {tiers.map((te) => (
-      <option selected={te.id === selectedId} value={te.id}>
-        {renderTierLabel(te)}
-      </option>
-    ))}
-  </select>
-);
-
 type RenewalActionProps = {
   siteId: number;
   action: string;
@@ -182,13 +150,7 @@ const MonthsInput = ({
   />
 );
 
-const ProvisionedPanel = ({
-  site,
-  tiers,
-}: {
-  site: BuiltSite;
-  tiers: RenewalTierOption[];
-}): JSX.Element => {
+const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
   const renewalUrl = site.renewalToken ? renewalUrlFor(site.renewalToken) : "";
   return (
     <div class="prose">
@@ -204,16 +166,6 @@ const ProvisionedPanel = ({
       <p>
         <strong>Renewal URL:</strong> <code>{renewalUrl}</code>
       </p>
-
-      <RenewalActionForm action="set-renewal-tier" siteId={site.id}>
-        <label for="tier_event_id">Tier event</label>
-        <TierSelect
-          id="tier_event_id"
-          selectedId={site.renewalTierEventId}
-          tiers={tiers}
-        />
-        <button type="submit">Save tier</button>
-      </RenewalActionForm>
 
       <RenewalActionForm action="rotate-renewal-token" siteId={site.id}>
         <button
@@ -243,13 +195,7 @@ const ProvisionedPanel = ({
   );
 };
 
-const UnprovisionedPanel = ({
-  site,
-  tiers,
-}: {
-  site: BuiltSite;
-  tiers: RenewalTierOption[];
-}): JSX.Element => (
+const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
   <div class="prose">
     <p>
       <strong>Current deadline:</strong>{" "}
@@ -258,8 +204,6 @@ const UnprovisionedPanel = ({
 
     <h3>Provision renewal</h3>
     <RenewalActionForm action="provision-renewal" siteId={site.id}>
-      <label for="provision_tier_event_id">Tier event</label>
-      <TierSelect id="provision_tier_event_id" tiers={tiers} />
       <label for="provision_months">Initial months</label>
       <MonthsInput id="provision_months" />
       <button type="submit">Provision</button>
@@ -285,7 +229,6 @@ const UnprovisionedPanel = ({
 export const adminBuiltSiteEditPage = (
   site: BuiltSite,
   session: AdminSession,
-  tierEvents: RenewalTierOption[],
   error?: string,
   success?: string,
 ): string => {
@@ -304,9 +247,11 @@ export const adminBuiltSiteEditPage = (
       </CsrfForm>
 
       <h2>Renewal</h2>
-      {provisioned
-        ? <ProvisionedPanel site={site} tiers={tierEvents} />
-        : <UnprovisionedPanel site={site} tiers={tierEvents} />}
+      {provisioned ? (
+        <ProvisionedPanel site={site} />
+      ) : (
+        <UnprovisionedPanel site={site} />
+      )}
     </Layout>,
   );
 };
