@@ -377,8 +377,10 @@ month (Jan 31 + 1mo → Feb 28/29). Lives in a new `src/shared/dates.ts`
 
 - Subscriptions / auto-renew. Customer renews manually each cycle.
 - Pro-rating, refunds for unused months.
-- Email reminders before expiry — Phase 8 (cron over `built_sites`
-  where `read_only_from` ∈ `[now, now + READ_ONLY_WARN_DAYS]`).
+- Email reminders before expiry. The edge runtime has no cron
+  primitive, so any scheduled-nudge implementation would need an
+  external scheduler or a request-time piggyback. Not in scope —
+  the in-product pre-expiry banner is the v1 nudge.
 - A "self-renewal" page rendered by the built site itself; v1 links
   out to the host's `/renew/` page.
 - Multi-currency renewal pricing (uses existing `settings.currency`).
@@ -1011,11 +1013,3 @@ Roughly **13–15 source files**, **8–10 test files**.
    index or drop the unique constraint and rely on application-layer
    uniqueness (tokens are 32 random bytes — collision probability is
    negligible).
-2. **Square's session metadata field-length limit (255).** The
-   `site_token` is ~43 chars (32 bytes base64url) — well under the
-   limit but worth a one-line check in the existing
-   `enforceMetadataLimits` to be future-proof.
-3. **Phase 8 (out of scope but obvious next):** cron over
-   `built_sites` whose `read_only_from ∈ [now, now +
-   READ_ONLY_WARN_DAYS]` and send a renewal-nudge email. Land after
-   v1 ships.
