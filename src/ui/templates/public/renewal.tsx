@@ -36,7 +36,7 @@ export const renewalPage = ({
         {site.readOnlyFrom && (
           <p>
             <strong>Current deadline:</strong>{" "}
-            {new Date(site.readOnlyFrom).toLocaleDateString()}
+            {new Date(site.readOnlyFrom).toLocaleDateString("en-GB")}
           </p>
         )}
         <p>

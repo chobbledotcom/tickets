@@ -140,9 +140,8 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
           "fetch",
           (input: string | URL | Request, init?: RequestInit) => {
             const url = String(input);
-            const accessKey = (init?.headers as Record<string, string>)?.[
-              "AccessKey"
-            ];
+            const accessKey = (init?.headers as Record<string, string>)
+              ?.AccessKey;
             if (accessKey) headers.push(accessKey);
 
             if (url.endsWith("/v2/databases")) {

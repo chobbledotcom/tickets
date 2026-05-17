@@ -121,6 +121,7 @@ export const testBuiltSite = (
   name: "Test Site",
   readOnlyFrom: "",
   renewalTierEventId: null,
+  renewalToken: null,
   renewalTokenIndex: null,
   ...overrides,
 });

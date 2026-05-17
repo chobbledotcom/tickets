@@ -2,8 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import {
   getAllBuiltSites,
   insertBuiltSite,
@@ -20,20 +18,16 @@ import {
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
+  provisionTestBuiltSite,
   setupStripe,
 } from "#test-utils";
 
 const setupRenewalSite = async (tierEventId: number) => {
-  const token = generateSecureToken();
-  const tokenIndex = await hmacHash(token);
   await insertBuiltSite("Renewal Test Site", "renewal.b-cdn.net");
   const sites = await getAllBuiltSites();
   const site = sites.find((s) => s.name === "Renewal Test Site")!;
-  await updateBuiltSiteRenewalState(site.id, {
+  const { token } = await provisionTestBuiltSite(site.id, tierEventId, {
     readOnlyFrom: "2026-09-01T00:00:00Z",
-    renewalTierEventId: tierEventId,
-    renewalToken: token,
-    renewalTokenIndex: tokenIndex,
   });
   return { site, token };
 };

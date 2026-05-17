@@ -45,22 +45,31 @@ export const parseWarnDays = (
 };
 
 /** Pure helper: is the site read-only based on a cutoff timestamp? */
-export const isReadOnlyFromCutoff = (now: number, cutoff: string): boolean => {
+const parseCutoffMs = (cutoff: string): number | null => {
   const parsed = Date.parse(cutoff);
-  if (Number.isNaN(parsed)) return false;
-  return now >= parsed;
+  return Number.isNaN(parsed) ? null : parsed;
 };
+
+const withCutoffMs =
+  (cutoff: string) =>
+  (predicate: (cutoffMs: number) => boolean): boolean => {
+    const cutoffMs = parseCutoffMs(cutoff);
+    return cutoffMs === null ? false : predicate(cutoffMs);
+  };
+
+/** Pure helper: is the site read-only based on a cutoff timestamp? */
+export const isReadOnlyFromCutoff = (now: number, cutoff: string): boolean =>
+  withCutoffMs(cutoff)((cutoffMs) => now >= cutoffMs);
 
 /** Pure helper: is the current time within the warning window before cutoff? */
 export const isInWarningWindow = (
   now: number,
   cutoff: string,
   warnDays: number,
-): boolean => {
-  const parsed = Date.parse(cutoff);
-  if (Number.isNaN(parsed)) return false;
-  return now >= parsed - warnDays * 86_400_000 && now < parsed;
-};
+): boolean =>
+  withCutoffMs(cutoff)(
+    (cutoffMs) => now >= cutoffMs - warnDays * 86_400_000 && now < cutoffMs,
+  );
 
 /** Check if the system is in read-only mode (READ_ONLY env var or READ_ONLY_FROM cutoff) */
 export const isReadOnly = (): boolean => {

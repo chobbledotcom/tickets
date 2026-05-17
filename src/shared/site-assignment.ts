@@ -28,7 +28,7 @@ import {
   sendEmail,
 } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso } from "#shared/now.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 
 /** Entry with the fields needed for site assignment */
@@ -47,6 +47,16 @@ type SiteAssignment = {
   siteUrl: string;
   eventName: string;
 };
+
+type AssignmentContext = {
+  attendee: SiteAssignmentEntry["attendee"];
+  event: SiteAssignmentEntry["event"];
+  site: BuiltSite;
+};
+
+export type TierEvent = Awaited<ReturnType<typeof getAllEvents>>[number];
+export type CdnPushResult = { ok: true } | { ok: false; error: string };
+type RenewalTokenData = { token: string; index: string };
 
 /** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
 const nextSiteName = async (): Promise<string> =>
@@ -74,13 +84,16 @@ const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
 };
 
 /** Pick the cheapest qualifying tier event (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
-export const pickTierEvent = async (): Promise<
-  Awaited<ReturnType<typeof getAllEvents>>[number] | null
-> => {
+export const isQualifyingTierEvent = (event: TierEvent): boolean =>
+  event.purchase_only &&
+  event.hidden &&
+  event.months_per_unit > 0 &&
+  event.active;
+
+/** Pick the cheapest qualifying tier event. */
+export const pickTierEvent = async (): Promise<TierEvent | null> => {
   const events = await getAllEvents();
-  const qualifying = events.filter(
-    (e) => e.purchase_only && e.hidden && e.months_per_unit > 0 && e.active,
-  );
+  const qualifying = events.filter(isQualifyingTierEvent);
   if (qualifying.length === 0) return null;
   const sorted = sort(
     (a: (typeof qualifying)[number], b: (typeof qualifying)[number]) =>
@@ -90,46 +103,165 @@ export const pickTierEvent = async (): Promise<
 };
 
 /** Generate a renewal token + its HMAC blind index. */
-export const generateRenewalToken = async (): Promise<{
-  token: string;
-  index: string;
-}> => {
+export const generateRenewalToken = async (): Promise<RenewalTokenData> => {
   const token = generateSecureToken();
   const index = await hmacHash(token);
   return { index, token };
 };
 
+/** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
+export const parseReadOnlyFromMs = (
+  site: Pick<BuiltSite, "readOnlyFrom">,
+): number | null => {
+  if (!site.readOnlyFrom) return null;
+  const ms = Date.parse(site.readOnlyFrom);
+  return Number.isNaN(ms) ? null : ms;
+};
+
+/** Stack-forward base: max(now, existing deadline). Falls back to now when missing. */
+export const renewalDeadlineBaseMs = (
+  site: Pick<BuiltSite, "readOnlyFrom">,
+): number => Math.max(nowMs(), parseReadOnlyFromMs(site) ?? 0);
+
+export const addMonthsToRenewalDeadline = (
+  site: Pick<BuiltSite, "readOnlyFrom">,
+  months: number,
+): string =>
+  addMonthsIso(new Date(renewalDeadlineBaseMs(site)).toISOString(), months);
+
 /** Build the renewal URL for a given token. */
 export const renewalUrlFor = (token: string): string =>
   `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`;
 
-/** Push READ_ONLY_FROM (and optionally RENEWAL_URL) to the edge script and persist on success. */
-export const pushReadOnlyFrom = async (
+const logRenewalCdnError = (errorContext: string, error: string): void => {
+  logError({
+    code: ErrorCode.CDN_REQUEST,
+    detail: `${errorContext}: ${error}`,
+  });
+  sendNtfyError("CDN_REQUEST");
+};
+
+/** Push a subset of site secrets to the edge script. Pure I/O — no DB writes. */
+const pushSiteSecrets = async (
   site: BuiltSite,
-  cutoffIso: string,
-  renewalUrl?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> => {
+  secrets: { readOnlyFrom?: string; renewalUrl?: string },
+): Promise<CdnPushResult> => {
   const scriptId = Number(site.bunnyScriptId);
   if (!scriptId) return { error: "No bunnyScriptId", ok: false };
 
-  const fromResult = await bunnyCdnApi.setEdgeScriptSecret(
-    scriptId,
-    "READ_ONLY_FROM",
-    cutoffIso,
-  );
-  if (!fromResult.ok) return { error: fromResult.error, ok: false };
-
-  if (renewalUrl) {
-    const urlResult = await bunnyCdnApi.setEdgeScriptSecret(
+  if (secrets.readOnlyFrom !== undefined) {
+    const r = await bunnyCdnApi.setEdgeScriptSecret(
+      scriptId,
+      "READ_ONLY_FROM",
+      secrets.readOnlyFrom,
+    );
+    if (!r.ok) return r;
+  }
+  if (secrets.renewalUrl !== undefined) {
+    const r = await bunnyCdnApi.setEdgeScriptSecret(
       scriptId,
       "RENEWAL_URL",
-      renewalUrl,
+      secrets.renewalUrl,
     );
-    if (!urlResult.ok) return { error: urlResult.error, ok: false };
+    if (!r.ok) return r;
+  }
+  return { ok: true };
+};
+
+/**
+ * Push READ_ONLY_FROM (and optionally re-push RENEWAL_URL) to the edge script
+ * and persist the cutoff on success. Single DB write per call.
+ */
+export const syncReadOnlyFrom = async (
+  site: BuiltSite,
+  cutoffIso: string,
+  renewalUrl?: string,
+): Promise<CdnPushResult> => {
+  const pushResult = await pushSiteSecrets(site, {
+    readOnlyFrom: cutoffIso,
+    ...(renewalUrl !== undefined ? { renewalUrl } : {}),
+  });
+  if (pushResult.ok) {
+    await updateBuiltSiteRenewalState(site.id, { readOnlyFrom: cutoffIso });
+  }
+  return pushResult;
+};
+
+/**
+ * Provision a site for renewals: generate a token, push initial secrets,
+ * persist the full renewal state. On push failure persists the token/tier so
+ * an admin can re-sync without re-provisioning; leaves readOnlyFrom empty so
+ * the host doesn't lie about the customer-facing deadline. Single DB write.
+ */
+export const provisionSiteRenewal = async (
+  site: BuiltSite,
+  tierEventId: number,
+  months: number,
+  errorContext: string,
+): Promise<{ token: string; cutoff: string; pushOk: boolean }> => {
+  const tokenData = await generateRenewalToken();
+  const cutoff = addMonthsIso(nowIso(), months);
+  const renewalState = {
+    renewalTierEventId: tierEventId,
+    renewalToken: tokenData.token,
+    renewalTokenIndex: tokenData.index,
+  } as const;
+
+  const pushResult = await pushSiteSecrets(site, {
+    readOnlyFrom: cutoff,
+    renewalUrl: renewalUrlFor(tokenData.token),
+  });
+
+  if (pushResult.ok) {
+    await updateBuiltSiteRenewalState(site.id, {
+      readOnlyFrom: cutoff,
+      ...renewalState,
+    });
+  } else {
+    logRenewalCdnError(errorContext, pushResult.error);
+    await updateBuiltSiteRenewalState(site.id, renewalState);
   }
 
-  await updateBuiltSiteRenewalState(site.id, { readOnlyFrom: cutoffIso });
-  return { ok: true };
+  return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
+};
+
+/**
+ * Rotate a site's renewal token. Pushes the new RENEWAL_URL only — the
+ * READ_ONLY_FROM cutoff is independent of token identity and is not
+ * re-pushed here. Persists the new token on push success.
+ */
+export const rotateRenewalToken = async (
+  site: BuiltSite,
+  errorContext: string,
+): Promise<{ token: string; pushOk: boolean }> => {
+  const tokenData = await generateRenewalToken();
+  const pushResult = await pushSiteSecrets(site, {
+    renewalUrl: renewalUrlFor(tokenData.token),
+  });
+  if (pushResult.ok) {
+    await updateBuiltSiteRenewalState(site.id, {
+      renewalToken: tokenData.token,
+      renewalTokenIndex: tokenData.index,
+    });
+  } else {
+    logRenewalCdnError(errorContext, pushResult.error);
+  }
+  return { pushOk: pushResult.ok, token: tokenData.token };
+};
+
+/** Assign a site and configure its renewal state with a known tier event. */
+const assignSiteWithRenewal = async (
+  { attendee, event, site }: AssignmentContext,
+  tierEvent: TierEvent,
+): Promise<SiteAssignment> => {
+  await assignBuiltSite(site.id, attendee.id, event.id);
+  await provisionSiteRenewal(
+    site,
+    tierEvent.id,
+    event.initial_site_months,
+    `Failed to push initial READ_ONLY_FROM for site ${site.id}`,
+  );
+  return { eventName: event.name, siteUrl: site.bunnyUrl };
 };
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
@@ -140,6 +272,16 @@ const assignSitesForEntries = async (
     (e: SiteAssignmentEntry) => e.event.assign_built_site,
   );
   if (needsSite.length === 0) return [];
+
+  const tierEvent = await pickTierEvent();
+  if (!tierEvent) {
+    logError({
+      code: ErrorCode.CONFIG_MISSING,
+      detail: `No qualifying tier event for site assignment (${needsSite.length} entr${needsSite.length === 1 ? "y" : "ies"} skipped)`,
+    });
+    sendNtfyError("CONFIG_MISSING");
+    return [];
+  }
 
   const assignments: SiteAssignment[] = [];
   const available = await getAssignableBuiltSites();
@@ -159,44 +301,9 @@ const assignSitesForEntries = async (
       const site = available[idx] ?? (await buildSiteForAssignment());
       if (!site) break;
 
-      const tierEvent = await pickTierEvent();
-      if (!tierEvent) {
-        logError({
-          code: ErrorCode.CONFIG_MISSING,
-          detail: `No qualifying tier event found for site assignment (event ${event.id})`,
-        });
-        sendNtfyError("CONFIG_MISSING");
-        continue;
-      }
-
-      await assignBuiltSite(site.id, attendee.id, event.id);
-
-      const { token, index: tokenIndex } = await generateRenewalToken();
-      const cutoff = addMonthsIso(nowIso(), event.initial_site_months);
-      const renewalUrl = renewalUrlFor(token);
-
-      const pushResult = await pushReadOnlyFrom(site, cutoff, renewalUrl);
-      if (pushResult.ok) {
-        await updateBuiltSiteRenewalState(site.id, {
-          readOnlyFrom: cutoff,
-          renewalTierEventId: tierEvent.id,
-          renewalToken: token,
-          renewalTokenIndex: tokenIndex,
-        });
-      } else {
-        logError({
-          code: ErrorCode.CDN_REQUEST,
-          detail: `Failed to push READ_ONLY_FROM for site ${site.id}: ${pushResult.error}`,
-        });
-        sendNtfyError("CDN_REQUEST");
-        await updateBuiltSiteRenewalState(site.id, {
-          renewalTierEventId: tierEvent.id,
-          renewalToken: token,
-          renewalTokenIndex: tokenIndex,
-        });
-      }
-
-      assignments.push({ eventName: event.name, siteUrl: site.bunnyUrl });
+      assignments.push(
+        await assignSiteWithRenewal({ attendee, event, site }, tierEvent),
+      );
       idx++;
     }
   }

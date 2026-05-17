@@ -39,6 +39,7 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
   const provisionedSite = testBuiltSite({
     readOnlyFrom: "2027-01-15T00:00:00Z",
     renewalTierEventId: 5,
+    renewalToken: "real-customer-renewal-token",
     renewalTokenIndex: "some-index",
   });
 
@@ -56,6 +57,19 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
     expect(html).toContain("re-sync-deadline");
     expect(html).toContain("Rotate token");
     expect(html).toContain("Re-sync deadline");
+  });
+
+  test("renders the actual renewal URL (token, not placeholder)", () => {
+    const html = adminBuiltSiteEditPage(
+      provisionedSite,
+      TEST_SESSION,
+      NO_TIERS,
+    );
+    // The real token must appear inside a /renew/?t=… URL. The previous
+    // implementation rendered "<token>" literally with a bogus host — guard
+    // against regression by asserting both the path shape and the token.
+    expect(html).toContain("/renew/?t=real-customer-renewal-token");
+    expect(html).not.toContain("?t=<token>");
   });
 });
 

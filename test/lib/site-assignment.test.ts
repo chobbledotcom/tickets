@@ -7,7 +7,6 @@ import { addMonthsIso } from "#shared/dates.ts";
 import {
   getAllBuiltSites,
   getAssignableBuiltSites,
-  getBuiltSiteRenewalToken,
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
 import {
@@ -322,9 +321,8 @@ describeWithEnv(
         expect(assigned.renewalTierEventId).toBe(tier.id);
         expect(assigned.readOnlyFrom).toBeTruthy();
 
-        const token = await getBuiltSiteRenewalToken(assigned);
-        expect(token).not.toBeNull();
-        expect(token!.length).toBeGreaterThanOrEqual(32);
+        expect(assigned.renewalToken).not.toBeNull();
+        expect(assigned.renewalToken!.length).toBeGreaterThanOrEqual(32);
 
         const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
         expect(assigned.readOnlyFrom.slice(0, 10)).toBe(expectedCutoff);
@@ -417,10 +415,8 @@ describeWithEnv(
           const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
           expect(assigned).toHaveLength(3);
 
-          const tokens = await Promise.all(
-            assigned.map((s) => getBuiltSiteRenewalToken(s)),
-          );
-          const nonNullTokens = tokens.filter((t) => t !== null);
+          const tokens = assigned.map((s) => s.renewalToken);
+          const nonNullTokens = tokens.filter((t): t is string => t !== null);
           expect(nonNullTokens).toHaveLength(3);
 
           const uniqueTokens = new Set(nonNullTokens);

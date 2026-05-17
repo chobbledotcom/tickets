@@ -7,7 +7,6 @@ import {
   getAllBuiltSites,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
-  getBuiltSiteRenewalToken,
   insertBuiltSite,
   parseSiteDataBlob,
   updateBuiltSiteRenewalState,
@@ -169,6 +168,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         name: "Test",
         readOnlyFrom: "",
         renewalTierEventId: null,
+        renewalToken: null,
         renewalTokenIndex: null,
       };
       const result = await builtSitesCrudTable.fromDb(site);
@@ -189,6 +189,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         name: "Mirror",
         readOnlyFrom: "",
         renewalTierEventId: null,
+        renewalToken: null,
         renewalTokenIndex: null,
       };
       expect(builtSitesCrudTable.rowToInput(site)).toEqual({
@@ -470,9 +471,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(updated!.renewalTokenIndex).toBe("idx-123");
       expect(updated!.renewalTierEventId).toBe(3);
       expect(updated!.readOnlyFrom).toBe("2026-08-01T00:00:00Z");
-
-      const token = await getBuiltSiteRenewalToken(updated!);
-      expect(token).toBe("secret-token");
+      expect(updated!.renewalToken).toBe("secret-token");
     });
 
     test("updateBuiltSiteRenewalState updates individual fields", async () => {

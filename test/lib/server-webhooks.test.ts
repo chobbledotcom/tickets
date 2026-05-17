@@ -664,13 +664,33 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("extractIntent surfaces siteToken from metadata", async () => {
+    test("payment success redirect threads siteToken through to the renewal push", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const tier = await createTestEvent({
+        hidden: true,
         maxAttendees: 50,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
         unitPrice: 1000,
       });
+
+      const { insertBuiltSite, getAllBuiltSites } = await import(
+        "#shared/db/built-sites.ts"
+      );
+      const { provisionTestBuiltSite } = await import("#test-utils");
+      const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
+      await insertBuiltSite("Token Site", "tok.b-cdn.net", "", "", false, "9100");
+      const seedSite = (await getAllBuiltSites()).find(
+        (s) => s.name === "Token Site",
+      )!;
+      const { token } = await provisionTestBuiltSite(seedSite.id, tier.id, {
+        readOnlyFrom: "2026-09-01T00:00:00Z",
+      });
+
+      const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
@@ -678,9 +698,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_site_token",
           metadata: {
             email: "renew@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(tier.id, 1, 1000),
             name: "Renewer",
-            site_token: "my-renewal-token-abc",
+            site_token: token,
           },
           payment_intent: "pi_site_token",
           payment_status: "paid",
@@ -694,8 +714,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_site_token"),
         );
         expect(redirectResponse.status).toBe(302);
+        // Threading proof: a READ_ONLY_FROM push lands on the right edge script,
+        // proving the site_token was extracted, hashed, matched, and bumped.
+        const readOnlyCall = secretStub.calls.find(
+          (c) => (c.args[1] as string) === "READ_ONLY_FROM",
+        );
+        expect(readOnlyCall).toBeDefined();
+        expect(readOnlyCall!.args[0]).toBe(Number(seedSite.bunnyScriptId));
       } finally {
         mockRetrieve.restore();
+        secretStub.restore();
       }
     });
 

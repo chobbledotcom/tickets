@@ -5,19 +5,19 @@
 
 import { compact, unique } from "#fp";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { addMonthsIso } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso, nowMs } from "#shared/now.ts";
+import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import {
+  addMonthsToRenewalDeadline,
   assignAndNotifyBuiltSites,
-  pushReadOnlyFrom,
+  syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
 import { type ContactInfo, isPaidEvent } from "#shared/types.ts";
@@ -185,15 +185,11 @@ export const applyRenewalsForEntries = async (
   for (const entry of entries) {
     if (entry.event.id !== site.renewalTierEventId) continue;
 
-    const base =
-      site.readOnlyFrom && Date.parse(site.readOnlyFrom) > 0
-        ? Math.max(nowMs(), Date.parse(site.readOnlyFrom))
-        : nowMs();
     const months = entry.attendee.quantity * entry.event.months_per_unit;
     if (months <= 0) continue;
 
-    const newIso = addMonthsIso(new Date(base).toISOString(), months);
-    const result = await pushReadOnlyFrom(site, newIso);
+    const newIso = addMonthsToRenewalDeadline(site, months);
+    const result = await syncReadOnlyFrom(site, newIso);
 
     if (result.ok) {
       await logActivity(

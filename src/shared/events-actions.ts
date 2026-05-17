@@ -36,6 +36,23 @@ const validateMaxPrice = (input: EventInput): string | null => {
     : null;
 };
 
+/** Validate selected group existence and event type compatibility. */
+const validateEventGroup = async (
+  input: EventInput,
+  existingId: number | undefined,
+): Promise<string | null> => {
+  if (!input.groupId || input.groupId === 0) return null;
+
+  const group = await groupsTable.findById(input.groupId);
+  if (!group) return "Selected group does not exist";
+
+  return validateGroupEventType(
+    input.groupId,
+    input.eventType!,
+    existingId ?? 0,
+  );
+};
+
 /** Validate event input (slug uniqueness on update, group, max price, event type) */
 export const validateEventInput = async (
   input: EventInput,
@@ -49,16 +66,9 @@ export const validateEventInput = async (
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;
   }
-  if (input.groupId && input.groupId !== 0) {
-    const group = await groupsTable.findById(input.groupId);
-    if (!group) return "Selected group does not exist";
-    const typeError = await validateGroupEventType(
-      input.groupId,
-      input.eventType!,
-      existingId ?? 0,
-    );
-    if (typeError) return typeError;
-  }
+  const groupError = await validateEventGroup(input, existingId);
+  if (groupError) return groupError;
+
   if ((input.monthsPerUnit ?? 0) > 0 && !(input.purchaseOnly && input.hidden)) {
     return "Months per unit requires Purchase Only and Hidden to be enabled";
   }

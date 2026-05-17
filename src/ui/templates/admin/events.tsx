@@ -506,6 +506,12 @@ const EventDetailsTable = ({
             <th>Event Type</th>
             <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
           </tr>
+          {event.months_per_unit > 0 && (
+            <tr>
+              <th>Renewal</th>
+              <td>{event.months_per_unit} month(s) per ticket</td>
+            </tr>
+          )}
           {event.non_transferable && (
             <tr>
               <th>Non-Transferable</th>

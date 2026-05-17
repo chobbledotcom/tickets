@@ -67,6 +67,8 @@ export interface BuiltSite {
   name: string;
   readOnlyFrom: string;
   renewalTierEventId: number | null;
+  /** Plain renewal token from the v:2 site-data blob. Null when not provisioned. */
+  renewalToken: string | null;
   renewalTokenIndex: string | null;
 }
 
@@ -159,6 +161,7 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     name: blob.n,
     readOnlyFrom: row.read_only_from ?? "",
     renewalTierEventId: row.renewal_tier_event_id ?? null,
+    renewalToken: blob.rt ?? null,
     renewalTokenIndex: row.renewal_token_index ?? null,
   };
 };
@@ -259,6 +262,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     name: {} as ColumnDef<string>,
     readOnlyFrom: {} as ColumnDef<string>,
     renewalTierEventId: {} as ColumnDef<number | null>,
+    renewalToken: {} as ColumnDef<string | null>,
     renewalTokenIndex: {} as ColumnDef<string | null>,
   },
 
@@ -288,7 +292,6 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const dbToken = input.dbToken ?? existing.dbToken;
     const bunnyScriptId = input.bunnyScriptId ?? existing.bunnyScriptId;
     const assignable = input.assignable ?? existing.assignable;
-    const existingToken = await getBuiltSiteRenewalToken(existing);
     const row = (await builtSitesTable.update(
       id,
       toRawInput(
@@ -298,7 +301,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         dbToken,
         bunnyScriptId,
         assignable,
-        existingToken ?? undefined,
+        existing.renewalToken ?? undefined,
       ),
     )) as BuiltSiteRow;
     return rowToBuiltSite(row);
@@ -328,20 +331,28 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   return all.filter((s) => s.assignable);
 };
 
+const withBuiltSiteForUpdate = async <T>(
+  siteId: number,
+  update: (existing: BuiltSite) => Promise<T>,
+): Promise<T | null> => {
+  const existing = await builtSitesCrudTable.findById(siteId);
+  return existing ? update(existing) : null;
+};
+
 /** Assign a built site to an attendee/event — sets assignable=0 and stores IDs */
-export const assignBuiltSite = async (
+export const assignBuiltSite = (
   siteId: number,
   attendeeId: number,
   eventId: number,
 ): Promise<BuiltSite | null> => {
-  const existing = await builtSitesCrudTable.findById(siteId);
-  if (!existing) return null;
-  const row = (await builtSitesTable.update(siteId, {
-    assignable: 0,
-    assignedAttendeeId: attendeeId,
-    assignedEventId: eventId,
-  })) as BuiltSiteRow;
-  return rowToBuiltSite(row);
+  return withBuiltSiteForUpdate(siteId, async () => {
+    const row = (await builtSitesTable.update(siteId, {
+      assignable: 0,
+      assignedAttendeeId: attendeeId,
+      assignedEventId: eventId,
+    })) as BuiltSiteRow;
+    return rowToBuiltSite(row);
+  });
 };
 
 /** Look up a built site by renewal token index (HMAC blind index) */
@@ -357,18 +368,8 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   return rowToBuiltSite(decrypted);
 };
 
-/** Read the renewal token from the v:2 site data blob */
-export const getBuiltSiteRenewalToken = async (
-  site: BuiltSite,
-): Promise<string | null> => {
-  const row = await rawBuiltSitesTable.findById(site.id);
-  if (!row) return null;
-  const blob = parseSiteDataBlob(row.site_data);
-  return blob.rt ?? null;
-};
-
 /** Update built site renewal state: token index, tier, deadline, and v:2 blob together */
-export const updateBuiltSiteRenewalState = async (
+export const updateBuiltSiteRenewalState = (
   siteId: number,
   updates: {
     renewalTokenIndex?: string | null;
@@ -377,28 +378,27 @@ export const updateBuiltSiteRenewalState = async (
     renewalToken?: string;
   },
 ): Promise<BuiltSite | null> => {
-  const existing = await builtSitesCrudTable.findById(siteId);
-  if (!existing) return null;
-  const existingToken = await getBuiltSiteRenewalToken(existing);
-  const token = updates.renewalToken ?? existingToken ?? undefined;
-  const row = (await builtSitesTable.update(siteId, {
-    siteData: buildSiteDataBlob(
-      existing.name,
-      existing.bunnyUrl,
-      existing.dbUrl,
-      existing.dbToken,
-      existing.bunnyScriptId,
-      token,
-    ),
-    ...(updates.renewalTokenIndex !== undefined
-      ? { renewalTokenIndex: updates.renewalTokenIndex }
-      : {}),
-    ...(updates.renewalTierEventId !== undefined
-      ? { renewalTierEventId: updates.renewalTierEventId }
-      : {}),
-    ...(updates.readOnlyFrom !== undefined
-      ? { readOnlyFrom: updates.readOnlyFrom }
-      : {}),
-  })) as BuiltSiteRow;
-  return rowToBuiltSite(row);
+  return withBuiltSiteForUpdate(siteId, async (existing) => {
+    const token = updates.renewalToken ?? existing.renewalToken ?? undefined;
+    const row = (await builtSitesTable.update(siteId, {
+      siteData: buildSiteDataBlob(
+        existing.name,
+        existing.bunnyUrl,
+        existing.dbUrl,
+        existing.dbToken,
+        existing.bunnyScriptId,
+        token,
+      ),
+      ...(updates.renewalTokenIndex !== undefined
+        ? { renewalTokenIndex: updates.renewalTokenIndex }
+        : {}),
+      ...(updates.renewalTierEventId !== undefined
+        ? { renewalTierEventId: updates.renewalTierEventId }
+        : {}),
+      ...(updates.readOnlyFrom !== undefined
+        ? { readOnlyFrom: updates.readOnlyFrom }
+        : {}),
+    })) as BuiltSiteRow;
+    return rowToBuiltSite(row);
+  });
 };

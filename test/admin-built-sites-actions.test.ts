@@ -9,7 +9,6 @@ import { addMonthsIso } from "#shared/dates.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   getAllBuiltSites,
-  getBuiltSiteRenewalToken,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import {
@@ -17,21 +16,16 @@ import {
   createTestBuiltSite,
   createTestEvent,
   describeWithEnv,
+  provisionTestBuiltSite,
 } from "#test-utils";
 import { mockRequest } from "#test-utils/mocks.ts";
 
 const NOW_MS = 1_700_000_000_000;
 
-const provisionSite = async (siteId: number, tierEventId: number) => {
-  const { generateRenewalToken } = await import("#shared/site-assignment.ts");
-  const { index, token } = await generateRenewalToken();
-  await updateBuiltSiteRenewalState(siteId, {
-    renewalTierEventId: tierEventId,
-    renewalToken: token,
-    renewalTokenIndex: index,
-  });
-  return token;
-};
+const findSite = async (
+  siteId: number,
+): Promise<import("#shared/db/built-sites.ts").BuiltSite> =>
+  (await getAllBuiltSites()).find((s) => s.id === siteId)!;
 
 type SecretStub = any;
 
@@ -60,22 +54,27 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6001",
         name: "Rotate Site",
       });
-      const oldToken = await provisionSite(site.id, tier.id);
+      const { token: oldToken } = await provisionTestBuiltSite(
+        site.id,
+        tier.id,
+      );
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/rotate-renewal-token`,
       );
       expect(response.status).toBe(302);
 
-      const newToken = await getBuiltSiteRenewalToken(
-        (await getAllBuiltSites()).find((s) => s.id === site.id)!,
-      );
-      expect(newToken).not.toBe(oldToken);
+      const updated = await findSite(site.id);
+      expect(updated.renewalToken).not.toBe(oldToken);
+      expect(updated.renewalToken).not.toBeNull();
+      expect(updated.renewalTokenIndex).not.toBeNull();
 
-      const restartedSite = (await getAllBuiltSites()).find(
-        (s) => s.id === site.id,
-      )!;
-      expect(restartedSite.renewalTokenIndex).not.toBeNull();
+      // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
+      const secretNames = (secretStub.calls as any[]).map(
+        (c: any) => c.args[1] as string,
+      );
+      expect(secretNames).toContain("RENEWAL_URL");
+      expect(secretNames).not.toContain("READ_ONLY_FROM");
 
       const logs = await getAllActivityLog();
       expect(
@@ -113,7 +112,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6002",
         name: "Set Tier Site",
       });
-      await provisionSite(site.id, tier1.id);
+      await provisionTestBuiltSite(site.id, tier1.id);
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/set-renewal-tier`,
@@ -121,7 +120,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+      const updated = await findSite(site.id);
       expect(updated.renewalTierEventId).toBe(tier2.id);
     });
 
@@ -136,7 +135,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6003",
         name: "Bad Tier Site",
       });
-      await provisionSite(site.id, tier.id);
+      await provisionTestBuiltSite(site.id, tier.id);
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/set-renewal-tier`,
@@ -144,7 +143,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+      const updated = await findSite(site.id);
       expect(updated.renewalTierEventId).toBe(tier.id);
     });
 
@@ -175,9 +174,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           months: "3",
         });
 
-        const updated = (await getAllBuiltSites()).find(
-          (s) => s.id === site.id,
-        )!;
+        const updated = await findSite(site.id);
         const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
         expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
       } finally {
@@ -200,9 +197,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           months: "6",
         });
 
-        const updated = (await getAllBuiltSites()).find(
-          (s) => s.id === site.id,
-        )!;
+        const updated = await findSite(site.id);
         const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
         expect(updated.readOnlyFrom).toBe(expected);
       } finally {
@@ -222,9 +217,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           months: "2",
         });
 
-        const updated = (await getAllBuiltSites()).find(
-          (s) => s.id === site.id,
-        )!;
+        const updated = await findSite(site.id);
         const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 2);
         expect(updated.readOnlyFrom).toBe(expected);
       } finally {
@@ -255,39 +248,49 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
     });
 
     test("clamps months <= 0 to 1", async () => {
-      const site = await createTestBuiltSite({
-        bunnyScriptId: "6014",
-        name: "Bump Zero",
-      });
+      const fakeTime = new FakeTime(NOW_MS);
+      try {
+        const site = await createTestBuiltSite({
+          bunnyScriptId: "6014",
+          name: "Bump Zero",
+        });
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/bump-deadline`,
-        { months: "0" },
-      );
-      expect(response.status).toBe(302);
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/bump-deadline`,
+          { months: "0" },
+        );
+        expect(response.status).toBe(302);
 
-      const logs = await getAllActivityLog();
-      const bumpLog = logs.find(
-        (l) => l.message.includes("bumped") && l.message.includes("1 month"),
-      );
-      expect(bumpLog).toBeDefined();
+        const updated = await findSite(site.id);
+        expect(updated.readOnlyFrom).toBe(
+          addMonthsIso(new Date(NOW_MS).toISOString(), 1),
+        );
+      } finally {
+        fakeTime.restore();
+      }
     });
 
     test("clamps months > 120 to 120", async () => {
-      const site = await createTestBuiltSite({
-        bunnyScriptId: "6015",
-        name: "Bump Large",
-      });
+      const fakeTime = new FakeTime(NOW_MS);
+      try {
+        const site = await createTestBuiltSite({
+          bunnyScriptId: "6015",
+          name: "Bump Large",
+        });
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/bump-deadline`,
-        { months: "999" },
-      );
-      expect(response.status).toBe(302);
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/bump-deadline`,
+          { months: "999" },
+        );
+        expect(response.status).toBe(302);
 
-      const logs = await getAllActivityLog();
-      const bumpLog = logs.find((l) => l.message.includes("120 month"));
-      expect(bumpLog).toBeDefined();
+        const updated = await findSite(site.id);
+        expect(updated.readOnlyFrom).toBe(
+          addMonthsIso(new Date(NOW_MS).toISOString(), 120),
+        );
+      } finally {
+        fakeTime.restore();
+      }
     });
   });
 
@@ -304,7 +307,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+      const updated = await findSite(site.id);
       expect(updated.readOnlyFrom).toBe("2027-06-15T23:59:59Z");
     });
 
@@ -340,7 +343,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+      const updated = await findSite(site.id);
       expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
     });
   });
@@ -357,7 +360,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6030",
         name: "Resync Site",
       });
-      await provisionSite(site.id, tier.id);
+      await provisionTestBuiltSite(site.id, tier.id);
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2027-03-15T00:00:00Z",
       });
@@ -439,16 +442,14 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const updated = (await getAllBuiltSites()).find((s) => s.id === site.id)!;
+      const updated = await findSite(site.id);
       expect(updated.renewalTierEventId).toBe(tier.id);
       expect(updated.renewalTokenIndex).not.toBeNull();
+      expect(updated.renewalToken).not.toBeNull();
       expect(updated.readOnlyFrom).not.toBe("");
 
-      const token = await getBuiltSiteRenewalToken(updated);
-      expect(token).not.toBeNull();
-
       const renewResponse = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token!)}`),
+        mockRequest(`/renew/?t=${encodeURIComponent(updated.renewalToken!)}`),
       );
       expect(renewResponse.status).toBe(200);
     });
@@ -464,7 +465,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6041",
         name: "Already Provisioned",
       });
-      await provisionSite(site.id, tier.id);
+      await provisionTestBuiltSite(site.id, tier.id);
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/provision-renewal`,
@@ -496,9 +497,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           tier_event_id: String(tier.id),
         });
 
-        const updated = (await getAllBuiltSites()).find(
-          (s) => s.id === site.id,
-        )!;
+        const updated = await findSite(site.id);
         expect(updated.renewalTierEventId).toBe(tier.id);
         expect(updated.renewalTokenIndex).not.toBeNull();
         expect(updated.readOnlyFrom).toBe("");

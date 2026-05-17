@@ -3,23 +3,20 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
-import {
-  getAllBuiltSites,
-  insertBuiltSite,
-  updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
+import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { applyRenewalsForEntries } from "#shared/webhook.ts";
-import { createTestEvent, describeWithEnv, makeTestEntry } from "#test-utils";
+import {
+  createTestEvent,
+  describeWithEnv,
+  makeTestEntry,
+  provisionTestBuiltSite,
+} from "#test-utils";
 
 const NOW_MS = 1_700_000_000_000;
 
 const setupRenewalSite = async (tierEventId: number, readOnlyFrom: string) => {
-  const token = generateSecureToken();
-  const tokenIndex = await hmacHash(token);
   await insertBuiltSite(
     "Renewal Site",
     "renewal.b-cdn.net",
@@ -30,11 +27,8 @@ const setupRenewalSite = async (tierEventId: number, readOnlyFrom: string) => {
   );
   const sites = await getAllBuiltSites();
   const site = sites.find((s) => s.name === "Renewal Site")!;
-  await updateBuiltSiteRenewalState(site.id, {
+  const { token } = await provisionTestBuiltSite(site.id, tierEventId, {
     readOnlyFrom,
-    renewalTierEventId: tierEventId,
-    renewalToken: token,
-    renewalTokenIndex: tokenIndex,
   });
   return { site, token };
 };
@@ -240,7 +234,7 @@ describeWithEnv("renewals", { db: true }, () => {
     }
   });
 
-  test("end-to-end: Stripe webhook with site_token fires applyRenewalsForEntries through to setEdgeScriptSecret", async () => {
+  test("applyRenewalsForEntries pushes READ_ONLY_FROM, logs activity, persists cutoff", async () => {
     const tier = await createTestEvent({
       hidden: true,
       monthsPerUnit: 1,
@@ -258,44 +252,23 @@ describeWithEnv("renewals", { db: true }, () => {
       await applyRenewalsForEntries([entry], token);
 
       expect(secretStub.calls.length).toBe(1);
-      const scriptId = secretStub.calls[0]!.args[0] as number;
+      const [scriptId, secretName, secretValue] = secretStub.calls[0]!.args as [
+        number,
+        string,
+        string,
+      ];
       expect(scriptId).toBe(Number(site.bunnyScriptId));
+      expect(secretName).toBe("READ_ONLY_FROM");
+      expect(secretValue).toBe(addMonthsIso(baseDate, 2));
 
       const sites = await getAllBuiltSites();
       const updated = sites.find((s) => s.id === site.id)!;
-      const expected = addMonthsIso(baseDate, 2);
-      expect(updated.readOnlyFrom).toBe(expected);
+      expect(updated.readOnlyFrom).toBe(addMonthsIso(baseDate, 2));
 
       const logs = await getAllActivityLog();
       const renewalLog = logs.find((l) => l.message.includes("Renewal of"));
       expect(renewalLog).toBeDefined();
       expect(renewalLog!.message).toContain("2 month(s)");
-    });
-  });
-
-  test("end-to-end: payment success redirect path also triggers renewal bump", async () => {
-    const tier = await createTestEvent({
-      hidden: true,
-      monthsPerUnit: 1,
-      purchaseOnly: true,
-      unitPrice: 500,
-    });
-    const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(tier.id, baseDate);
-
-    await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 1 },
-      );
-      await applyRenewalsForEntries([entry], token);
-
-      expect(secretStub.calls.length).toBe(1);
-
-      const sites = await getAllBuiltSites();
-      const updated = sites.find((s) => s.id === site.id)!;
-      const expected = addMonthsIso(baseDate, 1);
-      expect(updated.readOnlyFrom).toBe(expected);
     });
   });
 });
