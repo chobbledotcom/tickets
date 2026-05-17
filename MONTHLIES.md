@@ -129,8 +129,13 @@ These findings drove the design choices below:
 
 **`built_sites` table:**
 
-- `renewal_token_index TEXT NOT NULL DEFAULT ''` — HMAC blind index
-  over the renewal token, unique. Lookup column for `/renew/?t=<token>`.
+- `renewal_token_index TEXT DEFAULT NULL` — HMAC blind index over the
+  renewal token, unique. Lookup column for `/renew/?t=<token>`.
+  Existing rows get `NULL` during the schema migration; provisioning
+  or assignment generates a token and writes the index. SQLite/libsql
+  unique indexes allow multiple `NULL` values, so this avoids the
+  "many legacy rows all have empty string" problem without needing a
+  partial index.
 - `renewal_tier_event_id INTEGER DEFAULT NULL` — FK-by-convention to
   the tier event the site is currently on. Admin can change this in
   the built-site detail page (no token rotation needed). NULL means
@@ -146,13 +151,18 @@ These findings drove the design choices below:
   per-site secrets). Not strictly needed for runtime (we can rotate
   by regenerating + pushing a new URL), but stored so the admin UI
   can render the current `RENEWAL_URL` without re-deriving it.
+- Any built-site CRUD update that rewrites `site_data` must preserve
+  `rt` when it exists. The current CRUD adapter reconstructs the blob
+  from visible form fields, so renewal-specific updates should go
+  through dedicated helpers rather than ad hoc `builtSitesTable.update`
+  calls.
 
 **`SessionMetadata` (payment pipeline):**
 
 - Add **optional** `site_token?: string`. Populated only by the
-  renewal checkout route. Webhook side-effect chain reads it; if
-  present, bumps the linked site's deadline. All other code paths
-  ignore it.
+  renewal checkout route. The shared payment-finalization path reads
+  it; if present, bumps the linked site's deadline. All other code
+  paths ignore it.
 
 ### Renewal URL shape
 
@@ -162,6 +172,11 @@ These findings drove the design choices below:
 - Server-side lookup: HMAC the token via `hmacHash`, query
   `built_sites WHERE renewal_token_index = ?`. If the site has
   `renewal_tier_event_id = null` → 404.
+- Existing/legacy built sites do not get a usable renewal URL from
+  the schema migration alone. They get a real token, token index, tier,
+  deadline, and pushed `RENEWAL_URL` when the admin runs "Provision
+  renewal" on that site. This keeps the migration simple and avoids
+  creating bearer URLs before a tier/deadline has been chosen.
 - The route is its own handler, not a redirect to `/<slug>`. The
   rendered page shows: site name, current `read_only_from`, a months
   quantity picker (1..`max_quantity` of the tier event), the email
@@ -223,8 +238,11 @@ On assignment of an `assign_built_site=1` event:
    - `READ_ONLY_WARN_DAYS = 14` (only if explicitly desired per-site;
      omit to use the built site's built-in default).
 7. **Only on push success**, persist `read_only_from` to the
-   built_site row. Failure path logs + ntfy and is recovered via
-   the admin "Re-sync deadline" button (Phase 6).
+   built_site row. Failure path logs + ntfy for operator
+   investigation. There is no elaborate retry/rollback machinery:
+   Bunny secret writes are treated the same way as the existing
+   builder secret writes, and admin lifecycle actions are enough for
+   manual repair.
 
 For multi-site purchases (`quantity > 1` on the selling event):
 each provisioned site gets its own token, its own URL, and its own
@@ -240,14 +258,15 @@ When a renewal payment succeeds:
    builds a `CheckoutIntent` whose single item is the tier event
    with `quantity = months` and `unitPrice = tier.unit_price`,
    plus a `site_token` field in the metadata.
-2. Stripe/Square processes payment. Webhook fires → existing
-   `processPaymentSession` validates and creates an attendee via
-   the standard pipeline. The attendee row is the audit trail.
-3. After `finalizeSession`, `logAndNotifyRegistration` runs (`src/shared/webhook.ts:164`).
-4. New pending-work step `applyRenewalsForEntries(entries,
-   sessionMetadata)`:
-   - If `sessionMetadata.site_token` is empty → no-op (this isn't a
-     renewal payment).
+2. Stripe/Square processes payment. Either the webhook or the
+   `/payment/success` redirect can win the existing two-phase lock.
+   In both cases, the shared `processPaymentSession` validates and
+   creates an attendee via the standard pipeline. The attendee row is
+   the audit trail.
+3. After `finalizeSession`, `logAndNotifyRegistration` runs
+   (`src/shared/webhook.ts:164`) with `intent.siteToken`.
+4. New pending-work step `applyRenewalsForEntries(entries, siteToken)`:
+   - If `siteToken` is empty → no-op (this isn't a renewal payment).
    - Look up site by `hmacHash(site_token)` against
      `renewal_token_index`. If missing → log + ntfy. (Shouldn't
      happen — token came from a checkout we just authored — but
@@ -261,7 +280,17 @@ When a renewal payment succeeds:
 5. Refunds are **out of scope for v1** — if a renewal is refunded
    later, the customer keeps the time they paid for. Document.
 
+Renewal payments intentionally keep the normal registration side
+effects: attendee rows, normal confirmation emails, configured event
+webhooks, activity log entries, and event revenue/listing surfaces.
+Renewal tiers are purchase-only events in the same system the customer
+is buying on, so the normal purchase receipt behaviour is desirable.
+
 ### Built site read-only behaviour
+
+`READ_ONLY_FROM` is for built customer sites. Builder/host instances
+that own `/renew/` and take payment are expected to stay writable, so
+the host renewal route does not need special read-only bypass handling.
 
 - New `src/shared/env.ts`:
   ```ts
@@ -343,7 +372,8 @@ month (Jan 31 + 1mo → Feb 28/29). Lives in a new `src/shared/dates.ts`
   - "Re-sync deadline" button → POST
     `/admin/built-sites/<id>/re-sync-deadline`. Re-pushes the
     host-side `read_only_from` (and `RENEWAL_URL`) to the edge.
-    Primary recovery path for failed Bunny pushes.
+    Useful when an operator has investigated an edge-state mismatch
+    and wants to replay the current host-side values.
 
   **Unprovisioned** (site lacks token and/or tier — covers
   legacy sites built before this feature, sites where assignment
@@ -384,7 +414,6 @@ month (Jan 31 + 1mo → Feb 28/29). Lives in a new `src/shared/dates.ts`
 - A "self-renewal" page rendered by the built site itself; v1 links
   out to the host's `/renew/` page.
 - Multi-currency renewal pricing (uses existing `settings.currency`).
-- Renewal events showing up in aggregate revenue admin reports.
 
 ## Phases
 
@@ -403,16 +432,14 @@ unchanged until the renewal flow is wired up end-to-end in Phase 5.
     - `["months_per_unit", "INTEGER NOT NULL DEFAULT 0"]`
     - `["initial_site_months", "INTEGER NOT NULL DEFAULT 0"]`
   - Add to `built_sites` columns:
-    - `["renewal_token_index", "TEXT NOT NULL DEFAULT ''"]`
+    - `["renewal_token_index", "TEXT DEFAULT NULL"]`
     - `["renewal_tier_event_id", "INTEGER DEFAULT NULL"]`
     - `["read_only_from", "TEXT NOT NULL DEFAULT ''"]`
   - Add to `built_sites` indexes:
     - `{ columns: ["renewal_token_index"],
          name: "idx_built_sites_renewal_token_index", unique: true }`
-    - Note: unique-on-empty-string would block empty values. Use a
-      partial unique index if libsql supports it, otherwise gate at
-      the application layer (assignment always sets a non-empty
-      token, never produces collisions in practice).
+    - Because `renewal_token_index` is nullable, legacy rows can all
+      remain `NULL` while provisioned rows still get uniqueness.
   - Bump `LATEST_UPDATE` to
     `"add monthly renewals to events + built_sites"`.
 - `src/shared/types.ts`
@@ -426,15 +453,24 @@ unchanged until the renewal flow is wired up end-to-end in Phase 5.
 - `src/shared/db/built-sites.ts`
   - Extend `BuiltSiteRow`, `BuiltSite`, the schema, `rowToBuiltSite`,
     and the CRUD adapter to surface
-    `renewalTokenIndex: string`,
+    `renewalTokenIndex: string | null`,
     `renewalTierEventId: number | null`,
     `readOnlyFrom: string`.
   - `SiteDataBlob` bumps to `v: 2` and gains `rt?: string`. `parseSiteDataBlob` must
     still accept `v: 1` blobs (legacy sites); `rt` is undefined when
     missing.
+  - Preserve `rt` on ordinary built-site CRUD updates. The visible
+    edit form does not include the renewal token, so blob rewrites
+    must merge with the existing blob rather than reconstructing only
+    the visible fields.
   - New helpers:
     `getBuiltSiteByRenewalTokenIndex(tokenIndex: string): Promise<BuiltSite | null>`
     (`SELECT … WHERE renewal_token_index = ?`).
+    `getBuiltSiteRenewalToken(site: BuiltSite): string | null`
+    (reads `rt` from the v:2 blob).
+    `updateBuiltSiteRenewalState(...)` (writes token index, tier,
+    deadline, and v:2 blob together without dropping existing blob
+    fields).
 
 **Tests**
 
@@ -443,7 +479,11 @@ unchanged until the renewal flow is wired up end-to-end in Phase 5.
   - Round-trip a built_site with all three new columns set.
   - `getBuiltSiteByRenewalTokenIndex` returns the matching site,
     returns null when no match.
+  - Multiple built_sites with `renewal_token_index = NULL` can exist
+    under the unique index.
   - Legacy v:1 blob still decodes correctly (no `rt` field).
+  - Editing a built site through the CRUD adapter preserves the
+    existing v:2 `rt` token.
 
 ---
 
@@ -543,8 +583,8 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
     `assign_built_site=1` entry:
     1. Defensive: assert `event.initial_site_months > 0`. On 0,
        skip + log `DATA_INVALID`.
-    2. Call `pickTierEvent()`. On null, skip + log `CONFIG_MISSING`
-       (new error code) + ntfy.
+    2. Call `pickTierEvent()`. On null, skip + log existing
+       `CONFIG_MISSING` + ntfy.
     3. For each ticket in `attendee.quantity`:
        a. Assign a built site (existing flow).
        b. Generate a renewal token. Persist token in v:2 site-data
@@ -554,16 +594,13 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
           event.initial_site_months)`.
        d. Call `pushReadOnlyFrom(site, cutoff,
           renewalUrlFor(token))`. On failure: leave host-side
-          `read_only_from` empty (don't lie about state); admin's
-          "Re-sync deadline" replays from a sane state later (which
-          will be `nowIso() + initial_site_months` re-computed —
-          fine for first-push recovery).
+          `read_only_from` empty (don't lie about state), log + ntfy,
+          and investigate manually. No special rollback/retry path.
     4. Email goes out as today.
 - `src/shared/config.ts` — `renewalUrlFor(token): string`:
-  `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`.
-- `src/shared/logger.ts` — new `ErrorCode.CONFIG_MISSING` for the
-  "no tier event" case (or reuse `DATA_INVALID` — fine either way,
-  but a dedicated code makes log grep'ing easier).
+    `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`.
+- `ErrorCode.CONFIG_MISSING` already exists and should be used for
+  the "no tier event" case.
 
 **Tests**
 
@@ -592,9 +629,9 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
     tokens generated, three independent secret pushes (assert call
     count = 3 × secrets-per-site = 6 or 9 depending on inclusion
     of `RENEWAL_URL`/`READ_ONLY_WARN_DAYS`).
-  - Bunny push failure on one site of three ⇒ that site's
-    host-side `read_only_from` stays empty; the other two persist
-    their values.
+  - Bunny push failure on one site of three ⇒ error is logged/ntfy'd
+    and that site's host-side `read_only_from` stays empty; the
+    other two persist their values.
   - Stubs `bunnyCdnApi.setEdgeScriptSecret` and asserts call args.
 
 ---
@@ -679,7 +716,7 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 
 ---
 
-### Phase 5 — Webhook side-effect: bump `READ_ONLY_FROM`
+### Phase 5 — Payment-finalization side-effect: bump `READ_ONLY_FROM`
 
 **Files**
 
@@ -703,7 +740,11 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
     - Add `addPendingWork(applyRenewalsForEntries(entries, siteToken))`
       next to the existing pending-work calls.
 - `src/features/api/webhooks.ts → processPaymentSession`
+  - Surface `siteToken` in `extractIntent`.
   - Pass `intent.siteToken` through to `logAndNotifyRegistration`.
+  - This must happen inside the shared `processPaymentSession`, not
+    only inside `handlePaymentWebhook`, because either the webhook or
+    `/payment/success` redirect can win the two-phase lock.
 - `src/features/public/ticket-payment.ts → processFreeReservation`
   - Pass `undefined` (free reservations never renewals — they're
     always > $0 by construction, since tier events have a price).
@@ -723,10 +764,12 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
   - End-of-month: site with `read_only_from = 2026-01-31` + 1mo
     renewal lands on `2026-02-28`.
   - `pushReadOnlyFrom` failure: host-side `read_only_from` not
-    advanced; activity log records failure rather than success.
+    advanced; error is logged/ntfy'd rather than success.
   - End-to-end: stub a Stripe webhook event with `site_token` in
     metadata; `applyRenewalsForEntries` fires through to
     `bunnyCdnApi.setEdgeScriptSecret`.
+  - End-to-end: simulate `/payment/success?session_id=...` winning
+    the processing race; the same renewal bump still runs.
 
 ---
 
@@ -740,7 +783,7 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
     `"expired N days ago"`, `"in N days"`, `"today"`.
   - Detail/edit page: new "Renewal" panel below the existing fields.
     Branches on `isProvisioned(site)` (= site has both
-    `renewal_token_index !== ""` and `renewal_tier_event_id !== null`):
+    `renewal_token_index != null` and `renewal_tier_event_id !== null`):
     - **Provisioned mode** renders:
       - Current deadline (formatted) + raw ISO in a `<details>`.
       - Renewal URL with copy-to-clipboard.
@@ -795,8 +838,8 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
     `builtSitesTable.update(id, { renewalTokenIndex,
     renewalTierEventId, /* blob with new rt */, readOnlyFrom: "" /* set by pushReadOnlyFrom on success */ })`.
     Call `pushReadOnlyFrom(site, cutoff, renewalUrlFor(token))`.
-    On Bunny failure, leave `read_only_from` empty so admin can
-    retry; the token + tier remain set. Rejects sites that are
+    On Bunny failure, leave `read_only_from` empty, log + ntfy for
+    investigation, and keep the token + tier. Rejects sites that are
     already provisioned (use "Rotate token" + "Set tier" instead).
     Logs to activity log:
     `"Admin provisioned renewals for '${site.name}' (tier=${tierName}, ${months}mo)"`.
@@ -861,8 +904,8 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
   - `provision-renewal` on a provisioned site → 400 "already
     provisioned".
   - `provision-renewal` Bunny failure: token + tier persist,
-    `read_only_from` stays empty so admin can retry via
-    `re-sync-deadline` (after fixing the upstream issue).
+    `read_only_from` stays empty, error is logged/ntfy'd for manual
+    investigation.
   - All actions logged to the activity log with a human-readable
     message.
 - `test/admin-api-events.test.ts`
@@ -907,8 +950,8 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
     - Renewing one site's URL bumps only that site's deadline.
   - Failure path: stub a `setEdgeScriptSecret` rejection on
     `READ_ONLY_FROM` push during renewal → host-side
-    `read_only_from` unchanged, activity log records failure,
-    "Re-sync deadline" admin POST recovers it.
+    `read_only_from` unchanged, error is logged/ntfy'd for manual
+    investigation.
 
 ---
 
@@ -916,23 +959,25 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 
 | Risk | Mitigation |
 |---|---|
-| Bunny secret push silently fails after payment captured | Persist new `read_only_from` only after success; log + ntfy on failure; admin "Re-sync deadline" replays the push. |
+| Bunny secret push fails after payment captured | Persist new `read_only_from` only after success; log + ntfy on failure; investigate and repair manually via admin lifecycle actions. No special retry/rollback machinery. |
 | Customer renews on a still-active site → eats their remaining time | `base = max(now, read_only_from)` stacks forward. Tested. |
 | Renewal token guessable | 32-byte (256-bit) base64url, generated by `getRandomValues` via existing `generateSecureToken`. Blind-indexed for lookup. |
 | Token leaked (URL shared / logged) | Admin "Rotate token" regenerates, pushes new `RENEWAL_URL`, invalidates old URL on next /renew lookup. |
+| Existing built-site rows need renewal tokens | They start with `renewal_token_index = NULL`, which is compatible with the unique index. The "Provision renewal" action generates the token, stores the HMAC index + encrypted raw token, assigns the tier, sets the deadline, and pushes the URL. |
+| Built-site edit drops encrypted renewal token | Built-site blob writes must preserve v:2 `rt`; renewal updates go through dedicated helpers that merge with the existing blob. Tests cover CRUD edit preserving `rt`. |
 | Site deleted but renewal token row lingers | Existing `DELETE FROM built_sites WHERE id = ?` removes the row entirely. No FK on the tier event → no cascade needed. Renewal payments to that site (if a checkout was in flight at delete-time) will 404 in `applyRenewalsForEntries`'s "site not found" branch — log only. |
 | Tier event deleted while customers have it assigned | `applyRenewalsForEntries` sees `event.id === site.renewalTierEventId` is false (deleted event isn't in the attendee→event list); admin should reassign tier before deleting. Phase 6 admin event-delete guard could enforce: "this event is the renewal tier for N sites; reassign first." Optional; logging is the floor. |
 | Admin accidentally publishes a renewal tier event | `months_per_unit > 0` requires `purchase_only=1 && hidden=1` on save (Phase 6 validation). |
 | Admin sets `months_per_unit` on a non-tier event by accident | Same form validation: the field is gated on the tier "shape". Defensive `pickTierEvent` only matches the full predicate. |
-| Site assignment runs with zero tier events | Assignment aborts cleanly per-entry, logs + ntfy. Customer payment captured → admin support ticket → admin creates a tier event → clicks "Provision renewal" on the affected built site (Phase 6 unprovisioned-mode action). |
-| Bunny push failure during initial assignment leaves site half-provisioned | Token + tier persist on the row but `read_only_from` is empty. Site shows as provisioned (the predicate is `token !== "" && tier !== null`). "Re-sync deadline" errors gracefully ("no deadline to sync"); admin uses "Override deadline" or "Bump deadline" to set one, both of which work without an existing `read_only_from`. |
+| Site assignment runs with zero tier events | Assignment aborts cleanly per-entry, logs + ntfy. Customer payment captured → admin creates a tier event → clicks "Provision renewal" on the affected built site (Phase 6 unprovisioned-mode action). |
+| Bunny push failure during initial assignment leaves site half-provisioned | Token + tier may persist while `read_only_from` stays empty. The error is logged/ntfy'd and investigated. Admin uses "Override deadline" or "Bump deadline" to set one; both work without an existing `read_only_from`. |
 | Malformed `READ_ONLY_FROM` locks customer out | Fail open: invalid value treated as "no cutoff", logged. |
 | Clock skew between host and edge | Both run on Bunny's infra; ms-level skew is irrelevant at month granularity. |
 | `initial_site_months=0` on a paid built-site sale | Form rejects on save; assignment defensively re-checks and skips on 0 (API-bypass). |
 | Refund issued for a renewal | Out of scope for v1: customer keeps paid-for time, refund returns money only. Document. |
-| Multi-site checkout with one push failure | Each site processed independently; failures leave that site's host-side date unchanged. No rollback of others. |
-| `site_token` rotated between checkout creation and webhook arrival | `applyRenewalsForEntries` lookup misses → logged, no bump. Customer paid for time that didn't apply. Rare (rotation is manual + minutes apart); admin "Re-sync" + manual override is the recovery. |
-| Renewal flow goes through attendee/PII pipeline → row per renewal | Acceptable: ~12 rows/year per active site. Existing `processed_payments` pruning leaves attendee rows in place; that's fine for audit. |
+| Multi-site checkout with one push failure | Each site processed independently; failures leave that site's host-side date unchanged and are logged/ntfy'd. No rollback of others. |
+| `site_token` rotated between checkout creation and payment finalization | `applyRenewalsForEntries` lookup misses → logged, no bump. Customer paid for time that didn't apply. Rare (rotation is manual + minutes apart); admin manually bumps or overrides the deadline after investigation. |
+| Renewal flow goes through attendee/PII pipeline → row per renewal, normal emails/webhooks, normal event reporting | Intentional. Renewals are purchase-only events in the same system; the attendee row is the receipt/audit trail and the normal confirmation behaviour is desirable. |
 | `SessionMetadata` is a strict shape; adding `site_token` touches every provider extractor | One-line addition in `extractSessionMetadata` + one in `buildMetadata`; both Stripe and Square pick up the change via the shared helper. |
 
 ## File-change summary
@@ -946,7 +991,7 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 | Assignment | `site-assignment.ts` | `pickTierEvent`, `generateRenewalToken`, `pushReadOnlyFrom`, tier-event guard |
 | Renewal route | new `features/public/renewal.ts`, new `templates/public/renewal.tsx`, `features/index.ts` | GET + POST handlers, form template, dispatch wiring |
 | Payment metadata | `payments.ts`, `payment-helpers.ts`, `features/api/webhooks.ts` | Optional `site_token` everywhere |
-| Webhook side-effect | `webhook.ts` | `applyRenewalsForEntries` |
+| Payment-finalization side-effect | `webhook.ts`, `features/api/webhooks.ts` | `applyRenewalsForEntries`; `siteToken` is passed through shared `processPaymentSession` so webhook and redirect winners behave the same |
 | Date math | new `dates.ts` | `addMonthsIso` (clamped) |
 | Admin events form | `fields.ts`, `templates/admin/events.tsx`, `features/admin/events.ts` | Two new fields, two new validations, Renewal tag |
 | Admin built-sites surface | `templates/admin/built-sites.tsx`, `features/admin/built-sites.ts` | Deadline column, renewal panel (provisioned + unprovisioned modes), 6 action POST routes (rotate-token, set-tier, bump-deadline, override-deadline, re-sync-deadline, provision-renewal) |
@@ -989,10 +1034,14 @@ Roughly **13–15 source files**, **8–10 test files**.
 13. **Month arithmetic:** `addMonthsIso` clamps to last day of the
     target month.
 14. **Push failure after renewal payment:** don't advance host-side
-    date, log + ntfy. Recover via admin "Re-sync deadline".
+    date, log + ntfy, investigate manually. The system deliberately
+    avoids elaborate retry/rollback machinery around Bunny secret
+    writes.
 15. **Payment-pipeline reuse:** renewals run through the existing
     attendee/PII/webhook pipeline. One attendee row per renewal acts
-    as the audit trail. New optional `site_token` field on
+    as the audit trail. Normal confirmation emails, configured event
+    webhooks, activity log entries, and event revenue/reporting
+    surfaces are intentional. New optional `site_token` field on
     `SessionMetadata` carries which site is renewing.
 16. **Bunny secret propagation:** confirmed — `setEdgeScriptSecret`
     propagates without republish. No `publishEdgeScript` call in
@@ -1004,12 +1053,11 @@ Roughly **13–15 source files**, **8–10 test files**.
     and "Override deadline" actions that work on *any* site —
     provisioned, unprovisioned, legacy, or with a known-bad state.
     No separate migration / backfill required for legacy rows.
-
-## Still to confirm
-
-1. **libsql partial unique index for empty-string token index.**
-   If `idx_built_sites_renewal_token_index UNIQUE` blocks pre-Phase-3
-   rows (all `''`), use a `WHERE renewal_token_index != ''` partial
-   index or drop the unique constraint and rely on application-layer
-   uniqueness (tokens are 32 random bytes — collision probability is
-   negligible).
+18. **Existing token-index migration:** use nullable
+    `built_sites.renewal_token_index` with a normal unique index.
+    Existing rows remain `NULL` until provisioned; provisioning
+    generates the real token/index.
+19. **Host writability:** builder/host instances that take renewal
+    payments are not expected to become read-only. `READ_ONLY_FROM`
+    applies to the built customer sites, which link out to the host's
+    writable `/renew/` route.
