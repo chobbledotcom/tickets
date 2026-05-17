@@ -121,7 +121,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
   Partial<
     Pick<
       BookingIntent,
-      "phone" | "address" | "special_instructions" | "eventAnswerIds"
+      "phone" | "address" | "special_instructions" | "eventAnswerIds" | "siteToken"
     >
   >;
 
@@ -137,6 +137,7 @@ export const buildMetadata = (
   name: intent.name,
   ...optionalFields(intent),
   ...eventAnswerIdsField(intent.eventAnswerIds),
+  ...(intent.siteToken ? { site_token: intent.siteToken } : {}),
 });
 
 /**
@@ -233,5 +234,6 @@ export const extractSessionMetadata = (
   items: metadata.items || "",
   name: metadata.name,
   phone: metadata.phone || "",
+  site_token: metadata.site_token || "",
   special_instructions: metadata.special_instructions || "",
 });

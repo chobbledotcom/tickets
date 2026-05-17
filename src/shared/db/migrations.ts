@@ -34,7 +34,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add token rate-limit table with window_start/last_attempt";
+  "add monthly renewals to events + built_sites";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -86,6 +86,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
+        ["months_per_unit", "INTEGER NOT NULL DEFAULT 0"],
+        ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -364,6 +366,16 @@ const SCHEMA: [name: string, table: Table][] = [
         ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
         ["assigned_event_id", "INTEGER DEFAULT NULL"],
         ["created", "TEXT NOT NULL"],
+        ["renewal_token_index", "TEXT DEFAULT NULL"],
+        ["renewal_tier_event_id", "INTEGER DEFAULT NULL"],
+        ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
+      ],
+      indexes: [
+        {
+          columns: ["renewal_token_index"],
+          name: "idx_built_sites_renewal_token_index",
+          unique: true,
+        },
       ],
     },
   ],

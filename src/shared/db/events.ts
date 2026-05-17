@@ -71,6 +71,8 @@ export type EventInput = {
   hidden?: boolean;
   purchaseOnly?: boolean;
   assignBuiltSite?: boolean;
+  monthsPerUnit?: number;
+  initialSiteMonths?: number;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -171,6 +173,8 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
   webhook_url: col.encryptedText(encrypt, decrypt),
+  months_per_unit: col.withDefault(() => 0),
+  initial_site_months: col.withDefault(() => 0),
 });
 
 export const eventsTable = withCacheInvalidation(rawEventsTable, () =>

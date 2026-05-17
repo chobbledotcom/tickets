@@ -59,6 +59,12 @@ export const validateEventInput = async (
     );
     if (typeError) return typeError;
   }
+  if ((input.monthsPerUnit ?? 0) > 0 && !(input.purchaseOnly && input.hidden)) {
+    return "Months per unit requires Purchase Only and Hidden to be enabled";
+  }
+  if (input.assignBuiltSite && (input.initialSiteMonths ?? 0) <= 0) {
+    return "Initial site months is required when a site is assigned.";
+  }
   return null;
 };
 

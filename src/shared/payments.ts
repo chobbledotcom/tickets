@@ -41,6 +41,8 @@ export type BookingIntent = ContactInfo & {
   items: BookingItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
+  /** Renewal site token: set when this payment is for a site renewal */
+  siteToken?: string;
 };
 
 /** Registration intent for checkout (one or more events) */
@@ -49,6 +51,8 @@ export type CheckoutIntent = ContactInfo & {
   items: CheckoutItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
+  /** Renewal site token: set when this checkout is for a site renewal */
+  siteToken?: string;
 };
 
 /** Result of creating a checkout session.
@@ -85,6 +89,7 @@ export type SessionMetadata = {
   items: string;
   date: string;
   answer_ids: string;
+  site_token: string;
 };
 
 /** Valid payment status values */

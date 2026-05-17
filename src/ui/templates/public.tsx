@@ -14,7 +14,7 @@ import type {
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isReadOnly } from "#shared/env.ts";
+import { isReadOnly, getRenewalUrl } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
@@ -393,12 +393,17 @@ export const temporaryErrorPage = (): string =>
 /**
  * Read-only mode page
  */
-export const readOnlyPage = (): string =>
-  String(
+export const readOnlyPage = (): string => {
+  const renewalUrl = getRenewalUrl();
+  const renewalLink = renewalUrl
+    ? ` <a href="${renewalUrl}">Renew now</a>`
+    : "";
+  return String(
     <Layout title="Read Only">
-      <p>Disabled: This site is in read-only mode.</p>
+      <p>This site is in read-only mode.{renewalLink && <Raw html={renewalLink} />}</p>
     </Layout>,
   );
+};
 
 /** Event info for ticket display */
 export type TicketEvent = {

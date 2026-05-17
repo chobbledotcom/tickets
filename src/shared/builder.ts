@@ -51,6 +51,12 @@ export type BuildSiteInput = {
    * passes a freshly-built local bundle here.
    */
   code?: string;
+  /** ISO timestamp for the READ_ONLY_FROM secret on the built site */
+  readOnlyFrom?: string;
+  /** Renewal URL for the RENEWAL_URL secret on the built site */
+  renewalUrl?: string;
+  /** Days before expiry to show the warning banner */
+  readOnlyWarnDays?: number;
 };
 
 export type BuildSiteResult =
@@ -162,6 +168,17 @@ export const buildSite = async (
   for (const key of HOST_SECRET_KEYS) {
     const value = getEnv(key);
     if (value) secrets.push([key, value]);
+  }
+
+  // Renewal-related secrets
+  if (input.readOnlyFrom) {
+    secrets.push(["READ_ONLY_FROM", input.readOnlyFrom]);
+  }
+  if (input.renewalUrl) {
+    secrets.push(["RENEWAL_URL", input.renewalUrl]);
+  }
+  if (input.readOnlyWarnDays) {
+    secrets.push(["READ_ONLY_WARN_DAYS", String(input.readOnlyWarnDays)]);
   }
 
   const secretErrors = await setSecrets(scriptId, secrets);

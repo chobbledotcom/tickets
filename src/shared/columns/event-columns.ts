@@ -70,6 +70,13 @@ const price: EventCol = {
   rawValue: (e) => e.unit_price,
 };
 
+const renewal: EventCol = {
+  cell: (e) => (e.months_per_unit > 0 ? `Renewal (${e.months_per_unit}mo)` : ""),
+  description: "Whether this event is a renewal tier and its duration in months",
+  label: "Renewal",
+  rawValue: (e) => e.months_per_unit,
+};
+
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
@@ -83,6 +90,7 @@ export const EVENT_TABLE_COLUMNS: ColumnGenerators<EventWithCount> = {
   location,
   name,
   price,
+  renewal,
   status,
 };
 

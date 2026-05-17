@@ -232,7 +232,7 @@ export const processFreeReservation = async (
     event: selected[i]!.event,
   }));
 
-  await logAndNotifyRegistration(entries);
+  await logAndNotifyRegistration(entries, undefined);
   return {
     entries,
     success: true,

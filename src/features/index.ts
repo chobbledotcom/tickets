@@ -21,7 +21,7 @@ import {
   temporaryErrorResponse,
   withCookie,
 } from "#routes/response.ts";
-import { createRouter } from "#routes/router.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
@@ -175,6 +175,17 @@ const loadAdminApiRoutes = once(async () => {
   return createRouter(adminApiRoutes);
 });
 
+/** Lazy-load renewal routes */
+const loadRenewalRoutes = once(async () => {
+  const { handleRenewalGet, handleRenewalPost } = await import(
+    "#routes/public/renewal.ts"
+  );
+  return createRouter(defineRoutes({
+    "GET /renew": handleRenewalGet,
+    "POST /renew": handleRenewalPost,
+  }));
+});
+
 export type { PaymentCspConfig } from "#routes/middleware.ts";
 // Re-export middleware functions for testing
 export {
@@ -314,6 +325,7 @@ const prefixHandlers: Record<string, RouterFn> = {
     path === "/read-only" && method === "GET"
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
+  renew: lazyRoute(loadRenewalRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   ticket: lazyRoute(loadTicketRoutes),
   v1: lazyRoute(loadWalletWebserviceRoutes),

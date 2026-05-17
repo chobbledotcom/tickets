@@ -390,6 +390,7 @@ const extractIntent = (
     items,
     name: metadata.name,
     phone: metadata.phone,
+    siteToken: metadata.site_token || undefined,
     special_instructions: metadata.special_instructions,
   };
 };
@@ -598,7 +599,7 @@ const processPaymentSession = async (
     options?.storeTokens === false ? [] : [ticketToken],
   );
 
-  await logAndNotifyRegistration(createdEntries);
+  await logAndNotifyRegistration(createdEntries, intent.siteToken);
 
   return {
     attendee: firstAttendee.attendee,

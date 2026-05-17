@@ -64,6 +64,8 @@ export type EventFormValues = {
   hidden: string;
   purchase_only: string;
   assign_built_site: string;
+  months_per_unit: string;
+  initial_site_months: string;
 };
 
 /** Typed values from event edit form (includes slug) */
@@ -475,6 +477,29 @@ export const eventFields: Field[] = [
     name: "purchase_only",
     options: [{ label: "No attendance required", value: "1" }],
     type: "checkbox-group",
+  },
+  {
+    hint: "When a site is purchased, automatically build and assign a built site to the customer.",
+    label: "Assign Built Site",
+    name: "assign_built_site",
+    options: [{ label: "Assign built site on purchase", value: "1" }],
+    type: "checkbox-group",
+  },
+  {
+    hint: "How many months one ticket buys. Leave 0 for non-renewal events.",
+    label: "Months Per Unit (renewal tiers only)",
+    min: 0,
+    max: 24,
+    name: "months_per_unit",
+    type: "number",
+  },
+  {
+    hint: "How many months the site stays active after purchase. Required when assigning a built site.",
+    label: "Initial Site Months (built site events only)",
+    min: 0,
+    max: 120,
+    name: "initial_site_months",
+    type: "number",
   },
 ];
 

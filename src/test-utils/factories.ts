@@ -43,6 +43,8 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   max_quantity: 1,
   maximum_days_after: 0,
   minimum_days_before: 0,
+  months_per_unit: 0,
+  initial_site_months: 0,
   name: "Test Event",
   non_transferable: false,
   purchase_only: false,
@@ -117,6 +119,9 @@ export const testBuiltSite = (
   dbUrl: "",
   id: 1,
   name: "Test Site",
+  readOnlyFrom: "",
+  renewalTierEventId: null,
+  renewalTokenIndex: null,
   ...overrides,
 });
 
@@ -147,6 +152,7 @@ export const webhookMeta = (
   email: "",
   items: "",
   phone: "",
+  site_token: "",
   special_instructions: "",
   ...metadata,
 });
@@ -169,8 +175,10 @@ export const makeTestEvent = (
   can_pay_more: false,
   date: "",
   id: 1,
+  initial_site_months: 0,
   location: "",
   max_attendees: 100,
+  months_per_unit: 0,
   name: "Test Event",
   purchase_only: false,
   slug: "test-event",

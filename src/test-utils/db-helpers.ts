@@ -63,6 +63,8 @@ const buildCreateEventForm = (
     max_quantity: String(input.maxQuantity ?? 1),
     maximum_days_after: optionalNumber(input.maximumDaysAfter),
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
+    months_per_unit: String(input.monthsPerUnit ?? 0),
+    initial_site_months: String(input.initialSiteMonths ?? 0),
     name: input.name,
     non_transferable: bool(input.nonTransferable),
     purchase_only: bool(input.purchaseOnly),
@@ -104,6 +106,8 @@ const buildUpdateNumericFields = (
     pickField(updates.minimumDaysBefore, existing.minimum_days_before),
   ),
   unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+  months_per_unit: String(pickField(updates.monthsPerUnit, existing.months_per_unit)),
+  initial_site_months: String(pickField(updates.initialSiteMonths, existing.initial_site_months)),
 });
 
 const buildUpdateStringFields = (

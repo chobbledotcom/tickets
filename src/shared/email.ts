@@ -23,6 +23,7 @@ export type EmailEvent = WebhookEvent & {
   location: string;
   purchase_only: boolean;
   assign_built_site: boolean;
+  initial_site_months: number;
 };
 
 /** Attendee + event pair for email rendering */

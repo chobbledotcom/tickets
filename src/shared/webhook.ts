@@ -9,11 +9,16 @@ import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { nowIso } from "#shared/now.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
 import { type ContactInfo, isPaidEvent } from "#shared/types.ts";
+import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { pushReadOnlyFrom } from "#shared/site-assignment.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -47,6 +52,7 @@ export type WebhookEvent = {
   attendee_count: number;
   unit_price: number;
   can_pay_more: boolean;
+  months_per_unit: number;
 };
 
 /** Attendee data needed for webhook notifications */
@@ -155,6 +161,53 @@ export const sendRegistrationWebhooks = async (
 };
 
 /**
+ * Apply renewal deadline bumps for a completed payment.
+ * If siteToken is present, look up the built site and bump its READ_ONLY_FROM.
+ */
+export const applyRenewalsForEntries = async (
+  entries: EmailEntry[],
+  siteToken: string | undefined,
+): Promise<void> => {
+  if (!siteToken) return;
+
+  const tokenIndex = await hmacHash(siteToken);
+  const site = await getBuiltSiteByRenewalTokenIndex(tokenIndex);
+  if (!site) {
+    logError({
+      code: ErrorCode.DATA_INVALID,
+      detail: `Renewal site not found for token index ${tokenIndex.slice(0, 8)}...`,
+    });
+    return;
+  }
+
+  for (const entry of entries) {
+    if (entry.event.id !== site.renewalTierEventId) continue;
+
+    const base = site.readOnlyFrom && Date.parse(site.readOnlyFrom) > 0
+      ? Math.max(nowMs(), Date.parse(site.readOnlyFrom))
+      : nowMs();
+    const months = entry.attendee.quantity * entry.event.months_per_unit;
+    if (months <= 0) continue;
+
+    const newIso = addMonthsIso(new Date(base).toISOString(), months);
+    const result = await pushReadOnlyFrom(site, newIso);
+
+    if (result.ok) {
+      await logActivity(
+        `Renewal of '${site.name}' for ${months} month(s)`,
+        entry.event.id,
+      );
+    } else {
+      logError({
+        code: ErrorCode.CDN_REQUEST,
+        detail: `Failed to push READ_ONLY_FROM for renewal of '${site.name}': ${result.error}`,
+      });
+      sendNtfyError("CDN_REQUEST");
+    }
+  }
+};
+
+/**
  * Log attendee registration and send consolidated webhook
  * Used for single-event registrations
  *
@@ -163,6 +216,7 @@ export const sendRegistrationWebhooks = async (
  */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
+  siteToken?: string,
 ): Promise<void> => {
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
@@ -171,4 +225,5 @@ export const logAndNotifyRegistration = async (
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
   addPendingWork(assignAndNotifyBuiltSites(entries));
+  addPendingWork(applyRenewalsForEntries(entries, siteToken));
 };
