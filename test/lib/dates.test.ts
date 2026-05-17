@@ -6,6 +6,8 @@ import {
   daysAgo,
   eventDateToCalendarDate,
   formatDateLabel,
+  formatDateRangeLabel,
+  formatDateRangeLabelCompactEn,
   formatDatetimeLabel,
   formatDatetimeShort,
   getAvailableDates,
@@ -192,6 +194,62 @@ describeWithEnv("dates", { db: true }, () => {
       expect(dates).not.toContain(holidayStart);
       // day+4 start → covers day 4,5,6 → no holiday → included
       expect(dates).toContain(addDays(today(), 4));
+    });
+  });
+
+  describe("formatDateRangeLabelCompactEn", () => {
+    const cases: [label: string, start: string, end: string, out: string][] = [
+      ["same day", "2027-02-02", "2027-02-02", "2 February 2027"],
+      ["same month + year", "2027-02-02", "2027-02-03", "2–3 February 2027"],
+      [
+        "cross-month, same year",
+        "2027-02-02",
+        "2027-03-03",
+        "2 February – 3 March 2027",
+      ],
+      [
+        "cross-year",
+        "2027-02-02",
+        "2028-02-03",
+        "2 February 2027 – 3 February 2028",
+      ],
+    ];
+    for (const [label, start, end, out] of cases) {
+      test(label, () => {
+        expect(formatDateRangeLabelCompactEn(start, end)).toBe(out);
+      });
+    }
+  });
+
+  describe("formatDateRangeLabel", () => {
+    test("returns single-day label when duration is 1 day", () => {
+      expect(
+        formatDateRangeLabel(
+          "2026-02-09T00:00:00Z",
+          "2026-02-10T00:00:00.000Z",
+        ),
+      ).toBe("Monday 9 February 2026");
+    });
+
+    test("returns compact range when duration is multi-day", () => {
+      expect(
+        formatDateRangeLabel(
+          "2027-02-02T00:00:00Z",
+          "2027-02-05T00:00:00.000Z",
+        ),
+      ).toBe("2–4 February 2027");
+    });
+
+    test("returns empty string when start is null", () => {
+      expect(formatDateRangeLabel(null, null)).toBe("");
+    });
+
+    test("collapses to single-day label when end is null but start is set", () => {
+      // Defensive path for rows that somehow have start_at but no end_at —
+      // callers in the admin template still render something sensible.
+      expect(formatDateRangeLabel("2026-02-09T00:00:00Z", null)).toBe(
+        "Monday 9 February 2026",
+      );
     });
   });
 

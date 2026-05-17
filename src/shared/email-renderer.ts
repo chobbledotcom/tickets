@@ -9,6 +9,11 @@
 import { Liquid } from "liquidjs";
 import { lazyRef, map } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
+import {
+  addDays,
+  formatDateLabel,
+  formatDateRangeLabelCompactEn,
+} from "#shared/dates.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -60,6 +65,8 @@ type TemplateEntry = {
     quantity: number;
     price_paid: string;
     date: string | null;
+    /** Human-readable booking date (or range for multi-day). Empty string when no date. */
+    date_range_label: string;
   };
 };
 
@@ -79,23 +86,36 @@ export const buildTemplateData = (
   ticketUrl: string,
 ): TemplateData => {
   const templateEntries: TemplateEntry[] = map(
-    ({ event, attendee }: EmailEntry): TemplateEntry => ({
-      attendee: {
-        address: attendee.address,
-        date: attendee.date,
-        email: attendee.email,
-        name: attendee.name,
-        phone: attendee.phone,
-        price_paid: attendee.price_paid,
-        quantity: attendee.quantity,
-        special_instructions: attendee.special_instructions,
-      },
-      event: {
-        is_paid: isPaidEvent(event),
-        name: event.name,
-        slug: event.slug,
-      },
-    }),
+    ({ event, attendee }: EmailEntry): TemplateEntry => {
+      const duration =
+        event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
+      const dateRangeLabel = attendee.date
+        ? duration > 1
+          ? formatDateRangeLabelCompactEn(
+              attendee.date,
+              addDays(attendee.date, duration - 1),
+            )
+          : formatDateLabel(attendee.date)
+        : "";
+      return {
+        attendee: {
+          address: attendee.address,
+          date: attendee.date,
+          date_range_label: dateRangeLabel,
+          email: attendee.email,
+          name: attendee.name,
+          phone: attendee.phone,
+          price_paid: attendee.price_paid,
+          quantity: attendee.quantity,
+          special_instructions: attendee.special_instructions,
+        },
+        event: {
+          is_paid: isPaidEvent(event),
+          name: event.name,
+          slug: event.slug,
+        },
+      };
+    },
   )(entries);
 
   return {
