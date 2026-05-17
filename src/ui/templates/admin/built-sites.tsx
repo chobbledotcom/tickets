@@ -27,8 +27,13 @@ export const adminBuiltSitesPage = (
   sites: BuiltSite[],
   session: AdminSession,
   successMessage?: string,
-): string =>
-  String(
+): string => {
+  const scriptIds = sites
+    .filter((site) => site.bunnyScriptId)
+    .map((site) => site.bunnyScriptId)
+    .join("|");
+
+  return String(
     <Layout title="Built Sites">
       <AdminNav active="/admin/built-sites" session={session} />
       <Flash success={successMessage} />
@@ -36,49 +41,54 @@ export const adminBuiltSitesPage = (
         <a href="/admin/built-sites/new">Add Built Site</a>{" "}
         <a href="/admin/builder">Build New Site</a>
       </p>
-      {sites.length === 0 ? (
-        <p>No built sites recorded.</p>
-      ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Bunny URL</th>
-                <th>Status</th>
-                <th>Read-only from</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sites.map((site) => (
+      {sites.length === 0 ? <p>No built sites recorded.</p> : (
+        <div>
+          <div class="table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td>{site.name}</td>
-                  <td>
-                    <a href={site.bunnyUrl} rel="noopener" target="_blank">
-                      {site.bunnyUrl}
-                    </a>
-                  </td>
-                  <td>
-                    {site.assignedAttendeeId
-                      ? `Assigned (attendee #${site.assignedAttendeeId})`
-                      : site.assignable
+                  <th>Name</th>
+                  <th>Bunny URL</th>
+                  <th>Status</th>
+                  <th>Read-only from</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sites.map((site) => (
+                  <tr>
+                    <td>{site.name}</td>
+                    <td>
+                      <a href={site.bunnyUrl} rel="noopener" target="_blank">
+                        {site.bunnyUrl}
+                      </a>
+                    </td>
+                    <td>
+                      {site.assignedAttendeeId
+                        ? `Assigned (attendee #${site.assignedAttendeeId})`
+                        : site.assignable
                         ? "Available"
                         : "Not assignable"}
-                  </td>
-                  <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
-                  <td>
-                    <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/built-sites/${site.id}/delete`}>Delete</a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                    <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
+                    <td>
+                      <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>
+                      {" "}
+                      <a href={`/admin/built-sites/${site.id}/delete`}>
+                        Delete
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p>{scriptIds}</p>
         </div>
       )}
     </Layout>,
   );
+};
 
 /**
  * Built site create/edit form values
@@ -114,7 +124,9 @@ export const adminBuiltSiteNewPage = (
   );
 
 const renderTierLabel = (te: RenewalTierOption): string =>
-  `${te.name} (${te.months_per_unit}mo / ${te.unit_price ? `${te.unit_price}¢` : "free"})`;
+  `${te.name} (${te.months_per_unit}mo / ${
+    te.unit_price ? `${te.unit_price}¢` : "free"
+  })`;
 
 type TierSelectProps = {
   id: string;
@@ -275,6 +287,7 @@ export const adminBuiltSiteEditPage = (
   session: AdminSession,
   tierEvents: RenewalTierOption[],
   error?: string,
+  success?: string,
 ): string => {
   const provisioned = isProvisioned(site);
 
@@ -283,7 +296,7 @@ export const adminBuiltSiteEditPage = (
       <AdminNav active="/admin/built-sites" session={session} />
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
         <h1>Edit Built Site</h1>
-        <Flash error={error} />
+        <Flash error={error} success={success} />
         <Raw
           html={renderFields(builtSiteFields, builtSiteToFieldValues(site))}
         />
@@ -291,11 +304,9 @@ export const adminBuiltSiteEditPage = (
       </CsrfForm>
 
       <h2>Renewal</h2>
-      {provisioned ? (
-        <ProvisionedPanel site={site} tiers={tierEvents} />
-      ) : (
-        <UnprovisionedPanel site={site} tiers={tierEvents} />
-      )}
+      {provisioned
+        ? <ProvisionedPanel site={site} tiers={tierEvents} />
+        : <UnprovisionedPanel site={site} tiers={tierEvents} />}
     </Layout>,
   );
 };

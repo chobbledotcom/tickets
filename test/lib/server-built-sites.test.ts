@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   adminFormPost,
   adminGet,
+  awaitTestRequest,
   createTestBuiltSite,
   deleteTestBuiltSite,
   describeWithEnv,
@@ -10,7 +11,10 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
+  FLASH_TEST_ID,
+  flashCookieHeader,
   testBuiltSite,
+  testCookie,
   testRequiresAuth,
   updateTestBuiltSite,
 } from "#test-utils";
@@ -206,6 +210,27 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
     test("returns 404 for non-existent built site", async () => {
       const { response } = await adminGet("/admin/built-sites/999/edit");
       expectStatus(404)(response);
+    });
+
+    test("shows flashed success and error messages", async () => {
+      const site = await createTestBuiltSite({ name: "Flash Site" });
+      const cookie = await testCookie();
+
+      const successResponse = await awaitTestRequest(
+        `/admin/built-sites/${site.id}/edit?flash=${FLASH_TEST_ID}`,
+        { cookie: `${cookie}; ${flashCookieHeader("Deadline bumped")}` },
+      );
+      await expectHtmlResponse(successResponse, 200, "Deadline bumped");
+
+      const errorResponse = await awaitTestRequest(
+        `/admin/built-sites/${site.id}/edit?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${
+            flashCookieHeader("Choose a deadline date", false)
+          }`,
+        },
+      );
+      await expectHtmlResponse(errorResponse, 200, "Choose a deadline date");
     });
   });
 

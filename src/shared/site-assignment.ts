@@ -187,6 +187,31 @@ export const syncReadOnlyFrom = async (
   return pushResult;
 };
 
+type RenewalStateUpdate = Parameters<typeof updateBuiltSiteRenewalState>[1];
+type SiteSecrets = { readOnlyFrom?: string; renewalUrl?: string };
+
+/**
+ * Curried helper: push secrets and persist renewal state.
+ * On push success, writes `onSuccess`. On failure, logs and (if provided)
+ * writes `onFailure` so partial progress is recorded for admin recovery.
+ */
+const pushAndPersist =
+  (site: BuiltSite, errorContext: string) =>
+  async (
+    secrets: SiteSecrets,
+    onSuccess: RenewalStateUpdate,
+    onFailure?: RenewalStateUpdate,
+  ): Promise<CdnPushResult> => {
+    const pushResult = await pushSiteSecrets(site, secrets);
+    if (pushResult.ok) {
+      await updateBuiltSiteRenewalState(site.id, onSuccess);
+    } else {
+      logRenewalCdnError(errorContext, pushResult.error);
+      if (onFailure) await updateBuiltSiteRenewalState(site.id, onFailure);
+    }
+    return pushResult;
+  };
+
 /**
  * Provision a site for renewals: generate a token, push initial secrets,
  * persist the full renewal state. On push failure persists the token/tier so
@@ -207,20 +232,11 @@ export const provisionSiteRenewal = async (
     renewalTokenIndex: tokenData.index,
   } as const;
 
-  const pushResult = await pushSiteSecrets(site, {
-    readOnlyFrom: cutoff,
-    renewalUrl: renewalUrlFor(tokenData.token),
-  });
-
-  if (pushResult.ok) {
-    await updateBuiltSiteRenewalState(site.id, {
-      readOnlyFrom: cutoff,
-      ...renewalState,
-    });
-  } else {
-    logRenewalCdnError(errorContext, pushResult.error);
-    await updateBuiltSiteRenewalState(site.id, renewalState);
-  }
+  const pushResult = await pushAndPersist(site, errorContext)(
+    { readOnlyFrom: cutoff, renewalUrl: renewalUrlFor(tokenData.token) },
+    { readOnlyFrom: cutoff, ...renewalState },
+    renewalState,
+  );
 
   return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
 };
@@ -235,17 +251,10 @@ export const rotateRenewalToken = async (
   errorContext: string,
 ): Promise<{ token: string; pushOk: boolean }> => {
   const tokenData = await generateRenewalToken();
-  const pushResult = await pushSiteSecrets(site, {
-    renewalUrl: renewalUrlFor(tokenData.token),
-  });
-  if (pushResult.ok) {
-    await updateBuiltSiteRenewalState(site.id, {
-      renewalToken: tokenData.token,
-      renewalTokenIndex: tokenData.index,
-    });
-  } else {
-    logRenewalCdnError(errorContext, pushResult.error);
-  }
+  const pushResult = await pushAndPersist(site, errorContext)(
+    { renewalUrl: renewalUrlFor(tokenData.token) },
+    { renewalToken: tokenData.token, renewalTokenIndex: tokenData.index },
+  );
   return { pushOk: pushResult.ok, token: tokenData.token };
 };
 
@@ -277,7 +286,9 @@ const assignSitesForEntries = async (
   if (!tierEvent) {
     logError({
       code: ErrorCode.CONFIG_MISSING,
-      detail: `No qualifying tier event for site assignment (${needsSite.length} entr${needsSite.length === 1 ? "y" : "ies"} skipped)`,
+      detail: `No qualifying tier event for site assignment (${needsSite.length} entr${
+        needsSite.length === 1 ? "y" : "ies"
+      } skipped)`,
     });
     sendNtfyError("CONFIG_MISSING");
     return [];

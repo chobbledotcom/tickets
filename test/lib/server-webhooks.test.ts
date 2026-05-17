@@ -680,7 +680,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
       const { provisionTestBuiltSite } = await import("#test-utils");
       const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
-      await insertBuiltSite("Token Site", "tok.b-cdn.net", "", "", false, "9100");
+      await insertBuiltSite(
+        "Token Site",
+        "tok.b-cdn.net",
+        "",
+        "",
+        false,
+        "9100",
+      );
       const seedSite = (await getAllBuiltSites()).find(
         (s) => s.name === "Token Site",
       )!;

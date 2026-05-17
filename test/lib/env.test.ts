@@ -27,7 +27,6 @@ describeWithEnv(
   {
     env: {
       [KEY]: undefined,
-      READ_ONLY: undefined,
       READ_ONLY_FROM: undefined,
       READ_ONLY_WARN_DAYS: undefined,
       RENEWAL_URL: undefined,
@@ -62,27 +61,7 @@ describeWithEnv(
     });
 
     describe("isReadOnly", () => {
-      test("is false when READ_ONLY is unset", () => {
-        expect(isReadOnly()).toBe(false);
-      });
-
-      test("is true when READ_ONLY is exactly 'true'", () => {
-        process.env.READ_ONLY = "true";
-        expect(isReadOnly()).toBe(true);
-      });
-
-      test("is false for uppercase 'TRUE' (case-sensitive)", () => {
-        process.env.READ_ONLY = "TRUE";
-        expect(isReadOnly()).toBe(false);
-      });
-
-      test("is false for numeric '1'", () => {
-        process.env.READ_ONLY = "1";
-        expect(isReadOnly()).toBe(false);
-      });
-
-      test("is false for the literal string 'false'", () => {
-        process.env.READ_ONLY = "false";
+      test("is false when READ_ONLY_FROM is unset", () => {
         expect(isReadOnly()).toBe(false);
       });
 
@@ -96,11 +75,6 @@ describeWithEnv(
         expect(isReadOnly()).toBe(false);
       });
 
-      test("is false when READ_ONLY_FROM is unset", () => {
-        delete process.env.READ_ONLY_FROM;
-        expect(isReadOnly()).toBe(false);
-      });
-
       test("is false when READ_ONLY_FROM is malformed (fail open)", async () => {
         process.env.READ_ONLY_FROM = "not-a-date";
         const errorSpy = spy(console, "error");
@@ -111,12 +85,6 @@ describeWithEnv(
         } finally {
           errorSpy.restore();
         }
-      });
-
-      test("READ_ONLY=true overrides READ_ONLY_FROM", () => {
-        process.env.READ_ONLY = "true";
-        process.env.READ_ONLY_FROM = isoFromNow(DAY_MS * 30);
-        expect(isReadOnly()).toBe(true);
       });
     });
 
@@ -134,7 +102,7 @@ describeWithEnv(
       });
 
       test("is false when already read-only", () => {
-        process.env.READ_ONLY = "true";
+        process.env.READ_ONLY_FROM = isoFromNow(-DAY_MS);
         expect(isReadOnlyWarning()).toBe(false);
       });
 

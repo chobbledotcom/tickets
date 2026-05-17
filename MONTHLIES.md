@@ -7,7 +7,7 @@ to keep that site running by paying a monthly fee. Each site can be
 renewed via a private URL that points at a shared "renewal tier" event
 on the host instance; paying for `N` months extends the site's read-only
 deadline by `N` months. When the deadline passes, the built site flips
-itself into read-only mode (the existing `READ_ONLY` machinery) until
+itself into read-only mode via `READ_ONLY_FROM` until
 the customer renews.
 
 This is two systems glued together:
@@ -18,7 +18,7 @@ This is two systems glued together:
    deadline back onto the built site's edge script as a secret.
 2. The **built site** treats a new `READ_ONLY_FROM` secret (an ISO
    timestamp) as the source of truth for its own read-only mode. The
-   existing `READ_ONLY=true` boolean still works as a hard override.
+   `READ_ONLY_FROM` cutoff is reached.
 
 The two halves are coupled by:
 
@@ -51,7 +51,7 @@ These findings drove the design choices below:
   republish** via `bunnyCdnApi.setEdgeScriptSecret(scriptId, name,
   value)` — confirmed by the user.
 - **Read-only mode** (`src/shared/env.ts:36`): `isReadOnly()` is a
-  single function reading `READ_ONLY` from `getEnv`. Called from
+  single function reading `READ_ONLY_FROM` from `getEnv`. Called from
   `readOnlyGuard` (`src/features/index.ts`) and a dozen template
   files. Single source of truth — easy to extend.
 - **Events** already have everything we need for tier events: unique
@@ -103,7 +103,7 @@ These findings drove the design choices below:
 
 - New secret on the built site: **`READ_ONLY_FROM`** — ISO timestamp.
   Site is read-only iff `now >= READ_ONLY_FROM`. Existing
-  `READ_ONLY=true` stays as a hard override.
+  `READ_ONLY_FROM` is the only read-only trigger.
 - New secret on the built site: **`RENEWAL_URL`** — absolute URL of
   the form `https://<host>/renew/?t=<token>`.
 - New secret on the built site: **`READ_ONLY_WARN_DAYS`** — integer,
@@ -295,7 +295,6 @@ the host renewal route does not need special read-only bypass handling.
 - New `src/shared/env.ts`:
   ```ts
   export const isReadOnly = (): boolean => {
-    if (getEnv("READ_ONLY") === "true") return true;
     const cutoff = getEnv("READ_ONLY_FROM");
     if (!cutoff) return false;
     const parsed = Date.parse(cutoff);
@@ -522,7 +521,6 @@ and one within `READ_ONLY_WARN_DAYS` shows a pre-expiry warning.
 **Tests**
 
 - `test/lib/env.test.ts`
-  - `READ_ONLY=true` ⇒ read-only regardless of date, warning false.
   - `READ_ONLY_FROM` in the past ⇒ read-only, warning false.
   - `READ_ONLY_FROM` in the future, outside warning window
     ⇒ writable, warning false.

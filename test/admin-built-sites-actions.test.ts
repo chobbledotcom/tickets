@@ -16,6 +16,7 @@ import {
   createTestBuiltSite,
   createTestEvent,
   describeWithEnv,
+  expectRedirectWithFlash,
   provisionTestBuiltSite,
 } from "#test-utils";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -33,8 +34,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
   let secretStub: SecretStub;
 
   beforeEach(() => {
-    secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-      Promise.resolve({ ok: true as const }),
+    secretStub = stub(
+      bunnyCdnApi,
+      "setEdgeScriptSecret",
+      () => Promise.resolve({ ok: true as const }),
     );
   });
 
@@ -62,7 +65,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/rotate-renewal-token`,
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Renewal token rotated",
+      )(response);
 
       const updated = await findSite(site.id);
       expect(updated.renewalToken).not.toBe(oldToken);
@@ -88,7 +94,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/rotate-renewal-token`,
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Renewal is not provisioned for this site",
+        false,
+      )(response);
 
       expect(secretStub.calls.length).toBe(0);
     });
@@ -118,7 +128,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         `/admin/built-sites/${site.id}/set-renewal-tier`,
         { tier_event_id: String(tier2.id) },
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Renewal tier updated",
+      )(response);
 
       const updated = await findSite(site.id);
       expect(updated.renewalTierEventId).toBe(tier2.id);
@@ -141,7 +154,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         `/admin/built-sites/${site.id}/set-renewal-tier`,
         { tier_event_id: "99999" },
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Choose a valid renewal tier",
+        false,
+      )(response);
 
       const updated = await findSite(site.id);
       expect(updated.renewalTierEventId).toBe(tier.id);
@@ -231,8 +248,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Bump No Token",
       });
       secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
+      secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -341,7 +360,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/override-deadline`,
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Choose a deadline date",
+        false,
+      )(response);
 
       const updated = await findSite(site.id);
       expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
@@ -366,14 +389,19 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
+      secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/re-sync-deadline`,
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Deadline re-synced",
+      )(response);
 
       const secretNames = (secretStub.calls as any[]).map(
         (c: any) => c.args[1] as string,
@@ -392,8 +420,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
+      secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -417,7 +447,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/re-sync-deadline`,
       );
-      expect(response.status).toBe(302);
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "No deadline to re-sync",
+        false,
+      )(response);
 
       expect(secretStub.calls.length).toBe(0);
     });
@@ -487,15 +521,26 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ error: "edge push failed", ok: false as const }),
+      const failStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () =>
+          Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
 
       try {
-        await adminFormPost(`/admin/built-sites/${site.id}/provision-renewal`, {
-          months: "3",
-          tier_event_id: String(tier.id),
-        });
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/provision-renewal`,
+          {
+            months: "3",
+            tier_event_id: String(tier.id),
+          },
+        );
+        expectRedirectWithFlash(
+          `/admin/built-sites/${site.id}/edit`,
+          "Renewal was saved, but the deadline could not be pushed to the site",
+          false,
+        )(response);
 
         const updated = await findSite(site.id);
         expect(updated.renewalTierEventId).toBe(tier.id);

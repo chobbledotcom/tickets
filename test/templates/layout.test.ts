@@ -67,7 +67,7 @@ describe("adminLoginPage", () => {
 
 describeWithEnv(
   "read-only mode templates",
-  { env: { READ_ONLY: "true" } },
+  { env: { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" } },
   () => {
     test("AdminNav shows read-only banner", () => {
       const html = String(

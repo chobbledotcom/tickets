@@ -71,9 +71,8 @@ export const isInWarningWindow = (
     (cutoffMs) => now >= cutoffMs - warnDays * 86_400_000 && now < cutoffMs,
   );
 
-/** Check if the system is in read-only mode (READ_ONLY env var or READ_ONLY_FROM cutoff) */
+/** Check if the system is in read-only mode based on the READ_ONLY_FROM cutoff */
 export const isReadOnly = (): boolean => {
-  if (getEnv("READ_ONLY") === "true") return true;
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
   if (Number.isNaN(Date.parse(cutoff))) {

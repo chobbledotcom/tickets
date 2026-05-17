@@ -21,7 +21,7 @@ const apiRequest = (
 
 describeWithEnv(
   "read-only mode",
-  { db: true, env: { READ_ONLY: "true" } },
+  { db: true, env: { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" } },
   () => {
     test("GET /read-only returns the read-only page", async () => {
       const res = await handleRequest(mockRequest("/read-only"));
