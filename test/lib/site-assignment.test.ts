@@ -16,6 +16,7 @@ import {
 import { nowIso } from "#shared/now.ts";
 import {
   assignAndNotifyBuiltSites,
+  parseReadOnlyFromMs,
   pickTierEvent,
 } from "#shared/site-assignment.ts";
 import {
@@ -486,6 +487,53 @@ describeWithEnv(
           buildStub.restore();
         }
       });
+
+      test("RENEWAL_URL push failure after READ_ONLY_FROM succeeds returns error", async () => {
+        await createTierEvent();
+
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
+
+        secretStub.restore();
+        const failStub = stub(
+          bunnyCdnApi,
+          "setEdgeScriptSecret",
+          (_scriptId: number, name: string, _value: string) => {
+            if (name === "RENEWAL_URL") {
+              return Promise.resolve({
+                error: "renewal url push failed",
+                ok: false as const,
+              });
+            }
+            return Promise.resolve({ ok: true as const });
+          },
+        );
+        try {
+          await assignAndNotifyBuiltSites([siteEntry()]);
+
+          const sites = await getAllBuiltSites();
+          const assigned = sites.find((s) => s.name === "Site A")!;
+          expect(assigned.assignedAttendeeId).not.toBeNull();
+          expect(assigned.renewalTokenIndex).not.toBeNull();
+        } finally {
+          failStub.restore();
+        }
+      });
     });
   },
 );
+
+describe("parseReadOnlyFromMs", () => {
+  test("returns null for invalid date string", () => {
+    expect(parseReadOnlyFromMs({ readOnlyFrom: "not-a-date" })).toBeNull();
+  });
+
+  test("returns null for empty string", () => {
+    expect(parseReadOnlyFromMs({ readOnlyFrom: "" })).toBeNull();
+  });
+
+  test("returns ms for valid date", () => {
+    const ms = parseReadOnlyFromMs({ readOnlyFrom: "2026-06-01T00:00:00Z" });
+    expect(ms).not.toBeNull();
+    expect(ms).toBeGreaterThan(0);
+  });
+});

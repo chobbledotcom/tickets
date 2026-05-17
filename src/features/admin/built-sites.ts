@@ -97,7 +97,7 @@ const MAX_RENEWAL_MONTHS = 120;
 const readClampedMonths = (form: {
   getString: (key: string) => string;
 }): number => {
-  const months = Number.parseInt(form.getString("months") || "1", 10);
+  const months = Number.parseInt(form.getString("months"), 10);
   if (!Number.isFinite(months) || months < 1) return 1;
   return Math.min(months, MAX_RENEWAL_MONTHS);
 };
@@ -121,7 +121,7 @@ const withOwnerAndSite = (
 ): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const id = Number(params.id);
-    const site = id ? await builtSitesCrudTable.findById(id) : null;
+    const site = await builtSitesCrudTable.findById(id);
     return site ? handler({ id, site }, session) : notFoundResponse();
   });
 

@@ -18,6 +18,7 @@ import {
   describeWithEnv,
   expectRedirectWithFlash,
   provisionTestBuiltSite,
+  testCookie,
 } from "#test-utils";
 import { mockRequest } from "#test-utils/mocks.ts";
 
@@ -222,6 +223,53 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         const updated = await findSite(site.id);
         expect(updated.readOnlyFrom).toBe(
           addMonthsIso(new Date(NOW_MS).toISOString(), 120),
+        );
+      } finally {
+        fakeTime.restore();
+      }
+    });
+
+    test("returns error when CDN push fails", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "6016",
+        name: "Bump CDN Fail",
+      });
+      secretStub.restore();
+      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ error: "edge push failed", ok: false as const }),
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/bump-deadline`,
+          { months: "1" },
+        );
+        expectRedirectWithFlash(
+          `/admin/built-sites/${site.id}/edit`,
+          expect.stringContaining("could not be pushed"),
+          false,
+        )(response);
+      } finally {
+        failStub.restore();
+      }
+    });
+
+    test("clamps non-numeric months to 1", async () => {
+      const fakeTime = new FakeTime(NOW_MS);
+      try {
+        const site = await createTestBuiltSite({
+          bunnyScriptId: "6017",
+          name: "Bump NaN",
+        });
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/bump-deadline`,
+          { months: "abc" },
+        );
+        expect(response.status).toBe(302);
+
+        const updated = await findSite(site.id);
+        expect(updated.readOnlyFrom).toBe(
+          addMonthsIso(new Date(NOW_MS).toISOString(), 1),
         );
       } finally {
         fakeTime.restore();
@@ -472,6 +520,27 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       } finally {
         failStub.restore();
       }
+    });
+  });
+
+  describe("CSRF validation", () => {
+    test("POST without CSRF token returns 403", async () => {
+      const site = await createTestBuiltSite({ name: "CSRF Test Site" });
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        new Request(
+          `http://localhost/admin/built-sites/${site.id}/bump-deadline`,
+          {
+            body: new URLSearchParams({ months: "1" }).toString(),
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              cookie,
+            },
+            method: "POST",
+          },
+        ),
+      );
+      expect(response.status).toBe(403);
     });
   });
 });

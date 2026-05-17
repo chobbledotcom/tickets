@@ -2,17 +2,30 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { runWithStorageConfig } from "#shared/storage.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
+  installUrlHandler,
   mockRequest,
   testCookie,
+  withFetchMock,
   withLocalStorageEnabled,
 } from "#test-utils";
 
 describeWithEnv("backup routes", { db: true }, () => {
   describe("GET /admin/backup", () => {
+    test("loads backup page without storage enabled", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest("/admin/backup", { headers: { cookie } }),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Backup");
+    });
+
     test("loads backup page when storage cleanup fails (fire-and-forget)", async () => {
       const cookie = await testCookie();
 
@@ -35,6 +48,32 @@ describeWithEnv("backup routes", { db: true }, () => {
           setDeleteOverride(null);
         }
       });
+    });
+
+    test("loads backup page when stale cleanup listing fails", async () => {
+      const cookie = await testCookie();
+
+      await runWithStorageConfig(
+        { zoneKey: "testkey", zoneName: "testzone" },
+        () =>
+          withFetchMock(async (originalFetch) => {
+            let calls = 0;
+            installUrlHandler(originalFetch, (url) => {
+              if (!url.includes("storage.bunnycdn.com")) return null;
+              calls += 1;
+              return calls === 1
+                ? Promise.reject(new Error("list failed"))
+                : Promise.resolve(Response.json([]));
+            });
+
+            const response = await handleRequest(
+              mockRequest("/admin/backup", { headers: { cookie } }),
+            );
+
+            expect(response.status).toBe(200);
+            expect(await response.text()).toContain("Backup");
+          }),
+      );
     });
   });
 

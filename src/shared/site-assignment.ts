@@ -99,7 +99,7 @@ export const pickTierEvent = async (): Promise<TierEvent | null> => {
     (a: (typeof qualifying)[number], b: (typeof qualifying)[number]) =>
       a.unit_price - b.unit_price,
   )(qualifying);
-  return sorted[0] ?? null;
+  return sorted[0]!;
 };
 
 /** Generate a renewal token + its HMAC blind index. */
@@ -286,9 +286,7 @@ const assignSitesForEntries = async (
   if (!tierEvent) {
     logError({
       code: ErrorCode.CONFIG_MISSING,
-      detail: `No qualifying tier event for site assignment (${needsSite.length} entr${
-        needsSite.length === 1 ? "y" : "ies"
-      } skipped)`,
+      detail: `No qualifying tier event for site assignment (${needsSite.length} entries skipped)`,
     });
     sendNtfyError("CONFIG_MISSING");
     return [];

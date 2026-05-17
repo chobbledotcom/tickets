@@ -504,4 +504,46 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(0);
     });
   });
+
+  describeWithEnv("applyRenewalsForEntries", { db: true }, () => {
+    test("skips entries with months_per_unit = 0", async () => {
+      const { applyRenewalsForEntries } = await import("#shared/webhook.ts");
+      const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
+      const { hmacHash } = await import("#shared/crypto/hashing.ts");
+      const { insertBuiltSite, updateBuiltSiteRenewalState } = await import(
+        "#shared/db/built-sites.ts"
+      );
+
+      const site = await insertBuiltSite(
+        "Renew Skip",
+        "skip.test.net",
+        "",
+        "",
+        true,
+        "3001",
+      );
+      const token = "skip-test-token";
+      const tokenIndex = await hmacHash(token);
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2099-01-01T00:00:00Z",
+        renewalToken: token,
+        renewalTokenIndex: tokenIndex,
+      });
+
+      const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+
+      try {
+        const nonRenewalEntry: EmailEntry = makeEntry(
+          { months_per_unit: 0, unit_price: 100 },
+          { quantity: 1 },
+        );
+        await applyRenewalsForEntries([nonRenewalEntry], token);
+        expect(secretStub.calls.length).toBe(0);
+      } finally {
+        secretStub.restore();
+      }
+    });
+  });
 });

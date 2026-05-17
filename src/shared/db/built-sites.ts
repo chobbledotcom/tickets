@@ -155,7 +155,7 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     dbUrl: blob.d ?? "",
     id: row.id,
     name: blob.n,
-    readOnlyFrom: row.read_only_from ?? "",
+    readOnlyFrom: row.read_only_from,
     renewalToken: blob.rt ?? null,
     renewalTokenIndex: row.renewal_token_index ?? null,
   };

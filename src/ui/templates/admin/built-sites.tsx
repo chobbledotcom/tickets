@@ -151,7 +151,7 @@ const MonthsInput = ({
 );
 
 const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
-  const renewalUrl = site.renewalToken ? renewalUrlFor(site.renewalToken) : "";
+  const renewalUrl = renewalUrlFor(site.renewalToken!);
   return (
     <div class="prose">
       <p>

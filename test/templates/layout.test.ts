@@ -77,6 +77,19 @@ describeWithEnv(
       expect(html).toContain("This site is in read-only mode");
     });
 
+    test("AdminNav read-only banner includes renewal link when RENEWAL_URL is set", () => {
+      Deno.env.set("RENEWAL_URL", "https://example.com/renew");
+      try {
+        const html = String(
+          AdminNav({ active: "/admin/", session: TEST_SESSION }),
+        );
+        expect(html).toContain("Renew now");
+        expect(html).toContain("https://example.com/renew");
+      } finally {
+        Deno.env.delete("RENEWAL_URL");
+      }
+    });
+
     test("ticketPage hides booking form in read-only mode", () => {
       const event = testEventWithCount({ attendee_count: 0 });
       const html = ticketPage({
@@ -86,6 +99,52 @@ describeWithEnv(
       });
       expect(html).toContain("Registration closed.");
       expect(html).not.toContain("Continue");
+    });
+  },
+);
+
+describeWithEnv(
+  "read-only warning banner",
+  {
+    env: {
+      READ_ONLY_FROM: new Date(Date.now() + 5 * 86400000).toISOString(),
+    },
+  },
+  () => {
+    test("AdminNav shows warning banner before expiry", () => {
+      const html = String(
+        AdminNav({ active: "/admin/", session: TEST_SESSION }),
+      );
+      expect(html).toContain("read-only-banner-warning");
+      expect(html).toContain("expires on");
+    });
+
+    test("AdminNav warning banner includes renewal link when RENEWAL_URL is set", () => {
+      Deno.env.set("RENEWAL_URL", "https://example.com/renew");
+      try {
+        const html = String(
+          AdminNav({ active: "/admin/", session: TEST_SESSION }),
+        );
+        expect(html).toContain("Renew now");
+        expect(html).toContain("https://example.com/renew");
+      } finally {
+        Deno.env.delete("RENEWAL_URL");
+      }
+    });
+
+    test("AdminNav warning banner falls back when the cutoff date cannot be displayed", () => {
+      const original = Date.prototype.toLocaleDateString;
+      Date.prototype.toLocaleDateString = () => "";
+      try {
+        const html = String(
+          AdminNav({ active: "/admin/", session: TEST_SESSION }),
+        );
+        expect(html).toContain("read-only-banner-warning");
+        expect(html).toContain("Your site is approaching its expiry");
+        expect(html).not.toContain("expires on");
+      } finally {
+        Date.prototype.toLocaleDateString = original;
+      }
     });
   },
 );

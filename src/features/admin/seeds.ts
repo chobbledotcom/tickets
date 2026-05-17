@@ -2,11 +2,10 @@
  * Admin seed data routes - populate database with sample events and attendees
  */
 
-import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
+import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
@@ -53,14 +52,12 @@ const clamp = (value: number | null, lo: number, hi: number): number =>
   Math.min(Math.max(lo, value == null || Number.isNaN(value) ? lo : value), hi);
 
 /** Handle POST /admin/seeds (create seed data) */
-const handleSeedsPost = createAuthedFormRoute({
-  auth: OWNER_FORM,
-  form: seedsForm,
-  onInvalid: ({ error }) => redirect("/admin/seeds", error, false),
-  onValid: async ({ values }) => {
-    const eventCount = clamp(values.event_count, 1, MAX_SEED_EVENTS);
+const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
+  withAuth(request, OWNER_FORM, async (_session, form) => {
+    const { event_count, attendees_per_event } = seedsForm.validate(form).values;
+    const eventCount = clamp(event_count, 1, MAX_SEED_EVENTS);
     const attendeesPerEvent = clamp(
-      values.attendees_per_event,
+      attendees_per_event,
       0,
       SEED_MAX_ATTENDEES,
     );
@@ -75,8 +72,7 @@ const handleSeedsPost = createAuthedFormRoute({
         false,
       );
     }
-  },
-});
+  });
 
 /** Seeds routes */
 export const seedsRoutes = defineRoutes({

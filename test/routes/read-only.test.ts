@@ -35,6 +35,23 @@ describeWithEnv(
       expect(html).toContain("This site is in read-only mode.");
     });
 
+    test("readOnlyPage includes renewal link when RENEWAL_URL is set", () => {
+      Deno.env.set("RENEWAL_URL", "https://example.com/renew");
+      try {
+        const html = readOnlyPage();
+        expect(html).toContain("Renew now");
+        expect(html).toContain("https://example.com/renew");
+      } finally {
+        Deno.env.delete("RENEWAL_URL");
+      }
+    });
+
+    test("readOnlyPage omits renewal link when RENEWAL_URL is not set", () => {
+      Deno.env.delete("RENEWAL_URL");
+      const html = readOnlyPage();
+      expect(html).not.toContain("Renew now");
+    });
+
     test("POST /api/admin/events returns 403 JSON", async () => {
       const res = await handleRequest(
         apiRequest("/api/admin/events", "POST", { name: "test" }),

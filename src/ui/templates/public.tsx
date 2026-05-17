@@ -395,14 +395,11 @@ export const temporaryErrorPage = (): string =>
  */
 export const readOnlyPage = (): string => {
   const renewalUrl = getRenewalUrl();
-  const renewalLink = renewalUrl
-    ? ` <a href="${renewalUrl}">Renew now</a>`
-    : "";
   return String(
     <Layout title="Read Only">
       <p>
         This site is in read-only mode.
-        {renewalLink && <Raw html={renewalLink} />}
+        {renewalUrl && <Raw html={` <a href="${renewalUrl}">Renew now</a>`} />}
       </p>
     </Layout>,
   );
