@@ -10,7 +10,9 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   buildCapacityCheckedInsert,
+  CAPACITY_EXCEEDED,
   checkCapacityResult,
+  checkEventAvailability,
   dateToStartEnd,
 } from "#shared/db/attendees/capacity.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
@@ -31,29 +33,17 @@ const updateEventAttendeeField =
 const setRefunded = updateEventAttendeeField("refunded");
 const setCheckedIn = updateEventAttendeeField("checked_in");
 
-/**
- * Mark an attendee as refunded for a specific event.
- * Keeps payment_id intact so payment details can still be viewed.
- */
 export const markRefunded = (
   attendeeId: number,
   eventId: number,
 ): Promise<void> => setRefunded(attendeeId, eventId, 1);
 
-/**
- * Update an attendee's checked_in status for a specific event.
- * Caller must be authenticated admin (public key always exists after setup)
- */
 export const updateCheckedIn = (
   attendeeId: number,
   eventId: number,
   checkedIn: boolean,
 ): Promise<void> => setCheckedIn(attendeeId, eventId, checkedIn ? 1 : 0);
 
-/**
- * Increment the attachment download counter for an attendee.
- * Uses atomic SQL increment to avoid race conditions.
- */
 export const incrementAttachmentDownloads = async (
   attendeeId: number,
   eventId: number,
@@ -64,10 +54,6 @@ export const incrementAttachmentDownloads = async (
   });
 };
 
-/**
- * Update an attendee's PII (name, email, phone, etc.) — shared across all event links.
- * Caller must be authenticated admin (public key always exists after setup).
- */
 export const updateAttendeePII = async (
   attendeeId: number,
   input: UpdateAttendeePIIInput,
@@ -88,16 +74,34 @@ export const updateAttendeePII = async (
 
 /**
  * Update a single event link's quantity and date with atomic capacity check.
- * Excludes this attendee's current row from the capacity calculation.
+ * Self-excluding preflight first (avoids false-rejection on multi-day ranges
+ * that contain non-overlapping existing bookings); atomic SQL UPDATE is the
+ * race-free safety net.
  */
 export const updateEventLink = async (
   attendeeId: number,
   eventId: number,
   input: UpdateEventLinkInput,
 ): Promise<UpdateEventLinkResult> => {
-  const { quantity: qty, date } = input;
-  const { startAt, endAt } = dateToStartEnd(date);
-  const condition = buildCapacityCondition(eventId, qty, date, attendeeId);
+  const { quantity: qty, date, durationDays = 1 } = input;
+
+  const preflight = await checkEventAvailability(
+    eventId,
+    qty,
+    date,
+    attendeeId,
+    durationDays,
+  );
+  if (!preflight) return CAPACITY_EXCEEDED;
+
+  const { startAt, endAt } = dateToStartEnd(date, durationDays);
+  const condition = buildCapacityCondition(
+    eventId,
+    qty,
+    date,
+    attendeeId,
+    durationDays,
+  );
 
   const result = await getDb().execute({
     args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
@@ -110,12 +114,23 @@ export const updateEventLink = async (
 
 /**
  * Add a new event link for an existing attendee with atomic capacity check.
- * Does NOT create a new attendee or touch PII — just inserts an event_attendees row.
+ * Runs a per-day preflight so multi-day events aren't false-rejected by the
+ * SQL overlap-sum safety net.
  */
 export const addEventLink = async (
   attendeeId: number,
   booking: EventBooking,
-): Promise<UpdateEventLinkResult> =>
-  checkCapacityResult(
+): Promise<UpdateEventLinkResult> => {
+  const preflight = await checkEventAvailability(
+    booking.eventId,
+    booking.quantity ?? 1,
+    booking.date ?? null,
+    undefined,
+    booking.durationDays ?? 1,
+  );
+  if (!preflight) return CAPACITY_EXCEEDED;
+
+  return checkCapacityResult(
     await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
   );
+};

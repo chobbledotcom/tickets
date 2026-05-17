@@ -5,13 +5,26 @@ import {
   decryptAttendees,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { dateToRange } from "#shared/db/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
+  createDailyTestEvent,
   createTestEvent,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
+
+/** Fetch raw start_at/end_at for an event (getAttendeesRaw drops them). */
+const getRange = async (
+  eventId: number,
+): Promise<{ start_at: string; end_at: string }> => {
+  const res = await getDb().execute({
+    args: [eventId],
+    sql: "SELECT start_at, end_at FROM event_attendees WHERE event_id = ?",
+  });
+  return res.rows[0] as unknown as { start_at: string; end_at: string };
+};
 
 describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("succeeds when capacity available", async () => {
@@ -148,5 +161,154 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const raw = await getAttendeesRaw(event.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees[0]?.price_paid).toBe("2500");
+  });
+
+  test("stores end_at = start_at + duration days for daily multi-day bookings", async () => {
+    const event = await createDailyTestEvent({
+      durationDays: 3,
+      maxAttendees: 5,
+      maximumDaysAfter: 30,
+    });
+    await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", durationDays: 3, eventId: event.id, quantity: 1 },
+      ],
+      email: "range@example.com",
+      name: "Range",
+    });
+    const { start_at, end_at } = await getRange(event.id);
+    expect(start_at).toBe("2026-05-01T00:00:00Z");
+    expect(end_at).toBe("2026-05-04T00:00:00.000Z");
+  });
+
+  test("year-boundary range stores end_at correctly", async () => {
+    const event = await createDailyTestEvent({
+      durationDays: 7,
+      maxAttendees: 2,
+      maximumDaysAfter: 400,
+    });
+    await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-12-30", durationDays: 7, eventId: event.id, quantity: 1 },
+      ],
+      email: "ny@example.com",
+      name: "NewYear",
+    });
+    const { start_at, end_at } = await getRange(event.id);
+    expect(start_at).toBe("2026-12-30T00:00:00Z");
+    expect(end_at).toBe("2027-01-06T00:00:00.000Z");
+  });
+
+  test("boundary: day-N end does not overlap another booking starting on day N", async () => {
+    // Two 1-day bookings back-to-back at cap=1. start_at strict <, end_at
+    // strict > — the second must fit.
+    const event = await createDailyTestEvent({
+      maxAttendees: 1,
+      maximumDaysAfter: 30,
+    });
+    const a = await createAttendeeAtomic({
+      bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 1 }],
+      email: "a@example.com",
+      name: "A",
+    });
+    expect(a.success).toBe(true);
+    const b = await createAttendeeAtomic({
+      bookings: [{ date: "2026-05-02", eventId: event.id, quantity: 1 }],
+      email: "b@example.com",
+      name: "B",
+    });
+    expect(b.success).toBe(true);
+  });
+
+  test("atomic SQL rejects a multi-day booking spanning a full day (no preflight)", async () => {
+    // Bypass checkBatchAvailability and stress the inline capacity check in
+    // the INSERT: day 2 at cap, 3-day booking starting day 1 must reject.
+    const event = await createDailyTestEvent({
+      durationDays: 3,
+      maxAttendees: 2,
+      maximumDaysAfter: 30,
+    });
+    await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-02", durationDays: 1, eventId: event.id, quantity: 2 },
+      ],
+      email: "mid@example.com",
+      name: "Mid",
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", durationDays: 3, eventId: event.id, quantity: 1 },
+      ],
+      email: "span@example.com",
+      name: "Span",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("concurrent at-capacity inserts: only one wins", async () => {
+    const event = await createTestEvent({ maxAttendees: 1 });
+    const [a, b] = await Promise.all([
+      createAttendeeAtomic({
+        bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "a@example.com",
+        name: "A",
+      }),
+      createAttendeeAtomic({
+        bookings: [{ eventId: event.id, quantity: 1 }],
+        email: "b@example.com",
+        name: "B",
+      }),
+    ]);
+    expect([a.success, b.success].filter(Boolean).length).toBe(1);
+  });
+
+  test("rejects negative quantities (defensive guard at library boundary)", async () => {
+    const event = await createTestEvent({ maxAttendees: 5 });
+    const result = await createAttendeeAtomic({
+      bookings: [{ eventId: event.id, quantity: -1 }],
+      email: "neg@example.com",
+      name: "Neg",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects duplicate (event, date) rows in one cart", async () => {
+    // The event_attendees unique index is (event_id, attendee_id, start_at)
+    // — two rows with the same tuple would violate it and silently deliver
+    // a half-fulfilled booking. Reject upfront so the caller merges qty.
+    const event = await createDailyTestEvent({
+      maxAttendees: 10,
+      maximumDaysAfter: 30,
+    });
+    const dup = await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", eventId: event.id, quantity: 1 },
+        { date: "2026-05-01", eventId: event.id, quantity: 1 },
+      ],
+      email: "dup@example.com",
+      name: "Dup",
+    });
+    expect(dup.success).toBe(false);
+    // Different dates on the same event are fine.
+    const ok = await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", eventId: event.id, quantity: 1 },
+        { date: "2026-05-02", eventId: event.id, quantity: 1 },
+      ],
+      email: "ok@example.com",
+      name: "Ok",
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  test("dateToRange produces half-open [start, end) with 1-day default", () => {
+    expect(dateToRange("2026-04-15")).toEqual({
+      endAt: "2026-04-16T00:00:00.000Z",
+      startAt: "2026-04-15T00:00:00Z",
+    });
+    expect(dateToRange("2026-04-15", 3)).toEqual({
+      endAt: "2026-04-18T00:00:00.000Z",
+      startAt: "2026-04-15T00:00:00Z",
+    });
   });
 });

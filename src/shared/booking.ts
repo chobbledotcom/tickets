@@ -49,7 +49,12 @@ export const processBooking = async (
     (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
 
   if (needsPayment) {
-    const available = await hasAvailableSpots(event.id, quantity, date);
+    const available = await hasAvailableSpots(
+      event.id,
+      quantity,
+      date,
+      event.duration_days,
+    );
     if (!available) return { type: "sold_out" };
 
     // Provider is guaranteed to exist when isPaymentsEnabled() is true
@@ -84,7 +89,14 @@ export const processBooking = async (
   // Free event — create attendee atomically
   const result = await createAttendeeAtomic({
     ...contact,
-    bookings: [{ date, eventId: event.id, quantity }],
+    bookings: [
+      {
+        date,
+        durationDays: event.duration_days,
+        eventId: event.id,
+        quantity,
+      },
+    ],
   });
 
   if (!result.success) {
