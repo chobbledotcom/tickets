@@ -105,48 +105,100 @@ The two halves are coupled by:
 
 ### Initial deadline on first sale
 
-When the customer first buys a built site (an `assign_built_site=1`
-event, today's flow), we need to:
+A new column **`events.initial_site_months INTEGER NOT NULL DEFAULT 0`**
+on the source event. Admin-editable, **required to be > 0** when
+`assign_built_site=1` — the form rejects `0` on save. Zero is allowed
+on non-built-site events (column simply ignored). On assignment:
 
-1. Decide the initial number of free months. Options considered:
-   - **Reuse `events.max_quantity`** — overloads meaning ("max tickets
-     per booking" already), confusing.
-   - **Add a new column `initial_months` on the source event** —
-     clean, explicit. `assign_built_site=1` events get a number-of-
-     months input next to the existing site-builder fields.
-   - Hard-code (e.g. always 1 month) — too inflexible.
+1. Compute `READ_ONLY_FROM = now() + initial_site_months months`.
+   Push it to the built site's edge script as a secret.
+2. Create a renewal event for **each** provisioned site (one event row
+   per site, even when one checkout provisions multiple). Push that
+   event's public URL to the edge script as `RENEWAL_URL`.
 
-   **Decision:** new column **`events.initial_site_months INTEGER NOT
-   NULL DEFAULT 0`**. Admin-editable, only meaningful when
-   `assign_built_site=1`. Zero means "no deadline set" (existing
-   behaviour preserved).
-
-2. On assignment, compute `READ_ONLY_FROM = now() + initial_site_months
-   months`. Push it to the built site's edge script as a secret.
-
-3. Create the per-site renewal event (see flow below) and push its
-   public URL to the edge script as `RENEWAL_URL`.
+When `quantity > 1` on the selling event, each of the N sites gets its
+own renewal event with its own slug. Each can be renewed independently.
 
 ### Coupling renewal events to sites
 
 - **One renewal event per built site**, created at assignment time
   (the moment `assignBuiltSite` is called).
-- Renewal event defaults (admin can edit later):
+- Renewal event defaults at creation:
   - `name`: `"Renew <site name>"`
   - `slug`: auto-generated unique slug (existing `generateUniqueSlug`).
   - `hidden=1, purchase_only=1, assign_built_site=0`.
-  - `unit_price = renewalPrice` (new admin setting; or copied from the
-    source event — see open question).
+  - `unit_price = DEFAULT_MONTHLY_RENEWAL_PRICE` (env var; see below).
+    Admin can edit per-event afterwards. The price lives **only on
+    the renewal event row** — there is no per-source-event field and
+    no inheritance from the selling event's `unit_price`.
   - `months_per_unit = 1`.
   - `max_quantity = 24` (cap, admin-tunable).
   - `can_pay_more=0`, `non_transferable=1`.
   - `renewal_for_site_id = <built_site.id>`.
-- The slug is **not** secret. It's discoverable via the assigned
-  built site (the URL is stored as `RENEWAL_URL` on its edge script,
-  which only the site owner / their site can access). `hidden=1` keeps
-  it off the public listing and adds `x-robots-noindex`. If we want a
-  belt-and-braces secret, lengthen `generateSlug` for renewal events
-  only — see open question.
+- `RENEWAL_URL` resolves to the regular public event page
+  (`https://<host>/<slug>`). No dedicated `/renew/...` route — the
+  hidden+purchase-only event flow already does the right thing.
+- The slug is not cryptographically secret. `hidden=1` keeps it off
+  the public listing and sets `x-robots-noindex`, and the URL is only
+  shared with the site owner via the `RENEWAL_URL` secret on the
+  edge script. Default 5-char slug from `generateSlug` is fine.
+
+### Renewal default price env var
+
+- New env var **`DEFAULT_MONTHLY_RENEWAL_PRICE`** (integer pence /
+  smallest currency unit, matching the existing `unit_price`
+  convention).
+- Used as the default `unit_price` for every newly-created renewal
+  event. Admin can edit per-event afterwards.
+- **Validation:** when `CAN_BUILD_SITES=true`, the renewal flow
+  refuses to run if `DEFAULT_MONTHLY_RENEWAL_PRICE` is unset or
+  non-positive. Checked at request time (edge has no startup phase) —
+  specifically, `assignSitesForEntries` short-circuits with a logged
+  + ntfy'd error before any DB write, so the host operator notices
+  before customers do. Tested.
+
+### Payment → deadline bump
+
+When a renewal event payment succeeds:
+
+1. The existing webhook pipeline calls `logAndNotifyRegistration`
+   (`src/shared/webhook.ts:164`), which already iterates entries.
+2. Add a new pending-work step alongside `assignAndNotifyBuiltSites`:
+   `applyRenewalsForEntries(entries)`.
+3. For each entry whose event has `renewal_for_site_id != null`:
+   - Load the built site row.
+   - Compute new deadline:
+     `base = max(now(), site.read_only_from || now())`
+     `new = addMonthsIso(base, attendee.quantity * event.months_per_unit)`
+   - Push `READ_ONLY_FROM = new` to the site's edge script via
+     `bunnyCdnApi.setEdgeScriptSecret(site.bunnyScriptId, "READ_ONLY_FROM", new)`.
+   - **Only on success**, persist the new value to
+     `built_sites.read_only_from`. On failure: log + ntfy, leave the
+     host-side value at the previous (pre-renewal) date so the admin
+     UI doesn't lie about a state that isn't on the edge. Recovery is
+     the admin "Re-sync deadline" button (Phase 6) which replays the
+     last successful host-side value to the edge — useful for
+     transient Bunny failures, but the post-renewal failure path
+     specifically needs a different recovery primitive: a "Push
+     paid-for-but-not-applied months" admin action. See Phase 5.
+   - **Refunds are explicitly out of scope for v1** — if a renewal
+     gets refunded later, the customer keeps the time they paid for.
+     Document as a known gap.
+4. The renewal email is the existing post-payment email; no extra
+   "thanks for renewing" template required for v1.
+
+### Month arithmetic
+
+`addMonthsIso(fromIso, months)` **clamps to the last day of the
+target month**:
+
+- `2026-01-31 + 1mo → 2026-02-28`
+- `2024-01-31 + 1mo → 2024-02-29` (leap year)
+- `2026-03-31 + 1mo → 2026-04-30`
+
+The customer never gains or loses a day from month-boundary
+arithmetic. Implementation: build with `Date.UTC(y, m + months,
+min(originalDay, daysInMonth(y, m + months)))`.
 
 ### Payment → deadline bump
 
@@ -181,6 +233,16 @@ When a renewal event payment succeeds:
     return Date.now() >= Date.parse(cutoff);
   };
   ```
+- New helper `isReadOnlyWarning(): boolean` — true when the site is
+  *not yet* read-only but is within `READ_ONLY_WARN_DAYS` days of the
+  cutoff. Drives the pre-expiry banner.
+- New env var **`READ_ONLY_WARN_DAYS`** (integer, default `14`) on
+  the built site. Controls how early the warning banner appears.
+- Banners deep-link to `RENEWAL_URL` in **both states**:
+  - Pre-expiry: "Your site expires on `<date>` — Renew now" CTA.
+  - Post-expiry: "This site is in read-only mode — Renew now" CTA.
+  If `RENEWAL_URL` is unset (legacy site), banner falls back to the
+  current generic text with no link.
 - Invalid `READ_ONLY_FROM` values (unparseable / non-ISO) → log via
   `ErrorCode.DATA_INVALID` and treat as "not set" (fail open: the site
   stays writable rather than locking the customer out due to a typo).
@@ -197,13 +259,21 @@ When a renewal event payment succeeds:
   is a small template tweak.
 - Per-site detail page gets:
   - A "Renewal event" link to the linked `renewal_for_site_id` event.
-  - A manual "Push deadline now" button that re-syncs
-    `READ_ONLY_FROM` from the host's stored value to the edge script
-    (recovery tool when a Bunny call fails silently).
+  - A manual **"Re-sync deadline"** button that re-pushes the host's
+    stored `read_only_from` to the edge script. Primary recovery
+    path for failed Bunny pushes.
   - A "Set deadline" form for support overrides (host operator only).
     Writes the host-side value and pushes to the edge script.
 - Source events (the ones that *sell* sites, `assign_built_site=1`)
-  get an `initial_site_months` field in the event form.
+  get an `initial_site_months` field in the event form, **required
+  to be > 0**. Form validation rejects `0` on save.
+- Renewal events appear **mixed into the main admin events list**
+  with a visual "Renewal" tag and the linked site name shown beside
+  the event name. The events list query stays unchanged; the
+  template branches on `renewal_for_site_id != null`. Their edit
+  page hides/locks the `renewal_for_site_id`, `months_per_unit`,
+  and `assign_built_site` fields (admin can still edit price, name,
+  `max_quantity`, etc.).
 
 ## Non-goals
 
@@ -254,34 +324,54 @@ sites and events keep working unchanged.
 
 ---
 
-### Phase 2 — Built site read-only-from semantics
+### Phase 2 — Built site read-only-from + warning banner
 
 This is the customer-facing payoff: even with no renewal flow wired up,
 a site with `READ_ONLY_FROM` set in the past becomes read-only on its
-own.
+own, and one within `READ_ONLY_WARN_DAYS` days shows a pre-expiry
+warning.
 
 **Files**
 
-- `src/shared/env.ts` — replace `isReadOnly` body with the helper
-  shown above (force-override + date-based cutoff). Add a tiny pure
-  helper `isReadOnlyFromCutoff(now: number, cutoff: string | undefined)`
-  to keep the date math testable without env mocking.
+- `src/shared/env.ts`
+  - Replace `isReadOnly` body with the helper shown above
+    (force-override + date-based cutoff).
+  - Add `isReadOnlyWarning(): boolean` — true when `READ_ONLY_FROM`
+    is set, in the future, and `now >= cutoff - READ_ONLY_WARN_DAYS`.
+  - Add `getReadOnlyCutoffIso(): string | null` — exposes the parsed
+    cutoff for banner copy / templates.
+  - Add `getRenewalUrl(): string | null` — reads `RENEWAL_URL` secret.
+  - Pure helpers (no env access) for the date math, to keep tests
+    fast: `isReadOnlyFromCutoff(now, cutoff)`,
+    `isInWarningWindow(now, cutoff, warnDays)`.
 - `src/shared/logger.ts` — no new error codes needed; reuse
   `ErrorCode.DATA_INVALID` for malformed `READ_ONLY_FROM`.
-- `src/ui/templates/admin/nav.tsx`, `src/ui/templates/public.tsx`,
-  `src/features/index.ts` — no source changes; they all use
-  `isReadOnly()`.
+- `src/ui/templates/admin/nav.tsx` — admin banner now also renders
+  the warning state, both states deep-link to `getRenewalUrl()` when
+  set, fall back to current generic text when not.
+- `src/ui/templates/public.tsx` — same treatment for the public-side
+  banner shown when `isReadOnly()` is true; also surface the
+  pre-expiry warning to logged-out visitors? **No** — warning is
+  admin-facing only for v1 (customer admin sees the nudge; public
+  visitors don't need to know the site is about to expire).
 
 **Tests**
 
 - `test/lib/env.test.ts`
   - `READ_ONLY=true` ⇒ read-only regardless of date.
   - `READ_ONLY_FROM` in the past ⇒ read-only.
-  - `READ_ONLY_FROM` in the future ⇒ writable.
-  - `READ_ONLY_FROM` unset ⇒ writable.
+  - `READ_ONLY_FROM` in the future, outside warning window ⇒ writable,
+    no warning.
+  - `READ_ONLY_FROM` in the future, inside warning window ⇒ writable,
+    warning shown.
+  - `READ_ONLY_FROM` unset ⇒ writable, no warning.
   - `READ_ONLY_FROM` malformed ⇒ writable (fail open), logs error.
+  - `READ_ONLY_WARN_DAYS` unset ⇒ defaults to 14.
+  - `READ_ONLY_WARN_DAYS` invalid ⇒ defaults to 14, logs error.
 - `test/routes/read-only.test.ts` — existing read-only-mode page
   rendering still triggers when `READ_ONLY_FROM` is in the past.
+- `test/templates/admin/nav.test.ts` — warning banner CTAs point at
+  `RENEWAL_URL` when set, fall back to generic copy when not.
 
 ---
 
@@ -290,37 +380,58 @@ own.
 **Files**
 
 - `src/shared/builder.ts`
-  - Extend `BuildSiteInput` with optional `readOnlyFrom?: string` and
-    `renewalUrl?: string`.
+  - Extend `BuildSiteInput` with optional `readOnlyFrom?: string`,
+    `renewalUrl?: string`, and `readOnlyWarnDays?: number`.
   - Push them into the secrets array when set:
-    `["READ_ONLY_FROM", readOnlyFrom]`, `["RENEWAL_URL", renewalUrl]`.
+    `["READ_ONLY_FROM", readOnlyFrom]`,
+    `["RENEWAL_URL", renewalUrl]`,
+    `["READ_ONLY_WARN_DAYS", String(readOnlyWarnDays)]` (only if
+    explicitly set; otherwise the built site uses its 14-day default).
   - `BuildSiteResult` doesn't need to change (we already know the
     scriptId on the host).
 - `src/shared/site-assignment.ts`
-  - `assignSitesForEntries`: after `assignBuiltSite`, before the email,
-    compute the initial cutoff from `event.initial_site_months`
-    (zero ⇒ leave blank, no deadline). Push it to the script via
-    `bunnyCdnApi.setEdgeScriptSecret(site.bunnyScriptId,
-    "READ_ONLY_FROM", cutoffIso)` and persist to
-    `built_sites.read_only_from`.
-  - Create the per-site renewal event here (see Phase 4 helper).
-    Then push `RENEWAL_URL = https://<host>/<renewalSlug>` to the
-    script as a secret.
-- `src/shared/now.ts` already exports `nowIso()`; add a tiny pure
-  helper there (or in a new `src/shared/dates.ts` if cleaner)
-  `addMonthsIso(fromIso: string, months: number): string` using
-  `Date.UTC` with month overflow (e.g. Jan 31 + 1mo = Feb 28/29).
+  - `assignSitesForEntries`: after `assignBuiltSite`, before the email:
+    1. Require `event.initial_site_months > 0` — this is a form
+       invariant (Phase 6), but assert defensively here so an admin
+       bypassing the form via the API doesn't end up with a
+       deadline-less paid site.
+    2. Require `DEFAULT_MONTHLY_RENEWAL_PRICE` to be a positive
+       integer. If unset, log + ntfy and abort assignment of this
+       entry (rest of the batch continues). The customer's payment
+       has already been captured, so this surfaces as an admin
+       support ticket rather than a customer error.
+    3. Compute the initial cutoff via
+       `addMonthsIso(nowIso(), event.initial_site_months)`.
+    4. Push it to the script via `pushReadOnlyFrom(site, cutoffIso)`
+       (helper introduced in Phase 5).
+    5. Create the per-site renewal event (Phase 4 helper) and push
+       `RENEWAL_URL = https://<host>/<renewalSlug>` to the script.
+- `src/shared/dates.ts` (new file, or extend `now.ts`) —
+  `addMonthsIso(fromIso, months)` with end-of-month clamping
+  (Jan 31 + 1mo → Feb 28/29).
 
 **Tests**
 
-- `test/lib/dates.test.ts` (or `now.test.ts`) — `addMonthsIso` covers:
-  end-of-month overflow, negative months, leap years, zero months
-  (returns the input).
-- `test/lib/site-assignment.test.ts` (new or existing)
-  - With `event.initial_site_months = 3`, assignment pushes
+- `test/lib/dates.test.ts` — `addMonthsIso` covers:
+  - End-of-month clamp (`2026-01-31` + 1 → `2026-02-28`).
+  - Leap-year clamp (`2024-01-31` + 1 → `2024-02-29`).
+  - 30-day month clamp (`2026-03-31` + 1 → `2026-04-30`).
+  - Year rollover (`2026-12-15` + 1 → `2027-01-15`).
+  - 12-month renewal (`2026-05-17` + 12 → `2027-05-17`).
+  - Zero months returns the input.
+- `test/lib/site-assignment.test.ts`
+  - With `event.initial_site_months = 3` and
+    `DEFAULT_MONTHLY_RENEWAL_PRICE=500`, assignment pushes
     `READ_ONLY_FROM` = now + 3 months to the script and persists
     the value to `built_sites.read_only_from`.
-  - With `initial_site_months = 0`, no `READ_ONLY_FROM` secret is set.
+  - With `DEFAULT_MONTHLY_RENEWAL_PRICE` unset, assignment aborts
+    cleanly, logs `ErrorCode.CONFIG_MISSING` (or similar), no edge
+    secrets pushed, no renewal event created.
+  - With `event.initial_site_months = 0`, defensive assertion fires
+    and entry is rejected (covers API-bypass case).
+  - With `quantity = 3`, three separate sites are assigned, each gets
+    its own renewal event and its own `RENEWAL_URL` pushed to its
+    own edge script.
   - Stubs `bunnyCdnApi.setEdgeScriptSecret` and asserts call args.
 
 ---
@@ -360,38 +471,46 @@ own.
 
 **Files**
 
+- `src/shared/site-assignment.ts` — extract `pushReadOnlyFrom(site,
+  cutoffIso)` used by both initial assignment (Phase 3) and renewal
+  (this phase). Order is critical:
+  1. Call `bunnyCdnApi.setEdgeScriptSecret(site.bunnyScriptId,
+     "READ_ONLY_FROM", cutoffIso)`.
+  2. **Only on success**: `builtSitesTable.update(site.id,
+     { readOnlyFrom: cutoffIso })`.
+  3. On failure: log `ErrorCode.CDN_REQUEST`, ntfy, return an error
+     to the caller. Host-side date stays at the previous value.
 - `src/shared/webhook.ts`
   - New `applyRenewalsForEntries(entries)` helper, mirroring
     `assignAndNotifyBuiltSites`:
     - Filter entries to those whose event has
       `renewal_for_site_id != null`.
-    - For each: load the site, compute the new deadline (base =
-      `max(now, site.read_only_from)` so back-to-back renewals stack
-      forward rather than overlapping), call
-      `bunnyCdnApi.setEdgeScriptSecret(site.bunnyScriptId,
-      "READ_ONLY_FROM", newIso)`, then persist via
-      `builtSitesTable.update`.
+    - For each: load the site, compute the new deadline:
+      `base = max(now, site.read_only_from || now)`
+      `newIso = addMonthsIso(base, attendee.quantity * event.months_per_unit)`
+      then call `pushReadOnlyFrom(site, newIso)`.
     - Log via `logActivity` ("Renewal of '<site name>' for N months").
   - In `logAndNotifyRegistration`, add
     `addPendingWork(applyRenewalsForEntries(entries))` next to the
     existing pending-work calls.
-- `src/shared/site-assignment.ts` — extract a small
-  `pushReadOnlyFrom(site, cutoffIso)` helper used by both
-  Phase 3 (initial) and Phase 5 (renewal) to centralise the
-  setEdgeScriptSecret + DB persist.
 
 **Tests**
 
 - `test/lib/renewals.test.ts` (new)
   - Renewal for 3 months: site with `read_only_from` 10 days from now
-    becomes `now + 10d + 3 months`.
+    becomes `now + 10d + 3 months` (clamped month math).
   - Expired site (`read_only_from` in the past): renewal makes it
-    `now + N months` (not past + N).
+    `addMonthsIso(now, N)` (not past + N).
   - Quantity multiplies by `months_per_unit` (set
     `months_per_unit=3`, qty=2 ⇒ +6 months).
   - Stripe webhook stub fires through to
-    `bunnyCdnApi.setEdgeScriptSecret` exactly once.
+    `bunnyCdnApi.setEdgeScriptSecret` exactly once with the computed
+    ISO.
   - Entry without `renewal_for_site_id` is ignored.
+  - `setEdgeScriptSecret` failure path: host-side `read_only_from`
+    is **not** updated; error is logged + ntfy'd.
+  - End-of-month: site with `read_only_from = 2026-01-31` + 1mo
+    renewal lands on `2026-02-28`.
 
 ---
 
@@ -401,28 +520,44 @@ own.
 
 - `src/ui/templates/admin/built-sites.tsx` (or wherever the list lives
   — likely a generic CRUD template; search for `builtSitesCrudTable`)
-  - Show `read_only_from` per row (formatted, "never", "expired",
-    "in N days").
+  - Show `read_only_from` per row (formatted, "never", "expired N
+    days ago", "in N days").
 - Per-site detail view:
   - Link to the renewal event.
-  - Button: "Re-sync deadline" (re-POSTs the persisted value to the
-    edge script — recovery path if a Bunny push failed).
-  - Manual override form: pick a date, push it to the site.
+  - **"Re-sync deadline"** button (POST) — re-pushes the host-side
+    `read_only_from` to the edge script via `pushReadOnlyFrom`. The
+    primary recovery path when a Bunny push failed during renewal or
+    initial assignment.
+  - Manual **"Set deadline"** override form (host operator only) —
+    pick a date, host stores it and pushes via `pushReadOnlyFrom`.
 - Source event admin form (`src/ui/templates/fields.ts`,
   `src/ui/templates/admin/events.tsx`):
   - Add `initial_site_months` field, only shown when
     `assign_built_site=1`. Help text: "Months of access granted on
     initial purchase. The customer can renew later for more time."
+  - **Validation: > 0 is required when `assign_built_site=1`.** Reject
+    `0` on save with an inline error.
 - Renewal event admin form:
-  - Show `months_per_unit` and the linked-site context as a banner
-    rather than free-form fields.
+  - "Renewal" tag in the events list next to the event name, with
+    the linked site name appended (e.g. "Renew 00042 · Renewal").
+  - On the renewal event's edit page, lock `renewal_for_site_id`,
+    `months_per_unit`, and `assign_built_site` (display as a banner,
+    not editable inputs). Price, name, slug, `max_quantity` remain
+    editable.
 
 **Tests**
 
 - `test/templates/admin/built-sites.test.ts` — formatted deadline
-  appears, override form posts to the expected route.
-- `test/admin-api-events.test.ts` — `initial_site_months` round-trips
-  on edit/save.
+  appears, "Re-sync deadline" and override form post to the expected
+  routes and call `pushReadOnlyFrom`.
+- `test/admin-api-events.test.ts`
+  - `initial_site_months` round-trips on edit/save.
+  - Saving an `assign_built_site=1` event with `initial_site_months=0`
+    is rejected with a clear error message.
+  - Renewal event edit page cannot mutate `renewal_for_site_id`,
+    `months_per_unit`, or `assign_built_site`.
+- `test/templates/admin/events.test.ts` — Renewal tag + linked site
+  name render in the events list for renewal events.
 
 ---
 
@@ -432,17 +567,20 @@ own.
 
 - `test/integration/*` — one end-to-end test:
   1. Admin creates a paid event with `assign_built_site=1`,
-     `initial_site_months=2`.
-  2. Customer pays → site is assigned, renewal event is created,
-     `READ_ONLY_FROM = now + 2 months` is recorded.
-  3. Customer visits `RENEWAL_URL`, pays for `quantity=3` →
-     `READ_ONLY_FROM` advances by 3 months.
+     `initial_site_months=2`, `max_quantity=3`.
+  2. Customer pays for `quantity=2` → two sites are assigned, two
+     renewal events are created, each with its own slug, each gets
+     `READ_ONLY_FROM = now + 2 months` pushed independently.
+  3. Customer visits one site's `RENEWAL_URL`, pays for `quantity=3`
+     → only that site's `READ_ONLY_FROM` advances by 3 months; the
+     other site's deadline is unchanged.
   4. Stub `bunnyCdnApi.setEdgeScriptSecret` to assert the exact value
-     pushed at each step.
+     pushed at each step, scoped to the right `bunnyScriptId`.
 - Bunny API failure path: simulate a `setEdgeScriptSecret` error and
   assert the host-side `built_sites.read_only_from` is **not** advanced
   (so the customer doesn't pay for time that never landed on the
-  edge). Pair with a retry / admin "re-sync" button (Phase 6).
+  edge). Confirm the admin "Re-sync deadline" button (Phase 6)
+  recovers the state in a follow-up assertion.
 
 ---
 
@@ -459,46 +597,66 @@ own.
 | Edge runtime caches old secrets | Bunny secrets propagate via the secrets API; verify this in Phase 3 manual smoke test. If propagation requires a republish, add `publishEdgeScript` to the helper. |
 | Malformed `READ_ONLY_FROM` locks customer out | Fail open: invalid value treated as "no cutoff", logged. |
 | Clock skew between host and edge | Both run on Bunny's infra; `Date.now()` skew is tiny relative to month granularity. Document, don't engineer around. |
-| `initial_site_months=0` on a paid built-site sale | Treated as "no deadline" — preserves today's behaviour for installs that don't want monthly billing. |
+| `initial_site_months=0` on a paid built-site sale | Form rejects on save (Phase 6). Assignment defensively re-checks and logs if it sees 0 (API-bypass). |
+| `DEFAULT_MONTHLY_RENEWAL_PRICE` unset while a paid site is being assigned | Assignment aborts cleanly per-entry, logs + ntfy. Customer's payment is already captured, so this surfaces as a support ticket — fix the env var, click "Re-sync deadline". |
+| Refund issued for a renewal | Out of scope for v1: customer keeps the time they paid for, refund returns money only. Document. |
+| One checkout buys N sites; rollback when one of the N edge pushes fails | Each site is processed independently; failures leave that site's host-side date unchanged and log per-site. No partial rollback of the others. |
 
 ## File-change summary (estimated)
 
 | Area | Files | Notes |
 |---|---|---|
 | Schema | `migrations.ts`, `events.ts` (db), `built-sites.ts`, `types.ts` | 4 new columns + blob v2 |
-| Read-only semantics | `env.ts` | One function, ~10 lines |
-| Builder | `builder.ts`, `bunny-cdn.ts` (no change) | Pass two new secrets through |
-| Assignment + renewal create | `site-assignment.ts`, `webhook.ts` | Hook in `pushReadOnlyFrom`, `applyRenewalsForEntries` |
-| Date math | `now.ts` or new `dates.ts` | `addMonthsIso` |
-| Admin UI | `fields.ts`, `templates/admin/events.tsx`, `templates/admin/built-sites.tsx` | Two new form fields + a deadline column + override form |
-| Tests | ~6 test files | All additive |
+| Read-only semantics | `env.ts` | `isReadOnly`, `isReadOnlyWarning`, `getRenewalUrl`, `getReadOnlyCutoffIso` |
+| Banner UI | `templates/admin/nav.tsx`, `templates/public.tsx` | Pre-expiry warning + read-only banner both deep-link to `RENEWAL_URL` |
+| Builder | `builder.ts` | Pass `READ_ONLY_FROM`, `RENEWAL_URL`, `READ_ONLY_WARN_DAYS` secrets |
+| Assignment + renewal create | `site-assignment.ts`, `webhook.ts` | `pushReadOnlyFrom`, `createRenewalEventForSite`, `applyRenewalsForEntries`, env-var guard |
+| Date math | new `dates.ts` | `addMonthsIso` with end-of-month clamp |
+| Admin UI | `fields.ts`, `templates/admin/events.tsx`, `templates/admin/built-sites.tsx` | `initial_site_months` field (required > 0), Renewal tag in events list, deadline column, override + re-sync buttons |
+| Tests | ~7 test files | All additive |
 
-Roughly **9–11 source files**, **5–7 test files**.
+Roughly **10–12 source files**, **6–8 test files**.
 
-## Open questions
+## Resolved decisions (May 2026 Q&A)
 
-1. **Renewal pricing source.** Three options:
-   - Copy `unit_price` from the source event at assignment time.
-   - New per-source-event field `renewal_unit_price`.
-   - Global setting (`settings.renewalUnitPrice`).
-   Recommend the per-source-event field so different "tiers" can sell
-   the same site with different monthly fees. Defaults to source
-   event's `unit_price` if unset.
-2. **Republish requirement.** Confirm Bunny edge scripts pick up
-   secret changes without a `publishEdgeScript` call. If not, fold
-   a publish into `pushReadOnlyFrom` (cheap, idempotent).
-3. **Slug length for renewal events.** Default 5-char slug from
-   `generateSlug` (~1.15M space) plus `hidden=1` is probably fine
-   because the URL is only ever shared with the owner. Worth a quick
-   `Should we bump to e.g. 12 chars only for renewal events?` decision
-   before Phase 4.
-4. **Notification before expiry.** Out of scope for v1 but the next
-   obvious feature: cron over `built_sites` rows with
-   `read_only_from` between `now + 7d` and `now + 14d`, send email
-   nudging the customer to the `RENEWAL_URL`. Could land as Phase 8.
-5. **What does the built site itself show on the read-only banner?**
-   Today's banner just says "This site is in read-only mode". We
-   could plumb `RENEWAL_URL` through and turn it into a "Renew now"
-   link. Tiny UX win, big customer-facing value. Worth doing in
-   Phase 6 if `RENEWAL_URL` is wired through to the env at that
-   point.
+1. **Renewal pricing source:** lives only on the renewal event row.
+   Default at creation comes from a new env var
+   `DEFAULT_MONTHLY_RENEWAL_PRICE`. Admin edits per-event afterwards.
+2. **Env-var validation:** when `CAN_BUILD_SITES=true`, the renewal
+   flow refuses to assign a built site if
+   `DEFAULT_MONTHLY_RENEWAL_PRICE` is unset/non-positive. Check at
+   request time inside `assignSitesForEntries` (edge has no
+   startup phase). Surfaces as logged + ntfy'd admin support ticket.
+3. **Renewal event creation timing:** at site assignment (one event
+   per site, even on multi-site checkouts).
+4. **Multi-site purchases (qty > 1):** each site gets its own renewal
+   event with its own slug + `RENEWAL_URL`.
+5. **Initial deadline column:** new `events.initial_site_months`,
+   required > 0 when `assign_built_site=1`.
+6. **Expiry behaviour:** full read-only at `READ_ONLY_FROM`. Warning
+   banner shown `READ_ONLY_WARN_DAYS` days before (new env var,
+   integer, default 14). Both banners deep-link to `RENEWAL_URL`.
+7. **Renewal event admin listing:** mixed into the main events list
+   with a "Renewal" tag and the linked site name. Renewal-specific
+   fields (`renewal_for_site_id`, `months_per_unit`,
+   `assign_built_site`) are locked on edit.
+8. **Refunds:** out of scope for v1. Customer keeps paid-for time.
+9. **Renewal URL shape:** regular public event page
+   (`https://<host>/<slug>`) — `hidden=1, purchase_only=1` already
+   does what we need; no custom route.
+10. **Month arithmetic:** `addMonthsIso` clamps to last day of the
+    target month (Jan 31 + 1mo → Feb 28/29).
+11. **Push failure after renewal payment:** don't advance host-side
+    date, log + ntfy, recover via the admin "Re-sync deadline"
+    button on the built-site detail page.
+
+## Still to confirm
+
+1. **Bunny secret propagation:** does `setEdgeScriptSecret` propagate
+   without a `publishEdgeScript` call? Verify with a Phase 3 manual
+   smoke test. If not, fold `publishEdgeScript` into
+   `pushReadOnlyFrom` (cheap, idempotent).
+2. **Phase 8 (out of scope but obvious next):** cron over
+   `built_sites` rows whose `read_only_from` falls in the next
+   `READ_ONLY_WARN_DAYS` and send a renewal-nudge email. Land after
+   v1 ships.
