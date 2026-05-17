@@ -100,6 +100,13 @@ describeWithEnv(
         fromAddress: "test@example.com",
         provider: "resend",
       });
+      await createTestEvent({
+        hidden: true,
+        maxAttendees: 1000,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
     });
 
     afterEach(() => {
@@ -294,7 +301,7 @@ describeWithEnv(
     });
 
     describe("renewal at site assignment", () => {
-      const createTierEvent = async (
+      const createTierEvent = (
         unitPrice = 500,
         monthsPerUnit = 1,
       ) =>
@@ -309,7 +316,6 @@ describeWithEnv(
       test("generates renewal token and pushes READ_ONLY_FROM + RENEWAL_URL on assignment", async () => {
         const tier = await createTierEvent();
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
-        const stub = ensureSecretStub();
 
         await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 3 })]);
 
@@ -326,7 +332,7 @@ describeWithEnv(
         const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
         expect(assigned.readOnlyFrom.slice(0, 10)).toBe(expectedCutoff);
 
-        const secretCalls = stub.calls.map((c) => c.args);
+        const secretCalls = secretStub.calls.map((c) => c.args);
         const readOnlyFromCall = secretCalls.find(
           (c) => c[1] === "READ_ONLY_FROM",
         );
@@ -342,7 +348,6 @@ describeWithEnv(
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        const stub = ensureSecretStub();
 
         await assignAndNotifyBuiltSites([
           siteEntry({ initialSiteMonths: 0 }),
@@ -352,13 +357,18 @@ describeWithEnv(
         const site = sites.find((s) => s.name === "Site A")!;
         expect(site.assignedAttendeeId).toBeNull();
         expect(site.renewalTokenIndex).toBeNull();
-        expect(stub.calls.length).toBe(0);
+        expect(secretStub.calls.length).toBe(0);
       });
 
       test("skips assignment and logs CONFIG_MISSING when no qualifying tier events exist", async () => {
+        const { getAllEvents } = await import("#shared/db/events.ts");
+        const events = await getAllEvents();
         const { deactivateTestEvent } = await import("#test-utils");
-        await deactivateTestEvent(tierEventId);
-        const stub = ensureSecretStub();
+        for (const ev of events) {
+          if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
+            await deactivateTestEvent(ev.id);
+          }
+        }
 
         const buildStub = stubBuildSiteSuccess();
         try {
@@ -367,7 +377,7 @@ describeWithEnv(
           const sites = await getAllBuiltSites();
           const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
           expect(assigned).toHaveLength(0);
-          expect(stub.calls.length).toBe(0);
+          expect(secretStub.calls.length).toBe(0);
         } finally {
           buildStub.restore();
         }
@@ -387,7 +397,6 @@ describeWithEnv(
         await createTierEvent(900);
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2002");
-        ensureSecretStub();
 
         await assignAndNotifyBuiltSites([siteEntry()]);
 
@@ -401,7 +410,6 @@ describeWithEnv(
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2003");
         await insertBuiltSite("Site B", "b.test.net", "", "", true, "2004");
-        const stub = ensureSecretStub();
 
         const buildStub = stubBuildSiteSuccess();
         try {
@@ -422,11 +430,11 @@ describeWithEnv(
           const uniqueTokens = new Set(nonNullTokens);
           expect(uniqueTokens.size).toBe(3);
 
-          const rofCalls = stub.calls.filter(
+          const rofCalls = secretStub.calls.filter(
             (c) => c.args[1] === "READ_ONLY_FROM",
           );
           expect(rofCalls).toHaveLength(3);
-          const renewalUrlCalls = stub.calls.filter(
+          const renewalUrlCalls = secretStub.calls.filter(
             (c) => c.args[1] === "RENEWAL_URL",
           );
           expect(renewalUrlCalls).toHaveLength(3);
@@ -444,8 +452,7 @@ describeWithEnv(
         const assignableSites = await getAssignableBuiltSites();
         const failScriptId = Number(assignableSites[0]!.bunnyScriptId);
 
-        secretStub?.restore();
-        secretStub = null;
+        secretStub.restore();
         const failStub = stub(
           bunnyCdnApi,
           "setEdgeScriptSecret",
