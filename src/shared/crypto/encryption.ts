@@ -39,9 +39,9 @@ const [getEncryptionKeyOverride, setEncryptionKeyOverride] = lazyRef<
  * Used by sibling modules (e.g. keys.ts) to invalidate derived caches.
  */
 const keyChangeCallbacks: (() => void)[] = [];
-export const onEncryptionKeyChange = (cb: () => void): void => {
+export function onEncryptionKeyChange(cb: () => void): void {
   keyChangeCallbacks.push(cb);
-};
+}
 
 /**
  * Explicitly set or clear the encryption key for testing.

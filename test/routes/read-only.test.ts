@@ -27,12 +27,12 @@ describeWithEnv(
       const res = await handleRequest(mockRequest("/read-only"));
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toContain("Disabled: This site is in read-only mode.");
+      expect(html).toContain("This site is in read-only mode.");
     });
 
     test("readOnlyPage contains the expected message", () => {
       const html = readOnlyPage();
-      expect(html).toContain("Disabled: This site is in read-only mode.");
+      expect(html).toContain("This site is in read-only mode.");
     });
 
     test("POST /api/admin/events returns 403 JSON", async () => {

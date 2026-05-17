@@ -11,8 +11,6 @@
  * and writes too.
  */
 
-import { ErrorCode, logError } from "#shared/logger.ts";
-
 declare const Deno:
   | { env: { get(key: string): string | undefined } }
   | undefined;
@@ -74,9 +72,11 @@ export const isReadOnly = (): boolean => {
   if (!cutoff) return false;
   const parsed = Date.parse(cutoff);
   if (Number.isNaN(parsed)) {
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `READ_ONLY_FROM unparseable: ${cutoff}`,
+    void import("#shared/logger.ts").then(({ ErrorCode, logError }) => {
+      logError({
+        code: ErrorCode.DATA_INVALID,
+        detail: `READ_ONLY_FROM unparseable: ${cutoff}`,
+      });
     });
     return false;
   }

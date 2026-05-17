@@ -1,14 +1,30 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
-import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import {
+  getAllBuiltSites,
+  getAssignableBuiltSites,
+  getBuiltSiteRenewalToken,
+  insertBuiltSite,
+} from "#shared/db/built-sites.ts";
 import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
-import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
-import { describeWithEnv, makeTestEntry, setTestEnv } from "#test-utils";
+import { addMonthsIso } from "#shared/dates.ts";
+import { nowIso } from "#shared/now.ts";
+import {
+  assignAndNotifyBuiltSites,
+  pickTierEvent,
+} from "#shared/site-assignment.ts";
+import {
+  createTestEvent,
+  describeWithEnv,
+  makeTestEntry,
+  setTestEnv,
+} from "#test-utils";
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
   let counter = 0;
@@ -30,12 +46,18 @@ const stubBuildSiteFailure = () =>
     Promise.resolve({ error: "build failed", ok: false as const }),
   );
 
+const stubEdgeSecretSuccess = () =>
+  stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+    Promise.resolve({ ok: true as const }),
+  );
+
 /** Build an entry with assign_built_site for testing */
 const siteEntry = (
   overrides: {
     eventId?: number;
     eventName?: string;
     assignBuiltSite?: boolean;
+    initialSiteMonths?: number;
     attendeeId?: number;
     quantity?: number;
     email?: string;
@@ -44,6 +66,7 @@ const siteEntry = (
   makeTestEntry(
     {
       assign_built_site: overrides.assignBuiltSite ?? true,
+      initial_site_months: overrides.initialSiteMonths ?? 3,
       ...(overrides.eventId !== undefined && { id: overrides.eventId }),
       ...(overrides.eventName !== undefined && { name: overrides.eventName }),
     },
@@ -65,11 +88,13 @@ describeWithEnv(
   () => {
     // deno-lint-ignore no-explicit-any
     let fetchStub: any;
+    let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
+      secretStub = stubEdgeSecretSuccess();
       setHostEmailConfigForTest({
         apiKey: "re_test",
         fromAddress: "test@example.com",
@@ -79,6 +104,7 @@ describeWithEnv(
 
     afterEach(() => {
       fetchStub.restore();
+      if (!secretStub.restored) secretStub.restore();
       resetHostEmailConfig();
     });
 
@@ -263,6 +289,202 @@ describeWithEnv(
           expect(sites[0]!.assignedAttendeeId).toBeNull();
         } finally {
           restore();
+        }
+      });
+    });
+
+    describe("renewal at site assignment", () => {
+      const createTierEvent = async (
+        unitPrice = 500,
+        monthsPerUnit = 1,
+      ) =>
+        createTestEvent({
+          hidden: true,
+          maxAttendees: 1000,
+          monthsPerUnit,
+          purchaseOnly: true,
+          unitPrice,
+        });
+
+      test("generates renewal token and pushes READ_ONLY_FROM + RENEWAL_URL on assignment", async () => {
+        const tier = await createTierEvent();
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
+        const stub = ensureSecretStub();
+
+        await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 3 })]);
+
+        const sites = await getAllBuiltSites();
+        const assigned = sites.find((s) => s.name === "Site A")!;
+        expect(assigned.renewalTokenIndex).not.toBeNull();
+        expect(assigned.renewalTierEventId).toBe(tier.id);
+        expect(assigned.readOnlyFrom).toBeTruthy();
+
+        const token = await getBuiltSiteRenewalToken(assigned);
+        expect(token).not.toBeNull();
+        expect(token!.length).toBeGreaterThanOrEqual(32);
+
+        const expectedCutoff = addMonthsIso(nowIso(), 3).slice(0, 10);
+        expect(assigned.readOnlyFrom.slice(0, 10)).toBe(expectedCutoff);
+
+        const secretCalls = stub.calls.map((c) => c.args);
+        const readOnlyFromCall = secretCalls.find(
+          (c) => c[1] === "READ_ONLY_FROM",
+        );
+        expect(readOnlyFromCall).toBeDefined();
+        expect(readOnlyFromCall![2].slice(0, 10)).toBe(expectedCutoff);
+
+        const renewalUrlCall = secretCalls.find(
+          (c) => c[1] === "RENEWAL_URL",
+        );
+        expect(renewalUrlCall).toBeDefined();
+        expect(renewalUrlCall![2]).toContain("/renew/?t=");
+      });
+
+      test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        const stub = ensureSecretStub();
+
+        await assignAndNotifyBuiltSites([
+          siteEntry({ initialSiteMonths: 0 }),
+        ]);
+
+        const sites = await getAllBuiltSites();
+        const site = sites.find((s) => s.name === "Site A")!;
+        expect(site.assignedAttendeeId).toBeNull();
+        expect(site.renewalTokenIndex).toBeNull();
+        expect(stub.calls.length).toBe(0);
+      });
+
+      test("skips assignment and logs CONFIG_MISSING when no qualifying tier events exist", async () => {
+        const { deactivateTestEvent } = await import("#test-utils");
+        await deactivateTestEvent(tierEventId);
+        const stub = ensureSecretStub();
+
+        const buildStub = stubBuildSiteSuccess();
+        try {
+          await assignAndNotifyBuiltSites([siteEntry()]);
+
+          const sites = await getAllBuiltSites();
+          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(0);
+          expect(stub.calls.length).toBe(0);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
+      test("picks the cheapest qualifying tier event", async () => {
+        const cheap = await createTierEvent(300);
+        const _expensive = await createTierEvent(900);
+
+        const result = await pickTierEvent();
+        expect(result).not.toBeNull();
+        expect(result!.id).toBe(cheap.id);
+      });
+
+      test("with two qualifying tier events, cheapest is used as site tier", async () => {
+        const cheap = await createTierEvent(300);
+        await createTierEvent(900);
+
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2002");
+        ensureSecretStub();
+
+        await assignAndNotifyBuiltSites([siteEntry()]);
+
+        const sites = await getAllBuiltSites();
+        const assigned = sites.find((s) => s.name === "Site A")!;
+        expect(assigned.renewalTierEventId).toBe(cheap.id);
+      });
+
+      test("with quantity=3, three independent tokens and secret pushes are created", async () => {
+        await createTierEvent();
+
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "2003");
+        await insertBuiltSite("Site B", "b.test.net", "", "", true, "2004");
+        const stub = ensureSecretStub();
+
+        const buildStub = stubBuildSiteSuccess();
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({ quantity: 3 }),
+          ]);
+
+          const sites = await getAllBuiltSites();
+          const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(3);
+
+          const tokens = await Promise.all(
+            assigned.map((s) => getBuiltSiteRenewalToken(s)),
+          );
+          const nonNullTokens = tokens.filter((t) => t !== null);
+          expect(nonNullTokens).toHaveLength(3);
+
+          const uniqueTokens = new Set(nonNullTokens);
+          expect(uniqueTokens.size).toBe(3);
+
+          const rofCalls = stub.calls.filter(
+            (c) => c.args[1] === "READ_ONLY_FROM",
+          );
+          expect(rofCalls).toHaveLength(3);
+          const renewalUrlCalls = stub.calls.filter(
+            (c) => c.args[1] === "RENEWAL_URL",
+          );
+          expect(renewalUrlCalls).toHaveLength(3);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
+      test("Bunny push failure on one site of three leaves that site's readOnlyFrom empty, others persist", async () => {
+        await createTierEvent();
+
+        await insertBuiltSite("Site A", "a.test.net", "", "", true, "1001");
+        await insertBuiltSite("Site B", "b.test.net", "", "", true, "1002");
+
+        const assignableSites = await getAssignableBuiltSites();
+        const failScriptId = Number(assignableSites[0]!.bunnyScriptId);
+
+        secretStub?.restore();
+        secretStub = null;
+        const failStub = stub(
+          bunnyCdnApi,
+          "setEdgeScriptSecret",
+          (scriptId: number, name: string, _value: string) => {
+            if (name === "READ_ONLY_FROM" && scriptId === failScriptId) {
+              return Promise.resolve({
+                error: "push failed",
+                ok: false as const,
+              });
+            }
+            return Promise.resolve({ ok: true as const });
+          },
+        );
+        const buildStub = stubBuildSiteSuccess();
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({ quantity: 3 }),
+          ]);
+
+          const allSites = await getAllBuiltSites();
+          const assigned = allSites.filter((s) => s.assignedAttendeeId !== null);
+          expect(assigned).toHaveLength(3);
+
+          const failedSite = assigned.find(
+            (s) => Number(s.bunnyScriptId) === failScriptId,
+          );
+          const succeededSites = assigned.filter(
+            (s) => Number(s.bunnyScriptId) !== failScriptId,
+          );
+
+          expect(failedSite!.readOnlyFrom).toBe("");
+          expect(failedSite!.renewalTokenIndex).not.toBeNull();
+
+          for (const site of succeededSites) {
+            expect(site.readOnlyFrom).not.toBe("");
+          }
+        } finally {
+          failStub.restore();
+          buildStub.restore();
         }
       });
     });

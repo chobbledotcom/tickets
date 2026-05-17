@@ -297,7 +297,8 @@ const validateDatetime = (value: string): string | null =>
 
 /** Build a "hidden" visibility checkbox field for an event or group. */
 const buildHiddenField = (kind: "Event" | "Group"): Field => ({
-  hint: `Hide from the public events page and search engines. The ${kind.toLowerCase()} is still bookable via its direct link.`,
+  hint:
+    `Hide from the public events page and search engines. The ${kind.toLowerCase()} is still bookable via its direct link.`,
   label: `Hidden ${kind}`,
   name: "hidden",
   options: [{ label: "Hide from public events list", value: "1" }],
@@ -317,7 +318,8 @@ export const eventFields: Field[] = [
     type: "text",
   },
   {
-    hint: "Daily events require attendees to select a specific date when booking",
+    hint:
+      "Daily events require attendees to select a specific date when booking",
     label: "Event Type",
     name: "event_type",
     options: [
@@ -415,7 +417,8 @@ export const eventFields: Field[] = [
     validate: validateNonNegativePrice,
   },
   {
-    hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
+    hint:
+      "Let attendees pay more than the ticket price (the price above becomes a minimum)",
     label: "Allow Pay More",
     name: "can_pay_more",
     options: [{ label: "Allow attendees to set their own price", value: "1" }],
@@ -424,9 +427,11 @@ export const eventFields: Field[] = [
   {
     defaultValue: "100.00",
     get hint() {
-      return `The maximum price attendees can pay. Must be at least ${formatCurrency(
-        100,
-      )} more than the ticket price.`;
+      return `The maximum price attendees can pay. Must be at least ${
+        formatCurrency(
+          100,
+        )
+      } more than the ticket price.`;
     },
     inputmode: "decimal",
     label: "Maximum Price (for pay more)",
@@ -472,17 +477,11 @@ export const eventFields: Field[] = [
   },
   buildHiddenField("Event"),
   {
-    hint: "For raffles, fundraisers, donations, or other non-attendance items. Hides QR codes, check-in, and wallet passes. Shows \u2018Buy now\u2019 instead of \u2018Reserve\u2019.",
+    hint:
+      "For raffles, fundraisers, donations, or other non-attendance items. Hides QR codes, check-in, and wallet passes. Shows \u2018Buy now\u2019 instead of \u2018Reserve\u2019.",
     label: "Purchase Only",
     name: "purchase_only",
     options: [{ label: "No attendance required", value: "1" }],
-    type: "checkbox-group",
-  },
-  {
-    hint: "When a site is purchased, automatically build and assign a built site to the customer.",
-    label: "Assign Built Site",
-    name: "assign_built_site",
-    options: [{ label: "Assign built site on purchase", value: "1" }],
     type: "checkbox-group",
   },
   {
@@ -494,7 +493,8 @@ export const eventFields: Field[] = [
     type: "number",
   },
   {
-    hint: "How many months the site stays active after purchase. Required when assigning a built site.",
+    hint:
+      "How many months the site stays active after purchase. Required when assigning a built site.",
     label: "Initial Site Months (built site events only)",
     min: 0,
     max: 120,
@@ -578,7 +578,8 @@ export const builtSiteFields: Field[] = [
     type: "text",
   },
   {
-    hint: "Make this site available for automatic assignment when a ticket is purchased",
+    hint:
+      "Make this site available for automatic assignment when a ticket is purchased",
     label: "Assignable",
     name: "assignable",
     options: [{ label: "Available for assignment", value: "1" }],
@@ -588,7 +589,8 @@ export const builtSiteFields: Field[] = [
 
 /** Field for assign_built_site on events (conditionally shown when CAN_BUILD_SITES is enabled) */
 export const assignBuiltSiteField: Field = {
-  hint: "Automatically assign a built site to each ticket purchased for this event",
+  hint:
+    "Automatically assign a built site to each ticket purchased for this event",
   label: "Assign Built Site",
   name: "assign_built_site",
   options: [{ label: "Assign a site on booking", value: "1" }],
@@ -598,9 +600,11 @@ export const assignBuiltSiteField: Field = {
 /** Image upload field for event forms (appended when storage is enabled) */
 export const imageField: Field = {
   accept: "image/jpeg,image/png,image/gif,image/webp",
-  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(
-    MAX_IMAGE_SIZE,
-  )})`,
+  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${
+    formatBytes(
+      MAX_IMAGE_SIZE,
+    )
+  })`,
   name: "image",
   type: "file",
 };
@@ -614,7 +618,8 @@ export const attachmentField: Field = {
 
 /** Slug field for event/group edit pages */
 export const slugField: Field = {
-  hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
+  hint:
+    "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   label: "Slug",
   name: "slug",
   pattern: "[a-z0-9-]+",
@@ -633,7 +638,8 @@ export const groupIdField: Field = {
 
 /** Max attendees field for group forms */
 const groupMaxAttendeesField: Field = {
-  hint: "Limits total attendees across all events in this group. Leave blank for no limit. Works best when all events in the group are the same type (daily or standard).",
+  hint:
+    "Limits total attendees across all events in this group. Leave blank for no limit. Works best when all events in the group are the same type (daily or standard).",
   label: "Max Attendees (optional)",
   name: "max_attendees",
   type: "number",
@@ -666,7 +672,8 @@ export const groupCreateFields: Field[] = [
   groupDescriptionField,
   groupMaxAttendeesField,
   {
-    hint: "If set, overrides the global terms and conditions for this group ticket page",
+    hint:
+      "If set, overrides the global terms and conditions for this group ticket page",
     hintHtml: FORMATTING_HINT,
     label: "Terms and Conditions (optional)",
     maxlength: MAX_TEXTAREA_LENGTH,
@@ -784,11 +791,10 @@ export const getTicketFields = (
   fields: EventFields,
   isPaid: boolean,
 ): Field[] => {
-  const effective =
-    isPaid &&
-    fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
-      ? withRequiredEmail(fields)
-      : fields;
+  const effective = isPaid &&
+      fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
+    ? withRequiredEmail(fields)
+    : fields;
   const parsed = parseEventFields(effective);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
