@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -18,7 +20,14 @@ import {
 } from "#test-utils";
 
 const setupRenewalSite = async () => {
-  await insertBuiltSite("Renewal Test Site", "renewal.b-cdn.net");
+  await insertBuiltSite(
+    "Renewal Test Site",
+    "renewal.b-cdn.net",
+    "",
+    "",
+    false,
+    "7101",
+  );
   const sites = await getAllBuiltSites();
   const site = sites.find((s) => s.name === "Renewal Test Site")!;
   const { token } = await provisionTestBuiltSite(site.id, {
@@ -82,7 +91,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      expect(html).toContain("01/09/2026");
+      expect(html).toContain("Tuesday 1 September 2026");
     });
 
     test("omits the 'current deadline' wording when no deadline is set", async () => {
@@ -267,6 +276,56 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         expect(ids).toEqual([monthly.id, annual.id].sort());
       } finally {
         mockCreate.restore();
+      }
+    });
+
+    test("free renewal tier still applies the site renewal", async () => {
+      const tier = await createTestEvent({
+        hidden: true,
+        maxAttendees: 100,
+        maxQuantity: 12,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 0,
+      });
+      const { site, token } = await setupRenewalSite();
+
+      const csrf = extractCsrfToken(
+        await (
+          await handleRequest(
+            mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+          )
+        ).text(),
+      )!;
+
+      const secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
+      );
+      try {
+        const response = await handleRequest(
+          mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
+            csrf_token: csrf,
+            email: "renew@example.com",
+            name: "Renewer",
+            [`quantity_${tier.id}`]: "2",
+          }),
+        );
+        expect(response.status).toBe(302);
+
+        const updated = (await getAllBuiltSites()).find((s) =>
+          s.id === site.id
+        )!;
+        expect(updated.readOnlyFrom).toBe(
+          addMonthsIso("2026-09-01T00:00:00Z", 2),
+        );
+        const readOnlyCalls = secretStub.calls.filter(
+          (c) => c.args[1] === "READ_ONLY_FROM",
+        );
+        expect(readOnlyCalls).toHaveLength(1);
+      } finally {
+        secretStub.restore();
       }
     });
 

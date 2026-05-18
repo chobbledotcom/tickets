@@ -35,8 +35,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
   let secretStub: SecretStub;
 
   beforeEach(() => {
-    secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-      Promise.resolve({ ok: true as const }),
+    secretStub = stub(
+      bunnyCdnApi,
+      "setEdgeScriptSecret",
+      () => Promise.resolve({ ok: true as const }),
     );
   });
 
@@ -167,8 +169,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Bump No Token",
       });
       secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
+      secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -235,8 +239,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Bump CDN Fail",
       });
       secretStub.restore();
-      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ error: "edge push failed", ok: false as const }),
+      const failStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () =>
+          Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
       try {
         const { response } = await adminFormPost(
@@ -333,6 +340,30 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const updated = await findSite(site.id);
       expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
     });
+
+    test("rejects an invalid date without pushing", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "6023",
+        name: "Override Invalid",
+      });
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2027-01-01T00:00:00Z",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/override-deadline`,
+        { date: "2027-02-31" },
+      );
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Choose a valid deadline date",
+        false,
+      )(response);
+
+      const updated = await findSite(site.id);
+      expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+      expect(secretStub.calls.length).toBe(0);
+    });
   });
 
   describe("POST /admin/built-sites/:id/re-sync-deadline", () => {
@@ -347,8 +378,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
+      secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -376,8 +409,10 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
+      secretStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () => Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -486,7 +521,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       )(response);
     });
 
-    test("Bunny failure: token persists but read_only_from stays empty", async () => {
+    test("Bunny failure leaves renewal state unprovisioned", async () => {
       await createTestEvent({
         hidden: true,
         monthsPerUnit: 1,
@@ -499,8 +534,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ error: "edge push failed", ok: false as const }),
+      const failStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        () =>
+          Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
 
       try {
@@ -510,12 +548,12 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         );
         expectRedirectWithFlash(
           `/admin/built-sites/${site.id}/edit`,
-          "Renewal was saved, but the deadline could not be pushed to the site",
+          "Renewal could not be pushed to the site",
           false,
         )(response);
 
         const updated = await findSite(site.id);
-        expect(updated.renewalTokenIndex).not.toBeNull();
+        expect(updated.renewalTokenIndex).toBeNull();
         expect(updated.readOnlyFrom).toBe("");
       } finally {
         failStub.restore();

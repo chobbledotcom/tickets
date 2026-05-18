@@ -57,6 +57,22 @@ type AssignmentContext = {
 export type TierEvent = Awaited<ReturnType<typeof getAllEvents>>[number];
 export type CdnPushResult = { ok: true } | { ok: false; error: string };
 type RenewalTokenData = { token: string; index: string };
+type SiteAssignmentConfigEntry = {
+  event: {
+    assign_built_site: boolean;
+    id: number;
+    initial_site_months: number;
+    name: string;
+  };
+};
+export type SiteAssignmentConfigValidation =
+  | { ok: true }
+  | {
+    ok: false;
+    reason: "builder_disabled" | "initial_months" | "missing_tier";
+    message: string;
+    eventId?: number;
+  };
 
 /** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
 const nextSiteName = async (): Promise<string> =>
@@ -100,6 +116,47 @@ export const pickTierEvent = async (): Promise<TierEvent | null> => {
       a.unit_price - b.unit_price,
   )(qualifying);
   return sorted[0]!;
+};
+
+/** Validate selected site-assignment events before taking payment/booking. */
+export const validateSiteAssignmentConfig = async (
+  entries: SiteAssignmentConfigEntry[],
+): Promise<SiteAssignmentConfigValidation> => {
+  const needsSite = entries.filter((e) => e.event.assign_built_site);
+  if (needsSite.length === 0) return { ok: true };
+
+  if (!isBuilderEnabled()) {
+    return {
+      message:
+        "Site assignment is not configured. Please contact the administrator.",
+      ok: false,
+      reason: "builder_disabled",
+    };
+  }
+
+  const invalidInitialMonths = needsSite.find(
+    (e) => e.event.initial_site_months <= 0,
+  );
+  if (invalidInitialMonths) {
+    return {
+      eventId: invalidInitialMonths.event.id,
+      message:
+        "Site assignment is not configured. Please contact the administrator.",
+      ok: false,
+      reason: "initial_months",
+    };
+  }
+
+  if (!(await pickTierEvent())) {
+    return {
+      message:
+        "Site assignment is not configured. Please contact the administrator.",
+      ok: false,
+      reason: "missing_tier",
+    };
+  }
+
+  return { ok: true };
 };
 
 /** Generate a renewal token + its HMAC blind index. */
@@ -149,19 +206,19 @@ const pushSiteSecrets = async (
   const scriptId = Number(site.bunnyScriptId);
   if (!scriptId) return { error: "No bunnyScriptId", ok: false };
 
-  if (secrets.readOnlyFrom !== undefined) {
-    const r = await bunnyCdnApi.setEdgeScriptSecret(
-      scriptId,
-      "READ_ONLY_FROM",
-      secrets.readOnlyFrom,
-    );
-    if (!r.ok) return r;
-  }
   if (secrets.renewalUrl !== undefined) {
     const r = await bunnyCdnApi.setEdgeScriptSecret(
       scriptId,
       "RENEWAL_URL",
       secrets.renewalUrl,
+    );
+    if (!r.ok) return r;
+  }
+  if (secrets.readOnlyFrom !== undefined) {
+    const r = await bunnyCdnApi.setEdgeScriptSecret(
+      scriptId,
+      "READ_ONLY_FROM",
+      secrets.readOnlyFrom,
     );
     if (!r.ok) return r;
   }
@@ -192,31 +249,27 @@ type SiteSecrets = { readOnlyFrom?: string; renewalUrl?: string };
 
 /**
  * Curried helper: push secrets and persist renewal state.
- * On push success, writes `onSuccess`. On failure, logs and (if provided)
- * writes `onFailure` so partial progress is recorded for admin recovery.
+ * On push success, writes `onSuccess`. On failure, logs and leaves DB state
+ * unchanged so an admin can retry from the unprovisioned state.
  */
-const pushAndPersist =
-  (site: BuiltSite, errorContext: string) =>
-  async (
-    secrets: SiteSecrets,
-    onSuccess: RenewalStateUpdate,
-    onFailure?: RenewalStateUpdate,
-  ): Promise<CdnPushResult> => {
-    const pushResult = await pushSiteSecrets(site, secrets);
-    if (pushResult.ok) {
-      await updateBuiltSiteRenewalState(site.id, onSuccess);
-    } else {
-      logRenewalCdnError(errorContext, pushResult.error);
-      if (onFailure) await updateBuiltSiteRenewalState(site.id, onFailure);
-    }
-    return pushResult;
-  };
+const pushAndPersist = (site: BuiltSite, errorContext: string) =>
+async (
+  secrets: SiteSecrets,
+  onSuccess: RenewalStateUpdate,
+): Promise<CdnPushResult> => {
+  const pushResult = await pushSiteSecrets(site, secrets);
+  if (pushResult.ok) {
+    await updateBuiltSiteRenewalState(site.id, onSuccess);
+  } else {
+    logRenewalCdnError(errorContext, pushResult.error);
+  }
+  return pushResult;
+};
 
 /**
  * Provision a site for renewals: generate a token, push initial secrets,
- * persist the full renewal state. On push failure persists the token so
- * an admin can re-sync without re-provisioning; leaves readOnlyFrom empty so
- * the host doesn't lie about the customer-facing deadline. Single DB write.
+ * persist the full renewal state. On push failure, leaves renewal state
+ * untouched so an admin can retry provisioning cleanly. Single DB write.
  */
 export const provisionSiteRenewal = async (
   site: BuiltSite,
@@ -233,7 +286,6 @@ export const provisionSiteRenewal = async (
   const pushResult = await pushAndPersist(site, errorContext)(
     { readOnlyFrom: cutoff, renewalUrl: renewalUrlFor(tokenData.token) },
     { readOnlyFrom: cutoff, ...renewalState },
-    renewalState,
   );
 
   return { cutoff, pushOk: pushResult.ok, token: tokenData.token };
@@ -266,7 +318,7 @@ const assignSiteWithRenewal = async ({
   await provisionSiteRenewal(
     site,
     event.initial_site_months,
-    `Failed to push initial READ_ONLY_FROM for site ${site.id}`,
+    `Failed to push initial renewal secrets for site ${site.id}`,
   );
   return { eventName: event.name, siteUrl: site.bunnyUrl };
 };
@@ -280,15 +332,19 @@ const assignSitesForEntries = async (
   );
   if (needsSite.length === 0) return [];
 
-  // Gate: at least one qualifying renewal tier must exist or the customer
-  // will land on an empty picker at /renew. Fail loud at sale time instead.
-  const tierEvent = await pickTierEvent();
-  if (!tierEvent) {
+  // Keep async assignment aligned with the pre-checkout validation gate.
+  const config = await validateSiteAssignmentConfig(needsSite);
+  if (!config.ok) {
     logError({
-      code: ErrorCode.CONFIG_MISSING,
-      detail: `No qualifying tier event for site assignment (${needsSite.length} entries skipped)`,
+      code: config.reason === "initial_months"
+        ? ErrorCode.DATA_INVALID
+        : ErrorCode.CONFIG_MISSING,
+      detail:
+        `Site assignment blocked (${config.reason}, ${needsSite.length} entries skipped)`,
     });
-    sendNtfyError("CONFIG_MISSING");
+    sendNtfyError(
+      config.reason === "initial_months" ? "DATA_INVALID" : "CONFIG_MISSING",
+    );
     return [];
   }
 
@@ -300,7 +356,8 @@ const assignSitesForEntries = async (
     if (event.initial_site_months <= 0) {
       logError({
         code: ErrorCode.DATA_INVALID,
-        detail: `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
+        detail:
+          `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
       });
       continue;
     }
@@ -326,10 +383,9 @@ const sendSiteAssignmentEmail = async (
   const config = getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
-  const subject =
-    assignments.length === 1
-      ? "Your new site is ready"
-      : `Your ${assignments.length} new sites are ready`;
+  const subject = assignments.length === 1
+    ? "Your new site is ready"
+    : `Your ${assignments.length} new sites are ready`;
 
   const greeting = `Your new site${
     assignments.length > 1 ? "s are" : " is"

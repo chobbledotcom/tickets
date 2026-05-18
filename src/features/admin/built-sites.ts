@@ -102,6 +102,24 @@ const readClampedMonths = (form: {
   return Math.min(months, MAX_RENEWAL_MONTHS);
 };
 
+const parseDeadlineDate = (dateStr: string): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const [year, month, day] = dateStr.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const date = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${dateStr}T23:59:59Z`;
+};
+
 type AdminForm = { getString: (key: string) => string };
 
 type OwnerPostHandler = (
@@ -130,8 +148,9 @@ const ownerPost =
   (handler: OwnerPostHandler) =>
   (request: Request, params: RouteParams): Promise<Response> =>
     withOwnerAndSite(request, params, async ({ id, site }) => {
-      const csrfResult = await requireCsrfForm(request, () =>
-        htmlResponse("CSRF token invalid", 403),
+      const csrfResult = await requireCsrfForm(
+        request,
+        () => htmlResponse("CSRF token invalid", 403),
       );
       if (!csrfResult.ok) return csrfResult.response;
       return handler(site, csrfResult.form, id);
@@ -190,7 +209,8 @@ const handleBumpDeadline = ownerPost(async (site, form, id) => {
 const handleOverrideDeadline = ownerPost(async (site, form, id) => {
   const dateStr = form.getString("date");
   if (!dateStr) return editError(id, "Choose a deadline date");
-  const cutoffIso = `${dateStr}T23:59:59Z`;
+  const cutoffIso = parseDeadlineDate(dateStr);
+  if (!cutoffIso) return editError(id, "Choose a valid deadline date");
   const result = await syncReadOnlyFrom(site, cutoffIso);
   if (result.ok) {
     await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
@@ -206,10 +226,9 @@ const handleOverrideDeadline = ownerPost(async (site, form, id) => {
 /** POST /admin/built-sites/:id/re-sync-deadline */
 const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
   if (!site.readOnlyFrom) return editError(id, "No deadline to re-sync");
-  const renewalUrl =
-    isProvisioned(site) && site.renewalToken
-      ? renewalUrlFor(site.renewalToken)
-      : undefined;
+  const renewalUrl = isProvisioned(site) && site.renewalToken
+    ? renewalUrlFor(site.renewalToken)
+    : undefined;
   const result = await syncReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
   if (result.ok) {
     await logActivity(`Admin re-synced deadline for '${site.name}'`);
@@ -253,7 +272,7 @@ const handleProvisionRenewal = ownerPost(async (site, form, id) => {
     id,
     result.pushOk,
     "Renewal provisioned",
-    "Renewal was saved, but the deadline could not be pushed to the site",
+    "Renewal could not be pushed to the site",
   );
 });
 

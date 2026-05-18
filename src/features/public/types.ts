@@ -24,8 +24,8 @@ export type TicketCtx = {
   /** Override the form action and error redirect URL (e.g. `/renew/?t=...`).
    * Defaults to `/ticket/<slugs>` when unset. */
   actionUrl?: string;
-  /** When set, threaded into the CheckoutIntent so the payments webhook can
-   * bump a built site's READ_ONLY_FROM after a successful renewal purchase. */
+  /** When set, threaded into paid/free registration completion so renewals can
+   * bump a built site's READ_ONLY_FROM after successful reservation. */
   siteToken?: string;
 };
 

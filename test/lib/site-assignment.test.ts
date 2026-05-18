@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
+import { builderApi, type BuildSiteInput } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
@@ -18,6 +18,7 @@ import {
   assignAndNotifyBuiltSites,
   parseReadOnlyFromMs,
   pickTierEvent,
+  validateSiteAssignmentConfig,
 } from "#shared/site-assignment.ts";
 import {
   createTestEvent,
@@ -42,13 +43,17 @@ const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
 };
 
 const stubBuildSiteFailure = () =>
-  stub(builderApi, "buildSite", () =>
-    Promise.resolve({ error: "build failed", ok: false as const }),
+  stub(
+    builderApi,
+    "buildSite",
+    () => Promise.resolve({ error: "build failed", ok: false as const }),
   );
 
 const stubEdgeSecretSuccess = () =>
-  stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-    Promise.resolve({ ok: true as const }),
+  stub(
+    bunnyCdnApi,
+    "setEdgeScriptSecret",
+    () => Promise.resolve({ ok: true as const }),
   );
 
 /** Build an entry with assign_built_site for testing */
@@ -91,8 +96,10 @@ describeWithEnv(
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
 
     beforeEach(async () => {
-      fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
+      fetchStub = stub(
+        globalThis,
+        "fetch",
+        () => Promise.resolve(new Response()),
       );
       secretStub = stubEdgeSecretSuccess();
       setHostEmailConfigForTest({
@@ -328,6 +335,10 @@ describeWithEnv(
         expect(assigned.readOnlyFrom.slice(0, 10)).toBe(expectedCutoff);
 
         const secretCalls = secretStub.calls.map((c) => c.args);
+        const secretNames = secretCalls.map((c) => c[1]);
+        expect(secretNames.indexOf("RENEWAL_URL")).toBeLessThan(
+          secretNames.indexOf("READ_ONLY_FROM"),
+        );
         const readOnlyFromCall = secretCalls.find(
           (c) => c[1] === "READ_ONLY_FROM",
         );
@@ -477,7 +488,7 @@ describeWithEnv(
           );
 
           expect(failedSite!.readOnlyFrom).toBe("");
-          expect(failedSite!.renewalTokenIndex).not.toBeNull();
+          expect(failedSite!.renewalTokenIndex).toBeNull();
 
           for (const site of succeededSites) {
             expect(site.readOnlyFrom).not.toBe("");
@@ -488,7 +499,7 @@ describeWithEnv(
         }
       });
 
-      test("RENEWAL_URL push failure after READ_ONLY_FROM succeeds returns error", async () => {
+      test("RENEWAL_URL push failure leaves renewal state unprovisioned", async () => {
         await createTierEvent();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
@@ -513,10 +524,52 @@ describeWithEnv(
           const sites = await getAllBuiltSites();
           const assigned = sites.find((s) => s.name === "Site A")!;
           expect(assigned.assignedAttendeeId).not.toBeNull();
-          expect(assigned.renewalTokenIndex).not.toBeNull();
+          expect(assigned.renewalTokenIndex).toBeNull();
+          expect(assigned.readOnlyFrom).toBe("");
+          const readOnlyCalls = failStub.calls.filter(
+            (c) => c.args[1] === "READ_ONLY_FROM",
+          );
+          expect(readOnlyCalls).toHaveLength(0);
         } finally {
           failStub.restore();
         }
+      });
+    });
+
+    describe("validateSiteAssignmentConfig", () => {
+      test("passes when no selected event needs a site", async () => {
+        const result = await validateSiteAssignmentConfig([
+          siteEntry({ assignBuiltSite: false }),
+        ]);
+        expect(result.ok).toBe(true);
+      });
+
+      test("rejects missing renewal tier before checkout", async () => {
+        const { getAllEvents } = await import("#shared/db/events.ts");
+        const events = await getAllEvents();
+        const { deactivateTestEvent } = await import("#test-utils");
+        for (const ev of events) {
+          if (
+            ev.months_per_unit > 0 &&
+            ev.purchase_only &&
+            ev.hidden &&
+            ev.active
+          ) {
+            await deactivateTestEvent(ev.id);
+          }
+        }
+
+        const result = await validateSiteAssignmentConfig([siteEntry()]);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.reason).toBe("missing_tier");
+      });
+
+      test("rejects invalid initial site months before checkout", async () => {
+        const result = await validateSiteAssignmentConfig([
+          siteEntry({ initialSiteMonths: 0 }),
+        ]);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.reason).toBe("initial_months");
       });
     });
   },

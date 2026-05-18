@@ -206,6 +206,7 @@ export const processFreeReservation = async (
   quantities: Map<number, number>,
   contact: ContactInfo,
   date: string | null,
+  siteToken?: string,
 ): Promise<
   | { success: true; token: string; entries: EmailEntry[] }
   | { success: false; error: string }
@@ -233,7 +234,7 @@ export const processFreeReservation = async (
     event: selected[i]!.event,
   }));
 
-  await logAndNotifyRegistration(entries, undefined);
+  await logAndNotifyRegistration(entries, siteToken);
   return {
     entries,
     success: true,

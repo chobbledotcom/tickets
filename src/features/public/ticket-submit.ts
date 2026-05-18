@@ -8,9 +8,10 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { saveEventAnswers } from "#shared/db/questions.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
+import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import { isPaidEvent } from "#shared/types.ts";
 import {
   type TicketFormValues,
@@ -19,6 +20,7 @@ import {
 import type { TicketEvent } from "#templates/public.tsx";
 import {
   buildEventAnswerMap,
+  eventsWithQuantity,
   extractContact,
   getTicketFieldsSetting,
   parseCustomPrice,
@@ -147,11 +149,11 @@ const computeEventAnswerMap = (
 ): Record<string, number[]> | undefined =>
   info.answerIds.length > 0
     ? buildEventAnswerMap(
-        info.activeQuestions,
-        info.answerIds,
-        ctx.questionEventMap,
-        info.selectedEventIds,
-      )
+      info.activeQuestions,
+      info.answerIds,
+      ctx.questionEventMap,
+      info.selectedEventIds,
+    )
     : undefined;
 
 type PathParams = {
@@ -193,6 +195,7 @@ const handleFreePath = async (params: PathParams): Promise<Response> => {
     quantities,
     contact,
     date,
+    ctx.siteToken,
   );
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
@@ -236,6 +239,13 @@ const processSubmission = async (
   }
 
   const selectedEventIds = new Set(quantities.keys());
+  const siteAssignmentCheck = await validateSiteAssignmentConfig(
+    eventsWithQuantity(ctx.events, quantities),
+  );
+  if (!siteAssignmentCheck.ok) {
+    return errorResponse(siteAssignmentCheck.message);
+  }
+
   const activeQuestions = ctx.questions.filter((q) => {
     const eventIds = ctx.questionEventMap.get(q.id);
     return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
@@ -314,10 +324,9 @@ export const handleTicket = async (
     ...sharedCtx,
     qrPrefill,
   };
-  const response =
-    request.method === "GET"
-      ? ticketResponse(ctx)(applyFlash(request).error)
-      : await submitTicket(request, ctx);
+  const response = request.method === "GET"
+    ? ticketResponse(ctx)(applyFlash(request).error)
+    : await submitTicket(request, ctx);
   const anyHidden = activeEvents.some((e) => e.event.hidden);
   return applyHiddenNoindex(response, anyHidden);
 };
@@ -327,6 +336,8 @@ export const handleTicketBySlugs = (
   request: Request,
   slugs: string[],
 ): Promise<Response> =>
-  withActiveEvents(slugs, (activeEvents) =>
-    handleTicket(request, slugs, activeEvents, getTicketContext),
+  withActiveEvents(
+    slugs,
+    (activeEvents) =>
+      handleTicket(request, slugs, activeEvents, getTicketContext),
   );

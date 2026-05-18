@@ -8,6 +8,7 @@
 
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { eventDateToCalendarDate, formatDateLabel } from "#shared/dates.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import { isQualifyingTierEvent } from "#shared/site-assignment.ts";
@@ -46,14 +47,18 @@ const handleRenewal = async (request: Request): Promise<Response> => {
   const activeEvents = await buildTicketEventsWithGroupCapacity(tiers);
   const actionUrl = renewalActionUrl(token);
 
+  const deadlineDate = site.readOnlyFrom
+    ? eventDateToCalendarDate(site.readOnlyFrom)
+    : null;
+
   return handleTicket(request, [], activeEvents, async (events) => {
     const base = await getTicketContext(events);
     return {
       ...base,
       actionUrl,
-      groupDescription: site.readOnlyFrom
-        ? `Current deadline: ${new Date(site.readOnlyFrom).toLocaleDateString(
-            "en-GB",
+      groupDescription: deadlineDate
+        ? `Current deadline: ${formatDateLabel(
+            deadlineDate,
           )}. Pick a tier and quantity below.`
         : "Pick a tier and quantity below.",
       groupName: `Renew ${site.name}`,
