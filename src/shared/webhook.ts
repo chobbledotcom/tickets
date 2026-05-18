@@ -210,7 +210,6 @@ export const applyRenewalsForEntries = async (
     (sum, { months }) => sum + months,
     0,
   );
-  if (totalMonths <= 0) return;
 
   const result = await syncReadOnlyFrom(
     site,

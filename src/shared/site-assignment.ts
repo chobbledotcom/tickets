@@ -363,14 +363,6 @@ const assignSitesForEntries = async (
   let idx = 0;
 
   for (const { event, attendee } of needsSite) {
-    if (event.initial_site_months <= 0) {
-      logError({
-        code: ErrorCode.DATA_INVALID,
-        detail: `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
-      });
-      continue;
-    }
-
     const qty = attendee.quantity;
     for (let i = 0; i < qty; i++) {
       const site = available[idx] ?? (await buildSiteForAssignment());

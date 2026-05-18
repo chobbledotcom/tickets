@@ -357,6 +357,30 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
       expect(secretStub.calls.length).toBe(0);
     });
+
+    test("rejects a non-date-format string without pushing", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "6024",
+        name: "Override Not Date",
+      });
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2027-01-01T00:00:00Z",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/override-deadline`,
+        { date: "hello" },
+      );
+      expectRedirectWithFlash(
+        `/admin/built-sites/${site.id}/edit`,
+        "Choose a valid deadline date",
+        false,
+      )(response);
+
+      const updated = await findSite(site.id);
+      expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+      expect(secretStub.calls.length).toBe(0);
+    });
   });
 
   describe("POST /admin/built-sites/:id/re-sync-deadline", () => {

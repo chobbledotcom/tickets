@@ -569,6 +569,19 @@ describeWithEnv(
   },
 );
 
+describe("validateSiteAssignmentConfig without builder", () => {
+  test("rejects when CAN_BUILD_SITES is disabled", async () => {
+    const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+    try {
+      const result = await validateSiteAssignmentConfig([siteEntry()]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("builder_disabled");
+    } finally {
+      restore();
+    }
+  });
+});
+
 describe("parseReadOnlyFromMs", () => {
   test("returns null for invalid date string", () => {
     expect(parseReadOnlyFromMs({ readOnlyFrom: "not-a-date" })).toBeNull();
