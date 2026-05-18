@@ -119,6 +119,7 @@ export interface Event {
   webhook_url: string;
   months_per_unit: number;
   initial_site_months: number;
+  duration_days: number;
 }
 
 export interface Attendee extends ContactInfo {

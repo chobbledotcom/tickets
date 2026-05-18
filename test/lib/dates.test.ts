@@ -212,6 +212,32 @@ describeWithEnv("dates", { db: true }, () => {
       const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
     });
+
+    test("excludes multi-day start dates whose range covers a holiday", () => {
+      const holidayStart = addDays(today(), 3);
+      const holidays = [
+        {
+          end_date: holidayStart,
+          id: 1,
+          name: "Conflict",
+          start_date: holidayStart,
+        },
+      ];
+      const event = testEvent({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 3,
+        event_type: "daily",
+        maximum_days_after: 14,
+        minimum_days_before: 0,
+      });
+      const dates = getAvailableDates(event, holidays);
+      // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
+      expect(dates).not.toContain(addDays(today(), 1));
+      // day+3 start is the holiday itself → excluded
+      expect(dates).not.toContain(holidayStart);
+      // day+4 start → covers day 4,5,6 → no holiday → included
+      expect(dates).toContain(addDays(today(), 4));
+    });
   });
 
   describe("getNextBookableDate", () => {

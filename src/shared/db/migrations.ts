@@ -33,7 +33,8 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "drop built_sites.renewal_tier_event_id";
+export const LATEST_UPDATE =
+  "add duration_days to events and drop built_sites.renewal_tier_event_id";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -87,6 +88,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
         ["months_per_unit", "INTEGER NOT NULL DEFAULT 0"],
         ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
+        ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
         {

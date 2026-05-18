@@ -73,6 +73,7 @@ export type EventInput = {
   assignBuiltSite?: boolean;
   monthsPerUnit?: number;
   initialSiteMonths?: number;
+  durationDays?: number;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -157,6 +158,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   created: col.withDefault(() => nowIso()),
   date: { default: () => "", read: decryptDatetime, write: writeEventDate },
   description: col.encryptedText(encrypt, decrypt),
+  duration_days: col.withDefault(() => 1),
   event_type: col.withDefault<EventType>(() => "standard"),
   fields: col.withDefault<EventFields>(() => "email"),
   group_id: col.withDefault(() => 0),

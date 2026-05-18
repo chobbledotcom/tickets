@@ -138,8 +138,30 @@ const isBookable = (
   bookableDays.includes(getDayName(dateStr)) && !isHoliday(dateStr, holidays);
 
 /**
+ * Check if every day in a multi-day booking starting at `start` is bookable.
+ * All days in `[start, start + durationDays)` must pass `isBookable` and
+ * stay within `endLimit` (inclusive).
+ */
+const isRangeBookable = (
+  start: string,
+  durationDays: number,
+  bookableDays: string[],
+  holidays: Holiday[],
+  endLimit: string,
+): boolean => {
+  for (let i = 0; i < durationDays; i++) {
+    const day = addDays(start, i);
+    if (day > endLimit) return false;
+    if (!isBookable(day, bookableDays, holidays)) return false;
+  }
+  return true;
+};
+
+/**
  * Compute available booking dates for a daily event.
  * Filters by bookable days of the week and excludes holidays.
+ * For events with `duration_days > 1`, excludes start dates whose full range
+ * would hit a non-bookable day or extend past the booking window.
  * Returns sorted array of YYYY-MM-DD strings.
  */
 export const getAvailableDates = (
@@ -147,9 +169,10 @@ export const getAvailableDates = (
   holidays: Holiday[],
 ): string[] => {
   const range = bookableRange(event);
-  return filter((d: string) => isBookable(d, range.bookableDays, holidays))(
-    dateRange(range.start, range.end),
-  );
+  const duration = Math.max(1, event.duration_days);
+  return filter((d: string) =>
+    isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
+  )(dateRange(range.start, range.end));
 };
 
 /**
@@ -163,10 +186,21 @@ export const getNextBookableDate = (
 ): string | null => {
   const range = bookableRange(event);
   if (range.bookableDays.length === 0) return null;
+  const duration = Math.max(1, event.duration_days);
 
   let current = range.start;
   while (current <= range.end) {
-    if (isBookable(current, range.bookableDays, holidays)) return current;
+    if (
+      isRangeBookable(
+        current,
+        duration,
+        range.bookableDays,
+        holidays,
+        range.end,
+      )
+    ) {
+      return current;
+    }
     current = addDays(current, 1);
   }
   return null;
