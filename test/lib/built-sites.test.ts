@@ -9,17 +9,18 @@ import {
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
   parseSiteDataBlob,
+  SITE_DATA_BLOB_VERSION,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("built-sites", { db: true }, () => {
-  test("buildSiteDataBlob creates valid JSON with version", () => {
+  test("buildSiteDataBlob creates valid JSON", () => {
     const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
     const parsed = JSON.parse(blob);
-    expect(parsed.v).toBe(1);
     expect(parsed.n).toBe("Test Site");
     expect(parsed.u).toBe("test.b-cdn.net");
+    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
   });
 
   test("buildSiteDataBlob includes db credentials when provided", () => {
@@ -62,16 +63,16 @@ describeWithEnv("built-sites", { db: true }, () => {
   test("parseSiteDataBlob roundtrips with buildSiteDataBlob", () => {
     const blob = buildSiteDataBlob("My Site", "my.b-cdn.net");
     const parsed = parseSiteDataBlob(blob);
-    expect(parsed.v).toBe(1);
     expect(parsed.n).toBe("My Site");
     expect(parsed.u).toBe("my.b-cdn.net");
+    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
   });
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
     const legacyBlob = JSON.stringify({
       n: "Old Site",
       u: "old.b-cdn.net",
-      v: 1,
+      v: SITE_DATA_BLOB_VERSION,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
@@ -415,19 +416,18 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(nullIndexSiteNames).toEqual(["Site 1", "Site 2"]);
     });
 
-    test("legacy v:1 blob still decodes correctly (no rt field)", () => {
+    test("legacy blob still decodes correctly (no rt field)", () => {
       const legacyBlob = JSON.stringify({
         n: "Old Site",
         u: "old.b-cdn.net",
         v: 1,
       });
       const parsed = parseSiteDataBlob(legacyBlob);
-      expect(parsed.v).toBe(1);
       expect(parsed.rt).toBeUndefined();
       expect(parsed.n).toBe("Old Site");
     });
 
-    test("v:2 blob includes rt field", () => {
+    test("blob with renewal token includes rt field", () => {
       const blob = buildSiteDataBlob(
         "New Site",
         "new.b-cdn.net",
@@ -436,12 +436,12 @@ describeWithEnv("built-sites", { db: true }, () => {
         "",
         "my-renewal-token",
       );
-      const parsed = parseSiteDataBlob(blob);
-      expect(parsed.v).toBe(2);
-      expect(parsed.rt).toBe("my-renewal-token");
-    });
+    const parsed = parseSiteDataBlob(blob);
+    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.rt).toBe("my-renewal-token");
+  });
 
-    test("CRUD update preserves existing v:2 renewal token", async () => {
+    test("CRUD update preserves existing renewal token", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
         bunnyScriptId: "100",

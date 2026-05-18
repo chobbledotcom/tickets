@@ -12,13 +12,16 @@ import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
+/** Encrypted site-data blob version */
+export const SITE_DATA_BLOB_VERSION = 1;
+
 /** Encrypted site data blob shape */
 export interface SiteDataBlob {
   /** Database URL (optional, absent in older blobs) */
   d?: string;
   /** Site name */
   n: string;
-  /** Renewal token (optional, v2 only) */
+  /** Renewal token (optional, present when renewal access exists) */
   rt?: string;
   /** Bunny edge script ID (optional, absent in older blobs) */
   s?: string;
@@ -26,7 +29,7 @@ export interface SiteDataBlob {
   t?: string;
   /** Bunny URL (default hostname) */
   u: string;
-  v: 1 | 2;
+  v: typeof SITE_DATA_BLOB_VERSION;
 }
 
 /** Built site row as stored in the database */
@@ -64,7 +67,7 @@ export interface BuiltSite {
   id: number;
   name: string;
   readOnlyFrom: string;
-  /** Plain renewal token from the v:2 site-data blob. Null when not provisioned. */
+  /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
   renewalToken: string | null;
   renewalTokenIndex: string | null;
 }
@@ -109,7 +112,7 @@ export const buildSiteDataBlob = (
   JSON.stringify({
     n: name,
     u: bunnyUrl,
-    v: renewalToken ? 2 : 1,
+    v: SITE_DATA_BLOB_VERSION,
     ...(dbUrl ? { d: dbUrl } : {}),
     ...(dbToken ? { t: dbToken } : {}),
     ...(bunnyScriptId ? { s: bunnyScriptId } : {}),
@@ -362,7 +365,7 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   return rowToBuiltSite(decrypted);
 };
 
-/** Update built site renewal state: token index, deadline, and v:2 blob together */
+/** Update built site renewal state: token index, deadline, and renewal blob together */
 export const updateBuiltSiteRenewalState = (
   siteId: number,
   updates: {
