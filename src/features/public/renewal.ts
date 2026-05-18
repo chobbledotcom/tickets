@@ -53,6 +53,7 @@ const handleRenewal = async (request: Request): Promise<Response> => {
           : "Pick a tier and quantity below.",
         groupName: `Renew ${site.name}`,
         siteToken: token,
+        terms: "",
       },
     })(tiers),
   );

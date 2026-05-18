@@ -96,6 +96,8 @@ import {
   assignBuiltSiteField,
   eventFields,
   groupIdField,
+  initialSiteMonthsField,
+  monthsPerUnitField,
   slugField,
   splitCsv,
 } from "#templates/fields.ts";
@@ -163,7 +165,7 @@ const extractEventUpdateInput = async (
 
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
-  fields: [...eventFields, assignBuiltSiteField, groupIdField],
+  fields: [...eventFields, monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField, groupIdField],
   nameField: "name",
   table: eventsTable,
   toInput: extractEventInput,
@@ -506,7 +508,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
       // Build a resource that includes the slug field; uniqueness is enforced
       // by validateEventInput when existingId is set.
       const updateResource = defineResource({
-        fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
+        fields: [...eventFields, monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField, slugField, groupIdField],
         nameField: "name",
         table: eventsTable,
         toInput: extractEventUpdateInput,

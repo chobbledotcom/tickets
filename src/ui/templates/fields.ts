@@ -478,23 +478,25 @@ export const eventFields: Field[] = [
     options: [{ label: "No attendance required", value: "1" }],
     type: "checkbox-group",
   },
-  {
-    hint: "How many months one ticket buys. Leave 0 for non-renewal events.",
-    label: "Months Per Unit (renewal tiers only)",
-    max: 24,
-    min: 0,
-    name: "months_per_unit",
-    type: "number",
-  },
-  {
-    hint: "How many months the site stays active after purchase. Required when assigning a built site.",
-    label: "Initial Site Months (built site events only)",
-    max: 120,
-    min: 0,
-    name: "initial_site_months",
-    type: "number",
-  },
 ];
+
+export const monthsPerUnitField: Field = {
+  hint: "How many months one ticket buys. Leave 0 for non-renewal events.",
+  label: "Months Per Unit (renewal tiers only)",
+  max: 24,
+  min: 0,
+  name: "months_per_unit",
+  type: "number",
+};
+
+export const initialSiteMonthsField: Field = {
+  hint: "How many months the site stays active after purchase. Required when assigning a built site.",
+  label: "Initial Site Months (built site events only)",
+  max: 120,
+  min: 0,
+  name: "initial_site_months",
+  type: "number",
+};
 
 /** Validate date format (YYYY-MM-DD) */
 export const validateDate = (value: string): string | null => {

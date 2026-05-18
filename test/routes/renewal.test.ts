@@ -79,6 +79,23 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).toContain("csrf_token");
     });
 
+    test("does not show terms and conditions or agreement checkbox", async () => {
+      await createTestEvent({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const { token } = await setupRenewalSite();
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+      const html = await response.text();
+      expect(html).not.toContain("agree_terms");
+      expect(html).not.toContain("terms-agree");
+    });
+
     test("marks renewal picker as noindex", async () => {
       await createTestEvent({
         hidden: true,

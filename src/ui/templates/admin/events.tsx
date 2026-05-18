@@ -47,6 +47,8 @@ import {
   eventFields,
   getAddAttendeeFields,
   imageField,
+  initialSiteMonthsField,
+  monthsPerUnitField,
   slugField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -968,7 +970,7 @@ export const adminEventNewPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...eventFields,
-    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(builderEnabled ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField] : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
   return String(
@@ -1000,7 +1002,7 @@ export const adminDuplicateEventPage = (
   const storageEnabled = isStorageEnabled();
   const dupFields = [
     ...eventFieldsWithAutofocus,
-    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(builderEnabled ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField] : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
 
@@ -1033,7 +1035,7 @@ export const adminEventEditPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...eventFields,
-    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(builderEnabled ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField] : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
   return String(

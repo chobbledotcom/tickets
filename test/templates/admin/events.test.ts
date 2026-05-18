@@ -1200,6 +1200,70 @@ describeWithEnv(
         }
       });
     });
+
+    describe("months_per_unit and initial_site_months fields", () => {
+      test("shows months_per_unit and initial_site_months when CAN_BUILD_SITES is true", () => {
+        Deno.env.set("CAN_BUILD_SITES", "true");
+        try {
+          const html = adminEventNewPage([], TEST_SESSION);
+          expect(html).toContain("months_per_unit");
+          expect(html).toContain("Months Per Unit");
+          expect(html).toContain("initial_site_months");
+          expect(html).toContain("Initial Site Months");
+        } finally {
+          Deno.env.delete("CAN_BUILD_SITES");
+        }
+      });
+
+      test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
+        Deno.env.delete("CAN_BUILD_SITES");
+        const html = adminEventNewPage([], TEST_SESSION);
+        expect(html).not.toContain("months_per_unit");
+        expect(html).not.toContain("Months Per Unit");
+        expect(html).not.toContain("initial_site_months");
+        expect(html).not.toContain("Initial Site Months");
+      });
+
+      test("shows on edit page when CAN_BUILD_SITES is true", () => {
+        Deno.env.set("CAN_BUILD_SITES", "true");
+        try {
+          const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+          const html = adminEventEditPage(event, [], TEST_SESSION);
+          expect(html).toContain("months_per_unit");
+          expect(html).toContain("initial_site_months");
+        } finally {
+          Deno.env.delete("CAN_BUILD_SITES");
+        }
+      });
+
+      test("hides on edit page when CAN_BUILD_SITES is not set", () => {
+        Deno.env.delete("CAN_BUILD_SITES");
+        const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+        const html = adminEventEditPage(event, [], TEST_SESSION);
+        expect(html).not.toContain("months_per_unit");
+        expect(html).not.toContain("initial_site_months");
+      });
+
+      test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
+        Deno.env.set("CAN_BUILD_SITES", "true");
+        try {
+          const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+          const html = adminDuplicateEventPage(event, [], TEST_SESSION);
+          expect(html).toContain("months_per_unit");
+          expect(html).toContain("initial_site_months");
+        } finally {
+          Deno.env.delete("CAN_BUILD_SITES");
+        }
+      });
+
+      test("hides on duplicate page when CAN_BUILD_SITES is not set", () => {
+        Deno.env.delete("CAN_BUILD_SITES");
+        const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+        const html = adminDuplicateEventPage(event, [], TEST_SESSION);
+        expect(html).not.toContain("months_per_unit");
+        expect(html).not.toContain("initial_site_months");
+      });
+    });
   },
 );
 
