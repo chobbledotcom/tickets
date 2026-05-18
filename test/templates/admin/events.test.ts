@@ -1227,7 +1227,10 @@ describeWithEnv(
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         Deno.env.set("CAN_BUILD_SITES", "true");
         try {
-          const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+          const event = testEventWithCount({
+            initial_site_months: 6,
+            months_per_unit: 3,
+          });
           const html = adminEventEditPage(event, [], TEST_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
@@ -1238,7 +1241,10 @@ describeWithEnv(
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         Deno.env.delete("CAN_BUILD_SITES");
-        const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+        const event = testEventWithCount({
+          initial_site_months: 6,
+          months_per_unit: 3,
+        });
         const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).not.toContain("months_per_unit");
         expect(html).not.toContain("initial_site_months");
@@ -1247,7 +1253,10 @@ describeWithEnv(
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
         Deno.env.set("CAN_BUILD_SITES", "true");
         try {
-          const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+          const event = testEventWithCount({
+            initial_site_months: 6,
+            months_per_unit: 3,
+          });
           const html = adminDuplicateEventPage(event, [], TEST_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
@@ -1258,7 +1267,10 @@ describeWithEnv(
 
       test("hides on duplicate page when CAN_BUILD_SITES is not set", () => {
         Deno.env.delete("CAN_BUILD_SITES");
-        const event = testEventWithCount({ months_per_unit: 3, initial_site_months: 6 });
+        const event = testEventWithCount({
+          initial_site_months: 6,
+          months_per_unit: 3,
+        });
         const html = adminDuplicateEventPage(event, [], TEST_SESSION);
         expect(html).not.toContain("months_per_unit");
         expect(html).not.toContain("initial_site_months");

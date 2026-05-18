@@ -165,7 +165,13 @@ const extractEventUpdateInput = async (
 
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
-  fields: [...eventFields, monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField, groupIdField],
+  fields: [
+    ...eventFields,
+    monthsPerUnitField,
+    initialSiteMonthsField,
+    assignBuiltSiteField,
+    groupIdField,
+  ],
   nameField: "name",
   table: eventsTable,
   toInput: extractEventInput,
@@ -508,7 +514,14 @@ const handleAdminEventEditPost: TypedRouteHandler<
       // Build a resource that includes the slug field; uniqueness is enforced
       // by validateEventInput when existingId is set.
       const updateResource = defineResource({
-        fields: [...eventFields, monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField, slugField, groupIdField],
+        fields: [
+          ...eventFields,
+          monthsPerUnitField,
+          initialSiteMonthsField,
+          assignBuiltSiteField,
+          slugField,
+          groupIdField,
+        ],
         nameField: "name",
         table: eventsTable,
         toInput: extractEventUpdateInput,

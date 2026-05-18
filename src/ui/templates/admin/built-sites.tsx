@@ -4,7 +4,13 @@
 
 import { formatCurrency } from "#shared/currency.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import {
+  booleanToCheckbox,
+  ConfirmForm,
+  CsrfForm,
+  Flash,
+  renderFields,
+} from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
@@ -141,7 +147,7 @@ export const adminBuiltSitesPage = (
 export const builtSiteToFieldValues = (
   site?: BuiltSite,
 ): Record<string, string | number | null> => ({
-  assignable: site?.assignable ? "1" : "",
+  assignable: booleanToCheckbox(!!site?.assignable),
   bunny_script_id: site?.bunnyScriptId ?? "",
   bunny_url: site?.bunnyUrl ?? "",
   db_token: site?.dbToken ?? "",
