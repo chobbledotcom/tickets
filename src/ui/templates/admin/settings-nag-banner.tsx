@@ -6,7 +6,7 @@ export const SettingsNagBanner = (): JSX.Element | null => {
     return null;
   }
   return (
-    <output class="settings-nag-banner">
+    <aside class="settings-nag-banner" role="status">
       <p>
         <strong>Finish setting up your site:</strong>
       </p>
@@ -17,6 +17,6 @@ export const SettingsNagBanner = (): JSX.Element | null => {
           </li>
         ))}
       </ul>
-    </output>
+    </aside>
   );
 };
