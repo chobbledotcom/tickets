@@ -96,6 +96,8 @@ import {
   assignBuiltSiteField,
   eventFields,
   groupIdField,
+  initialSiteMonthsField,
+  monthsPerUnitField,
   slugField,
   splitCsv,
 } from "#templates/fields.ts";
@@ -127,12 +129,14 @@ const extractCommonFields = (values: EventFormValues) => {
     fields: values.fields || "",
     groupId: Number(values.group_id) || 0,
     hidden: values.hidden === "1",
+    initialSiteMonths: Number(values.initial_site_months) || 0,
     location: values.location,
     maxAttendees: values.max_attendees,
     maximumDaysAfter: values.maximum_days_after ?? 90,
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
     maxQuantity: values.max_quantity,
     minimumDaysBefore: values.minimum_days_before ?? 1,
+    monthsPerUnit: Number(values.months_per_unit) || 0,
     name: values.name,
     nonTransferable: values.non_transferable === "1",
     purchaseOnly: values.purchase_only === "1",
@@ -161,7 +165,13 @@ const extractEventUpdateInput = async (
 
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
-  fields: [...eventFields, assignBuiltSiteField, groupIdField],
+  fields: [
+    ...eventFields,
+    monthsPerUnitField,
+    initialSiteMonthsField,
+    assignBuiltSiteField,
+    groupIdField,
+  ],
   nameField: "name",
   table: eventsTable,
   toInput: extractEventInput,
@@ -504,7 +514,14 @@ const handleAdminEventEditPost: TypedRouteHandler<
       // Build a resource that includes the slug field; uniqueness is enforced
       // by validateEventInput when existingId is set.
       const updateResource = defineResource({
-        fields: [...eventFields, assignBuiltSiteField, slugField, groupIdField],
+        fields: [
+          ...eventFields,
+          monthsPerUnitField,
+          initialSiteMonthsField,
+          assignBuiltSiteField,
+          slugField,
+          groupIdField,
+        ],
         nameField: "name",
         table: eventsTable,
         toInput: extractEventUpdateInput,

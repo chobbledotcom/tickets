@@ -10,6 +10,7 @@ import {
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import {
@@ -163,7 +164,8 @@ export const handlePaymentFlow = (
     `ticket items=${intent.items.length}`,
     request,
     (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
-    (msg) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, msg),
+    (msg) =>
+      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, msg),
   );
 
 /** Handle free ticket registration */
@@ -205,6 +207,7 @@ export const processFreeReservation = async (
   quantities: Map<number, number>,
   contact: ContactInfo,
   date: string | null,
+  siteToken?: string,
 ): Promise<
   | { success: true; token: string; entries: EmailEntry[] }
   | { success: false; error: string }
@@ -232,7 +235,10 @@ export const processFreeReservation = async (
     event: selected[i]!.event,
   }));
 
-  await logAndNotifyRegistration(entries);
+  // Hash before passing on so the renewal lookup uses the same blind index
+  // the paid path would carry through Stripe session metadata.
+  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
+  await logAndNotifyRegistration(entries, siteTokenIndex);
   return {
     entries,
     success: true,

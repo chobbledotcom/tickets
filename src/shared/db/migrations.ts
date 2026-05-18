@@ -33,7 +33,8 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "add duration_days to events";
+export const LATEST_UPDATE =
+  "add duration_days to events and drop built_sites.renewal_tier_event_id";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -85,6 +86,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
         ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
         ["max_price", "INTEGER NOT NULL DEFAULT 0"],
+        ["months_per_unit", "INTEGER NOT NULL DEFAULT 0"],
+        ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
         ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
       ],
       indexes: [
@@ -364,6 +367,15 @@ const SCHEMA: [name: string, table: Table][] = [
         ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
         ["assigned_event_id", "INTEGER DEFAULT NULL"],
         ["created", "TEXT NOT NULL"],
+        ["renewal_token_index", "TEXT DEFAULT NULL"],
+        ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
+      ],
+      indexes: [
+        {
+          columns: ["renewal_token_index"],
+          name: "idx_built_sites_renewal_token_index",
+          unique: true,
+        },
       ],
     },
   ],

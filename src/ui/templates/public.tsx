@@ -14,7 +14,7 @@ import type {
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isReadOnly } from "#shared/env.ts";
+import { getRenewalUrl, isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
@@ -393,12 +393,17 @@ export const temporaryErrorPage = (): string =>
 /**
  * Read-only mode page
  */
-export const readOnlyPage = (): string =>
-  String(
+export const readOnlyPage = (): string => {
+  const renewalUrl = getRenewalUrl();
+  return String(
     <Layout title="Read Only">
-      <p>Disabled: This site is in read-only mode.</p>
+      <p>
+        This site is in read-only mode.
+        {renewalUrl && <Raw html={` <a href="${renewalUrl}">Renew now</a>`} />}
+      </p>
     </Layout>,
   );
+};
 
 /** Event info for ticket display */
 export type TicketEvent = {
@@ -563,6 +568,8 @@ export type TicketPageOptions = {
   groupName?: string;
   groupDescription?: string;
   qrPrefill?: QrPrefill;
+  /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
+  actionUrl?: string;
 };
 
 /** Unavailability message shown when all events are sold out or closed */
@@ -620,6 +627,7 @@ const TicketPageHeader = ({
 /** Form body with fields, date selector, event rows, questions, terms, and submit */
 const TicketPageForm = ({
   slugs,
+  actionUrl,
   fields,
   hasDaily,
   dates,
@@ -632,6 +640,7 @@ const TicketPageForm = ({
   qrPrefill,
 }: {
   slugs: string[];
+  actionUrl?: string;
   fields: Field[];
   hasDaily: boolean;
   dates: string[] | undefined;
@@ -646,7 +655,7 @@ const TicketPageForm = ({
   const fieldValues: Record<string, string> = {};
   if (qrPrefill?.name) fieldValues.name = qrPrefill.name;
   return (
-    <CsrfForm action={`/ticket/${slugs.join("+")}`}>
+    <CsrfForm action={actionUrl ?? `/ticket/${slugs.join("+")}`}>
       {qrPrefill && (
         <input name="qr_token" type="hidden" value={qrPrefill.token} />
       )}
@@ -690,6 +699,7 @@ export const ticketPage = ({
   groupName,
   groupDescription,
   qrPrefill,
+  actionUrl,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
@@ -717,9 +727,12 @@ export const ticketPage = ({
       )
     : events.map((e) => renderEventRow(e, hideQuantity)).join("");
 
-  // Unified header: single events use event details, groups use group metadata
-  const headerName = singleEvent?.name ?? groupName;
-  const headerDescription = singleEvent?.description ?? groupDescription;
+  // Unified header. When the caller supplies group metadata (groups, renewals),
+  // it takes priority over single-event details — the caller knows best what
+  // page the customer landed on. Plain single-event ticket pages still fall
+  // back to event name/description since they don't set group metadata.
+  const headerName = groupName ?? singleEvent?.name;
+  const headerDescription = groupDescription ?? singleEvent?.description;
   const title = headerName || "Reserve Tickets";
   const headExtra =
     singleEvent && baseUrl ? buildOgTags(singleEvent, baseUrl) : undefined;
@@ -746,6 +759,7 @@ export const ticketPage = ({
         </div>
       ) : (
         <TicketPageForm
+          actionUrl={actionUrl}
           dates={dates}
           eventRows={eventRows}
           fields={fields}

@@ -63,6 +63,8 @@ export type BuildSiteResult =
     }
   | { ok: false; error: string };
 
+type BuildSiteCredentials = Pick<CreateDatabaseResult, "dbUrl" | "dbToken">;
+
 /** Generate a random 32-byte base64 encryption key */
 export const generateEncryptionKey = (): string => {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -97,6 +99,54 @@ const setSecrets = async (
   return errors;
 };
 
+/** Source the bundle code from input or the latest GitHub release. */
+const getBuildCode = async (
+  input: BuildSiteInput,
+): Promise<{ ok: true; code: string } | { ok: false; error: string }> => {
+  if (input.code !== undefined) return { code: input.code, ok: true };
+
+  try {
+    const release = await fetchLatestRelease();
+    if (!release.assetUrl) {
+      return { error: "No release asset found on GitHub", ok: false };
+    }
+    const assetResponse = await fetchText(release.assetUrl);
+    if (!assetResponse.ok) {
+      return {
+        error: `Failed to download release: ${assetResponse.status}`,
+        ok: false,
+      };
+    }
+    return { code: assetResponse.text, ok: true };
+  } catch (e) {
+    return {
+      error: `Failed to fetch release: ${(e as Error).message}`,
+      ok: false,
+    };
+  }
+};
+
+/** Use supplied DB credentials or provision a new Bunny database. */
+const getDbCredentials = async (
+  input: BuildSiteInput,
+): Promise<
+  { ok: true; credentials: BuildSiteCredentials } | { ok: false; error: string }
+> => {
+  if (input.dbUrl) {
+    return {
+      credentials: { dbToken: input.dbToken ?? "", dbUrl: input.dbUrl },
+      ok: true,
+    };
+  }
+
+  const dbResult = await builderApi.createDatabase(input.siteName);
+  if (!dbResult.ok) return dbResult;
+  return {
+    credentials: { dbToken: dbResult.dbToken, dbUrl: dbResult.dbUrl },
+    ok: true,
+  };
+};
+
 /**
  * Build a new site: create edge script, configure secrets, publish.
  */
@@ -106,43 +156,19 @@ export const buildSite = async (
   const fullName = `Tickets - ${input.siteName}`;
 
   // 1. Source the bundle code: caller-supplied or latest GitHub release
-  let code: string;
-  if (input.code !== undefined) {
-    code = input.code;
-  } else {
-    try {
-      const release = await fetchLatestRelease();
-      if (!release.assetUrl) {
-        return { error: "No release asset found on GitHub", ok: false };
-      }
-      const assetResponse = await fetchText(release.assetUrl);
-      if (!assetResponse.ok) {
-        return {
-          error: `Failed to download release: ${assetResponse.status}`,
-          ok: false,
-        };
-      }
-      code = assetResponse.text;
-    } catch (e) {
-      return {
-        error: `Failed to fetch release: ${(e as Error).message}`,
-        ok: false,
-      };
-    }
-  }
+  const codeResult = await getBuildCode(input);
+  if (!codeResult.ok) return codeResult;
 
   // 1b. Auto-provision database if credentials not supplied
-  let dbCredentials: Pick<CreateDatabaseResult, "dbUrl" | "dbToken">;
-  if (input.dbUrl) {
-    dbCredentials = { dbToken: input.dbToken ?? "", dbUrl: input.dbUrl };
-  } else {
-    const dbResult = await builderApi.createDatabase(input.siteName);
-    if (!dbResult.ok) return dbResult;
-    dbCredentials = { dbToken: dbResult.dbToken, dbUrl: dbResult.dbUrl };
-  }
+  const credentialsResult = await getDbCredentials(input);
+  if (!credentialsResult.ok) return credentialsResult;
+  const dbCredentials = credentialsResult.credentials;
 
   // 2. Create edge script
-  const createResult = await bunnyCdnApi.createEdgeScript(fullName, code);
+  const createResult = await bunnyCdnApi.createEdgeScript(
+    fullName,
+    codeResult.code,
+  );
   if (!createResult.ok) return createResult;
 
   const { scriptId, pullZoneId, defaultHostname } = createResult;
@@ -169,6 +195,10 @@ export const buildSite = async (
     const value = getEnv(key);
     if (value) secrets.push([key, value]);
   }
+
+  // Renewal-related secrets (READ_ONLY_FROM, RENEWAL_URL) are pushed later by
+  // site-assignment.ts after the site row has been created — the builder
+  // itself stays renewal-agnostic.
 
   const secretErrors = await setSecrets(scriptId, secrets);
   if (secretErrors.length > 0) {

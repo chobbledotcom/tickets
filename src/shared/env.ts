@@ -33,8 +33,80 @@ export function getEnv(key: string): string | undefined {
   return Deno!.env.get(key);
 }
 
-/** Check if the system is in read-only mode (READ_ONLY env var) */
-export const isReadOnly = (): boolean => getEnv("READ_ONLY") === "true";
+/** Parse a string into a positive integer for warning days. Returns defaultVal on bad input. */
+export const parseWarnDays = (
+  raw: string | undefined,
+  defaultVal = 14,
+): number => {
+  if (!raw) return defaultVal;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return defaultVal;
+  return n;
+};
+
+/** Pure helper: is the site read-only based on a cutoff timestamp? */
+const parseCutoffMs = (cutoff: string): number | null => {
+  const parsed = Date.parse(cutoff);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const withCutoffMs =
+  (cutoff: string) =>
+  (predicate: (cutoffMs: number) => boolean): boolean => {
+    const cutoffMs = parseCutoffMs(cutoff);
+    return cutoffMs === null ? false : predicate(cutoffMs);
+  };
+
+/** Pure helper: is the site read-only based on a cutoff timestamp? */
+export const isReadOnlyFromCutoff = (now: number, cutoff: string): boolean =>
+  withCutoffMs(cutoff)((cutoffMs) => now >= cutoffMs);
+
+/** Pure helper: is the current time within the warning window before cutoff? */
+export const isInWarningWindow = (
+  now: number,
+  cutoff: string,
+  warnDays: number,
+): boolean =>
+  withCutoffMs(cutoff)(
+    (cutoffMs) => now >= cutoffMs - warnDays * 86_400_000 && now < cutoffMs,
+  );
+
+/** Check if the system is in read-only mode based on the READ_ONLY_FROM cutoff */
+export const isReadOnly = (): boolean => {
+  const cutoff = getEnv("READ_ONLY_FROM");
+  if (!cutoff) return false;
+  if (Number.isNaN(Date.parse(cutoff))) {
+    void (async () => {
+      const { ErrorCode, logError } = await import("#shared/logger.ts");
+      logError({
+        code: ErrorCode.DATA_INVALID,
+        detail: `READ_ONLY_FROM unparseable: ${cutoff}`,
+      });
+    })();
+    return false;
+  }
+  return isReadOnlyFromCutoff(Date.now(), cutoff);
+};
+
+/** Check if the site should show a pre-expiry warning banner */
+export const isReadOnlyWarning = (): boolean => {
+  if (isReadOnly()) return false;
+  const cutoff = getEnv("READ_ONLY_FROM");
+  if (!cutoff) return false;
+  const warnDays = parseWarnDays(getEnv("READ_ONLY_WARN_DAYS"));
+  return isInWarningWindow(Date.now(), cutoff, warnDays);
+};
+
+/** Get the READ_ONLY_FROM cutoff ISO string, or null if not set */
+export const getReadOnlyCutoffIso = (): string | null => {
+  const cutoff = getEnv("READ_ONLY_FROM");
+  if (!cutoff) return null;
+  const parsed = Date.parse(cutoff);
+  return Number.isNaN(parsed) ? null : cutoff;
+};
+
+/** Get the RENEWAL_URL, or null if not set */
+export const getRenewalUrl = (): string | null => getEnv("RENEWAL_URL") ?? null;
 
 /**
  * Get a required environment variable, throwing if not set.

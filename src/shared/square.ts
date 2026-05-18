@@ -593,7 +593,7 @@ export const squareApi: {
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
-      buildItemsMetadata(intent),
+      await buildItemsMetadata(intent),
       `payment link for ${intent.items.length} event(s)`,
     );
     if (!prep) return null;

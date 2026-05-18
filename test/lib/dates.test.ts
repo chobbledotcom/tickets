@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
+  addMonthsIso,
   DAY_NAMES,
   daysAgo,
   eventDateToCalendarDate,
@@ -38,6 +39,50 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("handles large number of days", () => {
       expect(addDays("2026-01-01", 365)).toBe("2027-01-01");
+    });
+  });
+
+  describe("addMonthsIso", () => {
+    test("clamps Jan 31 + 1mo to Feb 28", () => {
+      expect(addMonthsIso("2026-01-31T12:00:00.000Z", 1)).toBe(
+        "2026-02-28T12:00:00.000Z",
+      );
+    });
+
+    test("clamps Jan 31 + 1mo to Feb 29 in leap year", () => {
+      expect(addMonthsIso("2024-01-31T12:00:00.000Z", 1)).toBe(
+        "2024-02-29T12:00:00.000Z",
+      );
+    });
+
+    test("clamps Mar 31 + 1mo to Apr 30", () => {
+      expect(addMonthsIso("2026-03-31T00:00:00.000Z", 1)).toBe(
+        "2026-04-30T00:00:00.000Z",
+      );
+    });
+
+    test("year rollover Dec 15 + 1mo", () => {
+      expect(addMonthsIso("2026-12-15T00:00:00.000Z", 1)).toBe(
+        "2027-01-15T00:00:00.000Z",
+      );
+    });
+
+    test("12-month renewal", () => {
+      expect(addMonthsIso("2026-05-17T00:00:00.000Z", 12)).toBe(
+        "2027-05-17T00:00:00.000Z",
+      );
+    });
+
+    test("zero months returns canonical ISO string", () => {
+      expect(addMonthsIso("2026-05-17T09:30:00.000Z", 0)).toBe(
+        "2026-05-17T09:30:00.000Z",
+      );
+    });
+
+    test("preserves time component", () => {
+      expect(addMonthsIso("2026-01-15T14:30:45.123Z", 2)).toBe(
+        "2026-03-15T14:30:45.123Z",
+      );
     });
   });
 

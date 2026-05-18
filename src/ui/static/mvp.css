@@ -1489,11 +1489,30 @@ button.secondary:hover {
 
 /* Read-only mode banner */
 .read-only-banner {
+  background: #dc2626;
+  color: #fff;
+  text-align: center;
+  padding: 8px;
+  font-weight: bold;
+}
+
+.read-only-banner a {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Pre-expiry warning banner */
+.read-only-banner-warning {
   background: #f59e0b;
   color: #000;
   text-align: center;
   padding: 8px;
   font-weight: bold;
+}
+
+.read-only-banner-warning a {
+  color: #000;
+  text-decoration: underline;
 }
 
 /* Stripe/Square test result */

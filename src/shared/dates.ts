@@ -40,6 +40,47 @@ const MONTH_NAMES = [
   "December",
 ] as const;
 
+/** Days in each month (1-indexed, index 0 unused) */
+const DAYS_IN_MONTH = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** Is the given year a leap year? */
+const isLeapYear = (year: number): boolean =>
+  (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+
+/** Days in a specific month (1-indexed) */
+const daysInMonth = (year: number, month: number): number =>
+  month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month]!;
+
+/**
+ * Add N months to an ISO timestamp, clamping to the last day of the target month.
+ * e.g. 2026-01-31 + 1mo → 2026-02-28
+ * Preserves the time component (hour/minute/second/ms).
+ * Zero months returns the input with canonical ISO string formatting.
+ */
+export const addMonthsIso = (fromIso: string, months: number): string => {
+  const d = new Date(fromIso);
+  if (months === 0) return d.toISOString();
+  const originalDay = d.getUTCDate();
+  const targetMonth = d.getUTCMonth() + months;
+  const targetDate = new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      targetMonth,
+      1,
+      d.getUTCHours(),
+      d.getUTCMinutes(),
+      d.getUTCSeconds(),
+      d.getUTCMilliseconds(),
+    ),
+  );
+  const maxDay = daysInMonth(
+    targetDate.getUTCFullYear(),
+    targetDate.getUTCMonth() + 1,
+  );
+  targetDate.setUTCDate(Math.min(originalDay, maxDay));
+  return targetDate.toISOString();
+};
+
 /** Round a date down to the start of the current hour for cache-stable signatures */
 export const startOfHour = (date: Date): Date => {
   const d = new Date(date);

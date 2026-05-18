@@ -21,6 +21,12 @@ export type TicketCtx = {
   groupName?: string;
   groupDescription?: string;
   qrPrefill?: QrPrefill;
+  /** Override the form action and error redirect URL (e.g. `/renew/?t=...`).
+   * Defaults to `/ticket/<slugs>` when unset. */
+  actionUrl?: string;
+  /** When set, threaded into paid/free registration completion so renewals can
+   * bump a built site's READ_ONLY_FROM after successful reservation. */
+  siteToken?: string;
 };
 
 /** Possibly-async response handler */
@@ -36,6 +42,8 @@ export type TicketSharedContext = {
   questionEventMap: QuestionEventMap;
   groupName?: string;
   groupDescription?: string;
+  actionUrl?: string;
+  siteToken?: string;
 };
 
 /** Shared context provider for ticket pages */
@@ -54,11 +62,14 @@ export const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
 export const parseSlugs = (slug: string): string[] =>
   slug.split("+").filter((s) => s.length > 0);
 
+/** Set noindex signal header on response; middleware converts it to X-Robots-Tag. */
+export const applyNoindex = (response: Response): Response => {
+  response.headers.set("x-robots-noindex", "true");
+  return response;
+};
+
 /** Set noindex signal header on response for hidden events */
 export const applyHiddenNoindex = (
   response: Response,
   hidden: boolean,
-): Response => {
-  if (hidden) response.headers.set("x-robots-noindex", "true");
-  return response;
-};
+): Response => (hidden ? applyNoindex(response) : response);

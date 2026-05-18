@@ -2,13 +2,71 @@
  * Admin built sites management page templates
  */
 
+import { formatCurrency } from "#shared/currency.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import {
+  booleanToCheckbox,
+  ConfirmForm,
+  CsrfForm,
+  Flash,
+  renderFields,
+} from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
+import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
+import { renewalUrlFor } from "#shared/site-assignment.ts";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+
+/** Renewal tier summary row rendered beneath the built-sites table. */
+const RenewalTierSummary = ({
+  tiers,
+}: {
+  tiers: EventWithCount[];
+}): JSX.Element => {
+  if (tiers.length === 0) {
+    return (
+      <section>
+        <h2>Renewal tiers</h2>
+        <div class="error" role="alert">
+          No renewal tier event is configured. Customers won't be able to renew
+          their sites until you create one (a purchase-only, hidden event with{" "}
+          <em>Months Per Unit</em> &gt; 0).
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section>
+      <h2>Renewal tiers</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Tier</th>
+              <th>Months per unit</th>
+              <th>Unit price</th>
+              <th>Units sold</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tiers.map((tier) => (
+              <tr>
+                <td>
+                  <a href={`/admin/event/${tier.id}`}>{tier.name}</a>
+                </td>
+                <td>{tier.months_per_unit}</td>
+                <td>{formatCurrency(tier.unit_price)}</td>
+                <td>{tier.attendee_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+};
 
 /**
  * Admin built sites list page
@@ -17,6 +75,7 @@ export const adminBuiltSitesPage = (
   sites: BuiltSite[],
   session: AdminSession,
   successMessage?: string,
+  renewalTiers: EventWithCount[] = [],
 ): string => {
   const scriptIds = sites
     .filter((site) => site.bunnyScriptId)
@@ -42,6 +101,7 @@ export const adminBuiltSitesPage = (
                   <th>Name</th>
                   <th>Bunny URL</th>
                   <th>Status</th>
+                  <th>Read-only from</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -61,6 +121,7 @@ export const adminBuiltSitesPage = (
                           ? "Available"
                           : "Not assignable"}
                     </td>
+                    <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
                     <td>
                       <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
                       <a href={`/admin/built-sites/${site.id}/delete`}>
@@ -75,6 +136,7 @@ export const adminBuiltSitesPage = (
           <p>{scriptIds}</p>
         </div>
       )}
+      <RenewalTierSummary tiers={renewalTiers} />
     </Layout>,
   );
 };
@@ -85,7 +147,7 @@ export const adminBuiltSitesPage = (
 export const builtSiteToFieldValues = (
   site?: BuiltSite,
 ): Record<string, string | number | null> => ({
-  assignable: site?.assignable ? "1" : "",
+  assignable: booleanToCheckbox(!!site?.assignable),
   bunny_script_id: site?.bunnyScriptId ?? "",
   bunny_url: site?.bunnyUrl ?? "",
   db_token: site?.dbToken ?? "",
@@ -112,6 +174,113 @@ export const adminBuiltSiteNewPage = (
     </Layout>,
   );
 
+type RenewalActionProps = {
+  siteId: number;
+  action: string;
+  children: JSX.Element | JSX.Element[];
+};
+
+/** Standard renewal action form wrapper — CSRF + path scoping in one place. */
+const RenewalActionForm = ({
+  siteId,
+  action,
+  children,
+}: RenewalActionProps): JSX.Element => (
+  <CsrfForm action={`/admin/built-sites/${siteId}/${action}`}>
+    {children}
+  </CsrfForm>
+);
+
+const MonthsInput = ({
+  id,
+  defaultValue = "1",
+}: {
+  id?: string;
+  defaultValue?: string;
+}): JSX.Element => (
+  <input
+    id={id}
+    max="120"
+    min="1"
+    name="months"
+    type="number"
+    value={defaultValue}
+  />
+);
+
+const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
+  const renewalUrl = renewalUrlFor(site.renewalToken!);
+  return (
+    <div class="prose">
+      <p>
+        <strong>Current deadline:</strong>{" "}
+        {formatDeadlineLabel(site.readOnlyFrom)}
+        {site.readOnlyFrom && (
+          <Raw
+            html={`<details><summary>Raw ISO</summary><code>${site.readOnlyFrom}</code></details>`}
+          />
+        )}
+      </p>
+      <p>
+        <strong>Renewal URL:</strong> <code>{renewalUrl}</code>
+      </p>
+
+      <RenewalActionForm action="rotate-renewal-token" siteId={site.id}>
+        <button
+          onclick="return confirm('The old URL will stop working. Continue?')"
+          type="submit"
+        >
+          Rotate token
+        </button>
+      </RenewalActionForm>
+
+      <RenewalActionForm action="bump-deadline" siteId={site.id}>
+        <label for="bump_months">Bump deadline by months</label>
+        <MonthsInput id="bump_months" />
+        <button type="submit">Bump</button>
+      </RenewalActionForm>
+
+      <RenewalActionForm action="override-deadline" siteId={site.id}>
+        <label for="override_date">Override deadline</label>
+        <input id="override_date" name="date" type="date" />
+        <button type="submit">Override</button>
+      </RenewalActionForm>
+
+      <RenewalActionForm action="re-sync-deadline" siteId={site.id}>
+        <button type="submit">Re-sync deadline</button>
+      </RenewalActionForm>
+    </div>
+  );
+};
+
+const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
+  <div class="prose">
+    <p>
+      <strong>Current deadline:</strong>{" "}
+      {formatDeadlineLabel(site.readOnlyFrom)}
+    </p>
+
+    <h3>Provision renewal</h3>
+    <RenewalActionForm action="provision-renewal" siteId={site.id}>
+      <label for="provision_months">Initial months</label>
+      <MonthsInput id="provision_months" />
+      <button type="submit">Provision</button>
+    </RenewalActionForm>
+
+    <h3>Bump deadline</h3>
+    <RenewalActionForm action="bump-deadline" siteId={site.id}>
+      <MonthsInput />
+      <button type="submit">Bump</button>
+    </RenewalActionForm>
+
+    <h3>Override deadline</h3>
+    <RenewalActionForm action="override-deadline" siteId={site.id}>
+      <input name="date" type="date" />
+      <button type="submit">Override</button>
+    </RenewalActionForm>
+  </div>
+);
+
 /**
  * Admin built site edit page
  */
@@ -119,20 +288,31 @@ export const adminBuiltSiteEditPage = (
   site: BuiltSite,
   session: AdminSession,
   error?: string,
-): string =>
-  String(
+  success?: string,
+): string => {
+  const provisioned = isProvisioned(site);
+
+  return String(
     <Layout title="Edit Built Site">
       <AdminNav active="/admin/built-sites" session={session} />
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
         <h1>Edit Built Site</h1>
-        <Flash error={error} />
+        <Flash error={error} success={success} />
         <Raw
           html={renderFields(builtSiteFields, builtSiteToFieldValues(site))}
         />
         <button type="submit">Save Changes</button>
       </CsrfForm>
+
+      <h2>Renewal</h2>
+      {provisioned ? (
+        <ProvisionedPanel site={site} />
+      ) : (
+        <UnprovisionedPanel site={site} />
+      )}
     </Layout>,
   );
+};
 
 /**
  * Admin built site delete confirmation page

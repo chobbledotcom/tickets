@@ -664,6 +664,215 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("payment success redirect threads siteToken through to the renewal push", async () => {
+      await setupStripe();
+
+      const tier = await createTestEvent({
+        hidden: true,
+        maxAttendees: 50,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 1000,
+      });
+
+      const { insertBuiltSite, getAllBuiltSites } = await import(
+        "#shared/db/built-sites.ts"
+      );
+      const { provisionTestBuiltSite } = await import("#test-utils");
+      const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
+      await insertBuiltSite(
+        "Token Site",
+        "tok.b-cdn.net",
+        "",
+        "",
+        false,
+        "9100",
+      );
+      const seedSite = (await getAllBuiltSites()).find(
+        (s) => s.name === "Token Site",
+      )!;
+      const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
+        readOnlyFrom: "2026-09-01T00:00:00Z",
+      });
+
+      const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_site_token",
+          metadata: {
+            _origin: "localhost",
+            email: "renew@example.com",
+            items: singleItem(tier.id, 1, 1000),
+            name: "Renewer",
+            site_token_index: tokenIndex,
+          },
+          payment_intent: "pi_site_token",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_site_token"),
+        );
+        expect(redirectResponse.status).toBe(302);
+        // Threading proof: a READ_ONLY_FROM push lands on the right edge script,
+        // proving the site_token_index was extracted, matched, and bumped.
+        const readOnlyCall = secretStub.calls.find(
+          (c) => (c.args[1] as string) === "READ_ONLY_FROM",
+        );
+        expect(readOnlyCall).toBeDefined();
+        expect(readOnlyCall!.args[0]).toBe(Number(seedSite.bunnyScriptId));
+      } finally {
+        mockRetrieve.restore();
+        secretStub.restore();
+      }
+    });
+
+    test("payment success rejects renewal metadata from an unrecognized origin", async () => {
+      await setupStripe();
+
+      const tier = await createTestEvent({
+        hidden: true,
+        maxAttendees: 50,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_foreign_site_token",
+          metadata: {
+            email: "renew@example.com",
+            items: singleItem(tier.id, 1, 1000),
+            name: "Renewer",
+            site_token_index: "foreign-token-index",
+          },
+          payment_intent: "pi_foreign_site_token",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_foreign_site_token"),
+        );
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain(
+          "Payment session not recognized",
+        );
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
+
+    test("payment success applies multi-tier renewal months cumulatively", async () => {
+      await setupStripe();
+
+      await createTestEvent({
+        hidden: true,
+        maxAttendees: 50,
+        monthsPerUnit: 1,
+        name: "Monthly multi-tier renewal",
+        purchaseOnly: true,
+        unitPrice: 1000,
+      });
+      await createTestEvent({
+        hidden: true,
+        maxAttendees: 50,
+        monthsPerUnit: 12,
+        name: "Annual multi-tier renewal",
+        purchaseOnly: true,
+        unitPrice: 1000,
+      });
+
+      const { addMonthsIso } = await import("#shared/dates.ts");
+      const { getAllEvents } = await import("#shared/db/events.ts");
+      const { insertBuiltSite, getAllBuiltSites } = await import(
+        "#shared/db/built-sites.ts"
+      );
+      const { provisionTestBuiltSite } = await import("#test-utils");
+      const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
+      const events = await getAllEvents();
+      const monthly = events.find(
+        (e) => e.name === "Monthly multi-tier renewal",
+      )!;
+      const annual = events.find(
+        (e) => e.name === "Annual multi-tier renewal",
+      )!;
+
+      const initialDeadline = "2026-09-01T00:00:00Z";
+      await insertBuiltSite(
+        "Multi Tier Renewal Site",
+        "multi-renew.b-cdn.net",
+        "",
+        "",
+        false,
+        "9101",
+      );
+      const seedSite = (await getAllBuiltSites()).find(
+        (s) => s.name === "Multi Tier Renewal Site",
+      )!;
+      const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
+        readOnlyFrom: initialDeadline,
+      });
+
+      const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 3000,
+          id: "cs_multi_tier_renewal",
+          metadata: {
+            _origin: "localhost",
+            email: "renew@example.com",
+            items: JSON.stringify([
+              { e: monthly.id, p: 2000, q: 2 },
+              { e: annual.id, p: 1000, q: 1 },
+            ]),
+            name: "Renewer",
+            site_token_index: tokenIndex,
+          },
+          payment_intent: "pi_multi_tier_renewal",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_tier_renewal"),
+        );
+        expect(redirectResponse.status).toBe(302);
+
+        const updated = (await getAllBuiltSites()).find(
+          (s) => s.id === seedSite.id,
+        )!;
+        const expectedDeadline = addMonthsIso(initialDeadline, 14);
+        expect(updated.readOnlyFrom).toBe(expectedDeadline);
+
+        const pushedDeadlines = secretStub.calls
+          .filter((c) => (c.args[1] as string) === "READ_ONLY_FROM")
+          .map((c) => c.args[2] as string);
+        expect(pushedDeadlines.at(-1)).toBe(expectedDeadline);
+      } finally {
+        mockRetrieve.restore();
+        secretStub.restore();
+      }
+    });
+
     test("payment success reads orderId param for Square redirect", async () => {
       await setupStripe();
 

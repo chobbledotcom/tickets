@@ -12,19 +12,24 @@ import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
+/** Encrypted site-data blob version */
+export const SITE_DATA_BLOB_VERSION = 1;
+
 /** Encrypted site data blob shape */
 export interface SiteDataBlob {
   /** Database URL (optional, absent in older blobs) */
   d?: string;
   /** Site name */
   n: string;
+  /** Renewal token (optional, present when renewal access exists) */
+  rt?: string;
   /** Bunny edge script ID (optional, absent in older blobs) */
   s?: string;
   /** Database token (optional, absent in older blobs) */
   t?: string;
   /** Bunny URL (default hostname) */
   u: string;
-  v: 1;
+  v: typeof SITE_DATA_BLOB_VERSION;
 }
 
 /** Built site row as stored in the database */
@@ -34,6 +39,8 @@ export interface BuiltSiteRow {
   assigned_event_id: number | null;
   created: string;
   id: number;
+  read_only_from: string;
+  renewal_token_index: string | null;
   site_data: string;
 }
 
@@ -43,6 +50,8 @@ export type BuiltSiteInput = {
   assignable?: number;
   assignedAttendeeId?: number | null;
   assignedEventId?: number | null;
+  renewalTokenIndex?: string | null;
+  readOnlyFrom?: string;
 };
 
 /** Decrypted built site for display */
@@ -57,6 +66,10 @@ export interface BuiltSite {
   dbUrl: string;
   id: number;
   name: string;
+  readOnlyFrom: string;
+  /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
+  renewalToken: string | null;
+  renewalTokenIndex: string | null;
 }
 
 /** Form input for CRUD operations */
@@ -70,6 +83,7 @@ const createdCol = col.withDefault(() => nowIso());
 
 const assignableCol = {} as ColumnDef<number>;
 const nullCol = col.withDefault<number | null>(() => null);
+const nullStrCol = col.withDefault<string | null>(() => null);
 
 const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   name: "built_sites",
@@ -80,6 +94,8 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
     assigned_event_id: nullCol,
     created: createdCol,
     id: idCol,
+    read_only_from: col.withDefault(() => ""),
+    renewal_token_index: nullStrCol,
     site_data: col.encrypted<string>(encrypt, decrypt),
   },
 });
@@ -91,14 +107,16 @@ export const buildSiteDataBlob = (
   dbUrl = "",
   dbToken = "",
   bunnyScriptId = "",
+  renewalToken?: string,
 ): string =>
   JSON.stringify({
     n: name,
     u: bunnyUrl,
-    v: 1,
+    v: SITE_DATA_BLOB_VERSION,
     ...(dbUrl ? { d: dbUrl } : {}),
     ...(dbToken ? { t: dbToken } : {}),
     ...(bunnyScriptId ? { s: bunnyScriptId } : {}),
+    ...(renewalToken ? { rt: renewalToken } : {}),
   } satisfies SiteDataBlob);
 
 /** Build raw table input from individual fields */
@@ -109,9 +127,17 @@ const toRawInput = (
   dbToken: string,
   bunnyScriptId: string,
   assignable: boolean,
+  renewalToken?: string,
 ): BuiltSiteInput => ({
   assignable: assignable ? 1 : 0,
-  siteData: buildSiteDataBlob(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId),
+  siteData: buildSiteDataBlob(
+    name,
+    bunnyUrl,
+    dbUrl,
+    dbToken,
+    bunnyScriptId,
+    renewalToken,
+  ),
 });
 
 /** Parse a decrypted site data blob */
@@ -132,6 +158,9 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     dbUrl: blob.d ?? "",
     id: row.id,
     name: blob.n,
+    readOnlyFrom: row.read_only_from,
+    renewalToken: blob.rt ?? null,
+    renewalTokenIndex: row.renewal_token_index ?? null,
   };
 };
 
@@ -200,7 +229,6 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         input.assignable,
       ),
     );
-    // insert() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
   },
   name: "built_sites",
@@ -230,6 +258,9 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     dbUrl: {} as ColumnDef<string>,
     id: idCol,
     name: {} as ColumnDef<string>,
+    readOnlyFrom: {} as ColumnDef<string>,
+    renewalToken: {} as ColumnDef<string | null>,
+    renewalTokenIndex: {} as ColumnDef<string | null>,
   },
 
   toDbValues: (
@@ -258,12 +289,18 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const dbToken = input.dbToken ?? existing.dbToken;
     const bunnyScriptId = input.bunnyScriptId ?? existing.bunnyScriptId;
     const assignable = input.assignable ?? existing.assignable;
-    // Row exists (checked above), so update always returns non-null
     const row = (await builtSitesTable.update(
       id,
-      toRawInput(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId, assignable),
+      toRawInput(
+        name,
+        bunnyUrl,
+        dbUrl,
+        dbToken,
+        bunnyScriptId,
+        assignable,
+        existing.renewalToken ?? undefined,
+      ),
     )) as BuiltSiteRow;
-    // update() returns the row with unencrypted input values, so parse directly
     return rowToBuiltSite(row);
   },
 };
@@ -291,18 +328,70 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   return all.filter((s) => s.assignable);
 };
 
+const withBuiltSiteForUpdate = async <T>(
+  siteId: number,
+  update: (existing: BuiltSite) => Promise<T>,
+): Promise<T | null> => {
+  const existing = await builtSitesCrudTable.findById(siteId);
+  return existing ? update(existing) : null;
+};
+
 /** Assign a built site to an attendee/event — sets assignable=0 and stores IDs */
-export const assignBuiltSite = async (
+export const assignBuiltSite = (
   siteId: number,
   attendeeId: number,
   eventId: number,
 ): Promise<BuiltSite | null> => {
-  const existing = await builtSitesCrudTable.findById(siteId);
-  if (!existing) return null;
-  const row = (await builtSitesTable.update(siteId, {
-    assignable: 0,
-    assignedAttendeeId: attendeeId,
-    assignedEventId: eventId,
-  })) as BuiltSiteRow;
-  return rowToBuiltSite(row);
+  return withBuiltSiteForUpdate(siteId, async () => {
+    const row = (await builtSitesTable.update(siteId, {
+      assignable: 0,
+      assignedAttendeeId: attendeeId,
+      assignedEventId: eventId,
+    })) as BuiltSiteRow;
+    return rowToBuiltSite(row);
+  });
+};
+
+/** Look up a built site by renewal token index (HMAC blind index) */
+export const getBuiltSiteByRenewalTokenIndex = async (
+  tokenIndex: string,
+): Promise<BuiltSite | null> => {
+  const rows = await queryAll<BuiltSiteRow>(
+    "SELECT * FROM built_sites WHERE renewal_token_index = ?",
+    [tokenIndex],
+  );
+  if (rows.length === 0) return null;
+  const decrypted = await rawBuiltSitesTable.fromDb(rows[0]!);
+  return rowToBuiltSite(decrypted);
+};
+
+/** Update built site renewal state: token index, deadline, and renewal blob together */
+export const updateBuiltSiteRenewalState = (
+  siteId: number,
+  updates: {
+    renewalTokenIndex?: string | null;
+    readOnlyFrom?: string;
+    renewalToken?: string;
+  },
+): Promise<BuiltSite | null> => {
+  return withBuiltSiteForUpdate(siteId, async (existing) => {
+    const token = updates.renewalToken ?? existing.renewalToken ?? undefined;
+    const row = (await builtSitesTable.update(siteId, {
+      siteData: buildSiteDataBlob(
+        existing.name,
+        existing.bunnyUrl,
+        existing.dbUrl,
+        existing.dbToken,
+        existing.bunnyScriptId,
+        token,
+      ),
+      ...(updates.renewalTokenIndex !== undefined
+        ? { renewalTokenIndex: updates.renewalTokenIndex }
+        : {}),
+      ...(updates.readOnlyFrom !== undefined
+        ? { readOnlyFrom: updates.readOnlyFrom }
+        : {}),
+    })) as BuiltSiteRow;
+    return rowToBuiltSite(row);
+  });
 };

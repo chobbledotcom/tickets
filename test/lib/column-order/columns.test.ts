@@ -77,6 +77,33 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
       ),
     ).toBe("5 / 20");
   });
+
+  test("renewal cell renders label with months when months_per_unit > 0", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.renewal!.cell(
+        testEventWithCount({ months_per_unit: 3 }),
+        u,
+      ),
+    ).toBe("Renewal (3mo)");
+  });
+
+  test("renewal cell renders empty when months_per_unit is 0", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.renewal!.cell(
+        testEventWithCount({ months_per_unit: 0 }),
+        u,
+      ),
+    ).toBe("");
+  });
+
+  test("renewal rawValue returns months_per_unit", () => {
+    expect(
+      EVENT_TABLE_COLUMNS.renewal!.rawValue!(
+        testEventWithCount({ months_per_unit: 6 }),
+        u,
+      ),
+    ).toBe(6);
+  });
 });
 
 describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {

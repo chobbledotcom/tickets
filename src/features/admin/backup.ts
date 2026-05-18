@@ -58,9 +58,14 @@ const listBackups = async (): Promise<BackupEntry[]> => {
 
 /** Delete any stale restore-pending temp files (best effort, fire-and-forget) */
 const cleanupStalePendingFiles = async (): Promise<void> => {
-  const files = await listFiles(RESTORE_PENDING_PREFIX);
-  for (const file of files) {
-    await deleteFile(file).catch(() => {});
+  try {
+    if (!isStorageEnabled()) return;
+    const files = await listFiles(RESTORE_PENDING_PREFIX);
+    for (const file of files) {
+      await deleteFile(file).catch(() => {});
+    }
+  } catch {
+    // best effort — never throw
   }
 };
 
@@ -76,8 +81,7 @@ const getBackupPageState = async (): Promise<BackupPageState> => ({
 const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const flash = applyFlash(request);
-    // Clean up any abandoned restore-pending temp files (fire-and-forget)
-    if (isStorageEnabled()) cleanupStalePendingFiles().catch(() => {});
+    await cleanupStalePendingFiles();
     const state = await getBackupPageState();
     return htmlResponse(
       adminBackupPage(session, state, flash.error, flash.success),
@@ -195,7 +199,7 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         await restoreFromZip(data);
       } finally {
         // Clean up the temp file whether restore succeeds or fails
-        await deleteFile(filename).catch(() => {});
+        await Promise.allSettled([deleteFile(filename)]);
       }
     },
     message: "Database restored from backup",

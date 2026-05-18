@@ -6,18 +6,21 @@ import {
   builtSitesCrudTable,
   getAllBuiltSites,
   getAssignableBuiltSites,
+  getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
   parseSiteDataBlob,
+  SITE_DATA_BLOB_VERSION,
+  updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("built-sites", { db: true }, () => {
-  test("buildSiteDataBlob creates valid JSON with version", () => {
+  test("buildSiteDataBlob creates valid JSON", () => {
     const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
     const parsed = JSON.parse(blob);
-    expect(parsed.v).toBe(1);
     expect(parsed.n).toBe("Test Site");
     expect(parsed.u).toBe("test.b-cdn.net");
+    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
   });
 
   test("buildSiteDataBlob includes db credentials when provided", () => {
@@ -60,16 +63,16 @@ describeWithEnv("built-sites", { db: true }, () => {
   test("parseSiteDataBlob roundtrips with buildSiteDataBlob", () => {
     const blob = buildSiteDataBlob("My Site", "my.b-cdn.net");
     const parsed = parseSiteDataBlob(blob);
-    expect(parsed.v).toBe(1);
     expect(parsed.n).toBe("My Site");
     expect(parsed.u).toBe("my.b-cdn.net");
+    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
   });
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
     const legacyBlob = JSON.stringify({
       n: "Old Site",
       u: "old.b-cdn.net",
-      v: 1,
+      v: SITE_DATA_BLOB_VERSION,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
@@ -164,6 +167,9 @@ describeWithEnv("built-sites", { db: true }, () => {
         dbUrl: "",
         id: 1,
         name: "Test",
+        readOnlyFrom: "",
+        renewalToken: null,
+        renewalTokenIndex: null,
       };
       const result = await builtSitesCrudTable.fromDb(site);
       expect(result).toEqual(site);
@@ -181,6 +187,9 @@ describeWithEnv("built-sites", { db: true }, () => {
         dbUrl: "libsql://db",
         id: 42,
         name: "Mirror",
+        readOnlyFrom: "",
+        renewalToken: null,
+        renewalTokenIndex: null,
       };
       expect(builtSitesCrudTable.rowToInput(site)).toEqual({
         assignable: true,
@@ -362,6 +371,123 @@ describeWithEnv("built-sites", { db: true }, () => {
       const site = sites.find((s) => s.name === "Unassigned")!;
       expect(site.assignedAttendeeId).toBeNull();
       expect(site.assignedEventId).toBeNull();
+    });
+  });
+
+  describe("renewal columns", () => {
+    test("new sites have empty readOnlyFrom and null renewal fields", async () => {
+      await insertBuiltSite("Renewal Site", "renewal.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Renewal Site")!;
+      expect(site.readOnlyFrom).toBe("");
+      expect(site.renewalTokenIndex).toBeNull();
+    });
+
+    test("getBuiltSiteByRenewalTokenIndex returns matching site", async () => {
+      await insertBuiltSite("Token Site", "token.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Token Site")!;
+
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2026-07-01T00:00:00Z",
+        renewalToken: "raw-token-123",
+        renewalTokenIndex: "test-index-abc",
+      });
+
+      const found = await getBuiltSiteByRenewalTokenIndex("test-index-abc");
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe("Token Site");
+      expect(found!.readOnlyFrom).toBe("2026-07-01T00:00:00Z");
+    });
+
+    test("getBuiltSiteByRenewalTokenIndex returns null when no match", async () => {
+      const found = await getBuiltSiteByRenewalTokenIndex("nonexistent");
+      expect(found).toBeNull();
+    });
+
+    test("multiple sites with null renewalTokenIndex are allowed", async () => {
+      await insertBuiltSite("Site 1", "s1.b-cdn.net");
+      await insertBuiltSite("Site 2", "s2.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const nullIndexSiteNames = sites
+        .filter((s) => s.renewalTokenIndex === null)
+        .map((s) => s.name)
+        .sort();
+      expect(nullIndexSiteNames).toEqual(["Site 1", "Site 2"]);
+    });
+
+    test("legacy blob still decodes correctly (no rt field)", () => {
+      const legacyBlob = JSON.stringify({
+        n: "Old Site",
+        u: "old.b-cdn.net",
+        v: 1,
+      });
+      const parsed = parseSiteDataBlob(legacyBlob);
+      expect(parsed.rt).toBeUndefined();
+      expect(parsed.n).toBe("Old Site");
+    });
+
+    test("blob with renewal token includes rt field", () => {
+      const blob = buildSiteDataBlob(
+        "New Site",
+        "new.b-cdn.net",
+        "",
+        "",
+        "",
+        "my-renewal-token",
+      );
+      const parsed = parseSiteDataBlob(blob);
+      expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+      expect(parsed.rt).toBe("my-renewal-token");
+    });
+
+    test("CRUD update preserves existing renewal token", async () => {
+      const site = await builtSitesCrudTable.insert({
+        assignable: false,
+        bunnyScriptId: "100",
+        bunnyUrl: "preserve.b-cdn.net",
+        dbToken: "",
+        dbUrl: "",
+        name: "Token Preserve",
+      });
+
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2026-08-01T00:00:00Z",
+        renewalToken: "secret-token",
+        renewalTokenIndex: "idx-123",
+      });
+
+      const updated = await builtSitesCrudTable.update(site.id, {
+        name: "Token Preserve Updated",
+      });
+
+      expect(updated!.name).toBe("Token Preserve Updated");
+      expect(updated!.renewalTokenIndex).toBe("idx-123");
+      expect(updated!.readOnlyFrom).toBe("2026-08-01T00:00:00Z");
+      expect(updated!.renewalToken).toBe("secret-token");
+    });
+
+    test("updateBuiltSiteRenewalState updates individual fields", async () => {
+      await insertBuiltSite("Renewal Update", "ru.b-cdn.net");
+      const sites = await getAllBuiltSites();
+      const site = sites.find((s) => s.name === "Renewal Update")!;
+
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2027-01-01T00:00:00Z",
+      });
+      const afterFirst = await getAllBuiltSites();
+      const updatedAfterFirst = afterFirst.find((s) => s.id === site.id)!;
+      expect(updatedAfterFirst.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+      expect(updatedAfterFirst.renewalTokenIndex).toBeNull();
+
+      await updateBuiltSiteRenewalState(site.id, {
+        renewalToken: "tok-456",
+        renewalTokenIndex: "idx-456",
+      });
+      const afterSecond = await getBuiltSiteByRenewalTokenIndex("idx-456");
+      expect(afterSecond).not.toBeNull();
+      expect(afterSecond!.renewalTokenIndex).toBe("idx-456");
+      expect(afterSecond!.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
     });
   });
 });

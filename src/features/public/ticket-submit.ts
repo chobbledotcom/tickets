@@ -11,14 +11,17 @@ import { saveEventAnswers } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
-import { isPaidEvent } from "#shared/types.ts";
+import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
+import { type EventWithCount, type Group, isPaidEvent } from "#shared/types.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
 import type { TicketEvent } from "#templates/public.tsx";
+import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 import {
   buildEventAnswerMap,
+  eventsWithQuantity,
   extractContact,
   getTicketFieldsSetting,
   parseCustomPrice,
@@ -42,6 +45,7 @@ import {
   REGISTRATION_CLOSED_SUBMIT_MESSAGE,
   type TicketContextProvider,
   type TicketCtx,
+  type TicketSharedContext,
 } from "./types.ts";
 
 /** Validate fields, terms and event availability. Returns Response on error, or parsed field values. */
@@ -175,7 +179,13 @@ const handlePaidPath = async (
     );
   }
   const eventAnswerIds = computeEventAnswerMap(ctx, info);
-  const intent = { ...contact, date, eventAnswerIds, items };
+  const intent = {
+    ...contact,
+    date,
+    eventAnswerIds,
+    items,
+    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
+  };
   return handlePaymentFlow(request, intent, ctx);
 };
 
@@ -187,6 +197,7 @@ const handleFreePath = async (params: PathParams): Promise<Response> => {
     quantities,
     contact,
     date,
+    ctx.siteToken,
   );
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
@@ -230,6 +241,13 @@ const processSubmission = async (
   }
 
   const selectedEventIds = new Set(quantities.keys());
+  const siteAssignmentCheck = await validateSiteAssignmentConfig(
+    eventsWithQuantity(ctx.events, quantities),
+  );
+  if (!siteAssignmentCheck.ok) {
+    return errorResponse(siteAssignmentCheck.message);
+  }
+
   const activeQuestions = ctx.questions.filter((q) => {
     const eventIds = ctx.questionEventMap.get(q.id);
     return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
@@ -281,7 +299,8 @@ const processSubmission = async (
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   withCsrfForm(
     request,
-    (message) => errorRedirect(`/ticket/${ctx.slugs.join("+")}`, message),
+    (message) =>
+      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, message),
     (form) => {
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       return processSubmission(request, ctx, form);
@@ -323,3 +342,20 @@ export const handleTicketBySlugs = (
   withActiveEvents(slugs, (activeEvents) =>
     handleTicket(request, slugs, activeEvents, getTicketContext),
   );
+
+/** Curried: build capacity-aware TicketEvents and hand off to handleTicket with
+ * shared context. Caller supplies the events; `group` flows into getTicketContext
+ * and `overrides` win over its result (e.g. for renewal's actionUrl/siteToken). */
+export const renderTicketFlow =
+  (
+    request: Request,
+    slugs: string[],
+    options: { group?: Group; overrides?: Partial<TicketSharedContext> } = {},
+  ) =>
+  async (events: EventWithCount[]): Promise<Response> => {
+    const activeEvents = await buildTicketEventsWithGroupCapacity(events);
+    return handleTicket(request, slugs, activeEvents, async (e) => ({
+      ...(await getTicketContext(e, options.group)),
+      ...options.overrides,
+    }));
+  };

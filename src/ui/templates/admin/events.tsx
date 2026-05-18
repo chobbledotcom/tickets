@@ -16,8 +16,10 @@ import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
 import {
+  booleanToCheckbox,
   ConfirmForm,
   CsrfForm,
+  entityToFieldValues,
   type FieldValues,
   Flash,
   renderField,
@@ -47,6 +49,8 @@ import {
   eventFields,
   getAddAttendeeFields,
   imageField,
+  initialSiteMonthsField,
+  monthsPerUnitField,
   slugField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -506,6 +510,12 @@ const EventDetailsTable = ({
             <th>Event Type</th>
             <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
           </tr>
+          {event.months_per_unit > 0 && (
+            <tr>
+              <th>Renewal</th>
+              <td>{event.months_per_unit} month(s) per ticket</td>
+            </tr>
+          )}
           {event.non_transferable && (
             <tr>
               <th>Non-Transferable</th>
@@ -917,33 +927,37 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
   return utcToLocalInput(iso, settings.timezone);
 };
 
-/** Convert bookable_days array to comma-separated display string */
 const formatBookableDays = (days: string[]): string => days.join(",");
 
-const eventToFieldValues = (event: EventWithCount): FieldValues => ({
-  assign_built_site: event.assign_built_site ? "1" : "",
-  bookable_days: formatBookableDays(event.bookable_days),
-  can_pay_more: event.can_pay_more ? "1" : "",
-  closes_at: formatDatetimeLocal(event.closes_at),
-  date: event.date ? formatDatetimeLocal(event.date) : null,
-  description: event.description,
-  event_type: event.event_type,
-  fields: event.fields,
-  group_id: event.group_id,
-  hidden: event.hidden ? "1" : "",
-  location: event.location,
-  max_attendees: event.max_attendees,
-  max_price: toMajorUnits(event.max_price),
-  max_quantity: event.max_quantity,
-  maximum_days_after: event.maximum_days_after,
-  minimum_days_before: event.minimum_days_before,
-  name: event.name,
-  non_transferable: event.non_transferable ? "1" : "",
-  slug: event.slug,
-  thank_you_url: event.thank_you_url,
-  unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
-  webhook_url: event.webhook_url,
-});
+const eventFieldFormatters: Partial<
+  Record<keyof EventWithCount, (e: EventWithCount) => string | null>
+> = {
+  assign_built_site: (e) => booleanToCheckbox(e.assign_built_site),
+  bookable_days: (e) => formatBookableDays(e.bookable_days),
+  can_pay_more: (e) => booleanToCheckbox(e.can_pay_more),
+  closes_at: (e) => formatDatetimeLocal(e.closes_at),
+  date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
+  hidden: (e) => booleanToCheckbox(e.hidden),
+  initial_site_months: (e) =>
+    e.initial_site_months ? String(e.initial_site_months) : "",
+  max_price: (e) => toMajorUnits(e.max_price),
+  months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
+  non_transferable: (e) => booleanToCheckbox(e.non_transferable),
+  purchase_only: (e) => booleanToCheckbox(e.purchase_only),
+  unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+};
+
+const allEventFields: Field[] = [
+  ...eventFields,
+  monthsPerUnitField,
+  initialSiteMonthsField,
+  assignBuiltSiteField,
+];
+
+const eventToFieldValues = (event: EventWithCount): FieldValues =>
+  entityToFieldValues(event, allEventFields, eventFieldFormatters, {
+    slug: event.slug,
+  });
 
 /** Event fields with autofocus on the name field */
 const eventFieldsWithAutofocus: Field[] = pipe(
@@ -962,7 +976,9 @@ export const adminEventNewPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...eventFields,
-    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(builderEnabled
+      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
   return String(
@@ -994,7 +1010,9 @@ export const adminDuplicateEventPage = (
   const storageEnabled = isStorageEnabled();
   const dupFields = [
     ...eventFieldsWithAutofocus,
-    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(builderEnabled
+      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
 
@@ -1027,7 +1045,9 @@ export const adminEventEditPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...eventFields,
-    ...(builderEnabled ? [assignBuiltSiteField] : []),
+    ...(builderEnabled
+      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
   return String(

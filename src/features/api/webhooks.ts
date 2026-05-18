@@ -139,6 +139,18 @@ const validatePaidSession = async (
       response: paymentErrorResponse("Invalid session data"),
     };
   }
+  if (
+    intent.siteTokenIndex &&
+    session.metadata._origin !== getEffectiveDomain()
+  ) {
+    logRedirectError(
+      `Unrecognized renewal payment session origin (session=${sessionId}, origin=${session.metadata._origin})`,
+    );
+    return {
+      ok: false,
+      response: paymentErrorResponse("Payment session not recognized"),
+    };
+  }
   return { data: { intent, session }, ok: true };
 };
 
@@ -390,6 +402,7 @@ const extractIntent = (
     items,
     name: metadata.name,
     phone: metadata.phone,
+    siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
   };
 };
@@ -598,7 +611,7 @@ const processPaymentSession = async (
     options?.storeTokens === false ? [] : [ticketToken],
   );
 
-  await logAndNotifyRegistration(createdEntries);
+  await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
 
   return {
     attendee: firstAttendee.attendee,

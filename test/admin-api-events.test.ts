@@ -887,4 +887,35 @@ describeWithEnv("Admin API - Events", { db: true }, () => {
       }
     });
   });
+
+  describe("months_per_unit and initial_site_months", () => {
+    test("months_per_unit round-trips on save", async () => {
+      const event = await createTestEvent({
+        hidden: true,
+        monthsPerUnit: 3,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const fetched = await getEventWithCount(event.id);
+      expect(fetched?.months_per_unit).toBe(3);
+    });
+
+    test("initial_site_months round-trips on save", async () => {
+      const event = await createTestEvent({
+        assignBuiltSite: true,
+        initialSiteMonths: 6,
+      });
+      const fetched = await getEventWithCount(event.id);
+      expect(fetched?.initial_site_months).toBe(6);
+    });
+
+    test("months_per_unit > 0 with purchase_only=0 is rejected", async () => {
+      await expect(
+        createTestEvent({
+          monthsPerUnit: 1,
+          purchaseOnly: false,
+        }),
+      ).rejects.toThrow();
+    });
+  });
 });

@@ -21,18 +21,35 @@ const apiRequest = (
 
 describeWithEnv(
   "read-only mode",
-  { db: true, env: { READ_ONLY: "true" } },
+  { db: true, env: { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" } },
   () => {
     test("GET /read-only returns the read-only page", async () => {
       const res = await handleRequest(mockRequest("/read-only"));
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toContain("Disabled: This site is in read-only mode.");
+      expect(html).toContain("This site is in read-only mode.");
     });
 
     test("readOnlyPage contains the expected message", () => {
       const html = readOnlyPage();
-      expect(html).toContain("Disabled: This site is in read-only mode.");
+      expect(html).toContain("This site is in read-only mode.");
+    });
+
+    test("readOnlyPage includes renewal link when RENEWAL_URL is set", () => {
+      Deno.env.set("RENEWAL_URL", "https://example.com/renew");
+      try {
+        const html = readOnlyPage();
+        expect(html).toContain("Renew now");
+        expect(html).toContain("https://example.com/renew");
+      } finally {
+        Deno.env.delete("RENEWAL_URL");
+      }
+    });
+
+    test("readOnlyPage omits renewal link when RENEWAL_URL is not set", () => {
+      Deno.env.delete("RENEWAL_URL");
+      const html = readOnlyPage();
+      expect(html).not.toContain("Renew now");
     });
 
     test("POST /api/admin/events returns 403 JSON", async () => {

@@ -269,6 +269,28 @@ export const renderFields = (
     joinStrings,
   )(fields);
 
+export const booleanToCheckbox = (value: boolean): string => (value ? "1" : "");
+
+export const entityToFieldValues = <T,>(
+  entity: T | undefined,
+  fields: Field[],
+  formatters: Partial<Record<keyof T, (e: T) => string | number | null>>,
+  extra?: Record<string, string | number | null>,
+): FieldValues => {
+  const values: FieldValues = {};
+  for (const f of fields) {
+    const formatter = formatters[f.name as keyof T];
+    values[f.name] =
+      entity && formatter
+        ? formatter(entity)
+        : entity
+          ? String((entity as unknown as Record<string, unknown>)[f.name])
+          : "";
+  }
+  if (extra) Object.assign(values, extra);
+  return values;
+};
+
 /**
  * Parse field value to the appropriate type.
  * Empty strings stay as "" for text fields; empty numbers become null.

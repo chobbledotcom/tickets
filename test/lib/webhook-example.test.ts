@@ -82,6 +82,7 @@ describe("webhook example", () => {
       can_pay_more: false,
       id: 1,
       max_attendees: 100,
+      months_per_unit: 0,
       name: EXAMPLE_EVENT.name,
       slug: EXAMPLE_EVENT.slug,
       unit_price: EXAMPLE_EVENT.unit_price,

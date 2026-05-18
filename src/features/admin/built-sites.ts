@@ -3,12 +3,33 @@
  */
 
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
+import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
 import {
-  type BuiltSiteFormInput,
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+import type { RouteParams } from "#routes/router.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
+import {
   builtSitesCrudTable,
   getAllBuiltSites,
 } from "#shared/db/built-sites.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
+import {
+  addMonthsToRenewalDeadline,
+  getQualifyingTierEvents,
+  pickTierEvent,
+  provisionSiteRenewal,
+  renewalUrlFor,
+  rotateRenewalToken,
+  syncReadOnlyFrom,
+} from "#shared/site-assignment.ts";
 import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteEditPage,
@@ -49,5 +70,237 @@ const crud = createOwnerCrudHandlers({
   singular: "Built site",
 });
 
+const editPath = (id: number): string => `/admin/built-sites/${id}/edit`;
+const editSuccess = (id: number, message: string): Response =>
+  redirect(editPath(id), message, true);
+const editError = (id: number, message: string): Response =>
+  errorRedirect(editPath(id), message);
+
+const editPushResult = (
+  id: number,
+  result: { ok: true } | { ok: false; error: string },
+  success: string,
+  failure: string,
+): Response =>
+  result.ok
+    ? editSuccess(id, success)
+    : editError(id, `${failure}: ${result.error}`);
+
+const editPushOk = (
+  id: number,
+  pushOk: boolean,
+  success: string,
+  failure: string,
+): Response => (pushOk ? editSuccess(id, success) : editError(id, failure));
+
+/** Max months any single bump/provision can request — guards against form tampering. */
+const MAX_RENEWAL_MONTHS = 120;
+
+const readClampedMonths = (form: {
+  getString: (key: string) => string;
+}): number => {
+  const months = Number.parseInt(form.getString("months"), 10);
+  if (!Number.isFinite(months) || months < 1) return 1;
+  return Math.min(months, MAX_RENEWAL_MONTHS);
+};
+
+const parseDeadlineDate = (dateStr: string): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const [year, month, day] = dateStr.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const date = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${dateStr}T23:59:59Z`;
+};
+
+type AdminForm = { getString: (key: string) => string };
+
+type OwnerPostHandler = (
+  site: BuiltSite,
+  form: AdminForm,
+  id: number,
+) => Promise<Response>;
+
+/** Owner-gated wrapper that also resolves `:id` → site or returns 404. */
+const withOwnerAndSite = (
+  request: Request,
+  params: RouteParams,
+  handler: (
+    found: { id: number; site: BuiltSite },
+    session: import("#shared/types.ts").AdminSession,
+  ) => Promise<Response>,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const id = Number(params.id);
+    const site = await builtSitesCrudTable.findById(id);
+    return site ? handler({ id, site }, session) : notFoundResponse();
+  });
+
+/** Owner-gated POST handler wrapper: authenticates, parses CSRF. */
+const ownerPost =
+  (handler: OwnerPostHandler) =>
+  (request: Request, params: RouteParams): Promise<Response> =>
+    withOwnerAndSite(request, params, async ({ id, site }) => {
+      const csrfResult = await requireCsrfForm(request, () =>
+        htmlResponse("CSRF token invalid", 403),
+      );
+      if (!csrfResult.ok) return csrfResult.response;
+      return handler(site, csrfResult.form, id);
+    });
+
+/** GET /admin/built-sites/:id/edit */
+const handleEditGet = (request: Request, params: RouteParams) =>
+  withOwnerAndSite(request, params, ({ site }, session) => {
+    const flash = applyFlash(request);
+    return Promise.resolve(
+      htmlResponse(
+        adminBuiltSiteEditPage(site, session, flash.error, flash.success),
+      ),
+    );
+  });
+
+/** POST /admin/built-sites/:id/rotate-renewal-token */
+const handleRotateToken = ownerPost(async (site, _form, id) => {
+  if (!isProvisioned(site)) {
+    return editError(id, "Renewal is not provisioned for this site");
+  }
+  const result = await rotateRenewalToken(
+    site,
+    `Rotate token push failed for site ${id}`,
+  );
+  if (result.pushOk) {
+    await logActivity(`Rotated renewal token for '${site.name}'`);
+  }
+  return editPushOk(
+    id,
+    result.pushOk,
+    "Renewal token rotated",
+    "Renewal token could not be pushed to the site",
+  );
+});
+
+/** POST /admin/built-sites/:id/bump-deadline */
+const handleBumpDeadline = ownerPost(async (site, form, id) => {
+  const months = readClampedMonths(form);
+  const newIso = addMonthsToRenewalDeadline(site, months);
+  const result = await syncReadOnlyFrom(site, newIso);
+  if (result.ok) {
+    await logActivity(
+      `Admin bumped '${site.name}' deadline by ${months} month(s)`,
+    );
+  }
+  return editPushResult(
+    id,
+    result,
+    "Deadline bumped",
+    "Deadline could not be pushed to the site",
+  );
+});
+
+/** POST /admin/built-sites/:id/override-deadline */
+const handleOverrideDeadline = ownerPost(async (site, form, id) => {
+  const dateStr = form.getString("date");
+  if (!dateStr) return editError(id, "Choose a deadline date");
+  const cutoffIso = parseDeadlineDate(dateStr);
+  if (!cutoffIso) return editError(id, "Choose a valid deadline date");
+  const result = await syncReadOnlyFrom(site, cutoffIso);
+  if (result.ok) {
+    await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
+  }
+  return editPushResult(
+    id,
+    result,
+    "Deadline updated",
+    "Deadline could not be pushed to the site",
+  );
+});
+
+/** POST /admin/built-sites/:id/re-sync-deadline */
+const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
+  if (!site.readOnlyFrom) return editError(id, "No deadline to re-sync");
+  const renewalUrl =
+    isProvisioned(site) && site.renewalToken
+      ? renewalUrlFor(site.renewalToken)
+      : undefined;
+  const result = await syncReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
+  if (result.ok) {
+    await logActivity(`Admin re-synced deadline for '${site.name}'`);
+  }
+  return editPushResult(
+    id,
+    result,
+    "Deadline re-synced",
+    "Deadline could not be pushed to the site",
+  );
+});
+
+/** POST /admin/built-sites/:id/provision-renewal
+ *
+ * Gates on the existence of at least one qualifying renewal tier event so an
+ * admin doesn't generate a token that would dead-end at an empty /renew picker.
+ * (The customer picks the actual tier at renew time.) */
+const handleProvisionRenewal = ownerPost(async (site, form, id) => {
+  if (isProvisioned(site)) {
+    return editError(id, "Renewal is already provisioned for this site");
+  }
+  const tier = await pickTierEvent();
+  if (!tier) {
+    return editError(
+      id,
+      "Create a qualifying renewal tier event before provisioning",
+    );
+  }
+  const months = readClampedMonths(form);
+  const result = await provisionSiteRenewal(
+    site,
+    months,
+    `Provision push failed for site ${id}`,
+  );
+  if (result.pushOk) {
+    await logActivity(
+      `Admin provisioned renewals for '${site.name}' (${months}mo)`,
+    );
+  }
+  return editPushOk(
+    id,
+    result.pushOk,
+    "Renewal provisioned",
+    "Renewal could not be pushed to the site",
+  );
+});
+
+/** GET /admin/built-sites — overrides the CRUD list so we can render the
+ * renewal-tier summary alongside the sites table. */
+const handleBuiltSitesListGet = (request: Request) =>
+  requireOwnerOr(request, async (session) => {
+    applyFlash(request);
+    const [sites, tiers] = await Promise.all([
+      getAllBuiltSites(),
+      getQualifyingTierEvents(),
+    ]);
+    return htmlResponse(
+      adminBuiltSitesPage(sites, session, getFlash().success, tiers),
+    );
+  });
+
 /** Built site routes */
-export const builtSitesRoutes = crud.routes;
+export const builtSitesRoutes = {
+  ...crud.routes,
+  "GET /admin/built-sites": handleBuiltSitesListGet,
+  // Override the CRUD-provided edit GET to pick up flash messages.
+  "GET /admin/built-sites/:id/edit": handleEditGet,
+  "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
+  "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
+  "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
+  "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
+  "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+};

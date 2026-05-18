@@ -2,7 +2,13 @@
  * Admin holiday management page templates
  */
 
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import {
+  ConfirmForm,
+  CsrfForm,
+  entityToFieldValues,
+  Flash,
+  renderFields,
+} from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -63,11 +69,8 @@ export const adminHolidaysPage = (
  */
 export const holidayToFieldValues = (
   holiday?: Holiday,
-): Record<string, string | number | null> => ({
-  end_date: holiday?.end_date ?? "",
-  name: holiday?.name ?? "",
-  start_date: holiday?.start_date ?? "",
-});
+): Record<string, string | number | null> =>
+  entityToFieldValues(holiday, holidayFields, {});
 
 /**
  * Admin holiday create page

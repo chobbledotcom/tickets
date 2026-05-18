@@ -42,6 +42,9 @@ const buildCreateEventForm = (
 ): Record<string, string> => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
+  const initialSiteMonths = input.assignBuiltSite
+    ? (input.initialSiteMonths ?? 1)
+    : (input.initialSiteMonths ?? 0);
   return {
     assign_built_site: bool(input.assignBuiltSite),
     bookable_days: input.bookableDays
@@ -57,12 +60,14 @@ const buildCreateEventForm = (
     fields: input.fields ?? "email",
     group_id: String(input.groupId ?? 0),
     hidden: bool(input.hidden),
+    initial_site_months: String(initialSiteMonths),
     location: input.location ?? "",
     max_attendees: String(input.maxAttendees),
     max_price: toMajorUnits(input.maxPrice),
     max_quantity: String(input.maxQuantity ?? 1),
     maximum_days_after: optionalNumber(input.maximumDaysAfter),
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
+    months_per_unit: String(input.monthsPerUnit ?? 0),
     name: input.name,
     non_transferable: bool(input.nonTransferable),
     purchase_only: bool(input.purchaseOnly),
@@ -90,21 +95,34 @@ const buildUpdateBoolFields = (
 const buildUpdateNumericFields = (
   updates: Partial<EventInput>,
   existing: EventWithCount,
-): Record<string, string> => ({
-  group_id: String(pickField(updates.groupId, existing.group_id)),
-  max_attendees: String(
-    pickField(updates.maxAttendees, existing.max_attendees),
-  ),
-  max_price: toMajorUnits(pickField(updates.maxPrice, existing.max_price)),
-  max_quantity: String(pickField(updates.maxQuantity, existing.max_quantity)),
-  maximum_days_after: String(
-    pickField(updates.maximumDaysAfter, existing.maximum_days_after),
-  ),
-  minimum_days_before: String(
-    pickField(updates.minimumDaysBefore, existing.minimum_days_before),
-  ),
-  unit_price: formatPrice(updates.unitPrice, existing.unit_price),
-});
+): Record<string, string> => {
+  const assignsBuiltSite = pickField(
+    updates.assignBuiltSite,
+    existing.assign_built_site,
+  );
+  const initialSiteMonths = assignsBuiltSite
+    ? pickField(updates.initialSiteMonths, existing.initial_site_months || 1)
+    : pickField(updates.initialSiteMonths, existing.initial_site_months);
+  return {
+    group_id: String(pickField(updates.groupId, existing.group_id)),
+    initial_site_months: String(initialSiteMonths),
+    max_attendees: String(
+      pickField(updates.maxAttendees, existing.max_attendees),
+    ),
+    max_price: toMajorUnits(pickField(updates.maxPrice, existing.max_price)),
+    max_quantity: String(pickField(updates.maxQuantity, existing.max_quantity)),
+    maximum_days_after: String(
+      pickField(updates.maximumDaysAfter, existing.maximum_days_after),
+    ),
+    minimum_days_before: String(
+      pickField(updates.minimumDaysBefore, existing.minimum_days_before),
+    ),
+    months_per_unit: String(
+      pickField(updates.monthsPerUnit, existing.months_per_unit),
+    ),
+    unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+  };
+};
 
 const buildUpdateStringFields = (
   updates: Partial<EventInput>,
@@ -569,6 +587,30 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
     async () => {},
     "delete holiday",
   );
+};
+
+/**
+ * Provision a test built site for renewals: writes a fresh token + HMAC index
+ * directly via updateBuiltSiteRenewalState. Skips the admin route intentionally
+ * — admin-route coverage lives in test/admin-built-sites-actions.test.ts.
+ */
+export const provisionTestBuiltSite = async (
+  siteId: number,
+  opts: { readOnlyFrom?: string } = {},
+): Promise<{ token: string; tokenIndex: string }> => {
+  const { generateRenewalToken } = await import("#shared/site-assignment.ts");
+  const { updateBuiltSiteRenewalState } = await import(
+    "#shared/db/built-sites.ts"
+  );
+  const { index, token } = await generateRenewalToken();
+  await updateBuiltSiteRenewalState(siteId, {
+    renewalToken: token,
+    renewalTokenIndex: index,
+    ...(opts.readOnlyFrom !== undefined
+      ? { readOnlyFrom: opts.readOnlyFrom }
+      : {}),
+  });
+  return { token, tokenIndex: index };
 };
 
 export const createTestBuiltSite = (

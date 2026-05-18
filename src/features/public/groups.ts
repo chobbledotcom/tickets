@@ -10,17 +10,14 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortEvents } from "#shared/sort-events.ts";
-import type { Group } from "#shared/types.ts";
-import type { TicketEvent } from "#templates/public.tsx";
-import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
-import { getTicketContext } from "./ticket-payment.ts";
-import { handleTicket } from "./ticket-submit.ts";
+import type { EventWithCount, Group } from "#shared/types.ts";
+import { renderTicketFlow } from "./ticket-submit.ts";
 import type { AsyncHandler } from "./types.ts";
 
 /** Load group by slug and its active events, return 404 if empty */
 const withActiveGroupEventsBySlug = async (
   slug: string,
-  handler: AsyncHandler<[Group, TicketEvent[]]>,
+  handler: AsyncHandler<[Group, EventWithCount[]]>,
 ): Promise<Response> => {
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);
@@ -30,12 +27,8 @@ const withActiveGroupEventsBySlug = async (
     getActiveEventsByGroupId(group.id),
     getActiveHolidays(),
   ]);
-  const activeEvents = await buildTicketEventsWithGroupCapacity(
-    sortEvents(events, holidays),
-  );
-  return activeEvents.length === 0
-    ? notFoundResponse()
-    : handler(group, activeEvents);
+  const sorted = sortEvents(events, holidays);
+  return sorted.length === 0 ? notFoundResponse() : handler(group, sorted);
 };
 
 /** Handle group ticket page by slug */
@@ -43,8 +36,6 @@ export const handleGroupTicketBySlug = (
   request: Request,
   slug: string,
 ): Promise<Response> =>
-  withActiveGroupEventsBySlug(slug, (group, activeEvents) =>
-    handleTicket(request, [slug], activeEvents, (events) =>
-      getTicketContext(events, group),
-    ),
+  withActiveGroupEventsBySlug(slug, (group, events) =>
+    renderTicketFlow(request, [slug], { group })(events),
   );

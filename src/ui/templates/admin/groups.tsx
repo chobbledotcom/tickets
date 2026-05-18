@@ -11,7 +11,14 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import {
+  booleanToCheckbox,
+  ConfirmForm,
+  CsrfForm,
+  entityToFieldValues,
+  Flash,
+  renderFields,
+} from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
@@ -92,22 +99,11 @@ export const adminGroupsPage = (
  */
 export const groupToFieldValues = (
   group?: Group,
-): Record<string, string | number | null> => {
-  const name = group?.name ?? "";
-  const slug = group?.slug ?? "";
-  const description = group?.description ?? "";
-  const terms = group?.terms_and_conditions ?? "";
-  const max_attendees = group?.max_attendees || null;
-  const hidden = group?.hidden ? "1" : "";
-  return {
-    description,
-    hidden,
-    max_attendees,
-    name,
-    slug,
-    terms_and_conditions: terms,
-  };
-};
+): Record<string, string | number | null> =>
+  entityToFieldValues(group, groupFields, {
+    hidden: (g) => booleanToCheckbox(g.hidden),
+    max_attendees: (g) => g.max_attendees || null,
+  });
 
 /**
  * Admin group create page

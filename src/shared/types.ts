@@ -117,6 +117,8 @@ export interface Event {
   thank_you_url: string;
   unit_price: number;
   webhook_url: string;
+  months_per_unit: number;
+  initial_site_months: number;
   duration_days: number;
 }
 

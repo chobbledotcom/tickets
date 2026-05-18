@@ -20,5 +20,10 @@ describe("test-overrides", () => {
       setSkipLoginDelay(false);
       expect(getSkipLoginDelay()).toBe(false);
     });
+
+    test("returns false from env-based initializer when TEST_SKIP_LOGIN_DELAY is not set", () => {
+      setSkipLoginDelay(null);
+      expect(getSkipLoginDelay()).toBe(false);
+    });
   });
 });
