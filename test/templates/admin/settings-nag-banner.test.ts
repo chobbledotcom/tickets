@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { describeWithEnv, withSetting } from "#test-utils";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
+import { describeWithEnv, withSetting } from "#test-utils";
 
 describeWithEnv(
   "SettingsNagBanner",
-  { env: { BUNNY_API_KEY: "k", BUNNY_SCRIPT_ID: "s", BUNNY_DNS_ZONE_ID: "z" } },
+  { env: { BUNNY_API_KEY: "k", BUNNY_DNS_ZONE_ID: "z", BUNNY_SCRIPT_ID: "s" } },
   () => {
     test("returns null when no nag items are pending", async () => {
       await withSetting(
         {
-          payment_provider_setting: "stripe",
+          bunny_subdomain: "",
           business_email: "a@b.com",
           custom_domain: "example.com",
-          bunny_subdomain: "",
+          payment_provider_setting: "stripe",
         },
         () => {
           expect(SettingsNagBanner()).toBeNull();
@@ -24,10 +24,10 @@ describeWithEnv(
     test("renders an item per pending nag with deep links", async () => {
       await withSetting(
         {
-          payment_provider_setting: null,
+          bunny_subdomain: "",
           business_email: "",
           custom_domain: "",
-          bunny_subdomain: "",
+          payment_provider_setting: null,
         },
         () => {
           const html = String(SettingsNagBanner());
