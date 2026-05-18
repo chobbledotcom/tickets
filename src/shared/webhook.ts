@@ -4,7 +4,6 @@
  */
 
 import { compact, unique } from "#fp";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -17,6 +16,7 @@ import { addPendingWork } from "#shared/pending-work.ts";
 import {
   addMonthsToRenewalDeadline,
   assignAndNotifyBuiltSites,
+  isQualifyingTierEvent,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
@@ -164,20 +164,35 @@ export const sendRegistrationWebhooks = async (
 
 /**
  * Apply renewal deadline bumps for a completed payment.
- * If siteToken is present, look up the built site and bump its READ_ONLY_FROM.
+ * If siteTokenIndex is present, look up the built site and bump its READ_ONLY_FROM.
+ *
+ * The index is the HMAC of the plain renewal token. Free reservations compute
+ * it from `ctx.siteToken`; paid checkouts read it back from session metadata
+ * (where the provider only ever sees the hashed form).
  */
 export const applyRenewalsForEntries = async (
   entries: EmailEntry[],
-  siteToken: string | undefined,
+  siteTokenIndex: string | undefined,
 ): Promise<void> => {
-  if (!siteToken) return;
+  if (!siteTokenIndex) return;
 
-  const tokenIndex = await hmacHash(siteToken);
-  const site = await getBuiltSiteByRenewalTokenIndex(tokenIndex);
+  const invalidEntry = entries.find(
+    ({ event }) => !isQualifyingTierEvent(event),
+  );
+  if (invalidEntry) {
+    logError({
+      code: ErrorCode.DATA_INVALID,
+      detail: `Renewal rejected: event ${invalidEntry.event.id} is not an active hidden purchase-only renewal tier`,
+      eventId: invalidEntry.event.id,
+    });
+    return;
+  }
+
+  const site = await getBuiltSiteByRenewalTokenIndex(siteTokenIndex);
   if (!site) {
     logError({
       code: ErrorCode.DATA_INVALID,
-      detail: `Renewal site not found for token index ${tokenIndex.slice(
+      detail: `Renewal site not found for token index ${siteTokenIndex.slice(
         0,
         8,
       )}...`,
@@ -224,7 +239,7 @@ export const applyRenewalsForEntries = async (
  */
 export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
-  siteToken?: string,
+  siteTokenIndex?: string,
 ): Promise<void> => {
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
@@ -233,5 +248,5 @@ export const logAndNotifyRegistration = async (
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
   addPendingWork(assignAndNotifyBuiltSites(entries));
-  addPendingWork(applyRenewalsForEntries(entries, siteToken));
+  addPendingWork(applyRenewalsForEntries(entries, siteTokenIndex));
 };

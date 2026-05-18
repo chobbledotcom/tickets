@@ -5,6 +5,7 @@
 
 import { map } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
 import type {
@@ -107,13 +108,19 @@ export const singleEventAnswerIds = (
 
 /**
  * Build checkout metadata from a CheckoutIntent (converts items to compact form).
+ *
+ * Hashes the plain `siteToken` into `site_token_index` before storing so the
+ * provider never sees a value that can be used at /renew.
  */
-export const buildItemsMetadata = (
+export const buildItemsMetadata = async (
   intent: CheckoutIntent,
-): Record<string, string> =>
+): Promise<Record<string, string>> =>
   buildMetadata({
     ...intent,
     items: toBookingItems(intent.items),
+    siteTokenIndex: intent.siteToken
+      ? await hmacHash(intent.siteToken)
+      : undefined,
   });
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
@@ -125,7 +132,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "address"
       | "special_instructions"
       | "eventAnswerIds"
-      | "siteToken"
+      | "siteTokenIndex"
     >
   >;
 
@@ -141,7 +148,7 @@ export const buildMetadata = (
   name: intent.name,
   ...optionalFields(intent),
   ...eventAnswerIdsField(intent.eventAnswerIds),
-  ...(intent.siteToken ? { site_token: intent.siteToken } : {}),
+  ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
 });
 
 /**
@@ -238,6 +245,6 @@ export const extractSessionMetadata = (
   items: metadata.items || "",
   name: metadata.name,
   phone: metadata.phone || "",
-  site_token: metadata.site_token || "",
+  site_token_index: metadata.site_token_index || "",
   special_instructions: metadata.special_instructions || "",
 });

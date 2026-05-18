@@ -2,15 +2,65 @@
  * Admin built sites management page templates
  */
 
+import { formatCurrency } from "#shared/currency.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+
+/** Renewal tier summary row rendered beneath the built-sites table. */
+const RenewalTierSummary = ({
+  tiers,
+}: {
+  tiers: EventWithCount[];
+}): JSX.Element => {
+  if (tiers.length === 0) {
+    return (
+      <section>
+        <h2>Renewal tiers</h2>
+        <div class="error" role="alert">
+          No renewal tier event is configured. Customers won't be able to renew
+          their sites until you create one (a purchase-only, hidden event with{" "}
+          <em>Months Per Unit</em> &gt; 0).
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section>
+      <h2>Renewal tiers</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Tier</th>
+              <th>Months per unit</th>
+              <th>Unit price</th>
+              <th>Units sold</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tiers.map((tier) => (
+              <tr>
+                <td>
+                  <a href={`/admin/event/${tier.id}`}>{tier.name}</a>
+                </td>
+                <td>{tier.months_per_unit}</td>
+                <td>{formatCurrency(tier.unit_price)}</td>
+                <td>{tier.attendee_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+};
 
 /**
  * Admin built sites list page
@@ -19,6 +69,7 @@ export const adminBuiltSitesPage = (
   sites: BuiltSite[],
   session: AdminSession,
   successMessage?: string,
+  renewalTiers: EventWithCount[] = [],
 ): string => {
   const scriptIds = sites
     .filter((site) => site.bunnyScriptId)
@@ -79,6 +130,7 @@ export const adminBuiltSitesPage = (
           <p>{scriptIds}</p>
         </div>
       )}
+      <RenewalTierSummary tiers={renewalTiers} />
     </Layout>,
   );
 };

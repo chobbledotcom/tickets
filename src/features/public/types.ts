@@ -62,11 +62,14 @@ export const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
 export const parseSlugs = (slug: string): string[] =>
   slug.split("+").filter((s) => s.length > 0);
 
+/** Set noindex signal header on response; middleware converts it to X-Robots-Tag. */
+export const applyNoindex = (response: Response): Response => {
+  response.headers.set("x-robots-noindex", "true");
+  return response;
+};
+
 /** Set noindex signal header on response for hidden events */
 export const applyHiddenNoindex = (
   response: Response,
   hidden: boolean,
-): Response => {
-  if (hidden) response.headers.set("x-robots-noindex", "true");
-  return response;
-};
+): Response => (hidden ? applyNoindex(response) : response);

@@ -36,8 +36,9 @@ describeWithEnv(
         });
 
         const csrf = extractCsrfToken(
-          await (await handleRequest(mockRequest(`/ticket/${event.slug}`)))
-            .text(),
+          await (
+            await handleRequest(mockRequest(`/ticket/${event.slug}`))
+          ).text(),
         )!;
 
         const mockCreate = stub(

@@ -41,8 +41,9 @@ export type BookingIntent = ContactInfo & {
   items: BookingItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
-  /** Renewal site token: set when this payment is for a site renewal */
-  siteToken?: string;
+  /** HMAC index of the site renewal token. The plain token never reaches the
+   * payment provider, so a compromised provider cannot use it at /renew. */
+  siteTokenIndex?: string;
 };
 
 /** Registration intent for checkout (one or more events) */
@@ -51,7 +52,8 @@ export type CheckoutIntent = ContactInfo & {
   items: CheckoutItem[];
   /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
   eventAnswerIds?: Record<string, number[]>;
-  /** Renewal site token: set when this checkout is for a site renewal */
+  /** Plain site renewal token from /renew. Hashed before storage in provider
+   * metadata; never stored at the provider in plaintext. */
   siteToken?: string;
 };
 
@@ -89,7 +91,7 @@ export type SessionMetadata = {
   items: string;
   date: string;
   answer_ids: string;
-  site_token: string;
+  site_token_index: string;
 };
 
 /** Valid payment status values */

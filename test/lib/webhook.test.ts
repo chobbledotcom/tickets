@@ -536,10 +536,16 @@ describe("webhook", () => {
 
       try {
         const nonRenewalEntry: EmailEntry = makeEntry(
-          { months_per_unit: 0, unit_price: 100 },
+          {
+            active: true,
+            hidden: false,
+            months_per_unit: 0,
+            purchase_only: false,
+            unit_price: 100,
+          },
           { quantity: 1 },
         );
-        await applyRenewalsForEntries([nonRenewalEntry], token);
+        await applyRenewalsForEntries([nonRenewalEntry], tokenIndex);
         expect(secretStub.calls.length).toBe(0);
       } finally {
         secretStub.restore();

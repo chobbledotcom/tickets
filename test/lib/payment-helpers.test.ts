@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
+  buildItemsMetadata,
   buildMetadata,
   createWithClient,
   enforceMetadataLimits,
@@ -14,7 +16,12 @@ import {
   toBookingItems,
   toCheckoutResult,
 } from "#shared/payment-helpers.ts";
-import { isPaymentStatus, type SessionMetadata } from "#shared/payments.ts";
+import {
+  type CheckoutIntent,
+  isPaymentStatus,
+  type SessionMetadata,
+} from "#shared/payments.ts";
+import { describeWithEnv } from "#test-utils";
 
 describe("payment-helpers", () => {
   describe("metadata round-trip: build → validate → extract", () => {
@@ -194,44 +201,44 @@ describe("payment-helpers", () => {
       expect("answer_ids" in metadata).toBe(false);
     });
 
-    test("buildMetadata includes site_token when present", () => {
+    test("buildMetadata includes site_token_index when present", () => {
       const metadata = buildMetadata({
         date: null,
         email: "renew@example.com",
         items: [{ e: 5, p: 1500, q: 3 }],
         name: "Renewer",
-        siteToken: "abc123token",
+        siteTokenIndex: "hashed-index-value",
       });
-      expect(metadata.site_token).toBe("abc123token");
+      expect(metadata.site_token_index).toBe("hashed-index-value");
     });
 
-    test("buildMetadata omits site_token when absent", () => {
+    test("buildMetadata omits site_token_index when absent", () => {
       const metadata = buildMetadata({
         date: null,
         email: "x@x.com",
         items: [{ e: 1, p: 0, q: 1 }],
         name: "X",
       });
-      expect("site_token" in metadata).toBe(false);
+      expect("site_token_index" in metadata).toBe(false);
     });
 
-    test("extractSessionMetadata surfaces site_token when present", () => {
+    test("extractSessionMetadata surfaces site_token_index when present", () => {
       const extracted = extractSessionMetadata({
         email: "renew@example.com",
         items: "[]",
         name: "Renewer",
-        site_token: "abc123token",
+        site_token_index: "hashed-index-value",
       } as SessionMetadata);
-      expect(extracted.site_token).toBe("abc123token");
+      expect(extracted.site_token_index).toBe("hashed-index-value");
     });
 
-    test("extractSessionMetadata defaults site_token to empty string", () => {
+    test("extractSessionMetadata defaults site_token_index to empty string", () => {
       const extracted = extractSessionMetadata({
         email: "x@x.com",
         items: "[]",
         name: "X",
       } as SessionMetadata);
-      expect(extracted.site_token).toBe("");
+      expect(extracted.site_token_index).toBe("");
     });
 
     test("toBookingItems produces compact items with total price", () => {
@@ -491,5 +498,37 @@ describe("payment-helpers", () => {
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
+  });
+});
+
+// hmacHash needs the encryption key configured, which describeWithEnv handles.
+describeWithEnv("buildItemsMetadata site-token hashing", {}, () => {
+  const baseIntent = (siteToken?: string): CheckoutIntent => ({
+    address: "",
+    date: null,
+    email: "renew@example.com",
+    items: [{ eventId: 1, name: "Tier", quantity: 1, slug: "t", unitPrice: 0 }],
+    name: "Renewer",
+    phone: "",
+    special_instructions: "",
+    ...(siteToken ? { siteToken } : {}),
+  });
+
+  test("emits site_token_index as the HMAC of the plain token", async () => {
+    const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
+    const expected = await hmacHash("plain-token-xyz");
+    expect(metadata.site_token_index).toBe(expected);
+  });
+
+  test("plain token never appears in metadata", async () => {
+    const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
+    for (const value of Object.values(metadata)) {
+      expect(value.includes("plain-token-xyz")).toBe(false);
+    }
+  });
+
+  test("omits site_token_index when siteToken is absent", async () => {
+    const metadata = await buildItemsMetadata(baseIntent());
+    expect("site_token_index" in metadata).toBe(false);
   });
 });

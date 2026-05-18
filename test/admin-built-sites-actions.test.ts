@@ -35,10 +35,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
   let secretStub: SecretStub;
 
   beforeEach(() => {
-    secretStub = stub(
-      bunnyCdnApi,
-      "setEdgeScriptSecret",
-      () => Promise.resolve({ ok: true as const }),
+    secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.resolve({ ok: true as const }),
     );
   });
 
@@ -169,10 +167,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Bump No Token",
       });
       secretStub.restore();
-      secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -239,11 +235,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Bump CDN Fail",
       });
       secretStub.restore();
-      const failStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () =>
-          Promise.resolve({ error: "edge push failed", ok: false as const }),
+      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
       try {
         const { response } = await adminFormPost(
@@ -378,10 +371,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -409,10 +400,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
 
       const { response } = await adminFormPost(
@@ -534,11 +523,8 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       });
 
       secretStub.restore();
-      const failStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () =>
-          Promise.resolve({ error: "edge push failed", ok: false as const }),
+      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
 
       try {

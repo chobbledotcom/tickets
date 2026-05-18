@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { builderApi, type BuildSiteInput } from "#shared/builder.ts";
+import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
@@ -43,17 +43,13 @@ const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
 };
 
 const stubBuildSiteFailure = () =>
-  stub(
-    builderApi,
-    "buildSite",
-    () => Promise.resolve({ error: "build failed", ok: false as const }),
+  stub(builderApi, "buildSite", () =>
+    Promise.resolve({ error: "build failed", ok: false as const }),
   );
 
 const stubEdgeSecretSuccess = () =>
-  stub(
-    bunnyCdnApi,
-    "setEdgeScriptSecret",
-    () => Promise.resolve({ ok: true as const }),
+  stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+    Promise.resolve({ ok: true as const }),
   );
 
 /** Build an entry with assign_built_site for testing */
@@ -96,10 +92,8 @@ describeWithEnv(
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
 
     beforeEach(async () => {
-      fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response()),
+      fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
       );
       secretStub = stubEdgeSecretSuccess();
       setHostEmailConfigForTest({

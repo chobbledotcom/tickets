@@ -107,6 +107,34 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
       const { response } = await adminGet("/admin/built-sites");
       await expectHtmlResponse(response, 200);
     });
+
+    test("warns when no qualifying renewal tier exists", async () => {
+      const { response } = await adminGet("/admin/built-sites");
+      const body = await response.text();
+      expect(body).toContain("No renewal tier event is configured");
+    });
+
+    test("lists qualifying tiers with units sold from real attendee data", async () => {
+      const { createTestEvent, bookAttendee } = await import("#test-utils");
+      const tier = await createTestEvent({
+        hidden: true,
+        maxAttendees: 100,
+        monthsPerUnit: 1,
+        name: "Listed Monthly Tier",
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      // Two bookings on this tier, total quantity = 5.
+      await bookAttendee(tier, { quantity: 2 });
+      await bookAttendee(tier, { quantity: 3 });
+
+      const { response } = await adminGet("/admin/built-sites");
+      const body = await response.text();
+      expect(body).toContain("Listed Monthly Tier");
+      // Sum of quantities, not the booking count.
+      expect(body).toContain(">5<");
+      expect(body).not.toContain("No renewal tier event is configured");
+    });
   });
 
   describe("GET /admin/built-sites/new", () => {

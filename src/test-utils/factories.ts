@@ -153,7 +153,7 @@ export const webhookMeta = (
   email: "",
   items: "",
   phone: "",
-  site_token: "",
+  site_token_index: "",
   special_instructions: "",
   ...metadata,
 });
@@ -171,10 +171,12 @@ export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 export const makeTestEvent = (
   overrides: Partial<EmailEvent> = {},
 ): EmailEvent => ({
+  active: true,
   assign_built_site: false,
   attendee_count: 10,
   can_pay_more: false,
   date: "",
+  hidden: false,
   id: 1,
   initial_site_months: 0,
   location: "",

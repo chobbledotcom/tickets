@@ -19,7 +19,9 @@ import type { WebhookAttendee, WebhookEvent } from "#shared/webhook.ts";
 
 /** Event data needed for registration pipeline (extends webhook event with display + assignment fields) */
 export type EmailEvent = WebhookEvent & {
+  active: boolean;
   date: string;
+  hidden: boolean;
   location: string;
   purchase_only: boolean;
   assign_built_site: boolean;

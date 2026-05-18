@@ -18,10 +18,12 @@ import {
   builtSitesCrudTable,
   getAllBuiltSites,
 } from "#shared/db/built-sites.ts";
+import { getFlash } from "#shared/flash-context.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   addMonthsToRenewalDeadline,
+  getQualifyingTierEvents,
   pickTierEvent,
   provisionSiteRenewal,
   renewalUrlFor,
@@ -148,9 +150,8 @@ const ownerPost =
   (handler: OwnerPostHandler) =>
   (request: Request, params: RouteParams): Promise<Response> =>
     withOwnerAndSite(request, params, async ({ id, site }) => {
-      const csrfResult = await requireCsrfForm(
-        request,
-        () => htmlResponse("CSRF token invalid", 403),
+      const csrfResult = await requireCsrfForm(request, () =>
+        htmlResponse("CSRF token invalid", 403),
       );
       if (!csrfResult.ok) return csrfResult.response;
       return handler(site, csrfResult.form, id);
@@ -226,9 +227,10 @@ const handleOverrideDeadline = ownerPost(async (site, form, id) => {
 /** POST /admin/built-sites/:id/re-sync-deadline */
 const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
   if (!site.readOnlyFrom) return editError(id, "No deadline to re-sync");
-  const renewalUrl = isProvisioned(site) && site.renewalToken
-    ? renewalUrlFor(site.renewalToken)
-    : undefined;
+  const renewalUrl =
+    isProvisioned(site) && site.renewalToken
+      ? renewalUrlFor(site.renewalToken)
+      : undefined;
   const result = await syncReadOnlyFrom(site, site.readOnlyFrom, renewalUrl);
   if (result.ok) {
     await logActivity(`Admin re-synced deadline for '${site.name}'`);
@@ -276,9 +278,24 @@ const handleProvisionRenewal = ownerPost(async (site, form, id) => {
   );
 });
 
+/** GET /admin/built-sites — overrides the CRUD list so we can render the
+ * renewal-tier summary alongside the sites table. */
+const handleBuiltSitesListGet = (request: Request) =>
+  requireOwnerOr(request, async (session) => {
+    applyFlash(request);
+    const [sites, tiers] = await Promise.all([
+      getAllBuiltSites(),
+      getQualifyingTierEvents(),
+    ]);
+    return htmlResponse(
+      adminBuiltSitesPage(sites, session, getFlash().success, tiers),
+    );
+  });
+
 /** Built site routes */
 export const builtSitesRoutes = {
   ...crud.routes,
+  "GET /admin/built-sites": handleBuiltSitesListGet,
   // Override the CRUD-provided edit GET to pick up flash messages.
   "GET /admin/built-sites/:id/edit": handleEditGet,
   "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,

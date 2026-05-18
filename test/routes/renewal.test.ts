@@ -79,6 +79,22 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).toContain("csrf_token");
     });
 
+    test("marks renewal picker as noindex", async () => {
+      await createTestEvent({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const { token } = await setupRenewalSite();
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(response.headers.has("x-robots-noindex")).toBe(false);
+    });
+
     test("shows the current deadline in the page", async () => {
       await createTestEvent({
         hidden: true,
@@ -298,10 +314,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         ).text(),
       )!;
 
-      const secretStub = stub(
-        bunnyCdnApi,
-        "setEdgeScriptSecret",
-        () => Promise.resolve({ ok: true as const }),
+      const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
       try {
         const response = await handleRequest(
@@ -314,8 +328,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         );
         expect(response.status).toBe(302);
 
-        const updated = (await getAllBuiltSites()).find((s) =>
-          s.id === site.id
+        const updated = (await getAllBuiltSites()).find(
+          (s) => s.id === site.id,
         )!;
         expect(updated.readOnlyFrom).toBe(
           addMonthsIso("2026-09-01T00:00:00Z", 2),

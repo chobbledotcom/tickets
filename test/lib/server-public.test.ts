@@ -4643,6 +4643,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     test("registration succeeds when assignable sites are available", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
       try {
+        await createTestEvent({
+          hidden: true,
+          monthsPerUnit: 1,
+          name: "Monthly renewal tier",
+          purchaseOnly: true,
+        });
         const event = await createTestEvent({
           assignBuiltSite: true,
           maxAttendees: 10,

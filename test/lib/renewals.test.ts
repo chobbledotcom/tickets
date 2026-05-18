@@ -27,9 +27,29 @@ const setupRenewalSite = async (readOnlyFrom: string) => {
   );
   const sites = await getAllBuiltSites();
   const site = sites.find((s) => s.name === "Renewal Site")!;
-  const { token } = await provisionTestBuiltSite(site.id, { readOnlyFrom });
-  return { site, token };
+  // applyRenewalsForEntries takes the HMAC index (the same value that's stored
+  // in Stripe metadata after the boundary hashing); the plain token is unused
+  // in these tests.
+  const { tokenIndex } = await provisionTestBuiltSite(site.id, {
+    readOnlyFrom,
+  });
+  return { site, tokenIndex };
 };
+
+const makeRenewalEntry = (
+  event: { id: number; months_per_unit: number },
+  quantity: number,
+) =>
+  makeTestEntry(
+    {
+      active: true,
+      hidden: true,
+      id: event.id,
+      months_per_unit: event.months_per_unit,
+      purchase_only: true,
+    },
+    { quantity },
+  );
 
 // deno-lint-ignore no-explicit-any
 type SecretStub = any;
@@ -59,14 +79,11 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const futureDate = new Date(NOW_MS + 10 * 86400000).toISOString();
-    const { token, site } = await setupRenewalSite(futureDate);
+    const { tokenIndex, site } = await setupRenewalSite(futureDate);
 
     await withFakeTimeAndStub(NOW_MS, async (_secretStub) => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 3 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 3);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       const sites = await getAllBuiltSites();
       const updated = sites.find((s) => s.id === site.id)!;
@@ -83,14 +100,11 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const pastDate = new Date(NOW_MS - 30 * 86400000).toISOString();
-    const { token, site } = await setupRenewalSite(pastDate);
+    const { tokenIndex, site } = await setupRenewalSite(pastDate);
 
     await withFakeTimeAndStub(NOW_MS, async () => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 6 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 6);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
       const sites = await getAllBuiltSites();
@@ -107,14 +121,11 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(baseDate);
+    const { tokenIndex, site } = await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async () => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 3 },
-        { quantity: 2 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 2);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       const expected = addMonthsIso(baseDate, 6);
       const sites = await getAllBuiltSites();
@@ -131,14 +142,11 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token } = await setupRenewalSite(baseDate);
+    const { tokenIndex } = await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 2 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 2);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       expect(secretStub.calls.length).toBe(1);
       const secretName = secretStub.calls[0]!.args[1] as string;
@@ -157,10 +165,7 @@ describeWithEnv("renewals", { db: true }, () => {
     await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 1 },
-      );
+      const entry = makeRenewalEntry(tier, 1);
       await applyRenewalsForEntries([entry], undefined);
 
       expect(secretStub.calls.length).toBe(0);
@@ -169,10 +174,34 @@ describeWithEnv("renewals", { db: true }, () => {
 
   test("siteToken present but no matching site logs error, no Bunny call", async () => {
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeTestEntry({ months_per_unit: 1 }, { quantity: 1 });
+      const entry = makeRenewalEntry({ id: 1, months_per_unit: 1 }, 1);
       await applyRenewalsForEntries([entry], "nonexistent-token-xyz");
 
       expect(secretStub.calls.length).toBe(0);
+    });
+  });
+
+  test("siteToken present with a non-renewal event does not bump deadline", async () => {
+    const baseDate = new Date(NOW_MS).toISOString();
+    const { tokenIndex, site } = await setupRenewalSite(baseDate);
+
+    await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
+      const entry = makeTestEntry(
+        {
+          active: true,
+          hidden: false,
+          months_per_unit: 12,
+          purchase_only: true,
+          unit_price: 500,
+        },
+        { quantity: 1 },
+      );
+      await applyRenewalsForEntries([entry], tokenIndex);
+
+      expect(secretStub.calls.length).toBe(0);
+      const sites = await getAllBuiltSites();
+      const updated = sites.find((s) => s.id === site.id)!;
+      expect(updated.readOnlyFrom).toBe(baseDate);
     });
   });
 
@@ -183,15 +212,12 @@ describeWithEnv("renewals", { db: true }, () => {
       purchaseOnly: true,
       unitPrice: 500,
     });
-    const { token, site } = await setupRenewalSite("2026-01-31T00:00:00Z");
+    const { tokenIndex, site } = await setupRenewalSite("2026-01-31T00:00:00Z");
 
     const fakeJan = new Date("2026-01-15T00:00:00Z").getTime();
     await withFakeTimeAndStub(fakeJan, async () => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 1 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 1);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       const sites = await getAllBuiltSites();
       const updated = sites.find((s) => s.id === site.id)!;
@@ -207,18 +233,15 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(baseDate);
+    const { tokenIndex, site } = await setupRenewalSite(baseDate);
 
     const fakeTime = new FakeTime(NOW_MS);
     const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
       Promise.resolve({ error: "edge push failed", ok: false as const }),
     );
     try {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 1 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 1);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       const sites = await getAllBuiltSites();
       const updated = sites.find((s) => s.id === site.id)!;
@@ -237,14 +260,11 @@ describeWithEnv("renewals", { db: true }, () => {
       unitPrice: 500,
     });
     const baseDate = new Date(NOW_MS).toISOString();
-    const { token, site } = await setupRenewalSite(baseDate);
+    const { tokenIndex, site } = await setupRenewalSite(baseDate);
 
     await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-      const entry = makeTestEntry(
-        { id: tier.id, months_per_unit: 1 },
-        { quantity: 2 },
-      );
-      await applyRenewalsForEntries([entry], token);
+      const entry = makeRenewalEntry(tier, 2);
+      await applyRenewalsForEntries([entry], tokenIndex);
 
       expect(secretStub.calls.length).toBe(1);
       const [scriptId, secretName, secretValue] = secretStub.calls[0]!.args as [

@@ -691,7 +691,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const seedSite = (await getAllBuiltSites()).find(
         (s) => s.name === "Token Site",
       )!;
-      const { token } = await provisionTestBuiltSite(seedSite.id, {
+      const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
         readOnlyFrom: "2026-09-01T00:00:00Z",
       });
 
@@ -704,10 +704,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           amount_total: 1000,
           id: "cs_site_token",
           metadata: {
+            _origin: "localhost",
             email: "renew@example.com",
             items: singleItem(tier.id, 1, 1000),
             name: "Renewer",
-            site_token: token,
+            site_token_index: tokenIndex,
           },
           payment_intent: "pi_site_token",
           payment_status: "paid",
@@ -722,7 +723,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         expect(redirectResponse.status).toBe(302);
         // Threading proof: a READ_ONLY_FROM push lands on the right edge script,
-        // proving the site_token was extracted, hashed, matched, and bumped.
+        // proving the site_token_index was extracted, matched, and bumped.
         const readOnlyCall = secretStub.calls.find(
           (c) => (c.args[1] as string) === "READ_ONLY_FROM",
         );
@@ -731,6 +732,47 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       } finally {
         mockRetrieve.restore();
         secretStub.restore();
+      }
+    });
+
+    test("payment success rejects renewal metadata from an unrecognized origin", async () => {
+      await setupStripe();
+
+      const tier = await createTestEvent({
+        hidden: true,
+        maxAttendees: 50,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          id: "cs_foreign_site_token",
+          metadata: {
+            email: "renew@example.com",
+            items: singleItem(tier.id, 1, 1000),
+            name: "Renewer",
+            site_token_index: "foreign-token-index",
+          },
+          payment_intent: "pi_foreign_site_token",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_foreign_site_token"),
+        );
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain(
+          "Payment session not recognized",
+        );
+      } finally {
+        mockRetrieve.restore();
       }
     });
 
@@ -781,7 +823,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const seedSite = (await getAllBuiltSites()).find(
         (s) => s.name === "Multi Tier Renewal Site",
       )!;
-      const { token } = await provisionTestBuiltSite(seedSite.id, {
+      const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
         readOnlyFrom: initialDeadline,
       });
 
@@ -793,13 +835,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           amount_total: 3000,
           id: "cs_multi_tier_renewal",
           metadata: {
+            _origin: "localhost",
             email: "renew@example.com",
             items: JSON.stringify([
               { e: monthly.id, p: 2000, q: 2 },
               { e: annual.id, p: 1000, q: 1 },
             ]),
             name: "Renewer",
-            site_token: token,
+            site_token_index: tokenIndex,
           },
           payment_intent: "pi_multi_tier_renewal",
           payment_status: "paid",

@@ -5,7 +5,7 @@ import {
   adminBuiltSiteEditPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { testBuiltSite } from "#test-utils";
+import { testBuiltSite, testEventWithCount } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
@@ -26,6 +26,50 @@ describe("adminBuiltSitesPage", () => {
     const site = testBuiltSite({ readOnlyFrom: "" });
     const html = adminBuiltSitesPage([site], TEST_SESSION);
     expect(html).toContain("never");
+  });
+
+  test("warns when no qualifying renewal tier is configured", () => {
+    const site = testBuiltSite({ readOnlyFrom: "" });
+    const html = adminBuiltSitesPage([site], TEST_SESSION, undefined, []);
+    expect(html).toContain("Renewal tiers");
+    expect(html).toContain("No renewal tier event is configured");
+    expect(html).toContain("won't be able to renew");
+  });
+
+  test("lists each tier with units sold from attendee_count", () => {
+    const monthly = testEventWithCount({
+      attendee_count: 7,
+      hidden: true,
+      id: 11,
+      months_per_unit: 1,
+      name: "Monthly tier",
+      purchase_only: true,
+      unit_price: 500,
+    });
+    const annual = testEventWithCount({
+      attendee_count: 2,
+      hidden: true,
+      id: 12,
+      months_per_unit: 12,
+      name: "Annual tier",
+      purchase_only: true,
+      unit_price: 5000,
+    });
+    const site = testBuiltSite({ readOnlyFrom: "" });
+    const html = adminBuiltSitesPage([site], TEST_SESSION, undefined, [
+      monthly,
+      annual,
+    ]);
+    expect(html).toContain("Monthly tier");
+    expect(html).toContain("Annual tier");
+    // Units sold = attendee_count
+    expect(html).toContain(">7<");
+    expect(html).toContain(">2<");
+    // Linked back to the event detail page
+    expect(html).toContain('href="/admin/event/11"');
+    expect(html).toContain('href="/admin/event/12"');
+    // Warning copy must not appear when tiers exist
+    expect(html).not.toContain("No renewal tier event is configured");
   });
 });
 

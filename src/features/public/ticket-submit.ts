@@ -8,16 +8,17 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { saveEventAnswers } from "#shared/db/questions.ts";
-import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#shared/demo.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
-import { isPaidEvent } from "#shared/types.ts";
+import { type EventWithCount, type Group, isPaidEvent } from "#shared/types.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
 import type { TicketEvent } from "#templates/public.tsx";
+import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
 import {
   buildEventAnswerMap,
   eventsWithQuantity,
@@ -44,6 +45,7 @@ import {
   REGISTRATION_CLOSED_SUBMIT_MESSAGE,
   type TicketContextProvider,
   type TicketCtx,
+  type TicketSharedContext,
 } from "./types.ts";
 
 /** Validate fields, terms and event availability. Returns Response on error, or parsed field values. */
@@ -149,11 +151,11 @@ const computeEventAnswerMap = (
 ): Record<string, number[]> | undefined =>
   info.answerIds.length > 0
     ? buildEventAnswerMap(
-      info.activeQuestions,
-      info.answerIds,
-      ctx.questionEventMap,
-      info.selectedEventIds,
-    )
+        info.activeQuestions,
+        info.answerIds,
+        ctx.questionEventMap,
+        info.selectedEventIds,
+      )
     : undefined;
 
 type PathParams = {
@@ -324,9 +326,10 @@ export const handleTicket = async (
     ...sharedCtx,
     qrPrefill,
   };
-  const response = request.method === "GET"
-    ? ticketResponse(ctx)(applyFlash(request).error)
-    : await submitTicket(request, ctx);
+  const response =
+    request.method === "GET"
+      ? ticketResponse(ctx)(applyFlash(request).error)
+      : await submitTicket(request, ctx);
   const anyHidden = activeEvents.some((e) => e.event.hidden);
   return applyHiddenNoindex(response, anyHidden);
 };
@@ -336,8 +339,23 @@ export const handleTicketBySlugs = (
   request: Request,
   slugs: string[],
 ): Promise<Response> =>
-  withActiveEvents(
-    slugs,
-    (activeEvents) =>
-      handleTicket(request, slugs, activeEvents, getTicketContext),
+  withActiveEvents(slugs, (activeEvents) =>
+    handleTicket(request, slugs, activeEvents, getTicketContext),
   );
+
+/** Curried: build capacity-aware TicketEvents and hand off to handleTicket with
+ * shared context. Caller supplies the events; `group` flows into getTicketContext
+ * and `overrides` win over its result (e.g. for renewal's actionUrl/siteToken). */
+export const renderTicketFlow =
+  (
+    request: Request,
+    slugs: string[],
+    options: { group?: Group; overrides?: Partial<TicketSharedContext> } = {},
+  ) =>
+  async (events: EventWithCount[]): Promise<Response> => {
+    const activeEvents = await buildTicketEventsWithGroupCapacity(events);
+    return handleTicket(request, slugs, activeEvents, async (e) => ({
+      ...(await getTicketContext(e, options.group)),
+      ...options.overrides,
+    }));
+  };

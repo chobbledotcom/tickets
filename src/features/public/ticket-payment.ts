@@ -10,6 +10,7 @@ import {
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import {
@@ -234,7 +235,10 @@ export const processFreeReservation = async (
     event: selected[i]!.event,
   }));
 
-  await logAndNotifyRegistration(entries, siteToken);
+  // Hash before passing on so the renewal lookup uses the same blind index
+  // the paid path would carry through Stripe session metadata.
+  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
+  await logAndNotifyRegistration(entries, siteTokenIndex);
   return {
     entries,
     success: true,

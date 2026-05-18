@@ -55,6 +55,10 @@ type AssignmentContext = {
 };
 
 export type TierEvent = Awaited<ReturnType<typeof getAllEvents>>[number];
+export type RenewalTierEvent = Pick<
+  TierEvent,
+  "active" | "hidden" | "months_per_unit" | "purchase_only"
+>;
 export type CdnPushResult = { ok: true } | { ok: false; error: string };
 type RenewalTokenData = { token: string; index: string };
 type SiteAssignmentConfigEntry = {
@@ -68,11 +72,11 @@ type SiteAssignmentConfigEntry = {
 export type SiteAssignmentConfigValidation =
   | { ok: true }
   | {
-    ok: false;
-    reason: "builder_disabled" | "initial_months" | "missing_tier";
-    message: string;
-    eventId?: number;
-  };
+      ok: false;
+      reason: "builder_disabled" | "initial_months" | "missing_tier";
+      message: string;
+      eventId?: number;
+    };
 
 /** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
 const nextSiteName = async (): Promise<string> =>
@@ -100,16 +104,21 @@ const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
 };
 
 /** Pick the cheapest qualifying tier event (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
-export const isQualifyingTierEvent = (event: TierEvent): boolean =>
+export const isQualifyingTierEvent = (event: RenewalTierEvent): boolean =>
   event.purchase_only &&
   event.hidden &&
   event.months_per_unit > 0 &&
   event.active;
 
+/** All events that qualify as renewal tiers. */
+export const getQualifyingTierEvents = async (): Promise<TierEvent[]> => {
+  const events = await getAllEvents();
+  return events.filter(isQualifyingTierEvent);
+};
+
 /** Pick the cheapest qualifying tier event. */
 export const pickTierEvent = async (): Promise<TierEvent | null> => {
-  const events = await getAllEvents();
-  const qualifying = events.filter(isQualifyingTierEvent);
+  const qualifying = await getQualifyingTierEvents();
   if (qualifying.length === 0) return null;
   const sorted = sort(
     (a: (typeof qualifying)[number], b: (typeof qualifying)[number]) =>
@@ -252,19 +261,20 @@ type SiteSecrets = { readOnlyFrom?: string; renewalUrl?: string };
  * On push success, writes `onSuccess`. On failure, logs and leaves DB state
  * unchanged so an admin can retry from the unprovisioned state.
  */
-const pushAndPersist = (site: BuiltSite, errorContext: string) =>
-async (
-  secrets: SiteSecrets,
-  onSuccess: RenewalStateUpdate,
-): Promise<CdnPushResult> => {
-  const pushResult = await pushSiteSecrets(site, secrets);
-  if (pushResult.ok) {
-    await updateBuiltSiteRenewalState(site.id, onSuccess);
-  } else {
-    logRenewalCdnError(errorContext, pushResult.error);
-  }
-  return pushResult;
-};
+const pushAndPersist =
+  (site: BuiltSite, errorContext: string) =>
+  async (
+    secrets: SiteSecrets,
+    onSuccess: RenewalStateUpdate,
+  ): Promise<CdnPushResult> => {
+    const pushResult = await pushSiteSecrets(site, secrets);
+    if (pushResult.ok) {
+      await updateBuiltSiteRenewalState(site.id, onSuccess);
+    } else {
+      logRenewalCdnError(errorContext, pushResult.error);
+    }
+    return pushResult;
+  };
 
 /**
  * Provision a site for renewals: generate a token, push initial secrets,
@@ -336,11 +346,11 @@ const assignSitesForEntries = async (
   const config = await validateSiteAssignmentConfig(needsSite);
   if (!config.ok) {
     logError({
-      code: config.reason === "initial_months"
-        ? ErrorCode.DATA_INVALID
-        : ErrorCode.CONFIG_MISSING,
-      detail:
-        `Site assignment blocked (${config.reason}, ${needsSite.length} entries skipped)`,
+      code:
+        config.reason === "initial_months"
+          ? ErrorCode.DATA_INVALID
+          : ErrorCode.CONFIG_MISSING,
+      detail: `Site assignment blocked (${config.reason}, ${needsSite.length} entries skipped)`,
     });
     sendNtfyError(
       config.reason === "initial_months" ? "DATA_INVALID" : "CONFIG_MISSING",
@@ -356,8 +366,7 @@ const assignSitesForEntries = async (
     if (event.initial_site_months <= 0) {
       logError({
         code: ErrorCode.DATA_INVALID,
-        detail:
-          `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
+        detail: `assign_built_site event ${event.id} has initial_site_months=0, skipping`,
       });
       continue;
     }
@@ -383,9 +392,10 @@ const sendSiteAssignmentEmail = async (
   const config = getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
-  const subject = assignments.length === 1
-    ? "Your new site is ready"
-    : `Your ${assignments.length} new sites are ready`;
+  const subject =
+    assignments.length === 1
+      ? "Your new site is ready"
+      : `Your ${assignments.length} new sites are ready`;
 
   const greeting = `Your new site${
     assignments.length > 1 ? "s are" : " is"
