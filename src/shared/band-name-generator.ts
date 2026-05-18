@@ -138,8 +138,9 @@ const fixArticles = (s: string): string =>
  * that begin with a lowercase pool entry still read as a proper sentence.
  */
 const renderTemplate = (template: string, rand: Rand): string => {
-  const filled = template.replace(/\{(\w+)\}/g, (_, key: string) =>
-    pickFrom(rand, SLOT_POOLS[key]!),
+  const filled = template.replace(
+    /\{(\w+)\}/g,
+    (_, key: string) => pickFrom(rand, SLOT_POOLS[key]!),
   );
   const articled = fixArticles(filled);
   return articled.charAt(0).toUpperCase() + articled.slice(1);
@@ -231,8 +232,7 @@ export const DEFAULT_VENUE_SEED = 0x57a6ed00;
 export const DEFAULT_DESCRIPTION_SEED = 0xde5c0f6c;
 
 const seededList =
-  (gen: (rand: Rand) => string) =>
-  (count: number, seed: number): string[] => {
+  (gen: (rand: Rand) => string) => (count: number, seed: number): string[] => {
     const rand = createRand(seed);
     return Array.from({ length: count }, () => gen(rand));
   };
