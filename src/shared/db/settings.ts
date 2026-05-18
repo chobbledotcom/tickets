@@ -37,10 +37,7 @@ import type {
   Settings,
   Theme,
 } from "#shared/types.ts";
-import {
-  isPaymentProvider,
-  isPaymentProviderSetting,
-} from "#shared/types.ts";
+import { isPaymentProvider, isPaymentProviderSetting } from "#shared/types.ts";
 import {
   createAppleWalletReadSettings,
   createAppleWalletUpdateSettings,

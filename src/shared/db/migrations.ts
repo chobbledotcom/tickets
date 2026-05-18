@@ -33,8 +33,7 @@ type Table = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE =
-  "add duration_days to events";
+export const LATEST_UPDATE = "add duration_days to events";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 

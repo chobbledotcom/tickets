@@ -41,7 +41,9 @@ if (!build.success) {
 }
 
 const code = await Deno.readTextFile(bundlePath);
-console.log(`Bundle ready (${code.length} bytes). Provisioning site "${siteName}"…`);
+console.log(
+  `Bundle ready (${code.length} bytes). Provisioning site "${siteName}"…`,
+);
 
 const result = await builderApi.buildSite({ code, siteName });
 
