@@ -4,7 +4,8 @@
 
 /** Create a type guard from a readonly array of string literal values */
 export const createTypeGuard =
-  <T extends string>(values: readonly T[]) => (s: string): s is T =>
+  <T extends string>(values: readonly T[]) =>
+  (s: string): s is T =>
     (values as readonly string[]).includes(s);
 
 /** Individual contact field name */
@@ -41,9 +42,8 @@ export type ContactInfo = {
 };
 
 /** Required name+email with optional phone/address/special_instructions from ContactInfo */
-export type ContactFields =
-  & Pick<ContactInfo, "name" | "email">
-  & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
+export type ContactFields = Pick<ContactInfo, "name" | "email"> &
+  Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
 
 /** UI theme */
 export type Theme = "light" | "dark";

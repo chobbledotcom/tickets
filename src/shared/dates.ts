@@ -123,9 +123,8 @@ const bookableRange = (
 ): { bookableDays: string[]; start: string; end: string } => {
   const todayStr = todayInTz(settings.timezone);
   const start = addDays(todayStr, event.minimum_days_before);
-  const maxDays = event.maximum_days_after === 0
-    ? MAX_FUTURE_DAYS
-    : event.maximum_days_after;
+  const maxDays =
+    event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
   const end = addDays(todayStr, maxDays);
   return { bookableDays: event.bookable_days, end, start };
 };
@@ -172,7 +171,7 @@ export const getAvailableDates = (
   const range = bookableRange(event);
   const duration = Math.max(1, event.duration_days);
   return filter((d: string) =>
-    isRangeBookable(d, duration, range.bookableDays, holidays, range.end)
+    isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
   )(dateRange(range.start, range.end));
 };
 

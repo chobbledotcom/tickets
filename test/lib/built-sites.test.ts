@@ -436,10 +436,10 @@ describeWithEnv("built-sites", { db: true }, () => {
         "",
         "my-renewal-token",
       );
-    const parsed = parseSiteDataBlob(blob);
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
-    expect(parsed.rt).toBe("my-renewal-token");
-  });
+      const parsed = parseSiteDataBlob(blob);
+      expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+      expect(parsed.rt).toBe("my-renewal-token");
+    });
 
     test("CRUD update preserves existing renewal token", async () => {
       const site = await builtSitesCrudTable.insert({

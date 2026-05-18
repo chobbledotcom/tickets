@@ -463,7 +463,7 @@ const getDbState = async (): Promise<DbState> => {
       result.rows.map((r) => [r.key as string, r.value as string]),
     );
     return values.get("latest_db_update") === LATEST_UPDATE &&
-        values.get("db_schema_hash") === SCHEMA_HASH
+      values.get("db_schema_hash") === SCHEMA_HASH
       ? "up_to_date"
       : "needs_migration";
   } catch {
@@ -479,11 +479,9 @@ const createIndexesForTable = async (
   for (const idx of indexes) {
     const unique = idx.unique ? "UNIQUE " : "";
     await runMigration(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${
-        idx.columns.join(
-          ", ",
-        )
-      })`,
+      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+        ", ",
+      )})`,
     );
   }
 };
@@ -519,8 +517,7 @@ const recreateTable = async (tableName: string): Promise<void> => {
       { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
       {
         args: [],
-        sql:
-          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
       },
       { args: [], sql: `DROP TABLE ${tableName}` },
       { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
@@ -620,8 +617,7 @@ const acquireMigrationLock = async (): Promise<boolean> => {
   const result = await getDb()
     .execute({
       args: [MIGRATION_LOCK_KEY, new Date().toISOString()],
-      sql:
-        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
     })
     .catch(() => null); // settings table may not exist yet on first run
   return result === null || result.rowsAffected === 1;
@@ -696,13 +692,11 @@ export const initDb = async (): Promise<void> => {
   logDebug("Migration", "Step 5: updating version marker...");
   await getDb().execute({
     args: [LATEST_UPDATE],
-    sql:
-      "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
   });
   await getDb().execute({
     args: [SCHEMA_HASH],
-    sql:
-      "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
   });
 
   // Release lock only on success — if migration crashes, lock persists
