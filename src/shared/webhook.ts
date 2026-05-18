@@ -177,34 +177,41 @@ export const applyRenewalsForEntries = async (
   if (!site) {
     logError({
       code: ErrorCode.DATA_INVALID,
-      detail: `Renewal site not found for token index ${tokenIndex.slice(0, 8)}...`,
+      detail: `Renewal site not found for token index ${tokenIndex.slice(
+        0,
+        8,
+      )}...`,
     });
     return;
   }
 
-  for (const entry of entries) {
-    // The customer picks the tier at /renew time, so accept any tier-shaped
-    // entry (months_per_unit > 0 is gated by the event form to require
-    // purchase_only + hidden, so this filter doesn't need to re-check those).
-    const months = entry.attendee.quantity * entry.event.months_per_unit;
-    if (months <= 0) continue;
+  const renewalEntries = entries
+    .map((entry) => ({
+      entry,
+      months: entry.attendee.quantity * entry.event.months_per_unit,
+    }))
+    .filter(({ months }) => months > 0);
+  const totalMonths = renewalEntries.reduce(
+    (sum, { months }) => sum + months,
+    0,
+  );
+  if (totalMonths <= 0) return;
 
-    const result = await syncReadOnlyFrom(
-      site,
-      addMonthsToRenewalDeadline(site, months),
+  const result = await syncReadOnlyFrom(
+    site,
+    addMonthsToRenewalDeadline(site, totalMonths),
+  );
+  if (result.ok) {
+    await logActivity(
+      `Renewal of '${site.name}' for ${totalMonths} month(s)`,
+      renewalEntries[0]!.entry.event.id,
     );
-    if (result.ok) {
-      await logActivity(
-        `Renewal of '${site.name}' for ${months} month(s)`,
-        entry.event.id,
-      );
-    } else {
-      logError({
-        code: ErrorCode.CDN_REQUEST,
-        detail: `Failed to push READ_ONLY_FROM for renewal of '${site.name}': ${result.error}`,
-      });
-      sendNtfyError("CDN_REQUEST");
-    }
+  } else {
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `Failed to push READ_ONLY_FROM for renewal of '${site.name}': ${result.error}`,
+    });
+    sendNtfyError("CDN_REQUEST");
   }
 };
 

@@ -2,8 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { runWithStorageConfig } from "#shared/storage.ts";
-import { uploadRaw } from "#shared/storage.ts";
+import {
+  downloadRaw,
+  runWithStorageConfig,
+  uploadRaw,
+} from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
@@ -107,46 +110,50 @@ describeWithEnv("backup routes", { db: true }, () => {
         ),
       });
 
-      await withLocalStorageEnabled(async (_dir) => {
+      const dir = await Deno.makeTempDir();
+      try {
         // Upload the zip as a pending restore file
         const tempFilename = `restore-pending-${crypto.randomUUID()}.zip`;
-        await uploadRaw(zipData, tempFilename);
+        await runWithStorageConfig(
+          { localPath: dir, zoneKey: "", zoneName: "" },
+          async () => {
+            await uploadRaw(zipData, tempFilename);
+            await Deno.chmod(dir, 0o500);
 
-        // Get CSRF token
-        const csrfToken = await signCsrfToken();
+            // Get CSRF token
+            const csrfToken = await signCsrfToken();
 
-        // Make deleteFile throw during cleanup
-        setDeleteOverride(new Error("cleanup failed"));
+            // Use URL-encoded form (action handlers default to form mode)
+            const body = new URLSearchParams({
+              backup_filename: tempFilename,
+              confirm_phrase: "restore",
+              csrf_token: csrfToken,
+            });
 
-        try {
-          // Use URL-encoded form (action handlers default to form mode)
-          const body = new URLSearchParams({
-            backup_filename: tempFilename,
-            confirm_phrase: "restore",
-            csrf_token: csrfToken,
-          });
-
-          const request = new Request(
-            "http://localhost/admin/backup/restore/confirm",
-            {
-              body: body.toString(),
-              headers: {
-                "content-type": "application/x-www-form-urlencoded",
-                cookie,
+            const request = new Request(
+              "http://localhost/admin/backup/restore/confirm",
+              {
+                body: body.toString(),
+                headers: {
+                  "content-type": "application/x-www-form-urlencoded",
+                  cookie,
+                },
+                method: "POST",
               },
-              method: "POST",
-            },
-          );
+            );
 
-          const response = await handleRequest(request);
-          // Should succeed (redirect) even though deleteFile threw
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location");
-          expect(location).toContain("/admin/backup");
-        } finally {
-          setDeleteOverride(null);
-        }
-      });
+            const response = await handleRequest(request);
+            // Should succeed (redirect) even though deleteFile threw
+            expect(response.status).toBe(302);
+            const location = response.headers.get("location");
+            expect(location).toContain("/admin/backup");
+            expect(await downloadRaw(tempFilename)).not.toBeNull();
+          },
+        );
+      } finally {
+        await Deno.chmod(dir, 0o700).catch(() => {});
+        await Deno.remove(dir, { recursive: true });
+      }
     });
   });
 });

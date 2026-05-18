@@ -32,7 +32,7 @@ const renderReadOnlyBanner = (
   }
   if (warning) {
     const link = renewalUrl ? ` — <a href="${renewalUrl}">Renew now</a>` : "";
-    const dateStr = cutoffIso ? new Date(cutoffIso).toLocaleDateString() : "";
+    const dateStr = new Date(String(cutoffIso)).toLocaleDateString();
     const msg = dateStr
       ? `Your site expires on ${dateStr}${link}`
       : `Your site is approaching its expiry${link}`;

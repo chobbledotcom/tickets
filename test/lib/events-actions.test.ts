@@ -25,6 +25,23 @@ describe("validateEventInput", () => {
     );
   });
 
+  test("rejects assignBuiltSite without initial site months", async () => {
+    const input: EventInput = {
+      ...testEventInput({
+        assignBuiltSite: true,
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+      }),
+      slug: "test-event",
+      slugIndex: "test-index",
+    };
+    const error = await validateEventInput(input);
+    expect(error).toBe(
+      "Initial site months is required when a site is assigned.",
+    );
+  });
+
   test("accepts assignBuiltSite when initial site months is positive", async () => {
     const input: EventInput = {
       ...testEventInput({

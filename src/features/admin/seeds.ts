@@ -54,13 +54,13 @@ const clamp = (value: number | null, lo: number, hi: number): number =>
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
-    const { event_count, attendees_per_event } = seedsForm.validate(form).values;
+    const validated = seedsForm.validate(form);
+    if (!validated.valid) {
+      return redirect("/admin/seeds", validated.error, false);
+    }
+    const { event_count, attendees_per_event } = validated.values;
     const eventCount = clamp(event_count, 1, MAX_SEED_EVENTS);
-    const attendeesPerEvent = clamp(
-      attendees_per_event,
-      0,
-      SEED_MAX_ATTENDEES,
-    );
+    const attendeesPerEvent = clamp(attendees_per_event, 0, SEED_MAX_ATTENDEES);
     try {
       const result = await createSeeds(eventCount, attendeesPerEvent);
       const message = `Created ${result.eventsCreated} event(s) with ${result.attendeesCreated} attendee(s) total.`;

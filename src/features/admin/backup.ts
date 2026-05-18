@@ -199,11 +199,7 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         await restoreFromZip(data);
       } finally {
         // Clean up the temp file whether restore succeeds or fails
-        try {
-          await deleteFile(filename);
-        } catch {
-          // best effort
-        }
+        await Promise.allSettled([deleteFile(filename)]);
       }
     },
     message: "Database restored from backup",
