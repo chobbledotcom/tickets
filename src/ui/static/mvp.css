@@ -1083,6 +1083,12 @@ fieldset {
   padding: 0 1rem;
 }
 
+.ticket-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
 .checkbox-group {
   border: 0;
   padding: 0;
