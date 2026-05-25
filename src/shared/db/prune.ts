@@ -30,20 +30,35 @@ import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 
 /**
+ * Build a pruner that deletes rows older than `retentionMs`, binding an
+ * ISO-timestamp cutoff to the single `?` placeholder in `sql`.
+ */
+const isoAgePruner =
+  (sql: string, retentionMs: number) => async (): Promise<number> => {
+    const cutoffIso = new Date(nowMs() - retentionMs).toISOString();
+    const result = await getDb().execute({ args: [cutoffIso], sql });
+    return result.rowsAffected;
+  };
+
+/**
  * Delete finalized processed_payments rows older than the retention window.
  * Unfinalized (attendee_id IS NULL) rows are handled by deleteAllStaleReservations
  * in processed-payments.ts — we leave them alone here.
  */
-export const prunePayments = async (): Promise<number> => {
-  const cutoffIso = new Date(
-    nowMs() - PRUNE_PAYMENTS_RETENTION_MS,
-  ).toISOString();
-  const result = await getDb().execute({
-    args: [cutoffIso],
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NOT NULL AND processed_at < ?",
-  });
-  return result.rowsAffected;
-};
+export const prunePayments = isoAgePruner(
+  "DELETE FROM processed_payments WHERE attendee_id IS NOT NULL AND processed_at < ?",
+  PRUNE_PAYMENTS_RETENTION_MS,
+);
+
+/**
+ * Delete SumUp checkout metadata rows older than the payments retention window.
+ * Safe to drop once the webhook-retry / redirect window has passed; the row is
+ * only needed to reconstruct booking intent while a payment is being finalized.
+ */
+export const pruneSumupCheckouts = isoAgePruner(
+  "DELETE FROM sumup_checkouts WHERE created_at < ?",
+  PRUNE_PAYMENTS_RETENTION_MS,
+);
 
 /**
  * Delete sessions whose `expires` is older than (now - retention window).
@@ -109,6 +124,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "processed_payments",
     run: prunePayments,
     writeLast: settings.update.lastPrunedPayments,
+  },
+  {
+    lastRaw: settings.lastPrunedSumup,
+    name: "sumup_checkouts",
+    run: pruneSumupCheckouts,
+    writeLast: settings.update.lastPrunedSumup,
   },
   {
     lastRaw: settings.lastPrunedSessions,

@@ -7,6 +7,7 @@ import { encodeBody } from "#routes/response.ts";
 import { getEffectiveDomain, getEmbedHosts } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 
 /**
  * Security headers for all responses
@@ -19,7 +20,7 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 
 /** Payment config for CSP header construction */
 export type PaymentCspConfig = {
-  provider: "stripe" | "square" | null;
+  provider: PaymentProviderType | null;
   sandbox?: boolean;
 };
 

@@ -138,6 +138,12 @@ export type SquareWebhookFormValues = {
   square_webhook_signature_key: string;
 };
 
+/** Typed values from SumUp settings form */
+export type SumupFormValues = {
+  sumup_api_key: string;
+  sumup_merchant_code: string;
+};
+
 /** Typed values from invite user form */
 export type InviteUserFormValues = {
   username: string;
@@ -943,6 +949,28 @@ export const squareWebhookFields: Field[] = [
     name: "square_webhook_signature_key",
     required: true,
     type: "password",
+  },
+];
+
+/**
+ * SumUp API key and merchant code form field definitions
+ */
+export const sumupFields: Field[] = [
+  {
+    hint: "Your SumUp secret API key (sk_live_... or sk_test_...)",
+    label: "SumUp API Key",
+    name: "sumup_api_key",
+    placeholder: "sk_live_... or sk_test_...",
+    required: true,
+    type: "password",
+  },
+  {
+    hint: "Your SumUp merchant code (found in the SumUp dashboard, e.g. MC...)",
+    label: "Merchant Code",
+    name: "sumup_merchant_code",
+    placeholder: "MC...",
+    required: true,
+    type: "text",
   },
 ];
 

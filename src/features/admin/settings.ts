@@ -93,6 +93,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import type { PaymentProviderType } from "#shared/payments.ts";
 import { fail, ok } from "#shared/response.ts";
 import { testSquareConnection } from "#shared/square.ts";
+import { testSumupConnection } from "#shared/sumup.ts";
 import {
   deleteAllEventStorageFiles,
   deleteFile,
@@ -147,6 +148,8 @@ const getSettingsPageState = async () => {
     storageEnabled: isStorageEnabled(),
     stripeKeyConfigured: settings.stripe.hasKey,
     stripeKeyMode: settings.stripe.keyMode,
+    sumupKeyConfigured: settings.sumup.hasKey,
+    sumupKeyMode: settings.sumup.keyMode,
     superuser,
     termsAndConditions: settings.terms,
     theme: settings.theme,
@@ -337,7 +340,7 @@ const handleAdminSettingsPost = settingsRoute(
 
 /** Type guard: check if a string is a valid payment provider */
 const isPaymentProvider = (s: string): s is PaymentProviderType =>
-  s === "stripe" || s === "square";
+  s === "stripe" || s === "square" || s === "sumup";
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only
@@ -466,6 +469,38 @@ const handleAdminSquareWebhookPost = settingsSecret({
   save: (v) => settings.update.square.webhookSignatureKey(v),
 });
 
+/**
+ * Handle POST /admin/settings/sumup - owner only
+ */
+type SumupFormData = {
+  apiKey: SecretFieldResult;
+  merchantCode: string;
+};
+
+const handleAdminSumupPost = settingsHandler<SumupFormData>({
+  extract: (form) => ({
+    apiKey: processSecretField(form, "sumup_api_key"),
+    merchantCode: form.getString("sumup_merchant_code"),
+  }),
+  formId: "settings-sumup",
+  label: "SumUp credentials",
+  save: async ({ apiKey, merchantCode }) => {
+    if (apiKey.action === "provided") {
+      await settings.update.sumup.apiKey(apiKey.value);
+    }
+    await settings.update.sumup.merchantCode(merchantCode);
+    await settings.update.paymentProvider("sumup");
+  },
+  validate: ({ apiKey, merchantCode }) => {
+    if (isDemoMode()) return "Cannot configure SumUp in demo mode";
+    if (!merchantCode) return "Merchant code is required";
+    if (apiKey.action === "cleared" && !settings.sumup.hasKey) {
+      return "SumUp API Key is required";
+    }
+    return null;
+  },
+});
+
 /** Owner auth POST that runs a test function and returns JSON */
 const testRoute =
   (testFn: () => Promise<unknown>) =>
@@ -474,6 +509,7 @@ const testRoute =
 
 const handleStripeTestPost = testRoute(testStripeConnection);
 const handleSquareTestPost = testRoute(testSquareConnection);
+const handleSumupTestPost = testRoute(testSumupConnection);
 
 /**
  * Handle POST /admin/settings/embed-hosts - owner only
@@ -1429,6 +1465,8 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square/test": handleSquareTestPost,
   "POST /admin/settings/stripe": handleAdminStripePost,
   "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/sumup": handleAdminSumupPost,
+  "POST /admin/settings/sumup/test": handleSumupTestPost,
   "POST /admin/settings/superuser": handleSuperuserPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/theme": handleThemePost,

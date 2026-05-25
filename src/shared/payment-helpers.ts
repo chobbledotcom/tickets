@@ -22,6 +22,13 @@ import type { ContactInfo } from "#shared/types.ts";
 export const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Unknown error";
 
+/** Shared shape for a provider credential check in connection-test results. */
+export type CredentialCheck = {
+  valid: boolean;
+  error?: string;
+  mode?: string;
+};
+
 /** Error subclass for user-facing payment validation errors (e.g. invalid phone number).
  * These propagate through safeAsync so the message can be shown to the user. */
 export class PaymentUserError extends Error {
@@ -248,3 +255,17 @@ export const extractSessionMetadata = (
   site_token_index: metadata.site_token_index || "",
   special_instructions: metadata.special_instructions || "",
 });
+
+/**
+ * Assemble a ValidatedPaymentSession from provider-agnostic fields plus raw
+ * provider metadata. Returns null when the metadata lacks the required fields
+ * (name + items) — e.g. a session created outside this app. Lets each provider
+ * skip repeating the guard-then-extract dance.
+ */
+export const toValidatedSession = (
+  fields: Omit<ValidatedPaymentSession, "metadata">,
+  metadata: Record<string, string | undefined> | null | undefined,
+): ValidatedPaymentSession | null =>
+  hasRequiredSessionMetadata(metadata)
+    ? { ...fields, metadata: extractSessionMetadata(metadata) }
+    : null;

@@ -16,6 +16,7 @@ import {
   SquareForm,
   SquareWebhookForm,
   StripeForm,
+  SumUpForm,
 } from "#templates/admin/settings/payment.tsx";
 import { PublicSiteForm } from "#templates/admin/settings/public-site.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
@@ -30,6 +31,8 @@ export type SettingsPageState = {
   squareTokenConfigured: boolean;
   squareSandbox: boolean;
   squareWebhookConfigured: boolean;
+  sumupKeyConfigured: boolean;
+  sumupKeyMode: string | null;
   webhookUrl: string;
   bookingFee: string;
   embedHosts: string;
@@ -76,6 +79,7 @@ export const adminSettingsPage = (
       {StripeForm(s)}
       {SquareForm(s)}
       {SquareWebhookForm(s)}
+      {SumUpForm(s)}
       {BookingFeeForm(s)}
 
       {TermsForm(s)}

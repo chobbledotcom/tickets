@@ -73,14 +73,18 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ? settings.stripe.hasKey
       : paymentProvider === "square"
         ? settings.square.hasToken
-        : false;
+        : paymentProvider === "sumup"
+          ? settings.sumup.hasKey
+          : false;
 
   const webhookConfigured =
     paymentProvider === "stripe"
       ? settings.stripe.webhookEndpointId !== ""
       : paymentProvider === "square"
         ? settings.square.webhookSignatureKey !== ""
-        : false;
+        : paymentProvider === "sumup"
+          ? settings.sumup.hasKey
+          : false;
 
   const resolveWalletPassTypeId = (): string => {
     if (settings.appleWallet.hasDbConfig) {

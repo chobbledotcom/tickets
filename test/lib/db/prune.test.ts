@@ -16,6 +16,7 @@ import {
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
+  pruneSumupCheckouts,
   pruneTokenAttempts,
 } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
@@ -61,6 +62,29 @@ const insertUnfinalizedPayment = async (
       processed_at: processedAtIso,
     }),
   );
+};
+
+/** Insert a sumup_checkouts row with the given creation timestamp. */
+const insertSumupCheckout = async (
+  reference: string,
+  createdAtIso: string,
+): Promise<void> => {
+  await getDb().execute(
+    insert("sumup_checkouts", {
+      checkout_reference: reference,
+      created_at: createdAtIso,
+      metadata: "{}",
+    }),
+  );
+};
+
+/** Is a sumup_checkouts row with this reference still in the DB? */
+const sumupCheckoutExists = async (reference: string): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [reference],
+    sql: "SELECT 1 FROM sumup_checkouts WHERE checkout_reference = ?",
+  });
+  return rows.length > 0;
 };
 
 /** Insert a login_attempts row with the given lockout (or NULL). */
@@ -124,6 +148,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedSessions("");
   await settings.update.lastPrunedLogins("");
   await settings.update.lastPrunedTokens("");
+  await settings.update.lastPrunedSumup("");
 };
 
 /** Set all last_pruned_* timestamps to the same value. */
@@ -132,6 +157,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedSessions(value);
   await settings.update.lastPrunedLogins(value);
   await settings.update.lastPrunedTokens(value);
+  await settings.update.lastPrunedSumup(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -165,6 +191,28 @@ describeWithEnv("db > prune", { db: true }, () => {
       await prunePayments();
 
       expect(await paymentExists("sess_unfinalized")).toBe(true);
+    });
+  });
+
+  describe("pruneSumupCheckouts", () => {
+    test("deletes checkout metadata older than retention window", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertSumupCheckout("ref_old", old);
+
+      await pruneSumupCheckouts();
+
+      expect(await sumupCheckoutExists("ref_old")).toBe(false);
+    });
+
+    test("keeps checkout metadata within retention window", async () => {
+      const recent = new Date(nowMs() - 1000).toISOString();
+      await insertSumupCheckout("ref_recent", recent);
+
+      await pruneSumupCheckouts();
+
+      expect(await sumupCheckoutExists("ref_recent")).toBe(true);
     });
   });
 
@@ -297,6 +345,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedSessions, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh sumup timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedSumup, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
     });

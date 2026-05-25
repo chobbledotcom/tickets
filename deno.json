@@ -40,6 +40,7 @@
     "#test/": "./test/",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
     "stripe": "npm:stripe@^22.0.1",
+    "@sumup/sdk": "npm:@sumup/sdk@^0.1.6",
     "esbuild": "npm:esbuild@^0.28.0",
     "@bunny.net/edgescript-sdk": "npm:@bunny.net/edgescript-sdk@^0.12.1",
     "@internationalized/date": "npm:@internationalized/date@^3.12.0",
