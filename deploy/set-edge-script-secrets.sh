@@ -41,6 +41,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo ""
     echo "  Please create a .env file with:"
     echo -e "    ${CYAN}BUNNY_API_KEY=your_api_key${NC}"
+    echo -e "    ${CYAN}ADMIN_EMAIL_ADDRESS=...${NC}"
     echo -e "    ${CYAN}WEBHOOK_URL=...${NC}"
     echo -e "    ${CYAN}STORAGE_ZONE_NAME=...${NC}"
     echo -e "    ${CYAN}STORAGE_ZONE_KEY=...${NC}"
@@ -243,6 +244,7 @@ fi
 
 # Secrets from .env
 set_from_env "NTFY_URL"
+set_from_env "ADMIN_EMAIL_ADDRESS"
 set_from_env "WEBHOOK_URL"
 set_from_env "STORAGE_ZONE_NAME"
 set_from_env "STORAGE_ZONE_KEY"
