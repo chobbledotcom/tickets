@@ -14,9 +14,9 @@ import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import {
+  backupPrefix,
   countZipStatements,
   createAndUploadBackup,
-  dbName,
   isRemoteDatabase,
   readManifest,
   restoreFromZip,
@@ -38,9 +38,6 @@ import {
 } from "#templates/admin/backup.tsx";
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
-
-/** Build the prefix for listing backups scoped to the current DB */
-const backupPrefix = (): string => `backup-${dbName()}-`;
 
 /** Parse a backup filename into display info */
 const parseBackupEntry = (filename: string): BackupEntry => {

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { backupFilename, backupTimestamp } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import {
@@ -12,6 +13,7 @@ import {
 } from "#shared/db/migrations.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { uploadRaw } from "#shared/storage.ts";
 import {
   createTestEvent,
   describeWithEnv,
@@ -108,6 +110,28 @@ describeWithEnv("db > migrations", { db: true }, () => {
           .map((e) => e.name)
           .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
         expect(files.length).toBe(1);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("skips pre-migration backup when a recent backup already exists", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        const existing = backupFilename(backupTimestamp());
+        await uploadRaw(new Uint8Array([1]), existing);
+
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await initDb();
+
+        const files = [...Deno.readDirSync(tmpDir)]
+          .map((e) => e.name)
+          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
+        expect(files).toEqual([existing]);
       } finally {
         restore();
         Deno.removeSync(tmpDir, { recursive: true });

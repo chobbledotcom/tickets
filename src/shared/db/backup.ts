@@ -21,7 +21,7 @@ import {
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
 import { requireEnv } from "#shared/env.ts";
-import { uploadRaw } from "#shared/storage.ts";
+import { listFiles, uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -150,8 +150,8 @@ export const backupFilename = (timestamp: string): string =>
   `backup-${dbName()}-${timestamp}.zip`;
 
 /** Generate a timestamp string for backup filenames */
-export const backupTimestamp = (): string =>
-  new Date().toISOString().replace(/[:.]/g, "-");
+export const backupTimestamp = (date = new Date()): string =>
+  date.toISOString().replace(/[:.]/g, "-");
 
 /** Build the manifest object for a backup */
 const buildManifest = (
@@ -192,6 +192,40 @@ export const createAndUploadBackup = async (): Promise<string> => {
   const filename = backupFilename(timestamp);
   await uploadRaw(zipData, filename);
   return filename;
+};
+
+/** Prefix for listing backups scoped to the current DB */
+export const backupPrefix = (): string => `backup-${dbName()}-`;
+
+/**
+ * A backup younger than this is reused rather than recreated. Migrations can
+ * retry after a crash (the lock self-heals via TTL), so this avoids piling up
+ * near-identical pre-migration backups on each retry.
+ */
+export const BACKUP_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Parse the epoch-ms encoded in a backup filename, or null if it doesn't match.
+ * Inverse of backupTimestamp: "...-2024-01-15T12-30-00-000Z.zip" → epoch ms.
+ */
+export const parseBackupTime = (filename: string): number | null => {
+  const m = filename.match(
+    /(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z\.zip$/,
+  );
+  if (!m) return null;
+  const ms = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`);
+  return Number.isNaN(ms) ? null : ms;
+};
+
+/** True if a backup younger than BACKUP_FRESHNESS_WINDOW_MS already exists */
+export const hasRecentBackup = async (): Promise<boolean> => {
+  const now = Date.now();
+  const files = await listFiles(backupPrefix());
+  for (const file of files) {
+    const ms = parseBackupTime(file);
+    if (ms !== null && now - ms < BACKUP_FRESHNESS_WINDOW_MS) return true;
+  }
+  return false;
 };
 
 // ─── Restore ────────────────────────────────────────────────────

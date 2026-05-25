@@ -11,7 +11,7 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import { createAndUploadBackup } from "#shared/db/backup.ts";
+import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -676,11 +676,19 @@ export const initDb = async (): Promise<void> => {
     return;
   }
 
-  // Back up before migrating — but only for existing databases, not fresh installs
+  // Back up before migrating — but only for existing databases, not fresh installs.
+  // Skip if a recent backup already exists (e.g. a retried migration after a crash).
   if (state === "needs_migration" && isStorageEnabled()) {
-    logDebug("Migration", "Creating pre-migration backup...");
-    const filename = await createAndUploadBackup();
-    logDebug("Migration", `Pre-migration backup saved: ${filename}`);
+    if (await hasRecentBackup()) {
+      logDebug(
+        "Migration",
+        "Recent backup exists, skipping pre-migration backup",
+      );
+    } else {
+      logDebug("Migration", "Creating pre-migration backup...");
+      const filename = await createAndUploadBackup();
+      logDebug("Migration", `Pre-migration backup saved: ${filename}`);
+    }
   }
 
   logDebug("Migration", "Step 1: applying schema changes...");
