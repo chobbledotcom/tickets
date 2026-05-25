@@ -6,6 +6,7 @@ import { getAllEvents } from "#shared/db/events.ts";
 import {
   initDb,
   LATEST_UPDATE,
+  MIGRATION_LOCK_TTL_MS,
   resetDatabase,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
@@ -212,6 +213,59 @@ describeWithEnv("db > migrations", { db: true }, () => {
       } finally {
         fetchStub.restore();
         restoreNtfy();
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+        await getDb().execute({
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        });
+      }
+    });
+  });
+
+  describe("migration lock TTL", () => {
+    const setLock = (heldSince: Date) =>
+      getDb().execute({
+        args: ["migration_lock", heldSince.toISOString()],
+        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+      });
+
+    test("reclaims an expired lock so a stalled migration can complete", async () => {
+      const restore = setTestEnv({
+        LOCAL_STORAGE_PATH: undefined,
+        STORAGE_ZONE_KEY: undefined,
+        STORAGE_ZONE_NAME: undefined,
+      });
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await setLock(new Date(Date.now() - MIGRATION_LOCK_TTL_MS - 1000));
+
+        await initDb();
+
+        const result = await getDb().execute(
+          "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+        );
+        expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+      } finally {
+        restore();
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+      }
+    });
+
+    test("keeps blocking while a lock is still within its TTL", async () => {
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await setLock(new Date(Date.now() - MIGRATION_LOCK_TTL_MS / 2));
+
+        await expect(initDb()).rejects.toThrow("migration_lock held");
+      } finally {
         await getDb().execute(
           "DELETE FROM settings WHERE key = 'migration_lock'",
         );

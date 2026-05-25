@@ -309,6 +309,8 @@ describe("code quality", () => {
       // DB version/hash constants used in production but test pattern doesn't detect constant comparison
       "shared/db/migrations.ts:LATEST_UPDATE",
       "shared/db/migrations.ts:SCHEMA_HASH",
+      // Migration lock TTL used in production (same-file) but test pattern doesn't detect same-file usage
+      "shared/db/migrations.ts:MIGRATION_LOCK_TTL_MS",
       // Test helper for creating signed webhook payloads
       "shared/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests

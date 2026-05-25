@@ -610,16 +610,32 @@ const syncIndexes = async (): Promise<void> => {
 const MIGRATION_LOCK_KEY = "migration_lock";
 
 /**
+ * A migration lock older than this is treated as abandoned and stolen.
+ * Migrations run inline on edge isolates that can be evicted mid-run,
+ * orphaning the lock; the TTL lets the next boot self-heal instead of
+ * requiring a manual DELETE FROM settings.
+ */
+export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
+
+/**
  * Acquire an advisory migration lock via the settings table.
- * Returns true if acquired, false if another process holds it.
- * The lock has no TTL — if a migration crashes, the lock persists
- * and requires manual clearing (the DB may need investigation).
+ * Returns true if acquired, false if another process holds a fresh lock.
+ * Stored values are ISO-8601 UTC timestamps, which sort lexicographically,
+ * so a single atomic UPSERT both takes a free lock and steals an expired
+ * one: DO UPDATE only fires when the held lock predates the cutoff, and a
+ * fresh lock leaves rowsAffected at 0. Race-free across concurrent isolates
+ * without a separate read.
  */
 const acquireMigrationLock = async (): Promise<boolean> => {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
+  const stamp = now.toISOString();
   const result = await getDb()
     .execute({
-      args: [MIGRATION_LOCK_KEY, new Date().toISOString()],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
+      args: [MIGRATION_LOCK_KEY, stamp, stamp, cutoff],
+      sql:
+        "INSERT INTO settings (key, value) VALUES (?, ?) " +
+        "ON CONFLICT(key) DO UPDATE SET value = ? WHERE settings.value < ?",
     })
     .catch(() => null); // settings table may not exist yet on first run
   return result === null || result.rowsAffected === 1;
@@ -647,7 +663,9 @@ export const initDb = async (): Promise<void> => {
     void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
     throw new Error(
       "Database migration is already in progress (migration_lock held). " +
-        "If a previous migration crashed, manually DELETE FROM settings WHERE key = 'migration_lock'.",
+        `A crashed migration's lock is reclaimed automatically after ${
+          MIGRATION_LOCK_TTL_MS / 60000
+        } minutes; retry then, or manually DELETE FROM settings WHERE key = 'migration_lock'.`,
     );
   }
 
@@ -702,8 +720,9 @@ export const initDb = async (): Promise<void> => {
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
   });
 
-  // Release lock only on success — if migration crashes, lock persists
-  // and requires manual investigation + clearing
+  // Release lock on success. If a migration crashes the lock is left
+  // behind, but it expires after MIGRATION_LOCK_TTL_MS so the next boot
+  // reclaims it automatically.
   await releaseMigrationLock();
 };
 
