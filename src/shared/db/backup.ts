@@ -26,6 +26,7 @@ import { uploadRaw } from "#shared/storage.ts";
 // ─── Types ──────────────────────────────────────────────────────
 
 type ColumnInfo = { name: string; type: string };
+type TableNameRow = { name: string };
 
 /** A single table's backup: table name and the SQL to recreate + repopulate it */
 export type TableBackup = {
@@ -50,13 +51,12 @@ const quoteId = (name: string): string => `"${name}"`;
 const getColumns = (table: string): Promise<ColumnInfo[]> =>
   queryAll<ColumnInfo>(`PRAGMA table_info(${quoteId(table)})`);
 
-/** Check if a table exists in the database */
-const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [table],
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-  });
-  return result.rows.length > 0;
+/** Get existing table names in one round-trip. */
+const getExistingTableNames = async (): Promise<Set<string>> => {
+  const rows = await queryAll<TableNameRow>(
+    "SELECT name FROM sqlite_master WHERE type = 'table'",
+  );
+  return new Set(rows.map((row) => row.name));
 };
 
 /** Escape a SQL string value (single quotes doubled) */
@@ -125,9 +125,11 @@ export const exportTable = async (table: string): Promise<string> => {
   for (const row of rows) {
     const values = pipe(map((col: string) => escapeSql(row[col])))(colNames);
     lines.push(
-      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${values.join(
-        ", ",
-      )});`,
+      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${
+        values.join(
+          ", ",
+        )
+      });`,
     );
   }
   return lines.join("\n");
@@ -136,11 +138,20 @@ export const exportTable = async (table: string): Promise<string> => {
 /** Create a full backup — one TableBackup per table in SCHEMA order.
  *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
 export const createBackup = async (): Promise<TableBackup[]> => {
+  const existingTables = await getExistingTableNames();
+  const tables = SCHEMA_TABLE_NAMES.filter((table) =>
+    existingTables.has(table)
+  );
   const backups: TableBackup[] = [];
-  for (const table of SCHEMA_TABLE_NAMES) {
-    if (!(await tableExists(table))) continue;
-    const sql = await exportTable(table);
-    backups.push({ sql, table });
+
+  const concurrency = 4;
+  for (let i = 0; i < tables.length; i += concurrency) {
+    const chunk = tables.slice(i, i + concurrency);
+    backups.push(
+      ...(await Promise.all(
+        chunk.map(async (table) => ({ sql: await exportTable(table), table })),
+      )),
+    );
   }
   return backups;
 };
@@ -182,7 +193,7 @@ export const createBackupZip = async (): Promise<Uint8Array> => {
   for (const { table, sql } of tables) {
     files[`${table}.sql`] = encoder.encode(sql);
   }
-  return zipSync(files);
+  return zipSync(files, { level: 1 });
 };
 
 /** Create a backup zip and upload it to storage. Returns the filename. */
