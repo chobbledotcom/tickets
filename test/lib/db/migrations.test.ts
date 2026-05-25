@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import {
@@ -162,9 +163,6 @@ describeWithEnv("db > migrations", { db: true }, () => {
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
         );
         await withFetchMock(async (originalFetch) => {
-          // Reject Bunny storage upload calls at the network layer. We can't
-          // return a non-ok Response here: the Bunny SDK throws on !response.ok
-          // without consuming the body, which trips Deno's resource sanitizer.
           installUrlHandler(originalFetch, (url) =>
             url.includes("bunnycdn.com") || url.includes("b-cdn.net")
               ? Promise.reject(new Error("forced upload failure"))
@@ -182,6 +180,45 @@ describeWithEnv("db > migrations", { db: true }, () => {
         await getDb().execute(
           "DELETE FROM settings WHERE key = 'migration_lock'",
         );
+      }
+    });
+
+    test("sends ntfy notification with DB_URL when migration lock is held", async () => {
+      const restoreNtfy = setTestEnv({
+        DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
+        NTFY_URL: "https://ntfy.sh/test-topic",
+      });
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await getDb().execute({
+          args: ["migration_lock", new Date().toISOString()],
+          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+        });
+
+        await expect(initDb()).rejects.toThrow("migration_lock held");
+
+        const ntfyCall = fetchStub.calls.find(
+          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        );
+        expect(ntfyCall).toBeDefined();
+        expect((ntfyCall!.args[1] as RequestInit).body).toBe(
+          "E_DB_MIGRATION_LOCK libsql://abc-tickets-spencer.lite.bunnydb.net",
+        );
+      } finally {
+        fetchStub.restore();
+        restoreNtfy();
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+        await getDb().execute({
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        });
       }
     });
   });
