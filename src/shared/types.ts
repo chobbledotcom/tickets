@@ -8,6 +8,38 @@ export const createTypeGuard =
   (s: string): s is T =>
     (values as readonly string[]).includes(s);
 
+/**
+ * Unique identifiers for settings nags that prompt the admin to complete
+ * required or recommended configuration.
+ */
+export type NagId =
+  | "payment-provider"
+  | "business-email"
+  | "domain"
+  | "superuser";
+
+/**
+ * A single settings nag item presented to the admin.
+ */
+export type NagItem = {
+  /** The nag identifier. */
+  id: NagId;
+  /** Human-readable description of what needs to be configured. */
+  label: string;
+  /** Deep link to the settings form where the value can be set. */
+  href: string;
+};
+
+export type SuperuserChoice = "" | "self-managed" | "enabled";
+
+const SUPERUSER_CHOICES: readonly SuperuserChoice[] = [
+  "",
+  "self-managed",
+  "enabled",
+];
+
+export const isSuperuserChoice = createTypeGuard(SUPERUSER_CHOICES);
+
 /** Individual contact field name */
 export type ContactField =
   | "email"
@@ -175,6 +207,7 @@ export const isAdminLevel = createTypeGuard(ADMIN_LEVELS);
 /** Session data needed by admin page templates */
 export type AdminSession = {
   readonly adminLevel: AdminLevel;
+  readonly settingsNagItems?: readonly NagItem[];
 };
 
 export interface User {

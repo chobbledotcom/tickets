@@ -66,7 +66,9 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
       getReadOnlyCutoffIso(),
       getRenewalUrl(),
     )}
-    {session.adminLevel === "owner" && <SettingsNagBanner />}
+    {session.adminLevel === "owner" && (
+      <SettingsNagBanner items={session.settingsNagItems} />
+    )}
     <nav id="main-nav">
       <ul>
         {navLink("/admin/", "Events", active)}

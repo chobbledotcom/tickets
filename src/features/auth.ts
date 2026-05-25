@@ -24,7 +24,8 @@ import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
-import type { AdminLevel } from "#shared/types.ts";
+import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
+import type { AdminLevel, NagItem } from "#shared/types.ts";
 
 // Re-export for callers that need it
 export { generateSecureToken };
@@ -42,6 +43,7 @@ export type AuthSession = {
   wrappedDataKey: string | null;
   userId: number;
   adminLevel: AdminLevel;
+  settingsNagItems?: readonly NagItem[];
 };
 
 /**
@@ -99,6 +101,11 @@ export const getAuthenticatedSession = async (
     userId: session.user_id,
     wrappedDataKey: session.wrapped_data_key,
   };
+
+  if (adminLevel === "owner") {
+    result.settingsNagItems = await getSettingsNagItemsForOwner();
+  }
+
   setCachedSession(result);
   return result;
 };

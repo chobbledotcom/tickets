@@ -35,9 +35,14 @@ import type {
   PaymentProviderSetting,
   PaymentProviderType,
   Settings,
+  SuperuserChoice,
   Theme,
 } from "#shared/types.ts";
-import { isPaymentProvider, isPaymentProviderSetting } from "#shared/types.ts";
+import {
+  isPaymentProvider,
+  isPaymentProviderSetting,
+  isSuperuserChoice,
+} from "#shared/types.ts";
 import {
   createAppleWalletReadSettings,
   createAppleWalletUpdateSettings,
@@ -101,6 +106,7 @@ export const CONFIG_KEYS = {
   STRIPE_SECRET_KEY: "stripe_secret_key",
   STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
   STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
+  SUPERUSER_CHOICE: "superuser_choice",
   TERMS_AND_CONDITIONS: "terms_and_conditions",
   THEME: "theme",
   WEBSITE_TITLE: "website_title",
@@ -172,6 +178,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
+  CONFIG_KEYS.SUPERUSER_CHOICE,
   CONFIG_KEYS.EVENT_COLUMN_ORDER,
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
@@ -237,6 +244,7 @@ type SpecificFields = {
   payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
   square_sandbox: boolean;
+  superuser_choice: SuperuserChoice;
   currency: string;
   timezone: string;
   phone_prefix: string;
@@ -259,6 +267,7 @@ const data: SettingsData = {
   theme: "light",
   timezone: DEFAULT_TIMEZONE,
   ...stringSettingDefaults,
+  superuser_choice: "",
 };
 
 const defaults: Readonly<SettingsData> = { ...data };
@@ -779,6 +788,12 @@ export const settings = {
       return snap("stripe_webhook_secret");
     },
   },
+
+  // --- Superuser ---
+  get superuserChoice(): SuperuserChoice {
+    const choice = snap("superuser_choice");
+    return isSuperuserChoice(choice) ? choice : "";
+  },
   get terms(): string {
     return snap("terms_and_conditions");
   },
@@ -898,6 +913,9 @@ export const settings = {
         data.stripe_webhook_endpoint_id = config.endpointId;
       },
     },
+    superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
+      v: SuperuserChoice,
+    ) => Promise<void>,
     terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS),
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),

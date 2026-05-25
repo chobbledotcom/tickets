@@ -2,6 +2,7 @@
  * Admin settings page template
  */
 
+import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { BusinessEmailForm } from "#templates/admin/settings/business-email.tsx";
@@ -17,6 +18,7 @@ import {
   StripeForm,
 } from "#templates/admin/settings/payment.tsx";
 import { PublicSiteForm } from "#templates/admin/settings/public-site.tsx";
+import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
 import { TermsForm } from "#templates/admin/settings/terms.tsx";
 import { ThemeForm } from "#templates/admin/settings/theme.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -38,6 +40,7 @@ export type SettingsPageState = {
   country: string;
   headerImageUrl: string;
   storageEnabled: boolean;
+  superuser: SuperuserState;
 };
 
 /**
@@ -77,6 +80,7 @@ export const adminSettingsPage = (
 
       {TermsForm(s)}
       {EmbedHostsForm(s)}
+      <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
     </Layout>,
   );

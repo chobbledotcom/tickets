@@ -1,30 +1,14 @@
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
-
-/**
- * Unique identifiers for settings nags that prompt the admin to complete
- * required or recommended configuration.
- */
-export type NagId = "payment-provider" | "business-email" | "domain";
-
-/**
- * A single settings nag item presented to the admin.
- */
-export type NagItem = {
-  /** The nag identifier. */
-  id: NagId;
-  /** Human-readable description of what needs to be configured. */
-  label: string;
-  /** Deep link to the settings form where the value can be set. */
-  href: string;
-};
+import { getSuperuserState } from "#shared/superuser.ts";
+import type { NagItem } from "#shared/types.ts";
 
 /**
  * Returns an ordered list of settings nags for incomplete configuration.
  * Items are returned in the order: payment-provider, business-email, domain.
  * An empty array means there are no pending nags.
  */
-export const getSettingsNagItems = (): NagItem[] => {
+export const getBaseSettingsNagItems = (): NagItem[] => {
   const items: NagItem[] = [];
 
   if (settings.paymentProviderSetting === null) {
@@ -57,5 +41,20 @@ export const getSettingsNagItems = (): NagItem[] => {
     });
   }
 
+  return items;
+};
+
+export const getSettingsNagItems = (): NagItem[] => getBaseSettingsNagItems();
+
+export const getSettingsNagItemsForOwner = async (): Promise<NagItem[]> => {
+  const items = getBaseSettingsNagItems();
+  const superuser = await getSuperuserState();
+  if (superuser.available && superuser.choice === "" && !superuser.activated) {
+    items.push({
+      href: "/admin/settings#settings-superuser",
+      id: "superuser",
+      label: "Choose whether to enable a superuser recovery account.",
+    });
+  }
   return items;
 };

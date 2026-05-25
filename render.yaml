@@ -11,5 +11,7 @@ services:
         sync: false
       - key: DB_ENCRYPTION_KEY
         sync: false
+      - key: ADMIN_EMAIL_ADDRESS
+        sync: false
       - key: PORT
         value: "3000"

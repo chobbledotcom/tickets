@@ -21,6 +21,7 @@ import { fetchLatestRelease } from "#shared/update.ts";
 /** Secrets copied from the host environment (if set) */
 const HOST_SECRET_KEYS = [
   "NTFY_URL",
+  "ADMIN_EMAIL_ADDRESS",
   "STORAGE_ZONE_NAME",
   "STORAGE_ZONE_KEY",
   "HOST_EMAIL_PROVIDER",

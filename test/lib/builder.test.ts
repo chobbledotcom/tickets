@@ -14,7 +14,13 @@ const MOCK_DB_RESULT = {
 
 describeWithEnv(
   "builder",
-  { db: true, env: { NTFY_URL: "https://ntfy.example.com/test" } },
+  {
+    db: true,
+    env: {
+      ADMIN_EMAIL_ADDRESS: "admin@example.com",
+      NTFY_URL: "https://ntfy.example.com/test",
+    },
+  },
   () => {
     test("generateEncryptionKey returns 32-byte base64 string", () => {
       const key = builderApi.generateEncryptionKey();
@@ -207,10 +213,15 @@ describeWithEnv(
 
           expect(result.ok).toBe(true);
 
-          // NTFY_URL should have been copied from env
           const ntfySecret = secretsSet.find(([n]) => n === "NTFY_URL");
           expect(ntfySecret).toBeDefined();
           expect(ntfySecret![1]).toBe("https://ntfy.example.com/test");
+
+          const adminEmailSecret = secretsSet.find(
+            ([n]) => n === "ADMIN_EMAIL_ADDRESS",
+          );
+          expect(adminEmailSecret).toBeDefined();
+          expect(adminEmailSecret![1]).toBe("admin@example.com");
         },
       );
     });

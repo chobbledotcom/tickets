@@ -48,6 +48,7 @@ import {
 } from "#shared/config.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { isValidCountry } from "#shared/countries.ts";
+import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
@@ -56,7 +57,11 @@ import {
   MAX_EMAIL_TEMPLATE_LENGTH,
   settings,
 } from "#shared/db/settings.ts";
-import { getUserById, verifyUserPassword } from "#shared/db/users.ts";
+import {
+  deleteUser,
+  getUserById,
+  verifyUserPassword,
+} from "#shared/db/users.ts";
 import {
   applyDemoOverrides,
   isDemoMode,
@@ -102,6 +107,12 @@ import {
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe.ts";
+import {
+  createActivatedSuperuser,
+  generateSuperuserPassword,
+  getSuperuserState,
+  sendSuperuserCredentialsEmail,
+} from "#shared/superuser.ts";
 import type { Theme } from "#shared/types.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
@@ -120,7 +131,8 @@ const getWebhookUrl = (): string => {
  * All calls are independent, so we fetch them concurrently with Promise.all
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
-const getSettingsPageState = () => {
+const getSettingsPageState = async () => {
+  const superuser = await getSuperuserState();
   return {
     bookingFee: settings.bookingFee,
     businessEmail: settings.businessEmail,
@@ -135,10 +147,17 @@ const getSettingsPageState = () => {
     storageEnabled: isStorageEnabled(),
     stripeKeyConfigured: settings.stripe.hasKey,
     stripeKeyMode: settings.stripe.keyMode,
+    superuser,
     termsAndConditions: settings.terms,
     theme: settings.theme,
     webhookUrl: getWebhookUrl(),
   };
+};
+
+/** Render the settings page with current state */
+const renderSettingsPage = async (session: AuthSession) => {
+  const state = await getSettingsPageState();
+  return adminSettingsPage(session, state);
 };
 
 /** Gather state for the advanced settings page */
@@ -197,12 +216,6 @@ const getAdvancedSettingsPageState = async (
     subdomainPreviewFullDomain,
     theme: settings.theme,
   };
-};
-
-/** Render the settings page with current state */
-const renderSettingsPage = (session: AuthSession) => {
-  const state = getSettingsPageState();
-  return adminSettingsPage(session, state);
 };
 
 /** Render the advanced settings page with current state */
@@ -1279,6 +1292,108 @@ const handleAttendeeColumnOrderPost = settingsHandler({
   },
 });
 
+/** Roll back a created superuser after email failure and return error page */
+const rollbackSuperuser = async (
+  userId: number,
+  errorPage: (
+    msg: string,
+    status: number,
+    id: string,
+  ) => Response | Promise<Response>,
+): Promise<Response> => {
+  try {
+    await deleteUser(userId);
+  } catch (deleteErr) {
+    const detail =
+      deleteErr instanceof Error ? deleteErr.message : String(deleteErr);
+    logError({
+      code: ErrorCode.DB_QUERY,
+      detail: `Failed to delete superuser after email failure: ${detail}`,
+    });
+  }
+  return errorPage(
+    "Failed to send superuser credentials email. The user has not been created.",
+    502,
+    "settings-superuser",
+  );
+};
+
+/**
+ * Handle POST /admin/settings/superuser - owner only
+ */
+const handleSuperuserPost = settingsRoute(async (form, errorPage, session) => {
+  const superuser = await getSuperuserState();
+  if (!superuser.available) {
+    return errorPage("Superuser is not available", 400, "settings-superuser");
+  }
+
+  const choice = form.getString("superuser_choice");
+
+  if (choice !== "self-managed" && choice !== "enable-superuser") {
+    return errorPage("Invalid choice", 400, "settings-superuser");
+  }
+
+  if (superuser.userExists) {
+    const existingUserMessage = superuser.activated
+      ? `Superuser ${superuser.username} is already activated. You can delete them from your users page.`
+      : `Username ${superuser.username} already exists. You can delete them from your users page before enabling a superuser.`;
+    return errorPage(existingUserMessage, 400, "settings-superuser");
+  }
+
+  if (choice === "self-managed") {
+    await settings.update.superuserChoice("self-managed");
+    await logActivity("Superuser recovery declined");
+    return ok("/admin/settings", "Superuser recovery declined", {
+      formId: "settings-superuser",
+    });
+  }
+
+  // Confirm email config
+  const config = (await getEmailConfig()) ?? getHostEmailConfig();
+  if (!config) {
+    return errorPage(
+      "Email must be configured before enabling a superuser",
+      400,
+      "settings-superuser",
+    );
+  }
+
+  if (!session.wrappedDataKey) {
+    return errorPage(
+      "Cannot enable superuser: session lacks data key",
+      500,
+      "settings-superuser",
+    );
+  }
+
+  const dataKey = await unwrapKeyWithToken(
+    session.wrappedDataKey,
+    session.token,
+  );
+  const password = generateSuperuserPassword(12);
+  const user = await createActivatedSuperuser({
+    dataKey,
+    password,
+    username: superuser.username,
+  });
+
+  const emailOk = await sendSuperuserCredentialsEmail(config, {
+    email: superuser.email,
+    password,
+    username: superuser.username,
+  });
+
+  if (!emailOk) {
+    return rollbackSuperuser(user.id, errorPage);
+  }
+
+  await settings.update.superuserChoice("enabled");
+  await logActivity(`Superuser '${superuser.username}' enabled`);
+  return ok("/admin/settings", "Superuser enabled and credentials sent", {
+    formId: "settings-superuser",
+  });
+});
+
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
   "GET /admin/settings": handleAdminSettingsGet,
@@ -1314,6 +1429,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square/test": handleSquareTestPost,
   "POST /admin/settings/stripe": handleAdminStripePost,
   "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/superuser": handleSuperuserPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/theme": handleThemePost,
 });

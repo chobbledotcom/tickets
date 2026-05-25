@@ -16,6 +16,10 @@
     "DB_ENCRYPTION_KEY": {
       "description": "32-byte base64-encoded AES-256 encryption key",
       "required": true
+    },
+    "ADMIN_EMAIL_ADDRESS": {
+      "description": "Enables superuser recovery. Email local-part must be a valid username (2-32 chars, letters, numbers, hyphens, underscores). Email delivery must be configured before enabling.",
+      "required": false
     }
   }
 }

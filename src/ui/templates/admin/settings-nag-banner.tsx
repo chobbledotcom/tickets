@@ -1,12 +1,16 @@
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
+import type { NagItem } from "#shared/types.ts";
 
-export const SettingsNagBanner = (): JSX.Element | null => {
-  const items = getSettingsNagItems();
+export const SettingsNagBanner = ({
+  items = getSettingsNagItems(),
+}: {
+  items?: readonly NagItem[];
+} = {}): JSX.Element | null => {
   if (items.length === 0) {
     return null;
   }
   return (
-    <aside class="settings-nag-banner" role="status">
+    <output class="settings-nag-banner">
       <p>
         <strong>Finish setting up your site:</strong>
       </p>
@@ -17,6 +21,6 @@ export const SettingsNagBanner = (): JSX.Element | null => {
           </li>
         ))}
       </ul>
-    </aside>
+    </output>
   );
 };

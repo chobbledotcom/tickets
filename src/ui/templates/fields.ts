@@ -204,6 +204,9 @@ export const validateUsername = (value: string): string | null => {
   if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
     return "Username may only contain letters, numbers, hyphens, and underscores";
   }
+  if (value.startsWith("-") || value.startsWith("_")) {
+    return "Username may not start with a hyphen or underscore";
+  }
   return null;
 };
 
