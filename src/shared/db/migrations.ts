@@ -11,9 +11,10 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import { createAndUploadBackup } from "#shared/db/backup.ts";
+import { createAndUploadBackup, dbName } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -642,6 +643,7 @@ export const initDb = async (): Promise<void> => {
 
   const acquired = await acquireMigrationLock();
   if (!acquired) {
+    void sendNtfyError(`E_DB_MIGRATION_LOCK ${dbName()}`);
     throw new Error(
       "Database migration is already in progress (migration_lock held). " +
         "If a previous migration crashed, manually DELETE FROM settings WHERE key = 'migration_lock'.",
