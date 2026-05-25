@@ -183,8 +183,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       }
     });
 
-    test("sends ntfy notification with database name when migration lock is held", async () => {
+    test("sends ntfy notification with DB_URL when migration lock is held", async () => {
       const restoreNtfy = setTestEnv({
+        DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
         NTFY_URL: "https://ntfy.sh/test-topic",
       });
       const fetchStub = stub(globalThis, "fetch", () =>
@@ -206,7 +207,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         );
         expect(ntfyCall).toBeDefined();
         expect((ntfyCall!.args[1] as RequestInit).body).toBe(
-          "E_DB_MIGRATION_LOCK local",
+          "E_DB_MIGRATION_LOCK libsql://abc-tickets-spencer.lite.bunnydb.net",
         );
       } finally {
         fetchStub.restore();
@@ -214,10 +215,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
         await getDb().execute(
           "DELETE FROM settings WHERE key = 'migration_lock'",
         );
-        await getDb().execute(
-          "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-          [SCHEMA_HASH],
-        );
+        await getDb().execute({
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        });
       }
     });
   });
