@@ -1106,6 +1106,23 @@ label.terms-agree {
   display: block;
 }
 
+.radio-label {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  font-weight: normal;
+  gap: var(--space-s);
+}
+
+.radio-label > input[type="radio"] {
+  flex: 0 0 auto;
+  margin-top: 0.3em;
+}
+
+.radio-label > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Hide daily-only fields when event type is "standard" */
 form:has(select[name="event_type"] option[value="standard"]:checked)
   > label:has([name="bookable_days"]),
