@@ -247,5 +247,5 @@ export const getActivePaymentProvider =
     }
 
     logDebug("Payment", `Resolving payment provider: ${providerType}`);
-    return providerLoaders[providerType]();
+    return await providerLoaders[providerType]();
   };
