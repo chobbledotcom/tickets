@@ -75,7 +75,7 @@ declare global {
   }
 }
 
-const escapeHtml = (str: string): string =>
+export const escapeHtml = (str: string): string =>
   str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

@@ -247,6 +247,12 @@ deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:co
 | `DB_TOKEN` | Yes* | Database auth token (*remote databases) |
 | `DB_ENCRYPTION_KEY` | Yes | 32-byte base64-encoded AES-256 key |
 
+Optional:
+
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
+
 See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables (email providers, Apple Wallet, image uploads, and more).
 
 ---

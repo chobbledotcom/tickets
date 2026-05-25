@@ -118,6 +118,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
+- `ADMIN_EMAIL_ADDRESS` - Enables a superuser recovery option in owner settings. The local-part (before `@`) must be a valid app username (2–32 characters, letters, numbers, hyphens, underscores). Email delivery must be configured before the superuser can be enabled.
 - `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (e.g. `pass.com.example.tickets`)
 - `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (e.g. `ABC1234567`)
 - `APPLE_WALLET_SIGNING_CERT` - PEM-encoded signing certificate
