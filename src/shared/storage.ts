@@ -398,9 +398,13 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
   )} size limit`,
 };
 
+/** Extract the basename from a path (handles both forward and backslash separators) */
+export const getBasename = (name: string): string =>
+  name.split(/[/\\]/).pop() as string;
+
 /** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
 const sanitizeFilename = (name: string): string => {
-  const basename = name.split(/[/\\]/).pop() as string; // split always returns ≥1 element
+  const basename = getBasename(name);
   return basename.replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
 };
 

@@ -287,6 +287,19 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
+    test("rejects filename with traversal despite valid prefix and suffix", async () => {
+      await withLocalStorageEnabled(async () => {
+        const { response } = await adminFormPost(
+          "/admin/backup/restore/confirm",
+          {
+            backup_filename: "restore-pending-x/../../etc/passwd.zip",
+            confirm_identifier: RESTORE_CONFIRM_PHRASE,
+          },
+        );
+        expectRedirectWithFlash("/admin/backup")(response);
+      });
+    });
+
     test("cleans up temp file even on restore failure", async () => {
       await withLocalStorageEnabled(async () => {
         // Upload an invalid zip (valid zip format but contains bad SQL)

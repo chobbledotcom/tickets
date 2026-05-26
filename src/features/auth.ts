@@ -343,12 +343,22 @@ export const authFailure = (
   reason: AuthFailureReason,
 ): Response => AUTH_FAILURES[reason][channel]();
 
-/** Parse JSON body, returning empty object for non-JSON or GET requests */
+/** Parse JSON body, returning empty object for non-JSON GET/HEAD requests */
 const parseJsonBody = async (
   request: Request,
 ): Promise<Record<string, unknown> | Response> => {
   const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) return {};
+  const bodyRequired = request.method !== "GET" && request.method !== "HEAD";
+
+  if (!contentType.includes("application/json")) {
+    if (bodyRequired) {
+      return jsonResponse(
+        { message: "Invalid request body", status: "error" },
+        400,
+      );
+    }
+    return {};
+  }
   try {
     return await request.json();
   } catch {
