@@ -11,14 +11,16 @@
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
  * Amounts: the app models money in minor units (e.g. pence); SumUp's API uses
- * major units. We convert at the boundary, assuming 2-decimal currencies (the
- * same assumption the rest of the money handling makes).
+ * major units. We convert at the boundary using the configured currency's
+ * decimal places (the shared currency helpers), so zero-decimal currencies
+ * (e.g. JPY) convert correctly rather than assuming a fixed factor of 100.
  */
 
 import { SumUp } from "@sumup/sdk";
 import type { CheckoutSuccess, Currency } from "@sumup/sdk";
 import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -29,16 +31,6 @@ import {
   errorMessage,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-
-/** Minor units (e.g. pence) per major unit. Assumes 2-decimal currencies. */
-const MINOR_PER_MAJOR = 100;
-
-/** Convert minor units (pence) to the major units SumUp's API expects. */
-const toMajorUnits = (minor: number): number => minor / MINOR_PER_MAJOR;
-
-/** Convert SumUp's major-unit amount back to the app's minor units. */
-const toMinorUnits = (major: number): number =>
-  Math.round(major * MINOR_PER_MAJOR);
 
 /** Normalized checkout shape consumed by the provider adapter. */
 export type SumupCheckout = {
@@ -132,7 +124,7 @@ export const sumupApi: {
 
     return withClient(async (client) => {
       const checkout = await client.checkouts.create({
-        amount: toMajorUnits(totalMinor),
+        amount: Number(toMajorUnits(totalMinor)),
         checkout_reference: reference,
         currency: settings.currency.toUpperCase() as Currency,
         description: `Tickets (${intent.items.length} event(s))`,

@@ -201,6 +201,26 @@ describe("sumup", () => {
       });
     });
 
+    test("derives the major-unit amount from the configured currency", async () => {
+      // JPY has no minor unit, so 2000 minor units must stay 2000 (not 20).
+      settings.setForTest({ currency: "JPY" });
+      let sentBody: Record<string, unknown> = {};
+      const client = makeClient({
+        create: (body) => {
+          sentBody = body as Record<string, unknown>;
+          return Promise.resolve({
+            hosted_checkout_url: "https://pay.sumup.com/y",
+            status: "PENDING",
+          });
+        },
+      });
+      await withClient(client, async () => {
+        await createCheckout(intent, "http://localhost");
+        expect(sentBody.amount).toBe(2000);
+        expect(sentBody.currency).toBe("JPY");
+      });
+    });
+
     test("returns null when the response lacks a hosted_checkout_url", async () => {
       const client = makeClient({ create: () => Promise.resolve({}) });
       await withClient(client, async () => {
