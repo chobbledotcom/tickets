@@ -95,7 +95,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
 
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
 export const handleCustomDomainValidatePost = advancedSettingsRoute(
-  async (_form, errorPage) => {
+  (_form, errorPage) => {
     if (!isBunnyCdnEnabled()) {
       return errorPage(
         "Bunny CDN is not configured",
