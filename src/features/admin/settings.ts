@@ -752,34 +752,32 @@ const handleResetDatabasePost = advancedSettingsRoute(
 );
 
 /**
- * Handle POST /admin/settings/event-column-order - owner only
+ * Build a column-order settings handler for the event or attendee table.
+ * Handles POST /admin/settings/{event,attendee}-column-order - owner only
  */
-const handleEventColumnOrderPost = settingsHandler({
-  advanced: true,
-  extract: (form) => form.getString("column_order").trim(),
-  formId: "settings-event-column-order",
-  label: "Event column order",
-  save: (value) => settings.update.eventColumnOrder(value),
-  validate: (value) => {
-    if (!value) return null; // Empty clears to default
-    return validateColumnTemplate(value, Object.keys(EVENT_TABLE_COLUMNS));
-  },
-});
+const columnOrderHandler = (kind: "event" | "attendee") => {
+  const columns =
+    kind === "event" ? EVENT_TABLE_COLUMNS : ATTENDEE_TABLE_COLUMNS;
+  const update =
+    kind === "event"
+      ? settings.update.eventColumnOrder
+      : settings.update.attendeeColumnOrder;
+  const label =
+    kind === "event" ? "Event column order" : "Attendee column order";
+  return settingsHandler({
+    advanced: true,
+    extract: (form) => form.getString("column_order").trim(),
+    formId: `settings-${kind}-column-order`,
+    label,
+    save: (value) => update(value),
+    // Empty value clears to the default column order
+    validate: (value) =>
+      value ? validateColumnTemplate(value, Object.keys(columns)) : null,
+  });
+};
 
-/**
- * Handle POST /admin/settings/attendee-column-order - owner only
- */
-const handleAttendeeColumnOrderPost = settingsHandler({
-  advanced: true,
-  extract: (form) => form.getString("column_order").trim(),
-  formId: "settings-attendee-column-order",
-  label: "Attendee column order",
-  save: (value) => settings.update.attendeeColumnOrder(value),
-  validate: (value) => {
-    if (!value) return null; // Empty clears to default
-    return validateColumnTemplate(value, Object.keys(ATTENDEE_TABLE_COLUMNS));
-  },
-});
+const handleEventColumnOrderPost = columnOrderHandler("event");
+const handleAttendeeColumnOrderPost = columnOrderHandler("attendee");
 
 /** Roll back a created superuser after email failure and return error page */
 const rollbackSuperuser = async (

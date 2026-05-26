@@ -3,7 +3,10 @@
  * Owner-only access enforced via advancedSettingsRoute
  */
 
-import { advancedSettingsRoute } from "#routes/admin/settings-helpers.ts";
+import {
+  advancedSettingsRoute,
+  type ErrorPageFn,
+} from "#routes/admin/settings-helpers.ts";
 import {
   checkSubdomainAvailable,
   registerBunnySubdomain,
@@ -14,6 +17,23 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
 import { fail, ok } from "#shared/response.ts";
+
+/**
+ * Run a task guarded by the global current-task lock, returning the task's
+ * Response on success or a 409 error page when another task holds the lock.
+ */
+const runGuardedTask = async (
+  taskName: string,
+  formId: string,
+  errorPage: ErrorPageFn,
+  task: () => Promise<Response>,
+): Promise<Response> => {
+  const taskResult = await settings.withCurrentTask(taskName, task);
+  if (!taskResult.ok) {
+    return errorPage(taskResult.error, 409, formId);
+  }
+  return taskResult.value;
+};
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
@@ -41,8 +61,10 @@ export const handleCustomDomainPost = advancedSettingsRoute(
       return errorPage("Invalid domain format", 400, "settings-custom-domain");
     }
 
-    const taskResult = await settings.withCurrentTask(
+    return runGuardedTask(
       "custom-domain",
+      "settings-custom-domain",
+      errorPage,
       async () => {
         await settings.update.customDomain(raw);
         await logActivity(`Custom domain set to ${raw}`);
@@ -68,11 +90,6 @@ export const handleCustomDomainPost = advancedSettingsRoute(
         );
       },
     );
-
-    if (!taskResult.ok) {
-      return errorPage(taskResult.error, 409, "settings-custom-domain");
-    }
-    return taskResult.value;
   },
 );
 
@@ -96,8 +113,10 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
       );
     }
 
-    const taskResult = await settings.withCurrentTask(
+    return runGuardedTask(
       "custom-domain-validate",
+      "settings-custom-domain-validate",
+      errorPage,
       async () => {
         const result = await validateCustomDomain(customDomain);
         if (!result.ok) {
@@ -119,15 +138,6 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
         );
       },
     );
-
-    if (!taskResult.ok) {
-      return errorPage(
-        taskResult.error,
-        409,
-        "settings-custom-domain-validate",
-      );
-    }
-    return taskResult.value;
   },
 );
 
@@ -181,8 +191,10 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
     }
 
     // Save: actually register (guarded by current_task)
-    const taskResult = await settings.withCurrentTask(
+    return runGuardedTask(
       "host-subdomain",
+      FORM_ID_HOST_SUBDOMAIN,
+      errorPage,
       async () => {
         const result = await registerBunnySubdomain(raw);
         if (!result.ok) {
@@ -200,10 +212,5 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
         );
       },
     );
-
-    if (!taskResult.ok) {
-      return errorPage(taskResult.error, 409, FORM_ID_HOST_SUBDOMAIN);
-    }
-    return taskResult.value;
   },
 );
