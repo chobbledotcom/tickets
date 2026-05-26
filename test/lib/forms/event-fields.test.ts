@@ -67,6 +67,42 @@ describe("eventFields — thank_you_url", () => {
   });
 });
 
+describe("eventFields — webhook_url", () => {
+  test("accepts valid https URLs", () => {
+    expectValid(
+      eventFields,
+      eventForm({ webhook_url: "https://example.com/webhook" }),
+    );
+  });
+
+  const rejected: Array<{ expected: string; url: string; label: string }> = [
+    { expected: "URL must use https://", url: "/internal", label: "relative" },
+    { expected: "URL must use https://", url: "http://example.com/webhook", label: "http" },
+    { expected: "URL must use https://", url: "javascript:alert(1)", label: "javascript" },
+    { expected: "URL must use https://", url: "https://localhost/webhook", label: "localhost" },
+    { expected: "URL must use https://", url: "https://127.0.0.1/webhook", label: "loopback" },
+    { expected: "URL must use https://", url: "https://[::1]/webhook", label: "IPv6 loopback" },
+    { expected: "URL must use https://", url: "https://10.0.0.1/webhook", label: "10.x" },
+    { expected: "URL must use https://", url: "https://172.16.0.1/webhook", label: "172.16.x" },
+    { expected: "URL must use https://", url: "https://192.168.1.1/webhook", label: "192.168.x" },
+    { expected: "URL must use https://", url: "https://169.254.169.254/latest", label: "link-local" },
+    { expected: "URL must use https://", url: "https://0.0.0.0/webhook", label: "0.0.0.0" },
+    { expected: "URL must use https://", url: "https://255.255.255.255/webhook", label: "broadcast" },
+    { expected: "Invalid URL format", url: "not-a-valid-url", label: "malformed" },
+  ];
+
+  for (const { expected, url, label } of rejected) {
+    test(`rejects ${label} webhook URL`, () => {
+      expectInvalid(expected)(eventFields, eventForm({ webhook_url: url }));
+    });
+  }
+
+  test("accepts non-private IPs that look similar", () => {
+    expectValid(eventFields, eventForm({ webhook_url: "https://169.0.0.0/webhook" }));
+    expectValid(eventFields, eventForm({ webhook_url: "https://255.0.0.0/webhook" }));
+  });
+});
+
 describe("eventFields — pricing", () => {
   test("rejects negative unit_price", () => {
     expectInvalid("Price must be 0 or greater")(
