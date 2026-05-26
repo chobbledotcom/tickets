@@ -822,17 +822,9 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const payloadBytes = new Uint8Array(await request.arrayBuffer());
   const payload = new TextDecoder().decode(payloadBytes);
 
-  // Get signature header (sync — headers are always available)
-  const signature = getWebhookSignatureHeader(request);
-  if (!signature) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Webhook missing signature header",
-    });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Missing signature", 400);
-  }
-
+  // Resolve the provider first: only it knows whether a signature is required.
+  // Unsigned-webhook providers (SumUp) establish authenticity by re-fetching
+  // the checkout from their API inside resolveWebhookSession instead.
   const provider = await getActivePaymentProvider();
   if (!provider) {
     logError({
@@ -841,6 +833,17 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     });
     logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Payment provider not configured", 400);
+  }
+
+  // Get signature header (sync — headers are always available)
+  const signature = getWebhookSignatureHeader(request) ?? "";
+  if (provider.requiresWebhookSignature && !signature) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Webhook missing signature header",
+    });
+    logDebug("Webhook", `Rejected payload: ${payload}`);
+    return plainResponse("Missing signature", 400);
   }
 
   // Use the public-facing domain for signature verification. Square signs the

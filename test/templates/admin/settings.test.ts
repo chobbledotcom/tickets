@@ -28,6 +28,8 @@ const defaultState = (): SettingsPageState => ({
   storageEnabled: false,
   stripeKeyConfigured: false,
   stripeKeyMode: null,
+  sumupKeyConfigured: false,
+  sumupKeyMode: null,
   superuser: { available: false, reason: "missing-env" },
   termsAndConditions: "",
   theme: "light",
@@ -35,6 +37,18 @@ const defaultState = (): SettingsPageState => ({
 });
 
 describe("adminSettingsPage", () => {
+  test("omits the key-mode notice for a configured key with an unknown mode", () => {
+    const html = adminSettingsPage(TEST_SESSION, {
+      ...defaultState(),
+      paymentProvider: "sumup",
+      sumupKeyConfigured: true,
+      sumupKeyMode: null,
+    });
+    expect(html).toContain("A SumUp API key is currently configured");
+    expect(html).not.toContain("Test mode");
+    expect(html).not.toContain("Live mode");
+  });
+
   test("shows square webhook configured message when key is set", () => {
     const html = adminSettingsPage(TEST_SESSION, {
       ...defaultState(),

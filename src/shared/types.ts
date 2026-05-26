@@ -81,10 +81,14 @@ export type ContactFields = Pick<ContactInfo, "name" | "email"> &
 export type Theme = "light" | "dark";
 
 /** Supported payment provider identifiers */
-export type PaymentProviderType = "stripe" | "square";
+export type PaymentProviderType = "stripe" | "square" | "sumup";
 
 /** Valid payment provider values */
-const PAYMENT_PROVIDERS: readonly PaymentProviderType[] = ["stripe", "square"];
+const PAYMENT_PROVIDERS: readonly PaymentProviderType[] = [
+  "stripe",
+  "square",
+  "sumup",
+];
 
 /** Type guard: check if a string is a valid PaymentProviderType */
 export const isPaymentProvider = createTypeGuard(PAYMENT_PROVIDERS);
@@ -96,6 +100,7 @@ export type PaymentProviderSetting = PaymentProviderType | "none";
 const PAYMENT_PROVIDER_SETTINGS: readonly PaymentProviderSetting[] = [
   "stripe",
   "square",
+  "sumup",
   "none",
 ];
 

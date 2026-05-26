@@ -36,7 +36,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add duration_days to events and drop built_sites.renewal_tier_event_id";
+  "add sumup_checkouts table for SumUp checkout metadata";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -255,6 +255,21 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["event_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    // SumUp checkouts can't carry arbitrary metadata through the provider
+    // (unlike Stripe sessions / Square orders), so booking metadata is stored
+    // here keyed by our generated checkout_reference and looked up on
+    // webhook/redirect. Rows are pruned on the same schedule as processed_payments.
+    "sumup_checkouts",
+    {
+      columns: [
+        ["checkout_reference", "TEXT PRIMARY KEY"],
+        ["metadata", "TEXT NOT NULL"],
+        ["created_at", "TEXT NOT NULL"],
       ],
     },
   ],

@@ -147,6 +147,12 @@ export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
 
+  /** Whether incoming webhooks carry a verifiable signature. Providers that
+   * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
+   * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this
+   * false and instead establish authenticity by re-fetching from the API. */
+  readonly requiresWebhookSignature: boolean;
+
   /**
    * Create a checkout session for one or more events.
    * Returns a session ID and hosted checkout URL, or null on failure.
@@ -219,6 +225,19 @@ export interface PaymentProvider {
  * Lazy-loads the provider module to avoid importing unused SDKs.
  * Returns null if no provider is configured.
  */
+/** Lazy module loaders per provider — avoids importing unused SDKs. */
+const providerLoaders: Record<
+  PaymentProviderType,
+  () => Promise<PaymentProvider>
+> = {
+  square: async () =>
+    (await import("#shared/square-provider.ts")).squarePaymentProvider,
+  stripe: async () =>
+    (await import("#shared/stripe-provider.ts")).stripePaymentProvider,
+  sumup: async () =>
+    (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
+};
+
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
     const providerType = paymentsApi.getConfiguredProvider();
@@ -228,16 +247,5 @@ export const getActivePaymentProvider =
     }
 
     logDebug("Payment", `Resolving payment provider: ${providerType}`);
-
-    if (providerType === "stripe") {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      return stripePaymentProvider;
-    }
-
-    const { squarePaymentProvider } = await import(
-      "#shared/square-provider.ts"
-    );
-    return squarePaymentProvider;
+    return await providerLoaders[providerType]();
   };

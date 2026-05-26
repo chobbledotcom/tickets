@@ -43,6 +43,17 @@ describeWithEnv("isPaymentsEnabled", { db: true }, () => {
     expect(isPaymentsEnabled()).toBe(true);
   });
 
+  test("returns false when provider is sumup but no API key is set", async () => {
+    await settings.update.paymentProvider("sumup");
+    expect(isPaymentsEnabled()).toBe(false);
+  });
+
+  test("returns true when provider is sumup and an API key is set", async () => {
+    await settings.update.paymentProvider("sumup");
+    await settings.update.sumup.apiKey("sk_test_123");
+    expect(isPaymentsEnabled()).toBe(true);
+  });
+
   test("returns false when the raw provider value is not stripe or square", async () => {
     // setRaw bypasses the typed API; reload the snapshot so the getter sees it
     await settings.setRaw("payment_provider", "paypal");

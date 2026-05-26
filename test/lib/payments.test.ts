@@ -28,4 +28,10 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     const provider = await getActivePaymentProvider();
     expect(provider?.type).toBe("square");
   });
+
+  test("returns the sumup provider when provider is set to sumup", async () => {
+    await settings.update.paymentProvider("sumup");
+    const provider = await getActivePaymentProvider();
+    expect(provider?.type).toBe("sumup");
+  });
 });

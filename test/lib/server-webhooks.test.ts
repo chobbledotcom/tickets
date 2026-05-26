@@ -8,8 +8,10 @@ import {
   questionsTable,
   setEventQuestions,
 } from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { sumupApi } from "#shared/sumup.ts";
 import {
   assertJson,
   bookAttendee,
@@ -54,6 +56,28 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         mockWebhookRequest({ type: "checkout.session.completed" }),
       );
       await expectHtmlResponse(response, 400, "Missing signature");
+    });
+
+    test("accepts an unsigned SumUp webhook (no signature required)", async () => {
+      await settings.update.paymentProvider("sumup");
+      await settings.update.sumup.apiKey("sk_test_x");
+      await settings.update.sumup.merchantCode("MC1");
+      const restore = stub(sumupApi, "retrieveCheckoutById", () =>
+        Promise.resolve(null),
+      );
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({
+            event_type: "CHECKOUT_STATUS_CHANGED",
+            id: "co_unsigned",
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+      } finally {
+        restore.restore();
+      }
     });
 
     test("handles trailing slash on webhook URL (body buffered correctly)", async () => {
