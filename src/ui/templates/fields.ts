@@ -168,6 +168,61 @@ const validateSafeUrl = (value: string): string | null => {
   }
 };
 
+/** Check if a hostname is a private/internal IP or localhost */
+const isPrivateHostname = (hostname: string): boolean => {
+  if (hostname === "localhost") return true;
+  if (hostname === "[::1]") return true;
+
+  const parts = hostname.split(".");
+  if (
+    parts.length === 4 &&
+    parts.every((p) => p !== "" && !Number.isNaN(Number(p)))
+  ) {
+    const a = Number(parts[0]);
+    const b = Number(parts[1]);
+    const c = Number(parts[2]);
+    const d = Number(parts[3]);
+    // 127.0.0.0/8  (loopback)
+    if (a === 127) return true;
+    // 10.0.0.0/8   (private)
+    if (a === 10) return true;
+    // 172.16.0.0/12 (private)
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    // 192.168.0.0/16 (private)
+    if (a === 192 && b === 168) return true;
+    // 169.254.0.0/16 (link-local)
+    if (a === 169 && b === 254) return true;
+    // 0.0.0.0/8
+    if (a === 0) return true;
+    // 255.255.255.255
+    if (a === 255 && b === 255 && c === 255 && d === 255) return true;
+  }
+
+  return false;
+};
+
+/**
+ * Validate webhook URL — must be an externally routable HTTPS URL.
+ * Rejects relative paths, localhost, and private IP ranges (SSRF protection).
+ */
+const validateWebhookUrl = (value: string): string | null => {
+  // Reject relative URLs — webhook must be absolute and externally routable
+  if (value.startsWith("/")) return "URL must use https://";
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") {
+      return "URL must use https://";
+    }
+    if (isPrivateHostname(url.hostname)) {
+      return "URL must use https://";
+    }
+    return null;
+  } catch {
+    return "Invalid URL format";
+  }
+};
+
 /**
  * Validate price is non-negative
  */
@@ -467,7 +522,7 @@ export const eventFields: Field[] = [
     name: "webhook_url",
     placeholder: "https://example.com/webhook",
     type: "url",
-    validate: validateSafeUrl,
+    validate: validateWebhookUrl,
   },
   {
     hint: "Requires attendees to show ID matching the ticket name at entry",

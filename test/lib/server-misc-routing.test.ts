@@ -81,7 +81,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     describe("Content-Security-Policy", () => {
-      const baseCsp = "default-src 'self'; form-action 'self'";
+      const baseCsp =
+        "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'";
 
       test("non-embeddable pages have frame-ancestors 'none' and security restrictions", async () => {
         const response = await handleRequest(mockRequest("/"));
@@ -107,6 +108,104 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         const csp = getHeader(response, "content-security-policy");
         expect(csp).toContain("squareupsandbox.com");
       });
+    });
+
+    describe("CSP security invariants", () => {
+      const assertCspDirective = (
+        csp: string,
+        directive: string,
+        expected: string,
+      ) => {
+        const match = csp.match(new RegExp(`${directive} ([^;]+)`));
+        expect(match?.[1]).toBe(expected);
+      };
+
+      const coreDirectives: Array<[string, string]> = [
+        ["default-src", "'self'"],
+        ["base-uri", "'self'"],
+        ["object-src", "'none'"],
+        ["form-action", "'self'"],
+      ];
+
+      for (const [directive, expected] of coreDirectives) {
+        test(`${directive} is ${expected} on non-embeddable pages`, async () => {
+          const csp = getHeader(
+            await handleRequest(mockRequest("/")),
+            "content-security-policy",
+          );
+          assertCspDirective(csp, directive, expected);
+        });
+      }
+
+      test("non-embeddable pages have frame-ancestors 'none'", async () => {
+        const csp = getHeader(
+          await handleRequest(mockRequest("/")),
+          "content-security-policy",
+        );
+        assertCspDirective(csp, "frame-ancestors", "'none'");
+      });
+
+      test("ticket pages omit frame-ancestors 'none'", async () => {
+        const csp =
+          (await getTicketPageResponse()).headers.get(
+            "content-security-policy",
+          ) ?? "";
+        expect(csp).not.toContain("frame-ancestors 'none'");
+      });
+
+      test("configured embed hosts appear in frame-ancestors", async () => {
+        await settings.update.embedHosts(
+          "https://example.com, https://app.example.org",
+        );
+        const csp =
+          (await getTicketPageResponse()).headers.get(
+            "content-security-policy",
+          ) ?? "";
+        expect(csp).toContain("https://example.com");
+        expect(csp).toContain("https://app.example.org");
+      });
+
+      const paymentProviders: Array<{
+        domainSubstring: string;
+        label: string;
+        setup: () => Promise<void>;
+      }> = [
+        {
+          domainSubstring: "checkout.stripe.com",
+          label: "Stripe",
+          setup: () => settings.update.paymentProvider("stripe"),
+        },
+        {
+          domainSubstring: "squareup.com",
+          label: "Square",
+          setup: async () => {
+            await settings.update.paymentProvider("square");
+            await settings.update.square.sandbox(false);
+          },
+        },
+        {
+          domainSubstring: "squareupsandbox.com",
+          label: "Square sandbox",
+          setup: async () => {
+            await settings.update.paymentProvider("square");
+            await settings.update.square.sandbox(true);
+          },
+        },
+      ];
+
+      for (const { domainSubstring, label, setup } of paymentProviders) {
+        test(`${label} only widens form-action (no script-src or style-src)`, async () => {
+          await setup();
+          const csp = getHeader(
+            await handleRequest(mockRequest("/")),
+            "content-security-policy",
+          );
+          assertCspDirective(csp, "default-src", "'self'");
+          expect(csp).toContain(domainSubstring);
+          expect(csp).not.toContain("script-src");
+          expect(csp).not.toContain("style-src");
+        });
+      }
     });
 
     describe("other security headers", () => {

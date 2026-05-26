@@ -37,7 +37,11 @@ export const buildCspHeader = (
   embeddable: boolean,
   payment?: PaymentCspConfig,
 ): string => {
-  const directives = ["default-src 'self'"];
+  const directives = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ];
 
   if (payment?.provider === "square") {
     const sq = payment.sandbox

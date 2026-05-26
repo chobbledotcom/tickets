@@ -15,7 +15,11 @@ import {
   incrementAttachmentDownloads,
 } from "#shared/db/attendees.ts";
 import { getEvent } from "#shared/db/events.ts";
-import { downloadImage, isStorageEnabled } from "#shared/storage.ts";
+import {
+  downloadImage,
+  getBasename,
+  isStorageEnabled,
+} from "#shared/storage.ts";
 
 /** Common MIME types by file extension */
 const EXT_MIME_MAP: Record<string, string> = {
@@ -54,6 +58,17 @@ export const getMimeType = (filename: string): string => {
 const forbiddenResponse = (): Response =>
   new Response("Forbidden", { status: 403 });
 
+/**
+ * Sanitize an attachment name for use in the Content-Disposition header.
+ * Strips characters that could be used for HTTP header injection or path traversal.
+ */
+const sanitizeAttachmentName = (name: string): string => {
+  const basename = getBasename(name);
+  return (
+    basename.replace(/[^\x20-\x7E]/g, "").replace(/[":;\\]/g, "_") || "file"
+  );
+};
+
 /** Handle GET /attachment/:id */
 const handleAttachmentDownload: TypedRouteHandler<
   "GET /attachment/:id"
@@ -91,13 +106,11 @@ const handleAttachmentDownload: TypedRouteHandler<
 
   // Serve with Content-Disposition for proper download filename
   const contentType = getMimeType(event.attachment_name);
+  const safeName = sanitizeAttachmentName(event.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {
       "cache-control": "public, max-age=3600",
-      "content-disposition": `attachment; filename="${event.attachment_name.replace(
-        /"/g,
-        '\\"',
-      )}"`,
+      "content-disposition": `attachment; filename="${safeName}"`,
       "content-type": contentType,
     },
   });

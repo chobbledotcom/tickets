@@ -71,6 +71,19 @@ describeWithEnv(
       return { attendeeId: attendee.id, eventId: event.id };
     };
 
+    /** Create an event+attendee with a custom attachment name */
+    const setupAttachmentWithName = async (attachmentName: string) => {
+      const { event, attendee } = await createTestAttendeeWithToken(
+        "Test User",
+        "test@example.com",
+      );
+      await eventsTable.update(event.id, {
+        attachmentName,
+        attachmentUrl: "file.pdf",
+      });
+      return { attendeeId: attendee.id, eventId: event.id };
+    };
+
     /** Sign a URL and return the full path with query params */
     const signUrl = async (
       eventId: number,
@@ -182,6 +195,65 @@ describeWithEnv(
         expect(body).toEqual(fileContent);
       });
     });
+
+    const sanitizationCases: Array<{
+  label: string;
+  name: string;
+  notContains: string[];
+  contains?: string;
+  equals?: string;
+}> = [
+  {
+    label: "strips CR/LF header injection",
+    name: 'evil"\r\nx-bad: 1.pdf',
+    notContains: ["\r", "\n", "x-bad:"],
+  },
+  {
+    label: "strips quote injection to prevent extra filename",
+    name: 'report.pdf"; filename="evil.html',
+    notContains: ['filename="evil.html"'],
+  },
+  {
+    label: "strips path traversal, preserves basename",
+    name: "../../secret.pdf",
+    notContains: ["../"],
+    contains: "secret.pdf",
+  },
+  {
+    label: "strips semicolon injection",
+    name: "report;evil.pdf",
+    notContains: [";evil"],
+  },
+  {
+    label: "falls back to 'file' for control-only names",
+    name: "\x01\x02",
+    notContains: [],
+    equals: 'attachment; filename="file"',
+  },
+];
+
+for (const { label, name, notContains, contains, equals } of sanitizationCases) {
+  test(`sanitizes attachment filename: ${label}`, async () => {
+    const { eventId, attendeeId } = await setupAttachmentWithName(name);
+    const path = await signUrl(eventId, attendeeId);
+    const fileContent = new TextEncoder().encode("data");
+
+    await withCdnMock(fileContent, async () => {
+      const response = await handleRequest(mockRequest(path));
+      expect(response.status).toBe(200);
+      const cd = response.headers.get("content-disposition")!;
+      for (const bad of notContains) expect(cd).not.toContain(bad);
+      if (contains) expect(cd).toContain(contains);
+      if (equals) expect(cd).toBe(equals);
+
+      // Verify no duplicate Content-Disposition headers from injection
+      const cdHeaders = [...response.headers.entries()].filter(
+        ([k]) => k.toLowerCase() === "content-disposition",
+      );
+      if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
+    });
+  });
+}
 
     test("increments attachment_downloads counter", async () => {
       const { eventId, attendeeId } = await setupAttachment();
