@@ -2,15 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync, zipSync } from "fflate";
 import {
+  BACKUP_FRESHNESS_WINDOW_MS,
   type BackupManifest,
   backupFilename,
+  backupPrefix,
   backupTimestamp,
   countZipStatements,
   createBackup,
   createBackupZip,
   dbName,
   exportTable,
+  hasRecentBackup,
   isRemoteDatabase,
+  parseBackupTime,
   readManifest,
   restoreFromSql,
   restoreFromZip,
@@ -23,6 +27,7 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import { uploadRaw } from "#shared/storage.ts";
 import { createTestEvent, describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
@@ -201,6 +206,79 @@ describeWithEnv("backup", { db: true }, () => {
       expect(backupTimestamp()).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/,
       );
+    });
+  });
+
+  describe("parseBackupTime", () => {
+    test("round-trips a filename produced by backupFilename/backupTimestamp", () => {
+      const when = new Date("2024-01-15T12:30:00.000Z");
+      const filename = backupFilename(backupTimestamp(when));
+      expect(parseBackupTime(filename)).toBe(when.getTime());
+    });
+
+    test("returns null for filenames that are not backups", () => {
+      expect(parseBackupTime("image.png")).toBeNull();
+      expect(parseBackupTime("backup-local-not-a-date.zip")).toBeNull();
+    });
+
+    test("returns null when the digits form an impossible date", () => {
+      expect(
+        parseBackupTime("backup-local-2024-13-45T99-99-99-999Z.zip"),
+      ).toBeNull();
+    });
+  });
+
+  describe("hasRecentBackup", () => {
+    const seedBackup = (when: Date) =>
+      uploadRaw(new Uint8Array([1]), backupFilename(backupTimestamp(when)));
+
+    test("true when a backup is within the freshness window", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        await seedBackup(new Date(Date.now() - 60_000));
+        expect(await hasRecentBackup()).toBe(true);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("false when the newest backup is older than the window", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        await seedBackup(
+          new Date(Date.now() - BACKUP_FRESHNESS_WINDOW_MS - 60_000),
+        );
+        expect(await hasRecentBackup()).toBe(false);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("false when no backups exist", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        expect(await hasRecentBackup()).toBe(false);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("ignores prefix-matching files whose name is not a valid backup", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        await uploadRaw(new Uint8Array([1]), `${backupPrefix()}garbage.zip`);
+        expect(await hasRecentBackup()).toBe(false);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
     });
   });
 

@@ -5,6 +5,15 @@
 
 import { demoResetForm } from "#routes/admin/database-reset.ts";
 import {
+  handleCustomDomainPost,
+  handleCustomDomainValidatePost,
+  handleHostSubdomainPost,
+} from "#routes/admin/settings-domains.ts";
+import {
+  handleEmailTemplatePost,
+  handleEmailTemplatePreviewPost,
+} from "#routes/admin/settings-email-templates.ts";
+import {
   advancedSettingsRoute,
   processSecretField,
   type SecretFieldResult,
@@ -15,6 +24,10 @@ import {
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import {
+  handleAppleWalletPost,
+  handleGoogleWalletPost,
+} from "#routes/admin/settings-wallets.ts";
+import {
   type AuthSession,
   OWNER_FORM,
   OWNER_MULTIPART,
@@ -23,16 +36,7 @@ import {
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import {
-  isValidPemCertificate,
-  isValidPemPrivateKey,
-} from "#shared/apple-wallet.ts";
-import {
-  checkSubdomainAvailable,
-  getCdnHostname,
-  registerBunnySubdomain,
-  validateCustomDomain,
-} from "#shared/bunny-cdn.ts";
+import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   isValidBusinessEmail,
   updateBusinessEmail,
@@ -52,11 +56,7 @@ import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
-import {
-  type EmailTemplateType,
-  MAX_EMAIL_TEMPLATE_LENGTH,
-  settings,
-} from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   deleteUser,
   getUserById,
@@ -74,20 +74,10 @@ import {
   isEmailProvider,
   sendTestEmail,
 } from "#shared/email.ts";
-import {
-  buildTemplateData,
-  renderTemplate,
-  validateTemplate,
-} from "#shared/email-renderer.ts";
-import {
-  DOMAIN_PATTERN,
-  parseEmbedHosts,
-  validateEmbedHosts,
-} from "#shared/embed-hosts.ts";
+import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
-import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { PaymentProviderType } from "#shared/payments.ts";
@@ -774,507 +764,6 @@ const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   });
 });
 
-/** Valid template types for form submissions — derived from the EmailTemplateType union */
-const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> =
-  new Set<EmailTemplateType>(["confirmation", "admin"]);
-
-/** Type guard: narrows a string to EmailTemplateType after Set membership check */
-const isEmailTemplateType = (v: string): v is EmailTemplateType =>
-  VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
-
-/** Handle POST /admin/settings/email-templates/:type - save custom email templates */
-type TemplateFormData = { subject: string; html: string; text: string };
-
-const validateTemplateFields = ({
-  subject,
-  html,
-  text,
-}: TemplateFormData): string | null => {
-  for (const [name, value] of [
-    ["subject", subject],
-    ["html", html],
-    ["text", text],
-  ] as const) {
-    if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
-      return `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`;
-    }
-    if (value) {
-      const error = validateTemplate(value);
-      if (error) return `Invalid template syntax in ${name}: ${error}`;
-    }
-  }
-  return null;
-};
-
-const handleEmailTemplatePost = (type: EmailTemplateType) => {
-  const label = type === "confirmation" ? "Confirmation" : "Admin notification";
-  return settingsHandler<TemplateFormData>({
-    advanced: true,
-    extract: (form) => ({
-      html: form.getString("html"),
-      subject: form.getString("subject"),
-      text: form.getString("text"),
-    }),
-    formId: `settings-email-tpl-${type}`,
-    label: `${label} email template`,
-    save: async ({ subject, html, text }) => {
-      await Promise.all([
-        settings.update.email.template(type, "subject", subject.trim()),
-        settings.update.email.template(type, "html", html.trim()),
-        settings.update.email.template(type, "text", text.trim()),
-      ]);
-    },
-    validate: validateTemplateFields,
-  });
-};
-
-/** Sample booking data used for email template previews */
-const PREVIEW_BOOKINGS = [
-  {
-    attendee: {
-      address: "123 High Street, London",
-      date: null,
-      email: "jane@example.com",
-      id: 1,
-      name: "Jane Smith",
-      payment_id: "pi_sample",
-      phone: "+44 7700 900000",
-      price_paid: "5000",
-      quantity: 2,
-      special_instructions: "Wheelchair access please",
-      ticket_token: "SAMPLE123",
-    },
-    event: {
-      active: true,
-      assign_built_site: false,
-      attendee_count: 42,
-      can_pay_more: false,
-      date: "2026-07-15T19:00:00Z",
-      hidden: false,
-      id: 1,
-      initial_site_months: 0,
-      location: "Town Hall",
-      max_attendees: 100,
-      months_per_unit: 0,
-      name: "Summer Concert",
-      purchase_only: false,
-      slug: "summer-concert",
-      unit_price: 2500,
-      webhook_url: "",
-    },
-  },
-  {
-    attendee: {
-      address: "123 High Street, London",
-      date: "2026-04-15",
-      email: "jane@example.com",
-      id: 2,
-      name: "Jane Smith",
-      payment_id: "",
-      phone: "+44 7700 900000",
-      price_paid: "0",
-      quantity: 1,
-      special_instructions: "Wheelchair access please",
-      ticket_token: "SAMPLE456",
-    },
-    event: {
-      active: true,
-      assign_built_site: false,
-      attendee_count: 8,
-      can_pay_more: false,
-      date: "",
-      hidden: false,
-      id: 2,
-      initial_site_months: 0,
-      location: "",
-      max_attendees: 20,
-      months_per_unit: 0,
-      name: "Workshop",
-      purchase_only: false,
-      slug: "workshop",
-      unit_price: 0,
-      webhook_url: "",
-    },
-  },
-];
-
-const PREVIEW_CURRENCY = "GBP";
-const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
-
-/** Handle POST /admin/settings/email-templates/preview - render template with sample data */
-const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (_session, form) => {
-    const type = form.getString("type");
-    const template = form.getString("template");
-    const format = form.get("format") ?? "html";
-
-    if (!isEmailTemplateType(type)) {
-      return jsonResponse({ error: "Invalid template type" }, 400);
-    }
-
-    const error = validateTemplate(template);
-    if (error) {
-      return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
-    }
-
-    const sampleData = buildTemplateData(
-      PREVIEW_BOOKINGS,
-      PREVIEW_CURRENCY,
-      PREVIEW_TICKET_URL,
-    );
-
-    try {
-      const rendered = await renderTemplate(template, sampleData);
-      return jsonResponse({ format, rendered });
-    } catch (err) {
-      return jsonResponse({ error: String(err) }, 400);
-    }
-  });
-
-/** Handle POST /admin/settings/custom-domain - save custom domain */
-const handleCustomDomainPost = advancedSettingsRoute(
-  async (form, errorPage) => {
-    if (!isBunnyCdnEnabled()) {
-      return errorPage(
-        "Bunny CDN is not configured",
-        400,
-        "settings-custom-domain",
-      );
-    }
-
-    const raw = form.getString("custom_domain").toLowerCase();
-
-    if (raw === "") {
-      await settings.update.customDomain("");
-      await logActivity("Custom domain cleared");
-      return ok("/admin/settings-advanced", "Custom domain cleared", {
-        formId: "settings-custom-domain",
-      });
-    }
-
-    // Basic domain validation: must look like a hostname
-    if (!DOMAIN_PATTERN.test(raw)) {
-      return errorPage("Invalid domain format", 400, "settings-custom-domain");
-    }
-
-    const taskResult = await settings.withCurrentTask(
-      "custom-domain",
-      async () => {
-        await settings.update.customDomain(raw);
-        await logActivity(`Custom domain set to ${raw}`);
-
-        // Attempt validation immediately after saving
-        const result = await validateCustomDomain(raw);
-        if (result.ok) {
-          await settings.update.customDomainLastValidated();
-          await logActivity(`Custom domain validated: ${raw}`);
-          return ok(
-            "/admin/settings-advanced",
-            "Custom domain saved and validated",
-            {
-              formId: "settings-custom-domain",
-            },
-          );
-        }
-
-        return fail(
-          "/admin/settings-advanced",
-          `Custom domain saved but validation failed: ${result.error}`,
-          { formId: "settings-custom-domain" },
-        );
-      },
-    );
-
-    if (!taskResult.ok) {
-      return errorPage(taskResult.error, 409, "settings-custom-domain");
-    }
-    return taskResult.value;
-  },
-);
-
-/** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
-const handleCustomDomainValidatePost = advancedSettingsRoute(
-  async (_form, errorPage) => {
-    if (!isBunnyCdnEnabled()) {
-      return errorPage(
-        "Bunny CDN is not configured",
-        400,
-        "settings-custom-domain-validate",
-      );
-    }
-
-    const customDomain = settings.customDomain;
-    if (!customDomain) {
-      return errorPage(
-        "No custom domain is configured",
-        400,
-        "settings-custom-domain-validate",
-      );
-    }
-
-    const taskResult = await settings.withCurrentTask(
-      "custom-domain-validate",
-      async () => {
-        const result = await validateCustomDomain(customDomain);
-        if (!result.ok) {
-          return errorPage(
-            result.error,
-            502,
-            "settings-custom-domain-validate",
-          );
-        }
-
-        await settings.update.customDomainLastValidated();
-        await logActivity(`Custom domain validated: ${customDomain}`);
-        return ok(
-          "/admin/settings-advanced",
-          "Custom domain validated successfully",
-          {
-            formId: "settings-custom-domain-validate",
-          },
-        );
-      },
-    );
-
-    if (!taskResult.ok) {
-      return errorPage(
-        taskResult.error,
-        409,
-        "settings-custom-domain-validate",
-      );
-    }
-    return taskResult.value;
-  },
-);
-
-/** Valid subdomain pattern: lowercase alphanumeric + hyphens, no leading/trailing hyphen */
-const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-
-const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
-
-/** Handle POST /admin/settings/host-subdomain - preview or register subdomain */
-const handleHostSubdomainPost = advancedSettingsRoute(
-  async (form, errorPage) => {
-    if (!isBunnyDnsEnabled()) {
-      return errorPage("Not configured", 400, FORM_ID_HOST_SUBDOMAIN);
-    }
-    if (settings.bunnySubdomain) {
-      return errorPage(
-        "Subdomain has already been set and cannot be changed",
-        400,
-        FORM_ID_HOST_SUBDOMAIN,
-      );
-    }
-
-    const raw = form.getString("subdomain").toLowerCase().trim();
-    if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
-      return errorPage("Invalid subdomain format", 400, FORM_ID_HOST_SUBDOMAIN);
-    }
-
-    const save = form.getString("save");
-
-    if (!save) {
-      // Preview: check availability only
-      const check = await checkSubdomainAvailable(raw);
-      if (!check.ok) {
-        return errorPage(check.error, 502, FORM_ID_HOST_SUBDOMAIN);
-      }
-      if (!check.available) {
-        return errorPage(
-          `Subdomain "${raw}" is already taken`,
-          409,
-          FORM_ID_HOST_SUBDOMAIN,
-        );
-      }
-      return ok(
-        "/admin/settings-advanced",
-        `${check.fullDomain} is available`,
-        {
-          formId: FORM_ID_HOST_SUBDOMAIN,
-          result: `${raw}\n${check.fullDomain}`,
-        },
-      );
-    }
-
-    // Save: actually register (guarded by current_task)
-    const taskResult = await settings.withCurrentTask(
-      "host-subdomain",
-      async () => {
-        const result = await registerBunnySubdomain(raw);
-        if (!result.ok) {
-          return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
-        }
-
-        await settings.update.bunnySubdomain(result.fullDomain);
-        await logActivity(`Host subdomain set to ${result.fullDomain}`);
-        return ok(
-          "/admin/settings-advanced",
-          `Subdomain registered: ${result.fullDomain}`,
-          {
-            formId: FORM_ID_HOST_SUBDOMAIN,
-          },
-        );
-      },
-    );
-
-    if (!taskResult.ok) {
-      return errorPage(taskResult.error, 409, FORM_ID_HOST_SUBDOMAIN);
-    }
-    return taskResult.value;
-  },
-);
-
-/**
- * Handle POST /admin/settings/apple-wallet - owner only
- */
-type AppleWalletFormData = {
-  passTypeId: string;
-  teamId: string;
-  cert: SecretFieldResult;
-  key: SecretFieldResult;
-  wwdr: SecretFieldResult;
-};
-
-const isAllCleared = (d: AppleWalletFormData): boolean =>
-  !d.passTypeId &&
-  !d.teamId &&
-  d.cert.action === "cleared" &&
-  d.key.action === "cleared" &&
-  d.wwdr.action === "cleared";
-
-const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
-  advanced: true,
-  extract: (form) => ({
-    cert: processSecretField(form, "apple_wallet_signing_cert"),
-    key: processSecretField(form, "apple_wallet_signing_key"),
-    passTypeId: form.getString("apple_wallet_pass_type_id"),
-    teamId: form.getString("apple_wallet_team_id"),
-    wwdr: processSecretField(form, "apple_wallet_wwdr_cert"),
-  }),
-  formId: "settings-apple-wallet",
-  label: "Apple Wallet configuration",
-  log: (d) =>
-    isAllCleared(d)
-      ? "Apple Wallet configuration cleared"
-      : "Apple Wallet configuration updated",
-  save: async (d) => {
-    if (isAllCleared(d)) {
-      await Promise.all([
-        settings.update.appleWallet.passTypeId(""),
-        settings.update.appleWallet.teamId(""),
-        settings.update.appleWallet.signingCert(""),
-        settings.update.appleWallet.signingKey(""),
-        settings.update.appleWallet.wwdrCert(""),
-      ]);
-      return;
-    }
-    await settings.update.appleWallet.passTypeId(d.passTypeId);
-    await settings.update.appleWallet.teamId(d.teamId);
-    if (d.cert.action === "provided") {
-      await settings.update.appleWallet.signingCert(d.cert.value);
-    }
-    if (d.key.action === "provided") {
-      await settings.update.appleWallet.signingKey(d.key.value);
-    }
-    if (d.wwdr.action === "provided") {
-      await settings.update.appleWallet.wwdrCert(d.wwdr.value);
-    }
-  },
-  validate: (d) => {
-    if (isAllCleared(d)) return null;
-    if (!d.passTypeId) return "Pass Type ID is required";
-    if (!d.teamId) return "Team ID is required";
-    if (!settings.appleWallet.hasDbConfig) {
-      const requiredError = validateAppleWalletRequiredSecrets(d);
-      if (requiredError) return requiredError;
-    }
-    return validateAppleWalletPemFields(d);
-  },
-});
-
-/** Ensure required secrets are provided when no DB config exists */
-const validateAppleWalletRequiredSecrets = (
-  d: AppleWalletFormData,
-): string | null => {
-  if (d.cert.action !== "provided") return "Signing certificate is required";
-  if (d.key.action !== "provided") return "Signing private key is required";
-  if (d.wwdr.action !== "provided") return "WWDR certificate is required";
-  return null;
-};
-
-/** Validate PEM structure of provided Apple Wallet secret fields */
-const validateAppleWalletPemFields = (
-  d: AppleWalletFormData,
-): string | null => {
-  if (d.cert.action === "provided" && !isValidPemCertificate(d.cert.value)) {
-    return "Signing certificate is not a valid PEM certificate";
-  }
-  if (d.key.action === "provided" && !isValidPemPrivateKey(d.key.value)) {
-    return "Signing private key is not a valid PEM private key";
-  }
-  if (d.wwdr.action === "provided" && !isValidPemCertificate(d.wwdr.value)) {
-    return "WWDR certificate is not a valid PEM certificate";
-  }
-  return null;
-};
-
-/**
- * Handle POST /admin/settings/google-wallet - owner only
- */
-type GoogleWalletFormData = {
-  issuerId: string;
-  email: string;
-  key: SecretFieldResult;
-};
-
-const isGoogleWalletCleared = (d: GoogleWalletFormData): boolean =>
-  !d.issuerId && !d.email && d.key.action === "cleared";
-
-const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
-  advanced: true,
-  extract: (form) => ({
-    email: form.getString("google_wallet_service_account_email"),
-    issuerId: form.getString("google_wallet_issuer_id"),
-    key: processSecretField(form, "google_wallet_service_account_key"),
-  }),
-  formId: "settings-google-wallet",
-  label: "Google Wallet configuration",
-  log: (d) =>
-    isGoogleWalletCleared(d)
-      ? "Google Wallet configuration cleared"
-      : "Google Wallet configuration updated",
-  save: async (d) => {
-    if (isGoogleWalletCleared(d)) {
-      await Promise.all([
-        settings.update.googleWallet.issuerId(""),
-        settings.update.googleWallet.serviceAccountEmail(""),
-        settings.update.googleWallet.serviceAccountKey(""),
-      ]);
-      return;
-    }
-    await settings.update.googleWallet.issuerId(d.issuerId);
-    await settings.update.googleWallet.serviceAccountEmail(d.email);
-    if (d.key.action === "provided") {
-      await settings.update.googleWallet.serviceAccountKey(d.key.value);
-    }
-  },
-  validate: async (d) => {
-    if (isGoogleWalletCleared(d)) return null;
-    if (!d.issuerId) return "Issuer ID is required";
-    if (!d.email) return "Service account email is required";
-    if (!settings.googleWallet.hasDbConfig && d.key.action !== "provided") {
-      return "Service account private key is required";
-    }
-    if (
-      d.key.action === "provided" &&
-      !(await isValidGooglePrivateKey(d.key.value))
-    ) {
-      return "Service account private key is not a valid PEM private key";
-    }
-    return null;
-  },
-});
-
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
@@ -1299,34 +788,32 @@ const handleResetDatabasePost = advancedSettingsRoute(
 );
 
 /**
- * Handle POST /admin/settings/event-column-order - owner only
+ * Build a column-order settings handler for the event or attendee table.
+ * Handles POST /admin/settings/{event,attendee}-column-order - owner only
  */
-const handleEventColumnOrderPost = settingsHandler({
-  advanced: true,
-  extract: (form) => form.getString("column_order").trim(),
-  formId: "settings-event-column-order",
-  label: "Event column order",
-  save: (value) => settings.update.eventColumnOrder(value),
-  validate: (value) => {
-    if (!value) return null; // Empty clears to default
-    return validateColumnTemplate(value, Object.keys(EVENT_TABLE_COLUMNS));
-  },
-});
+const columnOrderHandler = (kind: "event" | "attendee") => {
+  const columns =
+    kind === "event" ? EVENT_TABLE_COLUMNS : ATTENDEE_TABLE_COLUMNS;
+  const update =
+    kind === "event"
+      ? settings.update.eventColumnOrder
+      : settings.update.attendeeColumnOrder;
+  const label =
+    kind === "event" ? "Event column order" : "Attendee column order";
+  return settingsHandler({
+    advanced: true,
+    extract: (form) => form.getString("column_order").trim(),
+    formId: `settings-${kind}-column-order`,
+    label,
+    save: (value) => update(value),
+    // Empty value clears to the default column order
+    validate: (value) =>
+      value ? validateColumnTemplate(value, Object.keys(columns)) : null,
+  });
+};
 
-/**
- * Handle POST /admin/settings/attendee-column-order - owner only
- */
-const handleAttendeeColumnOrderPost = settingsHandler({
-  advanced: true,
-  extract: (form) => form.getString("column_order").trim(),
-  formId: "settings-attendee-column-order",
-  label: "Attendee column order",
-  save: (value) => settings.update.attendeeColumnOrder(value),
-  validate: (value) => {
-    if (!value) return null; // Empty clears to default
-    return validateColumnTemplate(value, Object.keys(ATTENDEE_TABLE_COLUMNS));
-  },
-});
+const handleEventColumnOrderPost = columnOrderHandler("event");
+const handleAttendeeColumnOrderPost = columnOrderHandler("attendee");
 
 /** Roll back a created superuser after email failure and return error page */
 const rollbackSuperuser = async (
