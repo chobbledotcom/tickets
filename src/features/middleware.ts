@@ -119,7 +119,7 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
   }
-  const contentType = request.headers.get("content-type") || "";
+  const contentType = (request.headers.get("content-type") || "").toLowerCase();
 
   // Webhook and JSON API endpoints accept JSON
   if (isWebhookPath(path) || isJsonApiPath(path)) {

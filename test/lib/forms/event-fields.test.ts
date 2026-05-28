@@ -76,19 +76,112 @@ describe("eventFields — webhook_url", () => {
   });
 
   const rejected: Array<{ expected: string; url: string; label: string }> = [
-    { expected: "URL must use https://", url: "/internal", label: "relative" },
-    { expected: "URL must use https://", url: "http://example.com/webhook", label: "http" },
-    { expected: "URL must use https://", url: "javascript:alert(1)", label: "javascript" },
-    { expected: "URL must use https://", url: "https://localhost/webhook", label: "localhost" },
-    { expected: "URL must use https://", url: "https://127.0.0.1/webhook", label: "loopback" },
-    { expected: "URL must use https://", url: "https://[::1]/webhook", label: "IPv6 loopback" },
-    { expected: "URL must use https://", url: "https://10.0.0.1/webhook", label: "10.x" },
-    { expected: "URL must use https://", url: "https://172.16.0.1/webhook", label: "172.16.x" },
-    { expected: "URL must use https://", url: "https://192.168.1.1/webhook", label: "192.168.x" },
-    { expected: "URL must use https://", url: "https://169.254.169.254/latest", label: "link-local" },
-    { expected: "URL must use https://", url: "https://0.0.0.0/webhook", label: "0.0.0.0" },
-    { expected: "URL must use https://", url: "https://255.255.255.255/webhook", label: "broadcast" },
-    { expected: "Invalid URL format", url: "not-a-valid-url", label: "malformed" },
+    { expected: "URL must use https://", label: "relative", url: "/internal" },
+    {
+      expected: "URL must use https://",
+      label: "http",
+      url: "http://example.com/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "javascript",
+      url: "javascript:alert(1)",
+    },
+    {
+      expected: "URL must use https://",
+      label: "localhost",
+      url: "https://localhost/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "loopback",
+      url: "https://127.0.0.1/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv6 loopback",
+      url: "https://[::1]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "10.x",
+      url: "https://10.0.0.1/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "172.16.x",
+      url: "https://172.16.0.1/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "192.168.x",
+      url: "https://192.168.1.1/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "link-local",
+      url: "https://169.254.169.254/latest",
+    },
+    {
+      expected: "URL must use https://",
+      label: "0.0.0.0",
+      url: "https://0.0.0.0/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "broadcast",
+      url: "https://255.255.255.255/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv6 unspecified",
+      url: "https://[::]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv4-mapped loopback",
+      url: "https://[::ffff:127.0.0.1]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv4-mapped IMDS",
+      url: "https://[::ffff:169.254.169.254]/latest",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv4-mapped 10.x",
+      url: "https://[::ffff:10.0.0.1]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv4-mapped 192.168",
+      url: "https://[::ffff:192.168.1.1]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv4-mapped 0.0.0.0",
+      url: "https://[::ffff:0]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv6 link-local",
+      url: "https://[fe80::1]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv6 ULA fc00",
+      url: "https://[fc00::1]/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "IPv6 ULA fd00",
+      url: "https://[fd12:3456:789a::1]/webhook",
+    },
+    {
+      expected: "Invalid URL format",
+      label: "malformed",
+      url: "not-a-valid-url",
+    },
   ];
 
   for (const { expected, url, label } of rejected) {
@@ -98,8 +191,25 @@ describe("eventFields — webhook_url", () => {
   }
 
   test("accepts non-private IPs that look similar", () => {
-    expectValid(eventFields, eventForm({ webhook_url: "https://169.0.0.0/webhook" }));
-    expectValid(eventFields, eventForm({ webhook_url: "https://255.0.0.0/webhook" }));
+    expectValid(
+      eventFields,
+      eventForm({ webhook_url: "https://169.0.0.0/webhook" }),
+    );
+    expectValid(
+      eventFields,
+      eventForm({ webhook_url: "https://255.0.0.0/webhook" }),
+    );
+  });
+
+  test("accepts public IPv6 addresses", () => {
+    expectValid(
+      eventFields,
+      eventForm({ webhook_url: "https://[2001:db8::1]/webhook" }),
+    );
+    expectValid(
+      eventFields,
+      eventForm({ webhook_url: "https://[2607:f8b0:4004:800::200e]/webhook" }),
+    );
   });
 });
 
