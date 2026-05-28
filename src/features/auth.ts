@@ -343,11 +343,15 @@ export const authFailure = (
   reason: AuthFailureReason,
 ): Response => AUTH_FAILURES[reason][channel]();
 
+/** True if the value is a non-null, non-array object (i.e. a Record shape) */
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
 /** Parse JSON body, returning empty object for non-JSON GET/HEAD requests */
 const parseJsonBody = async (
   request: Request,
 ): Promise<Record<string, unknown> | Response> => {
-  const contentType = request.headers.get("content-type") ?? "";
+  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
   const bodyRequired = request.method !== "GET" && request.method !== "HEAD";
 
   if (!contentType.includes("application/json")) {
@@ -359,8 +363,9 @@ const parseJsonBody = async (
     }
     return {};
   }
+  let parsed: unknown;
   try {
-    return await request.json();
+    parsed = await request.json();
   } catch {
     logError({
       code: ErrorCode.VALIDATION_FORM,
@@ -371,6 +376,13 @@ const parseJsonBody = async (
       400,
     );
   }
+  if (!isPlainObject(parsed)) {
+    return jsonResponse(
+      { message: "Invalid request body", status: "error" },
+      400,
+    );
+  }
+  return parsed;
 };
 
 /** Verify a CSRF token, returning a channel-appropriate failure or null */
