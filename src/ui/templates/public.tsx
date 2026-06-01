@@ -387,6 +387,11 @@ export const temporaryErrorPage = (): string =>
       <p>
         Something went wrong loading this page. Retrying automatically&hellip;
       </p>
+      <p>
+        <small>
+          Check <strong><a href="https://status.bunny.net/">status.bunny.net</a></strong>
+        </small>
+      </p>
     </Layout>,
   );
 
