@@ -124,6 +124,18 @@ export const PRUNE_TOKENS_RETENTION_DAYS = readLimit(
   7,
 );
 
+/**
+ * Retention (hours) for sumup_checkouts staging rows (default: 24).
+ * Kept very short because the row only exists to carry booking metadata from
+ * checkout creation to payment completion: SumUp hosted checkouts expire after
+ * 30 minutes and webhook retries stop after 2 hours, so nothing legitimate
+ * reads the row after that.
+ */
+export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
+  "PRUNE_SUMUP_RETENTION_HOURS",
+  24,
+);
+
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
@@ -137,6 +149,8 @@ export const PRUNE_SESSIONS_RETENTION_MS =
   PRUNE_SESSIONS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
+export const PRUNE_SUMUP_RETENTION_MS =
+  PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Metadata for debug page display
@@ -307,6 +321,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "PRUNE_TOKENS_RETENTION_DAYS",
     label: "Prune: token-attempts retention",
     unit: "days",
+  },
+  {
+    current: PRUNE_SUMUP_RETENTION_HOURS,
+    defaultValue: 24,
+    envKey: "PRUNE_SUMUP_RETENTION_HOURS",
+    label: "Prune: SumUp checkout staging retention",
+    unit: "hours",
   },
   {
     current: PRUNE_INTERVAL_HOURS,

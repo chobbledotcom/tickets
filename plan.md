@@ -82,7 +82,8 @@ All primitives already exist and are battle-tested in this codebase:
 ## Shrink the window: dedicated 24h prune retention
 
 Currently `sumup_checkouts` rows prune on `PRUNE_PAYMENTS_RETENTION_MS`
-(7 days). Nothing legitimate needs a staging row that long:
+(default **90 days** — the prune.ts comment claiming 7 is stale). Nothing
+legitimate needs a staging row anywhere near that long:
 
 - SumUp hosted checkouts expire after **30 minutes**
 - SumUp webhook retries max out at **2 hours** (1m → 5m → 20m → 2h)
@@ -119,7 +120,7 @@ with zero race or UX risk, so prune-only is the design.
 | --------------------------------- | -------------------------------------------------------------- |
 | DB dump alone                     | Nothing: HMAC index + ciphertext + wrapped key, no references  |
 | DB + `DB_ENCRYPTION_KEY`          | Cannot decrypt rows directly (needs per-row reference). Can decrypt the stored SumUp API key, query SumUp's API for `checkout_reference`s, and then decrypt — i.e. PII is recoverable **only via the payment provider**, which is exactly the Stripe/Square posture (their PII sits at the provider, API-key-readable). |
-| DB + env, post-payment window     | `processed_payments.payment_session_id` holds the plaintext reference after processing (provider-agnostic idempotency table). For ≤24h it may coexist with the staging ciphertext. Equivalent to the row above in practice; noted for completeness, not mitigated (the same attacker already has the SumUp API route). |
+| DB + env, post-payment window     | `processed_payments.payment_session_id` holds the plaintext reference after processing (provider-agnostic idempotency table). For up to the staging retention it may coexist with the staging ciphertext. Equivalent to the row above in practice; noted for completeness, not mitigated (the same attacker already has the SumUp API route). |
 | User's password                   | Not required for this table and never will be — see "why pii_blob cannot apply". The password gate begins at attendee creation, as it does for every provider. |
 
 ## File-by-file changes

@@ -26,6 +26,7 @@ import {
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
+  PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
@@ -64,25 +65,29 @@ const insertUnfinalizedPayment = async (
   );
 };
 
-/** Insert a sumup_checkouts row with the given creation timestamp. */
+/** Insert a sumup_checkouts row with the given creation timestamp.
+ * Prune filters only on created_at, so index/key/blob contents are inert. */
 const insertSumupCheckout = async (
-  reference: string,
+  referenceIndex: string,
   createdAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
     insert("sumup_checkouts", {
-      checkout_reference: reference,
       created_at: createdAtIso,
-      metadata: "{}",
+      metadata: "ciphertext",
+      reference_index: referenceIndex,
+      wrapped_key: "wk",
     }),
   );
 };
 
-/** Is a sumup_checkouts row with this reference still in the DB? */
-const sumupCheckoutExists = async (reference: string): Promise<boolean> => {
+/** Is a sumup_checkouts row with this reference index still in the DB? */
+const sumupCheckoutExists = async (
+  referenceIndex: string,
+): Promise<boolean> => {
   const { rows } = await getDb().execute({
-    args: [reference],
-    sql: "SELECT 1 FROM sumup_checkouts WHERE checkout_reference = ?",
+    args: [referenceIndex],
+    sql: "SELECT 1 FROM sumup_checkouts WHERE reference_index = ?",
   });
   return rows.length > 0;
 };
@@ -197,22 +202,22 @@ describeWithEnv("db > prune", { db: true }, () => {
   describe("pruneSumupCheckouts", () => {
     test("deletes checkout metadata older than retention window", async () => {
       const old = new Date(
-        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
       ).toISOString();
-      await insertSumupCheckout("ref_old", old);
+      await insertSumupCheckout("idx_old", old);
 
       await pruneSumupCheckouts();
 
-      expect(await sumupCheckoutExists("ref_old")).toBe(false);
+      expect(await sumupCheckoutExists("idx_old")).toBe(false);
     });
 
     test("keeps checkout metadata within retention window", async () => {
       const recent = new Date(nowMs() - 1000).toISOString();
-      await insertSumupCheckout("ref_recent", recent);
+      await insertSumupCheckout("idx_recent", recent);
 
       await pruneSumupCheckouts();
 
-      expect(await sumupCheckoutExists("ref_recent")).toBe(true);
+      expect(await sumupCheckoutExists("idx_recent")).toBe(true);
     });
   });
 

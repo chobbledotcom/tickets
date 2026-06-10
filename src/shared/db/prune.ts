@@ -23,6 +23,7 @@ import {
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
+  PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   parsePositiveInt,
 } from "#shared/limits.ts";
@@ -51,13 +52,14 @@ export const prunePayments = isoAgePruner(
 );
 
 /**
- * Delete SumUp checkout metadata rows older than the payments retention window.
- * Safe to drop once the webhook-retry / redirect window has passed; the row is
- * only needed to reconstruct booking intent while a payment is being finalized.
+ * Delete SumUp checkout staging rows older than their (short) retention.
+ * The row carries encrypted PII and is only needed between checkout creation
+ * and payment completion — SumUp checkouts expire after 30 minutes and
+ * webhook retries stop after 2 hours, so 24h retention is already generous.
  */
 export const pruneSumupCheckouts = isoAgePruner(
   "DELETE FROM sumup_checkouts WHERE created_at < ?",
-  PRUNE_PAYMENTS_RETENTION_MS,
+  PRUNE_SUMUP_RETENTION_MS,
 );
 
 /**

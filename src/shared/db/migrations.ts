@@ -36,7 +36,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add sumup_checkouts table for SumUp checkout metadata";
+  "encrypt sumup_checkouts metadata with reference-derived keys";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -261,13 +261,21 @@ const SCHEMA: [name: string, table: Table][] = [
 
   [
     // SumUp checkouts can't carry arbitrary metadata through the provider
-    // (unlike Stripe sessions / Square orders), so booking metadata is stored
-    // here keyed by our generated checkout_reference and looked up on
-    // webhook/redirect. Rows are pruned on the same schedule as processed_payments.
+    // (unlike Stripe sessions / Square orders), so booking metadata is staged
+    // here between checkout creation and payment completion, then read back on
+    // webhook/redirect. The blob contains PII, so it is encrypted with a
+    // per-row data key wrapped by the checkout reference — the plaintext
+    // reference never rests in this DB (it arrives at runtime from the
+    // redirect URL or SumUp's API), so a DB dump alone cannot decrypt these
+    // rows. Lookup is by HMAC of the reference, like ticket_token_index.
+    // Rows are short-lived: pruned after PRUNE_SUMUP_RETENTION_HOURS.
+    // wrapped_key has a DEFAULT so ADD COLUMN self-heals pre-release dev DBs
+    // that created the earlier plaintext shape of this table.
     "sumup_checkouts",
     {
       columns: [
-        ["checkout_reference", "TEXT PRIMARY KEY"],
+        ["reference_index", "TEXT PRIMARY KEY"],
+        ["wrapped_key", "TEXT NOT NULL DEFAULT ''"],
         ["metadata", "TEXT NOT NULL"],
         ["created_at", "TEXT NOT NULL"],
       ],
