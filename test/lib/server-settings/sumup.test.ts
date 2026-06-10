@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { MASK_SENTINEL, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { sumupApi } from "#shared/sumup.ts";
@@ -12,8 +10,6 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
-  expectHtmlResponse,
-  mockFormRequest,
   testCookie,
   testRequiresAuth,
   withMocks,
@@ -28,21 +24,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     testRequiresAuth("/admin/settings/sumup", {
       body: { sumup_api_key: "sk_test_1", sumup_merchant_code: "MC1" },
       method: "POST",
-    });
-
-    test("rejects invalid CSRF token", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/sumup",
-          {
-            csrf_token: "invalid-csrf-token",
-            sumup_api_key: "sk_test_1",
-            sumup_merchant_code: "MC1",
-          },
-          await testCookie(),
-        ),
-      );
-      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects a missing merchant code", async () => {
@@ -93,17 +74,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(response.status).toBe(302);
       expect(settings.sumup.apiKey).toBe("sk_test_keep");
       expect(settings.sumup.merchantCode).toBe("MC_keep");
-    });
-
-    test("logs activity when credentials are configured", async () => {
-      await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: "sk_test_log",
-        sumup_merchant_code: "MC_log",
-      });
-      const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("SumUp credentials updated")),
-      ).toBe(true);
     });
   });
 

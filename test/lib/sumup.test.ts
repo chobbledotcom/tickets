@@ -98,19 +98,22 @@ describe("sumup", () => {
       });
     });
 
-    test("falls back to transactions[0].id and defaults a missing amount to 0", async () => {
+    test("falls back to transactions[0].id and defaults missing fields", async () => {
       const client = makeClient({
         get: () =>
           Promise.resolve({
-            checkout_reference: "ref_b",
             status: "PENDING",
             transactions: [{ id: "txn_b" }],
           }),
       });
       await withClient(client, async () => {
         const result = await retrieveCheckoutById("co_b");
-        expect(result!.amountMinor).toBe(0);
-        expect(result!.transactionId).toBe("txn_b");
+        expect(result).toEqual({
+          amountMinor: 0,
+          reference: "",
+          status: "PENDING",
+          transactionId: "txn_b",
+        });
       });
     });
 
@@ -122,16 +125,6 @@ describe("sumup", () => {
       await withClient(client, async () => {
         const result = await retrieveCheckoutById("co_c");
         expect(result!.transactionId).toBe("");
-      });
-    });
-
-    test("defaults the reference to empty when checkout_reference is absent", async () => {
-      const client = makeClient({
-        get: () => Promise.resolve({ status: "PAID", transaction_id: "t" }),
-      });
-      await withClient(client, async () => {
-        const result = await retrieveCheckoutById("co_no_ref");
-        expect(result!.reference).toBe("");
       });
     });
   });
@@ -304,14 +297,6 @@ describe("sumup", () => {
       expect(result.merchant.error).toBe("No merchant code configured");
     });
 
-    test("reports an unavailable client", async () => {
-      await withClient(null, async () => {
-        const result = await testSumupConnection();
-        expect(result.ok).toBe(false);
-        expect(result.apiKey.error).toBe("No SumUp API key configured");
-      });
-    });
-
     test("reports success and the key mode when the merchant resolves", async () => {
       const client = makeClient({
         merchantGet: () => Promise.resolve({ merchant_code: "MC123" }),
@@ -324,23 +309,15 @@ describe("sumup", () => {
       });
     });
 
-    test("falls back to the configured merchant code when the response omits it", async () => {
+    test("falls back to configured merchant code and unknown mode", async () => {
+      // Response omits merchant_code; key prefix is unrecognized
+      settings.setForTest({ sumup_api_key: "plainkey" });
       const client = makeClient({ merchantGet: () => Promise.resolve({}) });
       await withClient(client, async () => {
         const result = await testSumupConnection();
         expect(result.ok).toBe(true);
-        expect(result.merchant.merchantCode).toBe("MC123");
-      });
-    });
-
-    test("reports the key mode as unknown for an unrecognized key prefix", async () => {
-      settings.setForTest({ sumup_api_key: "plainkey" });
-      const client = makeClient({
-        merchantGet: () => Promise.resolve({ merchant_code: "MC123" }),
-      });
-      await withClient(client, async () => {
-        const result = await testSumupConnection();
         expect(result.apiKey.mode).toBe("unknown");
+        expect(result.merchant.merchantCode).toBe("MC123");
       });
     });
 

@@ -54,9 +54,6 @@ export type SumupConnectionTestResult = {
   merchant: { configured: boolean; merchantCode?: string; error?: string };
 };
 
-/** Construct a SumUp client (no network on construction). */
-const createSumupClient = (apiKey: string): SumUp => new SumUp({ apiKey });
-
 /** Internal getSumupClient implementation — reads the current API key. */
 const getClientImpl = (): SumUp | null => {
   const apiKey = settings.sumup.apiKey;
@@ -64,7 +61,7 @@ const getClientImpl = (): SumUp | null => {
     logDebug("SumUp", "No API key configured, cannot create client");
     return null;
   }
-  return createSumupClient(apiKey);
+  return new SumUp({ apiKey });
 };
 
 /** Run an operation with the SumUp client, returning null if unavailable. */
@@ -207,12 +204,8 @@ export const sumupApi: {
       return result;
     }
 
-    const client = await sumupApi.getSumupClient();
-    if (!client) {
-      result.apiKey.error = "No SumUp API key configured";
-      return result;
-    }
-
+    // Non-null: the API key was verified present just above
+    const client = sumupApi.getSumupClient()!;
     try {
       const merchant = await client.merchants.get(merchantCode);
       result.apiKey = {

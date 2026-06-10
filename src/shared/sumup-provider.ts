@@ -36,9 +36,6 @@ import {
   type SumupCheckout,
 } from "#shared/sumup.ts";
 
-/** SumUp's single webhook event type for checkout status changes. */
-const CHECKOUT_STATUS_CHANGED = "CHECKOUT_STATUS_CHANGED";
-
 /**
  * Build a validated session from a SumUp checkout, joining the locally-stored
  * booking metadata. Returns null when the checkout is unknown to us (no stored
@@ -62,7 +59,7 @@ const buildValidatedSession = async (
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: CHECKOUT_STATUS_CHANGED,
+  checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
   requiresWebhookSignature: false,
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
@@ -100,15 +97,13 @@ export const sumupPaymentProvider: PaymentProvider = {
     return checkout ? buildValidatedSession(checkout) : null;
   },
 
-  setupWebhookEndpoint(): Promise<WebhookSetupResult> {
-    // SumUp webhooks are configured per-checkout via return_url, so there is
-    // no global endpoint to register. This method is a no-op for SumUp.
-    return Promise.resolve({
+  // SumUp sets return_url per checkout — there is no global endpoint to register.
+  setupWebhookEndpoint: (): Promise<WebhookSetupResult> =>
+    Promise.resolve({
       error:
         "SumUp webhooks are configured automatically per checkout — no setup needed",
       success: false,
-    });
-  },
+    }),
   type: "sumup",
 
   verifyWebhookSignature(
