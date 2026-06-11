@@ -62,6 +62,29 @@ describeWithEnv("server (setup)", { db: true }, () => {
     return result.rows.length > 0;
   }
 
+  async function tableExists(table: string): Promise<boolean> {
+    const result = await getDb().execute({
+      args: [table],
+      sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+    });
+    return result.rows.length > 0;
+  }
+
+  async function createEmptySettingsTable(): Promise<void> {
+    await getDb().execute(
+      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+    );
+    settings.invalidateCache();
+    settings.setup.clearCache();
+  }
+
+  async function schemaMarkerKeys(): Promise<string[]> {
+    const result = await getDb().execute(
+      "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
+    );
+    return result.rows.map((row) => String(row.key));
+  }
+
   describe("setup routes", () => {
     describe("when setup not complete", () => {
       beforeEach(async () => {
@@ -94,6 +117,25 @@ describeWithEnv("server (setup)", { db: true }, () => {
         });
 
         expect(await settingsTableExists()).toBe(false);
+      });
+
+      test("returns temporary status page without bootstrapping an empty settings table", async () => {
+        await resetToBrandNewDatabase();
+        await createEmptySettingsTable();
+
+        await withExpectedError(async () => {
+          const response = await handleRequest(mockRequest("/"));
+          await expectHtmlResponse(
+            response,
+            503,
+            "Temporary Error",
+            "status.bunny.net",
+          );
+        });
+
+        expect(await settingsTableExists()).toBe(true);
+        expect(await tableExists("events")).toBe(false);
+        expect(await schemaMarkerKeys()).toEqual([]);
       });
 
       test("returns temporary status page for admin when setup is incomplete", async () => {
@@ -133,10 +175,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("health and static assets work when settings DB cannot be read", async () => {
         const { stub } = await import("@std/testing/mock");
-        const executeStub = stub(
-          getDb(),
-          "execute",
-          () => Promise.reject(new Error("db unavailable")),
+        const executeStub = stub(getDb(), "execute", () =>
+          Promise.reject(new Error("db unavailable")),
         );
 
         try {
@@ -158,10 +198,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("returns the temporary status page when settings DB cannot be read", async () => {
         const { stub } = await import("@std/testing/mock");
-        const executeStub = stub(
-          getDb(),
-          "execute",
-          () => Promise.reject(new Error("db unavailable")),
+        const executeStub = stub(getDb(), "execute", () =>
+          Promise.reject(new Error("db unavailable")),
         );
 
         try {
@@ -186,6 +224,21 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
         await expectHtmlResponse(response, 200, "Initial Setup");
         expect(await settingsTableExists()).toBe(true);
+      });
+
+      test("GET /setup/ bootstraps an empty settings table with schema markers", async () => {
+        await resetToBrandNewDatabase();
+        await createEmptySettingsTable();
+
+        const response = await handleRequest(mockRequest("/setup/"));
+
+        await expectHtmlResponse(response, 200, "Initial Setup");
+        expect(await settingsTableExists()).toBe(true);
+        expect(await tableExists("events")).toBe(true);
+        expect(await schemaMarkerKeys()).toEqual([
+          "db_schema_hash",
+          "latest_db_update",
+        ]);
       });
 
       test("GET /setup/ shows setup page", async () => {
@@ -318,10 +371,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
         await withExpectedError(async () => {
           await withMocks(
             () => ({
-              mockCompleteSetup: stub(
-                settings.setup,
-                "complete",
-                () => Promise.reject(new Error("Database error")),
+              mockCompleteSetup: stub(settings.setup, "complete", () =>
+                Promise.reject(new Error("Database error")),
               ),
               mockConsoleError: stub(console, "error", () => {}),
             }),

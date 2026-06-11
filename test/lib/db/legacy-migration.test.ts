@@ -18,6 +18,9 @@ describe("db > event_attendees migration from legacy schema", () => {
     resetDb();
   });
 
+  const LEGACY_DB_UPDATE = "legacy-update";
+  const LEGACY_DB_SCHEMA_HASH = "legacy-schema-hash";
+
   /** SQL statements that create the complete legacy schema (as on main) */
   const LEGACY_SCHEMA_SQL = [
     "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
@@ -195,7 +198,21 @@ describe("db > event_attendees migration from legacy schema", () => {
     for (const sql of LEGACY_SCHEMA_SQL) {
       await client.execute(sql);
     }
+    await seedLegacySchemaMarkers(client);
     return client;
+  };
+
+  const seedLegacySchemaMarkers = async (
+    client: ReturnType<typeof createClient>,
+  ) => {
+    await client.execute({
+      args: ["latest_db_update", LEGACY_DB_UPDATE],
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+    });
+    await client.execute({
+      args: ["db_schema_hash", LEGACY_DB_SCHEMA_HASH],
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+    });
   };
 
   /**
@@ -208,9 +225,8 @@ describe("db > event_attendees migration from legacy schema", () => {
   ) => {
     const origExecute = client.execute.bind(client);
     return stub(client, "execute", (stmt: unknown) => {
-      const sql = typeof stmt === "string"
-        ? stmt
-        : (stmt as { sql: string }).sql;
+      const sql =
+        typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
       if (/PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(sql)) {
         return Promise.resolve({
           columns: [],
@@ -309,6 +325,7 @@ describe("db > event_attendees migration from legacy schema", () => {
     await client.execute(
       "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
     );
+    await seedLegacySchemaMarkers(client);
     await client.execute(`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -361,20 +378,22 @@ describe("db > event_attendees migration from legacy schema", () => {
     await client.execute(
       "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
     );
+    await seedLegacySchemaMarkers(client);
     await client.execute(`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL,
       created TEXT NOT NULL
     )`);
 
-    await expect(initDb()).rejects.toThrow(
-      "missing expected legacy column",
-    );
+    await expect(initDb()).rejects.toThrow("missing expected legacy column");
 
     const markerRows = await client.execute(
-      "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
+      "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
     );
-    expect(markerRows.rows.length).toBe(0);
+    expect(markerRows.rows.map((row) => [row.key, row.value])).toEqual([
+      ["db_schema_hash", LEGACY_DB_SCHEMA_HASH],
+      ["latest_db_update", LEGACY_DB_UPDATE],
+    ]);
 
     const migrationRows = await client.execute(
       "SELECT id FROM schema_migrations",
@@ -400,10 +419,16 @@ describe("db > event_attendees migration from legacy schema", () => {
       }),
     );
 
-    // Force a named migration re-run by clearing both legacy and named markers.
-    await client.execute(
-      "DELETE FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
-    );
+    // Force a named migration re-run by making legacy markers stale and
+    // clearing named migration history.
+    await client.execute({
+      args: [LEGACY_DB_UPDATE],
+      sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+    });
+    await client.execute({
+      args: [LEGACY_DB_SCHEMA_HASH],
+      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+    });
     await client.execute("DROP TABLE schema_migrations");
     await initDb();
 

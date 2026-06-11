@@ -388,17 +388,17 @@ a{color:#0369a1}
 
 export const temporaryErrorPage = (): string =>
   String(
-    <Layout
-      headExtra={TEMPORARY_ERROR_HEAD}
-      title="Temporary Error"
-    >
+    <Layout headExtra={TEMPORARY_ERROR_HEAD} title="Temporary Error">
       <h1>Temporary Error</h1>
       <p>
         Something went wrong loading this page. Retrying automatically&hellip;
       </p>
       <p>
         <small>
-          Check <strong><a href="https://status.bunny.net/">status.bunny.net</a></strong>
+          Check{" "}
+          <strong>
+            <a href="https://status.bunny.net/">status.bunny.net</a>
+          </strong>
         </small>
       </p>
     </Layout>,

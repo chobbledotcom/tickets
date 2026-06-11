@@ -28,13 +28,11 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     logError({
       code: ErrorCode.CDN_REQUEST,
-      detail: `unhandled ${
-        formatRequestError(
-          request.method,
-          url.pathname,
-          error,
-        )
-      }`,
+      detail: `unhandled ${formatRequestError(
+        request.method,
+        url.pathname,
+        error,
+      )}`,
     });
     return temporaryErrorResponse();
   }

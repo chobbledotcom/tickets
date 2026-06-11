@@ -183,7 +183,7 @@ describe("e2e: ticket editing flow", () => {
 
     // Find Bob's edit link — he's the second attendee
     const attendeeLinks = browser.links.filter((l) =>
-      l.href.includes("/admin/attendees/")
+      l.href.includes("/admin/attendees/"),
     );
     expect(attendeeLinks.length).toBeGreaterThanOrEqual(2);
     await browser.visit(attendeeLinks[1]!.href);
@@ -211,7 +211,7 @@ describe("e2e: ticket editing flow", () => {
 
     // Navigate to Bob's edit page to verify fields and booking
     const bobEditLinks = browser.links.filter((l) =>
-      l.href.includes("/admin/attendees/")
+      l.href.includes("/admin/attendees/"),
     );
     // Bob (Robert Jones) should be the second attendee link
     await browser.visit(bobEditLinks[1]!.href);

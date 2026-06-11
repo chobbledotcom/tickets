@@ -347,7 +347,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (
     (await prefixHandlers[prefix]?.(request, path, method, server)) ??
-      notFoundResponse()
+    notFoundResponse()
   );
 };
 
@@ -361,10 +361,6 @@ const handleRequestInternal = async (
   method: string,
   server?: ServerContext,
 ): Promise<Response> => {
-  // Static routes always available (minimal overhead)
-  const staticResponse = await routeStatic(request, path, method);
-  if (staticResponse) return staticResponse;
-
   // Setup routes - only load for /setup paths
   if (isSetupPath(path)) {
     const routeSetup = await loadSetupRoutes();
@@ -385,9 +381,7 @@ const handleRequestInternal = async (
 const isSetupPath = (path: string): boolean =>
   path === "/setup" || path.startsWith("/setup/");
 
-const initializeDatabaseForPath = async (
-  path: string,
-): Promise<void> => {
+const initializeDatabaseForPath = async (path: string): Promise<void> => {
   await initDb({ allowMissingSettings: isSetupPath(path) });
 };
 
@@ -420,7 +414,8 @@ const logAndReturn = (
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   const { pathname } = new URL(request.url);
   const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer = request.method === "POST" &&
+  const needsBodyBuffer =
+    request.method === "POST" &&
     (isWebhookPath(normalizePath(pathname)) ||
       contentType.startsWith("multipart/form-data"));
   if (!needsBodyBuffer) return request;
@@ -540,6 +535,7 @@ const processRequest = async (
   detectIframeMode(effectiveRequest.url);
   clearSavedFormData();
 
+  let response: Response;
   try {
     const staticResponse = await routeStatic(effectiveRequest, path, method);
     if (staticResponse) {
@@ -560,8 +556,6 @@ const processRequest = async (
 
     await prepareRequestEnvironment(effectiveRequest);
 
-    // Content-Type validation: reject POST requests without proper Content-Type
-    // (webhook endpoints accept JSON, all others require form-urlencoded)
     if (!isValidContentType(effectiveRequest, path)) {
       return logAndReturn(
         contentTypeRejectionResponse(),
@@ -571,15 +565,14 @@ const processRequest = async (
       );
     }
 
-    const response = await routeAndFinalize(
-      effectiveRequest,
-      path,
+    response = logAndReturn(
+      await routeAndFinalize(effectiveRequest, path, method, server),
       method,
-      server,
+      path,
+      getElapsed,
     );
-    return logAndReturn(response, method, path, getElapsed);
   } catch (error) {
-    return logAndReturn(
+    response = logAndReturn(
       handleRoutingError(error, method, path),
       method,
       path,
@@ -588,6 +581,7 @@ const processRequest = async (
   } finally {
     await flushPendingWork();
   }
+  return response!;
 };
 
 /**
@@ -603,9 +597,9 @@ export const handleRequest = async (
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
         runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server))
-        )
-      )
-    )
+          runWithSessionContext(() => processRequest(effectiveRequest, server)),
+        ),
+      ),
+    ),
   );
 };

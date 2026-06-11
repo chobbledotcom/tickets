@@ -44,14 +44,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
       toJSON: () => ({}),
     });
 
-    const mockClient = (
-      execute: Client["execute"],
-    ): Client =>
+    const mockClient = (execute: Client["execute"]): Client =>
       ({
-        batch: (
-          _statements: never[],
-          _mode?: TransactionMode,
-        ) => Promise.reject(new Error("unexpected batch")),
+        batch: (_statements: never[], _mode?: TransactionMode) =>
+          Promise.reject(new Error("unexpected batch")),
         close: () => undefined,
         execute,
         executeMultiple: () =>
@@ -67,6 +63,26 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
       );
       return result.rows.length > 0;
+    };
+
+    const tableExists = async (table: string): Promise<boolean> => {
+      const result = await getDb().execute({
+        args: [table],
+        sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      });
+      return result.rows.length > 0;
+    };
+
+    const createEmptySettingsTable = () =>
+      getDb().execute(
+        "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      );
+
+    const schemaMarkerKeys = async (): Promise<string[]> => {
+      const result = await getDb().execute(
+        "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
+      );
+      return result.rows.map((row) => String(row.key));
     };
 
     const schemaMigrationsTableExists = async (): Promise<boolean> => {
@@ -140,22 +156,22 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb does not treat transient settings read failures as a new database", async () => {
       const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response()),
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
       );
-      setDb(mockClient((statement) => {
-        const sql = typeof statement === "string" ? statement : statement.sql;
-        if (sql.includes("FROM settings")) {
-          return Promise.reject(new Error("temporary libsql read failure"));
-        }
-        return Promise.reject(new Error(`unexpected migration query: ${sql}`));
-      }));
+      setDb(
+        mockClient((statement) => {
+          const sql = typeof statement === "string" ? statement : statement.sql;
+          if (sql.includes("FROM settings")) {
+            return Promise.reject(new Error("temporary libsql read failure"));
+          }
+          return Promise.reject(
+            new Error(`unexpected migration query: ${sql}`),
+          );
+        }),
+      );
       try {
-        await expect(initDb()).rejects.toThrow(
-          "temporary libsql read failure",
-        );
+        await expect(initDb()).rejects.toThrow("temporary libsql read failure");
         const ntfyCall = fetchStub.calls.find(
           (c) => c.args[0] === "https://ntfy.sh/test-topic",
         );
@@ -169,26 +185,28 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb does not treat transient lock write failures as an acquired lock", async () => {
       const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response()),
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
       );
-      setDb(mockClient((statement) => {
-        const sql = typeof statement === "string" ? statement : statement.sql;
-        if (sql.includes("FROM settings")) {
-          return Promise.resolve(
-            resultSet([
-              { key: "latest_db_update", value: "stale" },
-              { key: "db_schema_hash", value: "stale" },
-            ]),
+      setDb(
+        mockClient((statement) => {
+          const sql = typeof statement === "string" ? statement : statement.sql;
+          if (sql.includes("FROM settings")) {
+            return Promise.resolve(
+              resultSet([
+                { key: "latest_db_update", value: "stale" },
+                { key: "db_schema_hash", value: "stale" },
+              ]),
+            );
+          }
+          if (sql.includes("INSERT INTO settings")) {
+            return Promise.reject(new Error("temporary libsql write failure"));
+          }
+          return Promise.reject(
+            new Error(`unexpected migration query: ${sql}`),
           );
-        }
-        if (sql.includes("INSERT INTO settings")) {
-          return Promise.reject(new Error("temporary libsql write failure"));
-        }
-        return Promise.reject(new Error(`unexpected migration query: ${sql}`));
-      }));
+        }),
+      );
       try {
         await expect(initDb()).rejects.toThrow(
           "temporary libsql write failure",
@@ -213,6 +231,18 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await settingsTableExists()).toBe(false);
     });
 
+    test("initDb refuses to bootstrap an empty settings table by default", async () => {
+      await resetDatabase();
+      invalidateTestDbCache();
+      await createEmptySettingsTable();
+
+      await expect(initDb()).rejects.toThrow("settings table is uninitialized");
+
+      expect(await settingsTableExists()).toBe(true);
+      expect(await tableExists("events")).toBe(false);
+      expect(await schemaMarkerKeys()).toEqual([]);
+    });
+
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
       await resetDatabase();
       invalidateTestDbCache();
@@ -220,6 +250,27 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb({ allowMissingSettings: true });
 
       expect(await settingsTableExists()).toBe(true);
+      expect(await schemaMarkerKeys()).toEqual([
+        "db_schema_hash",
+        "latest_db_update",
+      ]);
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+    });
+
+    test("initDb bootstraps an empty settings table when explicitly allowed", async () => {
+      await resetDatabase();
+      invalidateTestDbCache();
+      await createEmptySettingsTable();
+
+      await initDb({ allowMissingSettings: true });
+
+      expect(await settingsTableExists()).toBe(true);
+      expect(await tableExists("events")).toBe(true);
+      expect(await schemaMarkerKeys()).toEqual([
+        "db_schema_hash",
+        "latest_db_update",
+      ]);
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
     test("named legacy migration drops legacy indexes not in declarative schema", async () => {
@@ -347,12 +398,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
         );
         await markCurrentSchemaMigrationPending();
         await withFetchMock(async (originalFetch) => {
-          installUrlHandler(
-            originalFetch,
-            (url) =>
-              url.includes("bunnycdn.com") || url.includes("b-cdn.net")
-                ? Promise.reject(new Error("forced upload failure"))
-                : null,
+          installUrlHandler(originalFetch, (url) =>
+            url.includes("bunnycdn.com") || url.includes("b-cdn.net")
+              ? Promise.reject(new Error("forced upload failure"))
+              : null,
           );
           await expect(initDb()).rejects.toThrow();
         });
@@ -378,10 +427,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
         DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
         NTFY_URL: "https://ntfy.sh/test-topic",
       });
-      const fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response()),
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
       );
       try {
         await getDb().execute(
@@ -424,10 +471,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("fails fast when a concurrent migration holds the lock", async () => {
       const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response()),
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
       );
       try {
         await getDb().execute(
