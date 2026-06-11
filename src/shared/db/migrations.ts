@@ -40,6 +40,8 @@ export const LATEST_UPDATE =
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
+const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
+
 const SCHEMA: [name: string, table: Table][] = [
   [
     "settings",
@@ -47,6 +49,17 @@ const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["key", "TEXT PRIMARY KEY"],
         ["value", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    SCHEMA_MIGRATIONS_TABLE,
+    {
+      columns: [
+        ["id", "TEXT PRIMARY KEY"],
+        ["description", "TEXT NOT NULL"],
+        ["applied_at", "TEXT NOT NULL"],
       ],
     },
   ],
@@ -420,7 +433,9 @@ const djb2 = (str: string): string => {
   return (hash >>> 0).toString(36);
 };
 
-export const SCHEMA_HASH = djb2(JSON.stringify(SCHEMA));
+const APP_SCHEMA = SCHEMA.filter(([name]) => name !== SCHEMA_MIGRATIONS_TABLE);
+
+export const SCHEMA_HASH = djb2(JSON.stringify(APP_SCHEMA));
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -430,14 +445,9 @@ const runMigration = async (sql: string): Promise<void> => {
     await getDb().execute(sql);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // Expected when re-running on an already-migrated DB or fresh DB
-    // where old columns/tables never existed:
-    if (
-      msg.includes("already exists") ||
-      msg.includes("duplicate") ||
-      msg.includes("no such column") ||
-      msg.includes("no such table")
-    ) {
+    // Expected when re-running on an already-migrated DB or racing another
+    // isolate through an idempotent DDL statement.
+    if (msg.includes("already exists") || msg.includes("duplicate")) {
       return;
     }
     // Anything else is a real error — log and rethrow
@@ -452,24 +462,54 @@ const getExistingColumns = async (table: string): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
-type DbState = "up_to_date" | "needs_migration" | "new";
+const tableExists = async (table: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    args: [table],
+    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+  });
+  return result.rows.length > 0;
+};
 
-/** Check database state: up-to-date, existing but needs migration, or brand new */
+const indexExists = async (indexName: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    args: [indexName],
+    sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+  });
+  return result.rows.length > 0;
+};
+
+type DbState = "up_to_date" | "needs_migration" | "missing_settings";
+
+export class MissingSettingsTableError extends Error {
+  constructor() {
+    super("Database settings table does not exist");
+    this.name = "MissingSettingsTableError";
+  }
+}
+
+const isMissingSettingsTableError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("no such table") &&
+    message.toLowerCase().includes("settings");
+};
+
+/** Check database state: up-to-date, needs migration, or missing settings table */
 const getDbState = async (): Promise<DbState> => {
   try {
     const result = await getDb().execute(
       "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
     );
-    if (result.rows.length === 0) return "new";
+    if (result.rows.length === 0) return "needs_migration";
     const values = new Map(
       result.rows.map((r) => [r.key as string, r.value as string]),
     );
     return values.get("latest_db_update") === LATEST_UPDATE &&
-      values.get("db_schema_hash") === SCHEMA_HASH
+        values.get("db_schema_hash") === SCHEMA_HASH
       ? "up_to_date"
       : "needs_migration";
-  } catch {
-    return "new";
+  } catch (error) {
+    if (isMissingSettingsTableError(error)) return "missing_settings";
+    throw error;
   }
 };
 
@@ -481,9 +521,11 @@ const createIndexesForTable = async (
   for (const idx of indexes) {
     const unique = idx.unique ? "UNIQUE " : "";
     await runMigration(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-        ", ",
-      )})`,
+      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${
+        idx.columns.join(
+          ", ",
+        )
+      })`,
     );
   }
 };
@@ -519,7 +561,8 @@ const recreateTable = async (tableName: string): Promise<void> => {
       { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
       {
         args: [],
-        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+        sql:
+          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
       },
       { args: [], sql: `DROP TABLE ${tableName}` },
       { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
@@ -530,9 +573,72 @@ const recreateTable = async (tableName: string): Promise<void> => {
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
 };
 
-/** Get the set of columns declared by SCHEMA for a given table */
-const getSchemaColumns = (tableName: string): Set<string> =>
-  new Set(SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c));
+const getAppSchemaColumns = (tableName: string): Set<string> =>
+  new Set(
+    APP_SCHEMA.find(([n]) => n === tableName)![1].columns.map(([c]) => c),
+  );
+
+const requireColumns = (
+  table: string,
+  existing: Set<string>,
+  required: string[],
+): void => {
+  const missing = required.filter((col) => !existing.has(col));
+  if (missing.length > 0) {
+    throw new Error(
+      `Cannot migrate ${table}: missing expected legacy column(s): ${
+        missing.join(", ")
+      }`,
+    );
+  }
+};
+
+const backfillEventAttendees = async (): Promise<void> => {
+  const attendeeColumns = await getExistingColumns("attendees");
+  if (!attendeeColumns.has("event_id")) {
+    logDebug(
+      "Migration",
+      "attendees.event_id is absent, skipping event_attendees backfill",
+    );
+    return;
+  }
+
+  requireColumns("attendees", attendeeColumns, [
+    "id",
+    "event_id",
+    "date",
+    "quantity",
+    "checked_in_v2",
+    "refunded_v2",
+    "price_paid_v2",
+    "attachment_downloads",
+  ]);
+  requireColumns(
+    "event_attendees",
+    await getExistingColumns("event_attendees"),
+    [
+      "event_id",
+      "attendee_id",
+      "start_at",
+      "end_at",
+      "quantity",
+      "checked_in",
+      "refunded",
+      "price_paid",
+      "attachment_downloads",
+    ],
+  );
+
+  await getDb().execute(
+    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
+     SELECT event_id, id,
+       CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
+       CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
+       quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
+     FROM attendees
+     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
+  );
+};
 
 /**
  * Drop any legacy columns from attendees that aren't in the current schema
@@ -544,7 +650,7 @@ const getSchemaColumns = (tableName: string): Set<string> =>
  */
 const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   const cols = await getExistingColumns("attendees");
-  const expected = getSchemaColumns("attendees");
+  const expected = getAppSchemaColumns("attendees");
   const hasLegacy = [...cols].some((c) => !expected.has(c));
   if (!hasLegacy) {
     logDebug(
@@ -607,6 +713,152 @@ const syncIndexes = async (): Promise<void> => {
   }
 };
 
+const verifyCurrentAppSchema = async (): Promise<void> => {
+  for (const [name, table] of APP_SCHEMA) {
+    if (!(await tableExists(name))) {
+      throw new Error(
+        `Database schema verification failed: missing table ${name}`,
+      );
+    }
+
+    const existing = await getExistingColumns(name);
+    const missingColumns = table.columns
+      .map(([col]) => col)
+      .filter((col) => !existing.has(col));
+    if (missingColumns.length > 0) {
+      throw new Error(
+        `Database schema verification failed: ${name} missing column(s): ${
+          missingColumns.join(", ")
+        }`,
+      );
+    }
+
+    for (const index of table.indexes ?? []) {
+      if (!(await indexExists(index.name))) {
+        throw new Error(
+          `Database schema verification failed: missing index ${index.name}`,
+        );
+      }
+    }
+  }
+};
+
+const syncCurrentSchema = async (): Promise<void> => {
+  logDebug("Migration", "Step 1: applying schema changes...");
+  await applySchemaChanges();
+  logDebug("Migration", "Step 2: syncing indexes...");
+  await syncIndexes();
+
+  logDebug("Migration", "Step 3: backfilling event_attendees...");
+  await backfillEventAttendees();
+
+  logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
+  await dropDeprecatedAttendeeColumns();
+};
+
+type Migration = {
+  id: string;
+  description: string;
+  up: () => Promise<void>;
+  verify?: () => Promise<void>;
+};
+
+const MIGRATIONS: Migration[] = [
+  {
+    description:
+      "Reconcile legacy databases with the current declarative schema",
+    id: "2026-06-11_current_schema",
+    up: syncCurrentSchema,
+    verify: verifyCurrentAppSchema,
+  },
+];
+
+export const MIGRATION_IDS: string[] = MIGRATIONS.map((migration) =>
+  migration.id
+);
+
+const ensureMigrationTrackingTable = async (): Promise<void> => {
+  await getDb().execute(
+    `CREATE TABLE IF NOT EXISTS ${SCHEMA_MIGRATIONS_TABLE} (
+      id TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    )`,
+  );
+};
+
+const getAppliedMigrationIds = async (): Promise<Set<string>> => {
+  await ensureMigrationTrackingTable();
+  const result = await getDb().execute(
+    `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE}`,
+  );
+  return new Set(result.rows.map((row) => String(row.id)));
+};
+
+const markMigrationApplied = async (migration: Migration): Promise<void> => {
+  await ensureMigrationTrackingTable();
+  await getDb().execute({
+    args: [migration.id, migration.description, new Date().toISOString()],
+    sql:
+      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
+  });
+};
+
+const writeSchemaMarkers = async (): Promise<void> => {
+  await getDb().execute({
+    args: [LATEST_UPDATE],
+    sql:
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+  });
+  await getDb().execute({
+    args: [SCHEMA_HASH],
+    sql:
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+  });
+};
+
+const settingsTableHasOnlyMigrationLock = async (): Promise<boolean> => {
+  const result = await getDb().execute({
+    args: [MIGRATION_LOCK_KEY],
+    sql: "SELECT 1 FROM settings WHERE key != ? LIMIT 1",
+  });
+  return result.rows.length === 0;
+};
+
+const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
+  const applied = await getAppliedMigrationIds();
+  const missing = MIGRATIONS.filter((migration) => !applied.has(migration.id));
+  if (missing.length === 0) return;
+
+  await verifyCurrentAppSchema();
+  logDebug(
+    "Migration",
+    `Baselining ${missing.length} already-applied migration(s)`,
+  );
+  for (const migration of missing) {
+    await markMigrationApplied(migration);
+  }
+};
+
+const pendingMigrationsForState = async (
+  state: DbState,
+): Promise<Migration[]> => {
+  if (state === "missing_settings") return MIGRATIONS;
+  const applied = await getAppliedMigrationIds();
+  return MIGRATIONS.filter((migration) => !applied.has(migration.id));
+};
+
+const runPendingMigrations = async (
+  pending: Migration[],
+): Promise<void> => {
+  for (const migration of pending) {
+    logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
+    await migration.up();
+    await migration.verify?.();
+    await markMigrationApplied(migration);
+  }
+};
+
 const MIGRATION_LOCK_KEY = "migration_lock";
 
 /**
@@ -626,18 +878,24 @@ export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
  * fresh lock leaves rowsAffected at 0. Race-free across concurrent isolates
  * without a separate read.
  */
-const acquireMigrationLock = async (): Promise<boolean> => {
+const acquireMigrationLock = async (
+  allowMissingSettings: boolean,
+): Promise<boolean> => {
   const now = new Date();
   const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
   const stamp = now.toISOString();
   const result = await getDb()
     .execute({
       args: [MIGRATION_LOCK_KEY, stamp, stamp, cutoff],
-      sql:
-        "INSERT INTO settings (key, value) VALUES (?, ?) " +
+      sql: "INSERT INTO settings (key, value) VALUES (?, ?) " +
         "ON CONFLICT(key) DO UPDATE SET value = ? WHERE settings.value < ?",
     })
-    .catch(() => null); // settings table may not exist yet on first run
+    .catch((error) => {
+      if (allowMissingSettings && isMissingSettingsTableError(error)) {
+        return null;
+      }
+      throw error;
+    });
   return result === null || result.rowsAffected === 1;
 };
 
@@ -648,90 +906,97 @@ const releaseMigrationLock = async (): Promise<void> => {
   );
 };
 
+type InitDbOptions = {
+  /** Only setup/restore/bootstrap callers should create a missing settings table. */
+  allowMissingSettings?: boolean;
+};
+
 // ─── Main migration ─────────────────────────────────────────────
 
 /**
- * Initialize database tables — idempotent, safe to call on every startup.
+ * Initialize database tables for an existing database.
+ * Fresh database creation requires allowMissingSettings.
  * Uses an advisory lock to prevent concurrent migrations.
  */
-export const initDb = async (): Promise<void> => {
+export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
+  const allowMissingSettings = opts.allowMissingSettings ?? false;
   let state = await getDbState();
-  if (state === "up_to_date") return;
+  if (state === "up_to_date") {
+    await baselineCurrentSchemaIfNeeded();
+    return;
+  }
+  if (state === "missing_settings" && !allowMissingSettings) {
+    throw new MissingSettingsTableError();
+  }
 
-  const acquired = await acquireMigrationLock();
+  const acquired = await acquireMigrationLock(allowMissingSettings);
   if (!acquired) {
-    void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
+    void sendNtfyError(
+      `E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`,
+    );
     throw new Error(
       "Database migration is already in progress (migration_lock held). " +
-        `A crashed migration's lock is reclaimed automatically after ${
+        `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
           MIGRATION_LOCK_TTL_MS / 60000
-        } minutes; retry then, or manually DELETE FROM settings WHERE key = 'migration_lock'.`,
+        } minutes, or manually DELETE FROM settings WHERE key = 'migration_lock'.`,
     );
   }
 
-  // Re-check after acquiring lock (another process may have finished)
-  state = await getDbState();
-  if (state === "up_to_date") {
-    await releaseMigrationLock();
-    return;
-  }
+  try {
+    // Re-check after acquiring lock (another process may have finished)
+    state = await getDbState();
+    if (state === "up_to_date") {
+      await baselineCurrentSchemaIfNeeded();
+      return;
+    }
 
-  // Back up before migrating — but only for existing databases, not fresh installs.
-  // Skip if a recent backup already exists (e.g. a retried migration after a crash).
-  if (state === "needs_migration" && isStorageEnabled()) {
-    if (await hasRecentBackup()) {
+    // Back up before migrating — but only for existing databases, not fresh installs.
+    // Skip if a recent backup already exists (e.g. a retried migration after a crash).
+    if (state === "needs_migration" && isStorageEnabled()) {
+      if (await hasRecentBackup()) {
+        logDebug(
+          "Migration",
+          "Recent backup exists, skipping pre-migration backup",
+        );
+      } else {
+        logDebug("Migration", "Creating pre-migration backup...");
+        const filename = await createAndUploadBackup();
+        logDebug("Migration", `Pre-migration backup saved: ${filename}`);
+      }
+    }
+
+    const pending = await pendingMigrationsForState(state);
+    if (pending.length === 0) {
+      if (allowMissingSettings && await settingsTableHasOnlyMigrationLock()) {
+        await verifyCurrentAppSchema();
+        logDebug(
+          "Migration",
+          "Restoring schema markers for empty setup settings table",
+        );
+        await writeSchemaMarkers();
+        return;
+      }
+      throw new Error(
+        "Database schema markers are stale, but no named migrations are pending",
+      );
+    }
+    await runPendingMigrations(pending);
+    await verifyCurrentAppSchema();
+
+    logDebug("Migration", "Updating version marker...");
+    await writeSchemaMarkers();
+  } finally {
+    // If the isolate is evicted mid-migration this finally will not run, so
+    // stale locks are still reclaimed by MIGRATION_LOCK_TTL_MS.
+    await releaseMigrationLock().catch((error) =>
       logDebug(
         "Migration",
-        "Recent backup exists, skipping pre-migration backup",
-      );
-    } else {
-      logDebug("Migration", "Creating pre-migration backup...");
-      const filename = await createAndUploadBackup();
-      logDebug("Migration", `Pre-migration backup saved: ${filename}`);
-    }
+        `Failed to release migration lock: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
+    );
   }
-
-  logDebug("Migration", "Step 1: applying schema changes...");
-  await applySchemaChanges();
-  logDebug("Migration", "Step 2: syncing indexes...");
-  await syncIndexes();
-
-  // 4. Backfill event_attendees from existing attendees data (idempotent)
-  // Convert attendees.date ("YYYY-MM-DD") to start_at/end_at (full-day UTC range)
-  // Also copies per-event status columns to event_attendees.
-  // NOTE: On DBs where event_id was already dropped (intermediate state),
-  // this SELECT fails with "no such column" — runMigration swallows that
-  // error, making the backfill a safe no-op before dropDeprecatedAttendeeColumns.
-  logDebug("Migration", "Step 3: backfilling event_attendees...");
-  await runMigration(
-    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
-     SELECT event_id, id,
-       CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
-       CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
-     FROM attendees
-     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
-  );
-
-  // 5. Drop deprecated columns from attendees → now on event_attendees.
-  logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
-  await dropDeprecatedAttendeeColumns();
-
-  // 6. Update version marker and schema hash
-  logDebug("Migration", "Step 5: updating version marker...");
-  await getDb().execute({
-    args: [LATEST_UPDATE],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
-  });
-  await getDb().execute({
-    args: [SCHEMA_HASH],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
-  });
-
-  // Release lock on success. If a migration crashes the lock is left
-  // behind, but it expires after MIGRATION_LOCK_TTL_MS so the next boot
-  // reclaims it automatically.
-  await releaseMigrationLock();
 };
 
 // ─── Reset ──────────────────────────────────────────────────────

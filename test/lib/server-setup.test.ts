@@ -2,6 +2,9 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { getDb } from "#shared/db/client.ts";
+import { resetDatabase } from "#shared/db/migrations.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   assertJson,
   assertPublicHtml,
@@ -12,6 +15,7 @@ import {
   expectRedirect,
   expectRedirectWithFlash,
   getSetupCsrfToken,
+  invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
@@ -44,6 +48,20 @@ describeWithEnv("server (setup)", { db: true }, () => {
     });
   }
 
+  async function resetToBrandNewDatabase(): Promise<void> {
+    await resetDatabase();
+    invalidateTestDbCache();
+    settings.invalidateCache();
+    settings.setup.clearCache();
+  }
+
+  async function settingsTableExists(): Promise<boolean> {
+    const result = await getDb().execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
+    );
+    return result.rows.length > 0;
+  }
+
   describe("setup routes", () => {
     describe("when setup not complete", () => {
       beforeEach(async () => {
@@ -52,20 +70,122 @@ describeWithEnv("server (setup)", { db: true }, () => {
         await createTestDb();
       });
 
-      test("redirects home to /setup/", async () => {
+      test("returns temporary status page for home when setup is incomplete", async () => {
         const response = await handleRequest(mockRequest("/"));
-        expectRedirect(response, /^\/setup$/);
+        await expectHtmlResponse(
+          response,
+          503,
+          "Temporary Error",
+          "status.bunny.net",
+        );
       });
 
-      test("redirects admin to /setup/", async () => {
+      test("returns temporary status page without bootstrapping a missing settings table", async () => {
+        await resetToBrandNewDatabase();
+
+        await withExpectedError(async () => {
+          const response = await handleRequest(mockRequest("/"));
+          await expectHtmlResponse(
+            response,
+            503,
+            "Temporary Error",
+            "status.bunny.net",
+          );
+        });
+
+        expect(await settingsTableExists()).toBe(false);
+      });
+
+      test("returns temporary status page for admin when setup is incomplete", async () => {
         const response = await handleRequest(mockRequest("/admin/"));
-        expectRedirect(response, /^\/setup$/);
+        await expectHtmlResponse(
+          response,
+          503,
+          "Temporary Error",
+          "status.bunny.net",
+        );
       });
 
       test("health check still works", async () => {
         await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
           expect(json).toEqual({ status: "ok" });
         });
+      });
+
+      test("health check works without a settings table", async () => {
+        await resetToBrandNewDatabase();
+
+        await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
+          expect(json).toEqual({ status: "ok" });
+        });
+        expect(await settingsTableExists()).toBe(false);
+      });
+
+      test("static assets work without a settings table", async () => {
+        await resetToBrandNewDatabase();
+
+        const response = await handleRequest(mockRequest("/mvp.css"));
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/css");
+        expect(await settingsTableExists()).toBe(false);
+      });
+
+      test("health and static assets work when settings DB cannot be read", async () => {
+        const { stub } = await import("@std/testing/mock");
+        const executeStub = stub(
+          getDb(),
+          "execute",
+          () => Promise.reject(new Error("db unavailable")),
+        );
+
+        try {
+          await assertJson(
+            handleRequest(mockRequest("/health")),
+            200,
+            (json) => {
+              expect(json).toEqual({ status: "ok" });
+            },
+          );
+
+          const response = await handleRequest(mockRequest("/mvp.css"));
+          expect(response.status).toBe(200);
+          expect(response.headers.get("content-type")).toContain("text/css");
+        } finally {
+          executeStub.restore();
+        }
+      });
+
+      test("returns the temporary status page when settings DB cannot be read", async () => {
+        const { stub } = await import("@std/testing/mock");
+        const executeStub = stub(
+          getDb(),
+          "execute",
+          () => Promise.reject(new Error("db unavailable")),
+        );
+
+        try {
+          await withExpectedError(async () => {
+            const response = await handleRequest(mockRequest("/"));
+            await expectHtmlResponse(
+              response,
+              503,
+              "Temporary Error",
+              "status.bunny.net",
+            );
+          });
+        } finally {
+          executeStub.restore();
+        }
+      });
+
+      test("GET /setup/ bootstraps a database with no settings table", async () => {
+        await resetToBrandNewDatabase();
+
+        const response = await handleRequest(mockRequest("/setup/"));
+
+        await expectHtmlResponse(response, 200, "Initial Setup");
+        expect(await settingsTableExists()).toBe(true);
       });
 
       test("GET /setup/ shows setup page", async () => {
@@ -198,8 +318,10 @@ describeWithEnv("server (setup)", { db: true }, () => {
         await withExpectedError(async () => {
           await withMocks(
             () => ({
-              mockCompleteSetup: stub(settings.setup, "complete", () =>
-                Promise.reject(new Error("Database error")),
+              mockCompleteSetup: stub(
+                settings.setup,
+                "complete",
+                () => Promise.reject(new Error("Database error")),
               ),
               mockConsoleError: stub(console, "error", () => {}),
             }),

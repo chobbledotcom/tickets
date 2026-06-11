@@ -53,7 +53,7 @@ describe("e2e: seeded attendee views", () => {
 
   test("setup → seed → dashboard → event page → attendee edit page all render", async () => {
     // 1. Complete initial setup
-    await browser.visit("/");
+    await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
     await browser.submitForm(
       {
@@ -107,7 +107,7 @@ describe("e2e: seeded attendee views", () => {
     // 6. Navigate to the attendee's edit page via the "Edit" link in the
     //    attendee table. The link href is /admin/attendees/:id.
     const editLink = browser.links.find((l) =>
-      /^\/admin\/attendees\/\d+/.test(l.href),
+      /^\/admin\/attendees\/\d+/.test(l.href)
     );
     expect(editLink).toBeTruthy();
     await browser.visit(editLink!.href);

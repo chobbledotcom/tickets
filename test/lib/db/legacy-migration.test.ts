@@ -208,8 +208,9 @@ describe("db > event_attendees migration from legacy schema", () => {
   ) => {
     const origExecute = client.execute.bind(client);
     return stub(client, "execute", (stmt: unknown) => {
-      const sql =
-        typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
+      const sql = typeof stmt === "string"
+        ? stmt
+        : (stmt as { sql: string }).sql;
       if (/PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(sql)) {
         return Promise.resolve({
           columns: [],
@@ -352,13 +353,42 @@ describe("db > event_attendees migration from legacy schema", () => {
     expect(rows.rows[0]!.ticket_token_index).toBe("tok_abc");
   });
 
+  test("fails instead of marking progress for unknown legacy attendee shape", async () => {
+    setupTestEncryptionKey();
+    const client = createClient({ url: ":memory:" });
+    setDb(client);
+
+    await client.execute(
+      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+    );
+    await client.execute(`CREATE TABLE attendees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      created TEXT NOT NULL
+    )`);
+
+    await expect(initDb()).rejects.toThrow(
+      "missing expected legacy column",
+    );
+
+    const markerRows = await client.execute(
+      "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
+    );
+    expect(markerRows.rows.length).toBe(0);
+
+    const migrationRows = await client.execute(
+      "SELECT id FROM schema_migrations",
+    );
+    expect(migrationRows.rows.length).toBe(0);
+  });
+
   test("skips table recreation when attendees already matches schema", async () => {
     setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
 
     // Run initDb on a fresh DB so everything is created and up to date
-    await initDb();
+    await initDb({ allowMissingSettings: true });
 
     // Insert a row so we can verify it's untouched (not lost to a spurious recreation)
     await client.execute(
@@ -370,10 +400,11 @@ describe("db > event_attendees migration from legacy schema", () => {
       }),
     );
 
-    // Force a re-run by clearing the version marker
+    // Force a named migration re-run by clearing both legacy and named markers.
     await client.execute(
       "DELETE FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
     );
+    await client.execute("DROP TABLE schema_migrations");
     await initDb();
 
     const cols = await client.execute("PRAGMA table_info(attendees)");

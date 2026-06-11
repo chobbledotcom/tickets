@@ -125,9 +125,11 @@ export const exportTable = async (table: string): Promise<string> => {
   for (const row of rows) {
     const values = pipe(map((col: string) => escapeSql(row[col])))(colNames);
     lines.push(
-      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${values.join(
-        ", ",
-      )});`,
+      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${
+        values.join(
+          ", ",
+        )
+      });`,
     );
   }
   return lines.join("\n");
@@ -138,7 +140,7 @@ export const exportTable = async (table: string): Promise<string> => {
 export const createBackup = async (): Promise<TableBackup[]> => {
   const existingTables = await getExistingTableNames();
   const tables = SCHEMA_TABLE_NAMES.filter((table) =>
-    existingTables.has(table),
+    existingTables.has(table)
   );
   const backups: TableBackup[] = [];
 
@@ -279,11 +281,12 @@ export const countZipStatements = (zipData: Uint8Array): number => {
  */
 export const restoreFromSql = async (sql: string): Promise<void> => {
   await resetDatabase();
-  await initDb();
+  await initDb({ allowMissingSettings: true });
 
-  // initDb writes migration markers into settings; clear them so the
-  // backup's own settings rows don't collide on the PRIMARY KEY.
+  // initDb writes migration markers into settings/schema_migrations; clear them
+  // so the backup's own rows don't collide on primary keys.
   await getDb().execute("DELETE FROM settings");
+  await getDb().execute("DELETE FROM schema_migrations");
 
   const statements = splitStatements(sql);
   if (statements.length === 0) return;

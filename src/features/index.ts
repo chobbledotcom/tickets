@@ -31,6 +31,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { initDb } from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -346,7 +347,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (
     (await prefixHandlers[prefix]?.(request, path, method, server)) ??
-    notFoundResponse()
+      notFoundResponse()
   );
 };
 
@@ -365,7 +366,7 @@ const handleRequestInternal = async (
   if (staticResponse) return staticResponse;
 
   // Setup routes - only load for /setup paths
-  if (path === "/setup" || path.startsWith("/setup/")) {
+  if (isSetupPath(path)) {
     const routeSetup = await loadSetupRoutes();
     const setupResponse = await routeSetup(request, path, method);
     if (setupResponse) return setupResponse;
@@ -373,10 +374,21 @@ const handleRequestInternal = async (
 
   // Require setup before accessing other routes
   if (!(await settings.setup.isComplete())) {
-    return redirectResponse("/setup");
+    return isSetupPath(path)
+      ? redirectResponse("/setup")
+      : temporaryErrorResponse();
   }
 
   return (await routeMainApp(request, path, method, server))!;
+};
+
+const isSetupPath = (path: string): boolean =>
+  path === "/setup" || path.startsWith("/setup/");
+
+const initializeDatabaseForPath = async (
+  path: string,
+): Promise<void> => {
+  await initDb({ allowMissingSettings: isSetupPath(path) });
 };
 
 /** Log request and return response */
@@ -408,8 +420,7 @@ const logAndReturn = (
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   const { pathname } = new URL(request.url);
   const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer =
-    request.method === "POST" &&
+  const needsBodyBuffer = request.method === "POST" &&
     (isWebhookPath(normalizePath(pathname)) ||
       contentType.startsWith("multipart/form-data"));
   if (!needsBodyBuffer) return request;
@@ -530,6 +541,18 @@ const processRequest = async (
   clearSavedFormData();
 
   try {
+    const staticResponse = await routeStatic(effectiveRequest, path, method);
+    if (staticResponse) {
+      return logAndReturn(
+        await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
+        method,
+        path,
+        getElapsed,
+      );
+    }
+
+    await initializeDatabaseForPath(path);
+
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
       return logAndReturn(trackingRedirect, method, path, getElapsed);
@@ -548,22 +571,20 @@ const processRequest = async (
       );
     }
 
-    try {
-      const response = await routeAndFinalize(
-        effectiveRequest,
-        path,
-        method,
-        server,
-      );
-      return logAndReturn(response, method, path, getElapsed);
-    } catch (error) {
-      return logAndReturn(
-        handleRoutingError(error, method, path),
-        method,
-        path,
-        getElapsed,
-      );
-    }
+    const response = await routeAndFinalize(
+      effectiveRequest,
+      path,
+      method,
+      server,
+    );
+    return logAndReturn(response, method, path, getElapsed);
+  } catch (error) {
+    return logAndReturn(
+      handleRoutingError(error, method, path),
+      method,
+      path,
+      getElapsed,
+    );
   } finally {
     await flushPendingWork();
   }
@@ -582,9 +603,9 @@ export const handleRequest = async (
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
         runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server)),
-        ),
-      ),
-    ),
+          runWithSessionContext(() => processRequest(effectiveRequest, server))
+        )
+      )
+    )
   );
 };

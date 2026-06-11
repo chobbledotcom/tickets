@@ -56,8 +56,8 @@ describe("e2e: full booking flow", () => {
   });
 
   test("setup → create event → group → book → view ticket → admin sees attendee", async () => {
-    // 1. Visit homepage — should redirect to setup since no setup done
-    await browser.visit("/");
+    // 1. Visit setup directly — initial DB creation is only allowed there.
+    await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
 
     // 2. Complete setup
@@ -179,7 +179,7 @@ describe("e2e: full booking flow", () => {
     //    The group detail page shows a "Public URL" with a link containing /ticket/
     //    The link text shows "localhost/ticket/{slug}"
     const ticketLink = browser.links.find((l) =>
-      l.text.includes("localhost/ticket/"),
+      l.text.includes("localhost/ticket/")
     );
     expect(ticketLink).toBeTruthy();
     // The link is an absolute URL (https://...), extract the path
@@ -248,7 +248,7 @@ describe("e2e: full booking flow", () => {
     // Find the column index for our question
     const headers = headerLine.split(",");
     const qColIndex = headers.findIndex((h) =>
-      h.includes("What is your t-shirt size?"),
+      h.includes("What is your t-shirt size?")
     );
     expect(qColIndex).toBeGreaterThan(-1);
     // Verify the answer in the data row
@@ -268,24 +268,23 @@ describe("e2e: full booking flow", () => {
 
       // 15. Download the backup zip for later restore
       const downloadLink = browser.links.find((l) =>
-        l.text.includes("Download"),
+        l.text.includes("Download")
       );
       expect(downloadLink).toBeTruthy();
       const backupZip = await browser.downloadBytes(downloadLink!.href);
       expect(backupZip.length).toBeGreaterThan(0);
 
-      // 16. Reset the database directly (the settings-advanced form does
-      //     resetDatabase() + redirect, but in-process tests can't survive
-      //     the redirect since settings.loadAll() runs before initDb()).
+      // 16. Reset the database directly and reinitialize schema so this
+      //     in-process flow can continue after the destructive reset.
       const { initDb: reinitDb, resetDatabase: resetDb2 } = await import(
         "#shared/db/migrations.ts"
       );
       await resetDb2();
-      await reinitDb();
+      await reinitDb({ allowMissingSettings: true });
       invalidateAllCaches();
 
-      // 17. Verify the homepage shows setup (database is empty)
-      await browser.visit("/");
+      // 17. Verify setup is available after reset (database is empty)
+      await browser.visit("/setup/");
       expect(browser.currentHtml).toContain("Initial Setup");
 
       // 18. Complete setup again with same credentials

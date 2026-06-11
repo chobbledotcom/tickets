@@ -43,7 +43,7 @@ const prepareTestClient = async (): Promise<void> => {
   setTestEnv({ DB_URL: ":memory:" });
   const client = createClient({ url: ":memory:" });
   setDb(client);
-  await initDb();
+  await initDb({ allowMissingSettings: true });
 };
 
 export const createTestDb = async (): Promise<void> => {
