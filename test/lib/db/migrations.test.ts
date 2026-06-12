@@ -1,4 +1,9 @@
-import type { Client, ResultSet, TransactionMode } from "@libsql/client";
+import {
+  type Client,
+  createClient,
+  type ResultSet,
+  type TransactionMode,
+} from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -7,6 +12,7 @@ import { getDb, setDb } from "#shared/db/client.ts";
 import { getAllEvents } from "#shared/db/events.ts";
 import {
   initDb,
+  invalidateInitDbCache,
   LATEST_UPDATE,
   MIGRATION_IDS,
   MIGRATION_LOCK_TTL_MS,
@@ -28,8 +34,12 @@ import {
 } from "#test-utils";
 
 describeWithEnv("db > migrations", { db: true }, () => {
-  const markCurrentSchemaMigrationPending = () =>
-    getDb().execute("DROP TABLE IF EXISTS schema_migrations");
+  const markCurrentSchemaMigrationPending = () => {
+    // Clearing recorded history must also clear the per-isolate ready cache,
+    // otherwise initDb never re-inspects this client.
+    invalidateInitDbCache();
+    return getDb().execute("DROP TABLE IF EXISTS schema_migrations");
+  };
 
   describe("initDb version check", () => {
     const resultSet = (
@@ -119,6 +129,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb baselines current databases without schema_migrations", async () => {
       await getDb().execute("DROP TABLE schema_migrations");
+      invalidateInitDbCache();
 
       await initDb();
 
@@ -126,17 +137,53 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
-    test("initDb fails when schema markers are stale but no named migration is pending", async () => {
+    test("initDb restores stale markers after a crash between recording migrations and writing markers", async () => {
+      // Crash state: all named migrations recorded in schema_migrations,
+      // but the isolate died before refreshing the settings markers.
       await getDb().execute(
         "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
       );
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
+      );
+      invalidateInitDbCache();
 
-      await expect(initDb()).rejects.toThrow("no named migrations are pending");
+      await initDb();
+
+      const result = await getDb().execute(
+        "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
+      );
+      expect(result.rows.map((row) => [row.key, row.value])).toEqual([
+        ["db_schema_hash", SCHEMA_HASH],
+        ["latest_db_update", LATEST_UPDATE],
+      ]);
+      const lock = await getDb().execute(
+        "SELECT 1 FROM settings WHERE key = 'migration_lock'",
+      );
+      expect(lock.rows.length).toBe(0);
+    });
+
+    test("initDb fails without rewriting markers when the schema does not match and no migration is pending", async () => {
+      // A SCHEMA change deployed without a named migration: the hash is
+      // stale, nothing is pending, and verification finds the mismatch.
+      await getDb().execute("DROP INDEX idx_events_slug_index");
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      invalidateInitDbCache();
+
+      await expect(initDb()).rejects.toThrow(
+        "must ship with a new entry in MIGRATIONS",
+      );
 
       const result = await getDb().execute(
         "SELECT value FROM settings WHERE key = 'db_schema_hash'",
       );
       expect(result.rows[0]?.value).toBe("stale");
+      const lock = await getDb().execute(
+        "SELECT 1 FROM settings WHERE key = 'migration_lock'",
+      );
+      expect(lock.rows.length).toBe(0);
     });
 
     test("initDb can be called multiple times safely", async () => {
@@ -222,6 +269,48 @@ describeWithEnv("db > migrations", { db: true }, () => {
       }
     });
 
+    test("initDb does not mistake another missing table for a missing settings table", async () => {
+      setDb(
+        mockClient((statement) => {
+          const sql = typeof statement === "string" ? statement : statement.sql;
+          if (sql.includes("FROM settings")) {
+            return Promise.reject(new Error("no such table: user_settings"));
+          }
+          return Promise.reject(
+            new Error(`unexpected migration query: ${sql}`),
+          );
+        }),
+      );
+      try {
+        const error = await initDb().catch((e: unknown) => e);
+        expect(error).not.toBeInstanceOf(MissingSettingsTableError);
+        expect(String(error)).toContain("no such table: user_settings");
+      } finally {
+        setDb(null);
+      }
+    });
+
+    test("initDb recognizes a schema-qualified missing settings table error", async () => {
+      setDb(
+        mockClient((statement) => {
+          const sql = typeof statement === "string" ? statement : statement.sql;
+          if (sql.includes("FROM settings")) {
+            return Promise.reject(new Error("no such table: main.settings"));
+          }
+          return Promise.reject(
+            new Error(`unexpected migration query: ${sql}`),
+          );
+        }),
+      );
+      try {
+        await expect(initDb()).rejects.toBeInstanceOf(
+          MissingSettingsTableError,
+        );
+      } finally {
+        setDb(null);
+      }
+    });
+
     test("initDb refuses to bootstrap a fresh database by default", async () => {
       await resetDatabase();
       invalidateTestDbCache();
@@ -302,7 +391,92 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
   });
 
+  describe("initDb ready cache", () => {
+    test("initDb runs no queries once the client is confirmed ready", async () => {
+      await initDb();
+
+      const executeStub = stub(getDb(), "execute", () =>
+        Promise.reject(new Error("query after database confirmed ready")),
+      );
+      try {
+        await initDb();
+        expect(executeStub.calls.length).toBe(0);
+      } finally {
+        executeStub.restore();
+      }
+    });
+
+    test("initDb retries after a failed attempt instead of caching the failure", async () => {
+      invalidateInitDbCache();
+      const failingStub = stub(getDb(), "execute", () =>
+        Promise.reject(new Error("transient outage")),
+      );
+      try {
+        await expect(initDb()).rejects.toThrow("transient outage");
+      } finally {
+        failingStub.restore();
+      }
+
+      // Same client, no explicit invalidation: the failure must not have
+      // been cached, so this call re-checks and succeeds.
+      await initDb();
+
+      const readyStub = stub(getDb(), "execute", () =>
+        Promise.reject(new Error("query after database confirmed ready")),
+      );
+      try {
+        await initDb();
+        expect(readyStub.calls.length).toBe(0);
+      } finally {
+        readyStub.restore();
+      }
+    });
+
+    test("resetDatabase clears the ready cache so initDb re-checks", async () => {
+      await initDb();
+
+      await resetDatabase();
+      invalidateTestDbCache();
+
+      await expect(initDb()).rejects.toBeInstanceOf(MissingSettingsTableError);
+    });
+
+    test("a different client is not treated as ready", async () => {
+      await initDb();
+
+      const client = createClient({ url: ":memory:" });
+      setDb(client);
+      try {
+        await expect(initDb()).rejects.toBeInstanceOf(
+          MissingSettingsTableError,
+        );
+      } finally {
+        setDb(null);
+      }
+    });
+  });
+
   describe("pre-migration backup", () => {
+    test("skips backup when only restoring stale schema markers", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        invalidateInitDbCache();
+        await initDb();
+
+        const files = [...Deno.readDirSync(tmpDir)]
+          .map((e) => e.name)
+          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
+        expect(files.length).toBe(0);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
     test("creates backup before migrating existing database when storage is enabled", async () => {
       const tmpDir = Deno.makeTempDirSync();
       const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
@@ -438,6 +612,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
           args: ["migration_lock", new Date().toISOString()],
           sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
         });
+        invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
@@ -479,6 +654,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
         );
         await setLock(new Date());
+        invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
@@ -532,6 +708,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
         );
         await setLock(new Date(Date.now() - MIGRATION_LOCK_TTL_MS / 2));
+        invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
       } finally {
@@ -591,6 +768,21 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       expect(event.id).toBe(1);
       expect(event.name).toBe("New Event");
+    });
+  });
+});
+
+describe("db > migrations > schema change guard", () => {
+  // If this test fails, SCHEMA was changed. Existing production databases
+  // are only upgraded through named migrations: add a new MIGRATIONS entry
+  // for the change, then update BOTH snapshots below together. Deploying a
+  // SCHEMA change without a new named migration makes initDb fail on every
+  // request against existing databases ("markers are stale, no named
+  // migrations are pending").
+  test("SCHEMA_HASH changes only alongside a new named migration", () => {
+    expect({ migrationIds: MIGRATION_IDS, schemaHash: SCHEMA_HASH }).toEqual({
+      migrationIds: ["2026-06-11_current_schema"],
+      schemaHash: "1dtstbk",
     });
   });
 });

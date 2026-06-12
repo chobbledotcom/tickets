@@ -11,6 +11,8 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
+import type { Client } from "@libsql/client";
+import { lazyRef } from "#fp";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
@@ -493,10 +495,7 @@ export class MissingSettingsTableError extends Error {
 
 const isMissingSettingsTableError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.toLowerCase().includes("no such table") &&
-    message.toLowerCase().includes("settings")
-  );
+  return /no such table:?\s*(\w+\.)?settings\b/i.test(message);
 };
 
 /** Check database state: up-to-date, needs migration, or missing settings table */
@@ -682,12 +681,15 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
 };
 
 /** Create missing tables and add missing columns in a single pass */
+const createTableSql = ([name, table]: [string, Table]): string => {
+  const parts = table.columns.map(([col, type]) => `${col} ${type}`);
+  return `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`;
+};
+
 const applySchemaChanges = async (): Promise<void> => {
-  for (const [name, table] of SCHEMA) {
-    const parts = table.columns.map(([col, type]) => `${col} ${type}`);
-    await runMigration(
-      `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`,
-    );
+  for (const entry of SCHEMA) {
+    const [name, table] = entry;
+    await runMigration(createTableSql(entry));
     const existing = await getExistingColumns(name);
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
@@ -763,7 +765,8 @@ type Migration = {
   id: string;
   description: string;
   up: () => Promise<void>;
-  verify?: () => Promise<void>;
+  /** Runs after up(); a failure leaves the migration unrecorded for retry. */
+  verify: () => Promise<void>;
 };
 
 const MIGRATIONS: Migration[] = [
@@ -782,11 +785,7 @@ export const MIGRATION_IDS: string[] = MIGRATIONS.map(
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
   await getDb().execute(
-    `CREATE TABLE IF NOT EXISTS ${SCHEMA_MIGRATIONS_TABLE} (
-      id TEXT PRIMARY KEY,
-      description TEXT NOT NULL,
-      applied_at TEXT NOT NULL
-    )`,
+    createTableSql(SCHEMA.find(([name]) => name === SCHEMA_MIGRATIONS_TABLE)!),
   );
 };
 
@@ -817,14 +816,6 @@ const writeSchemaMarkers = async (): Promise<void> => {
   });
 };
 
-const settingsTableHasOnlyMigrationLock = async (): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [MIGRATION_LOCK_KEY],
-    sql: "SELECT 1 FROM settings WHERE key != ? LIMIT 1",
-  });
-  return result.rows.length === 0;
-};
-
 const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
   const applied = await getAppliedMigrationIds();
   const missing = MIGRATIONS.filter((migration) => !applied.has(migration.id));
@@ -840,12 +831,7 @@ const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
   }
 };
 
-const pendingMigrationsForState = async (
-  state: DbState,
-): Promise<Migration[]> => {
-  if (state === "missing_settings" || state === "uninitialized_settings") {
-    return MIGRATIONS;
-  }
+const pendingMigrations = async (): Promise<Migration[]> => {
   const applied = await getAppliedMigrationIds();
   return MIGRATIONS.filter((migration) => !applied.has(migration.id));
 };
@@ -854,9 +840,30 @@ const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
   for (const migration of pending) {
     logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
     await migration.up();
-    await migration.verify?.();
+    await migration.verify();
     await markMigrationApplied(migration);
   }
+};
+
+/**
+ * Stale markers with nothing pending happen two ways: a previous run was
+ * killed after recording its migrations but before refreshing the markers
+ * (verification passes — rewrite the markers), or SCHEMA was changed without
+ * adding a named migration (verification fails — refuse to guess).
+ */
+const restoreStaleSchemaMarkers = async (): Promise<void> => {
+  try {
+    await verifyCurrentAppSchema();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      "Database schema markers are stale, no named migrations are pending, " +
+        `and the live schema does not match (${detail}). ` +
+        "Every SCHEMA change must ship with a new entry in MIGRATIONS.",
+    );
+  }
+  logDebug("Migration", "Schema verified; restoring stale schema markers");
+  await writeSchemaMarkers();
 };
 
 const MIGRATION_LOCK_KEY = "migration_lock";
@@ -915,12 +922,30 @@ type InitDbOptions = {
 // ─── Main migration ─────────────────────────────────────────────
 
 /**
+ * The client most recently confirmed ready by initDb. initDb runs on every
+ * request, so once a client is confirmed the hot path must cost zero
+ * queries. Only success is cached — failures are retried on the next call.
+ */
+const [getReadyClient, setReadyClient] = lazyRef<Client | null>(() => null);
+
+/** Forget the per-isolate "database is ready" cache. */
+export const invalidateInitDbCache = (): void => {
+  setReadyClient(null);
+};
+
+/**
  * Initialize database tables for an existing database.
  * Fresh database creation requires allowMissingSettings.
  * Uses an advisory lock to prevent concurrent migrations.
  */
 export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
-  const allowMissingSettings = opts.allowMissingSettings ?? false;
+  const client = getDb();
+  if (client === getReadyClient()) return;
+  await initDbUncached(opts.allowMissingSettings ?? false);
+  setReadyClient(client);
+};
+
+const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   let state = await getDbState();
   if (state === "up_to_date") {
     await baselineCurrentSchemaIfNeeded();
@@ -954,6 +979,12 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
       return;
     }
 
+    const pending = await pendingMigrations();
+    if (pending.length === 0) {
+      await restoreStaleSchemaMarkers();
+      return;
+    }
+
     // Back up before migrating — but only for existing databases, not fresh installs.
     // Skip if a recent backup already exists (e.g. a retried migration after a crash).
     if (state === "needs_migration" && isStorageEnabled()) {
@@ -969,23 +1000,7 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
       }
     }
 
-    const pending = await pendingMigrationsForState(state);
-    if (pending.length === 0) {
-      if (allowMissingSettings && (await settingsTableHasOnlyMigrationLock())) {
-        await verifyCurrentAppSchema();
-        logDebug(
-          "Migration",
-          "Restoring schema markers for empty setup settings table",
-        );
-        await writeSchemaMarkers();
-        return;
-      }
-      throw new Error(
-        "Database schema markers are stale, but no named migrations are pending",
-      );
-    }
     await runPendingMigrations(pending);
-    await verifyCurrentAppSchema();
 
     logDebug("Migration", "Updating version marker...");
     await writeSchemaMarkers();
@@ -1009,6 +1024,7 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
  * Reset the database by dropping all tables (reverse order for FK safety)
  */
 export const resetDatabase = async (): Promise<void> => {
+  invalidateInitDbCache();
   const client = getDb();
   for (const [name] of [...SCHEMA].reverse()) {
     await client.execute(`DROP TABLE IF EXISTS ${name}`);

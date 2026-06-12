@@ -15,6 +15,7 @@ import { map, pipe } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
+  invalidateInitDbCache,
   LATEST_UPDATE,
   resetDatabase,
   SCHEMA_HASH,
@@ -287,9 +288,13 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   await getDb().execute("DELETE FROM schema_migrations");
 
   const statements = splitStatements(sql);
-  if (statements.length === 0) return;
+  if (statements.length > 0) {
+    await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+  }
 
-  await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+  // The markers now come from the backup and may predate the current schema;
+  // drop the "ready" cache so the next initDb re-checks and migrates if needed.
+  invalidateInitDbCache();
 };
 
 /**

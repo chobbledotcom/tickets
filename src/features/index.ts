@@ -535,7 +535,7 @@ const processRequest = async (
   detectIframeMode(effectiveRequest.url);
   clearSavedFormData();
 
-  let response: Response;
+  let response!: Response;
   try {
     const staticResponse = await routeStatic(effectiveRequest, path, method);
     if (staticResponse) {
@@ -581,7 +581,7 @@ const processRequest = async (
   } finally {
     await flushPendingWork();
   }
-  return response!;
+  return response;
 };
 
 /**

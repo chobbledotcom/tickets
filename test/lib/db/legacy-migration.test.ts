@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { insert, setDb } from "#shared/db/client.ts";
-import { initDb } from "#shared/db/migrations.ts";
+import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
 import { resetDb, setupTestEncryptionKey } from "#test-utils";
 
 /**
@@ -399,6 +399,13 @@ describe("db > event_attendees migration from legacy schema", () => {
       "SELECT id FROM schema_migrations",
     );
     expect(migrationRows.rows.length).toBe(0);
+
+    // The advisory lock must be released on failure so a retry isn't
+    // blocked until the lock TTL expires.
+    const lockRows = await client.execute(
+      "SELECT 1 FROM settings WHERE key = 'migration_lock'",
+    );
+    expect(lockRows.rows.length).toBe(0);
   });
 
   test("skips table recreation when attendees already matches schema", async () => {
@@ -430,6 +437,7 @@ describe("db > event_attendees migration from legacy schema", () => {
       sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
     });
     await client.execute("DROP TABLE schema_migrations");
+    invalidateInitDbCache();
     await initDb();
 
     const cols = await client.execute("PRAGMA table_info(attendees)");
