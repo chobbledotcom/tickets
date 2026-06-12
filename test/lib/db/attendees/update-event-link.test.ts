@@ -78,6 +78,29 @@ describeWithEnv("db > attendees > updateEventLink", { db: true }, () => {
     ).toBe(false);
   });
 
+  test("self-excludes a multi-day booking when moving it to an overlapping range", async () => {
+    const { updateEventLink } = await import("#shared/db/attendees.ts");
+    const event = await createDailyTestEvent({
+      durationDays: 3,
+      maxAttendees: 1,
+    });
+    // Own booking occupies days 1-3. Move it to days 2-4 — days 2-3
+    // overlap, but the self-exclusion must subtract the old row so the
+    // per-day count doesn't exceed cap.
+    const own = await bookAttendee(event, {
+      date: "2026-08-01",
+      durationDays: 3,
+      quantity: 1,
+    });
+    if (!own.success) throw new Error("setup");
+    const moved = await updateEventLink(own.attendees[0]!.id, event.id, {
+      date: "2026-08-02",
+      durationDays: 3,
+      quantity: 1,
+    });
+    expect(moved.success).toBe(true);
+  });
+
   test("self-excludes on a group-capped daily event", async () => {
     const { updateEventLink } = await import("#shared/db/attendees.ts");
     const group = await createTestGroup({ maxAttendees: 2 });

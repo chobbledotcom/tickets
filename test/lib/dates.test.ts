@@ -322,6 +322,23 @@ describeWithEnv("dates", { db: true }, () => {
       expect(getNextBookableDate(event, [])).toBeNull();
     });
 
+    test("skips start dates whose multi-day range extends past the window", () => {
+      const event = testEvent({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 3,
+        event_type: "daily",
+        maximum_days_after: 4,
+        minimum_days_before: 0,
+      });
+      const result = getNextBookableDate(event, []);
+      expect(result).toBe(today());
+      const dates = getAvailableDates(event, []);
+      // A 3-day booking can only start on days 0, 1, or 2 — day 3 and 4
+      // can't fit a 3-day range within the 4-day window.
+      expect(dates.length).toBeLessThanOrEqual(3);
+      expect(dates).not.toContain(addDays(today(), 4));
+    });
+
     test("skips holidays", () => {
       const todayStr = today();
       const holidays = [

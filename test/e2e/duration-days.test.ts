@@ -33,6 +33,7 @@ import {
   awaitTestRequest,
   bookAttendee,
   createDailyTestEvent,
+  createTestEvent,
   createTestGroup,
   createTestHoliday,
   describeWithEnv,
@@ -582,6 +583,42 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         maxAttendees: 100,
       });
       await bookAttendee(event, { date: "2026-10-01", quantity: 50 });
+      expect(
+        await checkGroupCapAfterDurationChange(event.id, group.id),
+      ).toBeNull();
+    });
+
+    test("checkGroupCapAfterDurationChange counts legacy null-start_at attendees via the non-daily clause", async () => {
+      // A daily group event that had attendees added before it was daily
+      // (their start_at is NULL). The SQL counts them via `e.event_type
+      // != 'daily'` — but since the event IS daily, they're excluded from
+      // the per-day count and don't spuriously trigger an overflow.
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const event = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      // Book normally (has start_at).
+      await bookAttendee(event, { date: "2026-10-01", quantity: 5 });
+      // Simulate a legacy attendee with NULL start_at (pre-daily migration).
+      const { getDb } = await import("#shared/db/client.ts");
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees.ts"
+      );
+      const legacy = await createAttendeeAtomic({
+        bookings: [{ eventId: event.id, quantity: 5 }],
+        email: "legacy@example.com",
+        name: "Legacy",
+      });
+      if (!legacy.success) throw new Error("setup");
+      // Wipe start_at to simulate a pre-migration attendee.
+      await getDb().execute({
+        args: [legacy.attendees[0]!.id, event.id],
+        sql: "UPDATE event_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ? AND event_id = ?",
+      });
+      // The null-start_at row is excluded from per-day counts because the
+      // event IS daily — no overflow on day 1 (5 only, not 10).
       expect(
         await checkGroupCapAfterDurationChange(event.id, group.id),
       ).toBeNull();

@@ -683,7 +683,11 @@ describeWithEnv("db > events", { db: true }, () => {
       );
     });
 
-    test("clamps zero and negative values up to 1", async () => {
+    test("clamps zero to 1", async () => {
+      expect(await insertWithDuration("test-dur-zero", 0)).toBe(1);
+    });
+
+    test("clamps negative values to 1", async () => {
       expect(await insertWithDuration("test-dur-neg", -3)).toBe(1);
     });
 
