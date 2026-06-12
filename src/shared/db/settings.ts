@@ -351,6 +351,104 @@ const stringUpdate =
 const encryptedUpdate: EncryptedUpdateFn = stringUpdate(writeEncrypted);
 const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 
+// ---------------------------------------------------------------------------
+// Generated string accessors
+//
+// One entry here creates both the sync getter (settings.<name>) and, unless
+// readOnly, the matching writer (settings.update.<name>). Whether the writer
+// encrypts is derived from ENCRYPTED_KEYS membership, so adding a simple
+// string setting means: a CONFIG_KEYS entry, a PLAINTEXT_KEYS/ENCRYPTED_KEYS
+// entry, and one line below.
+// ---------------------------------------------------------------------------
+
+type AccessorSpec = { key: StringSettingKey; readOnly?: true };
+
+const STRING_ACCESSORS = {
+  attendeeColumnOrder: { key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER },
+  bunnySubdomain: { key: CONFIG_KEYS.BUNNY_SUBDOMAIN },
+  businessEmail: { key: CONFIG_KEYS.BUSINESS_EMAIL },
+  contactPageText: { key: CONFIG_KEYS.CONTACT_PAGE_TEXT },
+  currentTask: { key: CONFIG_KEYS.CURRENT_TASK },
+  customDomain: { key: CONFIG_KEYS.CUSTOM_DOMAIN },
+  // readOnly: settings.update.customDomainLastValidated writes a timestamp
+  customDomainLastValidated: {
+    key: CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+    readOnly: true,
+  },
+  embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
+  eventColumnOrder: { key: CONFIG_KEYS.EVENT_COLUMN_ORDER },
+  headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
+  homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
+  lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
+  lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
+  lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },
+  lastPrunedTokens: { key: CONFIG_KEYS.LAST_PRUNED_TOKENS },
+  latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
+  latestScriptVersionName: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME },
+  // readOnly: key material is only written by setup/password flows
+  publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
+  terms: { key: CONFIG_KEYS.TERMS_AND_CONDITIONS },
+  websiteTitle: { key: CONFIG_KEYS.WEBSITE_TITLE },
+  wrappedPrivateKey: { key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY, readOnly: true },
+} as const satisfies Record<string, AccessorSpec>;
+
+type StringAccessors = typeof STRING_ACCESSORS;
+
+/** Sync getter per accessor entry. */
+type GeneratedGetters = { readonly [K in keyof StringAccessors]: string };
+
+/** Writable accessor names (entries without readOnly). */
+type WritableAccessor = {
+  [K in keyof StringAccessors]: StringAccessors[K] extends { readOnly: true }
+    ? never
+    : K;
+}[keyof StringAccessors];
+
+/** Async writer per writable accessor entry. */
+type GeneratedUpdaters = {
+  [K in WritableAccessor]: (v: string) => Promise<void>;
+};
+
+const ENCRYPTED_KEY_SET: ReadonlySet<string> = new Set(ENCRYPTED_KEYS);
+
+/** Build the generated getters and updaters in one pass over the registry. */
+const buildStringAccessors = (): {
+  getters: GeneratedGetters;
+  updaters: GeneratedUpdaters;
+} => {
+  const getters = {};
+  const updaters: Record<string, (v: string) => Promise<void>> = {};
+  for (const [name, spec] of Object.entries<AccessorSpec>(STRING_ACCESSORS)) {
+    Object.defineProperty(getters, name, {
+      enumerable: true,
+      get: () => snap(spec.key),
+    });
+    if (spec.readOnly) continue;
+    const update = ENCRYPTED_KEY_SET.has(spec.key)
+      ? encryptedUpdate
+      : plaintextUpdate;
+    updaters[name] = update(spec.key);
+  }
+  return {
+    getters: getters as GeneratedGetters,
+    updaters: updaters as GeneratedUpdaters,
+  };
+};
+
+const stringAccessors = buildStringAccessors();
+
+/**
+ * Copy property descriptors (preserving getters) from `props` onto `target`.
+ * A spread would eagerly evaluate the getters instead.
+ */
+const withProperties = <T extends object, P extends object>(
+  target: T,
+  props: P,
+): T & P => {
+  Object.defineProperties(target, Object.getOwnPropertyDescriptors(props));
+  return target as T & P;
+};
+
 /** Factory: write a raw string and mirror into a specific snapshot field. */
 const rawUpdate =
   <K extends keyof SettingsData>(
@@ -588,20 +686,11 @@ export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 // The settings namespace
 // ---------------------------------------------------------------------------
 
-export const settings = {
+const settingsBase = {
   // --- Apple Wallet ---
   appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
-  get attendeeColumnOrder(): string {
-    return snap("attendee_column_order");
-  },
   get bookingFee(): string {
     return snap("booking_fee");
-  },
-  get bunnySubdomain(): string {
-    return snap("bunny_subdomain");
-  },
-  get businessEmail(): string {
-    return snap("business_email");
   },
 
   /** Remove specific test override keys (falls back to data). */
@@ -616,9 +705,6 @@ export const settings = {
   clearTestOverrides(): void {
     setTestOverrides(null);
   },
-  get contactPageText(): string {
-    return snap("contact_page_text");
-  },
 
   // -----------------------------------------------------------------------
   // Sync reads — all populated by loadAll()
@@ -631,15 +717,6 @@ export const settings = {
   // Derived from country
   get currency(): string {
     return snap("currency");
-  },
-  get currentTask(): string {
-    return snap("current_task");
-  },
-  get customDomain(): string {
-    return snap("custom_domain");
-  },
-  get customDomainLastValidated(): string {
-    return snap("custom_domain_last_validated");
   },
 
   // --- Email ---
@@ -671,43 +748,12 @@ export const settings = {
       };
     },
   },
-  get embedHosts(): string {
-    return snap("embed_hosts");
-  },
-  get eventColumnOrder(): string {
-    return snap("event_column_order");
-  },
-
   /** Read a raw (possibly encrypted) value from the cache. */
   getCachedRaw: getRawCached,
 
   // --- Google Wallet ---
   googleWallet: createGoogleWalletReadSettings(snap as (k: string) => string),
-  get headerImageUrl(): string {
-    return snap("header_image_url");
-  },
-  get homepageText(): string {
-    return snap("homepage_text");
-  },
   invalidateCache,
-  get lastPrunedLogins(): string {
-    return snap("last_pruned_logins");
-  },
-  get lastPrunedPayments(): string {
-    return snap("last_pruned_payments");
-  },
-  get lastPrunedSessions(): string {
-    return snap("last_pruned_sessions");
-  },
-  get lastPrunedTokens(): string {
-    return snap("last_pruned_tokens");
-  },
-  get latestScriptVersion(): string {
-    return snap("latest_script_version");
-  },
-  get latestScriptVersionName(): string {
-    return snap("latest_script_version_name");
-  },
   // --- Core ---
   loadAll,
   get paymentProvider(): PaymentProviderType | null {
@@ -718,9 +764,6 @@ export const settings = {
   },
   get phonePrefix(): string {
     return snap("phone_prefix");
-  },
-  get publicKey(): string {
-    return snap("public_key");
   },
 
   /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
@@ -794,9 +837,6 @@ export const settings = {
     const choice = snap("superuser_choice");
     return isSuperuserChoice(choice) ? choice : "";
   },
-  get terms(): string {
-    return snap("terms_and_conditions");
-  },
   get theme(): Theme {
     return snap("theme");
   },
@@ -808,28 +848,23 @@ export const settings = {
   // Async writes — settings.update.*
   // -----------------------------------------------------------------------
   update: {
+    ...stringAccessors.updaters,
     // --- Apple Wallet writes ---
     appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
-    attendeeColumnOrder: plaintextUpdate(CONFIG_KEYS.ATTENDEE_COLUMN_ORDER),
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
       data.booking_fee = v || "0";
     },
-    bunnySubdomain: plaintextUpdate(CONFIG_KEYS.BUNNY_SUBDOMAIN),
-    businessEmail: encryptedUpdate(CONFIG_KEYS.BUSINESS_EMAIL),
     clearPaymentProvider: async (): Promise<void> => {
       await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
       data.payment_provider = null;
       data.payment_provider_setting = null;
     },
-    contactPageText: encryptedUpdate(CONFIG_KEYS.CONTACT_PAGE_TEXT),
     country: async (v: string): Promise<void> => {
       await writeRaw(CONFIG_KEYS.COUNTRY, v);
       data.country = v;
       applyCountryDerived(getCountry(v));
     },
-    currentTask: plaintextUpdate(CONFIG_KEYS.CURRENT_TASK),
-    customDomain: plaintextUpdate(CONFIG_KEYS.CUSTOM_DOMAIN),
     customDomainLastValidated: async (): Promise<void> => {
       const ts = new Date().toISOString();
       await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
@@ -851,21 +886,8 @@ export const settings = {
         setSnapshotField(key, content);
       },
     },
-    embedHosts: encryptedUpdate(CONFIG_KEYS.EMBED_HOSTS),
-    eventColumnOrder: plaintextUpdate(CONFIG_KEYS.EVENT_COLUMN_ORDER),
-
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
-    headerImageUrl: encryptedUpdate(CONFIG_KEYS.HEADER_IMAGE_URL),
-    homepageText: encryptedUpdate(CONFIG_KEYS.HOMEPAGE_TEXT),
-    lastPrunedLogins: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_LOGINS),
-    lastPrunedPayments: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_PAYMENTS),
-    lastPrunedSessions: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_SESSIONS),
-    lastPrunedTokens: plaintextUpdate(CONFIG_KEYS.LAST_PRUNED_TOKENS),
-    latestScriptVersion: plaintextUpdate(CONFIG_KEYS.LATEST_SCRIPT_VERSION),
-    latestScriptVersionName: plaintextUpdate(
-      CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
-    ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
       data.payment_provider = v;
@@ -916,16 +938,10 @@ export const settings = {
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
       v: SuperuserChoice,
     ) => Promise<void>,
-    terms: plaintextUpdate(CONFIG_KEYS.TERMS_AND_CONDITIONS),
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
-    websiteTitle: encryptedUpdate(CONFIG_KEYS.WEBSITE_TITLE),
   },
   updateUserPassword,
-  get websiteTitle(): string {
-    return snap("website_title");
-  },
   withCurrentTask,
-  get wrappedPrivateKey(): string {
-    return snap("wrapped_private_key");
-  },
 };
+
+export const settings = withProperties(settingsBase, stringAccessors.getters);

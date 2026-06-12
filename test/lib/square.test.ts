@@ -140,7 +140,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(false);
@@ -165,7 +168,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(true);
@@ -194,7 +200,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(true);
@@ -218,7 +227,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(false);
@@ -240,7 +252,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(false);
@@ -260,7 +275,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.accessToken.valid).toBe(true);
@@ -285,7 +303,10 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => mock.client),
+        () =>
+          stub(squareApi, "getSquareClient", () =>
+            Promise.resolve(mock.client),
+          ),
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(false);
@@ -367,7 +388,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             address: "",
@@ -447,7 +468,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000 });
           const intent = {
@@ -498,7 +519,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             address: "",
@@ -540,7 +561,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             address: "",
@@ -640,7 +661,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             address: "",
@@ -683,7 +704,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             address: "",
@@ -764,7 +785,7 @@ describe("square", () => {
       const { client, checkoutCreate } = createMockClient();
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           // Generate enough items to exceed 255-char serialized metadata
           const items = Array.from({ length: 30 }, (_, i) => ({
@@ -836,7 +857,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           try {
             await squareApi.createPaymentLink(
@@ -860,7 +881,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           try {
             await squareApi.createPaymentLink(
@@ -886,7 +907,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
@@ -905,7 +926,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
@@ -920,7 +941,7 @@ describe("square", () => {
       const client = await setupFailingCheckout(new Error("Network timeout"));
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
@@ -937,7 +958,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
@@ -961,7 +982,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
@@ -994,7 +1015,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
@@ -1020,7 +1041,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_shape");
           expect(result).not.toBeNull();
@@ -1051,7 +1072,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_with_total");
           expect(result).not.toBeNull();
@@ -1074,7 +1095,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
@@ -1106,7 +1127,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrievePayment("pay_full");
           expect(result).not.toBeNull();
@@ -1137,7 +1158,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await retrievePayment("pay_wrapper");
           expect(result).not.toBeNull();
@@ -1185,7 +1206,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.refundPayment("pay_refund_me");
           expect(result).toBe(true);
@@ -1223,7 +1244,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.refundPayment("pay_fail");
           expect(result).toBe(false);
@@ -1784,7 +1805,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_paid");
@@ -1818,7 +1839,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
@@ -1841,7 +1862,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_no_meta");
@@ -1863,7 +1884,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_bad_meta");
@@ -1878,7 +1899,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_gone");
@@ -1910,7 +1931,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_with_amount");
@@ -1949,7 +1970,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_multi");
@@ -1972,7 +1993,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
@@ -2019,7 +2040,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
@@ -2072,7 +2093,7 @@ describe("square", () => {
       });
 
       await withMocks(
-        () => stub(squareApi, "getSquareClient", () => client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result =
             await squarePaymentProvider.refundPayment("pay_prov_ref");

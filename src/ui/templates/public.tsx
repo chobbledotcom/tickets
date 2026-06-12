@@ -389,7 +389,10 @@ export const temporaryErrorPage = (): string =>
       </p>
       <p>
         <small>
-          Check <strong><a href="https://status.bunny.net/">status.bunny.net</a></strong>
+          Check{" "}
+          <strong>
+            <a href="https://status.bunny.net/">status.bunny.net</a>
+          </strong>
         </small>
       </p>
     </Layout>,

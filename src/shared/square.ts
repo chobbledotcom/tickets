@@ -10,8 +10,8 @@
  * - Retrieving session data requires fetching the Order by ID
  */
 
-import { lazyRef, map } from "#fp";
-import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
+import { map } from "#fp";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { settings } from "#shared/db/settings.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -22,9 +22,11 @@ import {
 } from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
+  cachedClientFactory,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
+  feeLineItems,
   PaymentUserError,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -347,39 +349,27 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
   };
 };
 
-type SquareCache = { accessToken: string; sandbox: boolean };
+type SquareClientConfig = { accessToken: string; sandbox: boolean };
 
-const [getCache, setCache] = lazyRef<SquareCache>(() => {
-  throw new Error("Square cache not initialized");
+const clientCache = cachedClientFactory({
+  create: ({ accessToken, sandbox }: SquareClientConfig) =>
+    createSquareClient(accessToken, sandbox),
+  createMessage: ({ sandbox }) =>
+    `Creating new Square client (${sandbox ? "sandbox" : "production"})`,
+  getConfig: () => {
+    const accessToken = settings.square.accessToken;
+    if (!accessToken) return null;
+    return { accessToken, sandbox: settings.square.sandbox };
+  },
+  isSameConfig: (a, b) =>
+    a.accessToken === b.accessToken && a.sandbox === b.sandbox,
+  missingMessage: "No access token configured, cannot create client",
+  provider: "Square",
 });
 
 /** Internal getSquareClient implementation */
-const getClientImpl = () => {
-  const accessToken = settings.square.accessToken;
-  if (!accessToken) {
-    logDebug("Square", "No access token configured, cannot create client");
-    return null;
-  }
-
-  const sandbox = settings.square.sandbox;
-
-  try {
-    const cached = getCache();
-    if (cached.accessToken === accessToken && cached.sandbox === sandbox) {
-      logDebug("Square", "Using cached Square client");
-      return createSquareClient(accessToken, sandbox);
-    }
-  } catch {
-    // Cache not initialized
-  }
-
-  logDebug(
-    "Square",
-    `Creating new Square client (${sandbox ? "sandbox" : "production"})`,
-  );
-  setCache({ accessToken, sandbox });
-  return createSquareClient(accessToken, sandbox);
-};
+const getClientImpl = (): Promise<SquareClient | null> =>
+  clientCache.getClient();
 
 /** Run operation with Square client, return null if not available */
 const withClient = createWithClient(() => squareApi.getSquareClient());
@@ -494,22 +484,13 @@ const normalizeCheckoutPhone = (
 };
 
 /** Build a Square fee line item array (empty when fee is zero). */
-const squareFeeItems = (
-  subtotal: number,
-  currency: string,
-): SquareLineItem[] => {
-  const amt = getBookingFeeAmount(subtotal);
-  return amt > 0
-    ? [
-        {
-          basePriceMoney: { amount: BigInt(amt), currency },
-          name: "Booking fee",
-          note: "Booking fee",
-          quantity: "1",
-        },
-      ]
-    : [];
-};
+const squareFeeItems = (subtotal: number, currency: string): SquareLineItem[] =>
+  feeLineItems(subtotal, currency, (amount, cur) => ({
+    basePriceMoney: { amount: BigInt(amount), currency: cur },
+    name: "Booking fee",
+    note: "Booking fee",
+    quantity: "1",
+  }));
 
 type PreparedLink = {
   config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>;
@@ -647,7 +628,7 @@ export const squareApi: {
     return result ?? false;
   },
 
-  resetSquareClient: (): void => setCache(null),
+  resetSquareClient: (): void => clientCache.reset(),
 
   /** Retrieve an order by ID */
   retrieveOrder: (orderId: string): Promise<SquareOrder | null> =>
