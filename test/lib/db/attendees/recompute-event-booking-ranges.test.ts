@@ -48,7 +48,12 @@ describeWithEnv(
       });
       await createAttendeeAtomic({
         bookings: [
-          { date: "2026-05-01", durationDays: 2, eventId: event.id, quantity: 1 },
+          {
+            date: "2026-05-01",
+            durationDays: 2,
+            eventId: event.id,
+            quantity: 1,
+          },
         ],
         email: "c@example.com",
         name: "Clamp",

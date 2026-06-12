@@ -4,10 +4,7 @@
 
 import { createLinkEventForm } from "#routes/admin/attendees-link-form.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import {
-  formatDateRangeLabel,
-  formatDatetimeShort,
-} from "#shared/dates.ts";
+import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
@@ -586,10 +583,7 @@ const MergeBookingsDecisionTable = ({
               const key = bookingKey(item.eventId, item.startAt);
               const name = `booking_${key}`;
               const dateStr = item.startAt
-                ? formatDateRangeLabel(
-                    item.startAt,
-                    item.sourceBooking.end_at,
-                  )
+                ? formatDateRangeLabel(item.startAt, item.sourceBooking.end_at)
                 : "—";
 
               if (item.conflictClass === "moveable") {

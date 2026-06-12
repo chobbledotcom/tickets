@@ -1070,19 +1070,19 @@ export const adminEventEditPage = (
           <Raw html={renderEventImage(event, "event-image-full")} />
         )}
         <div
-          id="duration-warning"
           data-duration-original={event.duration_days}
           hidden
+          id="duration-warning"
         >
           <p>
             <strong>Warning:</strong> Changing booking duration will update
             existing bookings for this event.
           </p>
           <label>
-            <input type="checkbox" id="duration-warning-confirm" />I understand
+            <input id="duration-warning-confirm" type="checkbox" />I understand
           </label>
         </div>
-        <button type="submit" id="event-edit-submit">
+        <button id="event-edit-submit" type="submit">
           Save Changes
         </button>
       </CsrfForm>

@@ -250,7 +250,11 @@ export const buildOgTags = (
 };
 
 /** Render a date selector dropdown for daily events */
-const renderDateSelector = (dates: string[], selected = "", durationDays = 1): string =>
+const renderDateSelector = (
+  dates: string[],
+  selected = "",
+  durationDays = 1,
+): string =>
   dates.length === 0
     ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
     : `<label for="date">Select Date${durationDays > 1 ? ` <small>(each booking reserves ${durationDays} days)</small>` : ""}</label>
@@ -718,11 +722,7 @@ const TicketPageForm = ({
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (
         <Raw
-          html={renderDateSelector(
-            dates,
-            qrPrefill?.date ?? "",
-            durationDays,
-          )}
+          html={renderDateSelector(dates, qrPrefill?.date ?? "", durationDays)}
         />
       )}
 

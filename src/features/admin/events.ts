@@ -4,10 +4,6 @@
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
 import {
-  checkGroupCapAfterDurationChange,
-  recomputeEventBookingRanges,
-} from "#shared/db/attendees.ts";
-import {
   csvResponse,
   eventAttendeesLoader,
   getDateFilter,
@@ -34,6 +30,10 @@ import {
   logActivity,
 } from "#shared/db/activityLog.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
+import {
+  checkGroupCapAfterDurationChange,
+  recomputeEventBookingRanges,
+} from "#shared/db/attendees.ts";
 import {
   computeSlugIndex,
   type EventInput,

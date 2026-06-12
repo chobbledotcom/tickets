@@ -88,8 +88,7 @@ const parseLinkFormFields = (
   event: EventWithCount,
 ): LinkFormValues => ({
   date: event.event_type === "daily" ? values.date : null,
-  durationDays:
-    event.event_type === "daily" ? event.duration_days : undefined,
+  durationDays: event.event_type === "daily" ? event.duration_days : undefined,
   quantity: parseQuantity(String(values.quantity), event.max_quantity),
 });
 

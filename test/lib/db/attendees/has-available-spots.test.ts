@@ -42,8 +42,15 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
   });
 
   test("multi-day range: every day must have room (event cap)", async () => {
-    const event = await createDailyTestEvent({ durationDays: 3, maxAttendees: 2 });
-    await bookAttendee(event, { date: "2026-05-03", durationDays: 1, quantity: 2 });
+    const event = await createDailyTestEvent({
+      durationDays: 3,
+      maxAttendees: 2,
+    });
+    await bookAttendee(event, {
+      date: "2026-05-03",
+      durationDays: 1,
+      quantity: 2,
+    });
     expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 3)).toBe(false);
     expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 1)).toBe(true);
   });
@@ -55,7 +62,10 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       groupId: group.id,
       maxAttendees: 100,
     });
-    const sibling = await createDailyTestEvent({ groupId: group.id, maxAttendees: 100 });
+    const sibling = await createDailyTestEvent({
+      groupId: group.id,
+      maxAttendees: 100,
+    });
     await bookAttendee(sibling, { date: "2026-05-02", quantity: 2 });
     expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 2)).toBe(false);
   });

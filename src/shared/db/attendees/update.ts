@@ -2,6 +2,7 @@
  * Update operations for attendees and their per-event bookings.
  */
 
+import { addDays } from "#shared/dates.ts";
 import type {
   EventBooking,
   UpdateAttendeePIIInput,
@@ -19,7 +20,6 @@ import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { invalidateEventsCache } from "#shared/db/events.ts";
-import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 
 /** Update a per-event status field on event_attendees */
