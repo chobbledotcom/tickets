@@ -59,121 +59,83 @@ import { readOnlyPage } from "#templates/public.tsx";
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
 
-/** Lazy-load admin routes (only needed for authenticated admin requests) */
-const loadAdminRoutes = once(async () => {
-  const { routeAdmin } = await import("#routes/admin/index.ts");
-  return routeAdmin;
-});
+/**
+ * Lazily import a module once and pick a single export from it.
+ * Import specifiers must stay literal so esbuild can bundle them.
+ */
+const lazyExport = <M, K extends keyof M>(
+  load: () => Promise<M>,
+  key: K,
+): () => Promise<M[K]> => once(async () => (await load())[key]);
 
-/** Lazy-load public page handlers (home, events, terms, contact) */
-const loadPublicPages = once(async () => {
-  const {
-    handleHome,
-    handlePublicEvents,
-    handlePublicTerms,
-    handlePublicContact,
-  } = await import("#routes/public/pages.ts");
-  return {
-    handleHome,
-    handlePublicContact,
-    handlePublicEvents,
-    handlePublicTerms,
-  };
-});
+// Lazy-load route groups so the edge script only pays for what a request uses
+const loadAdminRoutes = lazyExport(
+  () => import("#routes/admin/index.ts"),
+  "routeAdmin",
+);
+const loadPublicPages = once(() => import("#routes/public/pages.ts"));
+const loadTicketRoutes = lazyExport(
+  () => import("#routes/public/ticket-routes.ts"),
+  "routeTicket",
+);
+const loadPaymentRoutes = lazyExport(
+  () => import("#routes/api/webhooks.ts"),
+  "routePayment",
+);
+const loadJoinRoutes = lazyExport(() => import("#routes/join.ts"), "routeJoin");
+const loadTicketViewRoutes = lazyExport(
+  () => import("#routes/tickets/index.ts"),
+  "routeTicketView",
+);
+const loadCheckinRoutes = lazyExport(
+  () => import("#routes/checkin.ts"),
+  "routeCheckin",
+);
+const loadImageRoutes = lazyExport(
+  () => import("#routes/images.ts"),
+  "routeImage",
+);
+const loadFeedRoutes = lazyExport(
+  () => import("#routes/feeds.ts"),
+  "routeFeed",
+);
+const loadDemoResetRoutes = lazyExport(
+  () => import("#routes/admin/database-reset.ts"),
+  "routeDatabaseReset",
+);
+const loadWalletRoutes = lazyExport(
+  () => import("#routes/wallet/index.ts"),
+  "routeWallet",
+);
+const loadGoogleWalletRoutes = lazyExport(
+  () => import("#routes/wallet/google.ts"),
+  "routeGoogleWallet",
+);
+const loadWalletWebserviceRoutes = lazyExport(
+  () => import("#routes/wallet/webservice.ts"),
+  "routeWalletWebservice",
+);
+const loadApiRoutes = lazyExport(
+  () => import("#routes/api/index.ts"),
+  "routeApi",
+);
 
-/** Lazy-load ticket reservation router */
-const loadTicketRoutes = once(async () => {
-  const { routeTicket } = await import("#routes/public/ticket-routes.ts");
-  return routeTicket;
-});
-
-/** Lazy-load setup routes */
-const loadSetupRoutes = once(async () => {
-  const { createSetupRouter } = await import("#routes/setup.ts");
-  return createSetupRouter(settings.setup.isComplete);
-});
-
-/** Lazy-load payment/webhook routes */
-const loadPaymentRoutes = once(async () => {
-  const { routePayment } = await import("#routes/api/webhooks.ts");
-  return routePayment;
-});
-
-/** Lazy-load join/invite routes */
-const loadJoinRoutes = once(async () => {
-  const { routeJoin } = await import("#routes/join.ts");
-  return routeJoin;
-});
-
-/** Lazy-load ticket view routes */
-const loadTicketViewRoutes = once(async () => {
-  const { routeTicketView } = await import("#routes/tickets/index.ts");
-  return routeTicketView;
-});
-
-/** Lazy-load check-in routes */
-const loadCheckinRoutes = once(async () => {
-  const { routeCheckin } = await import("#routes/checkin.ts");
-  return routeCheckin;
-});
-
-/** Lazy-load image proxy routes */
-const loadImageRoutes = once(async () => {
-  const { routeImage } = await import("#routes/images.ts");
-  return routeImage;
-});
-
-/** Lazy-load feed routes (ICS, RSS) */
-const loadFeedRoutes = once(async () => {
-  const { routeFeed } = await import("#routes/feeds.ts");
-  return routeFeed;
-});
-
-/** Lazy-load demo reset routes */
-const loadDemoResetRoutes = once(async () => {
-  const { routeDatabaseReset } = await import(
-    "#routes/admin/database-reset.ts"
-  );
-  return routeDatabaseReset;
-});
+/** Lazy-load setup routes (bound to the setup-complete check) */
+const loadSetupRoutes = once(async () =>
+  (await import("#routes/setup.ts")).createSetupRouter(
+    settings.setup.isComplete,
+  )
+);
 
 /** Lazy-load attachment download routes */
-const loadAttachmentRoutes = once(async () => {
-  const { attachmentRoutes } = await import("#routes/attachments.ts");
-  return createRouter(attachmentRoutes);
-});
-
-/** Lazy-load Apple Wallet pass routes */
-const loadWalletRoutes = once(async () => {
-  const { routeWallet } = await import("#routes/wallet/index.ts");
-  return routeWallet;
-});
-
-/** Lazy-load Google Wallet pass routes */
-const loadGoogleWalletRoutes = once(async () => {
-  const { routeGoogleWallet } = await import("#routes/wallet/google.ts");
-  return routeGoogleWallet;
-});
-
-/** Lazy-load Apple Wallet web service routes (v1 API for pass updates) */
-const loadWalletWebserviceRoutes = once(async () => {
-  const { routeWalletWebservice } = await import(
-    "#routes/wallet/webservice.ts"
-  );
-  return routeWalletWebservice;
-});
-
-/** Lazy-load public API routes */
-const loadApiRoutes = once(async () => {
-  const { routeApi } = await import("#routes/api/index.ts");
-  return routeApi;
-});
+const loadAttachmentRoutes = once(async () =>
+  createRouter((await import("#routes/attachments.ts")).attachmentRoutes)
+);
 
 /** Lazy-load admin API routes */
-const loadAdminApiRoutes = once(async () => {
-  const { adminApiRoutes } = await import("#routes/admin/api.ts");
-  return createRouter(adminApiRoutes);
-});
+const loadAdminApiRoutes = once(async () =>
+  createRouter((await import("#routes/admin/api.ts")).adminApiRoutes)
+);
 
 /** Lazy-load renewal routes */
 const loadRenewalRoutes = once(async () => {
@@ -346,7 +308,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (
     (await prefixHandlers[prefix]?.(request, path, method, server)) ??
-    notFoundResponse()
+      notFoundResponse()
   );
 };
 
@@ -408,8 +370,7 @@ const logAndReturn = (
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   const { pathname } = new URL(request.url);
   const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer =
-    request.method === "POST" &&
+  const needsBodyBuffer = request.method === "POST" &&
     (isWebhookPath(normalizePath(pathname)) ||
       contentType.startsWith("multipart/form-data"));
   if (!needsBodyBuffer) return request;
@@ -582,9 +543,9 @@ export const handleRequest = async (
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
         runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server)),
-        ),
-      ),
-    ),
+          runWithSessionContext(() => processRequest(effectiveRequest, server))
+        )
+      )
+    )
   );
 };
