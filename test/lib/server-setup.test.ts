@@ -3,7 +3,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
-import { resetDatabase } from "#shared/db/migrations.ts";
+import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertJson,
@@ -93,58 +93,51 @@ describeWithEnv("server (setup)", { db: true }, () => {
         await createTestDb();
       });
 
-      test("returns temporary status page for home when setup is incomplete", async () => {
+      test("returns not-activated page for home when setup is incomplete", async () => {
         const response = await handleRequest(mockRequest("/"));
         await expectHtmlResponse(
           response,
           503,
-          "Temporary Error",
-          "status.bunny.net",
+          "This site has not been activated yet",
         );
       });
 
-      test("returns temporary status page without bootstrapping a missing settings table", async () => {
+      test("returns not-activated page without bootstrapping a missing settings table", async () => {
         await resetToBrandNewDatabase();
 
-        await withExpectedError(async () => {
-          const response = await handleRequest(mockRequest("/"));
-          await expectHtmlResponse(
-            response,
-            503,
-            "Temporary Error",
-            "status.bunny.net",
-          );
-        });
+        const response = await handleRequest(mockRequest("/"));
+        const html = await expectHtmlResponse(
+          response,
+          503,
+          "This site has not been activated yet",
+        );
+        expect(html).not.toContain('http-equiv="refresh"');
 
         expect(await settingsTableExists()).toBe(false);
       });
 
-      test("returns temporary status page without bootstrapping an empty settings table", async () => {
+      test("returns not-activated page without bootstrapping an empty settings table", async () => {
         await resetToBrandNewDatabase();
         await createEmptySettingsTable();
 
-        await withExpectedError(async () => {
-          const response = await handleRequest(mockRequest("/"));
-          await expectHtmlResponse(
-            response,
-            503,
-            "Temporary Error",
-            "status.bunny.net",
-          );
-        });
+        const response = await handleRequest(mockRequest("/"));
+        await expectHtmlResponse(
+          response,
+          503,
+          "This site has not been activated yet",
+        );
 
         expect(await settingsTableExists()).toBe(true);
         expect(await tableExists("events")).toBe(false);
         expect(await schemaMarkerKeys()).toEqual([]);
       });
 
-      test("returns temporary status page for admin when setup is incomplete", async () => {
+      test("returns not-activated page for admin when setup is incomplete", async () => {
         const response = await handleRequest(mockRequest("/admin/"));
         await expectHtmlResponse(
           response,
           503,
-          "Temporary Error",
-          "status.bunny.net",
+          "This site has not been activated yet",
         );
       });
 
@@ -198,6 +191,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("returns the temporary status page when settings DB cannot be read", async () => {
         const { stub } = await import("@std/testing/mock");
+        // Drop the per-isolate "ready" cache so initDb really runs and the
+        // generic DB failure propagates through initializeDatabaseForPath.
+        invalidateInitDbCache();
         const executeStub = stub(getDb(), "execute", () =>
           Promise.reject(new Error("db unavailable")),
         );

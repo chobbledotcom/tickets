@@ -5,6 +5,7 @@ import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import {
   redirect,
   redirectResponse,
+  siteNotActivatedResponse,
   temporaryErrorResponse,
 } from "#routes/response.ts";
 import {
@@ -686,6 +687,19 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         "Retrying automatically",
         'http-equiv="refresh"',
       );
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
+    });
+
+    test("siteNotActivatedResponse returns 503 styled HTML without auto-refresh", async () => {
+      const response = siteNotActivatedResponse();
+      const html = await expectHtmlResponse(
+        response,
+        503,
+        "This site has not been activated yet",
+      );
+      expect(html).not.toContain('http-equiv="refresh"');
       expect(response.headers.get("content-type")).toBe(
         "text/html; charset=utf-8",
       );

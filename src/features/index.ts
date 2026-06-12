@@ -18,6 +18,7 @@ import {
   jsonResponse,
   notFoundResponse,
   redirectResponse,
+  siteNotActivatedResponse,
   temporaryErrorResponse,
   withCookie,
 } from "#routes/response.ts";
@@ -31,7 +32,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
-import { initDb } from "#shared/db/migrations.ts";
+import { initDb, MissingSettingsTableError } from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -334,7 +335,7 @@ const handleRequestInternal = async (
   if (!(await settings.setup.isComplete())) {
     return isSetupPath(path)
       ? redirectResponse("/setup")
-      : temporaryErrorResponse();
+      : siteNotActivatedResponse();
   }
 
   return (await routeMainApp(request, path, method, server))!;
@@ -343,8 +344,23 @@ const handleRequestInternal = async (
 const isSetupPath = (path: string): boolean =>
   path === "/setup" || path.startsWith("/setup/");
 
-const initializeDatabaseForPath = async (path: string): Promise<void> => {
-  await initDb({ allowMissingSettings: isSetupPath(path) });
+/**
+ * Run per-request DB init. Returns the "not activated" page when the
+ * database has never been set up (missing or uninitialized settings table);
+ * setup paths instead bootstrap the schema via allowMissingSettings.
+ */
+const initializeDatabaseForPath = async (
+  path: string,
+): Promise<Response | null> => {
+  try {
+    await initDb({ allowMissingSettings: isSetupPath(path) });
+    return null;
+  } catch (error) {
+    if (error instanceof MissingSettingsTableError) {
+      return siteNotActivatedResponse();
+    }
+    throw error;
+  }
 };
 
 /** Log request and return response */
@@ -509,7 +525,10 @@ const processRequest = async (
       );
     }
 
-    await initializeDatabaseForPath(path);
+    const notActivated = await initializeDatabaseForPath(path);
+    if (notActivated) {
+      return logAndReturn(notActivated, method, path, getElapsed);
+    }
 
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {

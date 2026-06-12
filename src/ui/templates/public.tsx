@@ -374,17 +374,23 @@ export const rateLimitedPage = (): string =>
   );
 
 /**
- * Temporary error page with auto-refresh
- * Used when a transient CDN or network error occurs
+ * Inline styles for error dialog pages — self-contained so the page renders
+ * correctly even when the database or CDN assets are unavailable
  */
-const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="2" />
-<style>
+const ERROR_DIALOG_STYLE = `<style>
 body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f8fafc;color:#0f172a}
 main{max-width:36rem;margin:18vh auto 0;padding:0 1.5rem}
 h1{font-size:1.875rem;line-height:1.2;margin:0 0 .75rem}
 p{line-height:1.5;margin:.75rem 0}
 a{color:#0369a1}
 </style>`;
+
+/**
+ * Temporary error page with auto-refresh
+ * Used when a transient CDN or network error occurs
+ */
+const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="2" />
+${ERROR_DIALOG_STYLE}`;
 
 export const temporaryErrorPage = (): string =>
   String(
@@ -401,6 +407,19 @@ export const temporaryErrorPage = (): string =>
           </strong>
         </small>
       </p>
+    </Layout>,
+  );
+
+/**
+ * Shown on non-setup routes when the site's database has not been set up
+ * yet. No auto-refresh: retrying cannot succeed until someone completes
+ * /setup, so an endlessly reloading error page would just be confusing.
+ */
+export const siteNotActivatedPage = (): string =>
+  String(
+    <Layout headExtra={ERROR_DIALOG_STYLE} title="Not Activated">
+      <h1>Not Activated</h1>
+      <p>This site has not been activated yet.</p>
     </Layout>,
   );
 

@@ -11,6 +11,7 @@ import {
   buildTicketEvent,
   notFoundPage,
   renderEventImage,
+  siteNotActivatedPage,
   temporaryErrorPage,
   ticketPage,
 } from "#templates/public.tsx";
@@ -362,6 +363,21 @@ describe("temporaryErrorPage", () => {
     expect(html).toContain('content="2"');
     expect(html).toContain("<style>");
     expect(html).toContain("font-family:system-ui");
+  });
+});
+
+describe("siteNotActivatedPage", () => {
+  test("renders not-activated message in the error dialog style", () => {
+    const html = siteNotActivatedPage();
+    expect(html).toContain("<h1>Not Activated</h1>");
+    expect(html).toContain("This site has not been activated yet.");
+    expect(html).toContain("<style>");
+    expect(html).toContain("font-family:system-ui");
+  });
+
+  test("does not auto-refresh", () => {
+    const html = siteNotActivatedPage();
+    expect(html).not.toContain('http-equiv="refresh"');
   });
 });
 
