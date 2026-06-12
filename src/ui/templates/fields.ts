@@ -28,6 +28,7 @@ import {
   type EventType,
   isContactField,
   isEventType,
+  MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -501,7 +502,7 @@ export const eventFields: Field[] = [
   {
     hint: "How many days each booking reserves. Only applies to daily events.",
     label: "Booking Duration (days)",
-    max: 90,
+    max: MAX_DURATION_DAYS,
     min: 1,
     name: "duration_days",
     type: "number",
@@ -513,7 +514,9 @@ export const eventFields: Field[] = [
         return "Booking Duration (days) must be a whole number";
       }
       if (parsed < 1) return "Booking Duration (days) must be at least 1";
-      if (parsed > 90) return "Booking Duration (days) must be at most 90";
+      if (parsed > MAX_DURATION_DAYS) {
+        return `Booking Duration (days) must be at most ${MAX_DURATION_DAYS}`;
+      }
       return null;
     },
   },

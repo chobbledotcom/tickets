@@ -129,7 +129,7 @@ const extractCommonFields = (values: EventFormValues) => {
     closesAt,
     date,
     description: values.description,
-    durationDays: Math.max(1, Math.min(90, values.duration_days ?? 1)),
+    durationDays: values.duration_days ?? 1,
     eventType: values.event_type || "standard",
     fields: values.fields || "",
     groupId: Number(values.group_id) || 0,

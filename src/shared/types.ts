@@ -123,6 +123,11 @@ export const isPaidEvent = (
   event: Pick<Event, "unit_price" | "can_pay_more">,
 ): boolean => event.unit_price > 0 || event.can_pay_more;
 
+/** Upper bound on multi-day booking duration. Each day in a booking range
+ * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
+ * statement bounded regardless of which write path set the value. */
+export const MAX_DURATION_DAYS = 90;
+
 export interface Event {
   active: boolean;
   assign_built_site: boolean;

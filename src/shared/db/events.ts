@@ -29,17 +29,26 @@ import { col, withCacheInvalidation } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import type {
-  Attendee,
-  Event,
-  EventFields,
-  EventType,
-  EventWithCount,
+import {
+  type Attendee,
+  type Event,
+  type EventFields,
+  type EventType,
+  type EventWithCount,
+  MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];
+
+/** Clamp duration_days to a whole number in [1, MAX_DURATION_DAYS].
+ * Applied at the column so every write path (admin form, REST API) is
+ * bounded; non-finite input degrades to the 1-day default. */
+const clampDurationDays = (v: number): number =>
+  Number.isFinite(v)
+    ? Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(v)))
+    : 1;
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
@@ -158,7 +167,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   created: col.withDefault(() => nowIso()),
   date: { default: () => "", read: decryptDatetime, write: writeEventDate },
   description: col.encryptedText(encrypt, decrypt),
-  duration_days: col.withDefault(() => 1),
+  duration_days: { default: () => 1, write: clampDurationDays },
   event_type: col.withDefault<EventType>(() => "standard"),
   fields: col.withDefault<EventFields>(() => "email"),
   group_id: col.withDefault(() => 0),

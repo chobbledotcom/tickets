@@ -9,8 +9,10 @@
  */
 
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { getAvailableDates } from "#shared/dates.ts";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getEventActivityLog } from "#shared/db/activityLog.ts";
+import { settings } from "#shared/db/settings.ts";
+import { addDays, getAvailableDates } from "#shared/dates.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
@@ -22,6 +24,7 @@ import {
 import { getEvent, getEventWithCount } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";
+import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   adminFormPost,
@@ -33,6 +36,7 @@ import {
   createTestGroup,
   createTestHoliday,
   describeWithEnv,
+  expectRedirectWithFlash,
   makeTestEntry,
   mockFormRequest,
   rawEventRange,
@@ -714,13 +718,35 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         cookie,
       });
       const html = await response.text();
-      expect(html).toContain('name="duration_days"');
+      // The duration input is pre-filled with the stored value.
+      expect(html).toMatch(/name="duration_days"[^>]*value="5"/);
+      // Every element initDurationWarning() hooks into must be present —
+      // if any of these IDs change, the client-side gate silently no-ops.
+      expect(html).toContain('id="event-edit-form"');
       expect(html).toContain('id="duration-warning"');
       expect(html).toContain('data-duration-original="5"');
+      expect(html).toContain('id="duration-warning-confirm"');
+      expect(html).toContain('id="event-edit-submit"');
     });
   });
 
   describe("admin event edit POST", () => {
+    /** Minimal valid edit form for a daily event (urlencoded POST). */
+    const dailyEditForm = (
+      event: { name: string; slug: string },
+      durationDays: number,
+      groupId = 0,
+    ): Record<string, string> => ({
+      duration_days: String(durationDays),
+      event_type: "daily",
+      group_id: String(groupId),
+      max_attendees: "100",
+      max_quantity: "1",
+      name: event.name,
+      slug: event.slug,
+      thank_you_url: "https://example.com",
+    });
+
     test("changing duration via form updates event and reconciles bookings", async () => {
       const event = await createDailyTestEvent({
         maxAttendees: 10,
@@ -735,6 +761,100 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
       const range = await rawEventRange(event.id);
       expect(range!.end_at).toBe("2026-09-14T00:00:00.000Z");
+    });
+
+    test("duration change that overflows the group cap warns in the flash and logs", async () => {
+      // Same shape as the checkGroupCapAfterDurationChange unit test, but
+      // through the real POST: extending event A to span event B's day pushes
+      // the group total to 12 > cap 10 on day 2.
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const eventA = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      const eventB = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(eventA, { date: "2026-10-01", quantity: 6 });
+      await bookAttendee(eventB, { date: "2026-10-02", quantity: 6 });
+
+      const { response } = await adminFormPost(
+        `/admin/event/${eventA.id}/edit`,
+        dailyEditForm(eventA, 2, group.id),
+      );
+      expectRedirectWithFlash(
+        `/admin/event/${eventA.id}`,
+        "Event updated Warning: group capacity exceeded on 2026-10-02",
+      )(response);
+
+      const messages = (await getEventActivityLog(eventA.id)).map(
+        (l: { message: string }) => l.message,
+      );
+      expect(messages).toContain(
+        `Event '${eventA.name}' duration changed to 2 day(s)`,
+      );
+      expect(messages).toContain(
+        "Duration change caused group capacity overflow on 2026-10-02",
+      );
+    });
+
+    test("editing a daily event without changing duration leaves ranges and log alone", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 2,
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(event, { date: "2026-09-10", durationDays: 2 });
+      const before = await rawEventRange(event.id);
+
+      const { response } = await adminFormPost(
+        `/admin/event/${event.id}/edit`,
+        dailyEditForm(event, 2),
+      );
+      expectRedirectWithFlash(`/admin/event/${event.id}`, "Event updated")(
+        response,
+      );
+
+      const after = await rawEventRange(event.id);
+      expect(after!.end_at).toBe(before!.end_at);
+      const messages = (await getEventActivityLog(event.id)).map(
+        (l: { message: string }) => l.message,
+      );
+      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
+        false,
+      );
+    });
+
+    test("changing duration on a standard event does not reconcile or log a duration change", async () => {
+      const { event } = await setupEventAndLogin({ maxAttendees: 100 });
+
+      const { response } = await adminFormPost(
+        `/admin/event/${event.id}/edit`,
+        {
+          duration_days: "7",
+          max_attendees: "100",
+          max_quantity: "1",
+          name: event.name,
+          slug: event.slug,
+          thank_you_url: "https://example.com",
+        },
+      );
+      expectRedirectWithFlash(`/admin/event/${event.id}`, "Event updated")(
+        response,
+      );
+
+      // The value persists (inert until the event becomes daily)…
+      expect((await getEvent(event.id))?.duration_days).toBe(7);
+      // …but no reconciliation activity is logged for a standard event.
+      const messages = (await getEventActivityLog(event.id)).map(
+        (l: { message: string }) => l.message,
+      );
+      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
+        false,
+      );
     });
   });
 
@@ -772,7 +892,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       );
     });
 
-    test("PUT /api/admin/events/:id defaults duration_days to 1 when omitted", async () => {
+    test("PUT /api/admin/events/:id preserves duration_days when omitted", async () => {
       const event = await createDailyTestEvent({
         durationDays: 5,
         maxAttendees: 10,
@@ -787,6 +907,118 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           expect(body.event.name).toBe("Renamed");
           expect(body.event.duration_days).toBe(5);
         },
+      );
+    });
+
+    test("POST /api/admin/events clamps out-of-range duration_days", async () => {
+      // The admin form validates 1-90, but the JSON API has no form layer —
+      // the column-level clamp must bound it (each day adds a clause to the
+      // atomic capacity SQL, so an unbounded value is a perf hazard).
+      const high = await assertJson<{
+        event: { id: number; duration_days: number };
+      }>(
+        apiRequest("/api/admin/events", {
+          body: {
+            duration_days: 5000,
+            event_type: "daily",
+            max_attendees: 50,
+            name: "API Clamped High",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+      expect(high.event.duration_days).toBe(MAX_DURATION_DAYS);
+      const stored = await getEvent(high.event.id);
+      expect(stored?.duration_days).toBe(MAX_DURATION_DAYS);
+      await assertJson(
+        apiRequest("/api/admin/events", {
+          body: {
+            duration_days: -2,
+            event_type: "daily",
+            max_attendees: 50,
+            name: "API Clamped Low",
+          },
+          method: "POST",
+        }),
+        201,
+        (body: { event: { duration_days: number } }) => {
+          expect(body.event.duration_days).toBe(1);
+        },
+      );
+    });
+  });
+
+  describe("public booking API", () => {
+    beforeEach(async () => {
+      await settings.update.showPublicApi(true);
+    });
+
+    /** Fetch the event's bookable start dates as the public API reports them. */
+    const fetchAvailableDates = async (slug: string): Promise<string[]> => {
+      const body = await assertJson<{
+        event: { availableDates: string[] };
+      }>(apiRequest(`/api/events/${slug}`), 200);
+      return body.event.availableDates;
+    };
+
+    test("POST /api/events/:slug/book on a 3-day event stores a 3-day range", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 5,
+      });
+      const dates = await fetchAvailableDates(event.slug);
+      expect(dates.length).toBeGreaterThan(0);
+
+      await assertJson(
+        apiRequest(`/api/events/${event.slug}/book`, {
+          body: {
+            date: dates[0],
+            email: "multi@test.com",
+            name: "Multi Day",
+          },
+          method: "POST",
+        }),
+        200,
+        (body: { ticketToken?: string }) => {
+          expect(body.ticketToken).toBeDefined();
+        },
+      );
+
+      const range = await rawEventRange(event.id);
+      expect(range!.start_at).toBe(`${dates[0]}T00:00:00Z`);
+      const expectedEnd = new Date(
+        new Date(`${dates[0]}T00:00:00Z`).getTime() + 3 * 86_400_000,
+      ).toISOString();
+      expect(range!.end_at).toBe(expectedEnd);
+    });
+
+    test("availability and booking reject a start date whose middle day is full", async () => {
+      const event = await createDailyTestEvent({
+        durationDays: 3,
+        maxAttendees: 2,
+      });
+      const dates = await fetchAvailableDates(event.slug);
+      const start = dates[0]!;
+      const middle = addDays(start, 1);
+      await bookAttendee(event, { date: middle, durationDays: 1, quantity: 2 });
+
+      await assertJson(
+        apiRequest(
+          `/api/events/${event.slug}/availability?date=${start}&quantity=1`,
+        ),
+        200,
+        (body: { available: boolean }) => {
+          expect(body.available).toBe(false);
+        },
+      );
+
+      await assertJson(
+        apiRequest(`/api/events/${event.slug}/book`, {
+          body: { date: start, email: "blocked@test.com", name: "Blocked" },
+          method: "POST",
+        }),
+        409,
       );
     });
   });
