@@ -28,7 +28,10 @@ import {
   capacityErrorFormatter,
   isRegistrationClosed,
 } from "#routes/format.ts";
-import { ensureAllBookings } from "#routes/public/ticket-payment.ts";
+import {
+  bookingDateFields,
+  ensureAllBookings,
+} from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import {
   htmlResponse,
@@ -515,17 +518,21 @@ type CreatedAttendee = Extract<
 
 type CreatedEntry = { attendee: CreatedAttendee; event: EventWithCount };
 
-/** Create the attendee plus per-event bookings atomically. */
+/**
+ * Create the attendee plus per-event bookings atomically.
+ * durationDays is event-scoped and re-read here at finalize time so the
+ * stored range always matches the event's current duration policy.
+ */
 const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
   const bookings = validatedItems.map(({ item, event }) => ({
-    date: event.event_type === "daily" ? intent.date : null,
     eventId: item.e,
     pricePaid: item.p,
     quantity: item.q,
+    ...bookingDateFields(event, intent.date),
   }));
 
   const result = await createAttendeeAtomic({

@@ -56,6 +56,7 @@ const buildCreateEventForm = (
     date_date: dateParts.date,
     date_time: dateParts.time,
     description: input.description ?? "",
+    duration_days: optionalNumber(input.durationDays),
     event_type: input.eventType ?? "",
     fields: input.fields ?? "email",
     group_id: String(input.groupId ?? 0),
@@ -104,6 +105,9 @@ const buildUpdateNumericFields = (
     ? pickField(updates.initialSiteMonths, existing.initial_site_months || 1)
     : pickField(updates.initialSiteMonths, existing.initial_site_months);
   return {
+    duration_days: String(
+      pickField(updates.durationDays, existing.duration_days),
+    ),
     group_id: String(pickField(updates.groupId, existing.group_id)),
     initial_site_months: String(initialSiteMonths),
     max_attendees: String(
@@ -418,6 +422,7 @@ export const bookAttendee = async (
   if (opts.date !== undefined) booking.date = opts.date;
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
   if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
+  if (opts.durationDays !== undefined) booking.durationDays = opts.durationDays;
   return createAttendeeAtomic({
     bookings: [booking],
     email: opts.email ?? "x@example.com",
