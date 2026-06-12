@@ -450,15 +450,16 @@ const withProperties = <T extends object, P extends object>(
 };
 
 /** Factory: write a raw string and mirror into a specific snapshot field. */
-const rawUpdate = <K extends keyof SettingsData>(
-  configKey: string,
-  field: K,
-  serialize: (v: SettingsData[K]) => string = String,
-) =>
-async (v: SettingsData[K]): Promise<void> => {
-  await writeRaw(configKey, serialize(v));
-  setSnapshotField(field, v);
-};
+const rawUpdate =
+  <K extends keyof SettingsData>(
+    configKey: string,
+    field: K,
+    serialize: (v: SettingsData[K]) => string = String,
+  ) =>
+  async (v: SettingsData[K]): Promise<void> => {
+    await writeRaw(configKey, serialize(v));
+    setSnapshotField(field, v);
+  };
 
 /** Factory: write a boolean as "true"/"false" and mirror into the snapshot. */
 const boolUpdate = <K extends BoolSettingKey>(configKey: string, field: K) =>
@@ -490,9 +491,8 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.show_public_site = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
   data.show_public_api = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
-  data.payment_provider = rawProvider && isPaymentProvider(rawProvider)
-    ? rawProvider
-    : null;
+  data.payment_provider =
+    rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
   data.payment_provider_setting =
     rawProvider && isPaymentProviderSetting(rawProvider) ? rawProvider : null;
   data.booking_fee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
@@ -623,8 +623,7 @@ const updateUserPassword = async (
   const newWrappedDataKey = await wrapKey(dk, newKek);
   await getDb().execute({
     args: [encryptedNewHash, newWrappedDataKey, userId],
-    sql:
-      "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
+    sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
   });
   invalidateUsersCache();
   await deleteAllSessions();
