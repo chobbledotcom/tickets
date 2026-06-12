@@ -502,33 +502,45 @@ describe("payment-helpers", () => {
 });
 
 // hmacHash needs the encryption key configured, which describeWithEnv handles.
-describeWithEnv("buildItemsMetadata site-token hashing", {}, () => {
-  const baseIntent = (siteToken?: string): CheckoutIntent => ({
-    address: "",
-    date: null,
-    email: "renew@example.com",
-    items: [{ eventId: 1, name: "Tier", quantity: 1, slug: "t", unitPrice: 0 }],
-    name: "Renewer",
-    phone: "",
-    special_instructions: "",
-    ...(siteToken ? { siteToken } : {}),
-  });
+describeWithEnv(
+  "buildItemsMetadata site-token hashing",
+  { encryptionKey: true },
+  () => {
+    const baseIntent = (siteToken?: string): CheckoutIntent => ({
+      address: "",
+      date: null,
+      email: "renew@example.com",
+      items: [
+        {
+          eventId: 1,
+          name: "Tier",
+          quantity: 1,
+          slug: "t",
+          unitPrice: 0,
+        },
+      ],
+      name: "Renewer",
+      phone: "",
+      special_instructions: "",
+      ...(siteToken ? { siteToken } : {}),
+    });
 
-  test("emits site_token_index as the HMAC of the plain token", async () => {
-    const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
-    const expected = await hmacHash("plain-token-xyz");
-    expect(metadata.site_token_index).toBe(expected);
-  });
+    test("emits site_token_index as the HMAC of the plain token", async () => {
+      const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
+      const expected = await hmacHash("plain-token-xyz");
+      expect(metadata.site_token_index).toBe(expected);
+    });
 
-  test("plain token never appears in metadata", async () => {
-    const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
-    for (const value of Object.values(metadata)) {
-      expect(value.includes("plain-token-xyz")).toBe(false);
-    }
-  });
+    test("plain token never appears in metadata", async () => {
+      const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
+      for (const value of Object.values(metadata)) {
+        expect(value.includes("plain-token-xyz")).toBe(false);
+      }
+    });
 
-  test("omits site_token_index when siteToken is absent", async () => {
-    const metadata = await buildItemsMetadata(baseIntent());
-    expect("site_token_index" in metadata).toBe(false);
-  });
-});
+    test("omits site_token_index when siteToken is absent", async () => {
+      const metadata = await buildItemsMetadata(baseIntent());
+      expect("site_token_index" in metadata).toBe(false);
+    });
+  },
+);

@@ -5,11 +5,16 @@ import {
   adminBuiltSiteEditPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { testBuiltSite, testEventWithCount } from "#test-utils";
+import {
+  setupTestEncryptionKey,
+  testBuiltSite,
+  testEventWithCount,
+} from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
 beforeAll(async () => {
+  setupTestEncryptionKey();
   await signCsrfToken();
 });
 
