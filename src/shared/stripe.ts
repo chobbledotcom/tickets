@@ -5,7 +5,7 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -17,9 +17,11 @@ import {
 } from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
+  cachedClientFactory,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
+  feeLineItems,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -34,8 +36,6 @@ const loadStripe = once(async () => {
   const { default: Stripe } = await import("stripe");
   return Stripe;
 });
-
-type StripeCache = { client: Stripe; secretKey: string };
 
 /** Nullable checkout session result */
 type CheckoutResult = Stripe.Checkout.Session | null;
@@ -58,8 +58,9 @@ const narrowCheckoutSession = (
   amount_total: session.amount_total,
   id: session.id,
   metadata: session.metadata,
-  payment_intent:
-    typeof session.payment_intent === "string" ? session.payment_intent : null,
+  payment_intent: typeof session.payment_intent === "string"
+    ? session.payment_intent
+    : null,
   payment_status: session.payment_status,
 });
 
@@ -76,12 +77,11 @@ const narrowPaymentIntent = (
   intent: Stripe.PaymentIntent,
 ): StripePaymentIntentFields => ({
   id: intent.id,
-  latest_charge:
-    intent.latest_charge &&
-    typeof intent.latest_charge === "object" &&
-    "refunded" in intent.latest_charge
-      ? { refunded: intent.latest_charge.refunded }
-      : null,
+  latest_charge: intent.latest_charge &&
+      typeof intent.latest_charge === "object" &&
+      "refunded" in intent.latest_charge
+    ? { refunded: intent.latest_charge.refunded }
+    : null,
 });
 
 /** Valid Stripe secret key prefixes */
@@ -155,33 +155,16 @@ const createStripeClient = async (secretKey: string): Promise<Stripe> => {
     : new StripeClass(secretKey);
 };
 
-const [getCache, setCache] = lazyRef<StripeCache>(() => {
-  throw new Error("Stripe cache not initialized");
+const clientCache = cachedClientFactory({
+  create: createStripeClient,
+  getConfig: () => settings.stripe.secretKey || null,
+  isSameConfig: (a: string, b: string) => a === b,
+  missingMessage: "No secret key configured, cannot create client",
+  provider: "Stripe",
 });
 
 /** Internal getStripeClient implementation */
-const getClientImpl = async (): Promise<Stripe | null> => {
-  const secretKey = settings.stripe.secretKey;
-  if (!secretKey) {
-    logDebug("Stripe", "No secret key configured, cannot create client");
-    return null;
-  }
-
-  try {
-    const cached = getCache();
-    if (cached.secretKey === secretKey) {
-      logDebug("Stripe", "Using cached Stripe client");
-      return cached.client;
-    }
-  } catch {
-    // Cache not initialized
-  }
-
-  logDebug("Stripe", "Creating new Stripe client");
-  const client = await createStripeClient(secretKey);
-  setCache({ client, secretKey });
-  return client;
-};
+const getClientImpl = (): Promise<Stripe | null> => clientCache.getClient();
 
 /** Run operation with stripe client, return null if not available */
 const withClient = createWithClient(getClientImpl);
@@ -194,20 +177,15 @@ type StripeCheckoutLineItem = NonNullable<
 const stripeFeeItems = (
   subtotal: number,
   currency: string,
-): StripeCheckoutLineItem[] => {
-  const amount = getBookingFeeAmount(subtotal);
-  if (amount <= 0) return [];
-  return [
-    {
-      price_data: {
-        currency,
-        product_data: { name: "Booking fee" },
-        unit_amount: amount,
-      },
-      quantity: 1,
+): StripeCheckoutLineItem[] =>
+  feeLineItems(subtotal, currency, (amount, cur) => ({
+    price_data: {
+      currency: cur,
+      product_data: { name: "Booking fee" },
+      unit_amount: amount,
     },
-  ];
-};
+    quantity: 1,
+  }));
 
 /**
  * Internal implementation of webhook endpoint setup.
@@ -294,8 +272,9 @@ export const stripeApi: {
       price_data: {
         currency,
         product_data: {
-          description:
-            item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
+          description: item.quantity > 1
+            ? `${item.quantity} Tickets`
+            : "Ticket",
           name: `Ticket: ${item.name}`,
         },
         unit_amount: item.unitPrice,
@@ -310,7 +289,8 @@ export const stripeApi: {
       line_items: lineItems,
       mode: "payment",
       payment_method_types: ["card"],
-      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url:
+        `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
       metadata: enforceMetadataLimits(
         await buildItemsMetadata(intent),
@@ -343,7 +323,7 @@ export const stripeApi: {
 
   /** Reset Stripe client (for testing) */
   resetStripeClient: (): void => {
-    setCache(null);
+    clientCache.reset();
     setMockConfig(null);
   },
 
@@ -554,7 +534,8 @@ export const verifyWebhookSignature = async (
   if (Math.abs(timestampDelta) > toleranceSeconds) {
     logError({
       code: ErrorCode.STRIPE_SIGNATURE,
-      detail: `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
+      detail:
+        `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
     });
     return { error: "Timestamp outside tolerance window", valid: false };
   }
@@ -565,7 +546,7 @@ export const verifyWebhookSignature = async (
 
   // Check if any signature matches (constant-time)
   const isValid = signatures.some((sig) =>
-    secureCompare(sig, expectedSignature),
+    secureCompare(sig, expectedSignature)
   );
 
   if (!isValid) {

@@ -3,7 +3,8 @@
  * Eliminates duplication between stripe.ts/square.ts and their provider adapters.
  */
 
-import { map } from "#fp";
+import { lazyRef, map } from "#fp";
+import { getBookingFeeAmount } from "#shared/booking-fee.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
@@ -48,6 +49,56 @@ export const safeAsync = async <T>(
 };
 
 /**
+ * Cache a provider API client keyed on its config.
+ * Reuses the cached client while the config is unchanged and recreates it
+ * when the config changes; returns null when the provider is unconfigured.
+ */
+export const cachedClientFactory = <Config, Client>(opts: {
+  provider: LogCategory;
+  missingMessage: string;
+  getConfig: () => Config | null;
+  isSameConfig: (a: Config, b: Config) => boolean;
+  create: (config: Config) => Client | Promise<Client>;
+  createMessage?: (config: Config) => string;
+}): { getClient: () => Promise<Client | null>; reset: () => void } => {
+  type Entry = { client: Client; config: Config };
+  const [getCache, setCache] = lazyRef<Entry | null>(() => null);
+  const getClient = async (): Promise<Client | null> => {
+    const config = opts.getConfig();
+    if (config === null) {
+      logDebug(opts.provider, opts.missingMessage);
+      return null;
+    }
+    const cached = getCache();
+    if (cached && opts.isSameConfig(cached.config, config)) {
+      logDebug(opts.provider, `Using cached ${opts.provider} client`);
+      return cached.client;
+    }
+    logDebug(
+      opts.provider,
+      opts.createMessage?.(config) ?? `Creating new ${opts.provider} client`,
+    );
+    const client = await opts.create(config);
+    setCache({ client, config });
+    return client;
+  };
+  return { getClient, reset: () => setCache(null) };
+};
+
+/**
+ * Build a provider fee line-item array from the configured booking fee.
+ * Returns [] when the fee is zero, else a single item shaped by `build`.
+ */
+export const feeLineItems = <Item>(
+  subtotal: number,
+  currency: string,
+  build: (amount: number, currency: string) => Item,
+): Item[] => {
+  const amount = getBookingFeeAmount(subtotal);
+  return amount > 0 ? [build(amount, currency)] : [];
+};
+
+/**
  * Create a withClient helper that runs an operation with a lazily-resolved client.
  * Returns null if the client is not available or the operation fails.
  */
@@ -79,9 +130,11 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
  * will become "" when extractSessionMetadata normalizes the metadata back.
  */
 const optionalFields = (
-  intent: Partial<
-    Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date: string | null },
+  intent:
+    & Partial<
+      Pick<ContactInfo, "phone" | "address" | "special_instructions">
+    >
+    & { date: string | null },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -124,8 +177,9 @@ export const buildItemsMetadata = async (
   });
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
-type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
-  Partial<
+type MetadataInput =
+  & Pick<BookingIntent, "name" | "email" | "items" | "date">
+  & Partial<
     Pick<
       BookingIntent,
       | "phone"
