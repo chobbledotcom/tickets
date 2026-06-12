@@ -33,7 +33,6 @@ import {
   awaitTestRequest,
   bookAttendee,
   createDailyTestEvent,
-  createTestEvent,
   createTestGroup,
   createTestHoliday,
   describeWithEnv,
