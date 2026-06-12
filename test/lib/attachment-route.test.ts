@@ -189,7 +189,7 @@ describeWithEnv(
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/pdf");
         expect(response.headers.get("content-disposition")).toBe(
-          'attachment; filename="guide.pdf"',
+          "attachment; filename=\"guide.pdf\"; filename*=UTF-8''guide.pdf",
         );
         const body = new Uint8Array(await response.arrayBuffer());
         expect(body).toEqual(fileContent);
@@ -197,63 +197,90 @@ describeWithEnv(
     });
 
     const sanitizationCases: Array<{
-  label: string;
-  name: string;
-  notContains: string[];
-  contains?: string;
-  equals?: string;
-}> = [
-  {
-    label: "strips CR/LF header injection",
-    name: 'evil"\r\nx-bad: 1.pdf',
-    notContains: ["\r", "\n", "x-bad:"],
-  },
-  {
-    label: "strips quote injection to prevent extra filename",
-    name: 'report.pdf"; filename="evil.html',
-    notContains: ['filename="evil.html"'],
-  },
-  {
-    label: "strips path traversal, preserves basename",
-    name: "../../secret.pdf",
-    notContains: ["../"],
-    contains: "secret.pdf",
-  },
-  {
-    label: "strips semicolon injection",
-    name: "report;evil.pdf",
-    notContains: [";evil"],
-  },
-  {
-    label: "falls back to 'file' for control-only names",
-    name: "\x01\x02",
-    notContains: [],
-    equals: 'attachment; filename="file"',
-  },
-];
+      label: string;
+      name: string;
+      notContains: string[];
+      contains?: string;
+      equals?: string;
+    }> = [
+      {
+        label: "strips CR/LF header injection",
+        name: 'evil"\r\nx-bad: 1.pdf',
+        notContains: ["\r", "\n", "x-bad:"],
+      },
+      {
+        label: "strips quote injection to prevent extra filename",
+        name: 'report.pdf"; filename="evil.html',
+        notContains: ['filename="evil.html"'],
+      },
+      {
+        contains: "secret.pdf",
+        label: "strips path traversal, preserves basename",
+        name: "../../secret.pdf",
+        notContains: ["../"],
+      },
+      {
+        label: "strips semicolon injection",
+        name: "report;evil.pdf",
+        notContains: [";evil"],
+      },
+      {
+        equals: "attachment; filename=\"file\"; filename*=UTF-8''%01%02",
+        label: "falls back to 'file' for control-only names",
+        name: "\x01\x02",
+        notContains: [],
+      },
+      {
+        equals:
+          "attachment; filename=\".pdf\"; filename*=UTF-8''%E5%A0%B1%E5%91%8A.pdf",
+        label: "preserves non-ASCII via filename* (Chinese)",
+        name: "報告.pdf",
+        notContains: [],
+      },
+      {
+        equals:
+          "attachment; filename=\".pdf\"; filename*=UTF-8''%D0%BE%D1%82%D1%87%D1%91%D1%82.pdf",
+        label: "preserves non-ASCII via filename* (Cyrillic)",
+        name: "отчёт.pdf",
+        notContains: [],
+      },
+      {
+        equals: "attachment; filename=\"file\"; filename*=UTF-8''file",
+        label:
+          "falls back to 'file' in both filename and filename* for empty basename",
+        name: "",
+        notContains: [],
+      },
+    ];
 
-for (const { label, name, notContains, contains, equals } of sanitizationCases) {
-  test(`sanitizes attachment filename: ${label}`, async () => {
-    const { eventId, attendeeId } = await setupAttachmentWithName(name);
-    const path = await signUrl(eventId, attendeeId);
-    const fileContent = new TextEncoder().encode("data");
+    for (const {
+      label,
+      name,
+      notContains,
+      contains,
+      equals,
+    } of sanitizationCases) {
+      test(`sanitizes attachment filename: ${label}`, async () => {
+        const { eventId, attendeeId } = await setupAttachmentWithName(name);
+        const path = await signUrl(eventId, attendeeId);
+        const fileContent = new TextEncoder().encode("data");
 
-    await withCdnMock(fileContent, async () => {
-      const response = await handleRequest(mockRequest(path));
-      expect(response.status).toBe(200);
-      const cd = response.headers.get("content-disposition")!;
-      for (const bad of notContains) expect(cd).not.toContain(bad);
-      if (contains) expect(cd).toContain(contains);
-      if (equals) expect(cd).toBe(equals);
+        await withCdnMock(fileContent, async () => {
+          const response = await handleRequest(mockRequest(path));
+          expect(response.status).toBe(200);
+          const cd = response.headers.get("content-disposition")!;
+          for (const bad of notContains) expect(cd).not.toContain(bad);
+          if (contains) expect(cd).toContain(contains);
+          if (equals) expect(cd).toBe(equals);
 
-      // Verify no duplicate Content-Disposition headers from injection
-      const cdHeaders = [...response.headers.entries()].filter(
-        ([k]) => k.toLowerCase() === "content-disposition",
-      );
-      if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
-    });
-  });
-}
+          // Verify no duplicate Content-Disposition headers from injection
+          const cdHeaders = [...response.headers.entries()].filter(
+            ([k]) => k.toLowerCase() === "content-disposition",
+          );
+          if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
+        });
+      });
+    }
 
     test("increments attachment_downloads counter", async () => {
       const { eventId, attendeeId } = await setupAttachment();

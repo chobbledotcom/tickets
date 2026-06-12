@@ -62,11 +62,41 @@ const forbiddenResponse = (): Response =>
  * Sanitize an attachment name for use in the Content-Disposition header.
  * Strips characters that could be used for HTTP header injection or path traversal.
  */
-const sanitizeAttachmentName = (name: string): string => {
+const sanitizeAsciiFilename = (name: string): string => {
   const basename = getBasename(name);
   return (
     basename.replace(/[^\x20-\x7E]/g, "").replace(/[":;\\]/g, "_") || "file"
   );
+};
+
+/** RFC 5987-encode a filename for the filename* parameter (UTF-8 percent-encoded). */
+const encodeRfc5987 = (name: string): string => {
+  const bytes = new TextEncoder().encode(getBasename(name) || "file");
+  let out = "";
+  for (const byte of bytes) {
+    // attr-char per RFC 5987 §3.2.1 — alphanumerics plus a small set of safe punctuation
+    if (
+      (byte >= 0x30 && byte <= 0x39) ||
+      (byte >= 0x41 && byte <= 0x5a) ||
+      (byte >= 0x61 && byte <= 0x7a) ||
+      byte === 0x2d ||
+      byte === 0x2e ||
+      byte === 0x5f ||
+      byte === 0x7e
+    ) {
+      out += String.fromCharCode(byte);
+    } else {
+      out += `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+    }
+  }
+  return out;
+};
+
+/** Build a Content-Disposition value with both ASCII filename and RFC 5987 filename*. */
+const buildContentDisposition = (name: string): string => {
+  const ascii = sanitizeAsciiFilename(name);
+  const encoded = encodeRfc5987(name);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 };
 
 /** Handle GET /attachment/:id */
@@ -106,11 +136,11 @@ const handleAttachmentDownload: TypedRouteHandler<
 
   // Serve with Content-Disposition for proper download filename
   const contentType = getMimeType(event.attachment_name);
-  const safeName = sanitizeAttachmentName(event.attachment_name);
+  const disposition = buildContentDisposition(event.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {
       "cache-control": "public, max-age=3600",
-      "content-disposition": `attachment; filename="${safeName}"`,
+      "content-disposition": disposition,
       "content-type": contentType,
     },
   });

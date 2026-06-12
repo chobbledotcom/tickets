@@ -360,6 +360,8 @@ describe("temporaryErrorPage", () => {
     expect(html).toContain("Retrying automatically");
     expect(html).toContain('http-equiv="refresh"');
     expect(html).toContain('content="2"');
+    expect(html).toContain("<style>");
+    expect(html).toContain("font-family:system-ui");
   });
 });
 

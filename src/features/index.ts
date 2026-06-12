@@ -31,6 +31,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { initDb } from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -59,121 +60,83 @@ import { readOnlyPage } from "#templates/public.tsx";
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
 
-/** Lazy-load admin routes (only needed for authenticated admin requests) */
-const loadAdminRoutes = once(async () => {
-  const { routeAdmin } = await import("#routes/admin/index.ts");
-  return routeAdmin;
-});
+/**
+ * Lazily import a module once and pick a single export from it.
+ * Import specifiers must stay literal so esbuild can bundle them.
+ */
+const lazyExport = <M, K extends keyof M>(
+  load: () => Promise<M>,
+  key: K,
+): (() => Promise<M[K]>) => once(async () => (await load())[key]);
 
-/** Lazy-load public page handlers (home, events, terms, contact) */
-const loadPublicPages = once(async () => {
-  const {
-    handleHome,
-    handlePublicEvents,
-    handlePublicTerms,
-    handlePublicContact,
-  } = await import("#routes/public/pages.ts");
-  return {
-    handleHome,
-    handlePublicContact,
-    handlePublicEvents,
-    handlePublicTerms,
-  };
-});
+// Lazy-load route groups so the edge script only pays for what a request uses
+const loadAdminRoutes = lazyExport(
+  () => import("#routes/admin/index.ts"),
+  "routeAdmin",
+);
+const loadPublicPages = once(() => import("#routes/public/pages.ts"));
+const loadTicketRoutes = lazyExport(
+  () => import("#routes/public/ticket-routes.ts"),
+  "routeTicket",
+);
+const loadPaymentRoutes = lazyExport(
+  () => import("#routes/api/webhooks.ts"),
+  "routePayment",
+);
+const loadJoinRoutes = lazyExport(() => import("#routes/join.ts"), "routeJoin");
+const loadTicketViewRoutes = lazyExport(
+  () => import("#routes/tickets/index.ts"),
+  "routeTicketView",
+);
+const loadCheckinRoutes = lazyExport(
+  () => import("#routes/checkin.ts"),
+  "routeCheckin",
+);
+const loadImageRoutes = lazyExport(
+  () => import("#routes/images.ts"),
+  "routeImage",
+);
+const loadFeedRoutes = lazyExport(
+  () => import("#routes/feeds.ts"),
+  "routeFeed",
+);
+const loadDemoResetRoutes = lazyExport(
+  () => import("#routes/admin/database-reset.ts"),
+  "routeDatabaseReset",
+);
+const loadWalletRoutes = lazyExport(
+  () => import("#routes/wallet/index.ts"),
+  "routeWallet",
+);
+const loadGoogleWalletRoutes = lazyExport(
+  () => import("#routes/wallet/google.ts"),
+  "routeGoogleWallet",
+);
+const loadWalletWebserviceRoutes = lazyExport(
+  () => import("#routes/wallet/webservice.ts"),
+  "routeWalletWebservice",
+);
+const loadApiRoutes = lazyExport(
+  () => import("#routes/api/index.ts"),
+  "routeApi",
+);
 
-/** Lazy-load ticket reservation router */
-const loadTicketRoutes = once(async () => {
-  const { routeTicket } = await import("#routes/public/ticket-routes.ts");
-  return routeTicket;
-});
-
-/** Lazy-load setup routes */
-const loadSetupRoutes = once(async () => {
-  const { createSetupRouter } = await import("#routes/setup.ts");
-  return createSetupRouter(settings.setup.isComplete);
-});
-
-/** Lazy-load payment/webhook routes */
-const loadPaymentRoutes = once(async () => {
-  const { routePayment } = await import("#routes/api/webhooks.ts");
-  return routePayment;
-});
-
-/** Lazy-load join/invite routes */
-const loadJoinRoutes = once(async () => {
-  const { routeJoin } = await import("#routes/join.ts");
-  return routeJoin;
-});
-
-/** Lazy-load ticket view routes */
-const loadTicketViewRoutes = once(async () => {
-  const { routeTicketView } = await import("#routes/tickets/index.ts");
-  return routeTicketView;
-});
-
-/** Lazy-load check-in routes */
-const loadCheckinRoutes = once(async () => {
-  const { routeCheckin } = await import("#routes/checkin.ts");
-  return routeCheckin;
-});
-
-/** Lazy-load image proxy routes */
-const loadImageRoutes = once(async () => {
-  const { routeImage } = await import("#routes/images.ts");
-  return routeImage;
-});
-
-/** Lazy-load feed routes (ICS, RSS) */
-const loadFeedRoutes = once(async () => {
-  const { routeFeed } = await import("#routes/feeds.ts");
-  return routeFeed;
-});
-
-/** Lazy-load demo reset routes */
-const loadDemoResetRoutes = once(async () => {
-  const { routeDatabaseReset } = await import(
-    "#routes/admin/database-reset.ts"
-  );
-  return routeDatabaseReset;
-});
+/** Lazy-load setup routes (bound to the setup-complete check) */
+const loadSetupRoutes = once(async () =>
+  (await import("#routes/setup.ts")).createSetupRouter(
+    settings.setup.isComplete,
+  ),
+);
 
 /** Lazy-load attachment download routes */
-const loadAttachmentRoutes = once(async () => {
-  const { attachmentRoutes } = await import("#routes/attachments.ts");
-  return createRouter(attachmentRoutes);
-});
-
-/** Lazy-load Apple Wallet pass routes */
-const loadWalletRoutes = once(async () => {
-  const { routeWallet } = await import("#routes/wallet/index.ts");
-  return routeWallet;
-});
-
-/** Lazy-load Google Wallet pass routes */
-const loadGoogleWalletRoutes = once(async () => {
-  const { routeGoogleWallet } = await import("#routes/wallet/google.ts");
-  return routeGoogleWallet;
-});
-
-/** Lazy-load Apple Wallet web service routes (v1 API for pass updates) */
-const loadWalletWebserviceRoutes = once(async () => {
-  const { routeWalletWebservice } = await import(
-    "#routes/wallet/webservice.ts"
-  );
-  return routeWalletWebservice;
-});
-
-/** Lazy-load public API routes */
-const loadApiRoutes = once(async () => {
-  const { routeApi } = await import("#routes/api/index.ts");
-  return routeApi;
-});
+const loadAttachmentRoutes = once(async () =>
+  createRouter((await import("#routes/attachments.ts")).attachmentRoutes),
+);
 
 /** Lazy-load admin API routes */
-const loadAdminApiRoutes = once(async () => {
-  const { adminApiRoutes } = await import("#routes/admin/api.ts");
-  return createRouter(adminApiRoutes);
-});
+const loadAdminApiRoutes = once(async () =>
+  createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
+);
 
 /** Lazy-load renewal routes */
 const loadRenewalRoutes = once(async () => {
@@ -360,12 +323,8 @@ const handleRequestInternal = async (
   method: string,
   server?: ServerContext,
 ): Promise<Response> => {
-  // Static routes always available (minimal overhead)
-  const staticResponse = await routeStatic(request, path, method);
-  if (staticResponse) return staticResponse;
-
   // Setup routes - only load for /setup paths
-  if (path === "/setup" || path.startsWith("/setup/")) {
+  if (isSetupPath(path)) {
     const routeSetup = await loadSetupRoutes();
     const setupResponse = await routeSetup(request, path, method);
     if (setupResponse) return setupResponse;
@@ -373,10 +332,19 @@ const handleRequestInternal = async (
 
   // Require setup before accessing other routes
   if (!(await settings.setup.isComplete())) {
-    return redirectResponse("/setup");
+    return isSetupPath(path)
+      ? redirectResponse("/setup")
+      : temporaryErrorResponse();
   }
 
   return (await routeMainApp(request, path, method, server))!;
+};
+
+const isSetupPath = (path: string): boolean =>
+  path === "/setup" || path.startsWith("/setup/");
+
+const initializeDatabaseForPath = async (path: string): Promise<void> => {
+  await initDb({ allowMissingSettings: isSetupPath(path) });
 };
 
 /** Log request and return response */
@@ -529,7 +497,20 @@ const processRequest = async (
   detectIframeMode(effectiveRequest.url);
   clearSavedFormData();
 
+  let response!: Response;
   try {
+    const staticResponse = await routeStatic(effectiveRequest, path, method);
+    if (staticResponse) {
+      return logAndReturn(
+        await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
+        method,
+        path,
+        getElapsed,
+      );
+    }
+
+    await initializeDatabaseForPath(path);
+
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
       return logAndReturn(trackingRedirect, method, path, getElapsed);
@@ -537,8 +518,6 @@ const processRequest = async (
 
     await prepareRequestEnvironment(effectiveRequest);
 
-    // Content-Type validation: reject POST requests without proper Content-Type
-    // (webhook endpoints accept JSON, all others require form-urlencoded)
     if (!isValidContentType(effectiveRequest, path)) {
       return logAndReturn(
         contentTypeRejectionResponse(),
@@ -548,25 +527,23 @@ const processRequest = async (
       );
     }
 
-    try {
-      const response = await routeAndFinalize(
-        effectiveRequest,
-        path,
-        method,
-        server,
-      );
-      return logAndReturn(response, method, path, getElapsed);
-    } catch (error) {
-      return logAndReturn(
-        handleRoutingError(error, method, path),
-        method,
-        path,
-        getElapsed,
-      );
-    }
+    response = logAndReturn(
+      await routeAndFinalize(effectiveRequest, path, method, server),
+      method,
+      path,
+      getElapsed,
+    );
+  } catch (error) {
+    response = logAndReturn(
+      handleRoutingError(error, method, path),
+      method,
+      path,
+      getElapsed,
+    );
   } finally {
     await flushPendingWork();
   }
+  return response;
 };
 
 /**

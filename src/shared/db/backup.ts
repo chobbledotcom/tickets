@@ -15,6 +15,7 @@ import { map, pipe } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
+  invalidateInitDbCache,
   LATEST_UPDATE,
   resetDatabase,
   SCHEMA_HASH,
@@ -279,16 +280,21 @@ export const countZipStatements = (zipData: Uint8Array): number => {
  */
 export const restoreFromSql = async (sql: string): Promise<void> => {
   await resetDatabase();
-  await initDb();
+  await initDb({ allowMissingSettings: true });
 
-  // initDb writes migration markers into settings; clear them so the
-  // backup's own settings rows don't collide on the PRIMARY KEY.
+  // initDb writes migration markers into settings/schema_migrations; clear them
+  // so the backup's own rows don't collide on primary keys.
   await getDb().execute("DELETE FROM settings");
+  await getDb().execute("DELETE FROM schema_migrations");
 
   const statements = splitStatements(sql);
-  if (statements.length === 0) return;
+  if (statements.length > 0) {
+    await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+  }
 
-  await executeBatch(statements.map((s) => ({ args: [], sql: s })));
+  // The markers now come from the backup and may predate the current schema;
+  // drop the "ready" cache so the next initDb re-checks and migrates if needed.
+  invalidateInitDbCache();
 };
 
 /**

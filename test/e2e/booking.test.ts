@@ -56,8 +56,8 @@ describe("e2e: full booking flow", () => {
   });
 
   test("setup → create event → group → book → view ticket → admin sees attendee", async () => {
-    // 1. Visit homepage — should redirect to setup since no setup done
-    await browser.visit("/");
+    // 1. Visit setup directly — initial DB creation is only allowed there.
+    await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
 
     // 2. Complete setup
@@ -274,18 +274,17 @@ describe("e2e: full booking flow", () => {
       const backupZip = await browser.downloadBytes(downloadLink!.href);
       expect(backupZip.length).toBeGreaterThan(0);
 
-      // 16. Reset the database directly (the settings-advanced form does
-      //     resetDatabase() + redirect, but in-process tests can't survive
-      //     the redirect since settings.loadAll() runs before initDb()).
+      // 16. Reset the database directly and reinitialize schema so this
+      //     in-process flow can continue after the destructive reset.
       const { initDb: reinitDb, resetDatabase: resetDb2 } = await import(
         "#shared/db/migrations.ts"
       );
       await resetDb2();
-      await reinitDb();
+      await reinitDb({ allowMissingSettings: true });
       invalidateAllCaches();
 
-      // 17. Verify the homepage shows setup (database is empty)
-      await browser.visit("/");
+      // 17. Verify setup is available after reset (database is empty)
+      await browser.visit("/setup/");
       expect(browser.currentHtml).toContain("Initial Setup");
 
       // 18. Complete setup again with same credentials

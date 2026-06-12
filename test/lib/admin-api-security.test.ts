@@ -149,5 +149,67 @@ describeWithEnv("admin API security", { db: true }, () => {
       );
       expect(response.status).toBe(400);
     });
+
+    test("treats uppercase Content-Type the same as lowercase (RFC 7231)", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const body = JSON.stringify({ max_attendees: 10, name: "Case Test" });
+
+      const lower = await handleRequest(
+        requestAsApiKey("/api/admin/events", apiKey, {
+          body,
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      const upper = await handleRequest(
+        requestAsApiKey("/api/admin/events", apiKey, {
+          body,
+          headers: { "content-type": "APPLICATION/JSON" },
+          method: "POST",
+        }),
+      );
+      // RFC 7231: media types are case-insensitive. Both requests must produce
+      // the same response — in particular the uppercase form must not be
+      // rejected as a missing/wrong content-type.
+      expect(upper.status).toBe(lower.status);
+    });
+  });
+
+  describe("JSON body shape validation", () => {
+    test("POST /api/admin/events returns 400 for JSON array body", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const response = await handleRequest(
+        requestAsApiKey("/api/admin/events", apiKey, {
+          body: "[]",
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("POST /api/admin/events returns 400 for JSON null body", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const response = await handleRequest(
+        requestAsApiKey("/api/admin/events", apiKey, {
+          body: "null",
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("POST /api/admin/events returns 400 for JSON primitive body", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const response = await handleRequest(
+        requestAsApiKey("/api/admin/events", apiKey, {
+          body: '"just a string"',
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(400);
+    });
   });
 });

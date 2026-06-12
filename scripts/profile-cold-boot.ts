@@ -85,7 +85,7 @@ const main = async () => {
   // 4. Measure initDb (first run - creates tables)
   await measure("4. initDb (cold - creates tables)", async () => {
     const { initDb } = await import("#shared/db/migrations.ts");
-    await initDb();
+    await initDb({ allowMissingSettings: true });
   });
 
   // 5. Measure initDb (warm - bails early)

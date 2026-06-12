@@ -4,12 +4,10 @@
 
 import { handleRequest } from "#routes/index.ts";
 import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
-import { initDb } from "#shared/db/migrations.ts";
 import { logDebug } from "#shared/logger.ts";
 
-const startServer = async (port = 3000): Promise<void> => {
+const startServer = (port = 3000): void => {
   validateEncryptionKey();
-  await initDb();
   logDebug("Setup", `Server starting on http://localhost:${port}`);
 
   Deno.serve({ port }, (request) => handleRequest(request));

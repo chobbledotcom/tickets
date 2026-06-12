@@ -168,10 +168,67 @@ const validateSafeUrl = (value: string): string | null => {
   }
 };
 
+/** True if the four IPv4 octets fall in a private/reserved range. */
+const isPrivateIPv4 = (a: number, b: number, c: number, d: number): boolean => {
+  // 127.0.0.0/8  (loopback)
+  if (a === 127) return true;
+  // 10.0.0.0/8   (private)
+  if (a === 10) return true;
+  // 172.16.0.0/12 (private)
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  // 192.168.0.0/16 (private)
+  if (a === 192 && b === 168) return true;
+  // 169.254.0.0/16 (link-local — including cloud IMDS at 169.254.169.254)
+  if (a === 169 && b === 254) return true;
+  // 0.0.0.0/8
+  if (a === 0) return true;
+  // 255.255.255.255
+  if (a === 255 && b === 255 && c === 255 && d === 255) return true;
+  return false;
+};
+
+/**
+ * Extract the IPv4 octets from an IPv4-mapped IPv6 address as normalized by
+ * the URL parser (e.g. "[::ffff:7f00:1]" → [127, 0, 0, 1]). Returns null
+ * for any string that isn't a well-formed ::ffff:<ipv4> form.
+ */
+const extractMappedIPv4 = (
+  ipv6: string,
+): [number, number, number, number] | null => {
+  if (!ipv6.toLowerCase().startsWith("::ffff:")) return null;
+  // URL parser normalizes the embedded IPv4 to 1 or 2 hex groups
+  // (e.g. "7f00:1" for 127.0.0.1, "0" for 0.0.0.0).
+  const tail = ipv6.slice("::ffff:".length);
+  const groups = tail.split(":");
+  const hi = groups.length >= 2 ? Number.parseInt(groups[0]!, 16) : 0;
+  const lo = Number.parseInt(groups[groups.length - 1]!, 16);
+  return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
+};
+
 /** Check if a hostname is a private/internal IP or localhost */
 const isPrivateHostname = (hostname: string): boolean => {
   if (hostname === "localhost") return true;
-  if (hostname === "[::1]") return true;
+
+  // IPv6 hostnames from the URL parser arrive wrapped in brackets.
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    const ipv6 = hostname.slice(1, -1);
+    // :: (unspecified — equivalent to 0.0.0.0) and ::1 (loopback)
+    if (ipv6 === "::" || ipv6 === "::1") return true;
+    // IPv4-mapped IPv6 (::ffff:127.0.0.1 normalizes to [::ffff:7f00:1])
+    const mapped = extractMappedIPv4(ipv6);
+    if (mapped) return isPrivateIPv4(...mapped);
+    // fe80::/10 — link-local (first 10 bits: 1111111010 → first group 0xfe80..0xfebf)
+    // fc00::/7  — unique local (first 7 bits: 1111110  → first group 0xfc00..0xfdff)
+    const firstGroup = ipv6.split(":")[0]!;
+    if (firstGroup.length >= 3) {
+      const n = Number.parseInt(firstGroup, 16);
+      if (Number.isFinite(n)) {
+        if (n >= 0xfe80 && n <= 0xfebf) return true;
+        if (n >= 0xfc00 && n <= 0xfdff) return true;
+      }
+    }
+    return false;
+  }
 
   const parts = hostname.split(".");
   if (
@@ -182,20 +239,7 @@ const isPrivateHostname = (hostname: string): boolean => {
     const b = Number(parts[1]);
     const c = Number(parts[2]);
     const d = Number(parts[3]);
-    // 127.0.0.0/8  (loopback)
-    if (a === 127) return true;
-    // 10.0.0.0/8   (private)
-    if (a === 10) return true;
-    // 172.16.0.0/12 (private)
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    // 192.168.0.0/16 (private)
-    if (a === 192 && b === 168) return true;
-    // 169.254.0.0/16 (link-local)
-    if (a === 169 && b === 254) return true;
-    // 0.0.0.0/8
-    if (a === 0) return true;
-    // 255.255.255.255
-    if (a === 255 && b === 255 && c === 255 && d === 255) return true;
+    return isPrivateIPv4(a, b, c, d);
   }
 
   return false;

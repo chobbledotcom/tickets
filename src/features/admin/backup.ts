@@ -39,6 +39,16 @@ import {
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
 
+/**
+ * Reject path-traversal payloads in backup filenames.
+ * Legitimate backup names are flat (no directory separators) and server-generated,
+ * so any `/`, `\`, or `..` component is always malicious input.
+ */
+const isSafeBackupFilename = (filename: string): boolean =>
+  !filename.includes("/") &&
+  !filename.includes("\\") &&
+  !filename.includes("..");
+
 /** Parse a backup filename into display info */
 const parseBackupEntry = (filename: string): BackupEntry => {
   // Format: backup-{dbname}-2024-01-15T12-30-00-000Z.zip
@@ -101,7 +111,11 @@ const handleBackupDownload: TypedRouteHandler<
   "GET /admin/backup/download/:filename"
 > = (request, { filename }) =>
   requireOwnerOr(request, async () => {
-    if (!filename.startsWith(backupPrefix()) || !filename.endsWith(".zip")) {
+    if (
+      !filename.startsWith(backupPrefix()) ||
+      !filename.endsWith(".zip") ||
+      !isSafeBackupFilename(filename)
+    ) {
       return htmlResponse("Invalid backup filename", 400);
     }
 
@@ -171,7 +185,8 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
       const filename = form.getString("backup_filename");
       if (
         !filename?.startsWith(RESTORE_PENDING_PREFIX) ||
-        !filename.endsWith(".zip")
+        !filename.endsWith(".zip") ||
+        !isSafeBackupFilename(filename)
       ) {
         throw new Error("Invalid backup reference");
       }

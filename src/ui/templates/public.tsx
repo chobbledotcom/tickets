@@ -377,15 +377,29 @@ export const rateLimitedPage = (): string =>
  * Temporary error page with auto-refresh
  * Used when a transient CDN or network error occurs
  */
+const TEMPORARY_ERROR_HEAD = `<meta http-equiv="refresh" content="2" />
+<style>
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f8fafc;color:#0f172a}
+main{max-width:36rem;margin:18vh auto 0;padding:0 1.5rem}
+h1{font-size:1.875rem;line-height:1.2;margin:0 0 .75rem}
+p{line-height:1.5;margin:.75rem 0}
+a{color:#0369a1}
+</style>`;
+
 export const temporaryErrorPage = (): string =>
   String(
-    <Layout
-      headExtra='<meta http-equiv="refresh" content="2" />'
-      title="Temporary Error"
-    >
+    <Layout headExtra={TEMPORARY_ERROR_HEAD} title="Temporary Error">
       <h1>Temporary Error</h1>
       <p>
         Something went wrong loading this page. Retrying automatically&hellip;
+      </p>
+      <p>
+        <small>
+          Check{" "}
+          <strong>
+            <a href="https://status.bunny.net/">status.bunny.net</a>
+          </strong>
+        </small>
       </p>
     </Layout>,
   );

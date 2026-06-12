@@ -113,6 +113,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
+    test("returns 400 for filename with path traversal", async () => {
+      const { response } = await adminGet(
+        "/admin/backup/download/backup-local-..%2F..%2Fetc.zip",
+      );
+      expect(response.status).toBe(400);
+    });
+
     test("downloads existing backup as zip", async () => {
       await withLocalStorageEnabled(async () => {
         await adminFormPost("/admin/backup/create");
@@ -273,8 +280,18 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("successfully restores from backup", async () => {
       await withLocalStorageEnabled(async () => {
-        await createTestEvent({ name: "Restore Me" });
+        const event = await createTestEvent({ name: "Restore Me" });
         const zipData = await createBackupZip();
+        // Delete the event after capturing it in the backup so we can
+        // verify the restore actually writes data back to the DB.
+        const { deleteEvent, getAllEvents } = await import(
+          "#shared/db/events.ts"
+        );
+        await deleteEvent(event.id);
+        expect((await getAllEvents()).find((e) => e.id === event.id)).toBe(
+          undefined,
+        );
+
         await uploadRaw(zipData, "restore-pending-test.zip");
         const { response } = await adminFormPost(
           "/admin/backup/restore/confirm",
@@ -284,19 +301,31 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           },
         );
         expectRedirectWithFlash("/admin/backup")(response);
+
+        const restored = (await getAllEvents()).find((e) => e.id === event.id);
+        expect(restored).toBeDefined();
+        expect(restored!.name).toBe("Restore Me");
       });
     });
 
     test("rejects filename with traversal despite valid prefix and suffix", async () => {
       await withLocalStorageEnabled(async () => {
+        // Place a decoy at the traversal target — if traversal were allowed,
+        // the restore would attempt to read it. The validation layer must
+        // reject before any filesystem access.
+        await uploadRaw(new Uint8Array(1), "etc-passwd-decoy.zip");
         const { response } = await adminFormPost(
           "/admin/backup/restore/confirm",
           {
-            backup_filename: "restore-pending-x/../../etc/passwd.zip",
+            backup_filename: "restore-pending-x/../../etc-passwd-decoy.zip",
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash("/admin/backup")(response);
+        expectRedirectWithFlash(
+          "/admin/backup",
+          "Invalid backup reference",
+          false,
+        )(response);
       });
     });
 

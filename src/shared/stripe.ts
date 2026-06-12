@@ -5,7 +5,7 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -17,10 +17,12 @@ import {
 } from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
+  cachedClientFactory,
   type CredentialCheck,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
+  feeLineItems,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -35,8 +37,6 @@ const loadStripe = once(async () => {
   const { default: Stripe } = await import("stripe");
   return Stripe;
 });
-
-type StripeCache = { client: Stripe; secretKey: string };
 
 /** Nullable checkout session result */
 type CheckoutResult = Stripe.Checkout.Session | null;
@@ -156,33 +156,16 @@ const createStripeClient = async (secretKey: string): Promise<Stripe> => {
     : new StripeClass(secretKey);
 };
 
-const [getCache, setCache] = lazyRef<StripeCache>(() => {
-  throw new Error("Stripe cache not initialized");
+const clientCache = cachedClientFactory({
+  create: createStripeClient,
+  getConfig: () => settings.stripe.secretKey || null,
+  isSameConfig: (a: string, b: string) => a === b,
+  missingMessage: "No secret key configured, cannot create client",
+  provider: "Stripe",
 });
 
 /** Internal getStripeClient implementation */
-const getClientImpl = async (): Promise<Stripe | null> => {
-  const secretKey = settings.stripe.secretKey;
-  if (!secretKey) {
-    logDebug("Stripe", "No secret key configured, cannot create client");
-    return null;
-  }
-
-  try {
-    const cached = getCache();
-    if (cached.secretKey === secretKey) {
-      logDebug("Stripe", "Using cached Stripe client");
-      return cached.client;
-    }
-  } catch {
-    // Cache not initialized
-  }
-
-  logDebug("Stripe", "Creating new Stripe client");
-  const client = await createStripeClient(secretKey);
-  setCache({ client, secretKey });
-  return client;
-};
+const getClientImpl = (): Promise<Stripe | null> => clientCache.getClient();
 
 /** Run operation with stripe client, return null if not available */
 const withClient = createWithClient(getClientImpl);
@@ -195,20 +178,15 @@ type StripeCheckoutLineItem = NonNullable<
 const stripeFeeItems = (
   subtotal: number,
   currency: string,
-): StripeCheckoutLineItem[] => {
-  const amount = getBookingFeeAmount(subtotal);
-  if (amount <= 0) return [];
-  return [
-    {
-      price_data: {
-        currency,
-        product_data: { name: "Booking fee" },
-        unit_amount: amount,
-      },
-      quantity: 1,
+): StripeCheckoutLineItem[] =>
+  feeLineItems(subtotal, currency, (amount, cur) => ({
+    price_data: {
+      currency: cur,
+      product_data: { name: "Booking fee" },
+      unit_amount: amount,
     },
-  ];
-};
+    quantity: 1,
+  }));
 
 /**
  * Internal implementation of webhook endpoint setup.
@@ -344,7 +322,7 @@ export const stripeApi: {
 
   /** Reset Stripe client (for testing) */
   resetStripeClient: (): void => {
-    setCache(null);
+    clientCache.reset();
     setMockConfig(null);
   },
 
