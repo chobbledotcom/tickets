@@ -42,5 +42,5 @@ jobs:
           git push origin "$TAG"
           gh release create "$TAG" \
             --title "$TITLE" \
-            --generate-notes \
+            --notes "" \
             bunny-script.ts
