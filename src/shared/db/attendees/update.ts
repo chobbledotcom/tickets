@@ -33,17 +33,29 @@ const updateEventAttendeeField =
 const setRefunded = updateEventAttendeeField("refunded");
 const setCheckedIn = updateEventAttendeeField("checked_in");
 
+/**
+ * Mark an attendee as refunded for a specific event.
+ * Keeps payment_id intact so payment details can still be viewed.
+ */
 export const markRefunded = (
   attendeeId: number,
   eventId: number,
 ): Promise<void> => setRefunded(attendeeId, eventId, 1);
 
+/**
+ * Update an attendee's checked_in status for a specific event.
+ * Caller must be authenticated admin (public key always exists after setup)
+ */
 export const updateCheckedIn = (
   attendeeId: number,
   eventId: number,
   checkedIn: boolean,
 ): Promise<void> => setCheckedIn(attendeeId, eventId, checkedIn ? 1 : 0);
 
+/**
+ * Increment the attachment download counter for an attendee.
+ * Uses atomic SQL increment to avoid race conditions.
+ */
 export const incrementAttachmentDownloads = async (
   attendeeId: number,
   eventId: number,
@@ -54,6 +66,10 @@ export const incrementAttachmentDownloads = async (
   });
 };
 
+/**
+ * Update an attendee's PII (name, email, phone, etc.) — shared across all event links.
+ * Caller must be authenticated admin (public key always exists after setup).
+ */
 export const updateAttendeePII = async (
   attendeeId: number,
   input: UpdateAttendeePIIInput,
