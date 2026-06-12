@@ -66,7 +66,7 @@ type RouterFn = ReturnType<typeof createRouter>;
 const lazyExport = <M, K extends keyof M>(
   load: () => Promise<M>,
   key: K,
-): () => Promise<M[K]> => once(async () => (await load())[key]);
+): (() => Promise<M[K]>) => once(async () => (await load())[key]);
 
 // Lazy-load route groups so the edge script only pays for what a request uses
 const loadAdminRoutes = lazyExport(
@@ -124,17 +124,17 @@ const loadApiRoutes = lazyExport(
 const loadSetupRoutes = once(async () =>
   (await import("#routes/setup.ts")).createSetupRouter(
     settings.setup.isComplete,
-  )
+  ),
 );
 
 /** Lazy-load attachment download routes */
 const loadAttachmentRoutes = once(async () =>
-  createRouter((await import("#routes/attachments.ts")).attachmentRoutes)
+  createRouter((await import("#routes/attachments.ts")).attachmentRoutes),
 );
 
 /** Lazy-load admin API routes */
 const loadAdminApiRoutes = once(async () =>
-  createRouter((await import("#routes/admin/api.ts")).adminApiRoutes)
+  createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
 );
 
 /** Lazy-load renewal routes */
@@ -308,7 +308,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
   return (
     (await prefixHandlers[prefix]?.(request, path, method, server)) ??
-      notFoundResponse()
+    notFoundResponse()
   );
 };
 
@@ -370,7 +370,8 @@ const logAndReturn = (
 const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   const { pathname } = new URL(request.url);
   const contentType = request.headers.get("content-type") ?? "";
-  const needsBodyBuffer = request.method === "POST" &&
+  const needsBodyBuffer =
+    request.method === "POST" &&
     (isWebhookPath(normalizePath(pathname)) ||
       contentType.startsWith("multipart/form-data"));
   if (!needsBodyBuffer) return request;
@@ -543,9 +544,9 @@ export const handleRequest = async (
     runWithRequestCache(() =>
       runWithQueryLogContext(() =>
         runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server))
-        )
-      )
-    )
+          runWithSessionContext(() => processRequest(effectiveRequest, server)),
+        ),
+      ),
+    ),
   );
 };

@@ -58,9 +58,8 @@ const narrowCheckoutSession = (
   amount_total: session.amount_total,
   id: session.id,
   metadata: session.metadata,
-  payment_intent: typeof session.payment_intent === "string"
-    ? session.payment_intent
-    : null,
+  payment_intent:
+    typeof session.payment_intent === "string" ? session.payment_intent : null,
   payment_status: session.payment_status,
 });
 
@@ -77,11 +76,12 @@ const narrowPaymentIntent = (
   intent: Stripe.PaymentIntent,
 ): StripePaymentIntentFields => ({
   id: intent.id,
-  latest_charge: intent.latest_charge &&
-      typeof intent.latest_charge === "object" &&
-      "refunded" in intent.latest_charge
-    ? { refunded: intent.latest_charge.refunded }
-    : null,
+  latest_charge:
+    intent.latest_charge &&
+    typeof intent.latest_charge === "object" &&
+    "refunded" in intent.latest_charge
+      ? { refunded: intent.latest_charge.refunded }
+      : null,
 });
 
 /** Valid Stripe secret key prefixes */
@@ -272,9 +272,8 @@ export const stripeApi: {
       price_data: {
         currency,
         product_data: {
-          description: item.quantity > 1
-            ? `${item.quantity} Tickets`
-            : "Ticket",
+          description:
+            item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
           name: `Ticket: ${item.name}`,
         },
         unit_amount: item.unitPrice,
@@ -289,8 +288,7 @@ export const stripeApi: {
       line_items: lineItems,
       mode: "payment",
       payment_method_types: ["card"],
-      success_url:
-        `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
       metadata: enforceMetadataLimits(
         await buildItemsMetadata(intent),
@@ -534,8 +532,7 @@ export const verifyWebhookSignature = async (
   if (Math.abs(timestampDelta) > toleranceSeconds) {
     logError({
       code: ErrorCode.STRIPE_SIGNATURE,
-      detail:
-        `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
+      detail: `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
     });
     return { error: "Timestamp outside tolerance window", valid: false };
   }
@@ -546,7 +543,7 @@ export const verifyWebhookSignature = async (
 
   // Check if any signature matches (constant-time)
   const isValid = signatures.some((sig) =>
-    secureCompare(sig, expectedSignature)
+    secureCompare(sig, expectedSignature),
   );
 
   if (!isValid) {

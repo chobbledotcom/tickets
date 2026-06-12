@@ -130,11 +130,9 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
  * will become "" when extractSessionMetadata normalizes the metadata back.
  */
 const optionalFields = (
-  intent:
-    & Partial<
-      Pick<ContactInfo, "phone" | "address" | "special_instructions">
-    >
-    & { date: string | null },
+  intent: Partial<
+    Pick<ContactInfo, "phone" | "address" | "special_instructions">
+  > & { date: string | null },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -177,9 +175,8 @@ export const buildItemsMetadata = async (
   });
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
-type MetadataInput =
-  & Pick<BookingIntent, "name" | "email" | "items" | "date">
-  & Partial<
+type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
+  Partial<
     Pick<
       BookingIntent,
       | "phone"

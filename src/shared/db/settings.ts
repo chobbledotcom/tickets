@@ -411,28 +411,31 @@ type GeneratedUpdaters = {
 
 const ENCRYPTED_KEY_SET: ReadonlySet<string> = new Set(ENCRYPTED_KEYS);
 
-const buildStringGetters = (): GeneratedGetters => {
-  const obj = {};
+/** Build the generated getters and updaters in one pass over the registry. */
+const buildStringAccessors = (): {
+  getters: GeneratedGetters;
+  updaters: GeneratedUpdaters;
+} => {
+  const getters = {};
+  const updaters: Record<string, (v: string) => Promise<void>> = {};
   for (const [name, spec] of Object.entries<AccessorSpec>(STRING_ACCESSORS)) {
-    Object.defineProperty(obj, name, {
+    Object.defineProperty(getters, name, {
       enumerable: true,
       get: () => snap(spec.key),
     });
-  }
-  return obj as GeneratedGetters;
-};
-
-const buildStringUpdaters = (): GeneratedUpdaters => {
-  const obj: Record<string, (v: string) => Promise<void>> = {};
-  for (const [name, spec] of Object.entries<AccessorSpec>(STRING_ACCESSORS)) {
     if (spec.readOnly) continue;
     const update = ENCRYPTED_KEY_SET.has(spec.key)
       ? encryptedUpdate
       : plaintextUpdate;
-    obj[name] = update(spec.key);
+    updaters[name] = update(spec.key);
   }
-  return obj as GeneratedUpdaters;
+  return {
+    getters: getters as GeneratedGetters,
+    updaters: updaters as GeneratedUpdaters,
+  };
 };
+
+const stringAccessors = buildStringAccessors();
 
 /**
  * Copy property descriptors (preserving getters) from `props` onto `target`.
@@ -846,7 +849,7 @@ const settingsBase = {
   // Async writes — settings.update.*
   // -----------------------------------------------------------------------
   update: {
-    ...buildStringUpdaters(),
+    ...stringAccessors.updaters,
     // --- Apple Wallet writes ---
     appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
     bookingFee: async (v: string): Promise<void> => {
@@ -942,4 +945,4 @@ const settingsBase = {
   withCurrentTask,
 };
 
-export const settings = withProperties(settingsBase, buildStringGetters());
+export const settings = withProperties(settingsBase, stringAccessors.getters);

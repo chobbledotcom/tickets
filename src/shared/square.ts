@@ -297,9 +297,9 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
             tenders: o.tenders?.map(mapTender),
             totalMoney: o.total_money
               ? {
-                amount: BigInt(o.total_money.amount),
-                currency: o.total_money.currency,
-              }
+                  amount: BigInt(o.total_money.amount),
+                  currency: o.total_money.currency,
+                }
               : undefined,
           },
         };
@@ -316,17 +316,17 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           payment: {
             amountMoney: pm.amount_money
               ? {
-                amount: BigInt(pm.amount_money.amount),
-                currency: pm.amount_money.currency,
-              }
+                  amount: BigInt(pm.amount_money.amount),
+                  currency: pm.amount_money.currency,
+                }
               : undefined,
             id: pm.id,
             orderId: pm.order_id,
             refundedMoney: pm.refunded_money
               ? {
-                amount: BigInt(pm.refunded_money.amount),
-                currency: pm.refunded_money.currency,
-              }
+                  amount: BigInt(pm.refunded_money.amount),
+                  currency: pm.refunded_money.currency,
+                }
               : undefined,
             status: pm.status,
           },
@@ -484,10 +484,7 @@ const normalizeCheckoutPhone = (
 };
 
 /** Build a Square fee line item array (empty when fee is zero). */
-const squareFeeItems = (
-  subtotal: number,
-  currency: string,
-): SquareLineItem[] =>
+const squareFeeItems = (subtotal: number, currency: string): SquareLineItem[] =>
   feeLineItems(subtotal, currency, (amount, cur) => ({
     basePriceMoney: { amount: BigInt(amount), currency: cur },
     name: "Booking fee",
@@ -643,10 +640,11 @@ export const squareApi: {
       // Convert nullable metadata values to plain string record
       const metadata: Record<string, string> | undefined = order.metadata
         ? Object.fromEntries(
-          Object.entries(order.metadata).filter(
-            (entry): entry is [string, string] => typeof entry[1] === "string",
-          ),
-        )
+            Object.entries(order.metadata).filter(
+              (entry): entry is [string, string] =>
+                typeof entry[1] === "string",
+            ),
+          )
         : undefined;
 
       return {
@@ -743,7 +741,8 @@ export const squareApi: {
       result.webhook.error = "No webhook signature key configured";
     }
 
-    result.ok = result.accessToken.valid &&
+    result.ok =
+      result.accessToken.valid &&
       result.location.configured &&
       result.webhook.configured;
     return result;
@@ -834,18 +833,13 @@ export const verifyWebhookSignature = async (
   if (!secureCompare(signature, expectedSignature)) {
     logError({
       code: ErrorCode.SQUARE_SIGNATURE,
-      detail:
-        `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${
-          signature.slice(
-            0,
-            8,
-          )
-        }..., expectedPrefix=${
-          expectedSignature.slice(
-            0,
-            8,
-          )
-        }..., bodyLength=${payloadBytes.length}`,
+      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(
+        0,
+        8,
+      )}..., expectedPrefix=${expectedSignature.slice(
+        0,
+        8,
+      )}..., bodyLength=${payloadBytes.length}`,
     });
     return { error: "Signature verification failed", valid: false };
   }
