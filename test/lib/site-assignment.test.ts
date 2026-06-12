@@ -254,6 +254,27 @@ describeWithEnv(
         expect(body.subject).toBe("Your new site is ready");
       });
 
+      test("email links to the assigned site's /setup/ page", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+
+        await assignAndNotifyBuiltSites([siteEntry()]);
+
+        const body = JSON.parse(fetchStub.calls[0].args[1].body);
+        expect(body.html).toContain('href="https://a.test.net/setup/"');
+        expect(body.html).toContain("activate your site");
+        expect(body.text).toContain("https://a.test.net/setup/");
+      });
+
+      test("email setup link keeps the scheme when the site URL already has one", async () => {
+        await insertBuiltSite("Site C", "https://c.test.net/", "", "", true);
+
+        await assignAndNotifyBuiltSites([siteEntry()]);
+
+        const body = JSON.parse(fetchStub.calls[0].args[1].body);
+        expect(body.html).toContain('href="https://c.test.net/setup/"');
+        expect(body.text).toContain("https://c.test.net/setup/");
+      });
+
       test("uses DB email config when available and includes reply-to", async () => {
         // Configure email via DB settings (not host config) so getEmailConfig()
         // returns non-null, covering the left branch of the ?? operator

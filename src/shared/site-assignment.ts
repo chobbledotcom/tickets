@@ -376,6 +376,12 @@ const assignSitesForEntries = async (
   return assignments;
 };
 
+/** Absolute /setup/ link for a site — bunnyUrl may be a bare hostname. */
+const siteSetupUrl = (siteUrl: string): string => {
+  const base = /^https?:\/\//.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
+  return `${base.replace(/\/+$/, "")}/setup/`;
+};
+
 /** Send site assignment notification email */
 const sendSiteAssignmentEmail = async (
   to: string,
@@ -384,31 +390,33 @@ const sendSiteAssignmentEmail = async (
   const config = getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
-  const subject =
-    assignments.length === 1
-      ? "Your new site is ready"
-      : `Your ${assignments.length} new sites are ready`;
+  const plural = assignments.length > 1;
+  const subject = plural
+    ? `Your ${assignments.length} new sites are ready`
+    : "Your new site is ready";
 
-  const greeting = `Your new site${
-    assignments.length > 1 ? "s are" : " is"
-  } ready!`;
+  const greeting = `Your new site${plural ? "s are" : " is"} ready!`;
+  const activationNote = plural
+    ? "Visit the setup links below to activate your sites:"
+    : "Visit the setup link below to activate your site:";
 
   const htmlList = assignments
-    .map(
-      (a) => `<li>${a.eventName}: <a href="${a.siteUrl}">${a.siteUrl}</a></li>`,
-    )
+    .map((a) => {
+      const url = siteSetupUrl(a.siteUrl);
+      return `<li>${a.eventName}: <a href="${url}">${url}</a></li>`;
+    })
     .join("");
 
   const textList = assignments
-    .map((a) => `- ${a.eventName}: ${a.siteUrl}`)
+    .map((a) => `- ${a.eventName}: ${siteSetupUrl(a.siteUrl)}`)
     .join("\n");
 
   const replyTo = settings.businessEmail || undefined;
   await sendEmail(config, {
-    html: `<p>${greeting}</p><ul>${htmlList}</ul>`,
+    html: `<p>${greeting}</p><p>${activationNote}</p><ul>${htmlList}</ul>`,
     replyTo,
     subject,
-    text: `${greeting}\n\n${textList}`,
+    text: `${greeting}\n\n${activationNote}\n\n${textList}`,
     to,
   });
 };
