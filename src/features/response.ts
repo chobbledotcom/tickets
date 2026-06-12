@@ -9,6 +9,7 @@ import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import {
   notFoundPage,
   rateLimitedPage,
+  siteNotActivatedPage,
   temporaryErrorPage,
 } from "#templates/public.tsx";
 
@@ -57,6 +58,14 @@ export const paymentErrorResponse = (message: string, status = 400): Response =>
  */
 export const temporaryErrorResponse = (): Response =>
   htmlResponse(temporaryErrorPage(), 503);
+
+/**
+ * Create "site not activated" response for sites whose database has not
+ * been set up yet. 503 like temporaryErrorResponse, but without the
+ * auto-refresh — the state only changes once someone completes /setup.
+ */
+export const siteNotActivatedResponse = (): Response =>
+  htmlResponse(siteNotActivatedPage(), 503);
 
 /**
  * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.
