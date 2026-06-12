@@ -31,6 +31,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { initDb } from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -322,12 +323,8 @@ const handleRequestInternal = async (
   method: string,
   server?: ServerContext,
 ): Promise<Response> => {
-  // Static routes always available (minimal overhead)
-  const staticResponse = await routeStatic(request, path, method);
-  if (staticResponse) return staticResponse;
-
   // Setup routes - only load for /setup paths
-  if (path === "/setup" || path.startsWith("/setup/")) {
+  if (isSetupPath(path)) {
     const routeSetup = await loadSetupRoutes();
     const setupResponse = await routeSetup(request, path, method);
     if (setupResponse) return setupResponse;
@@ -335,10 +332,19 @@ const handleRequestInternal = async (
 
   // Require setup before accessing other routes
   if (!(await settings.setup.isComplete())) {
-    return redirectResponse("/setup");
+    return isSetupPath(path)
+      ? redirectResponse("/setup")
+      : temporaryErrorResponse();
   }
 
   return (await routeMainApp(request, path, method, server))!;
+};
+
+const isSetupPath = (path: string): boolean =>
+  path === "/setup" || path.startsWith("/setup/");
+
+const initializeDatabaseForPath = async (path: string): Promise<void> => {
+  await initDb({ allowMissingSettings: isSetupPath(path) });
 };
 
 /** Log request and return response */
@@ -491,7 +497,20 @@ const processRequest = async (
   detectIframeMode(effectiveRequest.url);
   clearSavedFormData();
 
+  let response!: Response;
   try {
+    const staticResponse = await routeStatic(effectiveRequest, path, method);
+    if (staticResponse) {
+      return logAndReturn(
+        await applySecurityHeaders(staticResponse, isEmbeddablePath(path)),
+        method,
+        path,
+        getElapsed,
+      );
+    }
+
+    await initializeDatabaseForPath(path);
+
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
       return logAndReturn(trackingRedirect, method, path, getElapsed);
@@ -499,8 +518,6 @@ const processRequest = async (
 
     await prepareRequestEnvironment(effectiveRequest);
 
-    // Content-Type validation: reject POST requests without proper Content-Type
-    // (webhook endpoints accept JSON, all others require form-urlencoded)
     if (!isValidContentType(effectiveRequest, path)) {
       return logAndReturn(
         contentTypeRejectionResponse(),
@@ -510,25 +527,23 @@ const processRequest = async (
       );
     }
 
-    try {
-      const response = await routeAndFinalize(
-        effectiveRequest,
-        path,
-        method,
-        server,
-      );
-      return logAndReturn(response, method, path, getElapsed);
-    } catch (error) {
-      return logAndReturn(
-        handleRoutingError(error, method, path),
-        method,
-        path,
-        getElapsed,
-      );
-    }
+    response = logAndReturn(
+      await routeAndFinalize(effectiveRequest, path, method, server),
+      method,
+      path,
+      getElapsed,
+    );
+  } catch (error) {
+    response = logAndReturn(
+      handleRoutingError(error, method, path),
+      method,
+      path,
+      getElapsed,
+    );
   } finally {
     await flushPendingWork();
   }
+  return response;
 };
 
 /**

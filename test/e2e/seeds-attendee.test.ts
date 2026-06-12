@@ -53,7 +53,7 @@ describe("e2e: seeded attendee views", () => {
 
   test("setup → seed → dashboard → event page → attendee edit page all render", async () => {
     // 1. Complete initial setup
-    await browser.visit("/");
+    await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
     await browser.submitForm(
       {

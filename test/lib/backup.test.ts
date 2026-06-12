@@ -309,6 +309,23 @@ describeWithEnv("backup", { db: true }, () => {
       );
       expect(events.length).toBe(0);
     });
+
+    test("initDb re-checks markers after a restore instead of trusting the ready cache", async () => {
+      await initDb(); // the client is confirmed ready and cached
+
+      // Restore a backup whose markers predate the current schema.
+      await restoreFromSql(
+        "INSERT INTO settings (key, value) VALUES ('latest_db_update', 'from-old-backup');\n" +
+          "INSERT INTO settings (key, value) VALUES ('db_schema_hash', 'from-old-backup');\n",
+      );
+
+      await initDb();
+
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+      );
+      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+    });
   });
 
   describe("restoreFromZip", () => {

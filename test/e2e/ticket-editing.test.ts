@@ -84,7 +84,7 @@ describe("e2e: ticket editing flow", () => {
 
   test("edit attendee contact info preserves bookings", async () => {
     // 1. Setup: create admin, log in, create event with two attendees
-    await browser.visit("/");
+    await browser.visit("/setup/");
     await browser.submitForm(
       {
         accept_agreement: "yes",
@@ -234,8 +234,8 @@ describe("e2e: ticket editing flow", () => {
   });
 
   test("create events → add attendees → move attendees between events", async () => {
-    // 1. Visit homepage — should redirect to setup since no setup done
-    await browser.visit("/");
+    // 1. Visit setup directly — initial DB creation is only allowed there.
+    await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
 
     // 2. Complete setup

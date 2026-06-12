@@ -8,7 +8,6 @@ import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
-import { initDb } from "#shared/db/migrations.ts";
 import {
   ErrorCode,
   formatRequestError,
@@ -16,15 +15,14 @@ import {
   logError,
 } from "#shared/logger.ts";
 
-const initialize = once(async (): Promise<void> => {
+const initialize = once((): void => {
   validateEncryptionKey();
-  await initDb();
   logDebug("Setup", "App started");
 });
 
 BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
   try {
-    await initialize();
+    initialize();
     return await handleRequest(request);
   } catch (error) {
     const url = new URL(request.url);
