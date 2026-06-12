@@ -247,7 +247,7 @@ describe("db > event_attendees migration from legacy schema", () => {
     });
   };
 
-  test("migration backfills event_attendees and preserves processed_payments", async () => {
+  test("migration backfills event_attendees, event duration, and processed_payments", async () => {
     const client = await createLegacyDb();
 
     await client.execute(
@@ -286,6 +286,9 @@ describe("db > event_attendees migration from legacy schema", () => {
     } finally {
       pragmaStub.restore();
     }
+
+    const events = await client.execute("SELECT duration_days FROM events");
+    expect(events.rows[0]!.duration_days).toBe(1);
 
     const ea = await client.execute("SELECT * FROM event_attendees");
     expect(ea.rows.length).toBe(1);
