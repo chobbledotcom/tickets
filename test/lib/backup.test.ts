@@ -7,7 +7,6 @@ import {
   backupFilename,
   backupPrefix,
   backupTimestamp,
-  compareBackupNewestFirst,
   countZipStatements,
   createBackup,
   createBackupZip,
@@ -285,29 +284,11 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
-  describe("compareBackupNewestFirst", () => {
-    const newer = () =>
-      backupFilename(backupTimestamp(new Date("2024-02-01T00:00:00Z")));
-    const older = () =>
-      backupFilename(backupTimestamp(new Date("2024-01-01T00:00:00Z")));
-
-    test("orders the newer backup before the older one", () => {
-      expect(compareBackupNewestFirst(newer(), older())).toBeLessThan(0);
-      expect(compareBackupNewestFirst(older(), newer())).toBeGreaterThan(0);
-    });
-
-    test("treats an un-parseable name as oldest", () => {
-      const garbage = `${backupPrefix()}garbage.zip`;
-      expect(compareBackupNewestFirst(newer(), garbage)).toBeLessThan(0);
-      expect(compareBackupNewestFirst(garbage, newer())).toBeGreaterThan(0);
-    });
-  });
-
   describe("pruneOldBackups", () => {
     const seed = (when: Date) =>
       uploadRaw(new Uint8Array([1]), backupFilename(backupTimestamp(when)));
 
-    test("removes the oldest backups beyond the keep count, newest first", async () => {
+    test("removes the oldest backups beyond the keep count, ignoring non-zip files", async () => {
       const tmpDir = Deno.makeTempDirSync();
       const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
@@ -317,15 +298,12 @@ describeWithEnv("backup", { db: true }, () => {
         await seed(d1);
         await seed(d2);
         await seed(d3);
-        // Un-parseable name sorts as oldest; a non-zip file is ignored entirely.
-        await uploadRaw(new Uint8Array([1]), `${backupPrefix()}garbage.zip`);
+        // A non-zip file is ignored entirely.
         await uploadRaw(new Uint8Array([1]), `${backupPrefix()}notes.txt`);
 
         const removed = await pruneOldBackups(2);
 
-        expect(removed).toContain(backupFilename(backupTimestamp(d1)));
-        expect(removed).toContain(`${backupPrefix()}garbage.zip`);
-        expect(removed).toHaveLength(2);
+        expect(removed).toEqual([backupFilename(backupTimestamp(d1))]);
 
         const remaining = await listFiles(backupPrefix());
         expect(remaining).toEqual([

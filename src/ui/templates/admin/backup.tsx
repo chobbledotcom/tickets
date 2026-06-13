@@ -33,19 +33,16 @@ const RetentionNote = ({
   maxBackups: number;
 }): JSX.Element => {
   const count = backups.length;
-  const countSentence =
-    count === 1 ? "There is 1 backup" : `There are ${count} backups`;
-  const purgeSentence =
-    count >= maxBackups
-      ? `The next backup you create will purge the oldest (${
-          backups[count - 1]!.label
-        }).`
-      : `${maxBackups - count} more can be created before the oldest is purged.`;
+  const remaining = maxBackups - count;
+  const oldest = backups[count - 1]!.label;
   return (
     <div class="prose">
       <p>
-        {countSentence}, shown newest first. Up to {maxBackups} are kept —{" "}
-        {purgeSentence}
+        {count === 1 ? "There is 1 backup" : `There are ${count} backups`},
+        shown newest first. Up to {maxBackups} are kept —{" "}
+        {remaining > 0
+          ? `${remaining} more can be created before the oldest is purged.`
+          : `the next will purge the oldest (${oldest}).`}
       </p>
     </div>
   );

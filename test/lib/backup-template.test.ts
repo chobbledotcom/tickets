@@ -130,9 +130,7 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       maxBackups: 3,
     });
     expect(html).toContain("There are 3 backups");
-    expect(html).toContain(
-      "The next backup you create will purge the oldest (backup 1)",
-    );
+    expect(html).toContain("the next will purge the oldest (backup 1)");
   });
 
   test("renders restore form with file upload for .zip", () => {

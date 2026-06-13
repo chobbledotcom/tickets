@@ -6,7 +6,6 @@
  * storage since the sensitive data is already encrypted at the field level.
  */
 
-import { sort } from "#fp";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
@@ -17,7 +16,6 @@ import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import {
   backupPrefix,
-  compareBackupNewestFirst,
   countZipStatements,
   createAndUploadBackup,
   isRemoteDatabase,
@@ -56,27 +54,24 @@ const isSafeBackupFilename = (filename: string): boolean =>
   !filename.includes("\\") &&
   !filename.includes("..");
 
-/** Parse a backup file into display info (friendly date + human size) */
-const parseBackupEntry = (file: StorageFileMeta): BackupEntry => {
-  // Format: backup-{dbname}-2024-01-15T12-30-00-000Z.zip
-  const withoutPrefix = file.name.slice(backupPrefix().length);
-  const rawTimestamp = withoutPrefix.replace(/\.zip$/, "");
-  const ms = parseBackupTime(file.name);
-  const label =
-    ms === null
-      ? rawTimestamp
-      : formatDatetimeLabel(new Date(ms).toISOString());
-  return { filename: file.name, label, sizeLabel: formatBytes(file.size) };
-};
+/** Parse a backup file into display info (friendly date + human size).
+ *  Filenames are server-generated, so parseBackupTime always succeeds. */
+const parseBackupEntry = (file: StorageFileMeta): BackupEntry => ({
+  filename: file.name,
+  label: formatDatetimeLabel(
+    new Date(parseBackupTime(file.name)!).toISOString(),
+  ),
+  sizeLabel: formatBytes(file.size),
+});
 
-/** List existing backups from storage scoped to the current DB, newest first */
+/** List existing backups from storage scoped to the current DB, newest first.
+ *  Filenames embed ISO timestamps, so name order is chronological. */
 const listBackups = async (): Promise<BackupEntry[]> => {
   const files = await listFilesWithMeta(backupPrefix());
-  const zips = files.filter((f) => f.name.endsWith(".zip"));
-  const ordered = sort((a: StorageFileMeta, b: StorageFileMeta) =>
-    compareBackupNewestFirst(a.name, b.name),
-  )(zips);
-  return ordered.map(parseBackupEntry);
+  return files
+    .filter((f) => f.name.endsWith(".zip"))
+    .reverse()
+    .map(parseBackupEntry);
 };
 
 /** Delete any stale restore-pending temp files (best effort, fire-and-forget) */

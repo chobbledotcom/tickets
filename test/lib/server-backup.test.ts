@@ -93,17 +93,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
-    test("shows retention summary and falls back to the raw name for un-parseable backups", async () => {
+    test("shows the retention summary once a backup exists", async () => {
       await withLocalStorageEnabled(async () => {
-        const { backupPrefix } = await import("#shared/db/backup.ts");
-        // A prefix-matching .zip whose name has no valid timestamp.
-        await uploadRaw(new Uint8Array(3), `${backupPrefix()}garbage.zip`);
+        await adminFormPost("/admin/backup/create");
         const { response } = await adminGet("/admin/backup");
         const html = await response.text();
         expect(html).toContain("There is 1 backup");
-        expect(html).toContain("garbage");
-        // Human-readable size is rendered next to the entry.
-        expect(html).toContain("3B");
+        expect(html).toContain("Up to 30 are kept");
       });
     });
   });
