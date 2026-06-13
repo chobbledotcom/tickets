@@ -452,6 +452,7 @@ describe("adminAdvancedSettingsPage", () => {
     hostAppleWalletLabel: "",
     hostEmailLabel: "",
     hostGoogleWalletLabel: "",
+    paymentProvider: "",
     showPublicApi: false,
     subdomainPreview: "",
     subdomainPreviewFullDomain: "",
@@ -523,5 +524,37 @@ describe("adminAdvancedSettingsPage", () => {
     expect(html).toContain('name="save"');
     expect(html).toContain("Confirm registration");
     expect(html).toContain('value="myevent"');
+  });
+
+  test("custom domain form warns Square users about the webhook URL", () => {
+    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+      ...advancedDefaultState,
+      bunnyCdnEnabled: true,
+      paymentProvider: "square",
+    });
+    expect(html).toContain("Changing your domain changes your payment webhook");
+    expect(html).toContain('href="/admin/settings#settings-square-webhook"');
+  });
+
+  test("subdomain form warns Stripe users about the webhook URL", () => {
+    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+      ...advancedDefaultState,
+      bunnyDnsEnabled: true,
+      paymentProvider: "stripe",
+    });
+    expect(html).toContain("Changing your domain changes your payment webhook");
+    expect(html).toContain('href="/admin/settings#settings-stripe"');
+  });
+
+  test("does not warn about webhooks for providers without webhooks", () => {
+    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+      ...advancedDefaultState,
+      bunnyCdnEnabled: true,
+      bunnyDnsEnabled: true,
+      paymentProvider: "sumup",
+    });
+    expect(html).not.toContain(
+      "Changing your domain changes your payment webhook",
+    );
   });
 });

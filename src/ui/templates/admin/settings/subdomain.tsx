@@ -4,6 +4,7 @@
 
 import type { SafeHtml } from "#jsx/jsx-runtime";
 import { CsrfForm } from "#shared/forms.tsx";
+import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 const SubdomainIntroProse = (): SafeHtml => (
@@ -42,6 +43,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
           <strong>{s.subdomainPreviewFullDomain}</strong> is available.
         </p>
         <input name="subdomain" type="hidden" value={s.subdomainPreview} />
+        <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
         <label>
           <input name="save" type="checkbox" value="1" /> Confirm registration
           (cannot be undone)
@@ -72,6 +74,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         />
         <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
       </label>
+      <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
       <button type="submit">
         Check Availability &amp; Preview Complete Domain
       </button>

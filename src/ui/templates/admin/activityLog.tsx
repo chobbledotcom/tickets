@@ -5,16 +5,40 @@
 import { joinStrings, map, pipe } from "#fp";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import type { AdminSession, EventWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
+
+/** Label of the Square signature error, used to spot it in log messages */
+const SQUARE_SIGNATURE_LABEL = errorCodeLabel[ErrorCode.SQUARE_SIGNATURE];
+
+/**
+ * Hint prepended to Square webhook signature failures: these almost always
+ * mean a mis-pasted Square credential that the owner needs to re-enter, so we
+ * link straight to the relevant settings.
+ */
+const SquareSignatureHint = (): SafeHtml => (
+  <>
+    <a href="/admin/settings#settings-square-webhook">
+      Click here to re-do your Square settings, paying close attention to the
+      name of each field.
+    </a>{" "}
+  </>
+);
 
 const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
   String(
     <tr>
       <td>{formatDatetimeShort(entry.created)}</td>
-      <td>{entry.message}</td>
+      <td>
+        {entry.message.includes(SQUARE_SIGNATURE_LABEL) ? (
+          <SquareSignatureHint />
+        ) : null}
+        {entry.message}
+      </td>
     </tr>,
   );
 

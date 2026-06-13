@@ -79,6 +79,32 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
+    test("rejects an access token that looks like an application ID", async () => {
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "sq0idp-EXAMPLE",
+        square_location_id: "L_test_456",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("application ID or secret"),
+        false,
+      );
+    });
+
+    test("rejects a location ID that looks like an access token", async () => {
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_new",
+        square_location_id: "EAAAl_pasted_token",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not a Location ID"),
+        false,
+      );
+    });
+
     test("settings page shows Square is not configured initially", async () => {
       await settings.update.paymentProvider("square");
       const response = await awaitTestRequest("/admin/settings", {
@@ -135,6 +161,19 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining("Square webhook signature key updated"),
+      );
+    });
+
+    test("rejects a signature key that looks like an access token", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/square-webhook",
+        { square_webhook_signature_key: "EAAAl_pasted_access_token" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not a webhook signature key"),
+        false,
       );
     });
 

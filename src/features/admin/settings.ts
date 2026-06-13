@@ -88,6 +88,11 @@ import type { PaymentProviderType } from "#shared/payments.ts";
 import { fail, ok } from "#shared/response.ts";
 import { testSquareConnection } from "#shared/square.ts";
 import {
+  validateSquareAccessToken,
+  validateSquareLocationId,
+  validateSquareWebhookSignatureKey,
+} from "#shared/square-validation.ts";
+import {
   deleteAllEventStorageFiles,
   deleteFile,
   IMAGE_ERROR_MESSAGES,
@@ -207,6 +212,7 @@ const getAdvancedSettingsPageState = async (
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
+    paymentProvider: settings.paymentProvider ?? "",
     showPublicApi: settings.showPublicApi,
     subdomainPreview,
     subdomainPreviewFullDomain,
@@ -444,8 +450,14 @@ const handleAdminSquarePost = settingsHandler<SquareFormData>({
   validate: ({ token, locationId }) => {
     if (isDemoMode()) return "Cannot configure Square in demo mode";
     if (!locationId) return "Location ID is required";
+    const locationError = validateSquareLocationId(locationId);
+    if (locationError) return locationError;
     if (token.action === "cleared" && !settings.square.hasToken) {
       return "Square Access Token is required";
+    }
+    if (token.action === "provided") {
+      const tokenError = validateSquareAccessToken(token.value);
+      if (tokenError) return tokenError;
     }
     return null;
   },
@@ -460,6 +472,7 @@ const handleAdminSquareWebhookPost = settingsSecret({
   label: "Square webhook signature key",
   required: true,
   save: (v) => settings.update.square.webhookSignatureKey(v),
+  validate: validateSquareWebhookSignatureKey,
 });
 
 const handleStripeTestPost = testRoute(testStripeConnection);

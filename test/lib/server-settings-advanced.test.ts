@@ -56,6 +56,14 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
       expect(html).toContain("Be careful changing settings on this page");
     });
 
+    test("renders with a payment provider configured", async () => {
+      await settings.update.paymentProvider("square");
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(response, 200, "Advanced Settings");
+    });
+
     test("shows breadcrumb back to settings", async () => {
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie: await testCookie(),

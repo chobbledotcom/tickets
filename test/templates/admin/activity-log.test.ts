@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
   adminEventActivityLogPage,
   adminGlobalActivityLogPage,
@@ -88,5 +89,37 @@ describe("adminGlobalActivityLogPage", () => {
     ];
     const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION);
     expect(html).not.toContain("Showing the most recent 200 entries");
+  });
+
+  test("prefixes Square signature errors with a link to re-do settings", () => {
+    const entries = [
+      {
+        created: "2024-01-15T10:30:00Z",
+        event_id: null,
+        id: 1,
+        message: formatErrorMessage({
+          code: ErrorCode.SQUARE_SIGNATURE,
+          detail: "mismatch",
+        }),
+      },
+    ];
+    const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION);
+    expect(html).toContain('href="/admin/settings#settings-square-webhook"');
+    expect(html).toContain("Click here to re-do your Square settings");
+    // The original error message is still shown after the link
+    expect(html).toContain("Square signature verification failed");
+  });
+
+  test("does not add the Square settings link to unrelated messages", () => {
+    const entries = [
+      {
+        created: "2024-01-15T10:30:00Z",
+        event_id: null,
+        id: 1,
+        message: "Payment received",
+      },
+    ];
+    const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION);
+    expect(html).not.toContain("Click here to re-do your Square settings");
   });
 });
