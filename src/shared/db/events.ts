@@ -384,20 +384,20 @@ export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
  * Used for the calendar date picker (lightweight, no attendee data).
  */
 export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
-  const rows = await queryAll<{ start_at: string; end_at: string | null }>(
+  // start_at and end_at are always written together (see dateToStartEnd), so
+  // filtering on both being non-null lets the row type stay honestly non-null.
+  const rows = await queryAll<{ start_at: string; end_at: string }>(
     `SELECT DISTINCT ea.start_at, ea.end_at FROM event_attendees ea
      INNER JOIN events e ON ea.event_id = e.id
-     WHERE e.event_type = 'daily' AND ea.start_at IS NOT NULL`,
+     WHERE e.event_type = 'daily'
+       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
   // covers, so multi-day bookings mark every day they occupy as selectable.
   const dates = reduce(
-    (acc: string[], row: { start_at: string; end_at: string | null }) => {
-      const start = row.start_at.slice(0, 10);
-      const endExclusive = row.end_at
-        ? row.end_at.slice(0, 10)
-        : addDays(start, 1);
-      let current = start;
+    (acc: string[], row: { start_at: string; end_at: string }) => {
+      const endExclusive = row.end_at.slice(0, 10);
+      let current = row.start_at.slice(0, 10);
       while (current < endExclusive) {
         acc.push(current);
         current = addDays(current, 1);
