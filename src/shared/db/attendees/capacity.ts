@@ -225,7 +225,7 @@ const perDayLoads = (
 
 /** Fetch all of an event's rows overlapping the span of `days` — one query
  * regardless of how many days the booking covers. */
-const getOverlappingRows = async (
+const getOverlappingRows = (
   eventId: number,
   days: string[],
   excludeAttendeeId?: number,
