@@ -2,7 +2,6 @@
  * Update operations for attendees and their per-event bookings.
  */
 
-import { addDays } from "#shared/dates.ts";
 import type {
   EventBooking,
   UpdateAttendeePIIInput,
@@ -94,11 +93,21 @@ export const recomputeEventBookingRanges = async (
   invalidateEventsCache();
 };
 
+/** A booking's day range as [start, end) YYYY-MM-DD strings (day-aligned —
+ * every writer stores midnight-anchored ranges). */
+type DayInterval = { start: string; end: string; quantity: number };
+
 /**
  * After a duration change on a grouped event, check whether any day in any
- * existing booking's new range now exceeds the group cap. Returns the first
- * over-capacity day, or null if everything fits.
+ * existing booking's new range now exceeds the group cap. Returns the
+ * earliest over-capacity day, or null if everything fits.
  * Call AFTER recomputeEventBookingRanges so end_at is already updated.
+ *
+ * One query fetches every booking row in the group; per-day occupancy is
+ * computed in JS with a boundary sweep. Occupancy only changes on days
+ * where some booking starts, so checking interval start days that fall
+ * inside this event's booked ranges finds the earliest overflow without
+ * walking (and querying) every day of every range.
  */
 export const checkGroupCapAfterDurationChange = async (
   eventId: number,
@@ -112,31 +121,72 @@ export const checkGroupCapAfterDurationChange = async (
   const groupLimit = cap[0]!.max_attendees;
   if (groupLimit <= 0) return null;
 
-  const rows = await queryAll<{ start_at: string; end_at: string }>(
-    "SELECT DISTINCT start_at, end_at FROM event_attendees WHERE event_id = ? AND start_at IS NOT NULL",
-    [eventId],
+  const rows = await queryAll<{
+    event_id: number;
+    event_type: string;
+    start_at: string | null;
+    end_at: string | null;
+    quantity: number;
+  }>(
+    `SELECT ea.event_id, e.event_type, ea.start_at, ea.end_at, ea.quantity
+     FROM event_attendees ea
+     JOIN events e ON e.id = ea.event_id
+     WHERE e.group_id = ?`,
+    [groupId],
   );
+
+  // Rows on non-daily events count on every day; daily rows count on the
+  // days of their [start, end) range. NULL-range rows on daily events never
+  // count (pre-daily legacy bookings), mirroring the SQL overlap predicate.
+  let base = 0;
+  const intervals: DayInterval[] = [];
+  const eventRanges: DayInterval[] = [];
   for (const row of rows) {
-    const startDate = row.start_at.slice(0, 10);
-    const endMs = new Date(row.end_at).getTime();
-    const startMs = new Date(row.start_at).getTime();
-    const days = Math.round((endMs - startMs) / 86_400_000);
-    for (let i = 0; i < days; i++) {
-      const day = addDays(startDate, i);
-      const dayStart = `${day}T00:00:00Z`;
-      const dayEnd = new Date(
-        new Date(dayStart).getTime() + 86_400_000,
-      ).toISOString();
-      const counted = await queryAll<{ count: number }>(
-        `SELECT COALESCE(SUM(ea.quantity), 0) as count
-         FROM event_attendees ea
-         JOIN events e ON e.id = ea.event_id
-         WHERE e.group_id = ?
-           AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
-        [groupId, dayEnd, dayStart],
-      );
-      if (counted[0]!.count > groupLimit) return day;
+    if (row.event_type !== "daily") {
+      base += row.quantity;
+    } else if (row.start_at !== null && row.end_at !== null) {
+      const interval = {
+        end: row.end_at.slice(0, 10),
+        quantity: row.quantity,
+        start: row.start_at.slice(0, 10),
+      };
+      intervals.push(interval);
+      if (row.event_id === eventId) eventRanges.push(interval);
     }
+  }
+
+  // Boundary sweep: running occupancy at each day where any interval starts
+  // or ends. loadAt(day) = total daily quantity covering that day.
+  const deltas = new Map<string, number>();
+  for (const itv of intervals) {
+    deltas.set(itv.start, (deltas.get(itv.start) ?? 0) + itv.quantity);
+    deltas.set(itv.end, (deltas.get(itv.end) ?? 0) - itv.quantity);
+  }
+  const boundaries = [...deltas.keys()].sort();
+  const loadAt = new Map<string, number>();
+  let running = 0;
+  for (const day of boundaries) {
+    running += deltas.get(day)!;
+    loadAt.set(day, running);
+  }
+
+  // Walk candidate days (interval starts) in ascending order, tracking the
+  // max end of this event's ranges that start at or before the candidate —
+  // the candidate is inside this event's booked days iff that end is later.
+  const sortedRanges = [...eventRanges].sort((a, b) =>
+    a.start < b.start ? -1 : 1
+  );
+  const startDays = [...new Set(intervals.map((i) => i.start))].sort();
+  let rangeIdx = 0;
+  let maxEnd = "";
+  for (const day of startDays) {
+    while (rangeIdx < sortedRanges.length && sortedRanges[rangeIdx]!.start <= day) {
+      const end = sortedRanges[rangeIdx]!.end;
+      if (end > maxEnd) maxEnd = end;
+      rangeIdx++;
+    }
+    if (day >= maxEnd) continue;
+    if (base + loadAt.get(day)! > groupLimit) return day;
   }
   return null;
 };

@@ -39,7 +39,6 @@ export {
   CAPACITY_EXCEEDED,
   checkCapacityResult,
   dateToStartEnd,
-  getDateAttendeeCount,
   getGroupRemainingByEventId,
   getGroupRemainingByGroupId,
   getGroupRemainingForEvent,

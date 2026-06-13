@@ -587,6 +587,45 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       ).toBeNull();
     });
 
+    test("checkGroupCapAfterDurationChange counts rows of a type-flipped event on every day", async () => {
+      // A sibling event flipped to standard after booking: its rows count
+      // toward the group cap on every day, so day 1 of the daily event's
+      // booking (5 + 6 = 11 > 10) overflows even with no range overlap.
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const daily = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      const sibling = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(daily, { date: "2026-10-01", quantity: 5 });
+      await bookAttendee(sibling, { date: "2026-10-20", quantity: 6 });
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute({
+        args: [sibling.id],
+        sql: "UPDATE events SET event_type = 'standard' WHERE id = ?",
+      });
+      expect(
+        await checkGroupCapAfterDurationChange(daily.id, group.id),
+      ).toBe("2026-10-01");
+    });
+
+    test("checkGroupCapAfterDurationChange returns null when the event has no bookings", async () => {
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const event = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      expect(
+        await checkGroupCapAfterDurationChange(event.id, group.id),
+      ).toBeNull();
+    });
+
     test("checkGroupCapAfterDurationChange counts legacy null-start_at attendees via the non-daily clause", async () => {
       // A daily group event that had attendees added before it was daily
       // (their start_at is NULL). The SQL counts them via `e.event_type
