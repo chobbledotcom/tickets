@@ -841,7 +841,6 @@ const MIGRATIONS: Migration[] = [
   },
   {
     description:
-<<<<<<< HEAD
       "Add encrypted sumup_checkouts staging table for SumUp metadata",
     id: "2026-06-12_sumup_checkouts",
     up: async () => {

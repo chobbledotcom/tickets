@@ -35,10 +35,6 @@ export type {
   UpdateEventLinkResult,
 } from "#shared/db/attendee-types.ts";
 export {
-  buildCapacityCheckedInsert,
-  CAPACITY_EXCEEDED,
-  checkCapacityResult,
-  dateToStartEnd,
   getGroupRemainingByEventId,
   getGroupRemainingByGroupId,
   getGroupRemainingForEvent,
