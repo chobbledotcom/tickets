@@ -26,7 +26,10 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
-import { loadEffectiveDomain } from "#shared/config.ts";
+import {
+  loadEffectiveDomain,
+  seedEffectiveDomainHost,
+} from "#shared/config.ts";
 import {
   clearFlashCookie,
   clearSessionCookie,
@@ -524,6 +527,12 @@ const processRequest = async (
         getElapsed,
       );
     }
+
+    // Seed the effective domain from the request host before touching the
+    // database, so errors during migration (e.g. on the first request after a
+    // cold boot) identify the real site instead of falling back to "localhost".
+    // prepareRequestEnvironment() refines this once settings are loaded.
+    seedEffectiveDomainHost(url.href);
 
     const notActivated = await initializeDatabaseForPath(path);
     if (notActivated) {
