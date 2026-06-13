@@ -1129,7 +1129,9 @@ form:has(select[name="event_type"] option[value="standard"]:checked)
 form:has(select[name="event_type"] option[value="standard"]:checked)
   > label:has([name="minimum_days_before"]),
 form:has(select[name="event_type"] option[value="standard"]:checked)
-  > label:has([name="maximum_days_after"]) {
+  > label:has([name="maximum_days_after"]),
+form:has(select[name="event_type"] option[value="standard"]:checked)
+  > label:has([name="duration_days"]) {
   display: none;
 }
 
