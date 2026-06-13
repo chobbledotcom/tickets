@@ -46,6 +46,20 @@ export const loadEffectiveDomain = (requestUrl: string): string => {
   return effectiveDomainState.domain;
 };
 
+/**
+ * Seed the effective domain from the request's own hostname.
+ *
+ * loadEffectiveDomain() runs late in the request (after settings are loaded),
+ * so anything that fails before it — most notably database migrations on the
+ * first request after a cold boot — would otherwise read the bare "localhost"
+ * fallback in error notifications. Seeding the request host early makes those
+ * notifications (e.g. ntfy titles) identify the real site. The value is
+ * refined later by loadEffectiveDomain() once the custom domain is known.
+ */
+export const seedEffectiveDomainHost = (requestUrl: string): void => {
+  effectiveDomainState.domain = new URL(requestUrl).hostname;
+};
+
 /** Get the effective domain synchronously (must call loadEffectiveDomain first). */
 export const getEffectiveDomain = (): string =>
   effectiveDomainState.domain ?? "localhost";

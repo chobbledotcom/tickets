@@ -7,6 +7,7 @@ import {
   isPaymentsEnabled,
   loadEffectiveDomain,
   resetEffectiveDomain,
+  seedEffectiveDomainHost,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -90,6 +91,21 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
 
   test("returns 'localhost' before loadEffectiveDomain has been called", () => {
     expect(getEffectiveDomain()).toBe("localhost");
+  });
+
+  test("seedEffectiveDomainHost sets the request hostname before settings load", () => {
+    seedEffectiveDomainHost("https://event.example.com/ticket/abc");
+    expect(getEffectiveDomain()).toBe("event.example.com");
+  });
+
+  test("loadEffectiveDomain refines the seeded host with the validated custom domain", async () => {
+    await settings.update.customDomain("tickets.example.com");
+    await settings.update.customDomainLastValidated();
+    seedEffectiveDomainHost("https://mysite.bunny.run/");
+    expect(getEffectiveDomain()).toBe("mysite.bunny.run");
+
+    loadEffectiveDomain("https://mysite.bunny.run/");
+    expect(getEffectiveDomain()).toBe("tickets.example.com");
   });
 
   test("loadEffectiveDomain falls back to the request hostname when nothing is configured", () => {
