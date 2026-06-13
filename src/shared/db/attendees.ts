@@ -18,7 +18,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailabilityImpl,
-  hasAvailableSpotsImpl,
+  checkEventAvailability,
 } from "#shared/db/attendees/capacity.ts";
 import { createAttendeeAtomicImpl } from "#shared/db/attendees/create.ts";
 
@@ -86,7 +86,7 @@ export {
 export const attendeesApi = {
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,
-  hasAvailableSpots: hasAvailableSpotsImpl,
+  hasAvailableSpots: checkEventAvailability,
 };
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */

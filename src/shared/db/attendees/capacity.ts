@@ -295,9 +295,6 @@ const getGroupRemainingPerDay = async (
   );
 };
 
-/** Cumulative event load for date-less checks (returns the cached count). */
-const datelessLoad = (attendeeCount: number): number => attendeeCount;
-
 /**
  * Per-day availability check for a single-event booking. Used by
  * `hasAvailableSpots` (public availability API) and as the preflight in
@@ -308,16 +305,15 @@ const datelessLoad = (attendeeCount: number): number => attendeeCount;
  */
 export const checkEventAvailability = async (
   eventId: number,
-  quantity: number,
-  date: string | null | undefined,
+  quantity = 1,
+  date?: string | null,
   durationDays = 1,
 ): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
 
   if (event.event_type !== "daily" || !date) {
-    if (datelessLoad(event.attendee_count) + quantity > event.max_attendees)
-      return false;
+    if (event.attendee_count + quantity > event.max_attendees) return false;
     if (event.group_id <= 0) return true;
     const remaining = (
       await getGroupRemainingByGroupId([event.group_id], null)
@@ -456,14 +452,3 @@ export const checkBatchAvailabilityImpl = async (
   return true;
 };
 
-/**
- * Duration-aware availability check for a single event. For daily events
- * with `durationDays > 1`, every day in the range must have room.
- */
-export const hasAvailableSpotsImpl = (
-  eventId: number,
-  quantity = 1,
-  date?: string | null,
-  durationDays = 1,
-): Promise<boolean> =>
-  checkEventAvailability(eventId, quantity, date, durationDays);
