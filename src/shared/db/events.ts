@@ -29,12 +29,13 @@ import { col, withCacheInvalidation } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import type {
-  Attendee,
-  Event,
-  EventFields,
-  EventType,
-  EventWithCount,
+import {
+  type Attendee,
+  type Event,
+  type EventFields,
+  type EventType,
+  type EventWithCount,
+  normalizeDurationDays,
 } from "#shared/types.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
@@ -158,7 +159,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   created: col.withDefault(() => nowIso()),
   date: { default: () => "", read: decryptDatetime, write: writeEventDate },
   description: col.encryptedText(encrypt, decrypt),
-  duration_days: col.withDefault(() => 1),
+  duration_days: { default: () => 1, write: normalizeDurationDays },
   event_type: col.withDefault<EventType>(() => "standard"),
   fields: col.withDefault<EventFields>(() => "email"),
   group_id: col.withDefault(() => 0),

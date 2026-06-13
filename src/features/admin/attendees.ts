@@ -152,14 +152,21 @@ const handleAttendeeCheckin = attendeeFormAction(
 /** Build create-attendee input from validated form values */
 const buildCreateAttendeeInput = (
   values: AddAttendeeFormValues,
-  eventId: number,
-  isDaily: boolean,
+  event: { id: number; event_type: string; duration_days: number },
 ) => {
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
+  const isDaily = event.event_type === "daily";
   return {
     address: address || "",
-    bookings: [{ date: isDaily ? date : null, eventId, quantity }],
+    bookings: [
+      {
+        date: isDaily ? date : null,
+        durationDays: isDaily ? event.duration_days : undefined,
+        eventId: event.id,
+        quantity,
+      },
+    ],
     email: email || "",
     name,
     phone: phone || "",
@@ -204,9 +211,8 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/event/:eventId/attendee"
     onInvalid: ({ error, params }) =>
       redirect(`/admin/event/${params.eventId}`, error, false),
     onValid: async ({ context: event, params, values }) => {
-      const isDaily = event.event_type === "daily";
       const createResult = await createAttendeeAtomic(
-        buildCreateAttendeeInput(values, params.eventId, isDaily),
+        buildCreateAttendeeInput(values, event),
       );
       if (!createResult.success) {
         return handleCreateAttendeeFailure(createResult, params.eventId);

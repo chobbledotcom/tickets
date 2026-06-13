@@ -5,9 +5,15 @@
 import { map, pipe } from "#fp";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
+import {
+  addDays,
+  formatDateLabel,
+  formatDateRangeLabelCompactEn,
+  formatDatetimeLabel,
+} from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+import { normalizeDurationDays } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
@@ -62,10 +68,20 @@ const renderTicketCard = (
       )}</div>`
     : "";
 
-  const attendeeDateHtml = attendee.date
-    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(
-        formatDateLabel(attendee.date),
-      )}</div>`
+  const bookingDurationDays =
+    event.event_type === "daily"
+      ? normalizeDurationDays(event.duration_days)
+      : 1;
+  const bookingDateLabel = attendee.date
+    ? bookingDurationDays > 1
+      ? formatDateRangeLabelCompactEn(
+          attendee.date,
+          addDays(attendee.date, bookingDurationDays - 1),
+        )
+      : formatDateLabel(attendee.date)
+    : "";
+  const attendeeDateHtml = bookingDateLabel
+    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(bookingDateLabel)}</div>`
     : "";
 
   const pricePaid = Number(attendee.price_paid);

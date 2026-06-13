@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { unique } from "#fp";
+import { filter, map, pipe, reduce, unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import type {
   BatchAvailabilityItem,
@@ -23,7 +23,7 @@ import {
 } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#shared/db/events.ts";
-import type { EventType } from "#shared/types.ts";
+import { type EventType, normalizeDurationDays } from "#shared/types.ts";
 
 /** Shared failure result for capacity-exceeded */
 export const CAPACITY_EXCEEDED = {
@@ -41,27 +41,6 @@ export const dateToStartEnd = (
   return { endAt: range.endAt, startAt: range.startAt };
 };
 
-/**
- * Get the total attendee quantity for a specific event + date, optionally
- * excluding one attendee (used when an admin edits their own booking so the
- * row being updated doesn't fight itself in the capacity check).
- */
-export const getDateAttendeeCount = async (
-  eventId: number,
-  date: string,
-  excludeAttendeeId?: number,
-): Promise<number> => {
-  const { startAt, endAt } = dateToRange(date);
-  const sql = excludeAttendeeId
-    ? "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id != ? AND start_at < ? AND end_at > ?"
-    : "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND start_at < ? AND end_at > ?";
-  const args: InValue[] = excludeAttendeeId
-    ? [eventId, excludeAttendeeId, endAt, startAt]
-    : [eventId, endAt, startAt];
-  const rows = await queryAll<{ count: number }>(sql, args);
-  return rows[0]!.count;
-};
-
 type RemainingMap = Map<number, number>;
 
 /**
@@ -76,13 +55,10 @@ type RemainingMap = Map<number, number>;
 export const getGroupRemainingByGroupId = async (
   groupIds: number[],
   date: string | null = null,
-  excludeAttendeeId?: number,
 ): Promise<RemainingMap> => {
   const ids = unique(groupIds.filter((id) => id > 0));
   if (ids.length === 0) return new Map();
   const predicate = buildGroupAttendeePredicate("e", "ea", date);
-  const excludeClause = excludeAttendeeId ? "AND ea.attendee_id != ?" : "";
-  const excludeArgs: InValue[] = excludeAttendeeId ? [excludeAttendeeId] : [];
   const rows = await queryAll<{
     group_id: number;
     max_attendees: number;
@@ -93,11 +69,10 @@ export const getGroupRemainingByGroupId = async (
      FROM groups g
      LEFT JOIN events e ON e.group_id = g.id
      LEFT JOIN event_attendees ea ON ea.event_id = e.id
-       ${excludeClause}
        AND ${predicate.sql}
      WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
      GROUP BY g.id`,
-    [...excludeArgs, ...predicate.args, ...ids],
+    [...predicate.args, ...ids],
   );
   return new Map(
     rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
@@ -194,89 +169,166 @@ export const checkCapacityResult = (result: {
 // Per-day preflight helpers used by hasAvailableSpots / addEventLink /
 // updateEventLink. They mirror the per-day SQL safety net but in JS so we
 // can self-exclude an attendee row cleanly.
+//
+// Per-day loads are computed by fetching every row overlapping the whole
+// booking span ONCE and summing per-day in JS — one round trip instead of
+// one per day, which matters because production talks to a remote libsql
+// server where each query is a network hop.
 // ---------------------------------------------------------------------------
 
-/** Expand a daily-event range into individual day strings.
- * Clamps duration to >= 1 to defend against bogus 0/negative inputs. */
+/** Expand a daily-event range into individual day strings. */
 const expandDailyRange = (date: string, durationDays: number): string[] => {
-  const duration = Math.max(1, Math.floor(durationDays));
+  const duration = normalizeDurationDays(durationDays);
   return Array.from({ length: duration }, (_, i) => addDays(date, i));
 };
 
-/** Async every-day predicate: short-circuits to false on the first failed day. */
-const everyDay = async <T>(
-  days: T[],
-  check: (day: T) => Promise<boolean>,
-): Promise<boolean> => {
-  for (const day of days) {
-    if (!(await check(day))) return false;
-  }
-  return true;
+/** Half-open [startAt, endAt) span covering a set of YYYY-MM-DD days. */
+const daySpan = (days: string[]): { startAt: string; endAt: string } => {
+  const sorted = [...days].sort();
+  return {
+    endAt: dateToRange(sorted[sorted.length - 1]!).endAt,
+    startAt: `${sorted[0]!}T00:00:00Z`,
+  };
 };
 
-/** Enumerate every day in [date, date + durationDays) for per-day checks,
- * or a single [null] for non-daily / date-less bookings. */
-const capacityCheckDays = (
-  isDaily: boolean,
-  date: string | null | undefined,
-  durationDays: number,
-): (string | null)[] =>
-  !isDaily || !date ? [null] : expandDailyRange(date, durationDays);
+/** A booking row's range + quantity. Ranges are never null here — the
+ * fetch queries below only match rows via the overlap predicate, which
+ * NULL ranges can never satisfy (mirroring the SQL safety net). */
+type IntervalRow = { start_at: string; end_at: string; quantity: number };
 
-const loadForDay = async (
+/** Sum the quantity column of a set of rows */
+const sumQuantity = reduce(
+  (sum: number, row: { quantity: number }) => sum + row.quantity,
+  0,
+);
+
+/** Curried day-overlap predicate. String comparison mirrors SQLite TEXT
+ * comparison byte-for-byte, so this reproduces the SQL overlap predicate
+ * `start_at < dayEnd AND end_at > dayStart` exactly. */
+const overlapsDay = (day: string) => {
+  const { startAt, endAt } = dateToRange(day);
+  return (row: IntervalRow): boolean =>
+    row.start_at < endAt && row.end_at > startAt;
+};
+
+/** Per-day quantity sums for the given days from pre-fetched rows. */
+const perDayLoads = (
+  rows: IntervalRow[],
+  days: string[],
+): Map<string, number> =>
+  new Map(
+    map((day: string): [string, number] => [
+      day,
+      pipe(filter(overlapsDay(day)), sumQuantity)(rows),
+    ])(days),
+  );
+
+/** Fetch all of an event's rows overlapping the span of `days` — one query
+ * regardless of how many days the booking covers. */
+const getOverlappingRows = (
   eventId: number,
-  day: string | null,
-  excludeAttendeeId: number | undefined,
-  attendeeCount: number,
-): Promise<number> => {
-  if (day) return getDateAttendeeCount(eventId, day, excludeAttendeeId);
-  if (!excludeAttendeeId) return attendeeCount;
-  return (await queryOne<{ count: number }>(
-    "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id != ?",
-    [eventId, excludeAttendeeId],
-  ))!.count;
+  days: string[],
+): Promise<IntervalRow[]> => {
+  const { startAt, endAt } = daySpan(days);
+  return queryAll<IntervalRow>(
+    `SELECT start_at, end_at, quantity FROM event_attendees
+     WHERE event_id = ? AND start_at < ? AND end_at > ?`,
+    [eventId, endAt, startAt],
+  );
+};
+
+/** A group's cap plus its load split into rows that count on every day
+ * (non-daily events) and per-day interval rows (daily bookings). */
+type GroupSpanLoad = { cap: number; base: number; rows: IntervalRow[] };
+
+/**
+ * Group cap + occupancy rows for the span of `days` — two queries
+ * regardless of duration. Returns null when the group has no cap, matching
+ * `getGroupRemainingByGroupId` omitting uncapped groups from its map.
+ */
+const getGroupSpanLoad = async (
+  groupId: number,
+  days: string[],
+): Promise<GroupSpanLoad | null> => {
+  const cap = (await queryOne<{ cap: number }>(
+    "SELECT COALESCE((SELECT max_attendees FROM groups WHERE id = ?), 0) as cap",
+    [groupId],
+  ))!.cap;
+  if (cap <= 0) return null;
+  const { startAt, endAt } = daySpan(days);
+  const groupRows = await queryAll<IntervalRow & { event_type: EventType }>(
+    `SELECT ea.start_at, ea.end_at, ea.quantity, e.event_type
+     FROM event_attendees ea
+     JOIN events e ON e.id = ea.event_id
+     WHERE e.group_id = ? AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
+    [groupId, endAt, startAt],
+  );
+  const isDailyRow = (row: IntervalRow & { event_type: EventType }): boolean =>
+    row.event_type === "daily";
+  return {
+    base: pipe(
+      filter((row: IntervalRow & { event_type: EventType }) =>
+        !isDailyRow(row)
+      ),
+      sumQuantity,
+    )(groupRows),
+    cap,
+    rows: filter(isDailyRow)(groupRows),
+  };
+};
+
+/** Per-day group remaining for `days`, or null when no cap applies.
+ * remaining(day) = max(0, cap - (base + dailyLoad(day))) — identical to
+ * `getGroupRemainingByGroupId` evaluated for each day, in two queries. */
+const getGroupRemainingPerDay = async (
+  groupId: number,
+  days: string[],
+): Promise<Map<string, number> | null> => {
+  const group = await getGroupSpanLoad(groupId, days);
+  if (!group) return null;
+  const loads = perDayLoads(group.rows, days);
+  return new Map(
+    map((day: string): [string, number] => [
+      day,
+      Math.max(0, group.cap - group.base - loads.get(day)!),
+    ])(days),
+  );
 };
 
 /**
- * Accurate per-day availability check for a single-event booking, shared by
- * `hasAvailableSpots`, `addEventLink`, and `updateEventLink`.
+ * Per-day availability check for a single-event booking. Used by
+ * `hasAvailableSpots` (public availability API) and as the preflight in
+ * `checkBatchAvailability` (public booking flow).
  *
- * Walks every day in `[date, date + durationDays)` and checks event cap +
- * group cap per-day. The atomic SQL still runs its own WHERE-guarded check
- * as a race-free safety net; this preflight ensures we don't false-reject
- * multi-day ranges with non-overlapping existing bookings.
+ * Does NOT self-exclude — admin edit paths skip this preflight and rely on
+ * the atomic SQL guard (which does self-exclude via `buildCapacityCondition`).
  */
 export const checkEventAvailability = async (
   eventId: number,
-  quantity: number,
-  date: string | null | undefined,
-  excludeAttendeeId?: number,
+  quantity = 1,
+  date?: string | null,
   durationDays = 1,
 ): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
-  const days = capacityCheckDays(
-    event.event_type === "daily",
-    date,
-    durationDays,
-  );
-  const eventOk = await everyDay(days, async (day) => {
-    const load = await loadForDay(
-      eventId,
-      day,
-      excludeAttendeeId,
-      event.attendee_count,
-    );
-    return load + quantity <= event.max_attendees;
-  });
-  if (!eventOk) return false;
-  if (event.group_id <= 0) return true;
-  return everyDay(days, async (day) => {
+
+  if (event.event_type !== "daily" || !date) {
+    if (event.attendee_count + quantity > event.max_attendees) return false;
+    if (event.group_id <= 0) return true;
     const remaining = (
-      await getGroupRemainingByGroupId([event.group_id], day, excludeAttendeeId)
+      await getGroupRemainingByGroupId([event.group_id], null)
     ).get(event.group_id);
     return remaining === undefined || quantity <= remaining;
-  });
+  }
+
+  const days = expandDailyRange(date, durationDays);
+  const loads = perDayLoads(await getOverlappingRows(eventId, days), days);
+  if (!days.every((day) => loads.get(day)! + quantity <= event.max_attendees))
+    return false;
+  if (event.group_id <= 0) return true;
+  const remaining = await getGroupRemainingPerDay(event.group_id, days);
+  if (!remaining) return true;
+  return days.every((day) => quantity <= remaining.get(day)!);
 };
 
 type EventRow = {
@@ -288,6 +340,10 @@ type EventRow = {
 };
 
 type DemandBucket = { perDay: Map<string, number>; total: number };
+
+/** The days a bucket demands, or null when its demand is total-only. */
+const demandedDays = (bucket: DemandBucket): string[] | null =>
+  bucket.perDay.size > 0 ? [...bucket.perDay.keys()] : null;
 
 /**
  * Aggregate batch items into per-key demand buckets. The `keyOf(event)`
@@ -314,9 +370,8 @@ const aggregateDemand = <K>(
       bucket = { perDay: new Map(), total: 0 };
       buckets.set(key, bucket);
     }
-    const duration = Math.max(1, item.durationDays ?? 1);
     if (ev.event_type === "daily" && date) {
-      for (const day of expandDailyRange(date, duration)) {
+      for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
         bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
       }
     } else {
@@ -357,12 +412,17 @@ export const checkBatchAvailabilityImpl = async (
   if (items.some((i) => !eventsById.has(i.eventId))) return false;
 
   // Event-cap checks: per-day where applicable, total for non-daily/date-less.
+  // One overlap fetch per event covers every demanded day at once.
   const eventDemand = aggregateDemand(items, eventsById, date, (ev) => ev.id);
   for (const [eventId, bucket] of eventDemand) {
     const ev = eventsById.get(eventId)!;
-    for (const [day, qty] of bucket.perDay) {
-      const existing = await getDateAttendeeCount(eventId, day);
-      if (existing + qty > ev.max_attendees) return false;
+    const days = demandedDays(bucket);
+    if (days) {
+      const loads = perDayLoads(await getOverlappingRows(eventId, days), days);
+      const overCap = [...bucket.perDay].some(
+        ([day, qty]) => loads.get(day)! + qty > ev.max_attendees,
+      );
+      if (overCap) return false;
     }
     if (bucket.total > 0 && ev.attendee_count + bucket.total > ev.max_attendees)
       return false;
@@ -373,15 +433,16 @@ export const checkBatchAvailabilityImpl = async (
     ev.group_id > 0 ? ev.group_id : null,
   );
   for (const [groupId, bucket] of groupDemand) {
-    for (const [day, qty] of bucket.perDay) {
-      const remaining = (await getGroupRemainingByGroupId([groupId], day)).get(
-        groupId,
-      );
-      if (remaining !== undefined && qty + bucket.total > remaining)
-        return false;
-    }
-    // Pure non-daily demand against baseline group occupancy.
-    if (bucket.perDay.size === 0 && bucket.total > 0) {
+    const days = demandedDays(bucket);
+    if (days) {
+      const remaining = await getGroupRemainingPerDay(groupId, days);
+      const overCap = remaining &&
+        [...bucket.perDay].some(
+          ([day, qty]) => qty + bucket.total > remaining.get(day)!,
+        );
+      if (overCap) return false;
+    } else if (bucket.total > 0) {
+      // Pure non-daily demand against baseline group occupancy.
       const remaining = (await getGroupRemainingByGroupId([groupId], null)).get(
         groupId,
       );
@@ -391,14 +452,3 @@ export const checkBatchAvailabilityImpl = async (
   return true;
 };
 
-/**
- * Duration-aware availability check for a single event. For daily events
- * with `durationDays > 1`, every day in the range must have room.
- */
-export const hasAvailableSpotsImpl = (
-  eventId: number,
-  quantity = 1,
-  date?: string | null,
-  durationDays = 1,
-): Promise<boolean> =>
-  checkEventAvailability(eventId, quantity, date, undefined, durationDays);

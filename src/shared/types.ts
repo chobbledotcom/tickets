@@ -123,6 +123,26 @@ export const isPaidEvent = (
   event: Pick<Event, "unit_price" | "can_pay_more">,
 ): boolean => event.unit_price > 0 || event.can_pay_more;
 
+/** Upper bound on multi-day booking duration. Each day in a booking range
+ * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
+ * statement bounded regardless of which write path set the value. */
+export const MAX_DURATION_DAYS = 90;
+
+/**
+ * The single definition of "a valid booking duration": a whole number of
+ * days in [1, MAX_DURATION_DAYS], with non-finite input degrading to 1.
+ *
+ * Every read of `duration_days` and every `durationDays` parameter funnels
+ * through here so the clamping policy lives in exactly one place — the column
+ * write, the per-day capacity expansion (JS + SQL), and all display paths
+ * agree by construction. Idempotent, so applying it to an already-normalized
+ * value (e.g. a column-clamped `event.duration_days`) is a safe no-op.
+ */
+export const normalizeDurationDays = (value: number): number =>
+  Number.isFinite(value)
+    ? Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)))
+    : 1;
+
 export interface Event {
   active: boolean;
   assign_built_site: boolean;

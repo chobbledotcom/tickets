@@ -29,7 +29,11 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
-import type { ContactInfo, Group } from "#shared/types.ts";
+import {
+  type ContactInfo,
+  type Group,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import type { TicketEvent } from "#templates/public.tsx";
 import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
@@ -138,7 +142,9 @@ export const bookingDateFields = (
 ): { date: string | null; durationDays: number } => ({
   date: event.event_type === "daily" ? date : null,
   durationDays:
-    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1,
+    event.event_type === "daily"
+      ? normalizeDurationDays(event.duration_days)
+      : 1,
 });
 
 /** Build registration items from events and quantities */

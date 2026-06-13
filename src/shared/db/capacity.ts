@@ -13,17 +13,28 @@
 
 import type { InValue } from "@libsql/client";
 import { addDays } from "#shared/dates.ts";
+import { normalizeDurationDays } from "#shared/types.ts";
 
 export type SqlFragment = { sql: string; args: InValue[] };
 
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
- * With `durationDays > 1` the range spans multiple calendar days. */
+ * `durationDays` is normalized (whole days in [1, MAX]) so `end_at` is always
+ * a clean midnight boundary N full days after start — the stored range and
+ * every capacity check derive their span the same way.
+ *
+ * Format note: `startAt` is `"…T00:00:00Z"` (template literal); `endAt`
+ * is `"…T00:00:00.000Z"` (Date.toISOString). The overlap predicate
+ * `start_at < endAt AND end_at > startAt` is strict-less/strict-greater,
+ * so the `.000Z` / `Z` difference is irrelevant — but do not "tidy" them
+ * to match, because SQLite TEXT comparison is byte-for-byte and tests
+ * assert the exact stored format. */
 export const dateToRange = (
   date: string,
   durationDays = 1,
 ): { startAt: string; endAt: string } => {
+  const days = normalizeDurationDays(durationDays);
   const ms = new Date(`${date}T00:00:00Z`).getTime();
-  const endIso = new Date(ms + durationDays * 86_400_000).toISOString();
+  const endIso = new Date(ms + days * 86_400_000).toISOString();
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
 };
 
@@ -124,7 +135,7 @@ export const buildCapacityCondition = (
   durationDays = 1,
 ): SqlFragment => {
   if (!date) return buildDayCapacitySql(eventId, qty, null, excludeAttendeeId);
-  const duration = Math.max(1, Math.floor(durationDays));
+  const duration = normalizeDurationDays(durationDays);
   const clauses: string[] = [];
   const args: InValue[] = [];
   for (let i = 0; i < duration; i++) {

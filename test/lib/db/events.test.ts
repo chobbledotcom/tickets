@@ -26,6 +26,7 @@ import {
   writeClosesAt,
   writeEventDate,
 } from "#shared/db/events.ts";
+import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -660,6 +661,56 @@ describeWithEnv("db > events", { db: true }, () => {
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
+    });
+  });
+
+  describe("duration_days write clamp", () => {
+    const insertWithDuration = async (slug: string, durationDays: number) => {
+      const event = await eventsTable.insert({
+        durationDays,
+        maxAttendees: 100,
+        maxPrice: 10000,
+        name: "test-duration",
+        slug,
+        slugIndex: await computeSlugIndex(slug),
+      });
+      return (await getEventWithCount(event.id))!.duration_days;
+    };
+
+    test(`clamps values above MAX_DURATION_DAYS down to ${MAX_DURATION_DAYS}`, async () => {
+      expect(await insertWithDuration("test-dur-high", 500)).toBe(
+        MAX_DURATION_DAYS,
+      );
+    });
+
+    test("clamps zero to 1", async () => {
+      expect(await insertWithDuration("test-dur-zero", 0)).toBe(1);
+    });
+
+    test("clamps negative values to 1", async () => {
+      expect(await insertWithDuration("test-dur-neg", -3)).toBe(1);
+    });
+
+    test("floors fractional values to whole days", async () => {
+      expect(await insertWithDuration("test-dur-frac", 2.7)).toBe(2);
+    });
+
+    test("degrades non-finite values to the 1-day default", async () => {
+      expect(await insertWithDuration("test-dur-nan", Number.NaN)).toBe(1);
+    });
+
+    test("clamps on update as well as insert", async () => {
+      const event = await eventsTable.insert({
+        maxAttendees: 100,
+        maxPrice: 10000,
+        name: "test-duration",
+        slug: "test-dur-upd",
+        slugIndex: await computeSlugIndex("test-dur-upd"),
+      });
+      await eventsTable.update(event.id, { durationDays: 1000 });
+      expect((await getEventWithCount(event.id))!.duration_days).toBe(
+        MAX_DURATION_DAYS,
+      );
     });
   });
 

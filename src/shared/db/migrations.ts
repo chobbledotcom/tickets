@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add sumup_id to sumup_checkouts for webhook pre-filtering";
+  "reorder event_attendees overlap index to (event_id, end_at, start_at)";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -238,9 +238,14 @@ const SCHEMA: [name: string, table: Table][] = [
           columns: ["attendee_id", "event_id"],
           name: "idx_event_attendees_attendee_event",
         },
+        // Overlap queries filter `start_at < dayEnd AND end_at > dayStart`
+        // where both bounds are in the future. With end_at first, the index
+        // range scan skips historical rows (end_at in the past) instead of
+        // visiting every row ever booked and rejecting on the residual
+        // predicate — per-day capacity SUMs stay O(active rows).
         {
-          columns: ["event_id", "start_at", "end_at"],
-          name: "idx_event_attendees_event_start_end",
+          columns: ["event_id", "end_at", "start_at"],
+          name: "idx_event_attendees_event_end_start",
         },
       ],
     },
@@ -813,6 +818,19 @@ type Migration = {
   verify: () => Promise<void>;
 };
 
+/** Verify the reordered overlap index exists (syncIndexes drops the old
+ * (event_id, start_at, end_at) ordering and creates this one). */
+const verifyOverlapIndex = async (): Promise<void> => {
+  const result = await getDb().execute(
+    "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_event_attendees_event_end_start'",
+  );
+  if (result.rows.length === 0) {
+    throw new Error(
+      "Migration verification failed: idx_event_attendees_event_end_start missing",
+    );
+  }
+};
+
 const MIGRATIONS: Migration[] = [
   {
     description:
@@ -830,6 +848,13 @@ const MIGRATIONS: Migration[] = [
       await syncIndexes();
     },
     verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Reorder event_attendees overlap index to (event_id, end_at, start_at) so per-day capacity scans skip historical rows",
+    id: "2026-06-13_event_attendees_overlap_index",
+    up: syncIndexes,
+    verify: verifyOverlapIndex,
   },
 ];
 

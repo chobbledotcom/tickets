@@ -72,6 +72,7 @@ export const linkEventUpdateForm = defineForm({
 export const linkEventForm = createLinkEventForm();
 type LinkFormValues = {
   date: string | null;
+  durationDays?: number;
   quantity: number;
 };
 
@@ -81,12 +82,13 @@ export const parseQuantity = (value: string, max: number): number => {
   return Math.max(1, Math.min(max, Number.isNaN(parsed) ? 1 : parsed));
 };
 
-/** Parse quantity and date from form for an event link operation */
+/** Parse quantity, date, and (for daily events) duration from form for an event link operation */
 const parseLinkFormFields = (
   values: LinkFormValues,
   event: EventWithCount,
 ): LinkFormValues => ({
   date: event.event_type === "daily" ? values.date : null,
+  durationDays: event.event_type === "daily" ? event.duration_days : undefined,
   quantity: parseQuantity(String(values.quantity), event.max_quantity),
 });
 

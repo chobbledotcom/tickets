@@ -11,7 +11,7 @@ import {
   localToUtc,
   todayInTz,
 } from "#shared/timezone.ts";
-import type { Event, Holiday } from "#shared/types.ts";
+import { type Event, type Holiday, normalizeDurationDays } from "#shared/types.ts";
 
 /** Day name lookup from Date.getUTCDay() index (Sunday=0) */
 export const DAY_NAMES = [
@@ -169,7 +169,7 @@ export const getAvailableDates = (
   holidays: Holiday[],
 ): string[] => {
   const range = bookableRange(event);
-  const duration = Math.max(1, event.duration_days);
+  const duration = normalizeDurationDays(event.duration_days);
   return filter((d: string) =>
     isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
   )(dateRange(range.start, range.end));
@@ -186,7 +186,7 @@ export const getNextBookableDate = (
 ): string | null => {
   const range = bookableRange(event);
   if (range.bookableDays.length === 0) return null;
-  const duration = Math.max(1, event.duration_days);
+  const duration = normalizeDurationDays(event.duration_days);
 
   let current = range.start;
   while (current <= range.end) {
@@ -227,6 +227,60 @@ export const formatDateLabel = (dateStr: string): string => {
   return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${
     MONTH_NAMES[date.getUTCMonth()]
   } ${date.getUTCFullYear()}`;
+};
+
+/**
+ * Compact English date-range formatter. Uses an en dash (`–`) for ranges.
+ *
+ * - Same day: `2 February 2027`
+ * - Same month + same year: `2–3 February 2027`
+ * - Different month + same year: `2 February – 3 March 2027`
+ * - Different year: `2 February 2027 – 3 February 2028`
+ *
+ * Kept as a dedicated helper so i18n replacements can target locale behavior.
+ */
+export const formatDateRangeLabelCompactEn = (
+  startDateStr: string,
+  endDateStr: string,
+): string => {
+  const s = new Date(`${startDateStr}T00:00:00Z`);
+  const e = new Date(`${endDateStr}T00:00:00Z`);
+  const sameYear = s.getUTCFullYear() === e.getUTCFullYear();
+  const sameMonth = sameYear && s.getUTCMonth() === e.getUTCMonth();
+  const sameDay = sameMonth && s.getUTCDate() === e.getUTCDate();
+  const sMonth = MONTH_NAMES[s.getUTCMonth()];
+  const eMonth = MONTH_NAMES[e.getUTCMonth()];
+  if (sameDay) {
+    return `${s.getUTCDate()} ${sMonth} ${s.getUTCFullYear()}`;
+  }
+  if (sameMonth) {
+    return `${s.getUTCDate()}–${e.getUTCDate()} ${sMonth} ${s.getUTCFullYear()}`;
+  }
+  if (sameYear) {
+    return `${s.getUTCDate()} ${sMonth} – ${e.getUTCDate()} ${eMonth} ${s.getUTCFullYear()}`;
+  }
+  return `${s.getUTCDate()} ${sMonth} ${s.getUTCFullYear()} – ${e.getUTCDate()} ${eMonth} ${e.getUTCFullYear()}`;
+};
+
+/**
+ * Format a booking's stored `[start_at, end_at)` ISO range as a human label.
+ * 1-day bookings collapse to `formatDateLabel`; multi-day bookings use the
+ * compact English range formatter (inclusive — subtracts 1 day from end_at,
+ * which is the first midnight *after* the booked window).
+ */
+export const formatDateRangeLabel = (
+  startIso: string | null,
+  endIso: string | null,
+): string => {
+  if (!startIso) return "";
+  const startDate = startIso.slice(0, 10);
+  if (!endIso) return formatDateLabel(startDate);
+  const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
+  const diffDays = Math.round((endMs - startMs) / 86_400_000);
+  if (diffDays <= 1) return formatDateLabel(startDate);
+  const lastDay = new Date(endMs - 86_400_000).toISOString().slice(0, 10);
+  return formatDateRangeLabelCompactEn(startDate, lastDay);
 };
 
 /**

@@ -176,6 +176,8 @@ export const makeTestEvent = (
   attendee_count: 10,
   can_pay_more: false,
   date: "",
+  duration_days: 1,
+  event_type: "standard",
   hidden: false,
   id: 1,
   initial_site_months: 0,

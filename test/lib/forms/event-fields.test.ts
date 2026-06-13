@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
   eventFields,
   groupCreateFields,
@@ -271,6 +272,28 @@ describe("eventFields — event_type", () => {
   test("accepts empty value (optional field)", () => {
     expectValid(eventFields, eventForm());
   });
+});
+
+describe("eventFields — duration_days", () => {
+  for (const value of ["", "1", String(MAX_DURATION_DAYS)]) {
+    test(`accepts ${JSON.stringify(value)}`, () => {
+      expectValid(eventFields, eventForm({ duration_days: value }));
+    });
+  }
+  const invalid: [value: string, error: string][] = [
+    ["0", "Booking Duration (days) must be at least 1"],
+    ["-5", "Booking Duration (days) must be at least 1"],
+    [
+      String(MAX_DURATION_DAYS + 1),
+      `Booking Duration (days) must be at most ${MAX_DURATION_DAYS}`,
+    ],
+    ["1.5", "Booking Duration (days) must be a whole number"],
+  ];
+  for (const [value, error] of invalid) {
+    test(`rejects ${JSON.stringify(value)}`, () => {
+      expectInvalid(error)(eventFields, eventForm({ duration_days: value }));
+    });
+  }
 });
 
 describe("eventFields — bookable_days", () => {
