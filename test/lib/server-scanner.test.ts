@@ -6,8 +6,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { isJsonApiPath } from "#routes/middleware.ts";
+import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
+import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import {
   adminGet,
   assertJson,
@@ -475,6 +478,38 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       );
 
       expect(response.status).toBe(403);
+    });
+
+    test("accepts a CSRF token older than the 1-hour default", async () => {
+      // Admins keep the scanner page open for a whole event, so its CSRF token
+      // is given an extended window. A token well past the standard 1-hour
+      // expiry should still check attendees in.
+      const { event, token, session } = await setupScanTest(
+        "Aged",
+        "aged@test.com",
+      );
+      const time = new FakeTime();
+      try {
+        const agedToken = await signCsrfToken();
+        // Jump halfway into the scanner window — comfortably past the 1-hour
+        // default that every other endpoint enforces.
+        time.tick(Math.floor(SCANNER_CSRF_MAX_AGE_S / 2) * 1000);
+
+        // The standard CSRF window would already reject this token...
+        expect(await verifySignedCsrfToken(agedToken)).toBe(false);
+
+        // ...but the scanner endpoint still accepts it.
+        const result = await scanAndGetJson(
+          event.id,
+          { token },
+          session.cookie,
+          agedToken,
+        );
+        expect(result.status).toBe("checked_in");
+        expect(result.name).toBe("Aged");
+      } finally {
+        time.restore();
+      }
     });
 
     test("returns 400 for missing token in body", async () => {
