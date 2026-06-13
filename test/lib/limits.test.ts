@@ -9,6 +9,7 @@ import {
   LIMIT_ENTRIES,
   LOGIN_LOCKOUT_MS,
   MAX_ATTACHMENT_SIZE,
+  MAX_BACKUPS,
   MAX_IMAGE_SIZE,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
@@ -94,6 +95,7 @@ describe("limits", () => {
         "MAX_TEXTAREA_LENGTH",
         "MAX_IMAGE_SIZE",
         "MAX_ATTACHMENT_SIZE",
+        "MAX_BACKUPS",
         "ATTACHMENT_URL_MAX_AGE_S",
         "SESSION_MAX_AGE_S",
         "SCANNER_CSRF_MAX_AGE_S",
@@ -121,6 +123,7 @@ describe("limits", () => {
       expect(currentByKey.get("MAX_TEXTAREA_LENGTH")).toBe(MAX_TEXTAREA_LENGTH);
       expect(currentByKey.get("MAX_IMAGE_SIZE")).toBe(MAX_IMAGE_SIZE);
       expect(currentByKey.get("MAX_ATTACHMENT_SIZE")).toBe(MAX_ATTACHMENT_SIZE);
+      expect(currentByKey.get("MAX_BACKUPS")).toBe(MAX_BACKUPS);
       expect(currentByKey.get("ATTACHMENT_URL_MAX_AGE_S")).toBe(
         ATTACHMENT_URL_MAX_AGE_S,
       );

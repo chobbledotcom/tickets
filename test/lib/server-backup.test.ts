@@ -92,6 +92,20 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         expect(html).toContain(".zip");
       });
     });
+
+    test("shows retention summary and falls back to the raw name for un-parseable backups", async () => {
+      await withLocalStorageEnabled(async () => {
+        const { backupPrefix } = await import("#shared/db/backup.ts");
+        // A prefix-matching .zip whose name has no valid timestamp.
+        await uploadRaw(new Uint8Array(3), `${backupPrefix()}garbage.zip`);
+        const { response } = await adminGet("/admin/backup");
+        const html = await response.text();
+        expect(html).toContain("There is 1 backup");
+        expect(html).toContain("garbage");
+        // Human-readable size is rendered next to the entry.
+        expect(html).toContain("3B");
+      });
+    });
   });
 
   describe("GET /admin/backup/download/:filename", () => {

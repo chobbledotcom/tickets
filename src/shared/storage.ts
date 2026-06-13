@@ -438,14 +438,30 @@ const readDirSafe = async (dir: string): Promise<Deno.DirEntry[]> => {
   }
 };
 
-/** List files in storage matching a prefix */
-export const listFiles = async (prefix: string): Promise<string[]> => {
+/** A stored file with its name and size in bytes. */
+export type StorageFileMeta = { name: string; size: number };
+
+/** Compare two stored files by name, ascending. Names in a listing are unique. */
+const byName = (a: StorageFileMeta, b: StorageFileMeta): number =>
+  a.name < b.name ? -1 : 1;
+
+/**
+ * List files (with size metadata) matching a prefix, sorted by name.
+ * For Bunny CDN the size comes from the `Length` field of the listing API.
+ */
+export const listFilesWithMeta = async (
+  prefix: string,
+): Promise<StorageFileMeta[]> => {
   if (getLocalStoragePath() !== null) {
-    const entries = await readDirSafe(getLocalStoragePath() as string);
-    return entries
-      .filter((e) => e.isFile && e.name.startsWith(prefix))
-      .map((e) => e.name)
-      .sort();
+    const dir = getLocalStoragePath() as string;
+    const entries = await readDirSafe(dir);
+    const files: StorageFileMeta[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile || !entry.name.startsWith(prefix)) continue;
+      const { size } = await Deno.stat(`${dir}/${entry.name}`);
+      files.push({ name: entry.name, size });
+    }
+    return files.sort(byName);
   }
   const config = getStorageConfig();
   const url = `https://storage.bunnycdn.com/${config.zoneName}/`;
@@ -453,10 +469,16 @@ export const listFiles = async (prefix: string): Promise<string[]> => {
     headers: { AccessKey: config.zoneKey },
   });
   const items = (await response.json()) as Array<Record<string, unknown>>;
-  const files: string[] = [];
+  const files: StorageFileMeta[] = [];
   for (const item of items) {
     const name = String(item.ObjectName ?? "");
-    if (name.startsWith(prefix)) files.push(name);
+    if (name.startsWith(prefix)) {
+      files.push({ name, size: Number(item.Length) || 0 });
+    }
   }
-  return files.sort();
+  return files.sort(byName);
 };
+
+/** List files in storage matching a prefix (names only), sorted by name. */
+export const listFiles = async (prefix: string): Promise<string[]> =>
+  (await listFilesWithMeta(prefix)).map((f) => f.name);

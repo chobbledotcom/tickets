@@ -11,7 +11,7 @@
  */
 
 import { unzipSync, zipSync } from "fflate";
-import { map, pipe } from "#fp";
+import { filter, map, pipe, sort } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
@@ -22,7 +22,8 @@ import {
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
 import { requireEnv } from "#shared/env.ts";
-import { listFiles, uploadRaw } from "#shared/storage.ts";
+import { MAX_BACKUPS } from "#shared/limits.ts";
+import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -195,12 +196,14 @@ export const createBackupZip = async (): Promise<Uint8Array> => {
   return zipSync(files, { level: 1 });
 };
 
-/** Create a backup zip and upload it to storage. Returns the filename. */
+/** Create a backup zip and upload it to storage. Returns the filename.
+ *  Purges the oldest backups beyond MAX_BACKUPS after a successful upload. */
 export const createAndUploadBackup = async (): Promise<string> => {
   const timestamp = backupTimestamp();
   const zipData = await createBackupZip();
   const filename = backupFilename(timestamp);
   await uploadRaw(zipData, filename);
+  await pruneOldBackups();
   return filename;
 };
 
@@ -236,6 +239,37 @@ export const hasRecentBackup = async (): Promise<boolean> => {
     if (ms !== null && now - ms < BACKUP_FRESHNESS_WINDOW_MS) return true;
   }
   return false;
+};
+
+/**
+ * Comparator that orders backup filenames newest-first by their encoded
+ * timestamp. Un-parseable names sort as oldest (epoch 0) so they fall to the
+ * end and are the first to be purged.
+ */
+export const compareBackupNewestFirst = (a: string, b: string): number =>
+  (parseBackupTime(b) ?? 0) - (parseBackupTime(a) ?? 0);
+
+/**
+ * Purge the oldest backups beyond `keep` for the current DB, keeping the
+ * newest. Best-effort: a failed delete never blocks backup creation. Returns
+ * the filenames that were removed.
+ */
+export const pruneOldBackups = async (
+  keep = MAX_BACKUPS,
+): Promise<string[]> => {
+  const files = await listFiles(backupPrefix());
+  const zips = filter((f: string) => f.endsWith(".zip"))(files);
+  const stale = sort(compareBackupNewestFirst)(zips).slice(keep);
+  const removed: string[] = [];
+  for (const file of stale) {
+    try {
+      await deleteFile(file);
+      removed.push(file);
+    } catch {
+      // best-effort: a failed delete must never block backup creation
+    }
+  }
+  return removed;
 };
 
 // ─── Restore ────────────────────────────────────────────────────

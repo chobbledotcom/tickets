@@ -6,6 +6,7 @@
  * storage since the sensitive data is already encrypted at the field level.
  */
 
+import { sort } from "#fp";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
@@ -13,20 +14,26 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
+import { formatDatetimeLabel } from "#shared/dates.ts";
 import {
   backupPrefix,
+  compareBackupNewestFirst,
   countZipStatements,
   createAndUploadBackup,
   isRemoteDatabase,
+  parseBackupTime,
   readManifest,
   restoreFromZip,
 } from "#shared/db/backup.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
+import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
 import {
   deleteFile,
   downloadRaw,
   isStorageEnabled,
   listFiles,
+  listFilesWithMeta,
+  type StorageFileMeta,
   uploadRaw,
 } from "#shared/storage.ts";
 import {
@@ -49,18 +56,27 @@ const isSafeBackupFilename = (filename: string): boolean =>
   !filename.includes("\\") &&
   !filename.includes("..");
 
-/** Parse a backup filename into display info */
-const parseBackupEntry = (filename: string): BackupEntry => {
+/** Parse a backup file into display info (friendly date + human size) */
+const parseBackupEntry = (file: StorageFileMeta): BackupEntry => {
   // Format: backup-{dbname}-2024-01-15T12-30-00-000Z.zip
-  const withoutPrefix = filename.slice(backupPrefix().length);
-  const timestamp = withoutPrefix.replace(/\.zip$/, "");
-  return { filename, timestamp };
+  const withoutPrefix = file.name.slice(backupPrefix().length);
+  const rawTimestamp = withoutPrefix.replace(/\.zip$/, "");
+  const ms = parseBackupTime(file.name);
+  const label =
+    ms === null
+      ? rawTimestamp
+      : formatDatetimeLabel(new Date(ms).toISOString());
+  return { filename: file.name, label, sizeLabel: formatBytes(file.size) };
 };
 
-/** List existing backups from storage scoped to the current DB */
+/** List existing backups from storage scoped to the current DB, newest first */
 const listBackups = async (): Promise<BackupEntry[]> => {
-  const files = await listFiles(backupPrefix());
-  return files.filter((f) => f.endsWith(".zip")).map(parseBackupEntry);
+  const files = await listFilesWithMeta(backupPrefix());
+  const zips = files.filter((f) => f.name.endsWith(".zip"));
+  const ordered = sort((a: StorageFileMeta, b: StorageFileMeta) =>
+    compareBackupNewestFirst(a.name, b.name),
+  )(zips);
+  return ordered.map(parseBackupEntry);
 };
 
 /** Delete any stale restore-pending temp files (best effort, fire-and-forget) */
@@ -81,6 +97,7 @@ const getBackupPageState = async (): Promise<BackupPageState> => ({
   backups: isStorageEnabled() ? await listBackups() : [],
   encryptionKey: getEncryptionKeyString(),
   isRemote: isRemoteDatabase(),
+  maxBackups: MAX_BACKUPS,
   storageEnabled: isStorageEnabled(),
 });
 

@@ -631,7 +631,7 @@ export const adminGuidePage = (
             They fill in the booking form, then are redirected to your payment
             provider's checkout page. Once their payment is confirmed, their
             place is recorded and they receive their ticket. Their place is
-            <strong> not</strong> held while they're paying &mdash; see{" "}
+            <strong>not</strong> held while they're paying &mdash; see{" "}
             <em>Why don't we hold places during checkout?</em> below for the
             reason.
           </p>
@@ -2336,6 +2336,17 @@ export const adminGuidePage = (
             phrase to proceed. <strong>Warning:</strong> restoring drops all
             existing tables and replaces them with the backup contents. This
             cannot be undone.
+          </p>
+        </Q>
+
+        <Q q="Are old backups deleted automatically?">
+          <p>
+            Yes. Only the most recent backups are kept (30 by default,
+            configurable via <code>MAX_BACKUPS</code>). When a new backup is
+            created beyond that limit, the oldest is purged automatically. The
+            Backups page shows how many you have and when the oldest will be
+            removed. Automatic pre-migration backups count towards this limit
+            too.
           </p>
         </Q>
 

@@ -40,6 +40,13 @@ export const MAX_ATTACHMENT_SIZE = readLimit(
   25 * 1024 * 1024,
 );
 
+/**
+ * Maximum number of database backups retained per database (default: 30).
+ * When a new backup is created beyond this count, the oldest backups are
+ * purged automatically. Backups accumulate otherwise, so this caps storage use.
+ */
+export const MAX_BACKUPS = readLimit("MAX_BACKUPS", 30);
+
 // ---------------------------------------------------------------------------
 // Text limits
 // ---------------------------------------------------------------------------
@@ -249,6 +256,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "MAX_ATTACHMENT_SIZE",
     label: "Max attachment size",
     unit: "bytes",
+  },
+  {
+    current: MAX_BACKUPS,
+    defaultValue: 30,
+    envKey: "MAX_BACKUPS",
+    label: "Max retained backups",
+    unit: "backups",
   },
   {
     current: ATTACHMENT_URL_MAX_AGE_S,

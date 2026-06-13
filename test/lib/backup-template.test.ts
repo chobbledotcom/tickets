@@ -19,6 +19,7 @@ const baseState: BackupPageState = {
   backups: [],
   encryptionKey: "dGVzdC1rZXktMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0",
   isRemote: true,
+  maxBackups: 30,
   storageEnabled: true,
 };
 
@@ -74,20 +75,63 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     expect(html).toContain("No backups found");
   });
 
-  test("renders backup list as table", () => {
+  test("renders backup list as table with friendly date and size", () => {
     const html = adminBackupPage(mockSession, {
       ...baseState,
       backups: [
         {
           filename: "backup-2024-01-15T12-00-00-000Z.zip",
-          timestamp: "2024-01-15T12-00-00-000Z",
+          label: "Monday 15 January 2024 at 12:00 UTC",
+          sizeLabel: "1MB",
         },
       ],
     });
-    expect(html).toContain("2024-01-15T12-00-00-000Z");
+    expect(html).toContain("Monday 15 January 2024 at 12:00 UTC");
+    expect(html).toContain("1MB");
     expect(html).toContain("Download");
     expect(html).toContain(
       "/admin/backup/download/backup-2024-01-15T12-00-00-000Z.zip",
+    );
+  });
+
+  test("retention note counts backups and reports remaining capacity", () => {
+    const html = adminBackupPage(mockSession, {
+      ...baseState,
+      backups: [
+        {
+          filename: "backup-2024-01-15T12-00-00-000Z.zip",
+          label: "Monday 15 January 2024 at 12:00 UTC",
+          sizeLabel: "1MB",
+        },
+      ],
+      maxBackups: 30,
+    });
+    expect(html).toContain('class="prose"');
+    expect(html).toContain("There is 1 backup");
+    expect(html).toContain("Up to 30 are kept");
+    expect(html).toContain(
+      "29 more can be created before the oldest is purged",
+    );
+  });
+
+  test("retention note warns the oldest is purged next when at capacity", () => {
+    const entry = (n: number): BackupPageState["backups"][number] => ({
+      filename: `backup-2024-01-${String(n).padStart(
+        2,
+        "0",
+      )}T12-00-00-000Z.zip`,
+      label: `backup ${n}`,
+      sizeLabel: "1MB",
+    });
+    const html = adminBackupPage(mockSession, {
+      ...baseState,
+      // newest first: oldest is the last entry
+      backups: [entry(3), entry(2), entry(1)],
+      maxBackups: 3,
+    });
+    expect(html).toContain("There are 3 backups");
+    expect(html).toContain(
+      "The next backup you create will purge the oldest (backup 1)",
     );
   });
 
