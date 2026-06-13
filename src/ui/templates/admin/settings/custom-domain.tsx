@@ -3,6 +3,7 @@
  */
 
 import { CsrfForm } from "#shared/forms.tsx";
+import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
 export const CustomDomainForm = (
@@ -32,6 +33,7 @@ export const CustomDomainForm = (
           />
         </label>
         <button type="submit">Save Custom Domain</button>
+        <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
       </CsrfForm>
 
       {s.customDomain && (

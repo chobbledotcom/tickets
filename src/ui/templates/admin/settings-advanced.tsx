@@ -56,6 +56,7 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
   eventColumnOrder: string;
   attendeeColumnOrder: string;
+  paymentProvider: string;
 };
 
 export const adminAdvancedSettingsPage = (
