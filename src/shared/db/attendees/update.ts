@@ -2,6 +2,7 @@
  * Update operations for attendees and their per-event bookings.
  */
 
+import { filter, map, pipe, reduce, sort, unique } from "#fp";
 import type {
   EventBooking,
   UpdateAttendeePIIInput,
@@ -138,30 +139,34 @@ export const checkGroupCapAfterDurationChange = async (
   // Rows on non-daily events count on every day; daily rows count on the
   // days of their [start, end) range. NULL-range rows on daily events never
   // count (pre-daily legacy bookings), mirroring the SQL overlap predicate.
-  let base = 0;
-  const intervals: DayInterval[] = [];
-  const eventRanges: DayInterval[] = [];
-  for (const row of rows) {
-    if (row.event_type !== "daily") {
-      base += row.quantity;
-    } else if (row.start_at !== null && row.end_at !== null) {
-      const interval = {
-        end: row.end_at.slice(0, 10),
-        quantity: row.quantity,
-        start: row.start_at.slice(0, 10),
-      };
-      intervals.push(interval);
-      if (row.event_id === eventId) eventRanges.push(interval);
-    }
-  }
+  type GroupRow = (typeof rows)[number];
+  const isDailyWithRange = (row: GroupRow): boolean =>
+    row.event_type === "daily" &&
+    row.start_at !== null &&
+    row.end_at !== null;
+  const toDayInterval = (row: GroupRow): DayInterval => ({
+    end: row.end_at!.slice(0, 10),
+    quantity: row.quantity,
+    start: row.start_at!.slice(0, 10),
+  });
+  const base = pipe(
+    filter((row: GroupRow) => row.event_type !== "daily"),
+    reduce((sum: number, row: GroupRow) => sum + row.quantity, 0),
+  )(rows);
+  const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
+  const eventRanges = pipe(
+    filter((row: GroupRow) => row.event_id === eventId),
+    filter(isDailyWithRange),
+    map(toDayInterval),
+  )(rows);
 
   // Boundary sweep: running occupancy at each day where any interval starts
   // or ends. loadAt(day) = total daily quantity covering that day.
-  const deltas = new Map<string, number>();
-  for (const itv of intervals) {
-    deltas.set(itv.start, (deltas.get(itv.start) ?? 0) + itv.quantity);
-    deltas.set(itv.end, (deltas.get(itv.end) ?? 0) - itv.quantity);
-  }
+  const deltas = reduce((acc: Map<string, number>, itv: DayInterval) => {
+    acc.set(itv.start, (acc.get(itv.start) ?? 0) + itv.quantity);
+    acc.set(itv.end, (acc.get(itv.end) ?? 0) - itv.quantity);
+    return acc;
+  }, new Map<string, number>())(intervals);
   const boundaries = [...deltas.keys()].sort();
   const loadAt = new Map<string, number>();
   let running = 0;
@@ -173,10 +178,12 @@ export const checkGroupCapAfterDurationChange = async (
   // Walk candidate days (interval starts) in ascending order, tracking the
   // max end of this event's ranges that start at or before the candidate —
   // the candidate is inside this event's booked days iff that end is later.
-  const sortedRanges = [...eventRanges].sort((a, b) =>
+  const sortedRanges = sort((a: DayInterval, b: DayInterval) =>
     a.start < b.start ? -1 : 1
-  );
-  const startDays = [...new Set(intervals.map((i) => i.start))].sort();
+  )(eventRanges);
+  const startDays = unique(
+    map((interval: DayInterval) => interval.start)(intervals),
+  ).sort();
   let rangeIdx = 0;
   let maxEnd = "";
   for (const day of startDays) {
