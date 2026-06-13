@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  SQUARE_ACCESS_TOKEN_PREFIX,
   validateSquareAccessToken,
   validateSquareLocationId,
   validateSquareWebhookSignatureKey,
@@ -9,9 +8,7 @@ import {
 
 describe("validateSquareAccessToken", () => {
   test("accepts a current-style token with the EAAA prefix", () => {
-    expect(
-      validateSquareAccessToken(`${SQUARE_ACCESS_TOKEN_PREFIX}l_real_token`),
-    ).toBeNull();
+    expect(validateSquareAccessToken("EAAAl_real_token")).toBeNull();
   });
 
   test("accepts a JWT (eyJ) access token", () => {
@@ -47,12 +44,12 @@ describe("validateSquareAccessToken", () => {
 
   test("rejects a value matching no known token format", () => {
     const error = validateSquareAccessToken("not-a-real-token");
-    expect(error).toContain(SQUARE_ACCESS_TOKEN_PREFIX);
+    expect(error).toContain("EAAA");
   });
 
   test("rejects a value with a valid prefix that is not anchored at the start", () => {
     const error = validateSquareAccessToken("junk-EAAAtoken");
-    expect(error).toContain(SQUARE_ACCESS_TOKEN_PREFIX);
+    expect(error).toContain("EAAA");
   });
 });
 

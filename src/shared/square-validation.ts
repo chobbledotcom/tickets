@@ -23,9 +23,6 @@
  * passes the format check.
  */
 
-/** Square access tokens (current production/sandbox style) begin with this. */
-export const SQUARE_ACCESS_TOKEN_PREFIX = "EAAA";
-
 /**
  * Application ID/secret prefixes. These namespaces are distinct from access
  * tokens, location IDs, and webhook keys, so a value starting with one of
@@ -65,7 +62,7 @@ export const validateSquareAccessToken = (token: string): string | null => {
     return 'That looks like a Square application ID or secret (it starts with "sq0"), not an access token. Copy the Access Token from your Square application\'s Credentials page.';
   }
   if (!ACCESS_TOKEN_PATTERN.test(token)) {
-    return `That doesn't look like a Square access token. Access tokens start with "${SQUARE_ACCESS_TOKEN_PREFIX}" or "eyJ". Please check you pasted the Access Token, not the Application ID or a webhook signature key.`;
+    return 'That doesn\'t look like a Square access token. Access tokens start with "EAAA" or "eyJ". Please check you pasted the Access Token, not the Application ID or a webhook signature key.';
   }
   return null;
 };
