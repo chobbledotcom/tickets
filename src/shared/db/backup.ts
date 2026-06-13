@@ -11,7 +11,7 @@
  */
 
 import { unzipSync, zipSync } from "fflate";
-import { compact } from "#fp";
+import { chunk, compact } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
@@ -29,10 +29,11 @@ import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
 
 type TableNameRow = { name: string };
 
-/** A single table's backup: table name and the SQL to recreate + repopulate it */
+/** A single table's backup: table name, the SQL to repopulate it, and row count */
 export type TableBackup = {
   table: string;
   sql: string;
+  rowCount: number;
 };
 
 /** Metadata stored in manifest.json inside the backup zip */
@@ -106,24 +107,34 @@ export const dbName = (): string => {
 
 // ─── Backup ─────────────────────────────────────────────────────
 
-/** Export a single table as INSERT statements (deterministic row order).
+/** Max rows per multi-row INSERT. Batching writes the column list and statement
+ *  prefix once per group instead of once per row, shrinking the dump and
+ *  cutting the number of statements replayed on restore. */
+const ROWS_PER_INSERT = 100;
+
+/** Export a single table as multi-row INSERT statements (deterministic order).
  *  Column names come from the row keys, so no extra schema query is needed. */
-export const exportTable = async (table: string): Promise<string> => {
+export const exportTable = async (
+  table: string,
+): Promise<{ sql: string; rowCount: number }> => {
   const rows = await queryAll<Record<string, unknown>>(
     `SELECT * FROM ${quoteId(table)} ORDER BY rowid`,
   );
-  if (rows.length === 0) return "";
+  if (rows.length === 0) return { rowCount: 0, sql: "" };
 
   const cols = Object.keys(rows[0]!);
   const colList = cols.map(quoteId).join(", ");
-  return rows
+  const tuple = (row: Record<string, unknown>): string =>
+    `(${cols.map((c) => escapeSql(row[c])).join(", ")})`;
+  const sql = chunk(ROWS_PER_INSERT)(rows)
     .map(
-      (row) =>
-        `INSERT INTO ${quoteId(table)} (${colList}) VALUES (${cols
-          .map((c) => escapeSql(row[c]))
-          .join(", ")});`,
+      (group) =>
+        `INSERT INTO ${quoteId(table)} (${colList}) VALUES ${group
+          .map(tuple)
+          .join(", ")};`,
     )
     .join("\n");
+  return { rowCount: rows.length, sql };
 };
 
 /** Create a full backup — one TableBackup per table in SCHEMA order.
@@ -137,10 +148,13 @@ export const createBackup = async (): Promise<TableBackup[]> => {
 
   const concurrency = 4;
   for (let i = 0; i < tables.length; i += concurrency) {
-    const chunk = tables.slice(i, i + concurrency);
+    const batch = tables.slice(i, i + concurrency);
     backups.push(
       ...(await Promise.all(
-        chunk.map(async (table) => ({ sql: await exportTable(table), table })),
+        batch.map(async (table) => ({
+          table,
+          ...(await exportTable(table)),
+        })),
       )),
     );
   }
@@ -163,10 +177,7 @@ const buildManifest = (
   latestUpdate: LATEST_UPDATE,
   schemaHash: SCHEMA_HASH,
   tables: Object.fromEntries(
-    tables.map(({ table, sql }) => [
-      table,
-      sql === "" ? 0 : sql.split("\n").length,
-    ]),
+    tables.map(({ table, rowCount }) => [table, rowCount]),
   ),
   timestamp,
 });

@@ -55,25 +55,36 @@ describeWithEnv("backup", { db: true }, () => {
   });
 
   describe("exportTable", () => {
-    test("returns empty string for empty table", async () => {
-      expect(await exportTable("events")).toBe("");
+    test("returns empty sql and zero rowCount for empty table", async () => {
+      expect(await exportTable("events")).toEqual({ rowCount: 0, sql: "" });
     });
 
     test("exports INSERT statements for table with data", async () => {
       await createTestEvent({ name: "Test Event" });
-      const sql = await exportTable("events");
+      const { sql, rowCount } = await exportTable("events");
       expect(sql).toContain('INSERT INTO "events"');
+      expect(rowCount).toBe(1);
     });
 
     test("quotes column names in INSERT statements", async () => {
       await createTestEvent({ name: "Quote Test" });
-      const sql = await exportTable("events");
+      const { sql } = await exportTable("events");
       expect(sql).toMatch(/INSERT INTO "events" \("id", "created"/);
+    });
+
+    test("batches multiple rows into a single multi-row INSERT", async () => {
+      await createTestEvent({ name: "Row One" });
+      await createTestEvent({ name: "Row Two" });
+      const { sql, rowCount } = await exportTable("events");
+      expect(rowCount).toBe(2);
+      // One statement (one trailing semicolon), two value tuples.
+      expect(sql.match(/;/g)).toHaveLength(1);
+      expect(sql).toContain("), (");
     });
 
     test("handles NULL values", async () => {
       await createTestEvent({ name: "Null Test" });
-      const sql = await exportTable("events");
+      const { sql } = await exportTable("events");
       expect(sql).toContain("NULL");
     });
   });
@@ -364,8 +375,8 @@ describeWithEnv("backup", { db: true }, () => {
   describe("restoreFromSql", () => {
     test("restores data from SQL statements", async () => {
       await createTestEvent({ name: "Before Restore" });
-      const backup = await exportTable("events");
-      await restoreFromSql(backup);
+      const { sql } = await exportTable("events");
+      await restoreFromSql(sql);
       const events = await queryAll<Record<string, unknown>>(
         "SELECT * FROM events",
       );
