@@ -11,6 +11,7 @@ import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   createDailyTestEvent,
   createTestEvent,
+  createTestGroup,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
@@ -299,6 +300,134 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       name: "Ok",
     });
     expect(ok.success).toBe(true);
+  });
+
+  test("intra-cart group cap: a sibling insert earlier in the same batch counts (no oversell)", async () => {
+    // Two events share a group capped at 3. A single cart asks for 2 + 2 = 4.
+    // The second INSERT's capacity check must see the first INSERT from the
+    // same atomic batch, so it is refused — booking the first line (2) and
+    // declining the second rather than overselling the group to 4. The
+    // all-or-nothing policy lives one layer up (ensureAllBookings); this layer
+    // fulfils greedily but must never exceed the cap.
+    const group = await createTestGroup({
+      maxAttendees: 3,
+      name: "cart-accum",
+      slug: "cart-accum",
+    });
+    const e1 = await createTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-accum-a",
+    });
+    const e2 = await createTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-accum-b",
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [
+        { eventId: e1.id, quantity: 2 },
+        { eventId: e2.id, quantity: 2 },
+      ],
+      email: "cart@example.com",
+      name: "Cart",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.attendees.length).toBe(1);
+    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(2);
+    expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+  });
+
+  test("intra-cart group cap: a cart that exactly fills the group across events succeeds", async () => {
+    const group = await createTestGroup({
+      maxAttendees: 3,
+      name: "cart-fill",
+      slug: "cart-fill",
+    });
+    const e1 = await createTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-fill-a",
+    });
+    const e2 = await createTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-fill-b",
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [
+        { eventId: e1.id, quantity: 1 },
+        { eventId: e2.id, quantity: 2 },
+      ],
+      email: "fill@example.com",
+      name: "Fill",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.attendees.length).toBe(2);
+    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
+    expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+  });
+
+  test("intra-cart group cap is per-date for daily events booked on the same day", async () => {
+    const group = await createTestGroup({
+      maxAttendees: 3,
+      name: "cart-daily",
+      slug: "cart-daily",
+    });
+    const e1 = await createDailyTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-daily-a",
+    });
+    const e2 = await createDailyTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-daily-b",
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", eventId: e1.id, quantity: 2 },
+        { date: "2026-05-01", eventId: e2.id, quantity: 2 },
+      ],
+      email: "daily-cart@example.com",
+      name: "DailyCart",
+    });
+    // 2 + 2 = 4 on the same date > cap 3: first fits, second refused.
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.attendees.length).toBe(1);
+    expect((await getAttendeesRaw(e1.id)).length).toBe(1);
+    expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+  });
+
+  test("intra-cart daily group cap is independent across different dates", async () => {
+    const group = await createTestGroup({
+      maxAttendees: 3,
+      name: "cart-daily-dates",
+      slug: "cart-daily-dates",
+    });
+    const e1 = await createDailyTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-dates-a",
+    });
+    const e2 = await createDailyTestEvent({
+      groupId: group.id,
+      maxAttendees: 10,
+      name: "cart-dates-b",
+    });
+    // Each day independently holds 3; both lines sit exactly at the per-day cap.
+    const result = await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", eventId: e1.id, quantity: 3 },
+        { date: "2026-05-02", eventId: e2.id, quantity: 3 },
+      ],
+      email: "spread@example.com",
+      name: "Spread",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.attendees.length).toBe(2);
+    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(3);
+    expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(3);
   });
 
   test("dateToRange produces half-open [start, end) with 1-day default", () => {
