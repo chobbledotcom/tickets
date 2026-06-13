@@ -80,11 +80,13 @@ const editPushResult = (
   id: number,
   result: { ok: true } | { ok: false; error: string },
   success: string,
-  failure = "Deadline could not be pushed to the site",
 ): Response =>
   result.ok
     ? editSuccess(id, success)
-    : editError(id, `${failure}: ${result.error}`);
+    : editError(
+        id,
+        `Deadline could not be pushed to the site: ${result.error}`,
+      );
 
 const editPushOk = (
   id: number,
