@@ -411,6 +411,27 @@ export const temporaryErrorPage = (): string =>
   );
 
 /**
+ * Shown while another isolate is running a database migration (including its
+ * pre-migration backup). Auto-refreshes like the temporary error page, but
+ * with a reassuring message so the user knows work is happening rather than
+ * seeing a generic error. The backup can take a few seconds on larger
+ * databases, so refresh a little slower than the temporary error page.
+ */
+const MIGRATION_IN_PROGRESS_HEAD = `<meta http-equiv="refresh" content="5" />
+${ERROR_DIALOG_STYLE}`;
+
+export const migrationInProgressPage = (): string =>
+  String(
+    <Layout headExtra={MIGRATION_IN_PROGRESS_HEAD} title="Update In Progress">
+      <h1>Update In Progress</h1>
+      <p>
+        We&rsquo;re backing up and updating the database. This usually only
+        takes a few seconds. This page will reload automatically&hellip;
+      </p>
+    </Layout>,
+  );
+
+/**
  * Shown on non-setup routes when the site's database has not been set up
  * yet. No auto-refresh: retrying cannot succeed until someone completes
  * /setup, so an endlessly reloading error page would just be confusing.

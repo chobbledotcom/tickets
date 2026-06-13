@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import {
+  migrationInProgressResponse,
   redirect,
   redirectResponse,
   siteNotActivatedResponse,
@@ -703,6 +704,62 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       expect(response.headers.get("content-type")).toBe(
         "text/html; charset=utf-8",
       );
+    });
+
+    test("migrationInProgressResponse returns 503 styled HTML with auto-refresh", async () => {
+      const response = migrationInProgressResponse();
+      const html = await expectHtmlResponse(
+        response,
+        503,
+        "Update In Progress",
+        "backing up and updating the database",
+        'http-equiv="refresh"',
+      );
+      expect(html).not.toContain("Temporary Error");
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
+    });
+
+    test("serves the migration-in-progress page while a migration holds the lock", async () => {
+      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const { invalidateInitDbCache, SCHEMA_HASH } = await import(
+        "#shared/db/migrations.ts"
+      );
+      const db = getDbFn();
+      // Stale schema hash makes initDb see a pending migration; a fresh lock
+      // makes it believe another isolate is already running that migration.
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+      try {
+        await db.execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await db.execute({
+          args: ["migration_lock", new Date().toISOString()],
+          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+        });
+        invalidateInitDbCache();
+
+        const response = await handleRequest(mockRequest("/"));
+
+        const html = await expectHtmlResponse(
+          response,
+          503,
+          "Update In Progress",
+          'http-equiv="refresh"',
+        );
+        expect(html).not.toContain("Temporary Error");
+      } finally {
+        fetchStub.restore();
+        await db.execute("DELETE FROM settings WHERE key = 'migration_lock'");
+        await db.execute({
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        });
+        invalidateInitDbCache();
+      }
     });
 
     test("rethrows unhandled errors in test mode", async () => {

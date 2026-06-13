@@ -7,6 +7,7 @@ import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
 import { getRequestId } from "#shared/logger.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import {
+  migrationInProgressPage,
   notFoundPage,
   rateLimitedPage,
   siteNotActivatedPage,
@@ -66,6 +67,15 @@ export const temporaryErrorResponse = (): Response =>
  */
 export const siteNotActivatedResponse = (): Response =>
   htmlResponse(siteNotActivatedPage(), 503);
+
+/**
+ * Create "migration in progress" response, shown while another isolate runs a
+ * database migration and pre-migration backup. 503 with an auto-refresh, like
+ * temporaryErrorResponse, but with a message that explains the wait instead of
+ * presenting it as an error.
+ */
+export const migrationInProgressResponse = (): Response =>
+  htmlResponse(migrationInProgressPage(), 503);
 
 /**
  * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.

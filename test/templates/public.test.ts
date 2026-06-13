@@ -9,6 +9,7 @@ import type { EventWithCount } from "#shared/types.ts";
 import {
   buildOgTags,
   buildTicketEvent,
+  migrationInProgressPage,
   notFoundPage,
   renderEventImage,
   siteNotActivatedPage,
@@ -363,6 +364,23 @@ describe("temporaryErrorPage", () => {
     expect(html).toContain('content="2"');
     expect(html).toContain("<style>");
     expect(html).toContain("font-family:system-ui");
+  });
+});
+
+describe("migrationInProgressPage", () => {
+  test("renders update message with auto-refresh", () => {
+    const html = migrationInProgressPage();
+    expect(html).toContain("<h1>Update In Progress</h1>");
+    expect(html).toContain("backing up and updating the database");
+    expect(html).toContain('http-equiv="refresh"');
+    expect(html).toContain('content="5"');
+    expect(html).toContain("<style>");
+    expect(html).toContain("font-family:system-ui");
+  });
+
+  test("does not present itself as an error", () => {
+    const html = migrationInProgressPage();
+    expect(html).not.toContain("Error");
   });
 });
 
