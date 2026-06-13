@@ -10,7 +10,7 @@
  */
 
 import { type AuthSession, OWNER_FORM, withAuth } from "#routes/auth.ts";
-import { errorRedirect, redirect } from "#routes/response.ts";
+import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { isMaskSentinel } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -60,6 +60,13 @@ const settingsRoute = wrapRoute(SETTINGS_PATH);
 
 /** Owner auth form route — errors redirect to /admin/settings-advanced */
 const advancedSettingsRoute = wrapRoute(ADVANCED_PATH);
+
+/** Owner auth POST that runs a "test connection" function and returns its
+ * result as JSON. Shared by the Stripe/Square/SumUp settings test buttons. */
+const testRoute =
+  (testFn: () => Promise<unknown>) =>
+  (request: Request): Promise<Response> =>
+    withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
 
 /** Run an optional async validator; return error response or null */
 const runValidate = async <T>(
@@ -268,5 +275,6 @@ export {
   settingsRoute,
   settingsSecret,
   settingsToggle,
+  testRoute,
   toggleHandler,
 };

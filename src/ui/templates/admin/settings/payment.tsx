@@ -10,6 +10,7 @@ import {
   squareAccessTokenFields,
   squareWebhookFields,
   stripeKeyFields,
+  sumupFields,
 } from "#templates/fields.ts";
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
@@ -46,9 +47,47 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
       />
       Square
     </label>
+    <label>
+      <input
+        checked={s.paymentProvider === "sumup"}
+        name="payment_provider"
+        type="radio"
+        value="sumup"
+      />
+      SumUp
+    </label>
     <button type="submit">Save Payment Provider</button>
   </CsrfForm>
 );
+
+/** Test/live mode notice for providers that use sk_test_/sk_live_ keys
+ * (Stripe and SumUp). Renders nothing when the mode is unknown. */
+const ApiKeyModeNotice = ({
+  mode,
+  provider,
+}: {
+  mode: string | null;
+  provider: string;
+}): JSX.Element | null => {
+  if (mode === "test") {
+    return (
+      <p class="notice warning">
+        <strong>Test mode:</strong> You are using a {provider} test key (
+        <code>sk_test_</code>). No real charges will be made. Switch to a live
+        key (<code>sk_live_</code>) when you are ready to accept real payments.
+      </p>
+    );
+  }
+  if (mode === "live") {
+    return (
+      <p class="notice">
+        <strong>Live mode:</strong> You are using a {provider} live key.
+        Payments will be charged for real.
+      </p>
+    );
+  }
+  return null;
+};
 
 export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "stripe" ? (
@@ -59,19 +98,8 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
           ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
           : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
       </p>
-      {s.stripeKeyConfigured && s.stripeKeyMode === "test" && (
-        <p class="notice warning">
-          <strong>Test mode:</strong> You are using a Stripe test key (
-          <code>sk_test_</code>). No real charges will be made. Switch to a live
-          key (<code>sk_live_</code>) when you are ready to accept real
-          payments.
-        </p>
-      )}
-      {s.stripeKeyConfigured && s.stripeKeyMode === "live" && (
-        <p class="notice">
-          <strong>Live mode:</strong> You are using a Stripe live key. Payments
-          will be charged for real.
-        </p>
+      {s.stripeKeyConfigured && (
+        <ApiKeyModeNotice mode={s.stripeKeyMode} provider="Stripe" />
       )}
       <p>
         <small>
@@ -192,6 +220,41 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
         )}
       />
       <button type="submit">Update Webhook Key</button>
+    </CsrfForm>
+  ) : null;
+
+export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
+  s.paymentProvider === "sumup" ? (
+    <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
+      <h2>SumUp Settings</h2>
+      <p>
+        {s.sumupKeyConfigured
+          ? "A SumUp API key is currently configured. Enter new credentials below to replace them."
+          : "No SumUp API key is configured. Enter your SumUp credentials to enable SumUp payments."}
+      </p>
+      {s.sumupKeyConfigured && (
+        <ApiKeyModeNotice mode={s.sumupKeyMode} provider="SumUp" />
+      )}
+      <p>
+        <small>
+          <a href="/admin/guide#payment-setup">Where do I find these?</a>
+        </small>
+      </p>
+      <Raw
+        html={renderFields(
+          sumupFields,
+          s.sumupKeyConfigured ? { sumup_api_key: MASK_SENTINEL } : {},
+        )}
+      />
+      <footer>
+        <button type="submit">Update SumUp Credentials</button>
+        {s.sumupKeyConfigured && (
+          <button class="secondary" id="sumup-test-btn" type="button">
+            Test Connection
+          </button>
+        )}
+      </footer>
+      <div class="hidden" id="sumup-test-result"></div>
     </CsrfForm>
   ) : null;
 

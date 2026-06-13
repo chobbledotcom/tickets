@@ -349,6 +349,7 @@ export type LogCategory =
   | "Auth"
   | "Stripe"
   | "Square"
+  | "SumUp"
   | "Domain"
   | "Email"
   | "Storage"

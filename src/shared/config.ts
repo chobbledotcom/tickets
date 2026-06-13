@@ -14,6 +14,7 @@ export const isPaymentsEnabled = (): boolean => {
   const provider = settings.paymentProvider;
   if (provider === "stripe") return settings.stripe.hasKey;
   if (provider === "square") return settings.square.hasToken;
+  if (provider === "sumup") return settings.sumup.hasKey;
   return false;
 };
 

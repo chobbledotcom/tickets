@@ -22,19 +22,23 @@ import {
   settingsRoute,
   settingsSecret,
   settingsToggle,
+  testRoute,
 } from "#routes/admin/settings-helpers.ts";
+import {
+  handleAdminSumupPost,
+  handleSumupTestPost,
+} from "#routes/admin/settings-sumup.ts";
 import {
   handleAppleWalletPost,
   handleGoogleWalletPost,
 } from "#routes/admin/settings-wallets.ts";
 import {
   type AuthSession,
-  OWNER_FORM,
   OWNER_MULTIPART,
   ownerPage,
   withAuth,
 } from "#routes/auth.ts";
-import { errorRedirect, jsonResponse } from "#routes/response.ts";
+import { errorRedirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
@@ -137,6 +141,8 @@ const getSettingsPageState = async () => {
     storageEnabled: isStorageEnabled(),
     stripeKeyConfigured: settings.stripe.hasKey,
     stripeKeyMode: settings.stripe.keyMode,
+    sumupKeyConfigured: settings.sumup.hasKey,
+    sumupKeyMode: settings.sumup.keyMode,
     superuser,
     termsAndConditions: settings.terms,
     theme: settings.theme,
@@ -327,7 +333,7 @@ const handleAdminSettingsPost = settingsRoute(
 
 /** Type guard: check if a string is a valid payment provider */
 const isPaymentProvider = (s: string): s is PaymentProviderType =>
-  s === "stripe" || s === "square";
+  s === "stripe" || s === "square" || s === "sumup";
 
 /**
  * Handle POST /admin/settings/payment-provider - owner only
@@ -455,12 +461,6 @@ const handleAdminSquareWebhookPost = settingsSecret({
   required: true,
   save: (v) => settings.update.square.webhookSignatureKey(v),
 });
-
-/** Owner auth POST that runs a test function and returns JSON */
-const testRoute =
-  (testFn: () => Promise<unknown>) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
 
 const handleStripeTestPost = testRoute(testStripeConnection);
 const handleSquareTestPost = testRoute(testSquareConnection);
@@ -916,6 +916,8 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square/test": handleSquareTestPost,
   "POST /admin/settings/stripe": handleAdminStripePost,
   "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/sumup": handleAdminSumupPost,
+  "POST /admin/settings/sumup/test": handleSumupTestPost,
   "POST /admin/settings/superuser": handleSuperuserPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/theme": handleThemePost,

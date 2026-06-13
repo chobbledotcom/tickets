@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add duration_days to events and drop built_sites.renewal_tier_event_id";
+  "add sumup_id to sumup_checkouts for webhook pre-filtering";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -270,6 +270,36 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["event_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    // SumUp checkouts can't carry arbitrary metadata through the provider
+    // (unlike Stripe sessions / Square orders), so booking metadata is staged
+    // here between checkout creation and payment completion, then read back on
+    // webhook/redirect. The blob contains PII, so it is encrypted with a
+    // per-row data key wrapped by the checkout reference — the plaintext
+    // reference never rests in this DB (it arrives at runtime from the
+    // redirect URL or SumUp's API), so a DB dump alone cannot decrypt these
+    // rows. Lookup is by HMAC of the reference, like ticket_token_index.
+    // Rows are short-lived: pruned after PRUNE_SUMUP_RETENTION_HOURS.
+    // wrapped_key has a DEFAULT so ADD COLUMN self-heals pre-release dev DBs
+    // that created the earlier plaintext shape of this table.
+    "sumup_checkouts",
+    {
+      columns: [
+        ["reference_index", "TEXT PRIMARY KEY"],
+        ["wrapped_key", "TEXT NOT NULL DEFAULT ''"],
+        ["metadata", "TEXT NOT NULL"],
+        ["sumup_id", "TEXT NOT NULL DEFAULT ''"],
+        ["created_at", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["sumup_id"],
+          name: "idx_sumup_checkouts_sumup_id",
+        },
       ],
     },
   ],
@@ -775,6 +805,16 @@ const MIGRATIONS: Migration[] = [
       "Reconcile legacy databases with the current declarative schema",
     id: "2026-06-11_current_schema",
     up: syncCurrentSchema,
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add encrypted sumup_checkouts staging table for SumUp metadata",
+    id: "2026-06-12_sumup_checkouts",
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
     verify: verifyCurrentAppSchema,
   },
 ];

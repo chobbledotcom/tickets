@@ -32,6 +32,7 @@ import {
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "checkout.session.completed",
+  requiresWebhookSignature: true,
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
     withCheckoutError(async () => {

@@ -104,4 +104,20 @@ export const initPaymentTestButtons = (): void => {
       formatWebhookLine(data.webhook, "Signature key configured"),
     ],
   );
+
+  setupTestButton(
+    "sumup-test-btn",
+    "sumup-test-result",
+    "/admin/settings/sumup/test",
+    "sumup-test-result",
+    (data) => [
+      formatCredentialLine("API Key", data.apiKey),
+      data.merchant.configured
+        ? `Merchant: ${data.merchant.merchantCode}`
+        : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
+      data.currency.supported
+        ? `Currency: ${data.currency.code} (supported)`
+        : `Currency: ${data.currency.code} is not supported by SumUp`,
+    ],
+  );
 };

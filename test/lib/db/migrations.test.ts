@@ -781,8 +781,11 @@ describe("db > migrations > schema change guard", () => {
   // migrations are pending").
   test("SCHEMA_HASH changes only alongside a new named migration", () => {
     expect({ migrationIds: MIGRATION_IDS, schemaHash: SCHEMA_HASH }).toEqual({
-      migrationIds: ["2026-06-11_current_schema"],
-      schemaHash: "1dtstbk",
+      migrationIds: [
+        "2026-06-11_current_schema",
+        "2026-06-12_sumup_checkouts",
+      ],
+      schemaHash: "1a1d7bq",
     });
   });
 });

@@ -145,6 +145,15 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/debug with SumUp configured", () => {
+    test("shows sumup as provider with key and webhook status", async () => {
+      await settings.update.paymentProvider("sumup");
+      await settings.update.sumup.apiKey("sk_test_fake");
+      await settings.update.sumup.merchantCode("MC_fake");
+      await assertAdminHtml("/admin/debug", "sumup", "Configured");
+    });
+  });
+
   describe("GET /admin/debug with Apple Wallet DB config", () => {
     test("shows Database as source with valid cert status", async () => {
       const certs = generateTestCerts();

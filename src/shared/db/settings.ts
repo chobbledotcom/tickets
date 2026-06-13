@@ -91,6 +91,7 @@ export const CONFIG_KEYS = {
   LAST_PRUNED_LOGINS: "last_pruned_logins",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
   LAST_PRUNED_SESSIONS: "last_pruned_sessions",
+  LAST_PRUNED_SUMUP: "last_pruned_sumup",
   LAST_PRUNED_TOKENS: "last_pruned_tokens",
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
@@ -106,6 +107,8 @@ export const CONFIG_KEYS = {
   STRIPE_SECRET_KEY: "stripe_secret_key",
   STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
   STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
+  SUMUP_API_KEY: "sumup_api_key",
+  SUMUP_MERCHANT_CODE: "sumup_merchant_code",
   SUPERUSER_CHOICE: "superuser_choice",
   TERMS_AND_CONDITIONS: "terms_and_conditions",
   THEME: "theme",
@@ -116,6 +119,15 @@ export const CONFIG_KEYS = {
 export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
 export const isMaskSentinel = (value: string): boolean =>
   value === MASK_SENTINEL;
+
+/** Classify an API secret by its `sk_test_` / `sk_live_` prefix (Stripe + SumUp
+ * share this convention). Empty or unrecognized keys yield null. */
+const keyModeOf = (key: string): "test" | "live" | null =>
+  key.startsWith("sk_test_")
+    ? "test"
+    : key.startsWith("sk_live_")
+      ? "live"
+      : null;
 
 // ---------------------------------------------------------------------------
 // Raw cache — stores DB rows in memory (60 s TTL)
@@ -176,6 +188,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
   CONFIG_KEYS.SQUARE_LOCATION_ID,
   CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
+  CONFIG_KEYS.SUMUP_MERCHANT_CODE,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
   CONFIG_KEYS.SUPERUSER_CHOICE,
@@ -183,6 +196,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
+  CONFIG_KEYS.LAST_PRUNED_SUMUP,
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
 ] as const;
@@ -198,6 +212,7 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
   CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
   CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+  CONFIG_KEYS.SUMUP_API_KEY,
   CONFIG_KEYS.EMBED_HOSTS,
   CONFIG_KEYS.EMAIL_API_KEY,
   CONFIG_KEYS.EMAIL_FROM_ADDRESS,
@@ -382,6 +397,7 @@ const STRING_ACCESSORS = {
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
   lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
   lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },
+  lastPrunedSumup: { key: CONFIG_KEYS.LAST_PRUNED_SUMUP },
   lastPrunedTokens: { key: CONFIG_KEYS.LAST_PRUNED_TOKENS },
   latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
   latestScriptVersionName: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME },
@@ -815,11 +831,7 @@ const settingsBase = {
       return snap("stripe_secret_key") !== "";
     },
     get keyMode(): "test" | "live" | null {
-      const k = snap("stripe_secret_key");
-      if (!k) return null;
-      if (k.startsWith("sk_test_")) return "test";
-      if (k.startsWith("sk_live_")) return "live";
-      return null;
+      return keyModeOf(snap("stripe_secret_key"));
     },
     get secretKey(): string {
       return snap("stripe_secret_key");
@@ -829,6 +841,22 @@ const settingsBase = {
     },
     get webhookSecret(): string {
       return snap("stripe_webhook_secret");
+    },
+  },
+
+  // --- SumUp ---
+  sumup: {
+    get apiKey(): string {
+      return snap("sumup_api_key");
+    },
+    get hasKey(): boolean {
+      return snap("sumup_api_key") !== "";
+    },
+    get keyMode(): "test" | "live" | null {
+      return keyModeOf(snap("sumup_api_key"));
+    },
+    get merchantCode(): string {
+      return snap("sumup_merchant_code");
     },
   },
 
@@ -915,6 +943,11 @@ const settingsBase = {
       webhookSignatureKey: encryptedUpdate(
         CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
       ),
+    },
+    // --- SumUp writes ---
+    sumup: {
+      apiKey: encryptedUpdate(CONFIG_KEYS.SUMUP_API_KEY),
+      merchantCode: plaintextUpdate(CONFIG_KEYS.SUMUP_MERCHANT_CODE),
     },
     // --- Stripe writes ---
     stripe: {

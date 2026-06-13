@@ -23,6 +23,7 @@ import {
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
+  PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   parsePositiveInt,
 } from "#shared/limits.ts";
@@ -30,20 +31,36 @@ import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 
 /**
+ * Build a pruner that deletes rows older than `retentionMs`, binding an
+ * ISO-timestamp cutoff to the single `?` placeholder in `sql`.
+ */
+const isoAgePruner =
+  (sql: string, retentionMs: number) => async (): Promise<number> => {
+    const cutoffIso = new Date(nowMs() - retentionMs).toISOString();
+    const result = await getDb().execute({ args: [cutoffIso], sql });
+    return result.rowsAffected;
+  };
+
+/**
  * Delete finalized processed_payments rows older than the retention window.
  * Unfinalized (attendee_id IS NULL) rows are handled by deleteAllStaleReservations
  * in processed-payments.ts — we leave them alone here.
  */
-export const prunePayments = async (): Promise<number> => {
-  const cutoffIso = new Date(
-    nowMs() - PRUNE_PAYMENTS_RETENTION_MS,
-  ).toISOString();
-  const result = await getDb().execute({
-    args: [cutoffIso],
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NOT NULL AND processed_at < ?",
-  });
-  return result.rowsAffected;
-};
+export const prunePayments = isoAgePruner(
+  "DELETE FROM processed_payments WHERE attendee_id IS NOT NULL AND processed_at < ?",
+  PRUNE_PAYMENTS_RETENTION_MS,
+);
+
+/**
+ * Delete SumUp checkout staging rows older than their (short) retention.
+ * The row carries encrypted PII and is only needed between checkout creation
+ * and payment completion — SumUp checkouts expire after 30 minutes and
+ * webhook retries stop after 2 hours, so 24h retention is already generous.
+ */
+export const pruneSumupCheckouts = isoAgePruner(
+  "DELETE FROM sumup_checkouts WHERE created_at < ?",
+  PRUNE_SUMUP_RETENTION_MS,
+);
 
 /**
  * Delete sessions whose `expires` is older than (now - retention window).
@@ -109,6 +126,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "processed_payments",
     run: prunePayments,
     writeLast: settings.update.lastPrunedPayments,
+  },
+  {
+    lastRaw: settings.lastPrunedSumup,
+    name: "sumup_checkouts",
+    run: pruneSumupCheckouts,
+    writeLast: settings.update.lastPrunedSumup,
   },
   {
     lastRaw: settings.lastPrunedSessions,

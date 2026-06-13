@@ -18,6 +18,7 @@ import {
 import {
   buildItemsMetadata,
   cachedClientFactory,
+  type CredentialCheck,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
@@ -490,7 +491,7 @@ export type WebhookEndpointStatus = {
 /** Result of testing the Stripe connection */
 export type StripeConnectionTestResult = {
   ok: boolean;
-  apiKey: { valid: boolean; error?: string; mode?: string };
+  apiKey: CredentialCheck;
   webhooks: WebhookEndpointStatus[];
   ownEndpointId?: string | null;
   webhookError?: string;

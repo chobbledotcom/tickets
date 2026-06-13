@@ -17,6 +17,7 @@ import {
   PRUNE_LOGINS_RETENTION_DAYS,
   PRUNE_PAYMENTS_RETENTION_DAYS,
   PRUNE_SESSIONS_RETENTION_DAYS,
+  PRUNE_SUMUP_RETENTION_HOURS,
   parsePositiveInt,
   readLimit,
   SESSION_MAX_AGE_S,
@@ -104,6 +105,7 @@ describe("limits", () => {
         "PRUNE_SESSIONS_RETENTION_DAYS",
         "PRUNE_LOGINS_RETENTION_DAYS",
         "PRUNE_TOKENS_RETENTION_DAYS",
+        "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_INTERVAL_HOURS",
       ].sort();
       const entryKeys = LIMIT_ENTRIES.map((e) => e.envKey).sort();
@@ -137,6 +139,9 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_INTERVAL_HOURS")).toBe(
         PRUNE_INTERVAL_HOURS,
+      );
+      expect(currentByKey.get("PRUNE_SUMUP_RETENTION_HOURS")).toBe(
+        PRUNE_SUMUP_RETENTION_HOURS,
       );
     });
 

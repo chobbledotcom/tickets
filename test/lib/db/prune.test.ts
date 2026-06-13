@@ -16,6 +16,7 @@ import {
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
+  pruneSumupCheckouts,
   pruneTokenAttempts,
 } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
@@ -25,6 +26,7 @@ import {
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
+  PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
@@ -61,6 +63,33 @@ const insertUnfinalizedPayment = async (
       processed_at: processedAtIso,
     }),
   );
+};
+
+/** Insert a sumup_checkouts row with the given creation timestamp.
+ * Prune filters only on created_at, so index/key/blob contents are inert. */
+const insertSumupCheckout = async (
+  referenceIndex: string,
+  createdAtIso: string,
+): Promise<void> => {
+  await getDb().execute(
+    insert("sumup_checkouts", {
+      created_at: createdAtIso,
+      metadata: "ciphertext",
+      reference_index: referenceIndex,
+      wrapped_key: "wk",
+    }),
+  );
+};
+
+/** Is a sumup_checkouts row with this reference index still in the DB? */
+const sumupCheckoutExists = async (
+  referenceIndex: string,
+): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [referenceIndex],
+    sql: "SELECT 1 FROM sumup_checkouts WHERE reference_index = ?",
+  });
+  return rows.length > 0;
 };
 
 /** Insert a login_attempts row with the given lockout (or NULL). */
@@ -124,6 +153,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedSessions("");
   await settings.update.lastPrunedLogins("");
   await settings.update.lastPrunedTokens("");
+  await settings.update.lastPrunedSumup("");
 };
 
 /** Set all last_pruned_* timestamps to the same value. */
@@ -132,6 +162,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedSessions(value);
   await settings.update.lastPrunedLogins(value);
   await settings.update.lastPrunedTokens(value);
+  await settings.update.lastPrunedSumup(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -165,6 +196,28 @@ describeWithEnv("db > prune", { db: true }, () => {
       await prunePayments();
 
       expect(await paymentExists("sess_unfinalized")).toBe(true);
+    });
+  });
+
+  describe("pruneSumupCheckouts", () => {
+    test("deletes checkout metadata older than retention window", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertSumupCheckout("idx_old", old);
+
+      await pruneSumupCheckouts();
+
+      expect(await sumupCheckoutExists("idx_old")).toBe(false);
+    });
+
+    test("keeps checkout metadata within retention window", async () => {
+      const recent = new Date(nowMs() - 1000).toISOString();
+      await insertSumupCheckout("idx_recent", recent);
+
+      await pruneSumupCheckouts();
+
+      expect(await sumupCheckoutExists("idx_recent")).toBe(true);
     });
   });
 
@@ -297,6 +350,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedSessions, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh sumup timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedSumup, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
     });
