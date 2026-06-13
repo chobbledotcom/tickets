@@ -16,6 +16,7 @@ import {
   LATEST_UPDATE,
   MIGRATION_IDS,
   MIGRATION_LOCK_TTL_MS,
+  MigrationInProgressError,
   MissingSettingsTableError,
   resetDatabase,
   SCHEMA_HASH,
@@ -656,6 +657,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
         await setLock(new Date());
         invalidateInitDbCache();
 
+        await expect(initDb()).rejects.toThrow(MigrationInProgressError);
+        invalidateInitDbCache();
         await expect(initDb()).rejects.toThrow("migration_lock held");
 
         const ntfyCall = fetchStub.calls.find(
@@ -781,10 +784,7 @@ describe("db > migrations > schema change guard", () => {
   // migrations are pending").
   test("SCHEMA_HASH changes only alongside a new named migration", () => {
     expect({ migrationIds: MIGRATION_IDS, schemaHash: SCHEMA_HASH }).toEqual({
-      migrationIds: [
-        "2026-06-11_current_schema",
-        "2026-06-12_sumup_checkouts",
-      ],
+      migrationIds: ["2026-06-11_current_schema", "2026-06-12_sumup_checkouts"],
       schemaHash: "1a1d7bq",
     });
   });

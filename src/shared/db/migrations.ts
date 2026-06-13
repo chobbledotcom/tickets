@@ -523,6 +523,20 @@ export class MissingSettingsTableError extends Error {
   }
 }
 
+/**
+ * Thrown when another isolate holds the migration lock — i.e. a database
+ * migration (including its pre-migration backup) is already running. The
+ * request can be retried once the migration finishes, so callers surface a
+ * dedicated "migration in progress" page that auto-refreshes rather than the
+ * generic temporary-error page.
+ */
+export class MigrationInProgressError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MigrationInProgressError";
+  }
+}
+
 const isMissingSettingsTableError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
   return /no such table:?\s*(\w+\.)?settings\b/i.test(message);
@@ -1003,7 +1017,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   const acquired = await acquireMigrationLock(allowMissingSettings);
   if (!acquired) {
     void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
-    throw new Error(
+    throw new MigrationInProgressError(
       "Database migration is already in progress (migration_lock held). " +
         `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
           MIGRATION_LOCK_TTL_MS / 60000

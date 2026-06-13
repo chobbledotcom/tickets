@@ -16,6 +16,7 @@ import {
 import {
   htmlResponse,
   jsonResponse,
+  migrationInProgressResponse,
   notFoundResponse,
   redirectResponse,
   siteNotActivatedResponse,
@@ -32,7 +33,11 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
-import { initDb, MissingSettingsTableError } from "#shared/db/migrations.ts";
+import {
+  initDb,
+  MigrationInProgressError,
+  MissingSettingsTableError,
+} from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -358,6 +363,9 @@ const initializeDatabaseForPath = async (
   } catch (error) {
     if (error instanceof MissingSettingsTableError) {
       return siteNotActivatedResponse();
+    }
+    if (error instanceof MigrationInProgressError) {
+      return migrationInProgressResponse();
     }
     throw error;
   }
