@@ -1,12 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import {
+  setSumupCheckoutId,
+  storeSumupCheckout,
+} from "#shared/db/sumup-checkouts.ts";
 import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb, withMocks } from "#test-utils";
 
-/** Booking metadata with the required name + items fields. */
+/** Booking metadata as buildItemsMetadata would write it. */
 const META = {
   _origin: "example.com",
   email: "alice@example.com",
@@ -23,13 +26,22 @@ const checkout = (over: Partial<SumupCheckout> = {}): SumupCheckout => ({
   ...over,
 });
 
-/** Run body with a sumupApi checkout-retrieval method stubbed to resolve `value`. */
-const withRetrieve = (
-  method: "retrieveCheckoutById" | "retrieveCheckoutByReference",
+/** Stage metadata for reference "ref" mapped to SumUp id "co_1". */
+const stageCheckout = async (): Promise<void> => {
+  await storeSumupCheckout("ref", META);
+  await setSumupCheckoutId("ref", "co_1");
+};
+
+/** Run body with retrieveCheckoutById stubbed to resolve `value`. */
+const withFetched = (
   value: SumupCheckout | null,
-  body: () => Promise<void>,
+  body: (calls: () => unknown[][]) => Promise<void>,
 ) =>
-  withMocks(() => stub(sumupApi, method, () => Promise.resolve(value)), body);
+  withMocks(
+    () =>
+      stub(sumupApi, "retrieveCheckoutById", () => Promise.resolve(value)),
+    (mock) => body(() => mock.calls.map((c) => c.args)),
+  );
 
 describe("sumup-provider", () => {
   beforeEach(async () => {
@@ -41,23 +53,25 @@ describe("sumup-provider", () => {
   });
 
   describe("retrieveSession", () => {
-    test("returns null when the checkout is not found", () =>
-      withRetrieve("retrieveCheckoutByReference", null, async () => {
-        expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
-      }));
+    test("returns null for an unknown reference without calling SumUp", async () => {
+      expect(await sumupPaymentProvider.retrieveSession("nope")).toBeNull();
+    });
 
-    test("returns null when the checkout has no reference", () =>
-      withRetrieve(
-        "retrieveCheckoutByReference",
-        checkout({ reference: "" }),
-        async () => {
-          expect(await sumupPaymentProvider.retrieveSession("")).toBeNull();
-        },
-      ));
-
-    test("returns a paid session joined with stored metadata", async () => {
+    test("returns null for an orphaned row (checkout creation failed)", async () => {
       await storeSumupCheckout("ref", META);
-      await withRetrieve("retrieveCheckoutByReference", checkout(), async () => {
+      expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
+    });
+
+    test("returns null when the checkout cannot be fetched", async () => {
+      await stageCheckout();
+      await withFetched(null, async () => {
+        expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
+      });
+    });
+
+    test("fetches by the stored SumUp id and returns the paid session", async () => {
+      await stageCheckout();
+      await withFetched(checkout(), async (calls) => {
         const result = await sumupPaymentProvider.retrieveSession("ref");
         expect(result).toEqual(
           expect.objectContaining({
@@ -68,17 +82,28 @@ describe("sumup-provider", () => {
           }),
         );
         expect(result!.metadata.email).toBe("alice@example.com");
+        expect(calls()).toEqual([["co_1"]]);
       });
     });
 
-    test("returns an unpaid session when the checkout is PENDING", async () => {
-      await storeSumupCheckout("ref", META);
-      await withRetrieve(
-        "retrieveCheckoutByReference",
+    test("maps PENDING to unpaid", async () => {
+      await stageCheckout();
+      await withFetched(
         checkout({ status: "PENDING", transactionId: "" }),
         async () => {
           const result = await sumupPaymentProvider.retrieveSession("ref");
           expect(result!.paymentStatus).toBe("unpaid");
+        },
+      );
+    });
+
+    test("maps FAILED to failed (declined checkout)", async () => {
+      await stageCheckout();
+      await withFetched(
+        checkout({ status: "FAILED", transactionId: "" }),
+        async () => {
+          const result = await sumupPaymentProvider.retrieveSession("ref");
+          expect(result!.paymentStatus).toBe("failed");
         },
       );
     });
@@ -178,54 +203,48 @@ describe("sumup-provider", () => {
       ).toBeNull();
     });
 
-    test("returns null when the checkout cannot be fetched", () =>
-      withRetrieve("retrieveCheckoutById", null, async () => {
+    test("skips ids we never created without calling SumUp", async () => {
+      await stageCheckout();
+      await withFetched(checkout(), async (calls) => {
         expect(
-          await sumupPaymentProvider.resolveWebhookSession(event("co_x")),
-        ).toBeNull();
-      }));
+          await sumupPaymentProvider.resolveWebhookSession(event("co_spam")),
+        ).toBe("skip");
+        expect(calls()).toEqual([]);
+      });
+    });
 
-    test("skips an unknown checkout (no stored metadata)", () =>
-      withRetrieve(
-        "retrieveCheckoutById",
-        checkout({ reference: "ref_unknown" }),
-        async () => {
-          expect(
-            await sumupPaymentProvider.resolveWebhookSession(event("co_x")),
-          ).toBe("skip");
-        },
-      ));
+    test("returns null when the checkout cannot be fetched", async () => {
+      await stageCheckout();
+      await withFetched(null, async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(event("co_1")),
+        ).toBeNull();
+      });
+    });
 
     test("skips when the payment is not yet paid", async () => {
-      await storeSumupCheckout("ref", META);
-      await withRetrieve(
-        "retrieveCheckoutById",
+      await stageCheckout();
+      await withFetched(
         checkout({ status: "PENDING", transactionId: "" }),
         async () => {
           expect(
-            await sumupPaymentProvider.resolveWebhookSession(event("co_p")),
+            await sumupPaymentProvider.resolveWebhookSession(event("co_1")),
           ).toBe("skip");
         },
       );
     });
 
     test("fetches the checkout by event id and returns the paid session", async () => {
-      await storeSumupCheckout("ref", META);
-      await withMocks(
-        () =>
-          stub(sumupApi, "retrieveCheckoutById", () =>
-            Promise.resolve(checkout()),
-          ),
-        async (mock) => {
-          const result = await sumupPaymentProvider.resolveWebhookSession(
-            event("co_ok"),
-          );
-          expect(result).toEqual(
-            expect.objectContaining({ id: "ref", paymentReference: "txn" }),
-          );
-          expect(mock.calls[0]!.args).toEqual(["co_ok"]);
-        },
-      );
+      await stageCheckout();
+      await withFetched(checkout(), async (calls) => {
+        const result = await sumupPaymentProvider.resolveWebhookSession(
+          event("co_1"),
+        );
+        expect(result).toEqual(
+          expect.objectContaining({ id: "ref", paymentReference: "txn" }),
+        );
+        expect(calls()).toEqual([["co_1"]]);
+      });
     });
   });
 

@@ -8,8 +8,14 @@ import {
   questionsTable,
   setEventQuestions,
 } from "#shared/db/questions.ts";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
+import {
+  setSumupCheckoutId,
+  storeSumupCheckout,
+} from "#shared/db/sumup-checkouts.ts";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { buildItemsMetadata } from "#shared/payment-helpers.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
@@ -58,23 +64,109 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await expectHtmlResponse(response, 400, "Missing signature");
     });
 
-    test("accepts an unsigned SumUp webhook (no signature required)", async () => {
+    /** Configure SumUp and stage a real checkout for the given event:
+     * production buildItemsMetadata output, encrypted store, id mapping. */
+    const stageSumupCheckout = async (event: {
+      id: number;
+      name: string;
+      slug: string;
+    }) => {
       await settings.update.paymentProvider("sumup");
       await settings.update.sumup.apiKey("sk_test_x");
       await settings.update.sumup.merchantCode("MC1");
+      setEffectiveDomainForTest("localhost");
+      const reference = crypto.randomUUID();
+      const metadata = await buildItemsMetadata({
+        address: "",
+        date: null,
+        email: "alice@example.com",
+        items: [
+          {
+            eventId: event.id,
+            name: event.name,
+            quantity: 1,
+            slug: event.slug,
+            unitPrice: 1000,
+          },
+        ],
+        name: "Alice",
+        phone: "",
+        special_instructions: "",
+      });
+      await storeSumupCheckout(reference, metadata);
+      await setSumupCheckoutId(reference, "co_e2e");
+      return reference;
+    };
+
+    /** Unsigned SumUp webhook event for the staged checkout. */
+    const sumupWebhookEvent = {
+      event_type: "CHECKOUT_STATUS_CHANGED",
+      id: "co_e2e",
+    };
+
+    test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
+      const event = await createTestEvent({ unitPrice: 1000 });
+      const reference = await stageSumupCheckout(event);
       const restore = stub(sumupApi, "retrieveCheckoutById", () =>
+        Promise.resolve({
+          amountMinor: 1000,
+          reference,
+          status: "PAID" as const,
+          transactionId: "txn_e2e",
+        }),
+      );
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(sumupWebhookEvent),
+        );
+        expect(response.status).toBe(200);
+        expect((await response.json()).processed).toBe(true);
+
+        // A retried webhook resolves to the already-created attendee
+        const retry = await handleRequest(mockWebhookRequest(sumupWebhookEvent));
+        expect((await retry.json()).processed).toBe(true);
+      } finally {
+        restore.restore();
+      }
+    });
+
+    test("acknowledges unknown SumUp checkout ids without fetching from the API", async () => {
+      const event = await createTestEvent({ unitPrice: 1000 });
+      await stageSumupCheckout(event);
+      const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
         Promise.resolve(null),
       );
       try {
         const response = await handleRequest(
           mockWebhookRequest({
             event_type: "CHECKOUT_STATUS_CHANGED",
-            id: "co_unsigned",
+            id: "co_spam",
           }),
         );
         expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.received).toBe(true);
+        expect((await response.json()).received).toBe(true);
+        expect(fetchStub.calls.length).toBe(0);
+      } finally {
+        fetchStub.restore();
+      }
+    });
+
+    test("shows the cancel page when a SumUp payment fails", async () => {
+      const event = await createTestEvent({ unitPrice: 1000 });
+      const reference = await stageSumupCheckout(event);
+      const restore = stub(sumupApi, "retrieveCheckoutById", () =>
+        Promise.resolve({
+          amountMinor: 1000,
+          reference,
+          status: "FAILED" as const,
+          transactionId: "",
+        }),
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest(`/payment/success?session_id=${reference}`),
+        );
+        await expectHtmlResponse(response, 200, "Payment Cancelled");
       } finally {
         restore.restore();
       }

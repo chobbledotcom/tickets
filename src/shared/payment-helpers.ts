@@ -306,17 +306,3 @@ export const extractSessionMetadata = (
   site_token_index: metadata.site_token_index || "",
   special_instructions: metadata.special_instructions || "",
 });
-
-/**
- * Assemble a ValidatedPaymentSession from provider-agnostic fields plus raw
- * provider metadata. Returns null when the metadata lacks the required fields
- * (name + items) — e.g. a session created outside this app. Lets each provider
- * skip repeating the guard-then-extract dance.
- */
-export const toValidatedSession = (
-  fields: Omit<ValidatedPaymentSession, "metadata">,
-  metadata: Record<string, string | undefined> | null | undefined,
-): ValidatedPaymentSession | null =>
-  hasRequiredSessionMetadata(metadata)
-    ? { ...fields, metadata: extractSessionMetadata(metadata) }
-    : null;

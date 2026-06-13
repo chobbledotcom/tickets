@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "encrypt sumup_checkouts metadata with reference-derived keys";
+  "add sumup_id to sumup_checkouts for webhook pre-filtering";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -292,7 +292,14 @@ const SCHEMA: [name: string, table: Table][] = [
         ["reference_index", "TEXT PRIMARY KEY"],
         ["wrapped_key", "TEXT NOT NULL DEFAULT ''"],
         ["metadata", "TEXT NOT NULL"],
+        ["sumup_id", "TEXT NOT NULL DEFAULT ''"],
         ["created_at", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["sumup_id"],
+          name: "idx_sumup_checkouts_sumup_id",
+        },
       ],
     },
   ],

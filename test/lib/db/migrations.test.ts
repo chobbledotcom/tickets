@@ -785,7 +785,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-11_current_schema",
         "2026-06-12_sumup_checkouts",
       ],
-      schemaHash: "1jmfwrz",
+      schemaHash: "1a1d7bq",
     });
   });
 });

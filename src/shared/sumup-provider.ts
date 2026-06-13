@@ -5,23 +5,24 @@
  *
  * Key differences from Stripe/Square:
  * - Hosted Checkout; our checkout_reference is the session id throughout
- * - Booking metadata is stored locally (not on the provider) and looked up by
- *   reference (db/sumup-checkouts.ts)
- * - Webhooks are unsigned (requiresWebhookSignature = false); the webhook only
- *   carries a checkout id, so we re-fetch to establish authenticity + status
- * - There is no programmatic webhook endpoint to set up (the return_url is set
- *   per checkout at creation time)
+ * - Booking metadata is staged locally, encrypted (db/sumup-checkouts.ts)
+ * - Webhooks are unsigned (requiresWebhookSignature = false): events are
+ *   pre-filtered against our staging rows, then the checkout is re-fetched
+ *   from SumUp to establish authenticity and payment status
+ * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
-import { getSumupCheckoutMetadata } from "#shared/db/sumup-checkouts.ts";
+import { getSumupCheckout, hasSumupCheckoutId } from "#shared/db/sumup-checkouts.ts";
 import {
+  extractSessionMetadata,
   toCheckoutResult,
-  toValidatedSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
   PaymentProvider,
+  PaymentStatus,
+  SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,
   WebhookSetupResult,
@@ -32,30 +33,28 @@ import {
   getTransactionStatus,
   refundTransaction,
   retrieveCheckoutById,
-  retrieveCheckoutByReference,
   type SumupCheckout,
 } from "#shared/sumup.ts";
 
-/**
- * Build a validated session from a SumUp checkout, joining the locally-stored
- * booking metadata. Returns null when the checkout is unknown to us (no stored
- * metadata) — e.g. created by another integration sharing the account.
- */
-const buildValidatedSession = async (
+/** Map SumUp's checkout lifecycle to the provider-agnostic payment status.
+ * FAILED (declined) and EXPIRED are terminal — the redirect handler shows the
+ * cancel page for those instead of a "contact support" error. */
+const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
+  status === "PAID" ? "paid" : status === "PENDING" ? "unpaid" : "failed";
+
+/** Build a validated session from a fetched checkout and its staged metadata.
+ * The metadata was written by our own buildItemsMetadata, so it always carries
+ * the required fields. */
+const buildValidatedSession = (
   checkout: SumupCheckout,
-): Promise<ValidatedPaymentSession | null> => {
-  if (!checkout.reference) return null;
-  const metadata = await getSumupCheckoutMetadata(checkout.reference);
-  return toValidatedSession(
-    {
-      amountTotal: checkout.amountMinor,
-      id: checkout.reference,
-      paymentReference: checkout.transactionId,
-      paymentStatus: checkout.status === "PAID" ? "paid" : "unpaid",
-    },
-    metadata,
-  );
-};
+  metadata: Record<string, string>,
+): ValidatedPaymentSession => ({
+  amountTotal: checkout.amountMinor,
+  id: checkout.reference,
+  metadata: extractSessionMetadata(metadata as SessionMetadata),
+  paymentReference: checkout.transactionId,
+  paymentStatus: toPaymentStatus(checkout.status),
+});
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
@@ -79,22 +78,29 @@ export const sumupPaymentProvider: PaymentProvider = {
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null> {
-    // SumUp's webhook carries only the checkout id; re-fetch to confirm.
     if (!webhookEvent.id) return null;
+    // Unsigned webhooks: only fetch checkouts we created. Spam or another
+    // integration's events are acknowledged without an API call.
+    if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
     const checkout = await retrieveCheckoutById(webhookEvent.id);
     if (!checkout) return null;
-    const session = await buildValidatedSession(checkout);
-    // Unknown checkout, or not yet paid: acknowledge without processing.
-    if (!session || session.paymentStatus !== "paid") return "skip";
-    return session;
+    // Non-null: the pre-filter just matched this id to a staging row
+    const stored = (await getSumupCheckout(checkout.reference))!;
+    const session = buildValidatedSession(checkout, stored.metadata);
+    // Not yet (or never) paid: acknowledge without processing.
+    return session.paymentStatus === "paid" ? session : "skip";
   },
 
   async retrieveSession(
     sessionId: string,
   ): Promise<ValidatedPaymentSession | null> {
-    // sessionId is our checkout_reference (set on the redirect URL).
-    const checkout = await retrieveCheckoutByReference(sessionId);
-    return checkout ? buildValidatedSession(checkout) : null;
+    // sessionId is our checkout_reference (set on the redirect URL); the
+    // staged row carries the SumUp id for a direct fetch. An empty sumupId
+    // means checkout creation failed after staging — nothing to retrieve.
+    const stored = await getSumupCheckout(sessionId);
+    if (!stored?.sumupId) return null;
+    const checkout = await retrieveCheckoutById(stored.sumupId);
+    return checkout && buildValidatedSession(checkout, stored.metadata);
   },
 
   // SumUp sets return_url per checkout — there is no global endpoint to register.
@@ -106,11 +112,9 @@ export const sumupPaymentProvider: PaymentProvider = {
     }),
   type: "sumup",
 
-  verifyWebhookSignature(
-    payload: string,
-  ): Promise<WebhookVerifyResult> {
-    // SumUp does not sign webhooks; authenticity is established by re-fetching
-    // the checkout in resolveWebhookSession. We only parse the tiny payload
+  verifyWebhookSignature(payload: string): Promise<WebhookVerifyResult> {
+    // SumUp does not sign webhooks; authenticity is established in
+    // resolveWebhookSession. We only parse the tiny payload
     // ({ event_type, id }) into the provider-agnostic event shape here.
     try {
       const parsed = JSON.parse(payload) as { event_type?: string; id?: string };

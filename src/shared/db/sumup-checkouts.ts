@@ -19,6 +19,11 @@
  * checkout's `checkout_reference`). A DB dump alone, even combined with the
  * env encryption key, cannot decrypt these rows directly.
  *
+ * The row also records the SumUp-side checkout id (set right after creation).
+ * It is not sensitive — an attacker with the SumUp API key can list checkout
+ * ids anyway — and it lets the webhook handler reject events for checkouts we
+ * never created without spending an outbound API call.
+ *
  * Rows are short-lived: pruned after PRUNE_SUMUP_RETENTION_HOURS (see
  * prune.ts) since nothing legitimate reads them once SumUp's checkout expiry
  * (30 min) and webhook retry window (2 h) have passed.
@@ -34,7 +39,17 @@ import {
 import { getDb, insert, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
-type SumupCheckoutRow = { wrapped_key: string; metadata: string };
+type SumupCheckoutRow = {
+  wrapped_key: string;
+  metadata: string;
+  sumup_id: string;
+};
+
+/** Decrypted staging entry for a checkout. */
+export type SumupCheckoutEntry = {
+  metadata: Record<string, string>;
+  sumupId: string;
+};
 
 /** Persist booking metadata for a checkout, encrypted under its reference. */
 export const storeSumupCheckout = async (
@@ -52,25 +67,50 @@ export const storeSumupCheckout = async (
       created_at: nowIso(),
       metadata: ciphertext,
       reference_index: referenceIndex,
+      sumup_id: "",
       wrapped_key: wrappedKey,
     }),
   );
 };
 
+/** Record the SumUp-side checkout id once creation succeeds. */
+export const setSumupCheckoutId = async (
+  reference: string,
+  sumupId: string,
+): Promise<void> => {
+  await getDb().execute({
+    args: [sumupId, await hmacHash(reference)],
+    sql: "UPDATE sumup_checkouts SET sumup_id = ? WHERE reference_index = ?",
+  });
+};
+
+/** Whether a webhook's checkout id belongs to a checkout we created.
+ * Cheap local pre-filter so unsigned webhook spam never costs an API call. */
+export const hasSumupCheckoutId = async (sumupId: string): Promise<boolean> => {
+  const row = await queryOne<{ sumup_id: string }>(
+    "SELECT sumup_id FROM sumup_checkouts WHERE sumup_id = ?",
+    [sumupId],
+  );
+  return row !== null;
+};
+
 /**
- * Look up and decrypt the stored booking metadata for a checkout reference.
+ * Look up and decrypt the staging entry for a checkout reference.
  * Returns null for unknown references. A found-but-undecryptable row means
  * corruption and throws (same policy as parseBookingItems).
  */
-export const getSumupCheckoutMetadata = async (
+export const getSumupCheckout = async (
   reference: string,
-): Promise<Record<string, string> | null> => {
+): Promise<SumupCheckoutEntry | null> => {
   const row = await queryOne<SumupCheckoutRow>(
-    "SELECT wrapped_key, metadata FROM sumup_checkouts WHERE reference_index = ?",
+    "SELECT wrapped_key, metadata, sumup_id FROM sumup_checkouts WHERE reference_index = ?",
     [await hmacHash(reference)],
   );
   if (!row) return null;
   const dataKey = await unwrapKeyWithToken(row.wrapped_key, reference);
   const json = await decryptWithKey(row.metadata, dataKey);
-  return JSON.parse(json) as Record<string, string>;
+  return {
+    metadata: JSON.parse(json) as Record<string, string>,
+    sumupId: row.sumup_id,
+  };
 };

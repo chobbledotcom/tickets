@@ -83,7 +83,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import type { PaymentProviderType } from "#shared/payments.ts";
 import { fail, ok } from "#shared/response.ts";
 import { testSquareConnection } from "#shared/square.ts";
-import { testSumupConnection } from "#shared/sumup.ts";
+import { isSumupCurrency, testSumupConnection } from "#shared/sumup.ts";
 import {
   deleteAllEventStorageFiles,
   deleteFile,
@@ -483,6 +483,9 @@ const handleAdminSumupPost = settingsHandler<SumupFormData>({
   },
   validate: ({ apiKey, merchantCode }) => {
     if (isDemoMode()) return "Cannot configure SumUp in demo mode";
+    if (!isSumupCurrency(settings.currency)) {
+      return `SumUp does not support your site currency (${settings.currency}). Choose a different payment provider or country.`;
+    }
     if (!merchantCode) return "Merchant code is required";
     if (apiKey.action === "cleared" && !settings.sumup.hasKey) {
       return "SumUp API Key is required";

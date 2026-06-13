@@ -98,6 +98,22 @@ const withSessionId =
 const logRedirectError = (detail: string): void =>
   logError({ code: ErrorCode.PAYMENT_SESSION, detail: `[redirect] ${detail}` });
 
+/** Render the payment-cancelled page for a session's first event. */
+const cancelPageResponse = async (
+  session: ValidatedPaymentSession,
+  logFailure: (detail: string) => void,
+): Promise<Response> => {
+  const intent = extractIntent(session);
+  const eventId = intent?.items[0]?.e ?? 0;
+  // Use getEvent (not getEventWithCount) - we only need slug for the link
+  const event = await getEvent(eventId);
+  if (!event) {
+    logFailure(`Event not found (session=${session.id}, eventId=${eventId})`);
+    return paymentErrorResponse("Event not found", 404);
+  }
+  return htmlResponse(paymentCancelPage(event, `/ticket/${event.slug}`));
+};
+
 const validatePaidSession = async (
   sessionId: string,
 ): Promise<SessionValidation> => {
@@ -116,6 +132,16 @@ const validatePaidSession = async (
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not found"),
+    };
+  }
+
+  // Declined or expired checkout: SumUp's hosted page has a single redirect
+  // URL for every outcome, so a card decline lands here. Show the friendly
+  // cancel/try-again page, not a "contact support" error.
+  if (session.paymentStatus === "failed") {
+    return {
+      ok: false,
+      response: await cancelPageResponse(session, logRedirectError),
     };
   }
 
@@ -776,17 +802,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Payment session not found");
   }
 
-  const intent = extractIntent(session);
-  const eventId = intent?.items[0]?.e ?? 0;
-
-  // Use getEvent (not getEventWithCount) - we only need slug for redirect
-  const event = await getEvent(eventId);
-  if (!event) {
-    logCancelError(`Event not found (session=${sid}, eventId=${eventId})`);
-    return paymentErrorResponse("Event not found", 404);
-  }
-
-  return htmlResponse(paymentCancelPage(event, `/ticket/${event.slug}`));
+  return cancelPageResponse(session, logCancelError);
 });
 
 /**

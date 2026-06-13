@@ -44,6 +44,24 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("required"), false);
     });
 
+    test("rejects configuration when the site currency is unsupported", async () => {
+      settings.setForTest({ currency: "AUD" });
+      try {
+        const { response } = await adminFormPost("/admin/settings/sumup", {
+          sumup_api_key: "sk_test_1",
+          sumup_merchant_code: "MC1",
+        });
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("does not support your site currency"),
+          false,
+        );
+      } finally {
+        settings.clearTestOverride("currency");
+      }
+    });
+
     test("refuses configuration in demo mode", async () => {
       setDemoModeForTest(true);
       const { response } = await adminFormPost("/admin/settings/sumup", {
@@ -111,6 +129,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           stub(sumupApi, "testSumupConnection", () =>
             Promise.resolve({
               apiKey: { mode: "test", valid: true },
+              currency: { code: "GBP", supported: true },
               merchant: { configured: true, merchantCode: "MC1" },
               ok: true,
             }),

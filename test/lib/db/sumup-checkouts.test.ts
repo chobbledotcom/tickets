@@ -11,7 +11,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
-  getSumupCheckoutMetadata,
+  getSumupCheckout,
+  hasSumupCheckoutId,
+  setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { describeWithEnv } from "#test-utils";
@@ -30,7 +32,7 @@ const METADATA = {
 /** Fetch the single raw stored row (all columns) for at-rest inspection. */
 const rawRow = async (): Promise<Record<string, unknown>> => {
   const { rows } = await getDb().execute(
-    "SELECT reference_index, wrapped_key, metadata, created_at FROM sumup_checkouts",
+    "SELECT reference_index, wrapped_key, metadata, sumup_id, created_at FROM sumup_checkouts",
   );
   expect(rows.length).toBe(1);
   return rows[0] as Record<string, unknown>;
@@ -41,15 +43,16 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
     test("returns the exact metadata that was stored", async () => {
       await storeSumupCheckout(REFERENCE, METADATA);
 
-      const result = await getSumupCheckoutMetadata(REFERENCE);
+      const result = await getSumupCheckout(REFERENCE);
 
-      expect(result).toEqual(METADATA);
+      expect(result!.metadata).toEqual(METADATA);
+      expect(result!.sumupId).toBe("");
     });
 
     test("returns null for an unknown reference", async () => {
       await storeSumupCheckout(REFERENCE, METADATA);
 
-      const result = await getSumupCheckoutMetadata(crypto.randomUUID());
+      const result = await getSumupCheckout(crypto.randomUUID());
 
       expect(result).toBeNull();
     });
@@ -60,10 +63,27 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       await storeSumupCheckout(REFERENCE, METADATA);
       await storeSumupCheckout(otherReference, otherMetadata);
 
-      expect(await getSumupCheckoutMetadata(REFERENCE)).toEqual(METADATA);
-      expect(await getSumupCheckoutMetadata(otherReference)).toEqual(
+      expect((await getSumupCheckout(REFERENCE))!.metadata).toEqual(METADATA);
+      expect((await getSumupCheckout(otherReference))!.metadata).toEqual(
         otherMetadata,
       );
+    });
+  });
+
+  describe("sumup id mapping", () => {
+    test("setSumupCheckoutId records the id for later lookups", async () => {
+      await storeSumupCheckout(REFERENCE, METADATA);
+      await setSumupCheckoutId(REFERENCE, "co_abc123");
+
+      expect((await getSumupCheckout(REFERENCE))!.sumupId).toBe("co_abc123");
+      expect(await hasSumupCheckoutId("co_abc123")).toBe(true);
+    });
+
+    test("hasSumupCheckoutId rejects ids we never created", async () => {
+      await storeSumupCheckout(REFERENCE, METADATA);
+      await setSumupCheckoutId(REFERENCE, "co_abc123");
+
+      expect(await hasSumupCheckoutId("co_spam")).toBe(false);
     });
   });
 
@@ -82,6 +102,7 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
 
     test("stores no plaintext checkout reference in any column", async () => {
       await storeSumupCheckout(REFERENCE, METADATA);
+      await setSumupCheckoutId(REFERENCE, "co_abc123");
 
       const row = await rawRow();
 

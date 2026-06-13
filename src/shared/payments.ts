@@ -94,14 +94,16 @@ export type SessionMetadata = {
   site_token_index: string;
 };
 
-/** Valid payment status values */
-export type PaymentStatus = "paid" | "unpaid" | "no_payment_required";
+/** Valid payment status values. "failed" is a terminal non-payment (declined
+ * or expired checkout) — distinct from "unpaid", which may still complete. */
+export type PaymentStatus = "paid" | "unpaid" | "no_payment_required" | "failed";
 
 /** Runtime array of valid payment status values */
 const PAYMENT_STATUSES: readonly PaymentStatus[] = [
   "paid",
   "unpaid",
   "no_payment_required",
+  "failed",
 ];
 
 /** Type guard: check if a string is a valid PaymentStatus */

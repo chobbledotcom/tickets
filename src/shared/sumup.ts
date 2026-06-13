@@ -6,14 +6,13 @@
  * - Checkout uses SumUp Hosted Checkout (hosted_checkout.enabled = true)
  * - Checkouts carry no arbitrary metadata, so booking metadata is stored
  *   locally (db/sumup-checkouts.ts) keyed by our generated checkout_reference
- * - Webhooks are unsigned: authenticity comes from re-fetching the checkout
- * - The webhook only carries a checkout id; the redirect carries our reference
+ * - Webhooks are unsigned: events are pre-filtered against our staging rows,
+ *   then authenticity comes from re-fetching the checkout
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
  * Amounts: the app models money in minor units (e.g. pence); SumUp's API uses
  * major units. We convert at the boundary using the configured currency's
- * decimal places (the shared currency helpers), so zero-decimal currencies
- * (e.g. JPY) convert correctly rather than assuming a fixed factor of 100.
+ * decimal places (the shared currency helpers).
  */
 
 import { SumUp } from "@sumup/sdk";
@@ -22,7 +21,10 @@ import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
-import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import {
+  setSumupCheckoutId,
+  storeSumupCheckout,
+} from "#shared/db/sumup-checkouts.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   buildItemsMetadata,
@@ -31,6 +33,32 @@ import {
   errorMessage,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+
+/** Currencies SumUp's checkout API accepts (mirrors the SDK's Currency union).
+ * Many site currencies (e.g. AUD, CAD, INR, JPY) are NOT supported — validated
+ * at settings save and in the connection test so checkouts can't fail silently. */
+const SUMUP_CURRENCIES: ReadonlySet<string> = new Set([
+  "BGN",
+  "BRL",
+  "CHF",
+  "CLP",
+  "COP",
+  "CZK",
+  "DKK",
+  "EUR",
+  "GBP",
+  "HRK",
+  "HUF",
+  "NOK",
+  "PLN",
+  "RON",
+  "SEK",
+  "USD",
+]);
+
+/** Whether the given ISO currency code can be charged through SumUp. */
+export const isSumupCurrency = (code: string): boolean =>
+  SUMUP_CURRENCIES.has(code.toUpperCase());
 
 /** Normalized checkout shape consumed by the provider adapter. */
 export type SumupCheckout = {
@@ -52,6 +80,7 @@ export type SumupConnectionTestResult = {
   ok: boolean;
   apiKey: CredentialCheck;
   merchant: { configured: boolean; merchantCode?: string; error?: string };
+  currency: { code: string; supported: boolean };
 };
 
 /** Internal getSumupClient implementation — reads the current API key. */
@@ -77,12 +106,22 @@ const getMerchantCode = (): string | null => {
   return merchantCode;
 };
 
-/** Normalize a SumUp checkout resource into our internal shape. */
+/**
+ * Normalize a SumUp checkout resource into our internal shape.
+ * amount and checkout_reference are always present on checkouts we created
+ * (webhook ids are pre-filtered against our staging rows before fetching),
+ * so the SDK's optional types are asserted rather than defaulted.
+ * transaction_id only exists once a payment attempt succeeds; older attempts
+ * in `transactions` may have FAILED, so the fallback picks the successful one.
+ */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
-  amountMinor: typeof c.amount === "number" ? toMinorUnits(c.amount) : 0,
-  reference: c.checkout_reference ?? "",
+  amountMinor: toMinorUnits(c.amount!),
+  reference: c.checkout_reference!,
   status: c.status,
-  transactionId: c.transaction_id ?? c.transactions?.[0]?.id ?? "",
+  transactionId:
+    c.transaction_id ??
+    c.transactions?.find((t) => t.status === "SUCCESSFUL")?.id ??
+    "",
 });
 
 /**
@@ -95,9 +134,6 @@ export const sumupApi: {
     intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<SumupCheckoutResult>;
-  retrieveCheckoutByReference: (
-    reference: string,
-  ) => Promise<SumupCheckout | null>;
   retrieveCheckoutById: (id: string) => Promise<SumupCheckout | null>;
   refundTransaction: (transactionId: string) => Promise<boolean>;
   getTransactionStatus: (transactionId: string) => Promise<string | null>;
@@ -131,10 +167,14 @@ export const sumupApi: {
         return_url: `https://${getEffectiveDomain()}/payment/webhook`,
       });
       const url = checkout.hosted_checkout_url;
-      if (!url) {
-        logDebug("SumUp", "Checkout response missing hosted_checkout_url");
+      if (!checkout.id || !url) {
+        logDebug("SumUp", "Checkout response missing id or hosted_checkout_url");
         return null;
       }
+      // Record the SumUp id so webhooks for this checkout pass the pre-filter
+      // and the redirect can fetch it directly. Runs before the customer ever
+      // sees the payment URL, so no webhook can race it.
+      await setSumupCheckoutId(reference, checkout.id);
       return { reference, url };
     }, ErrorCode.PAYMENT_CHECKOUT);
   },
@@ -142,9 +182,7 @@ export const sumupApi: {
   getSumupClient: getClientImpl,
 
   /** Read a transaction's high-level status (e.g. for refund checks). */
-  getTransactionStatus: (
-    transactionId: string,
-  ): Promise<string | null> => {
+  getTransactionStatus: (transactionId: string): Promise<string | null> => {
     const merchantCode = getMerchantCode();
     if (!merchantCode) return Promise.resolve(null);
     return withClient(async (client) => {
@@ -166,29 +204,22 @@ export const sumupApi: {
     return result ?? false;
   },
 
-  /** Retrieve a checkout by its SumUp id (used for webhook events). */
+  /** Retrieve a checkout by its SumUp id. */
   retrieveCheckoutById: (id: string): Promise<SumupCheckout | null> =>
     withClient(
       async (client) => toSumupCheckout(await client.checkouts.get(id)),
       ErrorCode.PAYMENT_SESSION,
     ),
 
-  /** Retrieve a checkout by our checkout_reference (used for redirects). */
-  retrieveCheckoutByReference: (
-    reference: string,
-  ): Promise<SumupCheckout | null> =>
-    withClient(async (client) => {
-      const list = await client.checkouts.list({
-        checkout_reference: reference,
-      });
-      const checkout = list[0];
-      return checkout ? toSumupCheckout(checkout) : null;
-    }, ErrorCode.PAYMENT_SESSION),
-
-  /** Test connection: verify the API key + merchant code via merchants.get. */
+  /** Test connection: verify API key + merchant code + currency support. */
   testSumupConnection: async (): Promise<SumupConnectionTestResult> => {
+    const currencyCode = settings.currency.toUpperCase();
     const result: SumupConnectionTestResult = {
       apiKey: { valid: false },
+      currency: {
+        code: currencyCode,
+        supported: isSumupCurrency(currencyCode),
+      },
       merchant: { configured: false },
       ok: false,
     };
@@ -207,16 +238,13 @@ export const sumupApi: {
     // Non-null: the API key was verified present just above
     const client = sumupApi.getSumupClient()!;
     try {
-      const merchant = await client.merchants.get(merchantCode);
+      await client.merchants.get(merchantCode);
       result.apiKey = {
         mode: settings.sumup.keyMode ?? "unknown",
         valid: true,
       };
-      result.merchant = {
-        configured: true,
-        merchantCode: merchant.merchant_code ?? merchantCode,
-      };
-      result.ok = true;
+      result.merchant = { configured: true, merchantCode };
+      result.ok = result.currency.supported;
     } catch (err) {
       result.apiKey = { error: errorMessage(err), valid: false };
     }
@@ -227,8 +255,6 @@ export const sumupApi: {
 // Wrapper exports for production code (delegate to sumupApi for test mocking)
 export const createCheckout = (i: CheckoutIntent, b: string) =>
   sumupApi.createCheckout(i, b);
-export const retrieveCheckoutByReference = (ref: string) =>
-  sumupApi.retrieveCheckoutByReference(ref);
 export const retrieveCheckoutById = (id: string) =>
   sumupApi.retrieveCheckoutById(id);
 export const refundTransaction = (id: string) =>

@@ -115,6 +115,9 @@ export const initPaymentTestButtons = (): void => {
       data.merchant.configured
         ? `Merchant: ${data.merchant.merchantCode}`
         : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
+      data.currency.supported
+        ? `Currency: ${data.currency.code} (supported)`
+        : `Currency: ${data.currency.code} is not supported by SumUp`,
     ],
   );
 };
