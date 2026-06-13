@@ -22,19 +22,23 @@ import {
   settingsRoute,
   settingsSecret,
   settingsToggle,
+  testRoute,
 } from "#routes/admin/settings-helpers.ts";
+import {
+  handleAdminSumupPost,
+  handleSumupTestPost,
+} from "#routes/admin/settings-sumup.ts";
 import {
   handleAppleWalletPost,
   handleGoogleWalletPost,
 } from "#routes/admin/settings-wallets.ts";
 import {
   type AuthSession,
-  OWNER_FORM,
   OWNER_MULTIPART,
   ownerPage,
   withAuth,
 } from "#routes/auth.ts";
-import { errorRedirect, jsonResponse } from "#routes/response.ts";
+import { errorRedirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
@@ -83,7 +87,6 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import type { PaymentProviderType } from "#shared/payments.ts";
 import { fail, ok } from "#shared/response.ts";
 import { testSquareConnection } from "#shared/square.ts";
-import { isSumupCurrency, testSumupConnection } from "#shared/sumup.ts";
 import {
   deleteAllEventStorageFiles,
   deleteFile,
@@ -459,50 +462,8 @@ const handleAdminSquareWebhookPost = settingsSecret({
   save: (v) => settings.update.square.webhookSignatureKey(v),
 });
 
-/**
- * Handle POST /admin/settings/sumup - owner only
- */
-type SumupFormData = {
-  apiKey: SecretFieldResult;
-  merchantCode: string;
-};
-
-const handleAdminSumupPost = settingsHandler<SumupFormData>({
-  extract: (form) => ({
-    apiKey: processSecretField(form, "sumup_api_key"),
-    merchantCode: form.getString("sumup_merchant_code"),
-  }),
-  formId: "settings-sumup",
-  label: "SumUp credentials",
-  save: async ({ apiKey, merchantCode }) => {
-    if (apiKey.action === "provided") {
-      await settings.update.sumup.apiKey(apiKey.value);
-    }
-    await settings.update.sumup.merchantCode(merchantCode);
-    await settings.update.paymentProvider("sumup");
-  },
-  validate: ({ apiKey, merchantCode }) => {
-    if (isDemoMode()) return "Cannot configure SumUp in demo mode";
-    if (!isSumupCurrency(settings.currency)) {
-      return `SumUp does not support your site currency (${settings.currency}). Choose a different payment provider or country.`;
-    }
-    if (!merchantCode) return "Merchant code is required";
-    if (apiKey.action === "cleared" && !settings.sumup.hasKey) {
-      return "SumUp API Key is required";
-    }
-    return null;
-  },
-});
-
-/** Owner auth POST that runs a test function and returns JSON */
-const testRoute =
-  (testFn: () => Promise<unknown>) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
-
 const handleStripeTestPost = testRoute(testStripeConnection);
 const handleSquareTestPost = testRoute(testSquareConnection);
-const handleSumupTestPost = testRoute(testSumupConnection);
 
 /**
  * Handle POST /admin/settings/embed-hosts - owner only
