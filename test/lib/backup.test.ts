@@ -15,6 +15,7 @@ import {
   hasRecentBackup,
   isRemoteDatabase,
   parseBackupTime,
+  pruneOldBackups,
   readManifest,
   restoreFromSql,
   restoreFromZip,
@@ -27,7 +28,8 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
-import { uploadRaw } from "#shared/storage.ts";
+import { listFiles, uploadRaw } from "#shared/storage.ts";
+import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { createTestEvent, describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
@@ -53,25 +55,36 @@ describeWithEnv("backup", { db: true }, () => {
   });
 
   describe("exportTable", () => {
-    test("returns empty string for empty table", async () => {
-      expect(await exportTable("events")).toBe("");
+    test("returns empty sql and zero rowCount for empty table", async () => {
+      expect(await exportTable("events")).toEqual({ rowCount: 0, sql: "" });
     });
 
     test("exports INSERT statements for table with data", async () => {
       await createTestEvent({ name: "Test Event" });
-      const sql = await exportTable("events");
+      const { sql, rowCount } = await exportTable("events");
       expect(sql).toContain('INSERT INTO "events"');
+      expect(rowCount).toBe(1);
     });
 
     test("quotes column names in INSERT statements", async () => {
       await createTestEvent({ name: "Quote Test" });
-      const sql = await exportTable("events");
+      const { sql } = await exportTable("events");
       expect(sql).toMatch(/INSERT INTO "events" \("id", "created"/);
+    });
+
+    test("batches multiple rows into a single multi-row INSERT", async () => {
+      await createTestEvent({ name: "Row One" });
+      await createTestEvent({ name: "Row Two" });
+      const { sql, rowCount } = await exportTable("events");
+      expect(rowCount).toBe(2);
+      // One statement (one trailing semicolon), two value tuples.
+      expect(sql.match(/;/g)).toHaveLength(1);
+      expect(sql).toContain("), (");
     });
 
     test("handles NULL values", async () => {
       await createTestEvent({ name: "Null Test" });
-      const sql = await exportTable("events");
+      const { sql } = await exportTable("events");
       expect(sql).toContain("NULL");
     });
   });
@@ -282,6 +295,75 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
+  describe("pruneOldBackups", () => {
+    const seed = (when: Date) =>
+      uploadRaw(new Uint8Array([1]), backupFilename(backupTimestamp(when)));
+
+    test("removes the oldest backups beyond the keep count, ignoring non-zip files", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        const d1 = new Date("2024-01-01T00:00:00Z");
+        const d2 = new Date("2024-02-01T00:00:00Z");
+        const d3 = new Date("2024-03-01T00:00:00Z");
+        await seed(d1);
+        await seed(d2);
+        await seed(d3);
+        // A non-zip file is ignored entirely.
+        await uploadRaw(new Uint8Array([1]), `${backupPrefix()}notes.txt`);
+
+        const removed = await pruneOldBackups(2);
+
+        expect(removed).toEqual([backupFilename(backupTimestamp(d1))]);
+
+        const remaining = await listFiles(backupPrefix());
+        expect(remaining).toEqual([
+          backupFilename(backupTimestamp(d2)),
+          backupFilename(backupTimestamp(d3)),
+          `${backupPrefix()}notes.txt`,
+        ]);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("keeps everything when the count is within the limit", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        await seed(new Date("2024-01-01T00:00:00Z"));
+        const removed = await pruneOldBackups(5);
+        expect(removed).toEqual([]);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("never throws when a delete fails, returning no removed files", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        await seed(new Date("2024-01-01T00:00:00Z"));
+        await seed(new Date("2024-02-01T00:00:00Z"));
+        setDeleteOverride(new Error("forced delete failure"));
+        try {
+          const removed = await pruneOldBackups(0);
+          expect(removed).toEqual([]);
+        } finally {
+          setDeleteOverride(null);
+        }
+        // Both backups survive the failed purge attempt.
+        const remaining = await listFiles(backupPrefix());
+        expect(remaining).toHaveLength(2);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+  });
+
   describe("countZipStatements", () => {
     test("counts SQL statements across files in zip", async () => {
       await createTestEvent({ name: "Count Test" });
@@ -293,8 +375,8 @@ describeWithEnv("backup", { db: true }, () => {
   describe("restoreFromSql", () => {
     test("restores data from SQL statements", async () => {
       await createTestEvent({ name: "Before Restore" });
-      const backup = await exportTable("events");
-      await restoreFromSql(backup);
+      const { sql } = await exportTable("events");
+      await restoreFromSql(sql);
       const events = await queryAll<Record<string, unknown>>(
         "SELECT * FROM events",
       );

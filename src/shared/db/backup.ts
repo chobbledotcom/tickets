@@ -11,7 +11,7 @@
  */
 
 import { unzipSync, zipSync } from "fflate";
-import { map, pipe } from "#fp";
+import { chunk, compact } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
@@ -22,17 +22,18 @@ import {
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
 import { requireEnv } from "#shared/env.ts";
-import { listFiles, uploadRaw } from "#shared/storage.ts";
+import { MAX_BACKUPS } from "#shared/limits.ts";
+import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type ColumnInfo = { name: string; type: string };
 type TableNameRow = { name: string };
 
-/** A single table's backup: table name and the SQL to recreate + repopulate it */
+/** A single table's backup: table name, the SQL to repopulate it, and row count */
 export type TableBackup = {
   table: string;
   sql: string;
+  rowCount: number;
 };
 
 /** Metadata stored in manifest.json inside the backup zip */
@@ -47,10 +48,6 @@ export type BackupManifest = {
 
 /** Double-quote a SQL identifier (table or column name) */
 const quoteId = (name: string): string => `"${name}"`;
-
-/** Get column info for a table */
-const getColumns = (table: string): Promise<ColumnInfo[]> =>
-  queryAll<ColumnInfo>(`PRAGMA table_info(${quoteId(table)})`);
 
 /** Get existing table names in one round-trip. */
 const getExistingTableNames = async (): Promise<Set<string>> => {
@@ -110,28 +107,34 @@ export const dbName = (): string => {
 
 // ─── Backup ─────────────────────────────────────────────────────
 
-/** Export a single table as INSERT statements (deterministic row order) */
-export const exportTable = async (table: string): Promise<string> => {
-  const columns = await getColumns(table);
-  const colNames = pipe(map((c: ColumnInfo) => c.name))(columns);
+/** Max rows per multi-row INSERT. Batching writes the column list and statement
+ *  prefix once per group instead of once per row, shrinking the dump and
+ *  cutting the number of statements replayed on restore. */
+const ROWS_PER_INSERT = 100;
+
+/** Export a single table as multi-row INSERT statements (deterministic order).
+ *  Column names come from the row keys, so no extra schema query is needed. */
+export const exportTable = async (
+  table: string,
+): Promise<{ sql: string; rowCount: number }> => {
   const rows = await queryAll<Record<string, unknown>>(
     `SELECT * FROM ${quoteId(table)} ORDER BY rowid`,
   );
+  if (rows.length === 0) return { rowCount: 0, sql: "" };
 
-  if (rows.length === 0) return "";
-
-  const quotedTable = quoteId(table);
-  const quotedCols = pipe(map(quoteId))(colNames);
-  const lines: string[] = [];
-  for (const row of rows) {
-    const values = pipe(map((col: string) => escapeSql(row[col])))(colNames);
-    lines.push(
-      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${values.join(
-        ", ",
-      )});`,
-    );
-  }
-  return lines.join("\n");
+  const cols = Object.keys(rows[0]!);
+  const colList = cols.map(quoteId).join(", ");
+  const tuple = (row: Record<string, unknown>): string =>
+    `(${cols.map((c) => escapeSql(row[c])).join(", ")})`;
+  const sql = chunk(ROWS_PER_INSERT)(rows)
+    .map(
+      (group) =>
+        `INSERT INTO ${quoteId(table)} (${colList}) VALUES ${group
+          .map(tuple)
+          .join(", ")};`,
+    )
+    .join("\n");
+  return { rowCount: rows.length, sql };
 };
 
 /** Create a full backup — one TableBackup per table in SCHEMA order.
@@ -145,10 +148,13 @@ export const createBackup = async (): Promise<TableBackup[]> => {
 
   const concurrency = 4;
   for (let i = 0; i < tables.length; i += concurrency) {
-    const chunk = tables.slice(i, i + concurrency);
+    const batch = tables.slice(i, i + concurrency);
     backups.push(
       ...(await Promise.all(
-        chunk.map(async (table) => ({ sql: await exportTable(table), table })),
+        batch.map(async (table) => ({
+          table,
+          ...(await exportTable(table)),
+        })),
       )),
     );
   }
@@ -171,10 +177,7 @@ const buildManifest = (
   latestUpdate: LATEST_UPDATE,
   schemaHash: SCHEMA_HASH,
   tables: Object.fromEntries(
-    tables.map(({ table, sql }) => [
-      table,
-      sql === "" ? 0 : sql.split("\n").length,
-    ]),
+    tables.map(({ table, rowCount }) => [table, rowCount]),
   ),
   timestamp,
 });
@@ -195,12 +198,14 @@ export const createBackupZip = async (): Promise<Uint8Array> => {
   return zipSync(files, { level: 1 });
 };
 
-/** Create a backup zip and upload it to storage. Returns the filename. */
+/** Create a backup zip and upload it to storage. Returns the filename.
+ *  Purges the oldest backups beyond MAX_BACKUPS after a successful upload. */
 export const createAndUploadBackup = async (): Promise<string> => {
   const timestamp = backupTimestamp();
   const zipData = await createBackupZip();
   const filename = backupFilename(timestamp);
   await uploadRaw(zipData, filename);
+  await pruneOldBackups();
   return filename;
 };
 
@@ -236,6 +241,33 @@ export const hasRecentBackup = async (): Promise<boolean> => {
     if (ms !== null && now - ms < BACKUP_FRESHNESS_WINDOW_MS) return true;
   }
   return false;
+};
+
+/**
+ * Purge the oldest backups beyond `keep` for the current DB, keeping the
+ * newest. Filenames embed ISO timestamps, so name order is chronological.
+ * Deletes run in parallel and are best-effort — a failed delete never blocks
+ * backup creation. Returns the filenames that were removed.
+ */
+export const pruneOldBackups = async (
+  keep = MAX_BACKUPS,
+): Promise<string[]> => {
+  const files = await listFiles(backupPrefix());
+  const stale = files
+    .filter((f) => f.endsWith(".zip"))
+    .reverse()
+    .slice(keep);
+  const removed = await Promise.all(
+    stale.map(async (file) => {
+      try {
+        await deleteFile(file);
+        return file;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return compact(removed);
 };
 
 // ─── Restore ────────────────────────────────────────────────────

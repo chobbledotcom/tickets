@@ -9,14 +9,43 @@ import { Layout } from "#templates/layout.tsx";
 
 export type BackupEntry = {
   filename: string;
-  timestamp: string;
+  /** Friendly, timezone-aware datetime label, e.g. "Monday 15 January 2024 at 12:30 UTC" */
+  label: string;
+  /** Human-readable file size, e.g. "1MB" */
+  sizeLabel: string;
 };
 
 export type BackupPageState = {
   backups: BackupEntry[];
   encryptionKey: string;
   isRemote: boolean;
+  /** Maximum backups retained before the oldest is purged */
+  maxBackups: number;
   storageEnabled: boolean;
+};
+
+/** Summary note: how many backups exist and when the oldest will be purged. */
+const RetentionNote = ({
+  backups,
+  maxBackups,
+}: {
+  backups: BackupEntry[];
+  maxBackups: number;
+}): JSX.Element => {
+  const count = backups.length;
+  const remaining = maxBackups - count;
+  const oldest = backups[count - 1]!.label;
+  return (
+    <div class="prose">
+      <p>
+        {count === 1 ? "There is 1 backup" : `There are ${count} backups`},
+        shown newest first. Up to {maxBackups} are kept —{" "}
+        {remaining > 0
+          ? `${remaining} more can be created before the oldest is purged.`
+          : `the next will purge the oldest (${oldest}).`}
+      </p>
+    </div>
+  );
 };
 
 export const adminBackupPage = (
@@ -89,26 +118,34 @@ export const adminBackupPage = (
                 <em>No backups found.</em>
               </p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.backups.map((b) => (
+              <>
+                <RetentionNote
+                  backups={state.backups}
+                  maxBackups={state.maxBackups}
+                />
+                <table>
+                  <thead>
                     <tr>
-                      <td>{b.timestamp}</td>
-                      <td>
-                        <a href={`/admin/backup/download/${b.filename}`}>
-                          Download
-                        </a>
-                      </td>
+                      <th>Created</th>
+                      <th>Size</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {state.backups.map((b) => (
+                      <tr>
+                        <td>{b.label}</td>
+                        <td>{b.sizeLabel}</td>
+                        <td>
+                          <a href={`/admin/backup/download/${b.filename}`}>
+                            Download
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </section>
 

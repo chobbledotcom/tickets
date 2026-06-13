@@ -14,6 +14,7 @@ import {
   getMimeTypeFromFilename,
   isStorageEnabled,
   listFiles,
+  listFilesWithMeta,
   MAX_ATTACHMENT_SIZE,
   runWithStorageConfig,
   uploadAttachment,
@@ -224,6 +225,18 @@ describeWithEnv(
           await Deno.mkdir(`${dir}/backup-subdir`);
           const files = await listFiles("backup-");
           expect(files).toEqual(["backup-a.zip"]);
+        });
+      });
+
+      test("listFilesWithMeta returns each file's byte size", async () => {
+        await withLocalStorageEnabled(async () => {
+          await uploadRaw(new Uint8Array(3), "backup-a.zip");
+          await uploadRaw(new Uint8Array(7), "backup-b.zip");
+          const files = await listFilesWithMeta("backup-");
+          expect(files).toEqual([
+            { name: "backup-a.zip", size: 3 },
+            { name: "backup-b.zip", size: 7 },
+          ]);
         });
       });
     });
@@ -709,6 +722,37 @@ describeWithEnv(
 
                 const files = await listFiles("backup-");
                 expect(files).toEqual(["backup-2024.zip", "backup-2025.zip"]);
+              }),
+          );
+        });
+
+        test("listFilesWithMeta reads file size from the Length field, defaulting to 0", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    return Promise.resolve(
+                      new Response(
+                        JSON.stringify([
+                          { Length: 1024, ObjectName: "backup-2024.zip" },
+                          // No Length field — should default to 0.
+                          { ObjectName: "backup-2025.zip" },
+                          { Length: 5, ObjectName: "other-file.txt" },
+                        ]),
+                        { status: 200 },
+                      ),
+                    );
+                  }
+                  return null;
+                });
+
+                const files = await listFilesWithMeta("backup-");
+                expect(files).toEqual([
+                  { name: "backup-2024.zip", size: 1024 },
+                  { name: "backup-2025.zip", size: 0 },
+                ]);
               }),
           );
         });

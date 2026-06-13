@@ -92,6 +92,16 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         expect(html).toContain(".zip");
       });
     });
+
+    test("shows the retention summary once a backup exists", async () => {
+      await withLocalStorageEnabled(async () => {
+        await adminFormPost("/admin/backup/create");
+        const { response } = await adminGet("/admin/backup");
+        const html = await response.text();
+        expect(html).toContain("There is 1 backup");
+        expect(html).toContain("Up to 30 are kept");
+      });
+    });
   });
 
   describe("GET /admin/backup/download/:filename", () => {
