@@ -110,6 +110,205 @@ const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
   return new Map(entries);
 };
 
+/* -------------------------------------------------------------------------- *
+ * Lightweight call-site scanner (used by the "redundant constant argument"   *
+ * check). It is intentionally a small hand-written lexer rather than a full  *
+ * AST parser, matching the regex-driven style of the rest of this file. It   *
+ * skips comments and string/template literals so callee names and argument   *
+ * text are never matched inside them.                                        *
+ * -------------------------------------------------------------------------- */
+
+/** A single call expression discovered in a source file. */
+type CallSite = { name: string; args: string[]; line: number };
+
+/** Keywords that are followed by `(` but are not function calls. */
+const NON_CALL_KEYWORDS = new Set([
+  "if",
+  "for",
+  "while",
+  "switch",
+  "catch",
+  "with",
+  "return",
+  "await",
+  "typeof",
+  "delete",
+  "void",
+  "new",
+  "do",
+  "yield",
+  "super",
+  "constructor",
+]);
+
+const isIdentChar = (c: string | undefined): boolean => !!c && /[\w$]/.test(c);
+const isIdentStart = (c: string | undefined): boolean =>
+  !!c && /[A-Za-z_$]/.test(c);
+const isWhitespace = (c: string | undefined): boolean => !!c && /\s/.test(c);
+
+/**
+ * Skip a string or template literal starting at the opening quote `start`.
+ * Returns the index immediately after the closing quote. Template `${...}`
+ * substitutions are skipped wholesale (including nested strings) so a `)` or
+ * `,` inside them never leaks into argument parsing.
+ */
+const skipString = (content: string, start: number): number => {
+  const quote = content[start];
+  let j = start + 1;
+  while (j < content.length) {
+    const c = content[j];
+    if (c === "\\") {
+      j += 2;
+      continue;
+    }
+    if (c === quote) return j + 1;
+    if (quote === "`" && c === "$" && content[j + 1] === "{") {
+      let depth = 1;
+      j += 2;
+      while (j < content.length && depth > 0) {
+        const d = content[j];
+        if (d === "{") depth++;
+        else if (d === "}") depth--;
+        else if (d === '"' || d === "'" || d === "`") {
+          j = skipString(content, j);
+          continue;
+        }
+        j++;
+      }
+      continue;
+    }
+    j++;
+  }
+  return j;
+};
+
+/** If `i` points at the start of a comment, return the index past it, else i. */
+const skipComment = (content: string, i: number): number => {
+  if (content[i] === "/" && content[i + 1] === "/") {
+    let j = i;
+    while (j < content.length && content[j] !== "\n") j++;
+    return j;
+  }
+  if (content[i] === "/" && content[i + 1] === "*") {
+    let j = i + 2;
+    while (
+      j < content.length &&
+      !(content[j] === "*" && content[j + 1] === "/")
+    )
+      j++;
+    return j + 2;
+  }
+  return i;
+};
+
+/**
+ * Parse a comma-separated argument list whose opening `(` is at `open`.
+ * Returns the trimmed top-level arguments and the index of the closing `)`.
+ * Nested brackets, strings and comments are skipped so only top-level commas
+ * split arguments.
+ */
+const parseArgList = (
+  content: string,
+  open: number,
+): { args: string[]; end: number } => {
+  const args: string[] = [];
+  let depth = 1;
+  let cur = open + 1;
+  let p = open + 1;
+  while (p < content.length && depth > 0) {
+    const skipped = skipComment(content, p);
+    if (skipped !== p) {
+      p = skipped;
+      continue;
+    }
+    const d = content[p];
+    if (d === '"' || d === "'" || d === "`") {
+      p = skipString(content, p);
+      continue;
+    }
+    if (d === "(" || d === "[" || d === "{") depth++;
+    else if (d === ")" || d === "]" || d === "}") {
+      depth--;
+      if (depth === 0) {
+        args.push(content.slice(cur, p).trim());
+        break;
+      }
+    } else if (d === "," && depth === 1) {
+      args.push(content.slice(cur, p).trim());
+      cur = p + 1;
+    }
+    p++;
+  }
+  return { args: args.filter((a) => a.length > 0), end: p };
+};
+
+/** A call site keyed by character offset, before line numbers are resolved. */
+type RawCall = { name: string; args: string[]; offset: number };
+
+/**
+ * Try to read an identifier-followed-by-`(` call starting at `i`.
+ * Returns the parsed call (if any) and the index to continue scanning from.
+ */
+const readCallAt = (
+  content: string,
+  i: number,
+  prevWord: string,
+): { call: RawCall | null; word: string; next: number } => {
+  let j = i;
+  while (j < content.length && isIdentChar(content[j])) j++;
+  const word = content.slice(i, j);
+  let k = j;
+  while (k < content.length && isWhitespace(content[k])) k++;
+  const isCall =
+    content[k] === "(" &&
+    !NON_CALL_KEYWORDS.has(word) &&
+    prevWord !== "function";
+  const call = isCall
+    ? { args: parseArgList(content, k).args, name: word, offset: i }
+    : null;
+  return { call, next: j, word };
+};
+
+/** Resolve byte offsets (in ascending order) to 1-based line numbers. */
+const resolveLines = (content: string, calls: RawCall[]): CallSite[] => {
+  let line = 1;
+  let idx = 0;
+  return calls.map((call) => {
+    for (; idx < call.offset; idx++) if (content[idx] === "\n") line++;
+    return { args: call.args, line, name: call.name };
+  });
+};
+
+/** Extract every `name(...)` call site from a source file. */
+const extractCallSites = (content: string): CallSite[] => {
+  const calls: RawCall[] = [];
+  let prevWord = "";
+  let i = 0;
+  while (i < content.length) {
+    const c = content[i];
+    const pastComment = skipComment(content, i);
+    if (pastComment !== i) {
+      i = pastComment;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      i = skipString(content, i);
+      prevWord = "";
+      continue;
+    }
+    if (isIdentStart(c)) {
+      const { call, word, next } = readCallAt(content, i, prevWord);
+      if (call) calls.push(call);
+      prevWord = word;
+      i = next;
+      continue;
+    }
+    if (!isWhitespace(c)) prevWord = "";
+    i++;
+  }
+  return resolveLines(content, calls);
+};
+
 describe("code quality", () => {
   /** Cached file lists and contents, populated once on first use */
   let srcFiles: string[];
@@ -547,6 +746,114 @@ describe("code quality", () => {
         violations.push(...fileViolations);
       }
 
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no redundant constant arguments", () => {
+    /**
+     * Detects functions where a given positional argument is *always* passed
+     * the same constant literal across every call site. When a parameter never
+     * varies it is dead flexibility — the value belongs in a default parameter
+     * or a module constant, not repeated at every call.
+     *
+     * Example violation: `fooMethod("foo", bar)` and `fooMethod("foo", baz)`
+     * everywhere → arg #0 is always "foo" and should be a default.
+     *
+     * Only literal arguments are considered (strings, numbers, booleans, null,
+     * undefined, template literals). Variable/expression arguments are ignored
+     * because identical *names* rarely mean identical *values*.
+     */
+
+    /** Minimum number of call sites before a constant argument is suspicious. */
+    const MIN_CALL_SITES = 3;
+
+    /**
+     * Built-in string/array/number methods whose constant literal arguments are
+     * idiomatic, not redundant (e.g. `padStart(2, "0")`, `toFixed(2)`). These
+     * share names with no application function, so ignoring them is safe.
+     */
+    const IGNORED_CALLEES = new Set([
+      "padStart",
+      "padEnd",
+      "toFixed",
+      "toString",
+      "repeat",
+      "indexOf",
+      "lastIndexOf",
+      "charAt",
+      "codePointAt",
+      "localeCompare",
+    ]);
+
+    /**
+     * Intentional constant arguments that should not be flagged.
+     * Format: "calleeName#position" with a justifying comment.
+     */
+    const ALLOWED_CONSTANT_ARGS: string[] = [];
+
+    /** True for arguments that are constant literals (not variables/expressions). */
+    const isConstantLiteral = (arg: string): boolean => {
+      if (/^["'`]/.test(arg)) return true;
+      if (/^-?\d/.test(arg)) return true;
+      return (
+        arg === "true" ||
+        arg === "false" ||
+        arg === "null" ||
+        arg === "undefined"
+      );
+    };
+
+    type Site = { args: string[]; file: string; line: number };
+
+    /** Collect call sites keyed by callee name across all production source. */
+    const collectCallSites = (): Map<string, Site[]> => {
+      const byName = new Map<string, Site[]>();
+      const record = (file: string, content: string): void => {
+        const relativePath = getRelativePath(file);
+        if (TEST_UTILITY_FILES.includes(relativePath)) return;
+        for (const call of extractCallSites(content)) {
+          const sites = byName.get(call.name) ?? [];
+          sites.push({ args: call.args, file: relativePath, line: call.line });
+          byName.set(call.name, sites);
+        }
+      };
+      for (const file of srcFiles) record(file, srcContents.get(file)!);
+      for (const file of tsxFiles) record(file, tsxContents.get(file)!);
+      return byName;
+    };
+
+    /** Describe a single redundant-argument violation for a callee. */
+    const findRedundantArg = (name: string, sites: Site[]): string | null => {
+      if (IGNORED_CALLEES.has(name)) return null;
+      if (sites.length < MIN_CALL_SITES) return null;
+      // Only positions present in *every* call site count as "always passed".
+      const sharedArity = Math.min(...sites.map((s) => s.args.length));
+      for (let pos = 0; pos < sharedArity; pos++) {
+        if (ALLOWED_CONSTANT_ARGS.includes(`${name}#${pos}`)) continue;
+        // `pos < sharedArity` guarantees every site has an argument here.
+        const values = sites.map((s) => s.args[pos] as string);
+        if (!values.every(isConstantLiteral)) continue;
+        const first = values[0] as string;
+        if (!values.every((v) => v === first)) continue;
+        const where = sites
+          .map((s) => `${s.file}:${s.line}`)
+          .slice(0, 4)
+          .join(", ");
+        const more = sites.length > 4 ? ", ..." : "";
+        return `${name}() arg #${pos} is always ${first} across ${sites.length} calls (${where}${more}) — use a default parameter or constant`;
+      }
+      return null;
+    };
+
+    test("functions should not always receive the same constant argument", async () => {
+      await ensureLoaded();
+      const violations: string[] = [];
+      for (const [name, sites] of collectCallSites()) {
+        const violation = findRedundantArg(name, sites);
+        if (violation) violations.push(violation);
+      }
+      violations.sort();
       expect(violations).toEqual([]);
     });
   });
