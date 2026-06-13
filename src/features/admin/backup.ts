@@ -29,7 +29,6 @@ import {
   deleteFile,
   downloadRaw,
   isStorageEnabled,
-  listFiles,
   listFilesWithMeta,
   type StorageFileMeta,
   uploadRaw,
@@ -64,43 +63,49 @@ const parseBackupEntry = (file: StorageFileMeta): BackupEntry => ({
   sizeLabel: formatBytes(file.size),
 });
 
-/** List existing backups from storage scoped to the current DB, newest first.
+/** Pick out this DB's backups from a zone listing, newest first.
  *  Filenames embed ISO timestamps, so name order is chronological. */
-const listBackups = async (): Promise<BackupEntry[]> => {
-  const files = await listFilesWithMeta(backupPrefix());
-  return files
-    .filter((f) => f.name.endsWith(".zip"))
+const toBackupEntries = (files: StorageFileMeta[]): BackupEntry[] =>
+  files
+    .filter((f) => f.name.startsWith(backupPrefix()) && f.name.endsWith(".zip"))
     .reverse()
     .map(parseBackupEntry);
-};
 
-/** Delete any stale restore-pending temp files (best effort, fire-and-forget) */
-const cleanupStalePendingFiles = async (): Promise<void> => {
+/** Delete stale restore-pending temp files left by abandoned uploads.
+ *  Best-effort — allSettled swallows individual failures. */
+const cleanupStalePendingFiles = (files: StorageFileMeta[]): Promise<unknown> =>
+  Promise.allSettled(
+    files
+      .filter((f) => f.name.startsWith(RESTORE_PENDING_PREFIX))
+      .map((f) => deleteFile(f.name)),
+  );
+
+/** Build page state. The Bunny listing has no server-side prefix filter, so we
+ *  fetch the zone once and reuse it for both the backup list and temp cleanup. */
+const getBackupPageState = async (): Promise<BackupPageState> => {
+  const base = {
+    encryptionKey: getEncryptionKeyString(),
+    isRemote: isRemoteDatabase(),
+    maxBackups: MAX_BACKUPS,
+    storageEnabled: isStorageEnabled(),
+  };
+  if (!isStorageEnabled()) return { ...base, backups: [] };
+
   try {
-    if (!isStorageEnabled()) return;
-    const files = await listFiles(RESTORE_PENDING_PREFIX);
-    for (const file of files) {
-      await deleteFile(file).catch(() => {});
-    }
+    const files = await listFilesWithMeta("");
+    await cleanupStalePendingFiles(files);
+    return { ...base, backups: toBackupEntries(files) };
   } catch {
-    // best effort — never throw
+    // Storage listing unavailable — still render the page (encryption key,
+    // forms) rather than failing the whole request on a transient CDN error.
+    return { ...base, backups: [] };
   }
 };
-
-/** Build page state */
-const getBackupPageState = async (): Promise<BackupPageState> => ({
-  backups: isStorageEnabled() ? await listBackups() : [],
-  encryptionKey: getEncryptionKeyString(),
-  isRemote: isRemoteDatabase(),
-  maxBackups: MAX_BACKUPS,
-  storageEnabled: isStorageEnabled(),
-});
 
 /** GET /admin/backup — show backup page */
 const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const flash = applyFlash(request);
-    await cleanupStalePendingFiles();
     const state = await getBackupPageState();
     return htmlResponse(
       adminBackupPage(session, state, flash.error, flash.success),

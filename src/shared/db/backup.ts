@@ -11,7 +11,7 @@
  */
 
 import { unzipSync, zipSync } from "fflate";
-import { compact, map, pipe } from "#fp";
+import { compact } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import {
   initDb,
@@ -27,7 +27,6 @@ import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type ColumnInfo = { name: string; type: string };
 type TableNameRow = { name: string };
 
 /** A single table's backup: table name and the SQL to recreate + repopulate it */
@@ -48,10 +47,6 @@ export type BackupManifest = {
 
 /** Double-quote a SQL identifier (table or column name) */
 const quoteId = (name: string): string => `"${name}"`;
-
-/** Get column info for a table */
-const getColumns = (table: string): Promise<ColumnInfo[]> =>
-  queryAll<ColumnInfo>(`PRAGMA table_info(${quoteId(table)})`);
 
 /** Get existing table names in one round-trip. */
 const getExistingTableNames = async (): Promise<Set<string>> => {
@@ -111,28 +106,24 @@ export const dbName = (): string => {
 
 // ─── Backup ─────────────────────────────────────────────────────
 
-/** Export a single table as INSERT statements (deterministic row order) */
+/** Export a single table as INSERT statements (deterministic row order).
+ *  Column names come from the row keys, so no extra schema query is needed. */
 export const exportTable = async (table: string): Promise<string> => {
-  const columns = await getColumns(table);
-  const colNames = pipe(map((c: ColumnInfo) => c.name))(columns);
   const rows = await queryAll<Record<string, unknown>>(
     `SELECT * FROM ${quoteId(table)} ORDER BY rowid`,
   );
-
   if (rows.length === 0) return "";
 
-  const quotedTable = quoteId(table);
-  const quotedCols = pipe(map(quoteId))(colNames);
-  const lines: string[] = [];
-  for (const row of rows) {
-    const values = pipe(map((col: string) => escapeSql(row[col])))(colNames);
-    lines.push(
-      `INSERT INTO ${quotedTable} (${quotedCols.join(", ")}) VALUES (${values.join(
-        ", ",
-      )});`,
-    );
-  }
-  return lines.join("\n");
+  const cols = Object.keys(rows[0]!);
+  const colList = cols.map(quoteId).join(", ");
+  return rows
+    .map(
+      (row) =>
+        `INSERT INTO ${quoteId(table)} (${colList}) VALUES (${cols
+          .map((c) => escapeSql(row[c]))
+          .join(", ")});`,
+    )
+    .join("\n");
 };
 
 /** Create a full backup — one TableBackup per table in SCHEMA order.
