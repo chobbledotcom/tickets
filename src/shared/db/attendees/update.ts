@@ -12,7 +12,6 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   buildCapacityCheckedInsert,
-  CAPACITY_EXCEEDED,
   checkCapacityResult,
   dateToStartEnd,
 } from "#shared/db/attendees/capacity.ts";
