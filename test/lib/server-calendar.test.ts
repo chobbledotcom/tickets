@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { addDays } from "#shared/dates.ts";
+import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   awaitTestRequest,
+  bookAttendee,
   createDailyTestEvent,
   createTestEvent,
   describeWithEnv,
@@ -116,6 +117,27 @@ describeWithEnv(
         const html = await fetchCalendarHtml();
         // The date with a booking should be selectable (not disabled)
         expect(html).toContain(`date=${date}`);
+      });
+
+      test("marks every day of a multi-day booking as selectable", async () => {
+        const start = tomorrow();
+        const secondDay = addDays(start, 1);
+        const event = await createDailyTestEvent({ durationDays: 2 });
+        await bookAttendee(event, {
+          date: start,
+          durationDays: 2,
+          email: "a@test.com",
+          name: "User A",
+        });
+
+        const html = await fetchCalendarHtml();
+        // Both the start day and the second day must be selectable links,
+        // not disabled options — the booking occupies both days.
+        expect(html).toContain(`date=${start}`);
+        expect(html).toContain(`date=${secondDay}`);
+        expect(html).not.toContain(
+          `<option disabled>${formatDateLabel(secondDay)}</option>`,
+        );
       });
 
       test("filters attendees by date parameter", async () => {

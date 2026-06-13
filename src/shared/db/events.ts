@@ -3,8 +3,9 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { filter as fpFilter } from "#fp";
+import { filter as fpFilter, reduce, sort, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { addDays } from "#shared/dates.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   ATTENDEE_JOIN_SELECT,
@@ -180,8 +181,9 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
-export const eventsTable = withCacheInvalidation(rawEventsTable, () =>
-  invalidateEventsCache(),
+export const eventsTable = withCacheInvalidation(
+  rawEventsTable,
+  () => invalidateEventsCache(),
 );
 
 /** Find a cached event by ID */
@@ -229,15 +231,18 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
     // Delete orphaned attendees (no remaining event links) and their dependent data
     {
       args: [],
-      sql: "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql:
+        "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
     {
       args: [],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql:
+        "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
     {
       args: [],
-      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql:
+        "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
     { args: [eventId], sql: "DELETE FROM activity_log WHERE event_id = ?" },
     { args: [eventId], sql: "DELETE FROM events WHERE id = ?" },
@@ -379,13 +384,29 @@ export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
  * Used for the calendar date picker (lightweight, no attendee data).
  */
 export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
-  const rows = await queryAll<{ date: string }>(
-    `SELECT DISTINCT SUBSTR(ea.start_at, 1, 10) as date FROM event_attendees ea
+  // start_at and end_at are always written together (see dateToStartEnd), so
+  // filtering on both being non-null lets the row type stay honestly non-null.
+  const rows = await queryAll<{ start_at: string; end_at: string }>(
+    `SELECT DISTINCT ea.start_at, ea.end_at FROM event_attendees ea
      INNER JOIN events e ON ea.event_id = e.id
-     WHERE e.event_type = 'daily' AND ea.start_at IS NOT NULL
-     ORDER BY date`,
+     WHERE e.event_type = 'daily'
+       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
   );
-  return rows.map((r) => r.date);
+  // Expand each booking's [start_at, end_at) span into every calendar date it
+  // covers, so multi-day bookings mark every day they occupy as selectable.
+  const dates = reduce(
+    (acc: string[], row: { start_at: string; end_at: string }) => {
+      const endExclusive = row.end_at.slice(0, 10);
+      let current = row.start_at.slice(0, 10);
+      while (current < endExclusive) {
+        acc.push(current);
+        current = addDays(current, 1);
+      }
+      return acc;
+    },
+    [],
+  )(rows);
+  return sort((a: string, b: string) => a.localeCompare(b))(unique(dates));
 };
 
 /**
@@ -450,7 +471,8 @@ export const getEventWithAttendeeRaw = async (
     },
     {
       args: [eventId],
-      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
+      sql:
+        "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
     },
   ]);
 
