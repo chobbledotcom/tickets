@@ -21,7 +21,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { isPaidEvent } from "#shared/types.ts";
+import { isPaidEvent, normalizeDurationDays } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { eventNames } from "#templates/email/shared.ts";
@@ -88,7 +88,9 @@ export const buildTemplateData = (
   const templateEntries: TemplateEntry[] = map(
     ({ event, attendee }: EmailEntry): TemplateEntry => {
       const duration =
-        event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
+        event.event_type === "daily"
+          ? normalizeDurationDays(event.duration_days)
+          : 1;
       const dateRangeLabel = attendee.date
         ? duration > 1
           ? formatDateRangeLabelCompactEn(

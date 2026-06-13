@@ -23,7 +23,7 @@ import {
 } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#shared/db/events.ts";
-import type { EventType } from "#shared/types.ts";
+import { type EventType, normalizeDurationDays } from "#shared/types.ts";
 
 /** Shared failure result for capacity-exceeded */
 export const CAPACITY_EXCEEDED = {
@@ -180,10 +180,9 @@ export const checkCapacityResult = (result: {
 // server where each query is a network hop.
 // ---------------------------------------------------------------------------
 
-/** Expand a daily-event range into individual day strings.
- * Clamps duration to >= 1 to defend against bogus 0/negative inputs. */
+/** Expand a daily-event range into individual day strings. */
 const expandDailyRange = (date: string, durationDays: number): string[] => {
-  const duration = Math.max(1, Math.floor(durationDays));
+  const duration = normalizeDurationDays(durationDays);
   return Array.from({ length: duration }, (_, i) => addDays(date, i));
 };
 
@@ -420,9 +419,8 @@ const aggregateDemand = <K>(
       bucket = { perDay: new Map(), total: 0 };
       buckets.set(key, bucket);
     }
-    const duration = Math.max(1, item.durationDays ?? 1);
     if (ev.event_type === "daily" && date) {
-      for (const day of expandDailyRange(date, duration)) {
+      for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
         bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
       }
     } else {

@@ -13,6 +13,7 @@ import {
 } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+import { normalizeDurationDays } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
@@ -68,7 +69,9 @@ const renderTicketCard = (
     : "";
 
   const bookingDurationDays =
-    event.event_type === "daily" ? Math.max(1, event.duration_days) : 1;
+    event.event_type === "daily"
+      ? normalizeDurationDays(event.duration_days)
+      : 1;
   const bookingDateLabel = attendee.date
     ? bookingDurationDays > 1
       ? formatDateRangeLabelCompactEn(

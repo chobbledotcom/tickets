@@ -3,6 +3,7 @@
  */
 
 import { filter, map, pipe, reduce, sort, unique } from "#fp";
+import { normalizeDurationDays } from "#shared/types.ts";
 import type {
   EventBooking,
   UpdateAttendeePIIInput,
@@ -84,7 +85,7 @@ export const recomputeEventBookingRanges = async (
   eventId: number,
   durationDays: number,
 ): Promise<void> => {
-  const duration = Math.max(1, Math.floor(durationDays));
+  const duration = normalizeDurationDays(durationDays);
   await getDb().execute({
     args: [duration, eventId],
     sql: `UPDATE event_attendees
