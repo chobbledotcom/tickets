@@ -60,6 +60,18 @@ export const ATTACHMENT_URL_MAX_AGE_S = readLimit(
 /** Admin session cookie max-age in seconds (default: 86400 = 24 hours) */
 export const SESSION_MAX_AGE_S = readLimit("SESSION_MAX_AGE_S", 60 * 60 * 24);
 
+/**
+ * CSRF token validity for the scanner check-in API in seconds.
+ * Defaults to the session lifetime: admins keep the scanner page open for a
+ * whole event, so the embedded CSRF token should stay valid for as long as the
+ * session that authenticates them — otherwise check-ins fail on CSRF expiry
+ * while the admin is still logged in.
+ */
+export const SCANNER_CSRF_MAX_AGE_S = readLimit(
+  "SCANNER_CSRF_MAX_AGE_S",
+  SESSION_MAX_AGE_S,
+);
+
 /** Threshold for abandoned payment reservations in ms (default: 300000 = 5 min) */
 export const STALE_RESERVATION_MS = readLimit(
   "STALE_RESERVATION_MS",
@@ -250,6 +262,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 60 * 60 * 24,
     envKey: "SESSION_MAX_AGE_S",
     label: "Session max age",
+    unit: "seconds",
+  },
+  {
+    current: SCANNER_CSRF_MAX_AGE_S,
+    defaultValue: SESSION_MAX_AGE_S,
+    envKey: "SCANNER_CSRF_MAX_AGE_S",
+    label: "Scanner CSRF max age",
     unit: "seconds",
   },
   {

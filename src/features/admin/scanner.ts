@@ -8,9 +8,9 @@ import { filter, map, pipe } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
-  AUTH_JSON,
   getPrivateKey,
   requireSessionOr,
+  SCANNER_JSON,
   withAuth,
 } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
@@ -144,7 +144,7 @@ const performCheckIn = async (
  * accidental check-outs from double-scans during rapid door check-in.
  */
 const handleScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, AUTH_JSON, async (session, body) => {
+  withAuth(request, SCANNER_JSON, async (session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ message: "Missing token", status: "error" }, 400);
     }

@@ -21,6 +21,7 @@ import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
@@ -218,6 +219,8 @@ export type AuthPolicy<T extends BodyMode = BodyMode> = {
   body: T;
   role?: AdminLevel;
   allowApiKey?: boolean;
+  /** Override the CSRF token max-age (seconds). Defaults to the standard 1 hour. */
+  csrfMaxAge?: number;
 };
 
 /** Auth policy presets — use with withAuth to avoid repeating policy objects */
@@ -228,10 +231,18 @@ export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
   body: "multipart",
   role: "owner",
 };
-export const AUTH_JSON: AuthPolicy<"json"> = { body: "json" };
 export const ADMIN_API: AuthPolicy<"json"> = {
   allowApiKey: true,
   body: "json",
+};
+/**
+ * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
+ * the session lifetime, so a logged-in admin can keep the scanner page open for
+ * a whole event without check-ins failing on CSRF expiry.
+ */
+export const SCANNER_JSON: AuthPolicy<"json"> = {
+  body: "json",
+  csrfMaxAge: SCANNER_CSRF_MAX_AGE_S,
 };
 
 /**
@@ -389,8 +400,9 @@ const parseJsonBody = async (
 const verifyCsrf = async (
   token: string,
   channel: AuthChannel,
+  maxAge?: number,
 ): Promise<Response | null> => {
-  if (await verifySignedCsrfToken(token)) return null;
+  if (await verifySignedCsrfToken(token, maxAge)) return null;
   if (channel === "json") {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
   }
@@ -400,11 +412,13 @@ const verifyCsrf = async (
 /** Validate CSRF and parse body for the given mode.
  *
  * `skipCsrf` only applies to JSON bodies (used for API key auth). Form and
- * multipart bodies are always CSRF-checked because API key clients use JSON. */
+ * multipart bodies are always CSRF-checked because API key clients use JSON.
+ * `maxAge` overrides the CSRF token expiry window (seconds). */
 const parseCsrfBody = async (
   request: Request,
   mode: BodyMode,
   skipCsrf: boolean,
+  maxAge?: number,
 ): Promise<FormParams | FormData | Record<string, unknown> | Response> => {
   const channel = channelFor(mode);
   if (mode === "json") {
@@ -412,6 +426,7 @@ const parseCsrfBody = async (
       const err = await verifyCsrf(
         request.headers.get("x-csrf-token") ?? "",
         channel,
+        maxAge,
       );
       if (err) return err;
     }
@@ -419,13 +434,14 @@ const parseCsrfBody = async (
   }
   if (mode === "form") {
     const form = await parseFormData(request);
-    const err = await verifyCsrf(form.getString("csrf_token"), channel);
+    const err = await verifyCsrf(form.getString("csrf_token"), channel, maxAge);
     return err ?? form;
   }
   const fd = await request.formData();
   const err = await verifyCsrf(
     String(fd.get("csrf_token") ?? "").trim(),
     channel,
+    maxAge,
   );
   return err ?? fd;
 };
@@ -470,6 +486,7 @@ export async function withAuth<T extends BodyMode>(
     request,
     policy.body,
     auth.authKind === "apiKey",
+    policy.csrfMaxAge,
   );
   if (isResponse(body)) return body;
   return handler(auth.session, body as ParsedBody<T>, auth.authKind);

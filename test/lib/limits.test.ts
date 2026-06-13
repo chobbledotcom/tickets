@@ -20,6 +20,7 @@ import {
   PRUNE_SUMUP_RETENTION_HOURS,
   parsePositiveInt,
   readLimit,
+  SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
   STALE_RESERVATION_MS,
 } from "#shared/limits.ts";
@@ -95,6 +96,7 @@ describe("limits", () => {
         "MAX_ATTACHMENT_SIZE",
         "ATTACHMENT_URL_MAX_AGE_S",
         "SESSION_MAX_AGE_S",
+        "SCANNER_CSRF_MAX_AGE_S",
         "STALE_RESERVATION_MS",
         "MAX_LOGIN_ATTEMPTS",
         "LOGIN_LOCKOUT_MS",
@@ -123,6 +125,9 @@ describe("limits", () => {
         ATTACHMENT_URL_MAX_AGE_S,
       );
       expect(currentByKey.get("SESSION_MAX_AGE_S")).toBe(SESSION_MAX_AGE_S);
+      expect(currentByKey.get("SCANNER_CSRF_MAX_AGE_S")).toBe(
+        SCANNER_CSRF_MAX_AGE_S,
+      );
       expect(currentByKey.get("STALE_RESERVATION_MS")).toBe(
         STALE_RESERVATION_MS,
       );
@@ -155,6 +160,15 @@ describe("limits", () => {
         // Must end with a recognisable unit suffix — never just a bare number.
         expect(rendered).toMatch(/[A-Za-z]/);
       }
+    });
+  });
+
+  describe("SCANNER_CSRF_MAX_AGE_S", () => {
+    test("defaults to the session lifetime", () => {
+      // The scanner page stays open for a whole event, so its CSRF token must
+      // outlive the 1-hour default and remain valid for as long as the session
+      // that authenticates the admin.
+      expect(SCANNER_CSRF_MAX_AGE_S).toBe(SESSION_MAX_AGE_S);
     });
   });
 
