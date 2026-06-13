@@ -20,7 +20,14 @@ export type SqlFragment = { sql: string; args: InValue[] };
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
  * `durationDays` is normalized (whole days in [1, MAX]) so `end_at` is always
  * a clean midnight boundary N full days after start — the stored range and
- * every capacity check derive their span the same way. */
+ * every capacity check derive their span the same way.
+ *
+ * Format note: `startAt` is `"…T00:00:00Z"` (template literal); `endAt`
+ * is `"…T00:00:00.000Z"` (Date.toISOString). The overlap predicate
+ * `start_at < endAt AND end_at > startAt` is strict-less/strict-greater,
+ * so the `.000Z` / `Z` difference is irrelevant — but do not "tidy" them
+ * to match, because SQLite TEXT comparison is byte-for-byte and tests
+ * assert the exact stored format. */
 export const dateToRange = (
   date: string,
   durationDays = 1,

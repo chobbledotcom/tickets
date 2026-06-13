@@ -55,13 +55,10 @@ type RemainingMap = Map<number, number>;
 export const getGroupRemainingByGroupId = async (
   groupIds: number[],
   date: string | null = null,
-  excludeAttendeeId?: number,
 ): Promise<RemainingMap> => {
   const ids = unique(groupIds.filter((id) => id > 0));
   if (ids.length === 0) return new Map();
   const predicate = buildGroupAttendeePredicate("e", "ea", date);
-  const excludeClause = excludeAttendeeId ? "AND ea.attendee_id != ?" : "";
-  const excludeArgs: InValue[] = excludeAttendeeId ? [excludeAttendeeId] : [];
   const rows = await queryAll<{
     group_id: number;
     max_attendees: number;
@@ -72,11 +69,10 @@ export const getGroupRemainingByGroupId = async (
      FROM groups g
      LEFT JOIN events e ON e.group_id = g.id
      LEFT JOIN event_attendees ea ON ea.event_id = e.id
-       ${excludeClause}
        AND ${predicate.sql}
      WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
      GROUP BY g.id`,
-    [...excludeArgs, ...predicate.args, ...ids],
+    [...predicate.args, ...ids],
   );
   return new Map(
     rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
@@ -232,17 +228,12 @@ const perDayLoads = (
 const getOverlappingRows = (
   eventId: number,
   days: string[],
-  excludeAttendeeId?: number,
 ): Promise<IntervalRow[]> => {
   const { startAt, endAt } = daySpan(days);
-  const exclude = excludeAttendeeId ? "AND attendee_id != ? " : "";
-  const args: InValue[] = excludeAttendeeId
-    ? [eventId, excludeAttendeeId, endAt, startAt]
-    : [eventId, endAt, startAt];
   return queryAll<IntervalRow>(
     `SELECT start_at, end_at, quantity FROM event_attendees
-     WHERE event_id = ? ${exclude}AND start_at < ? AND end_at > ?`,
-    args,
+     WHERE event_id = ? AND start_at < ? AND end_at > ?`,
+    [eventId, endAt, startAt],
   );
 };
 
@@ -258,7 +249,6 @@ type GroupSpanLoad = { cap: number; base: number; rows: IntervalRow[] };
 const getGroupSpanLoad = async (
   groupId: number,
   days: string[],
-  excludeAttendeeId?: number,
 ): Promise<GroupSpanLoad | null> => {
   const cap = (await queryOne<{ cap: number }>(
     "SELECT COALESCE((SELECT max_attendees FROM groups WHERE id = ?), 0) as cap",
@@ -266,16 +256,12 @@ const getGroupSpanLoad = async (
   ))!.cap;
   if (cap <= 0) return null;
   const { startAt, endAt } = daySpan(days);
-  const exclude = excludeAttendeeId ? "AND ea.attendee_id != ? " : "";
-  const args: InValue[] = excludeAttendeeId
-    ? [groupId, excludeAttendeeId, endAt, startAt]
-    : [groupId, endAt, startAt];
   const groupRows = await queryAll<IntervalRow & { event_type: EventType }>(
     `SELECT ea.start_at, ea.end_at, ea.quantity, e.event_type
      FROM event_attendees ea
      JOIN events e ON e.id = ea.event_id
-     WHERE e.group_id = ? ${exclude}AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
-    args,
+     WHERE e.group_id = ? AND (e.event_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
+    [groupId, endAt, startAt],
   );
   const isDailyRow = (row: IntervalRow & { event_type: EventType }): boolean =>
     row.event_type === "daily";
@@ -297,9 +283,8 @@ const getGroupSpanLoad = async (
 const getGroupRemainingPerDay = async (
   groupId: number,
   days: string[],
-  excludeAttendeeId?: number,
 ): Promise<Map<string, number> | null> => {
-  const group = await getGroupSpanLoad(groupId, days, excludeAttendeeId);
+  const group = await getGroupSpanLoad(groupId, days);
   if (!group) return null;
   const loads = perDayLoads(group.rows, days);
   return new Map(
@@ -310,72 +295,42 @@ const getGroupRemainingPerDay = async (
   );
 };
 
-/** Cumulative event load for date-less checks, optionally excluding one
- * attendee's rows (the cached count can't subtract a single attendee). */
-const datelessLoad = async (
-  eventId: number,
-  excludeAttendeeId: number | undefined,
-  attendeeCount: number,
-): Promise<number> => {
-  if (!excludeAttendeeId) return attendeeCount;
-  return (await queryOne<{ count: number }>(
-    "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ? AND attendee_id != ?",
-    [eventId, excludeAttendeeId],
-  ))!.count;
-};
+/** Cumulative event load for date-less checks (returns the cached count). */
+const datelessLoad = (attendeeCount: number): number => attendeeCount;
 
 /**
- * Accurate per-day availability check for a single-event booking, shared by
- * `hasAvailableSpots`, `addEventLink`, and `updateEventLink`.
+ * Per-day availability check for a single-event booking. Used by
+ * `hasAvailableSpots` (public availability API) and as the preflight in
+ * `checkBatchAvailability` (public booking flow).
  *
- * Checks every day in `[date, date + durationDays)` against event + group
- * caps using one overlap fetch per scope. The atomic SQL still runs its own
- * WHERE-guarded check as a race-free safety net; this preflight ensures we
- * don't false-reject multi-day ranges with non-overlapping existing bookings.
+ * Does NOT self-exclude — admin edit paths skip this preflight and rely on
+ * the atomic SQL guard (which does self-exclude via `buildCapacityCondition`).
  */
 export const checkEventAvailability = async (
   eventId: number,
   quantity: number,
   date: string | null | undefined,
-  excludeAttendeeId?: number,
   durationDays = 1,
 ): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
 
   if (event.event_type !== "daily" || !date) {
-    const load = await datelessLoad(
-      eventId,
-      excludeAttendeeId,
-      event.attendee_count,
-    );
-    if (load + quantity > event.max_attendees) return false;
+    if (datelessLoad(event.attendee_count) + quantity > event.max_attendees)
+      return false;
     if (event.group_id <= 0) return true;
     const remaining = (
-      await getGroupRemainingByGroupId(
-        [event.group_id],
-        null,
-        excludeAttendeeId,
-      )
+      await getGroupRemainingByGroupId([event.group_id], null)
     ).get(event.group_id);
     return remaining === undefined || quantity <= remaining;
   }
 
   const days = expandDailyRange(date, durationDays);
-  const loads = perDayLoads(
-    await getOverlappingRows(eventId, days, excludeAttendeeId),
-    days,
-  );
-  const eventHasRoom = days.every(
-    (day) => loads.get(day)! + quantity <= event.max_attendees,
-  );
-  if (!eventHasRoom) return false;
+  const loads = perDayLoads(await getOverlappingRows(eventId, days), days);
+  if (!days.every((day) => loads.get(day)! + quantity <= event.max_attendees))
+    return false;
   if (event.group_id <= 0) return true;
-  const remaining = await getGroupRemainingPerDay(
-    event.group_id,
-    days,
-    excludeAttendeeId,
-  );
+  const remaining = await getGroupRemainingPerDay(event.group_id, days);
   if (!remaining) return true;
   return days.every((day) => quantity <= remaining.get(day)!);
 };
@@ -511,4 +466,4 @@ export const hasAvailableSpotsImpl = (
   date?: string | null,
   durationDays = 1,
 ): Promise<boolean> =>
-  checkEventAvailability(eventId, quantity, date, undefined, durationDays);
+  checkEventAvailability(eventId, quantity, date, durationDays);

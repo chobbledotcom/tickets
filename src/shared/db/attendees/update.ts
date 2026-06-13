@@ -14,7 +14,6 @@ import {
   buildCapacityCheckedInsert,
   CAPACITY_EXCEEDED,
   checkCapacityResult,
-  checkEventAvailability,
   dateToStartEnd,
 } from "#shared/db/attendees/capacity.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
@@ -201,9 +200,11 @@ export const checkGroupCapAfterDurationChange = async (
 
 /**
  * Update a single event link's quantity and date with atomic capacity check.
- * Self-excluding preflight first (avoids false-rejection on multi-day ranges
- * that contain non-overlapping existing bookings); atomic SQL UPDATE is the
- * race-free safety net.
+ *
+ * The per-day SQL WHERE clause enforces capacity atomically. High-traffic
+ * paths (public booking) should preflight with checkEventAvailability or
+ * checkBatchAvailability to fail fast before hitting the DB — admin paths
+ * may rely on the SQL guard alone.
  */
 export const updateEventLink = async (
   attendeeId: number,
@@ -211,16 +212,6 @@ export const updateEventLink = async (
   input: UpdateEventLinkInput,
 ): Promise<UpdateEventLinkResult> => {
   const { quantity: qty, date, durationDays = 1 } = input;
-
-  const preflight = await checkEventAvailability(
-    eventId,
-    qty,
-    date,
-    attendeeId,
-    durationDays,
-  );
-  if (!preflight) return CAPACITY_EXCEEDED;
-
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const condition = buildCapacityCondition(
     eventId,
@@ -241,23 +232,14 @@ export const updateEventLink = async (
 
 /**
  * Add a new event link for an existing attendee with atomic capacity check.
- * Runs a per-day preflight so multi-day events aren't false-rejected by the
- * SQL overlap-sum safety net.
+ *
+ * The per-day SQL WHERE clause enforces capacity atomically. See
+ * updateEventLink for preflight guidance.
  */
 export const addEventLink = async (
   attendeeId: number,
   booking: EventBooking,
-): Promise<UpdateEventLinkResult> => {
-  const preflight = await checkEventAvailability(
-    booking.eventId,
-    booking.quantity ?? 1,
-    booking.date ?? null,
-    undefined,
-    booking.durationDays ?? 1,
-  );
-  if (!preflight) return CAPACITY_EXCEEDED;
-
-  return checkCapacityResult(
+): Promise<UpdateEventLinkResult> =>
+  checkCapacityResult(
     await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
   );
-};
