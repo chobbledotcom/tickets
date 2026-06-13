@@ -80,11 +80,13 @@ const editPushResult = (
   id: number,
   result: { ok: true } | { ok: false; error: string },
   success: string,
-  failure: string,
 ): Response =>
   result.ok
     ? editSuccess(id, success)
-    : editError(id, `${failure}: ${result.error}`);
+    : editError(
+        id,
+        `Deadline could not be pushed to the site: ${result.error}`,
+      );
 
 const editPushOk = (
   id: number,
@@ -198,12 +200,7 @@ const handleBumpDeadline = ownerPost(async (site, form, id) => {
       `Admin bumped '${site.name}' deadline by ${months} month(s)`,
     );
   }
-  return editPushResult(
-    id,
-    result,
-    "Deadline bumped",
-    "Deadline could not be pushed to the site",
-  );
+  return editPushResult(id, result, "Deadline bumped");
 });
 
 /** POST /admin/built-sites/:id/override-deadline */
@@ -216,12 +213,7 @@ const handleOverrideDeadline = ownerPost(async (site, form, id) => {
   if (result.ok) {
     await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
   }
-  return editPushResult(
-    id,
-    result,
-    "Deadline updated",
-    "Deadline could not be pushed to the site",
-  );
+  return editPushResult(id, result, "Deadline updated");
 });
 
 /** POST /admin/built-sites/:id/re-sync-deadline */
@@ -235,12 +227,7 @@ const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
   if (result.ok) {
     await logActivity(`Admin re-synced deadline for '${site.name}'`);
   }
-  return editPushResult(
-    id,
-    result,
-    "Deadline re-synced",
-    "Deadline could not be pushed to the site",
-  );
+  return editPushResult(id, result, "Deadline re-synced");
 });
 
 /** POST /admin/built-sites/:id/provision-renewal
