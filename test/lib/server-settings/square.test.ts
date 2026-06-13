@@ -92,10 +92,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
-    test("rejects a location ID that looks like an access token", async () => {
+    test("rejects a location ID that looks like an application ID", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
         square_access_token: "EAAAl_test_new",
-        square_location_id: "EAAAl_pasted_token",
+        square_location_id: "sq0idp-EXAMPLE",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -164,10 +164,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
-    test("rejects a signature key that looks like an access token", async () => {
+    test("rejects a signature key that looks like an application ID", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/square-webhook",
-        { square_webhook_signature_key: "EAAAl_pasted_access_token" },
+        { square_webhook_signature_key: "sq0idp-EXAMPLE" },
       );
       expect(response.status).toBe(302);
       expectFlash(
