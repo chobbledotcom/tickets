@@ -297,6 +297,26 @@ const answerInsert = (attendeeId: number, answerId: number) =>
     attendee_id: attendeeId,
   });
 
+/** Read and validate one question's submitted answer from form data.
+ * `"missing"` = no value; `"invalid"` = the value isn't one of the question's
+ * options; otherwise the matched answer id. Shared by the public (required)
+ * and admin (optional) answer parsers so the lookup/validation lives once. */
+export const readQuestionAnswer = (
+  form: URLSearchParams,
+  question: QuestionWithAnswers,
+):
+  | { status: "missing" }
+  | { status: "invalid" }
+  | { status: "ok"; answerId: number } => {
+  const raw = form.get(`question_${question.id}`);
+  if (!raw) return { status: "missing" };
+  const answerId = Number.parseInt(raw, 10);
+  if (!question.answers.some((a) => a.id === answerId)) {
+    return { status: "invalid" };
+  }
+  return { answerId, status: "ok" };
+};
+
 /** Replace all answers for one or more attendees in a single atomic batch.
  * Deletes existing answers first, then inserts the new ones. */
 export const saveAttendeeAnswers = async (

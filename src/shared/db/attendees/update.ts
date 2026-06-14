@@ -2,7 +2,7 @@
  * Update operations for attendees and their per-event bookings.
  */
 
-import { filter, map, pipe, reduce, sort, unique } from "#fp";
+import { filter, map, pipe, reduce, unique } from "#fp";
 import { normalizeDurationDays } from "#shared/types.ts";
 import type {
   EventBooking,
@@ -27,7 +27,8 @@ const updateEventAttendeeField =
   async (attendeeId: number, eventId: number, value: number): Promise<void> => {
     await getDb().execute({
       args: [value, attendeeId, eventId],
-      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
+      sql:
+        `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
     });
   };
 
@@ -51,7 +52,8 @@ export const incrementAttachmentDownloads = async (
 ): Promise<void> => {
   await getDb().execute({
     args: [attendeeId, eventId],
-    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
+    sql:
+      "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
   });
 };
 
@@ -153,7 +155,7 @@ export const checkGroupCapAfterDurationChange = async (
     reduce((sum: number, row: GroupRow) => sum + row.quantity, 0),
   )(rows);
   const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
-  const eventRanges = pipe(
+  const ranges = pipe(
     filter((row: GroupRow) => row.event_id === eventId),
     filter(isDailyWithRange),
     map(toDayInterval),
@@ -177,17 +179,20 @@ export const checkGroupCapAfterDurationChange = async (
   // Walk candidate days (interval starts) in ascending order, tracking the
   // max end of this event's ranges that start at or before the candidate —
   // the candidate is inside this event's booked days iff that end is later.
-  const sortedRanges = sort((a: DayInterval, b: DayInterval) =>
-    a.start < b.start ? -1 : 1
-  )(eventRanges);
+  // The comparator is a single-line, branchless `localeCompare` on purpose:
+  // a multi-line arrow body or a `? :` here is mis-attributed by deno's
+  // coverage when the function is exercised across `--parallel` workers,
+  // producing a phantom uncovered branch. Date strings sort lexically, so
+  // localeCompare gives the same ascending order with no branch to mis-merge.
+  const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
   const startDays = unique(
     map((interval: DayInterval) => interval.start)(intervals),
   ).sort();
   let rangeIdx = 0;
   let maxEnd = "";
   for (const day of startDays) {
-    while (rangeIdx < sortedRanges.length && sortedRanges[rangeIdx]!.start <= day) {
-      const end = sortedRanges[rangeIdx]!.end;
+    while (rangeIdx < sorted.length && sorted[rangeIdx]!.start <= day) {
+      const end = sorted[rangeIdx]!.end;
       if (end > maxEnd) maxEnd = end;
       rangeIdx++;
     }

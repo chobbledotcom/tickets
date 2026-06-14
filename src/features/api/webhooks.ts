@@ -28,10 +28,7 @@ import {
   capacityErrorFormatter,
   isRegistrationClosed,
 } from "#routes/format.ts";
-import {
-  bookingDateFields,
-  ensureAllBookings,
-} from "#routes/public/ticket-payment.ts";
+import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import {
   htmlResponse,
@@ -48,6 +45,7 @@ import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
+  ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#shared/db/events.ts";

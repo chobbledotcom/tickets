@@ -6,9 +6,10 @@ import { filter, map } from "#fp";
 import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
-import type {
-  QuestionEventMap,
-  QuestionWithAnswers,
+import {
+  type QuestionEventMap,
+  type QuestionWithAnswers,
+  readQuestionAnswer,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { EventFields } from "#shared/types.ts";
@@ -51,16 +52,14 @@ export const parseQuestionAnswers = (
 ): { ok: true; answerIds: number[] } | { ok: false; error: string } => {
   const answerIds: number[] = [];
   for (const q of questions) {
-    const raw = form.get(`question_${q.id}`);
-    if (!raw) {
+    const answer = readQuestionAnswer(form, q);
+    if (answer.status === "missing") {
       return { error: `Please answer: ${q.text}`, ok: false };
     }
-    const answerId = Number.parseInt(raw, 10);
-    const validAnswer = q.answers.some((a) => a.id === answerId);
-    if (!validAnswer) {
+    if (answer.status === "invalid") {
       return { error: `Invalid answer for: ${q.text}`, ok: false };
     }
-    answerIds.push(answerId);
+    answerIds.push(answer.answerId);
   }
   return { answerIds, ok: true };
 };

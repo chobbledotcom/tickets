@@ -12,8 +12,6 @@
 import {
   ACTION_FIELD,
   ADD_LINE_ACTION,
-  buildLineKey,
-  defaultNewDailyDate,
   type AttendeeFormLine,
   type DailyDefaults,
   type ParsedAttendeeForm,
@@ -83,7 +81,7 @@ const renderEventSelect = (
     .map((event) => renderEventOption(event, line.eventId))
     .join("");
   const placeholder = `<option value=""${line.eventId === 0 ? " selected" : ""}>Select event…</option>`;
-  return `<select name="${LINE_EVENT_ID_PREFIX}${index}" data-line-event>${placeholder}${options}</select>`;
+  return `<select name="${LINE_EVENT_ID_PREFIX}${index}" aria-label="Event for line ${index + 1}" data-line-event>${placeholder}${options}</select>`;
 };
 
 /** Render the date input for one line. */
@@ -96,7 +94,7 @@ const renderDateInput = (
   // The date field is never required at the HTML level — the server
   // validates it conditionally for daily events. Hidden when an event is
   // picked and that event is non-daily (handled by the inline script).
-  return `<input type="date" name="${LINE_DATE_PREFIX}${index}" value="${value}" data-line-date${isDaily ? "" : " hidden"}>`;
+  return `<input type="date" name="${LINE_DATE_PREFIX}${index}" value="${value}" aria-label="Date for line ${index + 1}" data-line-date${isDaily ? "" : " hidden"}>`;
 };
 
 /** Render one line-item row. */
@@ -106,6 +104,8 @@ const renderLineRow = (
   allEvents: EventWithCount[],
 ): string => {
   const qty = line.quantity === null ? "" : String(line.quantity);
+  // Only emit max when an event is chosen — an empty max="" is meaningless.
+  const maxAttr = line.event ? ` max="${line.event.max_quantity}"` : "";
   const errorHtml = line.error
     ? `<div class="error" role="alert">${escapeHtml(line.error)}</div>`
     : "";
@@ -126,7 +126,7 @@ const renderLineRow = (
   return `<tr data-line-row>
     <td>${renderEventSelect(line, allEvents, index)}${statusHtml}</td>
     <td>${renderDateInput(line, index)}</td>
-    <td><input type="number" name="${LINE_QUANTITY_PREFIX}${index}" value="${escapeHtml(qty)}" min="1" max="${line.event?.max_quantity ?? ""}" style="width:5em"></td>
+    <td><input type="number" name="${LINE_QUANTITY_PREFIX}${index}" value="${escapeHtml(qty)}" min="1"${maxAttr} aria-label="Quantity for line ${index + 1}" style="width:5em"></td>
     <td>${renderExistingDateLabel(line)}${errorHtml}</td>
     <td style="white-space:nowrap">
       <input type="hidden" name="${LINE_KEY_PREFIX}${index}" value="${escapeHtml(line.key)}">
@@ -413,7 +413,12 @@ export const attendeeFormPage = (
         <Raw html={renderLineEditor(data)} />
 
         <p>
-          <button type="submit" name={ACTION_FIELD} value={ADD_LINE_ACTION}>
+          <button
+            formnovalidate
+            type="submit"
+            name={ACTION_FIELD}
+            value={ADD_LINE_ACTION}
+          >
             Add Event Line
           </button>
           <button class="primary" type="submit" name={ACTION_FIELD} value={SAVE_ACTION}>
@@ -432,10 +437,4 @@ export const attendeeFormPage = (
       <Raw html={renderEnhancementScript(data)} />
     </Layout>,
   );
-};
-
-// Re-export the helpers the route handler uses to build the empty create shell.
-export {
-  buildLineKey,
-  defaultNewDailyDate,
 };

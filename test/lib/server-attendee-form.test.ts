@@ -10,7 +10,6 @@ import {
   createTestAttendee,
   createTestEvent,
   describeWithEnv,
-  expectFlash,
   expectHtmlResponse,
   expectRedirect,
   getAttendeesRaw,
@@ -209,7 +208,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
 
-    test("redirects with error when capacity is exceeded", async () => {
+    test("re-renders preserving entered data when capacity is exceeded", async () => {
       const event = await createTestEvent({ maxAttendees: 1 });
       await createTestAttendee(event.id, event.slug, "First", "first@example.com");
       const { response } = await adminFormPost("/admin/attendees/new", {
@@ -219,7 +218,35 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         line_quantity_0: "1",
         name: "Second",
       });
-      expect(response.status).toBe(302);
+      // In-place re-render (not a redirect) so the operator keeps their input.
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Not enough spots");
+      expect(html).toContain("second@example.com");
+      expect(html).toContain("Second");
+      // All-or-nothing: no second attendee was created (only "First" remains).
+      expect((await getAttendeesRaw(event.id)).length).toBe(1);
+    });
+
+    test("create rolls back entirely when one of several lines is full", async () => {
+      const open = await createTestEvent({ maxAttendees: 100, name: "Open" });
+      const full = await createTestEvent({ maxAttendees: 1, name: "Full" });
+      await createTestAttendee(full.id, full.slug, "Filler", "filler@example.com");
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        line_count: "2",
+        line_event_id_0: String(open.id),
+        line_event_id_1: String(full.id),
+        line_quantity_0: "1",
+        line_quantity_1: "1",
+        name: "Multi",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Not enough spots");
+      // Nothing committed: the open event gained no row, the full event still
+      // has only its original filler.
+      expect((await getAttendeesRaw(open.id)).length).toBe(0);
+      expect((await getAttendeesRaw(full.id)).length).toBe(1);
     });
   });
 
@@ -531,34 +558,20 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("error paths and edge cases", () => {
-    test("create redirects with error when atomic create fails with encryption_error", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      await withMocks(
-        () =>
-          stub(attendeesApi, "createAttendeeAtomic", () =>
-            Promise.resolve({
-              reason: "encryption_error" as const,
-              success: false,
-            })
-          ),
-        async () => {
-          const { response } = await adminFormPost("/admin/attendees/new", {
-            line_count: "1",
-            line_event_id_0: String(event.id),
-            line_quantity_0: "1",
-            name: "Enc",
-          });
-          expectRedirect(response, "/admin/attendees/new");
-          expectFlash(
-            response,
-            expect.stringContaining("Encryption"),
-            false,
-          );
-        },
-      );
+    test("create re-renders with an error when no event line is filled in", async () => {
+      await createTestEvent({ maxAttendees: 100 });
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        line_count: "1",
+        line_event_id_0: "0",
+        name: "No Lines",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Add at least one event line");
+      expect(html).toContain("No Lines");
     });
 
-    test("create redirects with error when atomic create fails with capacity_exceeded", async () => {
+    test("create re-renders with error when atomic create fails with capacity_exceeded", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       await withMocks(
         () =>
@@ -575,12 +588,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             line_quantity_0: "1",
             name: "Cap",
           });
-          expectRedirect(response, "/admin/attendees/new");
-          expectFlash(
-            response,
-            expect.stringContaining("spots"),
-            false,
-          );
+          expect(response.status).toBe(200);
+          expect(await response.text()).toContain("spots");
         },
       );
     });
@@ -619,7 +628,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain("Valid Name");
     });
 
-    test("edit removing last existing booking deletes attendee and redirects", async () => {
+    test("edit remove_line drops the line from the form without deleting until save", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -637,10 +646,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           action: "remove_line_0",
         },
       );
-      expectRedirect(response, "/admin/");
-      expectFlash(response, "Attendee removed");
-      const remaining = await getAttendeesRaw(event.id);
-      expect(remaining.length).toBe(0);
+      // Removal is now a pure form-state edit — re-render, no DB write. The
+      // booking is only deleted when the operator saves.
+      expect(response.status).toBe(200);
+      expect((await getAttendeesRaw(event.id)).length).toBe(1);
     });
 
     test("create removing the only new blank line re-renders with a blank line", async () => {
@@ -656,7 +665,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain('name="line_event_id_0"');
     });
 
-    test("edit with only blank lines redirects with no_lines error", async () => {
+    test("edit with only blank lines re-renders with no_lines error", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -673,15 +682,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           name: attendee.name,
         },
       );
-      expectRedirect(response, `/admin/attendees/${attendee.id}`);
-      expectFlash(
-        response,
-        "At least one event line is required",
-        false,
-      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("Add at least one event line");
+      // The existing booking is untouched (no_lines short-circuits the diff).
+      expect((await getAttendeesRaw(event.id)).length).toBe(1);
     });
 
-    test("edit redirects with error when atomic edit fails with capacity_exceeded", async () => {
+    test("edit re-renders preserving data when capacity is exceeded", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -693,54 +700,28 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         () =>
           stub(attendeesApi, "applyAttendeeAtomicEdit", () =>
             Promise.resolve({
-              failingKey: null,
               reason: "capacity_exceeded" as const,
               success: false,
             })
           ),
         async () => {
           const form = await buildAttendeeEditForm(attendee.id, {
-            name: "Cap",
+            name: "Cap Edited",
           });
           const { response } = await adminFormPost(
             `/admin/attendees/${attendee.id}`,
             form,
           );
-          expectRedirect(response, `/admin/attendees/${attendee.id}`);
-          expectFlash(response, expect.stringContaining("Capacity lost"), false);
+          // Re-render in place (200), keeping the operator's edits, with a
+          // page-level explanation that nothing was saved.
+          expect(response.status).toBe(200);
+          const html = await response.text();
+          expect(html).toContain("nothing was saved");
+          expect(html).toContain("Cap Edited");
         },
       );
     });
 
-    test("edit redirects with error when atomic edit fails with encryption_error", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "Enc",
-        "enc@example.com",
-      );
-      await withMocks(
-        () =>
-          stub(attendeesApi, "applyAttendeeAtomicEdit", () =>
-            Promise.resolve({
-              reason: "encryption_error" as const,
-              success: false,
-            })
-          ),
-        async () => {
-          const form = await buildAttendeeEditForm(attendee.id, {
-            name: "Enc",
-          });
-          const { response } = await adminFormPost(
-            `/admin/attendees/${attendee.id}`,
-            form,
-          );
-          expectRedirect(response, `/admin/attendees/${attendee.id}`);
-          expectFlash(response, expect.stringContaining("Encryption"), false);
-        },
-      );
-    });
     test("GET edit page for attendee with no bookings renders with no questions", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
@@ -764,7 +745,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain("Edit Attendee: Orphan");
     });
 
-    test("POST edit for attendee with no bookings redirects with no_lines error", async () => {
+    test("POST edit for attendee with no bookings re-renders with no_lines error", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -787,12 +768,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           name: "Orphan",
         },
       );
-      expectRedirect(response, `/admin/attendees/${attendee.id}`);
-      expectFlash(
-        response,
-        "At least one event line is required",
-        false,
-      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("Add at least one event line");
     });
   });
 });

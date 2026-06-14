@@ -1,21 +1,25 @@
 /**
  * Atomic attendee update — apply a desired set of event-registration lines
- * to an existing attendee in a single database transaction.
+ * to an existing attendee, all-or-nothing.
  *
  * Computes the diff between the attendee's current `event_attendees` rows
- * and the desired final state, then runs the writes as one ACID batch:
+ * and the desired final state, then applies the writes as one ACID batch:
  *
  *   1. UPDATE attendees (PII)            — unconditional
  *   2. DELETE removed event_attendees    — one per removed line
  *   3. UPDATE existing event_attendees   — capacity-checked per line
  *   4. INSERT new event_attendees        — capacity-checked per line
  *
- * Capacity-checked statements use `buildCapacityCondition` (self-excluding
- * the attendee) so the SQL itself rejects over-capacity writes. After the
- * batch returns, we inspect `rowsAffected` on each capacity-checked
- * statement. If any returned 0, the line lost a race against a concurrent
- * booking — the operator is sent back to the form to retry, with the
- * failing line named in the error.
+ * Capacity is enforced twice. A read-only preflight (`allLinesFit`) rejects an
+ * over-capacity edit before any write, which handles the common case and
+ * keeps the failure cheap. The write batch then pairs every capacity-checked
+ * statement with `CAPACITY_GUARD`: if a concurrent booking consumes the
+ * capacity between the preflight and the commit, the guard trips a constraint
+ * violation that aborts and rolls back the *whole* batch — so the unconditional
+ * PII update and DELETEs can never commit while a line silently fails. A plain
+ * `batch()` is required (not an interactive transaction, which the edge runtime
+ * does not support reliably), and a zero-row capacity statement is not itself
+ * an error, which is exactly why the guard is needed.
  *
  * The attendee is never left without at least one event link — a guard
  * clause rejects "remove every line" up front so the DELETE step never
@@ -24,42 +28,57 @@
 
 import type { InValue } from "@libsql/client";
 import type {
+  DesiredEventLine,
   EventAttendeeRow,
   UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
 import {
   buildCapacityCheckedInsert,
   dateToStartEnd,
+  hasDuplicateBookingSlot,
 } from "#shared/db/attendees/capacity.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
-import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";/** A desired final-state line for the atomic update path. Mirrors the
- * `DesiredLine` exported from `attendee-form-model.ts` but defined here
- * too so the DB layer doesn't import from the routes layer. */
-export type AtomicDesiredLine = {
-  /** Stable identity from the existing row (`${eventId}|${startAt}`). Empty
-   * string for newly-added lines. */
-  key: string;
-  eventId: number;
-  quantity: number;
-  /** YYYY-MM-DD for daily events, null otherwise. */
-  date: string | null;
-  /** Duration (days) — only meaningful for daily events. Defaults to 1. */
-  durationDays: number;
-  /** True when the line carries an existing event_attendees identity. */
-  exists: boolean;
+import {
+  executeBatchWithResults,
+  queryAll,
+  queryOne,
+} from "#shared/db/client.ts";
+import { invalidateEventsCache } from "#shared/db/events.ts";
+
+/**
+ * A guard statement that aborts the whole write batch when the immediately
+ * preceding capacity-checked write affected zero rows. `changes()` reports
+ * the prior statement's row count; on zero, this tries to insert a NULL
+ * event_id, which violates the NOT NULL constraint and rolls the batch back.
+ * When the prior write succeeded, `changes() > 0`, the WHERE matches nothing,
+ * and the guard is a no-op. This is what makes the edit all-or-nothing on a
+ * `batch()` — a zero-row capacity statement is not itself an error and would
+ * otherwise commit alongside the unconditional PII/DELETE writes.
+ */
+const CAPACITY_GUARD = {
+  args: [] as [],
+  sql: `INSERT INTO event_attendees (event_id, attendee_id, quantity)
+        SELECT NULL, NULL, 1 WHERE changes() = 0`,
 };
+
+/** A desired final-state line for the atomic update path. Re-exported from
+ * the shared types module so callers can keep importing it from here. */
+export type AtomicDesiredLine = DesiredEventLine;
+
+/** Build the self-excluding capacity condition for one desired line. */
+const lineCapacityCondition = (line: AtomicDesiredLine, attendeeId: number) =>
+  buildCapacityCondition(
+    line.eventId,
+    line.quantity,
+    line.date,
+    attendeeId,
+    line.durationDays,
+  );
 
 /** Result of an atomic attendee update. */
 export type UpdateAttendeeAtomicResult =
   | { success: true }
-  | {
-      success: false;
-      reason: "capacity_exceeded";
-      /** Line key that lost the capacity race, when identifiable. */
-      failingKey: string | null;
-    }
-  | { success: false; reason: "encryption_error" }
+  | { success: false; reason: "capacity_exceeded" }
   | { success: false; reason: "no_lines" };
 
 /** A pre-fetched existing booking row plus its line key. */
@@ -84,20 +103,41 @@ export const loadExistingLines = async (
   }));
 };
 
-/** Build the canonical line key from a stored booking row. */
+/** Build the canonical line key from a stored booking row (matches the
+ * `${eventId}|${startAt}` identity carried by the form's hidden key field). */
 export const lineKeyFromBooking = (booking: EventAttendeeRow): string =>
   `${booking.event_id}|${booking.start_at ?? ""}`;
+
+/**
+ * Read-only preflight: returns true when every desired line fits, using the
+ * same self-excluding capacity expression the write guards use. Each line's
+ * check is independent (lines target distinct event/date slots and exclude
+ * the attendee's own rows), so a true result means the whole edit can be
+ * applied. The per-line `CAPACITY_GUARD` in the write batch still closes the
+ * narrow window between this check and the commit.
+ */
+const allLinesFit = async (
+  attendeeId: number,
+  desired: AtomicDesiredLine[],
+): Promise<boolean> => {
+  for (const line of desired) {
+    const condition = lineCapacityCondition(line, attendeeId);
+    // A bare `SELECT <expr>` always yields exactly one row.
+    const row = (await queryOne<{ ok: number }>(
+      `SELECT (${condition.sql}) AS ok`,
+      condition.args,
+    ))!;
+    if (row.ok === 0) return false;
+  }
+  return true;
+};
 
 /**
  * Apply a desired final-state line set to an existing attendee atomically.
  *
  * - `attendeeId` — the attendee being edited.
- * - `piiInput` — full PII block (rebuilt/encrypted by the caller via
- *   `updateAttendeePII` if you only need PII; this function does the full
- *   multi-line update).
  * - `encryptedPiiBlob` — already-encrypted PII blob to write into the
- *   attendees row. The caller encrypts so this function stays sync/IO
- *   focused.
+ *   attendees row. The caller encrypts so this function stays IO focused.
  * - `desired` — the desired final-state line set.
  */
 export const updateAttendeeAtomic = async (
@@ -109,19 +149,22 @@ export const updateAttendeeAtomic = async (
     return { reason: "no_lines", success: false };
   }
 
-  // Reject duplicate (eventId, date) pairs up front — the unique index on
-  // event_attendees (event_id, attendee_id, start_at) would silently drop
-  // one of the conflicting writes otherwise.
-  const seenKeys = new Set<string>();
-  for (const line of desired) {
-    const dedupeKey = `${line.eventId}|${line.date ?? ""}`;
-    if (seenKeys.has(dedupeKey)) {
-      return { failingKey: line.key, reason: "capacity_exceeded", success: false };
-    }
-    seenKeys.add(dedupeKey);
+  // Reject duplicate (eventId, date) pairs up front — two desired lines on the
+  // same slot would collide on the event_attendees unique index.
+  if (hasDuplicateBookingSlot(desired)) {
+    return { reason: "capacity_exceeded", success: false };
+  }
+
+  // Preflight: reject (without writing anything) when any line can't fit. The
+  // common over-capacity case never touches the DB; the per-line CAPACITY_GUARD
+  // in the batch below still rolls the whole edit back if a concurrent booking
+  // wins the race between this check and the commit.
+  if (!(await allLinesFit(attendeeId, desired))) {
+    return { reason: "capacity_exceeded", success: false };
   }
 
   const existing = await loadExistingLines(attendeeId);
+  const existingByKey = new Map(existing.map((e) => [e.key, e.booking]));
 
   // Diff: removed / updated / new
   const desiredKeys = new Set(desired.map((line) => line.key));
@@ -131,17 +174,18 @@ export const updateAttendeeAtomic = async (
   const updates: AtomicDesiredLine[] = desired.filter((line) => line.exists);
   const inserts: AtomicDesiredLine[] = desired.filter((line) => !line.exists);
 
-  // Build the batch — every statement runs in one ACID transaction.
+  // Build one batch that runs as a single ACID transaction. Each
+  // capacity-checked write is immediately followed by CAPACITY_GUARD, which
+  // aborts (and rolls back) the whole batch if that write affected no rows.
   const statements: Array<{ args: InValue[]; sql: string }> = [];
 
-  // Step 1: Update PII (unconditional)
+  // Step 1: Update PII (unconditional).
   statements.push({
     args: [encryptedPiiBlob, attendeeId],
     sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
 
-  // Step 2: Delete removed lines (each identified by event_id + start_at,
-  // which together with attendee_id form the unique index).
+  // Step 2: Delete removed lines (identified by event_id + old start_at).
   for (const { booking } of removed) {
     statements.push({
       args: [attendeeId, booking.event_id, booking.start_at ?? null],
@@ -150,17 +194,13 @@ export const updateAttendeeAtomic = async (
     });
   }
 
-  // Step 3: Update existing lines (capacity-checked, self-excluding).
-  const updateResults: Array<{ line: AtomicDesiredLine; stmtIndex: number }> = [];
+  // Step 3: Update existing lines (capacity-checked, self-excluding). The
+  // WHERE pins the row by its *old* start_at so an attendee holding two
+  // rows for the same daily event on different dates updates only the one.
   for (const line of updates) {
+    const oldStartAt = existingByKey.get(line.key)?.start_at ?? null;
     const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
-    const condition = buildCapacityCondition(
-      line.eventId,
-      line.quantity,
-      line.date,
-      attendeeId,
-      line.durationDays,
-    );
+    const condition = lineCapacityCondition(line, attendeeId);
     statements.push({
       args: [
         line.quantity,
@@ -168,46 +208,38 @@ export const updateAttendeeAtomic = async (
         endAt,
         attendeeId,
         line.eventId,
+        oldStartAt,
         ...condition.args,
       ],
       sql: `UPDATE event_attendees SET quantity = ?, start_at = ?, end_at = ?
-            WHERE attendee_id = ? AND event_id = ? AND ${condition.sql}`,
+            WHERE attendee_id = ? AND event_id = ? AND start_at IS ?
+              AND ${condition.sql}`,
     });
-    updateResults.push({ line, stmtIndex: statements.length - 1 });
+    statements.push(CAPACITY_GUARD);
   }
 
   // Step 4: Insert new lines (capacity-checked, self-excluding).
-  const insertResults: Array<{ line: AtomicDesiredLine; stmtIndex: number }> = [];
   for (const line of inserts) {
-    const stmt = buildCapacityCheckedInsert(
-      {
-        date: line.date,
-        durationDays: line.durationDays,
-        eventId: line.eventId,
-        quantity: line.quantity,
-      },
-      "?",
-      attendeeId,
+    statements.push(
+      buildCapacityCheckedInsert(
+        {
+          date: line.date,
+          durationDays: line.durationDays,
+          eventId: line.eventId,
+          quantity: line.quantity,
+        },
+        "?",
+        attendeeId,
+      ),
     );
-    statements.push(stmt);
-    insertResults.push({ line, stmtIndex: statements.length - 1 });
+    statements.push(CAPACITY_GUARD);
   }
 
-  const batchResults = await executeBatchWithResults(statements);
-
-  // Capacity-checked statements that affected 0 rows lost a race against a
-  // concurrent booking. The transaction still committed, but the failing
-  // line is now missing — surface that to the operator so they can retry.
-  for (const { line, stmtIndex } of [...updateResults, ...insertResults]) {
-    if (batchResults[stmtIndex]!.rowsAffected === 0) {
-      invalidateEventsCache();
-      return {
-        failingKey: line.key,
-        reason: "capacity_exceeded",
-        success: false,
-      };
-    }
-  }
+  // The batch runs as one ACID transaction. After the preflight above this
+  // only fails if a concurrent booking consumed the capacity in the meantime —
+  // a CAPACITY_GUARD then aborts and rolls the whole batch back, surfacing as a
+  // thrown error (the caller retries), never a partial write.
+  await executeBatchWithResults(statements);
 
   invalidateEventsCache();
   return { success: true };

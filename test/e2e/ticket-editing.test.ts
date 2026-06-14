@@ -336,12 +336,13 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
     // 10. Remove Alice from Morning Workshop. The first "Remove" button
-    //     targets the first existing line, which is Morning Workshop
-    //     (lower event id). Single-click removal via the per-line button.
+    //     targets the first existing line (Morning Workshop, lower event id).
+    //     Removal is now a pure form-state edit — it drops the line and
+    //     re-renders; the deletion is committed when the whole attendee is
+    //     saved, so no other in-progress edits are lost to a mid-edit write.
     await browser.submitForm({}, "Remove");
-    expect(
-      browser.containsText("Removed from 'Morning Workshop'"),
-    ).toBe(true);
+    await browser.submitForm({ name: "Alice Smith" }, "Save Attendee");
+    expect(browser.containsText("Updated Alice Smith")).toBe(true);
 
     // 11. Navigate back to Morning Workshop and confirm Alice is no longer there.
     //     Then add Bob as the second attendee.
@@ -380,11 +381,11 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 14. Remove Bob from Morning Workshop (first "Remove" button = Morning Workshop)
+    // 14. Remove Bob from Morning Workshop (first "Remove" button = Morning
+    //     Workshop), then save to commit the removal.
     await browser.submitForm({}, "Remove");
-    expect(
-      browser.containsText("Removed from 'Morning Workshop'"),
-    ).toBe(true);
+    await browser.submitForm({ name: "Bob Jones" }, "Save Attendee");
+    expect(browser.containsText("Updated Bob Jones")).toBe(true);
 
     // 15. Verify Morning Workshop is now empty — neither Alice nor Bob appear
     await browser.visit("/admin/");

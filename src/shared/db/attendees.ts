@@ -39,7 +39,10 @@ export {
   getGroupRemainingByGroupId,
   getGroupRemainingForEvent,
 } from "#shared/db/attendees/capacity.ts";
-export { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
+export {
+  buildAttendeeInsert,
+  ensureAllBookings,
+} from "#shared/db/attendees/create.ts";
 export {
   deleteAttendee,
   unlinkAttendeeFromEvent,

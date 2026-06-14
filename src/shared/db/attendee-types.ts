@@ -104,6 +104,26 @@ export type UpdateAttendeePIIInput = {
   ticket_token: string;
 };
 
+/**
+ * A desired final-state event line for the atomic attendee edit path.
+ * One per event registration the operator wants the attendee to end up with.
+ * Shared by the admin form model (which builds it) and the DB edit helper
+ * (which applies it) so the shape is defined once.
+ */
+export type DesiredEventLine = {
+  /** Stable identity of the existing row (`${eventId}|${startAt}`). Empty
+   * string for newly-added lines. */
+  key: string;
+  eventId: number;
+  quantity: number;
+  /** YYYY-MM-DD for daily events, null otherwise. */
+  date: string | null;
+  /** Duration (days) — only meaningful for daily events. Defaults to 1. */
+  durationDays: number;
+  /** True when the line carries an existing event_attendees identity. */
+  exists: boolean;
+};
+
 /** Input for updating a single event link */
 export type UpdateEventLinkInput = {
   quantity: number;

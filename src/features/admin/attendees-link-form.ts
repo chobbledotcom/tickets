@@ -10,12 +10,6 @@ import { getEventWithCount } from "#shared/db/events.ts";
 import { defineForm } from "#shared/forms.tsx";
 import type { EventWithCount } from "#shared/types.ts";
 
-type EventLinkOption = {
-  active: boolean;
-  id: number;
-  name: string;
-};
-
 const eventOptionLabel = { label: "Select event...", value: "" };
 const dateOptionLabel = { label: "Select date...", value: "" };
 const defaultQuantityField = {
@@ -37,39 +31,34 @@ const defaultDateField = {
   type: "select",
 } as const;
 
-export const createLinkEventForm = (events: EventLinkOption[] = []) =>
-  defineForm({
-    fields: [
-      {
-        id: "add_event_id",
-        label: "Event",
-        name: "event_id",
-        options: [
-          eventOptionLabel,
-          ...events
-            .filter((event) => event.active)
-            .map((event) => ({ label: event.name, value: String(event.id) })),
-        ],
-        parse: (value) => Number.parseInt(value, 10),
-        required: true,
-        type: "select",
-        validate: (value) => {
-          const eventId = Number.parseInt(value, 10);
-          return eventId > 0 ? null : "Event is required";
-        },
+/** Event-link form backing the legacy per-event add-link POST. It is used
+ * for server-side validation only (the dropdown is rendered elsewhere), so a
+ * single placeholder option suffices. */
+export const linkEventForm = defineForm({
+  fields: [
+    {
+      id: "add_event_id",
+      label: "Event",
+      name: "event_id",
+      options: [eventOptionLabel],
+      parse: (value) => Number.parseInt(value, 10),
+      required: true,
+      type: "select",
+      validate: (value) => {
+        const eventId = Number.parseInt(value, 10);
+        return eventId > 0 ? null : "Event is required";
       },
-      defaultQuantityField,
-      defaultDateField,
-    ] as const,
-    id: "linkEvent",
-  });
+    },
+    defaultQuantityField,
+    defaultDateField,
+  ] as const,
+  id: "linkEvent",
+});
 
 export const linkEventUpdateForm = defineForm({
   fields: [defaultQuantityField, defaultDateField] as const,
   id: "linkEventUpdate",
 });
-
-export const linkEventForm = createLinkEventForm();
 type LinkFormValues = {
   date: string | null;
   durationDays?: number;

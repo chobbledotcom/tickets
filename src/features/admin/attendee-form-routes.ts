@@ -19,24 +19,24 @@
 import { compact, filter, map, pipe, uniqueBy } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
-  type AtomicDesiredLine,
   applyAttendeeAtomicEdit,
+  buildPiiBlob,
+  type CreateAttendeeResult,
   createAttendeeAtomic,
+  encryptPiiBlob,
+  ensureAllBookings,
+  getAttendee,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import { ATTENDEE_LEFT_JOIN_SELECT, decryptAttendeeOrNull } from "#shared/db/attendees.ts";
-import { queryOne } from "#shared/db/client.ts";
-import {
-  getAllEvents,
-} from "#shared/db/events.ts";
+import { getAllEvents } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getAttendeeAnswersBatch,
   getQuestionsForEvent,
-  saveAttendeeAnswers,
   type QuestionWithAnswers,
+  readQuestionAnswer,
+  saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -50,7 +50,6 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
-  errorRedirect,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -102,6 +101,11 @@ const getEventsForSelector = async (
   );
 };
 
+/** Index events by id for line resolution. */
+const eventsByIdMap = (
+  events: EventWithCount[],
+): Map<number, EventWithCount> => new Map(events.map((e) => [e.id, e]));
+
 /** Build the available-dates map for every daily event in the selector. */
 const buildAvailableDates = (
   events: EventWithCount[],
@@ -116,31 +120,34 @@ const buildAvailableDates = (
   return Promise.resolve(result);
 };
 
+/** A fresh, empty event line. The daily date defaults to the attendee's
+ * shared start date when the existing daily lines are uniform, otherwise to
+ * tomorrow — so a daily row never starts with an empty date. */
+const emptyLine = (
+  todayIso: string,
+  inheritedDate: string | null,
+): AttendeeFormLine => ({
+  date: inheritedDate ?? defaultNewDailyDate(todayIso),
+  error: null,
+  event: null,
+  eventId: 0,
+  existingBooking: null,
+  key: "",
+  quantity: 1,
+});
+
 /** Build the empty create-mode form shell: one blank line with the
  * default daily date pre-filled (so the operator sees a concrete date). */
-const buildEmptyCreateForm = (): ParsedAttendeeForm => {
-  const todayIso = todayInTz(settings.timezone);
-  const tomorrow = defaultNewDailyDate(todayIso);
-  const blankLine: AttendeeFormLine = {
-    date: tomorrow,
-    error: null,
-    event: null,
-    eventId: 0,
-    existingBooking: null,
-    key: "",
-    quantity: 1,
-  };
-  return {
-    action: { kind: "save" },
-    address: "",
-    email: "",
-    lines: [blankLine],
-    name: "",
-    phone: "",
-    returnUrl: "",
-    special_instructions: "",
-  };
-};
+const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
+  action: { kind: "save" },
+  address: "",
+  email: "",
+  lines: [emptyLine(todayInTz(settings.timezone), null)],
+  name: "",
+  phone: "",
+  returnUrl: "",
+  special_instructions: "",
+});
 
 /** Build the edit-mode form shell from a loaded attendee + its bookings. */
 const buildEditFormFromAttendee = (
@@ -160,17 +167,12 @@ const buildEditFormFromAttendee = (
       quantity: booking.quantity,
     };
   });
-  // Always append one blank line so the operator has somewhere to type a
-  // new registration without clicking "Add Event Line" first.
-  lines.push({
-    date: "",
-    error: null,
-    event: null,
-    eventId: 0,
-    existingBooking: null,
-    key: "",
-    quantity: 1,
-  });
+  // Always append one blank line so the operator has somewhere to type a new
+  // registration without clicking "Add Event Line" first. It inherits the
+  // attendee's shared daily date when the existing daily lines are uniform.
+  lines.push(
+    emptyLine(todayInTz(settings.timezone), resolveDailyDefaults(lines).inheritedDate),
+  );
   return {
     action: { kind: "save" },
     address: attendee.address || "",
@@ -243,6 +245,28 @@ const loadQuestionsContext = async (
 const readReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
+/** Apply the flash cookie and render the attendee form page. */
+const renderAttendeeFormPage = (
+  request: Request,
+  data: AttendeeFormTemplateData,
+  session: AuthSession,
+): Response => {
+  const flash = applyFlash(request);
+  return htmlResponse(
+    attendeeFormPage(
+      { ...data, flashError: flash.error, flashSuccess: flash.success },
+      session,
+    ),
+  );
+};
+
+/** Load custom questions for an attendee, keyed off its first existing line. */
+const loadQuestionsForExisting = (
+  attendeeId: number,
+  existing: { booking: { event_id: number } }[],
+): Promise<{ questions: QuestionWithAnswers[]; selectedAnswerIds: number[] }> =>
+  loadQuestionsContext(attendeeId, existing[0]?.booking.event_id ?? null);
+
 // ---------------------------------------------------------------------------
 // GET /admin/attendees/new  (and GET /admin/attendees/:id)
 // ---------------------------------------------------------------------------
@@ -255,13 +279,7 @@ export const handleAttendeeNewGet: TypedRouteHandler<"GET /admin/attendees/new">
       const data = await buildTemplateData("create", parsed, null, {
         returnUrl: readReturnUrl(request),
       });
-      const flash = applyFlash(request);
-      return htmlResponse(
-        attendeeFormPage(
-          { ...data, flashError: flash.error, flashSuccess: flash.success },
-          session,
-        ),
-      );
+      return renderAttendeeFormPage(request, data, session);
     });
 
 /** Handle GET /admin/attendees/:id — render the edit form preloaded. */
@@ -271,29 +289,22 @@ export const handleAttendeeEditGet: TypedRouteHandler<"GET /admin/attendees/:att
       const loaded = await loadAttendeeForEdit(session, attendeeId);
       if (!loaded) return notFoundResponse();
       const allEvents = await getEventsForSelector(null);
-      const eventsById = new Map(allEvents.map((e) => [e.id, e]));
+      const eventsById = eventsByIdMap(allEvents);
       const parsed = buildEditFormFromAttendee(
         loaded.attendee,
         loaded.existing,
         eventsById,
       );
-      const firstEventId = loaded.existing[0]?.booking.event_id ?? null;
-      const { questions, selectedAnswerIds } = await loadQuestionsContext(
+      const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
         attendeeId,
-        firstEventId,
+        loaded.existing,
       );
       const data = await buildTemplateData("edit", parsed, loaded.attendee, {
         questions,
         returnUrl: readReturnUrl(request),
         selectedAnswerIds,
       });
-      const flash = applyFlash(request);
-      return htmlResponse(
-        attendeeFormPage(
-          { ...data, flashError: flash.error, flashSuccess: flash.success },
-          session,
-        ),
-      );
+      return renderAttendeeFormPage(request, data, session);
     });
 
 /** Load an attendee + all its event_attendees rows for the edit page. */
@@ -305,15 +316,9 @@ const loadAttendeeForEdit = async (
   existing: { key: string; booking: import("#shared/db/attendee-types.ts").EventAttendeeRow }[];
 } | null> => {
   const pk = await requirePrivateKey(session);
-  const attendeeRaw = await queryOne<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees a
-     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
-     WHERE a.id = ?`,
-    [attendeeId],
-  );
-  if (!attendeeRaw) return null;
-  const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
+  // PII-only load; the per-event lines come from loadExistingLines, so no join.
+  const attendee = await getAttendee(attendeeId, pk);
+  if (!attendee) return null;
   const existing = await loadExistingLines(attendeeId);
   return { attendee, existing };
 };
@@ -324,84 +329,39 @@ const loadAttendeeForEdit = async (
 
 /** Apply add-line / remove-line transformations to a parsed form.
  *
- * - `add_line`: re-render with one new blank line appended.
- * - `remove_line` on a NEW (unsaved) line: re-render with that line
- *   dropped. The operator gets the form back unsaved.
- * - `remove_line` on an EXISTING line: delete that event_attendees row
- *   directly and redirect back to the edit page with a flash. This
- *   preserves the old edit page's single-click "Remove" UX — the
- *   operator doesn't have to click "Save Attendee" afterwards.
+ * Both actions are pure form-state edits — nothing is written to the
+ * database. Removing an existing line just drops it from the form; the actual
+ * `event_attendees` delete happens when the operator saves (the atomic update
+ * diffs it out). That keeps removal part of the one logical "save the whole
+ * attendee" submission, so other typed-in changes are never lost to a
+ * mid-edit redirect. A newly added line inherits the attendee's shared daily
+ * start date when the existing daily lines are uniform.
  *
  * Returns `{ kind: "save" }` when the action was a plain save. */
-const applyLineAction = async (
+const applyLineAction = (
   parsed: ParsedAttendeeForm,
-  attendeeId: number | null,
   todayIso: string,
-): Promise<
+):
   | { kind: "rerender"; parsed: ParsedAttendeeForm }
-  | { kind: "redirect"; response: Response }
-  | { kind: "save" }
-> => {
+  | { kind: "save" } => {
   const action = parsed.action;
   if (action.kind === "add_line") {
-    const tomorrow = defaultNewDailyDate(todayIso);
-    const newLine: AttendeeFormLine = {
-      date: tomorrow,
-      error: null,
-      event: null,
-      eventId: 0,
-      existingBooking: null,
-      key: "",
-      quantity: 1,
-    };
-    return {
-      kind: "rerender",
-      parsed: { ...parsed, lines: [...parsed.lines, newLine] },
-    };
-  }
-  if (action.kind === "remove_line") {
-    const idx = action.index;
-    const target = parsed.lines[idx];
-    // Existing booking — delete the event_attendees row and redirect.
-    if (target?.existingBooking && attendeeId !== null) {
-      const { unlinkAttendeeFromEvent } = await import(
-        "#shared/db/attendees.ts"
-      );
-      const unlinkResult = await unlinkAttendeeFromEvent(
-        attendeeId,
-        target.existingBooking.event_id,
-      );
-      if (unlinkResult.attendeeDeleted) {
-        return {
-          kind: "redirect",
-          response: redirect("/admin/", "Attendee removed", true),
-        };
-      }
-      const eventName = target.event?.name ?? "event";
-      return {
-        kind: "redirect",
-        response: redirect(
-          `/admin/attendees/${attendeeId}`,
-          `Removed from '${eventName}'`,
-          true,
-        ),
-      };
-    }
-    // New / unsaved line — just drop it from the form.
-    const lines = parsed.lines.filter((_, i) => i !== idx);
+    const inherited = resolveDailyDefaults(parsed.lines).inheritedDate;
     return {
       kind: "rerender",
       parsed: {
         ...parsed,
-        lines: lines.length > 0 ? lines : [{
-          date: defaultNewDailyDate(todayIso),
-          error: null,
-          event: null,
-          eventId: 0,
-          existingBooking: null,
-          key: "",
-          quantity: 1,
-        }],
+        lines: [...parsed.lines, emptyLine(todayIso, inherited)],
+      },
+    };
+  }
+  if (action.kind === "remove_line") {
+    const lines = parsed.lines.filter((_, i) => i !== action.index);
+    return {
+      kind: "rerender",
+      parsed: {
+        ...parsed,
+        lines: lines.length > 0 ? lines : [emptyLine(todayIso, null)],
       },
     };
   }
@@ -416,7 +376,7 @@ const handleSubmit = (
 ) =>
   (request: Request): Promise<Response> =>
     withAuth(request, AUTH_FORM, (session, form) =>
-      handleSubmitInner(mode, attendeeId, request, session, form),
+      handleSubmitInner(mode, attendeeId, session, form),
     );
 
 /** Inner submit logic — extracted so the create/edit wrappers can pass
@@ -424,7 +384,6 @@ const handleSubmit = (
 const handleSubmitInner = async (
   mode: "create" | "edit",
   attendeeId: number | null,
-  _request: Request,
   session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
@@ -442,19 +401,18 @@ const handleSubmitInner = async (
     for (const { key, booking } of loaded.existing) {
       existingByKey.set(key, booking);
     }
-    const firstEventId = loaded.existing[0]?.booking.event_id ?? null;
-    const ctx = await loadQuestionsContext(attendeeId, firstEventId);
+    const ctx = await loadQuestionsForExisting(attendeeId, loaded.existing);
     questions = ctx.questions;
     selectedAnswerIds = ctx.selectedAnswerIds;
   }
 
   const allEvents = await getAllEvents();
-  const eventsById = new Map(allEvents.map((e) => [e.id, e]));
+  const eventsById = eventsByIdMap(allEvents);
   const parsed = parseAttendeeForm(form, eventsById, existingByKey);
 
   // Step 1: line-action re-render (no save).
   const todayIso = todayInTz(settings.timezone);
-  const lineAction = await applyLineAction(parsed, attendeeId, todayIso);
+  const lineAction = applyLineAction(parsed, todayIso);
   if (lineAction.kind === "rerender") {
     const data = await buildTemplateData(mode, lineAction.parsed, attendee, {
       questions,
@@ -462,9 +420,6 @@ const handleSubmitInner = async (
       selectedAnswerIds,
     });
     return htmlResponse(attendeeFormPage(data, session));
-  }
-  if (lineAction.kind === "redirect") {
-    return lineAction.response;
   }
 
   // Step 2: trim trailing blank lines so save validation doesn't fail on
@@ -493,15 +448,33 @@ const handleSubmitInner = async (
     );
   }
 
-  // Step 4: apply atomic create or edit.
-  if (mode === "create") {
-    return applyCreate(parsed, session);
-  }
-
-  // Parse question answers from the form (edit mode only).
-  const answerIds = parseQuestionAnswers(form, questions);
-  return applyEdit(attendeeId!, parsed, attendee!, questions, answerIds);
+  // Step 4: apply atomic create or edit. On a recoverable failure (capacity,
+  // encryption, no lines) re-render the submitted form in place so the
+  // operator never loses entered data, marking the failing line where known.
+  const outcome = mode === "create"
+    ? await applyCreate(parsed)
+    : await applyEdit(
+      attendeeId!,
+      parsed,
+      attendee!,
+      questions,
+      parseQuestionAnswers(form, questions),
+    );
+  if (outcome.ok) return outcome.response;
+  return htmlResponse(
+    attendeeFormPage(
+      { ...dataForRerender, flashError: outcome.flashError },
+      session,
+    ),
+  );
 };
+
+/** Outcome of an atomic create/edit attempt. A recoverable failure carries
+ * the flash to show; the submit handler re-renders the submitted form in
+ * place so no entered data is lost. */
+type SaveOutcome =
+  | { ok: true; response: Response }
+  | { ok: false; flashError: string };
 
 /** Read submitted question answers from the form, filtered to valid options. */
 const parseQuestionAnswers = (
@@ -510,63 +483,57 @@ const parseQuestionAnswers = (
 ): number[] => {
   const answerIds: number[] = [];
   for (const q of questions) {
-    const raw = form.get(`question_${q.id}`);
-    if (raw) {
-      const answerId = Number.parseInt(raw, 10);
-      if (q.answers.some((a) => a.id === answerId)) {
-        answerIds.push(answerId);
-      }
-    }
+    // Admin edit treats answers as optional — keep only the valid ones.
+    const answer = readQuestionAnswer(form, q);
+    if (answer.status === "ok") answerIds.push(answer.answerId);
   }
   return answerIds;
 };
 
-/** Run the atomic create flow + redirect. */
+/** Run the atomic create flow. All-or-nothing: `ensureAllBookings` rolls the
+ * attendee back unless every submitted line fits, so a partial booking never
+ * shows a misleading success. */
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
-  _session: AuthSession,
-): Promise<Response> => {
+): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
-  const createResult = await createAttendeeAtomic(input);
-  if (!createResult.success) {
-    if (createResult.reason === "encryption_error") {
-      logError({
-        code: ErrorCode.ENCRYPT_FAILED,
-        detail: "manual add attendee (unified form)",
-      });
-      return errorRedirect(
-        "/admin/attendees/new",
-        "Encryption error — check that DB_ENCRYPTION_KEY is configured",
-      );
-    }
-    return errorRedirect(
-      "/admin/attendees/new",
-      "Not enough spots available for one or more selected events",
-    );
+  if (input.bookings.length === 0) {
+    return { flashError: "Add at least one event line before saving", ok: false };
   }
+  const createResult = await createAttendeeAtomic(input);
+  const check = await ensureAllBookings(createResult, input.bookings.length);
+  if (!check.ok) {
+    return {
+      flashError:
+        "Not enough spots available for one or more selected events — nothing was saved",
+      ok: false,
+    };
+  }
+  // ensureAllBookings guarantees full success past the ok check.
+  const { attendees } = createResult as Extract<
+    CreateAttendeeResult,
+    { success: true }
+  >;
 
   const firstEventId = parsed.lines.find((line) => line.eventId > 0)!.eventId;
-  const name = parsed.name;
-  await logActivity(`Attendee '${name}' added manually`, firstEventId);
+  await logActivity(`Attendee '${parsed.name}' added manually`, firstEventId);
 
-  const target = parsed.returnUrl || `/admin/attendees/${createResult.attendees[0]!.id}`;
-  return redirect(target, `Added ${name}`, true);
+  const target = parsed.returnUrl || `/admin/attendees/${attendees[0]!.id}`;
+  return { ok: true, response: redirect(target, `Added ${parsed.name}`, true) };
 };
 
-/** Run the atomic edit flow + redirect. */
+/** Run the atomic edit flow. */
 const applyEdit = async (
   attendeeId: number,
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
   questions: QuestionWithAnswers[],
   answerIds: number[],
-): Promise<Response> => {
-  // Re-encrypt the PII blob with the (possibly) updated fields. The
-  // atomic-update function takes the already-encrypted blob.
-  const { buildPiiBlob, encryptPiiBlob } = await import(
-    "#shared/db/attendees/pii.ts"
-  );
-  const encryptedPiiBlob = await encryptPiiBlob(
+): Promise<SaveOutcome> => {
+  // Re-encrypt the PII blob with the (possibly) updated fields and pass it as
+  // one statement of the atomic batch. Encryption can't realistically fail
+  // (it would mean the whole app is broken), so we don't branch on it.
+  const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
       address: parsed.address,
       email: parsed.email,
@@ -577,27 +544,9 @@ const applyEdit = async (
       ticket_token: attendee.ticket_token,
     }),
     settings.publicKey,
-  );
-  if (!encryptedPiiBlob) {
-    logError({
-      code: ErrorCode.ENCRYPT_FAILED,
-      detail: "manual edit attendee (unified form)",
-    });
-    return errorRedirect(
-      `/admin/attendees/${attendeeId}`,
-      "Encryption error — check that DB_ENCRYPTION_KEY is configured",
-    );
-  }
+  ))!;
 
-  const desired: AtomicDesiredLine[] = toDesiredLines(parsed).map((line) => ({
-    date: line.date,
-    durationDays: line.durationDays,
-    eventId: line.eventId,
-    exists: line.exists,
-    key: line.key,
-    quantity: line.quantity,
-  }));
-
+  const desired = toDesiredLines(parsed);
   const editResult = await applyAttendeeAtomicEdit(
     attendeeId,
     encryptedPiiBlob,
@@ -605,21 +554,13 @@ const applyEdit = async (
   );
   if (!editResult.success) {
     if (editResult.reason === "no_lines") {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}`,
-        "At least one event line is required",
-      );
+      return { flashError: "Add at least one event line before saving", ok: false };
     }
-    if (editResult.reason === "encryption_error") {
-      return errorRedirect(
-        `/admin/attendees/${attendeeId}`,
-        "Encryption error — check that DB_ENCRYPTION_KEY is configured",
-      );
-    }
-    return errorRedirect(
-      `/admin/attendees/${attendeeId}`,
-      "Capacity lost to a concurrent booking — please review and retry",
-    );
+    return {
+      flashError:
+        "Not enough spots remain for one of the selected events — nothing was saved. Please review your event lines and try again.",
+      ok: false,
+    };
   }
 
   // Save question answers (atomic delete + insert) when the event has any.
@@ -630,7 +571,7 @@ const applyEdit = async (
   const firstEventId = desired[0]?.eventId;
   await logActivity(`Attendee '${parsed.name}' updated`, firstEventId);
   const target = parsed.returnUrl || `/admin/attendees/${attendeeId}`;
-  return redirect(target, `Updated ${parsed.name}`, true);
+  return { ok: true, response: redirect(target, `Updated ${parsed.name}`, true) };
 };
 
 // ---------------------------------------------------------------------------

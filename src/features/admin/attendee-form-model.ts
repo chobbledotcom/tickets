@@ -12,8 +12,9 @@
  * never needs JavaScript to use the page.
  */
 
-import { filter, map, pipe, uniqueBy } from "#fp";
+import { filter, map, pipe } from "#fp";
 import type {
+  DesiredEventLine,
   EventAttendeeRow,
   EventBooking,
 } from "#shared/db/attendee-types.ts";
@@ -125,6 +126,11 @@ export const buildLineKey = (
 export const isBlankLine = (line: AttendeeFormLine): boolean =>
   line.eventId <= 0 && !line.key;
 
+/** True when the line should become a booking: non-blank and resolved to a
+ * real event. The shared predicate for both mutation adapters. */
+const isFillableLine = (line: AttendeeFormLine): boolean =>
+  !isBlankLine(line) && line.event !== null;
+
 /**
  * Drop the trailing blank line the template always renders so save
  * validation doesn't fail on an operator who left the placeholder row empty.
@@ -224,9 +230,14 @@ export const parseAttendeeForm = (
 // Validation
 // ---------------------------------------------------------------------------
 
-const isValidDateString = (value: string): boolean =>
-  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-  !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
+const isValidDateString = (value: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  // Reject rollover typos (e.g. 2026-02-30 → Mar 2) by requiring the parsed
+  // date to serialize back to the same string, not just be non-NaN.
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value;
+};
 
 /**
  * Validate the attendee block + each line independently.
@@ -415,7 +426,7 @@ export const toCreateInput = (
   special_instructions: string;
 } => {
   const bookings: EventBooking[] = pipe(
-    filter((line: AttendeeFormLine) => !isBlankLine(line) && line.event !== null),
+    filter(isFillableLine),
     map((line: AttendeeFormLine): EventBooking => ({
       date: line.event!.event_type === "daily" ? line.date : null,
       durationDays: line.event!.event_type === "daily"
@@ -436,27 +447,19 @@ export const toCreateInput = (
   };
 };
 
-/** A desired final-state line for the atomic update path. */
-export type DesiredLine = {
-  key: string;
-  eventId: number;
-  quantity: number;
-  date: string | null;
-  durationDays: number;
-  /** True when the line carries an existing event_attendees identity. */
-  exists: boolean;
-};
-
 /**
  * Compute the desired final-state line set for the atomic update path.
  * Daily events resolve `date`/`durationDays`; non-daily events null them.
+ * Duplicate (eventId, date) lines are not de-duplicated here — validation
+ * already rejects them with a visible error, and the DB layer rejects any
+ * that slip past a direct caller; silently dropping a line would hide intent.
  */
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
-): DesiredLine[] =>
+): DesiredEventLine[] =>
   pipe(
-    filter((line: AttendeeFormLine) => !isBlankLine(line) && line.event !== null),
-    map((line: AttendeeFormLine): DesiredLine => {
+    filter(isFillableLine),
+    map((line: AttendeeFormLine): DesiredEventLine => {
       const isDaily = line.event!.event_type === "daily";
       return {
         date: isDaily ? line.date : null,
@@ -467,8 +470,5 @@ export const toDesiredLines = (
         quantity: line.quantity!,
       };
     }),
-    // De-duplicate defensively — validation already caught dupes, but a
-    // repeated (eventId, date) here would still trip the unique index.
-    uniqueBy((line: DesiredLine) => buildLineKey(line.eventId, line.date)),
   )(parsed.lines);
 
