@@ -1,6 +1,15 @@
 import { settings } from "#shared/db/settings.ts";
 
 /**
+ * Canonical email-address format used across the app: `local@host.tld`. More
+ * permissive than strict RFC 5322, but it guarantees a non-empty local part and
+ * a host containing at least one dot. This is the single source of truth — all
+ * email validation goes through it (see isValidBusinessEmail / parseEmail and
+ * validateEmail in #templates/fields.ts).
+ */
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
  * An email address that has passed validation (a non-empty host containing at
  * least one dot) and been normalized (trimmed, lowercased).
  *
@@ -15,12 +24,7 @@ export type ValidEmail = string & { readonly __validEmail: unique symbol };
  * Validates a basic email format: something@something.something
  */
 export function isValidBusinessEmail(email: string): boolean {
-  const trimmed = email.trim();
-  if (!trimmed) return false;
-
-  // Basic email regex: something@something.something
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(trimmed);
+  return EMAIL_REGEX.test(email.trim());
 }
 
 /**
@@ -31,6 +35,20 @@ export function isValidBusinessEmail(email: string): boolean {
 export function parseEmail(email: string): ValidEmail | null {
   const normalized = normalizeBusinessEmail(email);
   return isValidBusinessEmail(normalized) ? (normalized as ValidEmail) : null;
+}
+
+/**
+ * Host (everything after the last `@`) of a validated address. The ValidEmail
+ * type guarantees a host is present, so there is no empty-host case to handle
+ * and the compiler forbids passing a raw, unvalidated string.
+ */
+export function emailHost(email: ValidEmail): string {
+  return email.slice(email.lastIndexOf("@") + 1);
+}
+
+/** Local part (everything before the last `@`) of a validated address. */
+export function emailLocalPart(email: ValidEmail): string {
+  return email.slice(0, email.lastIndexOf("@"));
 }
 
 /**

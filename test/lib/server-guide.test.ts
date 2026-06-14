@@ -12,6 +12,7 @@ import {
   expectHtmlResponse,
   setTestEnv,
   testRequiresAuth,
+  validEmail,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
@@ -255,7 +256,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("shows host email config and setup instructions when configured", async () => {
       setHostEmailConfigForTest({
         apiKey: "re_test_key",
-        fromAddress: "tickets@example.com",
+        fromAddress: validEmail("tickets@example.com"),
         provider: "resend",
       });
       try {

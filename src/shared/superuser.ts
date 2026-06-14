@@ -1,4 +1,8 @@
-import { isValidBusinessEmail } from "#shared/business-email.ts";
+import {
+  emailLocalPart,
+  parseEmail,
+  type ValidEmail,
+} from "#shared/business-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
@@ -18,30 +22,29 @@ export type SuperuserState =
     }
   | {
       available: true;
-      email: string;
+      email: ValidEmail;
       username: string;
       choice: SuperuserChoice;
       userExists: boolean;
       activated: boolean;
     };
 
-export const getAdminEmailAddress = (): string | null => {
+export const getAdminEmailAddress = (): ValidEmail | null => {
   const raw = getEnv("ADMIN_EMAIL_ADDRESS");
   if (!raw || !raw.trim()) return null;
-  const trimmed = raw.trim();
-  if (!isValidBusinessEmail(trimmed)) {
+  const email = parseEmail(raw);
+  if (!email) {
     logError({
       code: ErrorCode.DATA_INVALID,
-      detail: `ADMIN_EMAIL_ADDRESS is not a valid email: ${trimmed}`,
+      detail: `ADMIN_EMAIL_ADDRESS is not a valid email: ${raw.trim()}`,
     });
     return null;
   }
-  return trimmed;
+  return email;
 };
 
-export const getSuperuserUsername = (email: string): string | null => {
-  const localPart = email.split("@")[0]!;
-  const username = localPart.toLowerCase();
+export const getSuperuserUsername = (email: ValidEmail): string | null => {
+  const username = emailLocalPart(email).toLowerCase();
   const error = validateUsername(username);
   if (error) {
     logError({
@@ -121,7 +124,7 @@ const escapeHtmlEmail = (text: string): string =>
 export const sendSuperuserCredentialsEmail = async (
   config: EmailConfig,
   opts: {
-    email: string;
+    email: ValidEmail;
     username: string;
     password: string;
   },

@@ -17,7 +17,12 @@ import {
   getSuperuserUsername,
   sendSuperuserCredentialsEmail,
 } from "#shared/superuser.ts";
-import { describeWithEnv, setTestEnv, withMocks } from "#test-utils";
+import {
+  describeWithEnv,
+  setTestEnv,
+  validEmail,
+  withMocks,
+} from "#test-utils";
 
 // ---------------------------------------------------------------------------
 // getAdminEmailAddress()
@@ -55,9 +60,9 @@ describe("getAdminEmailAddress", () => {
     expect(getAdminEmailAddress()).toBe("admin@example.com");
   });
 
-  test("preserves configured email address casing", () => {
+  test("normalizes configured email address to lowercase", () => {
     restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "Admin@Example.com" });
-    expect(getAdminEmailAddress()).toBe("Admin@Example.com");
+    expect(getAdminEmailAddress()).toBe("admin@example.com");
   });
 
   test("returns null and logs error when value lacks an @ sign", () => {
@@ -94,60 +99,72 @@ describe("getAdminEmailAddress", () => {
 
 describe("getSuperuserUsername", () => {
   test("returns lowercased local part of a simple email", () => {
-    expect(getSuperuserUsername("MyUsername@example.com")).toBe("myusername");
+    expect(getSuperuserUsername(validEmail("MyUsername@example.com"))).toBe(
+      "myusername",
+    );
   });
 
   test("returns local part unchanged when already lowercase", () => {
-    expect(getSuperuserUsername("admin@example.com")).toBe("admin");
+    expect(getSuperuserUsername(validEmail("admin@example.com"))).toBe("admin");
   });
 
   test("returns null and logs when local part is too short (1 character)", () => {
-    expect(getSuperuserUsername("a@example.com")).toBeNull();
+    expect(getSuperuserUsername(validEmail("a@example.com"))).toBeNull();
   });
 
   test("returns the minimum valid 2-character local part", () => {
-    expect(getSuperuserUsername("ab@example.com")).toBe("ab");
+    expect(getSuperuserUsername(validEmail("ab@example.com"))).toBe("ab");
   });
 
   test("returns the maximum valid 32-character local part", () => {
     const local = `a${"b".repeat(31)}`;
-    expect(getSuperuserUsername(`${local}@example.com`)).toBe(local);
+    expect(getSuperuserUsername(validEmail(`${local}@example.com`))).toBe(
+      local,
+    );
   });
 
   test("returns null and logs when local part is 33 characters", () => {
-    expect(getSuperuserUsername(`${"a".repeat(33)}@example.com`)).toBeNull();
+    expect(
+      getSuperuserUsername(validEmail(`${"a".repeat(33)}@example.com`)),
+    ).toBeNull();
   });
 
   test("returns null and logs when local part contains a dot (john.doe)", () => {
-    expect(getSuperuserUsername("john.doe@example.com")).toBeNull();
+    expect(getSuperuserUsername(validEmail("john.doe@example.com"))).toBeNull();
   });
 
   test("returns null and logs when local part contains a plus sign (user+tag)", () => {
-    expect(getSuperuserUsername("user+tag@example.com")).toBeNull();
+    expect(getSuperuserUsername(validEmail("user+tag@example.com"))).toBeNull();
   });
 
   test("returns null and logs when local part contains invalid special characters", () => {
-    expect(getSuperuserUsername("admin!@example.com")).toBeNull();
+    expect(getSuperuserUsername(validEmail("admin!@example.com"))).toBeNull();
   });
 
   test("accepts local parts with hyphens", () => {
-    expect(getSuperuserUsername("my-admin@example.com")).toBe("my-admin");
+    expect(getSuperuserUsername(validEmail("my-admin@example.com"))).toBe(
+      "my-admin",
+    );
   });
 
   test("accepts local parts with underscores", () => {
-    expect(getSuperuserUsername("my_admin@example.com")).toBe("my_admin");
+    expect(getSuperuserUsername(validEmail("my_admin@example.com"))).toBe(
+      "my_admin",
+    );
   });
 
   test("accepts local parts with digits", () => {
-    expect(getSuperuserUsername("admin123@example.com")).toBe("admin123");
+    expect(getSuperuserUsername(validEmail("admin123@example.com"))).toBe(
+      "admin123",
+    );
   });
 
   test("returns null and logs when local part starts with a hyphen", () => {
-    expect(getSuperuserUsername("-admin@example.com")).toBeNull();
+    expect(getSuperuserUsername(validEmail("-admin@example.com"))).toBeNull();
   });
 
   test("returns null and logs when local part starts with an underscore", () => {
-    expect(getSuperuserUsername("_admin@example.com")).toBeNull();
+    expect(getSuperuserUsername(validEmail("_admin@example.com"))).toBeNull();
   });
 });
 
@@ -193,7 +210,7 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
       activated: false,
       available: true,
       choice: "",
-      email: "admin@example.com",
+      email: validEmail("admin@example.com"),
       userExists: false,
       username: "admin",
     });
@@ -217,7 +234,7 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
       activated: true,
       available: true,
       choice: "enabled",
-      email: "admin@example.com",
+      email: validEmail("admin@example.com"),
       userExists: true,
       username: "admin",
     });
@@ -231,7 +248,7 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
       activated: false,
       available: true,
       choice: "",
-      email: "admin@example.com",
+      email: validEmail("admin@example.com"),
       userExists: true,
       username: "admin",
     });
@@ -245,7 +262,7 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
       activated: false,
       available: true,
       choice: "self-managed",
-      email: "admin@example.com",
+      email: validEmail("admin@example.com"),
       userExists: false,
       username: "admin",
     });
@@ -432,11 +449,11 @@ describe("sendSuperuserCredentialsEmail", () => {
     try {
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       const result = await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "a1b2c3d4e5f6",
         username: "myadmin",
       });
@@ -454,11 +471,11 @@ describe("sendSuperuserCredentialsEmail", () => {
     try {
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "a1b2c3d4e5f6",
         username: "myadmin",
       });
@@ -474,11 +491,11 @@ describe("sendSuperuserCredentialsEmail", () => {
     try {
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "a1b2c3d4e5f6",
         username: "myadmin",
       });
@@ -495,11 +512,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       setEffectiveDomainForTest("example.com");
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "a1b2c3d4e5f6",
         username: "myadmin",
       });
@@ -515,11 +532,11 @@ describe("sendSuperuserCredentialsEmail", () => {
     try {
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "a1b2c3d4e5f6",
         username: "myadmin",
       });
@@ -536,11 +553,11 @@ describe("sendSuperuserCredentialsEmail", () => {
     try {
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "a1b2c3d4e5f6",
         username: "myadmin",
       });
@@ -557,11 +574,11 @@ describe("sendSuperuserCredentialsEmail", () => {
     try {
       const config = {
         apiKey: "test",
-        fromAddress: "from@test.com",
+        fromAddress: validEmail("from@test.com"),
         provider: "resend" as const,
       };
       await sendSuperuserCredentialsEmail(config, {
-        email: "admin@example.com",
+        email: validEmail("admin@example.com"),
         password: "abc<foo>&bar",
         username: "myadmin",
       });
@@ -583,11 +600,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         const result = await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "password123",
           username: "admin",
         });
@@ -605,11 +622,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         const result = await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "password123",
           username: "admin",
         });
@@ -627,11 +644,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         const result = await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "password123",
           username: "admin",
         });
@@ -649,11 +666,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         const result = await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "password123",
           username: "admin",
         });
@@ -671,11 +688,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         const result = await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "password123",
           username: "admin",
         });
@@ -693,11 +710,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         const result = await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "password123",
           username: "admin",
         });
@@ -717,11 +734,11 @@ describe("sendSuperuserCredentialsEmail", () => {
       async () => {
         const config = {
           apiKey: "test",
-          fromAddress: "from@test.com",
+          fromAddress: validEmail("from@test.com"),
           provider: "resend" as const,
         };
         await sendSuperuserCredentialsEmail(config, {
-          email: "admin@example.com",
+          email: validEmail("admin@example.com"),
           password: "a1b2c3d4e5f6",
           username: "admin",
         });

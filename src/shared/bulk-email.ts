@@ -8,7 +8,8 @@
  * be added in one place without touching the routes or templates.
  */
 
-import { filter, map, pipe, sort, unique, uniqueBy } from "#fp";
+import { compact, filter, map, pipe, sort, unique, uniqueBy } from "#fp";
+import { parseEmail } from "#shared/business-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
@@ -273,16 +274,20 @@ export const buildBulkPayload = async (params: {
   marketing: boolean;
   unsubscribed: Set<string>;
 }): Promise<BulkEmailPayload> => {
+  // Recipients come from validated, stored addresses; parse them through the
+  // canonical validator so each carries the ValidEmail type the send API
+  // requires, dropping any that somehow fail rather than sending blind.
+  const validRecipients = compact(params.recipients.map(parseEmail));
   if (!params.marketing) {
     return {
       html: params.bodyHtml,
-      recipients: params.recipients.map((to) => ({ to })),
+      recipients: validRecipients.map((to) => ({ to })),
       subject: params.subject,
       text: params.bodyText,
     };
   }
   const recipients: BulkRecipient[] = [];
-  for (const to of params.recipients) {
+  for (const to of validRecipients) {
     const hash = await hashEmail(to);
     if (params.unsubscribed.has(hash)) continue;
     recipients.push({ to, unsubscribeUrl: unsubscribeUrl(hash) });

@@ -8,11 +8,12 @@ import {
   describeWithEnv,
   makeTestEntry as makeEntry,
   useFetchStub,
+  validEmail,
 } from "#test-utils";
 
 const testConfig: EmailConfig = {
   apiKey: "re_test_key",
-  fromAddress: "tickets@example.com",
+  fromAddress: validEmail("tickets@example.com"),
   provider: "resend",
 };
 
@@ -181,7 +182,10 @@ describe("sendTestEmail", () => {
   const fetch = useFetchStub();
 
   test("sends test email and returns status code", async () => {
-    const status = await sendTestEmail(testConfig, "admin@test.com");
+    const status = await sendTestEmail(
+      testConfig,
+      validEmail("admin@test.com"),
+    );
 
     expect(status).toBe(200);
     expect(fetch.callCount()).toBe(1);

@@ -2,6 +2,7 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
+import { EMAIL_REGEX } from "#shared/business-email.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -288,14 +289,8 @@ const validateNonNegativePrice = (value: string): string | null => {
 /**
  * Validate email format
  */
-export const validateEmail = (value: string): string | null => {
-  // Basic email format check - more permissive than strict RFC but catches common issues
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(value)) {
-    return "Please enter a valid email address";
-  }
-  return null;
-};
+export const validateEmail = (value: string): string | null =>
+  EMAIL_REGEX.test(value) ? null : "Please enter a valid email address";
 
 /**
  * Validate phone number format

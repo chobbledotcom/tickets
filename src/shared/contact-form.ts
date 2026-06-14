@@ -92,16 +92,15 @@ export const sendContactMessage = async (
     return false;
   }
 
-  // Parse every address through the same validator before any host comparison.
-  // The branded ValidEmail values let emailHost rely on a host being present;
-  // anything malformed (including the env-sourced from address) is rejected
-  // here rather than silently mishandled downstream.
+  // Parse the submitter and business addresses through the same validator
+  // before any host comparison; the branded ValidEmail values let emailHost
+  // rely on a host being present. config.fromAddress is already a ValidEmail
+  // (getEmailConfig/getHostEmailConfig validate it), so it needs no re-parsing.
   const businessEmail = parseEmail(settings.businessEmail);
   if (!businessEmail) return false;
-  const fromAddress = parseEmail(config.fromAddress);
-  if (!fromAddress) return false;
   const senderEmail = parseEmail(email);
   if (!senderEmail) return false;
+  const fromAddress = config.fromAddress;
 
   // Anti-spoof: when the submitter claims an address on a host we trust (the
   // owner's business email host, or the site's own sending host), a Reply-To

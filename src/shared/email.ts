@@ -4,6 +4,11 @@
  */
 
 import { chunk, lazyRef, map } from "#fp";
+import {
+  emailHost,
+  parseEmail,
+  type ValidEmail,
+} from "#shared/business-email.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -44,34 +49,38 @@ export type EmailAttachment = {
 };
 
 export type EmailMessage = {
-  to: string;
+  to: ValidEmail;
   subject: string;
   html: string;
   text: string;
-  replyTo?: string;
+  replyTo?: ValidEmail;
   attachments?: EmailAttachment[];
 };
 
 export type EmailConfig = {
   provider: EmailProvider;
   apiKey: string;
-  fromAddress: string;
+  fromAddress: ValidEmail;
 };
 
-/** Read email config from DB settings. Falls back to business email for fromAddress. Returns null if not configured. */
+/** Read email config from DB settings. Falls back to business email for
+ * fromAddress. Returns null if not configured or the from address is invalid. */
 export const getEmailConfig = (): EmailConfig | null => {
   const provider = settings.email.provider;
   const apiKey = settings.email.apiKey;
-  const from = settings.email.fromAddress || settings.businessEmail || "";
-  if (!provider || !apiKey || !from) return null;
-  return { apiKey, fromAddress: from, provider: provider as EmailProvider };
+  const fromAddress = parseEmail(
+    settings.email.fromAddress || settings.businessEmail || "",
+  );
+  if (!provider || !apiKey || !fromAddress) return null;
+  return { apiKey, fromAddress, provider: provider as EmailProvider };
 };
 
-/** Read host-level email config from environment variables. Returns null if not fully configured. */
+/** Read host-level email config from environment variables. Returns null if not
+ * fully configured, the provider is unknown, or the from address is invalid. */
 const getHostEmailConfigFromEnv = (): EmailConfig | null => {
   const provider = getEnv("HOST_EMAIL_PROVIDER");
   const apiKey = getEnv("HOST_EMAIL_API_KEY");
-  const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
+  const fromAddress = parseEmail(getEnv("HOST_EMAIL_FROM_ADDRESS") ?? "");
   if (!provider || !apiKey || !fromAddress) return null;
   if (!isEmailProvider(provider)) {
     logError({
@@ -167,8 +176,7 @@ const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
 
 const mailgun = (host: string) =>
   provider(
-    (config) =>
-      `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
+    (config) => `https://${host}/v3/${emailHost(config.fromAddress)}/messages`,
     (apiKey) => ({ Authorization: `Basic ${btoa(`api:${apiKey}`)}` }),
     mailgunBody,
   );
@@ -342,8 +350,9 @@ export const sendRegistrationEmails = async (
   const config = (await getEmailConfig()) ?? getHostEmailConfig();
   if (!config) return;
 
-  const attendeeEmail = entries[0]?.attendee.email;
-  const businessEmail = settings.businessEmail;
+  const attendeeRaw = entries[0]?.attendee.email;
+  const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
+  const businessEmail = parseEmail(settings.businessEmail);
   const ticketUrl = buildTicketUrl(entries);
   const data = buildTemplateData(entries, currency, ticketUrl);
   const promises: Promise<number | undefined>[] = [];
@@ -396,7 +405,7 @@ export const sendRegistrationEmails = async (
 export const BULK_UNSUBSCRIBE_PLACEHOLDER = "%%bulk_unsubscribe_url%%";
 
 /** One bulk recipient: address plus its unsubscribe URL (marketing sends only). */
-export type BulkRecipient = { to: string; unsubscribeUrl?: string };
+export type BulkRecipient = { to: ValidEmail; unsubscribeUrl?: string };
 
 /** A bulk send: shared template (html/text may contain the placeholder) + recipients. */
 export type BulkEmailPayload = {
@@ -448,7 +457,7 @@ const mailgunBulk =
       ),
     );
     return [
-      `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
+      `https://${host}/v3/${emailHost(config.fromAddress)}/messages`,
       { Authorization: `Basic ${btoa(`api:${config.apiKey}`)}` },
       form,
     ];
@@ -577,7 +586,7 @@ export const sendBulkEmails = async (
 /** Send a test email to the business email address. Returns HTTP status or undefined on non-HTTP errors. */
 export const sendTestEmail = async (
   config: EmailConfig,
-  to: string,
+  to: ValidEmail,
 ): Promise<number | undefined> => {
   return await sendEmail(config, {
     html: "<p>This is a test email. Your email configuration is working correctly.</p>",

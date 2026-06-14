@@ -43,6 +43,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   isValidBusinessEmail,
+  parseEmail,
   updateBusinessEmail,
 } from "#shared/business-email.ts";
 import { validateColumnTemplate } from "#shared/column-order.ts";
@@ -717,7 +718,7 @@ const handleEmailPost = settingsHandler<EmailFormData>({
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
-  const businessEmail = settings.businessEmail;
+  const businessEmail = parseEmail(settings.businessEmail);
   if (!businessEmail) {
     return errorPage("No business email set", 400, "settings-email-test");
   }

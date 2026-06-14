@@ -3,11 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import type { EmailConfig, EmailMessage } from "#shared/email.ts";
 import { sendEmail } from "#shared/email.ts";
-import { useFetchStub } from "#test-utils";
+import { useFetchStub, validEmail } from "#test-utils";
 
 const testConfig: EmailConfig = {
   apiKey: "re_test_key",
-  fromAddress: "tickets@example.com",
+  fromAddress: validEmail("tickets@example.com"),
   provider: "resend",
 };
 
@@ -15,7 +15,7 @@ const minimalMsg: EmailMessage = {
   html: "h",
   subject: "s",
   text: "t",
-  to: "a@b.com",
+  to: validEmail("a@b.com"),
 };
 
 const sendWithProvider = (
@@ -55,10 +55,10 @@ describe("sendEmail", () => {
   test("sends via Resend with correct URL, headers, and body", async () => {
     const msg: EmailMessage = {
       html: "<p>Hi</p>",
-      replyTo: "reply@test.com",
+      replyTo: validEmail("reply@test.com"),
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     };
 
     const status = await sendEmail(testConfig, msg);
@@ -82,7 +82,7 @@ describe("sendEmail", () => {
       html: "<p>Hi</p>",
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     });
 
     const [url] = fetch.getFetchArgs();
@@ -101,10 +101,10 @@ describe("sendEmail", () => {
   test("sends via SendGrid with correct URL, headers, and body", async () => {
     const msg: EmailMessage = {
       html: "<p>Hi</p>",
-      replyTo: "reply@test.com",
+      replyTo: validEmail("reply@test.com"),
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     };
 
     await sendWithProvider("sendgrid", msg);
@@ -130,7 +130,7 @@ describe("sendEmail", () => {
       html: "<p>Hi</p>",
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     });
 
     expect(fetch.getFetchJsonBody().reply_to).toBeUndefined();
@@ -139,10 +139,10 @@ describe("sendEmail", () => {
   test("sends via Mailgun (US) with correct URL, headers, and FormData body", async () => {
     await sendWithProvider("mailgun-us", {
       html: "<p>Hi</p>",
-      replyTo: "reply@test.com",
+      replyTo: validEmail("reply@test.com"),
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     });
 
     expect(fetch.callCount()).toBe(1);
@@ -164,7 +164,7 @@ describe("sendEmail", () => {
       html: "<p>Hi</p>",
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     });
 
     expect(fetch.callCount()).toBe(1);
@@ -181,7 +181,7 @@ describe("sendEmail", () => {
       html: "<p>Hi</p>",
       subject: "Test",
       text: "Hi",
-      to: "user@test.com",
+      to: validEmail("user@test.com"),
     });
 
     expect(fetch.getFetchFormBody().get("h:Reply-To")).toBeNull();
@@ -240,7 +240,7 @@ describe("sendEmail with attachments", () => {
     html: "<p>Hi</p>",
     subject: "Tickets",
     text: "Hi",
-    to: "user@test.com",
+    to: validEmail("user@test.com"),
   };
 
   test("Resend includes attachments with filename and content", async () => {
