@@ -452,15 +452,24 @@ a:active {
 
 a b,
 a em,
+/*
+ * Buttons. <button>, <input type="submit"> and .btn (use on an <a>) are a
+ * single, unified control: identical base styling, inline-flex so they all
+ * support icons, and modifiers (.outline, .secondary, .danger) layered on top.
+ */
 button,
 input[type="submit"],
 .btn {
+  align-items: center;
   border-radius: var(--border-radius);
-  display: inline-block;
+  display: inline-flex;
   font-size: medium;
   font-weight: bold;
+  gap: 0.4em;
+  justify-content: center;
   line-height: var(--line-height);
   padding: 0.2rem var(--space-m);
+  text-decoration: none;
   width: fit-content;
 }
 
@@ -489,18 +498,6 @@ input[type="submit"],
   background-color: var(--color-link);
   border: 2px solid var(--color-link);
   color: var(--color-bg);
-}
-
-/*
- * Button-styled links. Use the .btn class on an <a> (or <button>) to render a
- * standard action button. Modifiers: .outline (hollow) and .secondary (muted).
- * Icons sit inline before the label via inline-flex + gap.
- */
-.btn {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.4em;
-  text-decoration: none;
 }
 
 .btn.outline {
@@ -959,7 +956,8 @@ a.danger {
 }
 
 button.danger:hover,
-input[type="submit"].danger:hover {
+input[type="submit"].danger:hover,
+.btn.danger:hover {
   background-color: var(--color-danger-hover);
   border-color: var(--color-danger-hover);
 }
