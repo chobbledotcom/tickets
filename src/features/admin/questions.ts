@@ -25,6 +25,7 @@ import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
 import {
   type Answer,
   answersTable,
+  assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
@@ -38,6 +39,7 @@ import {
   setEventQuestions,
   setQuestionEvents,
   swapAnswerOrder,
+  swapQuestionOrder,
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
@@ -95,6 +97,7 @@ const handleQuestionsPost = createAuthedFormRoute({
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { text } }) => {
     const question = await questionsTable.insert({ text });
+    await assignNextQuestionSortOrder(question.id);
     await logActivity(`Question '${text}' created`);
     return redirect(
       `/admin/questions/${question.id}`,
@@ -281,6 +284,27 @@ const handleMoveAnswerUp = moveAnswerHandler(-1);
 /** Handle POST /admin/questions/:id/answers/:answerId/move-down */
 const handleMoveAnswerDown = moveAnswerHandler(1);
 
+/** Factory for question move-up/move-down handlers. Swaps the question's
+ * global sort_order with its neighbour in the ordered list. */
+const moveQuestionHandler = (direction: -1 | 1) =>
+  createAuthedHandler<QuestionIdParams, QuestionWithAnswers>({
+    auth: OWNER_FORM,
+    handle: async ({ context: question }) => {
+      const all = await getAllQuestionsWithAnswers();
+      const idx = all.findIndex((q) => q.id === question.id);
+      const neighbor = all[idx + direction];
+      if (neighbor) await swapQuestionOrder(question.id, neighbor.id);
+      return redirect("/admin/questions", "Question moved", true);
+    },
+    loadContext: ({ id }) => getQuestionWithAnswers(id),
+  });
+
+/** Handle POST /admin/questions/:id/move-up */
+const handleMoveQuestionUp = moveQuestionHandler(-1);
+
+/** Handle POST /admin/questions/:id/move-down */
+const handleMoveQuestionDown = moveQuestionHandler(1);
+
 /** Handle GET /admin/event/:id/questions */
 const handleEventQuestionsGet = ownerGetById(
   getEventWithCount,
@@ -333,5 +357,7 @@ export const questionsRoutes = {
       handleMoveAnswerDown,
     "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
     "POST /admin/questions/:id/edit": handleQuestionEdit,
+    "POST /admin/questions/:id/move-down": handleMoveQuestionDown,
+    "POST /admin/questions/:id/move-up": handleMoveQuestionUp,
   }),
 };

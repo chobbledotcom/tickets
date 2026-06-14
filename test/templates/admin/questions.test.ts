@@ -65,6 +65,30 @@ describe("adminQuestionsPage", () => {
     expect(html).not.toContain("1 answers");
   });
 
+  test("renders reorder controls: down on the first, up on the last", () => {
+    const html = adminQuestionsPage(
+      [
+        {
+          answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A" }],
+          id: 1,
+          text: "First Q",
+        },
+        {
+          answers: [{ id: 20, question_id: 2, sort_order: 0, text: "B" }],
+          id: 2,
+          text: "Second Q",
+        },
+      ],
+      TEST_SESSION,
+    );
+    // First question: down button, but no up button.
+    expect(html).toContain("/admin/questions/1/move-down");
+    expect(html).not.toContain("/admin/questions/1/move-up");
+    // Last question: up button, but no down button.
+    expect(html).toContain("/admin/questions/2/move-up");
+    expect(html).not.toContain("/admin/questions/2/move-down");
+  });
+
   test("renders error message when provided", () => {
     const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
     expect(html).toContain("Something went wrong");

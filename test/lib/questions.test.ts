@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   answersTable,
+  assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
@@ -19,6 +20,7 @@ import {
   setEventQuestions,
   setQuestionEvents,
   swapAnswerOrder,
+  swapQuestionOrder,
 } from "#shared/db/questions.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
 
@@ -134,13 +136,33 @@ describeWithEnv("custom questions", { db: true }, () => {
       });
 
       const event = await createTestEvent();
+      // Assign in reverse; the event ignores assignment order and uses the
+      // global question order (here creation/id order, since both are at the
+      // default sort_order 0).
       await setEventQuestions(event.id, [q2.id, q1.id]);
 
       const questions = await getQuestionsForEvent(event.id);
       expect(questions).toHaveLength(2);
-      // Order should match the order provided
-      expect(questions[0]!.text).toBe("Q2");
-      expect(questions[1]!.text).toBe("Q1");
+      expect(questions[0]!.text).toBe("Q1");
+      expect(questions[1]!.text).toBe("Q2");
+    });
+
+    test("orders event questions by the global sort_order, not assignment order", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      await assignNextQuestionSortOrder(q1.id);
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await assignNextQuestionSortOrder(q2.id);
+      await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A1" });
+      await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "A2" });
+
+      // Put q2 ahead of q1 globally.
+      await swapQuestionOrder(q1.id, q2.id);
+
+      const event = await createTestEvent();
+      await setEventQuestions(event.id, [q1.id, q2.id]);
+
+      const questions = await getQuestionsForEvent(event.id);
+      expect(questions.map((q) => q.text)).toEqual(["Q2", "Q1"]);
     });
 
     test("replaces event questions on re-assignment", async () => {
@@ -198,8 +220,9 @@ describeWithEnv("custom questions", { db: true }, () => {
       const event = await createTestEvent();
       await setEventQuestions(event.id, [q2.id, q1.id]);
 
+      // Returned in the global question order, not the assignment order.
       const ids = await getEventQuestionIds(event.id);
-      expect(ids).toEqual([q2.id, q1.id]);
+      expect(ids).toEqual([q1.id, q2.id]);
     });
 
     test("returns empty array for event with no questions", async () => {
@@ -250,7 +273,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(await getQuestionEventIds(q.id)).toEqual([event1.id]);
     });
 
-    test("appends after an event's existing questions without reordering", async () => {
+    test("lists an event's assigned questions in the global question order", async () => {
       const existing = await questionsTable.insert({ text: "Existing" });
       const added = await questionsTable.insert({ text: "Added" });
       await answersTable.insert({
@@ -589,6 +612,37 @@ describeWithEnv("custom questions", { db: true }, () => {
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");
       expect(updated!.answers[1]!.text).toBe("First");
+    });
+  });
+
+  describe("question ordering", () => {
+    test("assignNextQuestionSortOrder gives sequential non-zero orders", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A" });
+      await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "B" });
+
+      await assignNextQuestionSortOrder(q1.id);
+      await assignNextQuestionSortOrder(q2.id);
+
+      // Both are >= 1 (never 0, so they survive the legacy id-backfill) and q1
+      // precedes q2 in the global list.
+      const all = await getAllQuestionsWithAnswers();
+      expect(all.map((q) => q.text)).toEqual(["Q1", "Q2"]);
+    });
+
+    test("swapQuestionOrder reorders the global question list", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      await assignNextQuestionSortOrder(q1.id);
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await assignNextQuestionSortOrder(q2.id);
+      await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A" });
+      await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "B" });
+
+      await swapQuestionOrder(q1.id, q2.id);
+
+      const all = await getAllQuestionsWithAnswers();
+      expect(all.map((q) => q.text)).toEqual(["Q2", "Q1"]);
     });
   });
 });

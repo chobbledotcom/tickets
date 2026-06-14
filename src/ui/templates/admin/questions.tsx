@@ -38,15 +38,36 @@ export const adminQuestionsPage = (
         </p>
       ) : (
         <ul class="question-list">
-          {map((q: QuestionWithAnswers) => (
+          {questions.map((q, i) => (
             <li>
               <a href={`/admin/questions/${q.id}`}>{q.text}</a>
               <small>
                 {" "}
                 ({q.answers.length} answer{q.answers.length !== 1 ? "s" : ""})
-              </small>
+              </small>{" "}
+              {i > 0 && (
+                <CsrfForm
+                  action={`/admin/questions/${q.id}/move-up`}
+                  class="inline"
+                >
+                  <button class="link-button small" type="submit">
+                    &#9650;
+                  </button>
+                </CsrfForm>
+              )}
+              {i > 0 && " "}
+              {i < questions.length - 1 && (
+                <CsrfForm
+                  action={`/admin/questions/${q.id}/move-down`}
+                  class="inline"
+                >
+                  <button class="link-button small" type="submit">
+                    &#9660;
+                  </button>
+                </CsrfForm>
+              )}
             </li>
-          ))(questions)}
+          ))}
         </ul>
       )}
     </Layout>,

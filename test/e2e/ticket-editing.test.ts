@@ -203,21 +203,9 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Updated Robert Jones")).toBe(true);
 
     // 8. Save returns to Bob's edit form; his renamed details and intact
-    //    booking are shown there directly.
+    //    booking are shown there directly, so we assert on the current page.
     expect(browser.containsText("Robert Jones")).toBe(true);
     expect(browser.containsText("Bob Jones")).toBe(false);
-
-    // Navigate to Bob's edit page to verify fields and booking. Dedupe by
-    // attendee id since each row links from both the name and the Edit action.
-    const bobAttendeeIds = [
-      ...new Set(
-        browser.links
-          .map((l) => l.href.match(/\/admin\/attendees\/(\d+)/)?.[1])
-          .filter((id): id is string => !!id),
-      ),
-    ];
-    // Bob (Robert Jones) should be the second attendee
-    await browser.visit(`/admin/attendees/${bobAttendeeIds[1]}`);
     expect(browser.currentHtml).toContain("robert@example.com");
     expect(browser.currentHtml).toContain("+441111222333");
     expect(browser.currentHtml).toContain("7 Pine Avenue");
@@ -303,10 +291,10 @@ describe("e2e: ticket editing flow", () => {
     await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Alice Smith")).toBe(true);
 
-    // The Event Registrations table shows Morning Workshop as a registered event link.
-    // (Note: the "Add to Event" select also lists event names, so we check for the
-    //  admin/event link in the registration table to confirm the actual registration.)
-    expect(browser.currentHtml).toContain("/admin/event/");
+    // The Event Registrations line editor shows Alice's existing booking as a
+    // <select> with Morning Workshop pre-selected (the new form edits the event
+    // via a dropdown rather than linking out to the event page).
+    expect(browser.currentHtml).toContain("selected>Morning Workshop</option>");
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
     // 8. Extract the Evening Seminar event ID from the line-event select options.

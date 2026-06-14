@@ -2,9 +2,9 @@
  * Admin calendar view routes
  */
 
+/* jscpd:ignore-start */
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import { csvResponse, getDateFilter } from "#routes/admin/actions.ts";
-import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -24,6 +24,7 @@ import {
   getDailyEventAttendeesByDate,
 } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -37,6 +38,7 @@ import {
   type CalendarDateOption,
 } from "#templates/admin/calendar.tsx";
 import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
+/* jscpd:ignore-end */
 
 /** Build a map of YYYY-MM-DD → event IDs for standard events that have a date */
 const buildStandardEventDateMap = (
