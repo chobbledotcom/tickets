@@ -35,7 +35,7 @@ jobs:
           src/docs/payments.ts
           src/docs/email.ts
           src/docs/tickets.ts
-          src/docs/events.ts
+          src/docs/listings.ts
           src/docs/config.ts
           src/docs/utilities.ts
           src/docs/embed.ts
