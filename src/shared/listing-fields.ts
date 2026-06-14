@@ -1,17 +1,17 @@
 /**
- * Lightweight event field parsing - no heavy dependencies.
+ * Lightweight listing field parsing - no heavy dependencies.
  * Shared by client bundle (admin.ts) and server code.
  */
 
 import {
   CONTACT_FIELDS,
   type ContactField,
-  type EventFields,
   isContactField,
+  type ListingFields,
 } from "#shared/types.ts";
 
 /** Parse a comma-separated fields string into individual ContactField names */
-export const parseEventFields = (fields: EventFields): ContactField[] =>
+export const parseListingFields = (fields: ListingFields): ContactField[] =>
   fields
     ? fields
         .split(",")
@@ -19,21 +19,23 @@ export const parseEventFields = (fields: EventFields): ContactField[] =>
         .filter(isContactField)
     : [];
 
-/** Ensure "email" is included in an event fields setting */
-export const withRequiredEmail = (fields: EventFields): EventFields => {
-  const parsed = parseEventFields(fields);
+/** Ensure "email" is included in an listing fields setting */
+export const withRequiredEmail = (fields: ListingFields): ListingFields => {
+  const parsed = parseListingFields(fields);
   return parsed.includes("email") ? fields : ["email", ...parsed].join(",");
 };
 
 /**
- * Determine which contact fields to collect for multiple events.
+ * Determine which contact fields to collect for multiple listings.
  * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.
  */
-export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
+export const mergeListingFields = (
+  fieldSettings: ListingFields[],
+): ListingFields => {
   if (fieldSettings.length === 0) return "";
   const allFields = new Set<string>();
   for (const setting of fieldSettings) {
-    for (const f of parseEventFields(setting)) {
+    for (const f of parseListingFields(setting)) {
       allFields.add(f);
     }
   }

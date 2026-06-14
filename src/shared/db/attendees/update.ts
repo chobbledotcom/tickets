@@ -1,13 +1,13 @@
 /**
- * Update operations for attendees and their per-event bookings.
+ * Update operations for attendees and their per-listing bookings.
  */
 
 import { filter, map, pipe, reduce, sort, unique } from "#fp";
 import type {
-  EventBooking,
+  ListingBooking,
   UpdateAttendeePIIInput,
-  UpdateEventLinkInput,
-  UpdateEventLinkResult,
+  UpdateListingLinkInput,
+  UpdateListingLinkResult,
 } from "#shared/db/attendee-types.ts";
 import {
   buildCapacityCheckedInsert,
@@ -17,41 +17,45 @@ import {
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
-/** Update a per-event status field on event_attendees */
-const updateEventAttendeeField =
+/** Update a per-listing status field on listing_attendees */
+const updateListingAttendeeField =
   (field: string) =>
-  async (attendeeId: number, eventId: number, value: number): Promise<void> => {
+  async (
+    attendeeId: number,
+    listingId: number,
+    value: number,
+  ): Promise<void> => {
     await getDb().execute({
-      args: [value, attendeeId, eventId],
-      sql: `UPDATE event_attendees SET ${field} = ? WHERE attendee_id = ? AND event_id = ?`,
+      args: [value, attendeeId, listingId],
+      sql: `UPDATE listing_attendees SET ${field} = ? WHERE attendee_id = ? AND listing_id = ?`,
     });
   };
 
-const setRefunded = updateEventAttendeeField("refunded");
-const setCheckedIn = updateEventAttendeeField("checked_in");
+const setRefunded = updateListingAttendeeField("refunded");
+const setCheckedIn = updateListingAttendeeField("checked_in");
 
 export const markRefunded = (
   attendeeId: number,
-  eventId: number,
-): Promise<void> => setRefunded(attendeeId, eventId, 1);
+  listingId: number,
+): Promise<void> => setRefunded(attendeeId, listingId, 1);
 
 export const updateCheckedIn = (
   attendeeId: number,
-  eventId: number,
+  listingId: number,
   checkedIn: boolean,
-): Promise<void> => setCheckedIn(attendeeId, eventId, checkedIn ? 1 : 0);
+): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
 
 export const incrementAttachmentDownloads = async (
   attendeeId: number,
-  eventId: number,
+  listingId: number,
 ): Promise<void> => {
   await getDb().execute({
-    args: [attendeeId, eventId],
-    sql: "UPDATE event_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND event_id = ?",
+    args: [attendeeId, listingId],
+    sql: "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND listing_id = ?",
   });
 };
 
@@ -74,23 +78,23 @@ export const updateAttendeePII = async (
 };
 
 /**
- * Recompute `end_at` on all existing `event_attendees` rows for an event
+ * Recompute `end_at` on all existing `listing_attendees` rows for an listing
  * based on a new `duration_days` value. Leaves NULL-start rows alone.
  * The `.000Z` suffix matches the format fresh inserts produce via
  * toISOString() so raw-row dumps stay consistent.
  */
-export const recomputeEventBookingRanges = async (
-  eventId: number,
+export const recomputeListingBookingRanges = async (
+  listingId: number,
   durationDays: number,
 ): Promise<void> => {
   const duration = normalizeDurationDays(durationDays);
   await getDb().execute({
-    args: [duration, eventId],
-    sql: `UPDATE event_attendees
+    args: [duration, listingId],
+    sql: `UPDATE listing_attendees
            SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
-           WHERE event_id = ? AND start_at IS NOT NULL`,
+           WHERE listing_id = ? AND start_at IS NOT NULL`,
   });
-  invalidateEventsCache();
+  invalidateListingsCache();
 };
 
 /** A booking's day range as [start, end) YYYY-MM-DD strings (day-aligned —
@@ -98,19 +102,19 @@ export const recomputeEventBookingRanges = async (
 type DayInterval = { start: string; end: string; quantity: number };
 
 /**
- * After a duration change on a grouped event, check whether any day in any
+ * After a duration change on a grouped listing, check whether any day in any
  * existing booking's new range now exceeds the group cap. Returns the
  * earliest over-capacity day, or null if everything fits.
- * Call AFTER recomputeEventBookingRanges so end_at is already updated.
+ * Call AFTER recomputeListingBookingRanges so end_at is already updated.
  *
  * One query fetches every booking row in the group; per-day occupancy is
  * computed in JS with a boundary sweep. Occupancy only changes on days
  * where some booking starts, so checking interval start days that fall
- * inside this event's booked ranges finds the earliest overflow without
+ * inside this listing's booked ranges finds the earliest overflow without
  * walking (and querying) every day of every range.
  */
 export const checkGroupCapAfterDurationChange = async (
-  eventId: number,
+  listingId: number,
   groupId: number,
 ): Promise<string | null> => {
   if (groupId <= 0) return null;
@@ -122,37 +126,39 @@ export const checkGroupCapAfterDurationChange = async (
   if (groupLimit <= 0) return null;
 
   const rows = await queryAll<{
-    event_id: number;
-    event_type: string;
+    listing_id: number;
+    listing_type: string;
     start_at: string | null;
     end_at: string | null;
     quantity: number;
   }>(
-    `SELECT ea.event_id, e.event_type, ea.start_at, ea.end_at, ea.quantity
-     FROM event_attendees ea
-     JOIN events e ON e.id = ea.event_id
+    `SELECT ea.listing_id, e.listing_type, ea.start_at, ea.end_at, ea.quantity
+     FROM listing_attendees ea
+     JOIN listings e ON e.id = ea.listing_id
      WHERE e.group_id = ?`,
     [groupId],
   );
 
-  // Rows on non-daily events count on every day; daily rows count on the
-  // days of their [start, end) range. NULL-range rows on daily events never
+  // Rows on non-daily listings count on every day; daily rows count on the
+  // days of their [start, end) range. NULL-range rows on daily listings never
   // count (pre-daily legacy bookings), mirroring the SQL overlap predicate.
   type GroupRow = (typeof rows)[number];
   const isDailyWithRange = (row: GroupRow): boolean =>
-    row.event_type === "daily" && row.start_at !== null && row.end_at !== null;
+    row.listing_type === "daily" &&
+    row.start_at !== null &&
+    row.end_at !== null;
   const toDayInterval = (row: GroupRow): DayInterval => ({
     end: row.end_at!.slice(0, 10),
     quantity: row.quantity,
     start: row.start_at!.slice(0, 10),
   });
   const base = pipe(
-    filter((row: GroupRow) => row.event_type !== "daily"),
+    filter((row: GroupRow) => row.listing_type !== "daily"),
     reduce((sum: number, row: GroupRow) => sum + row.quantity, 0),
   )(rows);
   const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
-  const eventRanges = pipe(
-    filter((row: GroupRow) => row.event_id === eventId),
+  const listingRanges = pipe(
+    filter((row: GroupRow) => row.listing_id === listingId),
     filter(isDailyWithRange),
     map(toDayInterval),
   )(rows);
@@ -173,11 +179,11 @@ export const checkGroupCapAfterDurationChange = async (
   }
 
   // Walk candidate days (interval starts) in ascending order, tracking the
-  // max end of this event's ranges that start at or before the candidate —
-  // the candidate is inside this event's booked days iff that end is later.
+  // max end of this listing's ranges that start at or before the candidate —
+  // the candidate is inside this listing's booked days iff that end is later.
   const sortedRanges = sort((a: DayInterval, b: DayInterval) =>
     a.start < b.start ? -1 : 1,
-  )(eventRanges);
+  )(listingRanges);
   const startDays = unique(
     map((interval: DayInterval) => interval.start)(intervals),
   ).sort();
@@ -199,22 +205,22 @@ export const checkGroupCapAfterDurationChange = async (
 };
 
 /**
- * Update a single event link's quantity and date with atomic capacity check.
+ * Update a single listing link's quantity and date with atomic capacity check.
  *
  * The per-day SQL WHERE clause enforces capacity atomically. High-traffic
- * paths (public booking) should preflight with checkEventAvailability or
+ * paths (public booking) should preflight with checkListingAvailability or
  * checkBatchAvailability to fail fast before hitting the DB — admin paths
  * may rely on the SQL guard alone.
  */
-export const updateEventLink = async (
+export const updateListingLink = async (
   attendeeId: number,
-  eventId: number,
-  input: UpdateEventLinkInput,
-): Promise<UpdateEventLinkResult> => {
+  listingId: number,
+  input: UpdateListingLinkInput,
+): Promise<UpdateListingLinkResult> => {
   const { quantity: qty, date, durationDays = 1 } = input;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const condition = buildCapacityCondition(
-    eventId,
+    listingId,
     qty,
     date,
     attendeeId,
@@ -222,24 +228,24 @@ export const updateEventLink = async (
   );
 
   const result = await getDb().execute({
-    args: [qty, startAt, endAt, attendeeId, eventId, ...condition.args],
-    sql: `UPDATE event_attendees SET quantity = ?, start_at = ?, end_at = ?
-          WHERE attendee_id = ? AND event_id = ? AND ${condition.sql}`,
+    args: [qty, startAt, endAt, attendeeId, listingId, ...condition.args],
+    sql: `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
+          WHERE attendee_id = ? AND listing_id = ? AND ${condition.sql}`,
   });
 
   return checkCapacityResult(result);
 };
 
 /**
- * Add a new event link for an existing attendee with atomic capacity check.
+ * Add a new listing link for an existing attendee with atomic capacity check.
  *
  * The per-day SQL WHERE clause enforces capacity atomically. See
- * updateEventLink for preflight guidance.
+ * updateListingLink for preflight guidance.
  */
-export const addEventLink = async (
+export const addListingLink = async (
   attendeeId: number,
-  booking: EventBooking,
-): Promise<UpdateEventLinkResult> =>
+  booking: ListingBooking,
+): Promise<UpdateListingLinkResult> =>
   checkCapacityResult(
     await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
   );

@@ -203,9 +203,9 @@ const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
 /** Paths that should redirect to /read-only when visited via GET in read-only mode */
 const READ_ONLY_GET_PATTERNS = [
-  /^\/admin\/event\/new$/,
-  /^\/admin\/event\/\d+\/edit$/,
-  /^\/admin\/event\/\d+\/duplicate$/,
+  /^\/admin\/listing\/new$/,
+  /^\/admin\/listing\/\d+\/edit$/,
+  /^\/admin\/listing\/\d+\/duplicate$/,
   /^\/admin\/groups\/new$/,
   /^\/admin\/groups\/\d+\/edit$/,
 ];
@@ -213,12 +213,12 @@ const READ_ONLY_GET_PATTERNS = [
 /** Paths that should be blocked when POSTed in read-only mode */
 const READ_ONLY_POST_PATTERNS = [
   /^\/ticket\//,
-  /^\/admin\/event$/,
-  /^\/admin\/event\/\d+\/edit$/,
+  /^\/admin\/listing$/,
+  /^\/admin\/listing\/\d+\/edit$/,
   /^\/admin\/groups$/,
   /^\/admin\/groups\/\d+\/edit$/,
-  /^\/admin\/groups\/\d+\/add-events$/,
-  /^\/admin\/event\/\d+\/attendee$/,
+  /^\/admin\/groups\/\d+\/add-listings$/,
+  /^\/admin\/listing\/\d+\/attendee$/,
 ];
 
 /**
@@ -263,7 +263,7 @@ type PublicGetPageSpec = {
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
   { pick: (p) => p.handleHome, prefix: "" },
-  { pick: (p) => p.handlePublicEvents, prefix: "events" },
+  { pick: (p) => p.handlePublicListings, prefix: "listings" },
   { pick: (p) => p.handlePublicTerms, prefix: "terms" },
   { pick: (p) => p.handlePublicContact, prefix: "contact" },
 ];
@@ -303,6 +303,13 @@ const prefixHandlers: Record<string, RouterFn> = {
   attachment: lazyRoute(loadAttachmentRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
+  // Legacy redirect: the public listings page used to live at /events.
+  // Only active when the public site is enabled (otherwise /listings itself
+  // redirects to the admin login).
+  events: (_request, reqPath, method) =>
+    reqPath === "/events" && method === "GET" && settings.showPublicSite
+      ? Promise.resolve(redirectResponse("/listings"))
+      : Promise.resolve(null),
   feeds: lazyRoute(loadFeedRoutes),
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),

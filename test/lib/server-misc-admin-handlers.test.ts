@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectFlash,
   mockFormRequest,
@@ -339,22 +339,22 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expectFlash(response, "API key created", true);
     });
 
-    test("createActionHandler logs with fixed eventId when configured", async () => {
+    test("createActionHandler logs with fixed listingId when configured", async () => {
       const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
       const handler = createActionHandler({
         auth: "any" as const,
-        eventId: 42,
         execute: () => Promise.resolve(),
-        message: "Fixed event action",
-        successRedirect: "/admin/fixed-event",
+        listingId: 42,
+        message: "Fixed listing action",
+        successRedirect: "/admin/fixed-listing",
       });
 
       const response = await handler(
         mockFormRequest(
-          "/admin/fixed-event",
+          "/admin/fixed-listing",
           { csrf_token: csrfToken },
           cookie,
         ),
@@ -362,35 +362,35 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
 
       expect(response.status).toBe(302);
       const entries = await getAllActivityLog();
-      expect(entries[0]?.message).toBe("Fixed event action");
-      expect(entries[0]?.event_id).toBe(42);
+      expect(entries[0]?.message).toBe("Fixed listing action");
+      expect(entries[0]?.listing_id).toBe(42);
     });
 
-    test("createActionHandler computes eventId from submitted form", async () => {
+    test("createActionHandler computes listingId from submitted form", async () => {
       const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
       const handler = createActionHandler({
         auth: "any" as const,
-        eventId: (form) => Number.parseInt(form.getString("event_id"), 10),
         execute: () => Promise.resolve(),
-        message: "Computed event action",
-        successRedirect: "/admin/computed-event",
+        listingId: (form) => Number.parseInt(form.getString("listing_id"), 10),
+        message: "Computed listing action",
+        successRedirect: "/admin/computed-listing",
       });
 
       const response = await handler(
         mockFormRequest(
-          "/admin/computed-event",
-          { csrf_token: csrfToken, event_id: "77" },
+          "/admin/computed-listing",
+          { csrf_token: csrfToken, listing_id: "77" },
           cookie,
         ),
       );
 
       expect(response.status).toBe(302);
       const entries = await getAllActivityLog();
-      expect(entries[0]?.message).toBe("Computed event action");
-      expect(entries[0]?.event_id).toBe(77);
+      expect(entries[0]?.message).toBe("Computed listing action");
+      expect(entries[0]?.listing_id).toBe(77);
     });
 
     test("createConfirmedHandlers handles preValidate rejection and custom notFound", async () => {
@@ -461,7 +461,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         "#routes/admin/confirmation.ts"
       );
 
-      expect(verifyIdentifier("Test Event", "test event")).toBe(true);
+      expect(verifyIdentifier("Test Listing", "test listing")).toBe(true);
       expect(verifyIdentifier("  Test  ", "test")).toBe(true);
       expect(verifyIdentifier("Test", "Other")).toBe(false);
     });
@@ -471,8 +471,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         "#routes/admin/confirmation.ts"
       );
 
-      const form = new FormParams({ confirm_identifier: "Test Event" });
-      const result = verifyOrRedirect(form, "Test Event", "/admin/test");
+      const form = new FormParams({ confirm_identifier: "Test Listing" });
+      const result = verifyOrRedirect(form, "Test Listing", "/admin/test");
       expect(result).toBeNull();
     });
 
@@ -482,7 +482,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       const form = new FormParams({ confirm_identifier: "Wrong" });
-      const result = verifyOrRedirect(form, "Test Event", "/admin/test");
+      const result = verifyOrRedirect(form, "Test Listing", "/admin/test");
       expect(result).not.toBeNull();
       expect(result!.status).toBe(302);
       const location = result!.headers.get("location");
@@ -497,15 +497,15 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const form = new FormParams({ confirm_identifier: "Wrong" });
       const result = verifyOrRedirect(
         form,
-        "Test Event",
+        "Test Listing",
         "/admin/test",
-        "Event name",
+        "Listing name",
         "deletion",
       );
       expect(result).not.toBeNull();
       expectFlash(
         result!,
-        "Event name does not match. Please type the exact event name to confirm deletion.",
+        "Listing name does not match. Please type the exact listing name to confirm deletion.",
         false,
       );
     });
@@ -516,7 +516,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(
-        verifyIdentifierOrJsonError("Test Event", "Test Event"),
+        verifyIdentifierOrJsonError("Test Listing", "Test Listing"),
       ).toBeNull();
     });
 
@@ -526,9 +526,9 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       const error = verifyIdentifierOrJsonError(
-        "Test Event",
+        "Test Listing",
         "Wrong",
-        "Event name",
+        "Listing name",
       );
       expect(error).toContain("does not match");
       expect(error).toContain("confirm_identifier");
@@ -565,6 +565,27 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(getDateFilter(mockRequest("/test?date="))).toBeNull();
     });
 
+    test("getMonthFilter returns valid month", async () => {
+      const { getMonthFilter } = await import("#routes/admin/actions.ts");
+
+      expect(getMonthFilter(mockRequest("/test?cal=2026-07"))).toBe("2026-07");
+    });
+
+    test("getMonthFilter returns null for invalid format", async () => {
+      const { getMonthFilter } = await import("#routes/admin/actions.ts");
+
+      expect(getMonthFilter(mockRequest("/test?cal=2026-7"))).toBeNull();
+      expect(getMonthFilter(mockRequest("/test?cal=2026-07-01"))).toBeNull();
+      expect(getMonthFilter(mockRequest("/test?cal=not-a-month"))).toBeNull();
+    });
+
+    test("getMonthFilter returns null when absent", async () => {
+      const { getMonthFilter } = await import("#routes/admin/actions.ts");
+
+      expect(getMonthFilter(mockRequest("/test"))).toBeNull();
+      expect(getMonthFilter(mockRequest("/test?cal="))).toBeNull();
+    });
+
     test("csvResponse returns proper CSV response", async () => {
       const { csvResponse } = await import("#routes/admin/actions.ts");
 
@@ -589,7 +610,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(await loadQuestionData([1, 2], [])).toBeUndefined();
     });
 
-    test("loadQuestionData returns undefined for empty eventIds", async () => {
+    test("loadQuestionData returns undefined for empty listingIds", async () => {
       const { loadQuestionData } = await import("#routes/admin/actions.ts");
 
       expect(await loadQuestionData([], [1, 2])).toBeUndefined();
@@ -599,27 +620,27 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { loadQuestionData } = await import("#routes/admin/actions.ts");
       const { createTestAttendeeDirect } = await import("#test-utils");
 
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Test",
         "test@test.com",
       );
 
-      const result = await loadQuestionData([event.id], [attendee.id]);
+      const result = await loadQuestionData([listing.id], [attendee.id]);
       expect(result).toBeUndefined();
     });
 
     test("loadQuestionData returns question data when questions exist", async () => {
       const { loadQuestionData } = await import("#routes/admin/actions.ts");
       const { createTestAttendeeDirect } = await import("#test-utils");
-      const { answersTable, eventQuestionsTable, questionsTable } =
+      const { answersTable, listingQuestionsTable, questionsTable } =
         await import("#shared/db/questions.ts");
 
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const question = await questionsTable.insert({ text: "Food preference" });
-      await eventQuestionsTable.insert({
-        eventId: event.id,
+      await listingQuestionsTable.insert({
+        listingId: listing.id,
         questionId: question.id,
         sortOrder: 0,
       });
@@ -629,12 +650,12 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         text: "Veg",
       });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Has Question",
         "has-question@test.com",
       );
 
-      const result = await loadQuestionData([event.id], [attendee.id]);
+      const result = await loadQuestionData([listing.id], [attendee.id]);
       expect(result).toBeDefined();
       expect(result!.questions.length).toBe(1);
       expect(result!.questions[0]!.id).toBe(question.id);

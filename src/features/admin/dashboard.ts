@@ -12,14 +12,14 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
-  getActiveEventStats,
+  getActiveListingStats,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
-import { getAllEvents } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { sortEvents } from "#shared/sort-events.ts";
+import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
@@ -46,24 +46,24 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       const { error: imageError, success: successMessage } = getFlash();
-      const [events, holidays, newestRaw, privateKey] = await Promise.all([
-        getAllEvents(),
+      const [listings, holidays, newestRaw, privateKey] = await Promise.all([
+        getAllListings(),
         getActiveHolidays(),
         getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
         requirePrivateKey(session),
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
-      const sortedEvents = sortEvents(events, holidays);
-      const stats = await getActiveEventStats(sortedEvents);
+      const sortedListings = sortListings(listings, holidays);
+      const stats = await getActiveListingStats(sortedListings);
       return htmlResponse(
         adminDashboardPage(
-          sortedEvents,
+          sortedListings,
           session,
           imageError,
           newestAttendees,
           successMessage,
           stats,
-          settings.eventColumnOrder,
+          settings.listingColumnOrder,
         ),
       );
     },

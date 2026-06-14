@@ -21,8 +21,8 @@ const NAV_ACTIVE = "/admin/emails";
 
 export type BulkEmailComposeState = {
   target: BulkEmailTarget;
-  /** Present when target.kind === "event". */
-  eventName?: string;
+  /** Present when target.kind === "listing". */
+  listingName?: string;
   recipientCount: number;
   canBulkSend: boolean;
   /** Why provider sending is unavailable ("" when it is available). */
@@ -31,18 +31,18 @@ export type BulkEmailComposeState = {
   draft: BulkEmailDraft | null;
 };
 
-/** The audience/event selector at the top of the compose form. */
+/** The audience/listing selector at the top of the compose form. */
 const TargetField = ({
   state,
 }: {
   state: BulkEmailComposeState;
 }): JSX.Element => {
-  if (state.target.kind === "event") {
+  if (state.target.kind === "listing") {
     return (
       <>
-        <input name="event_id" type="hidden" value={state.target.eventId} />
+        <input name="listing_id" type="hidden" value={state.target.listingId} />
         <p>
-          <strong>Recipients:</strong> attendees of {state.eventName}
+          <strong>Recipients:</strong> attendees of {state.listingName}
         </p>
       </>
     );
@@ -78,7 +78,7 @@ export const bulkEmailComposePage = (
 
       <h1>Send a bulk email</h1>
       <p>
-        Email your attendees about an upcoming event or other news. Choose who
+        Email your attendees about an upcoming listing or other news. Choose who
         receives it, write your message in Markdown, then preview before
         sending.
       </p>
@@ -144,9 +144,9 @@ export const bulkEmailComposePage = (
 
 export type BulkEmailPreviewState = {
   draft: BulkEmailDraft;
-  /** Human label for the target: audience label or event name. */
+  /** Human label for the target: audience label or listing name. */
   targetLabel: string;
-  /** Audience description (omitted for single-event sends). */
+  /** Audience description (omitted for single-listing sends). */
   audienceDescription?: string;
   recipientCount: number;
   skippedCount: number;
@@ -171,9 +171,9 @@ const TypeExplainer = ({ marketing }: { marketing: boolean }): JSX.Element =>
   ) : (
     <p>
       <strong>Transactional / service email.</strong> Treated as essential
-      information about an event someone booked — no unsubscribe footer is added
-      and unsubscribed people are still included. Only use this for genuine
-      event info, never promotions.
+      information about a listing someone booked — no unsubscribe footer is
+      added and unsubscribed people are still included. Only use this for
+      genuine listing info, never promotions.
     </p>
   );
 

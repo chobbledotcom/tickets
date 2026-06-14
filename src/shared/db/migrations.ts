@@ -67,7 +67,7 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    "events",
+    "listings",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
@@ -85,7 +85,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["closes_at", "TEXT"],
         ["name", "TEXT NOT NULL DEFAULT ''"],
         ["description", "TEXT NOT NULL DEFAULT ''"],
-        ["event_type", "TEXT NOT NULL DEFAULT 'standard'"],
+        ["listing_type", "TEXT NOT NULL DEFAULT 'standard'"],
         [
           "bookable_days",
           `TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`,
@@ -110,7 +110,7 @@ const SCHEMA: [name: string, table: Table][] = [
       indexes: [
         {
           columns: ["slug_index"],
-          name: "idx_events_slug_index",
+          name: "idx_listings_slug_index",
           unique: true,
         },
       ],
@@ -211,11 +211,11 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    "event_attendees",
+    "listing_attendees",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["event_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
         ["attendee_id", "INTEGER NOT NULL"],
         ["start_at", "TEXT DEFAULT NULL"],
         ["end_at", "TEXT DEFAULT NULL"],
@@ -230,13 +230,13 @@ const SCHEMA: [name: string, table: Table][] = [
       // logic and the indexes below.
       indexes: [
         {
-          columns: ["event_id", "attendee_id", "start_at"],
-          name: "idx_event_attendees_event_attendee_start",
+          columns: ["listing_id", "attendee_id", "start_at"],
+          name: "idx_listing_attendees_listing_attendee_start",
           unique: true,
         },
         {
-          columns: ["attendee_id", "event_id"],
-          name: "idx_event_attendees_attendee_event",
+          columns: ["attendee_id", "listing_id"],
+          name: "idx_listing_attendees_attendee_listing",
         },
         // Overlap queries filter `start_at < dayEnd AND end_at > dayStart`
         // where both bounds are in the future. With end_at first, the index
@@ -244,8 +244,8 @@ const SCHEMA: [name: string, table: Table][] = [
         // visiting every row ever booked and rejecting on the residual
         // predicate — per-day capacity SUMs stay O(active rows).
         {
-          columns: ["event_id", "end_at", "start_at"],
-          name: "idx_event_attendees_event_end_start",
+          columns: ["listing_id", "end_at", "start_at"],
+          name: "idx_listing_attendees_listing_end_start",
         },
       ],
     },
@@ -273,7 +273,7 @@ const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["created", "TEXT NOT NULL"],
-        ["event_id", "INTEGER"],
+        ["listing_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
       ],
     },
@@ -390,19 +390,19 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    "event_questions",
+    "listing_questions",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["event_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
         ["question_id", "INTEGER NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
-        { columns: ["event_id"], name: "idx_event_questions_event_id" },
+        { columns: ["listing_id"], name: "idx_listing_questions_listing_id" },
         {
-          columns: ["event_id", "question_id"],
-          name: "idx_event_questions_unique",
+          columns: ["listing_id", "question_id"],
+          name: "idx_listing_questions_unique",
           unique: true,
         },
       ],
@@ -417,7 +417,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["site_data", "TEXT NOT NULL"],
         ["assignable", "INTEGER NOT NULL DEFAULT 0"],
         ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
-        ["assigned_event_id", "INTEGER DEFAULT NULL"],
+        ["assigned_listing_id", "INTEGER DEFAULT NULL"],
         ["created", "TEXT NOT NULL"],
         ["renewal_token_index", "TEXT DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
@@ -659,19 +659,19 @@ const requireColumns = (
   }
 };
 
-const backfillEventAttendees = async (): Promise<void> => {
+const backfillListingAttendees = async (): Promise<void> => {
   const attendeeColumns = await getExistingColumns("attendees");
-  if (!attendeeColumns.has("event_id")) {
+  if (!attendeeColumns.has("listing_id")) {
     logDebug(
       "Migration",
-      "attendees.event_id is absent, skipping event_attendees backfill",
+      "attendees.listing_id is absent, skipping listing_attendees backfill",
     );
     return;
   }
 
   requireColumns("attendees", attendeeColumns, [
     "id",
-    "event_id",
+    "listing_id",
     "date",
     "quantity",
     "checked_in_v2",
@@ -680,10 +680,10 @@ const backfillEventAttendees = async (): Promise<void> => {
     "attachment_downloads",
   ]);
   requireColumns(
-    "event_attendees",
-    await getExistingColumns("event_attendees"),
+    "listing_attendees",
+    await getExistingColumns("listing_attendees"),
     [
-      "event_id",
+      "listing_id",
       "attendee_id",
       "start_at",
       "end_at",
@@ -696,19 +696,19 @@ const backfillEventAttendees = async (): Promise<void> => {
   );
 
   await getDb().execute(
-    `INSERT OR IGNORE INTO event_attendees (event_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
-     SELECT event_id, id,
+    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
+     SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
        quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
      FROM attendees
-     WHERE id NOT IN (SELECT attendee_id FROM event_attendees)`,
+     WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)`,
   );
 };
 
 /**
  * Drop any legacy columns from attendees that aren't in the current schema
- * (event_id, date, quantity, and the pre-pii_blob PII columns: name, email,
+ * (listing_id, date, quantity, and the pre-pii_blob PII columns: name, email,
  * phone, address, payment_id, etc).
  *
  * SQLite can't DROP COLUMN when a FK references the column, so we recreate
@@ -729,8 +729,8 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   // original tables have FK declarations baked in from their CREATE TABLE.
   // libsql won't let us DROP attendees while those FKs exist. Recreating
   // them first replaces the FK-bearing originals with clean versions.
-  logDebug("Migration", "Recreating event_attendees (removing FKs)...");
-  await recreateTable("event_attendees");
+  logDebug("Migration", "Recreating listing_attendees (removing FKs)...");
+  await recreateTable("listing_attendees");
   logDebug("Migration", "Recreating processed_payments (removing FKs)...");
   await recreateTable("processed_payments");
   logDebug("Migration", "Recreating attendee_answers (removing FKs)...");
@@ -818,8 +818,8 @@ const syncCurrentSchema = async (): Promise<void> => {
   logDebug("Migration", "Step 2: syncing indexes...");
   await syncIndexes();
 
-  logDebug("Migration", "Step 3: backfilling event_attendees...");
-  await backfillEventAttendees();
+  logDebug("Migration", "Step 3: backfilling listing_attendees...");
+  await backfillListingAttendees();
 
   logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
   await dropDeprecatedAttendeeColumns();
@@ -834,16 +834,64 @@ type Migration = {
 };
 
 /** Verify the reordered overlap index exists (syncIndexes drops the old
- * (event_id, start_at, end_at) ordering and creates this one). */
+ * (listing_id, start_at, end_at) ordering and creates this one). */
 const verifyOverlapIndex = async (): Promise<void> => {
   const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_event_attendees_event_end_start'",
+    "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_listing_attendees_listing_end_start'",
   );
   if (result.rows.length === 0) {
     throw new Error(
-      "Migration verification failed: idx_event_attendees_event_end_start missing",
+      "Migration verification failed: idx_listing_attendees_listing_end_start missing",
     );
   }
+};
+
+/**
+ * Rename the legacy "event" domain to "listing".
+ *
+ * Renames are guarded so this is a no-op on fresh databases (where the
+ * declarative schema already created the listing-named tables) and only
+ * rewrites genuine legacy "event" tables/columns. Index names are left to
+ * syncIndexes(), which drops any index not declared in SCHEMA and recreates
+ * the listing-named ones.
+ */
+const renameTableIfLegacy = async (from: string, to: string): Promise<void> => {
+  if ((await tableExists(from)) && !(await tableExists(to))) {
+    await runMigration(`ALTER TABLE ${from} RENAME TO ${to}`);
+  }
+};
+
+const renameColumnIfLegacy = async (
+  table: string,
+  from: string,
+  to: string,
+): Promise<void> => {
+  if (!(await tableExists(table))) return;
+  const cols = await getExistingColumns(table);
+  if (cols.has(from) && !cols.has(to)) {
+    await runMigration(`ALTER TABLE ${table} RENAME COLUMN ${from} TO ${to}`);
+  }
+};
+
+export const renameEventsToListings = async (): Promise<void> => {
+  await renameTableIfLegacy("events", "listings");
+  await renameTableIfLegacy("event_attendees", "listing_attendees");
+  await renameTableIfLegacy("event_questions", "listing_questions");
+
+  await renameColumnIfLegacy("listings", "event_type", "listing_type");
+  await renameColumnIfLegacy("listing_attendees", "event_id", "listing_id");
+  await renameColumnIfLegacy("listing_questions", "event_id", "listing_id");
+  await renameColumnIfLegacy("activity_log", "event_id", "listing_id");
+  await renameColumnIfLegacy(
+    "built_sites",
+    "assigned_event_id",
+    "assigned_listing_id",
+  );
+  // Legacy attendees table carried event_id before backfill dropped it.
+  await renameColumnIfLegacy("attendees", "event_id", "listing_id");
+
+  await applySchemaChanges();
+  await syncIndexes();
 };
 
 const MIGRATIONS: Migration[] = [
@@ -866,10 +914,18 @@ const MIGRATIONS: Migration[] = [
   },
   {
     description:
-      "Reorder event_attendees overlap index to (event_id, end_at, start_at) so per-day capacity scans skip historical rows",
+      "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
+    // NB: legacy id retained verbatim — this is a stored marker, not display text
     id: "2026-06-13_event_attendees_overlap_index",
     up: syncIndexes,
     verify: verifyOverlapIndex,
+  },
+  {
+    description:
+      "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
+    id: "2026-06-14_rename_events_to_listings",
+    up: renameEventsToListings,
+    verify: verifyCurrentAppSchema,
   },
   {
     description: "Add unsubscribed_emails table for marketing email opt-outs",

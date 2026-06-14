@@ -1,18 +1,18 @@
 /**
- * Group selector for event forms (only shown when groups exist)
+ * Group selector for listing forms (only shown when groups exist)
  */
 
 import type { Group } from "#shared/types.ts";
 
-interface EventGroupSelectProps {
+interface ListingGroupSelectProps {
   groups: Group[];
   selectedGroupId: number;
 }
 
-export const EventGroupSelect = ({
+export const ListingGroupSelect = ({
   groups,
   selectedGroupId,
-}: EventGroupSelectProps): JSX.Element | null => {
+}: ListingGroupSelectProps): JSX.Element | null => {
   if (groups.length === 0) return null;
 
   return (

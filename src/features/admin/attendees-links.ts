@@ -1,14 +1,14 @@
 /**
- * Admin attendee event-link management routes (add, unlink, update)
+ * Admin attendee listing-link management routes (add, unlink, update)
  */
 
-import { unlinkAttendeeFromEvent } from "#shared/db/attendees.ts";
+import { unlinkAttendeeFromListing } from "#shared/db/attendees.ts";
 import { queryOne } from "#shared/db/client.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 
 export {
-  handleAddEventLink,
-  handleUpdateEventLink,
+  handleAddListingLink,
+  handleUpdateListingLink,
   parseQuantity,
 } from "#routes/admin/attendees-link-form.ts";
 
@@ -16,34 +16,34 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
-/** Handle POST /admin/attendees/:attendeeId/unlink/:eventId — remove event link */
-export const handleUnlinkEvent: TypedRouteHandler<
-  "POST /admin/attendees/:attendeeId/unlink/:eventId"
+/** Handle POST /admin/attendees/:attendeeId/unlink/:listingId — remove listing link */
+export const handleUnlinkListing: TypedRouteHandler<
+  "POST /admin/attendees/:attendeeId/unlink/:listingId"
 > = (request, params) =>
   withAuth(request, AUTH_FORM, () =>
-    handleUnlinkEventAction(params.attendeeId, params.eventId),
+    handleUnlinkListingAction(params.attendeeId, params.listingId),
   );
 
-const handleUnlinkEventAction = async (
+const handleUnlinkListingAction = async (
   attendeeId: number,
-  eventId: number,
+  listingId: number,
 ): Promise<Response> => {
   const linkCount = await queryOne<{ count: number }>(
-    "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+    "SELECT COUNT(*) as count FROM listing_attendees WHERE attendee_id = ?",
     [attendeeId],
   );
   if (linkCount && linkCount.count <= 1) {
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
-      "Cannot remove the last event — delete the attendee instead",
+      "Cannot remove the last listing — delete the attendee instead",
     );
   }
 
-  await unlinkAttendeeFromEvent(attendeeId, eventId);
-  const event = await getEventWithCount(eventId);
+  await unlinkAttendeeFromListing(attendeeId, listingId);
+  const listing = await getListingWithCount(listingId);
   return redirect(
     `/admin/attendees/${attendeeId}`,
-    `Attendee unlinked from '${event!.name}'`,
+    `Attendee unlinked from '${listing!.name}'`,
     true,
   );
 };

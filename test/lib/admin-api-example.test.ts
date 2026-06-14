@@ -1,31 +1,31 @@
 /**
- * Tests that the admin API examples match the real toAdminEvent() output.
+ * Tests that the admin API examples match the real toAdminListing() output.
  * If the shape changes, this test fails and forces an update to
  * src/shared/admin-api-example.ts (and thus the API docs page).
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { adminApiRoutes, toAdminEvent } from "#routes/admin/api.ts";
-import { apiRoutes, toPublicEvent } from "#routes/api/index.ts";
+import { adminApiRoutes, toAdminListing } from "#routes/admin/api.ts";
+import { apiRoutes, toPublicListing } from "#routes/api/index.ts";
 import {
   ADMIN_API_ENDPOINTS,
-  ADMIN_API_EXAMPLE_ADMIN_EVENT,
-  ADMIN_API_EXAMPLE_EVENT,
+  ADMIN_API_EXAMPLE_ADMIN_LISTING,
+  ADMIN_API_EXAMPLE_LISTING,
   type EndpointDoc,
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
 
 describe("admin API example", () => {
-  test("toAdminEvent output matches the documented example", () => {
-    const result = toAdminEvent(ADMIN_API_EXAMPLE_EVENT);
-    expect(result).toEqual(ADMIN_API_EXAMPLE_ADMIN_EVENT);
+  test("toAdminListing output matches the documented example", () => {
+    const result = toAdminListing(ADMIN_API_EXAMPLE_LISTING);
+    expect(result).toEqual(ADMIN_API_EXAMPLE_ADMIN_LISTING);
   });
 
-  test("example has all AdminEvent keys", () => {
-    const result = toAdminEvent(ADMIN_API_EXAMPLE_EVENT);
+  test("example has all AdminListing keys", () => {
+    const result = toAdminListing(ADMIN_API_EXAMPLE_LISTING);
     const resultKeys = Object.keys(result).sort();
-    const exampleKeys = Object.keys(ADMIN_API_EXAMPLE_ADMIN_EVENT).sort();
+    const exampleKeys = Object.keys(ADMIN_API_EXAMPLE_ADMIN_LISTING).sort();
     expect(exampleKeys).toEqual(resultKeys);
   });
 });
@@ -47,30 +47,31 @@ describe("endpoint docs", () => {
     }
   });
 
-  test("public event list response uses PublicEvent shape", () => {
+  test("public listing list response uses PublicListing shape", () => {
     const listEndpoint = PUBLIC_API_ENDPOINTS.find(
-      (e: EndpointDoc) => e.method === "GET" && e.path === "/api/events",
+      (e: EndpointDoc) => e.method === "GET" && e.path === "/api/listings",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realPublicEvent = toPublicEvent(
-      ADMIN_API_EXAMPLE_EVENT,
+    const realPublicListing = toPublicListing(
+      ADMIN_API_EXAMPLE_LISTING,
       false,
       undefined,
       undefined,
     );
-    const realKeys = Object.keys(realPublicEvent).sort();
-    const exampleKeys = Object.keys(parsed.events[0]).sort();
+    const realKeys = Object.keys(realPublicListing).sort();
+    const exampleKeys = Object.keys(parsed.listings[0]).sort();
     expect(exampleKeys).toEqual(realKeys);
   });
 
-  test("admin event list response uses AdminEvent shape", () => {
+  test("admin listing list response uses AdminListing shape", () => {
     const listEndpoint = ADMIN_API_ENDPOINTS.find(
-      (e: EndpointDoc) => e.method === "GET" && e.path === "/api/admin/events",
+      (e: EndpointDoc) =>
+        e.method === "GET" && e.path === "/api/admin/listings",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realAdminEvent = toAdminEvent(ADMIN_API_EXAMPLE_EVENT);
-    const realKeys = Object.keys(realAdminEvent).sort();
-    const exampleKeys = Object.keys(parsed.events[0]).sort();
+    const realAdminListing = toAdminListing(ADMIN_API_EXAMPLE_LISTING);
+    const realKeys = Object.keys(realAdminListing).sort();
+    const exampleKeys = Object.keys(parsed.listings[0]).sort();
     expect(exampleKeys).toEqual(realKeys);
   });
 
@@ -96,9 +97,9 @@ describe("endpoint docs", () => {
       (e: EndpointDoc) => `${e.method} ${e.path}`,
     );
     // Derive expected routes from the actual adminApiRoutes export,
-    // filtered to event routes (the only ones currently documented)
+    // filtered to listing routes (the only ones currently documented)
     const expected = Object.keys(adminApiRoutes).filter((k) =>
-      k.includes("/events"),
+      k.includes("/listings"),
     );
     expect(documented.sort()).toEqual(expected.sort());
   });

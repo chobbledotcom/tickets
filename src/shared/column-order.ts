@@ -143,7 +143,7 @@ export const buildDefaultTemplate = (keys: readonly string[]): string =>
 
 /**
  * Parse a template and return column keys + filters, with fallback to defaults.
- * Shared by all event/attendee table renderers.
+ * Shared by all listing/attendee table renderers.
  */
 export const resolveColumnLayout = (
   template: string,
@@ -186,7 +186,7 @@ export const renderFilteredValue = (
 
 /**
  * Render a table row's cells from ordered column keys.
- * Shared by event and attendee table renderers.
+ * Shared by listing and attendee table renderers.
  */
 export const renderCells = <TRow, TOpts>(
   row: TRow,

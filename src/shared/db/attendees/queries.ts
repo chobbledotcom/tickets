@@ -1,12 +1,12 @@
 /**
- * Read queries for attendees and their per-event bookings.
+ * Read queries for attendees and their per-listing bookings.
  */
 
 import { map } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
   AttendeeWithBookings,
-  EventAttendeeRow,
+  ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
 import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
@@ -14,46 +14,46 @@ import type { Attendee } from "#shared/types.ts";
 
 /**
  * Attendee columns for JOIN queries — only the columns actually used at runtime.
- * All PII is read from the encrypted pii_blob; per-event status lives on event_attendees.
+ * All PII is read from the encrypted pii_blob; per-listing status lives on listing_attendees.
  */
 const ATTENDEE_COLS = "a.id, a.created, a.ticket_token_index, a.pii_blob";
 
-/** Columns sourced from event_attendees (per-event data) */
+/** Columns sourced from listing_attendees (per-listing data) */
 const EA_COLS =
-  "ea.event_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in, ea.refunded, ea.price_paid, ea.attachment_downloads";
+  "ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, ea.quantity, ea.checked_in, ea.refunded, ea.price_paid, ea.attachment_downloads";
 
-/** SELECT clause for attendee + event_attendees JOINs (INNER JOIN context).
+/** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */
 export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
- * attendees with broken/missing event_attendees linkage still appear in results
- * (with event_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.event_id, 0) as event_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, COALESCE(ea.refunded, 0) as refunded, COALESCE(ea.price_paid, 0) as price_paid, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+ * attendees with broken/missing listing_attendees linkage still appear in results
+ * (with listing_id=0 as an obvious corruption indicator). */
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, COALESCE(ea.refunded, 0) as refunded, COALESCE(ea.price_paid, 0) as price_paid, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
 
 /**
- * Get attendees for an event without decrypting PII
+ * Get attendees for an listing without decrypting PII
  * Used for tests and operations that don't need decrypted data
  */
-export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
+export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
-     WHERE ea.event_id = ?
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE ea.listing_id = ?
      ORDER BY a.created DESC`,
-    [eventId],
+    [listingId],
   );
 
 /**
- * Get the newest attendees across all events without decrypting PII.
+ * Get the newest attendees across all listings without decrypting PII.
  * Used for the admin dashboard to show recent registrations.
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
      ORDER BY a.created DESC LIMIT ?`,
     [limit],
   );
@@ -71,21 +71,21 @@ export const getAllAttendeePiiBlobs = async (): Promise<string[]> => {
 };
 
 /**
- * Get the encrypted PII blobs for attendees booked onto any of the given events
- * (one row per attendee, even if booked onto several of them). Returns an empty
- * array when no event IDs are supplied.
+ * Get the encrypted PII blobs for attendees booked onto any of the given
+ * listings (one row per attendee, even if booked onto several of them).
+ * Returns an empty array when no listing IDs are supplied.
  */
-export const getAttendeePiiBlobsForEvents = async (
-  eventIds: number[],
+export const getAttendeePiiBlobsForListings = async (
+  listingIds: number[],
 ): Promise<string[]> => {
-  if (eventIds.length === 0) return [];
+  if (listingIds.length === 0) return [];
   const rows = await queryAll<{ pii_blob: string }>(
     `SELECT pii_blob FROM attendees
      WHERE id IN (
-       SELECT DISTINCT attendee_id FROM event_attendees
-       WHERE event_id IN (${inPlaceholders(eventIds)})
+       SELECT DISTINCT attendee_id FROM listing_attendees
+       WHERE listing_id IN (${inPlaceholders(listingIds)})
      )`,
-    eventIds,
+    listingIds,
   );
   return rows.map((r) => r.pii_blob);
 };
@@ -93,13 +93,13 @@ export const getAttendeePiiBlobsForEvents = async (
 /**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
- * Returns the attendee with encrypted fields (id, event_id, quantity are plaintext)
+ * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
 export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
   return queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE a.id = ?`,
     [id],
   );
@@ -119,9 +119,9 @@ export const getAttendee = async (
 
 /**
  * Look up attendees by plaintext tokens, returning full booking data.
- * Two queries: attendees by token index, then all event_attendees for those attendees.
+ * Two queries: attendees by token index, then all listing_attendees for those attendees.
  * Returns results in the same order as input tokens (deduped). Bookings sorted
- * by start_at then event_id for deterministic ordering.
+ * by start_at then listing_id for deterministic ordering.
  */
 export const getAttendeesByTokens = async (
   tokens: string[],
@@ -132,7 +132,7 @@ export const getAttendeesByTokens = async (
     map((t: string) => computeTicketTokenIndex(t))(uniqueTokens),
   );
 
-  // Query 1: Get attendee base rows (no event join)
+  // Query 1: Get attendee base rows (no listing join)
   type AttendeeBase = {
     id: number;
     created: string;
@@ -151,26 +151,26 @@ export const getAttendeesByTokens = async (
     return tokens.map(() => null);
   }
 
-  // Query 2: Get all event links for these attendees
+  // Query 2: Get all listing links for these attendees
   const attendeeIds = attendeeRows.map((a) => a.id);
   const bookingRows = await queryAll<
-    EventAttendeeRow & { attendee_id: number }
+    ListingAttendeeRow & { attendee_id: number }
   >(
-    `SELECT attendee_id, event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM event_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
-     ORDER BY start_at, event_id`,
+    `SELECT attendee_id, listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
+     ORDER BY start_at, listing_id`,
     attendeeIds,
   );
 
   // Group bookings by attendee_id
-  const bookingsByAttendee = new Map<number, EventAttendeeRow[]>();
+  const bookingsByAttendee = new Map<number, ListingAttendeeRow[]>();
   for (const row of bookingRows) {
     const list = bookingsByAttendee.get(row.attendee_id) ?? [];
     list.push({
       attachment_downloads: row.attachment_downloads,
       checked_in: row.checked_in,
       end_at: row.end_at,
-      event_id: row.event_id,
+      listing_id: row.listing_id,
       price_paid: row.price_paid,
       quantity: row.quantity,
       refunded: row.refunded,

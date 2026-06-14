@@ -18,18 +18,18 @@ describe("redactPath", () => {
   });
 
   test("redacts numeric IDs in admin paths", () => {
-    expect(redactPath("/admin/events/123")).toBe("/admin/events/[id]");
+    expect(redactPath("/admin/listings/123")).toBe("/admin/listings/[id]");
   });
 
   test("redacts multiple numeric IDs", () => {
-    expect(redactPath("/admin/events/123/attendees/456")).toBe(
-      "/admin/events/[id]/attendees/[id]",
+    expect(redactPath("/admin/listings/123/attendees/456")).toBe(
+      "/admin/listings/[id]/attendees/[id]",
     );
   });
 
   test("preserves paths without dynamic segments", () => {
     expect(redactPath("/admin")).toBe("/admin");
-    expect(redactPath("/admin/events")).toBe("/admin/events");
+    expect(redactPath("/admin/listings")).toBe("/admin/listings");
     expect(redactPath("/setup")).toBe("/setup");
     expect(redactPath("/")).toBe("/");
   });
@@ -66,6 +66,6 @@ describe("redactPath", () => {
   });
 
   test("handles trailing slashes with IDs", () => {
-    expect(redactPath("/admin/events/123/")).toBe("/admin/events/[id]/");
+    expect(redactPath("/admin/listings/123/")).toBe("/admin/listings/[id]/");
   });
 });

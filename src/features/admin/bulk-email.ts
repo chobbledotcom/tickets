@@ -36,7 +36,7 @@ import {
   validateDraftInput,
 } from "#shared/bulk-email.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUnsubscribedHashSet, hashEmail } from "#shared/db/unsubscribes.ts";
 import {
@@ -86,15 +86,18 @@ const getBulkAvailability = (): BulkAvailability => {
   return { canBulkSend: true, config, disabledReason: "" };
 };
 
-/** Resolve an event id string to a target + name, or null if absent/invalid/gone. */
-const eventTargetFromId = async (
+/** Resolve a listing id string to a target + name, or null if absent/invalid/gone. */
+const listingTargetFromId = async (
   raw: string,
-): Promise<{ target: BulkEmailTarget; eventName: string } | null> => {
+): Promise<{ target: BulkEmailTarget; listingName: string } | null> => {
   const id = Number(raw);
   if (!Number.isInteger(id) || id <= 0) return null;
-  const event = await getEventWithCount(id);
-  if (!event) return null;
-  return { eventName: event.name, target: { eventId: id, kind: "event" } };
+  const listing = await getListingWithCount(id);
+  if (!listing) return null;
+  return {
+    listingName: listing.name,
+    target: { kind: "listing", listingId: id },
+  };
 };
 
 /** Build an audience target from a raw value, defaulting unknown/blank input. */
@@ -103,25 +106,25 @@ const audienceTargetFrom = (raw: string | null): BulkEmailTarget => ({
   kind: "audience",
 });
 
-/** Resolve a compose-page target from query params, or null if the event is gone. */
+/** Resolve a compose-page target from query params, or null if the listing is gone. */
 const resolveComposeTarget = (
   request: Request,
-): Promise<{ target: BulkEmailTarget; eventName?: string } | null> => {
+): Promise<{ target: BulkEmailTarget; listingName?: string } | null> => {
   const params = new URL(request.url).searchParams;
-  const eventParam = params.get("event");
-  if (eventParam !== null) return eventTargetFromId(eventParam);
+  const listingParam = params.get("listing");
+  if (listingParam !== null) return listingTargetFromId(listingParam);
   return Promise.resolve({
     target: audienceTargetFrom(params.get("audience")),
   });
 };
 
-/** Resolve a target from posted form fields, or null if a named event is gone. */
+/** Resolve a target from posted form fields, or null if a named listing is gone. */
 const parseFormTarget = async (
   form: FormParams,
 ): Promise<BulkEmailTarget | null> => {
-  const eventIdStr = form.getString("event_id");
-  if (eventIdStr) {
-    const resolved = await eventTargetFromId(eventIdStr);
+  const listingIdStr = form.getString("listing_id");
+  if (listingIdStr) {
+    const resolved = await listingTargetFromId(listingIdStr);
     return resolved ? resolved.target : null;
   }
   return audienceTargetFrom(form.getString("audience"));
@@ -172,10 +175,12 @@ const partitionRecipients = async (
 const describeTarget = async (
   target: BulkEmailTarget,
 ): Promise<{ targetLabel: string; audienceDescription?: string }> => {
-  if (target.kind === "event") {
-    const event = await getEventWithCount(target.eventId);
+  if (target.kind === "listing") {
+    const listing = await getListingWithCount(target.listingId);
     return {
-      targetLabel: event ? `Attendees of ${event.name}` : "Event attendees",
+      targetLabel: listing
+        ? `Attendees of ${listing.name}`
+        : "Listing attendees",
     };
   }
   const audience = audienceById(target.audience);
@@ -198,7 +203,7 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
       canBulkSend,
       disabledReason,
       draft: parseDraft(settings.bulkEmailDraft),
-      eventName: resolved.eventName,
+      listingName: resolved.listingName,
       recipientCount: recipients.length,
       target: resolved.target,
     }),
@@ -210,7 +215,7 @@ const handlePreviewPost = (request: Request): Promise<Response> =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
     const target = await parseFormTarget(form);
     if (!target) {
-      return errorRedirect(COMPOSE_PATH, "That event no longer exists.");
+      return errorRedirect(COMPOSE_PATH, "That listing no longer exists.");
     }
     const validation = validateDraftInput({
       body: form.getString("body"),

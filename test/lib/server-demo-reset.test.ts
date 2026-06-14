@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
@@ -12,7 +12,7 @@ import {
 import {
   assertPublicHtml,
   awaitTestRequest,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -170,11 +170,11 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       invalidateTestDbCache();
     });
 
-    test("deletes storage files for all events during reset", async () => {
+    test("deletes storage files for all listings during reset", async () => {
       setDemoModeForTest(true);
 
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await eventsTable.update(event.id, {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "reset-attachment.pdf",
         imageUrl: "reset-image.jpg",

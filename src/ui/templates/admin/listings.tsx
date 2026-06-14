@@ -1,5 +1,5 @@
 /**
- * Admin event page templates - detail, edit, delete
+ * Admin listing page templates - detail, edit, delete
  */
 
 import { filter, joinStrings, map, pipe } from "#fp";
@@ -31,12 +31,12 @@ import { utcToLocalInput } from "#shared/timezone.ts";
 import {
   type AdminSession,
   type Attendee,
-  type EventWithCount,
   type Group,
-  isPaidEvent,
+  isPaidListing,
+  type ListingWithCount,
 } from "#shared/types.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
-import { EventGroupSelect } from "#templates/admin/group-select.tsx";
+import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
@@ -46,15 +46,15 @@ import {
 import {
   assignBuiltSiteField,
   attachmentField,
-  eventFields,
   getAddAttendeeFields,
   imageField,
   initialSiteMonthsField,
+  listingFields,
   monthsPerUnitField,
   slugField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { renderEventImage } from "#templates/public.tsx";
+import { renderListingImage } from "#templates/public.tsx";
 
 /** Date option for the date filter dropdown */
 export type DateOption = { value: string; label: string };
@@ -83,31 +83,31 @@ export const buildAnswerSummaryRows = (
   questionData: TableQuestionData | undefined,
 ): string => renderDetailRows(buildAnswerSummaryDetailRows(questionData));
 
-/** Check if event is within 10% of capacity */
-export const nearCapacity = (event: EventWithCount): boolean =>
-  event.attendee_count >= event.max_attendees * 0.9;
+/** Check if listing is within 10% of capacity */
+export const nearCapacity = (listing: ListingWithCount): boolean =>
+  listing.attendee_count >= listing.max_attendees * 0.9;
 
 /**
  * Check if an attendee has an incomplete/failed payment.
- * True when the event is paid, the attendee has no payment reference,
+ * True when the listing is paid, the attendee has no payment reference,
  * but was charged a non-zero price (distinguishing from admin-added attendees
  * who have price_paid=0).
  */
 export const isIncompletePayment = (
   attendee: Attendee,
-  hasPaidEvent: boolean,
+  hasPaidListing: boolean,
 ): boolean =>
-  hasPaidEvent &&
+  hasPaidListing &&
   !attendee.payment_id &&
   Number.parseInt(attendee.price_paid, 10) > 0;
 
 /** Render a single row in the Failed Payments table */
 const FailedPaymentRow = ({
   attendee,
-  eventId,
+  listingId,
 }: {
   attendee: Attendee;
-  eventId: number;
+  listingId: number;
 }): string =>
   String(
     <tr>
@@ -116,7 +116,7 @@ const FailedPaymentRow = ({
       <td>{formatDatetimeShort(attendee.created)}</td>
       <td>
         <CsrfForm
-          action={`/admin/event/${eventId}/attendee/${attendee.id}/delete-incomplete`}
+          action={`/admin/listing/${listingId}/attendee/${attendee.id}/delete-incomplete`}
           class="inline"
         >
           <button class="link-button danger" type="submit">
@@ -130,10 +130,10 @@ const FailedPaymentRow = ({
 /** Render a table of attendees with failed/incomplete payments */
 const FailedPaymentsTable = ({
   attendees,
-  eventId,
+  listingId,
 }: {
   attendees: Attendee[];
-  eventId: number;
+  listingId: number;
 }): string =>
   String(
     <table>
@@ -148,7 +148,7 @@ const FailedPaymentsTable = ({
       <tbody>
         <Raw
           html={pipe(
-            map((a: Attendee) => FailedPaymentRow({ attendee: a, eventId })),
+            map((a: Attendee) => FailedPaymentRow({ attendee: a, listingId })),
             joinStrings,
           )(attendees)}
         />
@@ -191,7 +191,7 @@ const FilterLink = ({
 const filterSuffix = (activeFilter: AttendeeFilter): string =>
   activeFilter === "all" ? "" : `/${activeFilter}`;
 
-/** Date selector dropdown for daily events */
+/** Date selector dropdown for daily listings */
 const DateSelector = ({
   basePath,
   activeFilter,
@@ -218,17 +218,17 @@ const DateSelector = ({
   return `<select data-nav-select aria-label="Filter by date">${options}</select>`;
 };
 
-/** Options for rendering the admin event detail page */
-/** Group + current attendee count, supplied when the event is in a capped
+/** Options for rendering the admin listing detail page */
+/** Group + current attendee count, supplied when the listing is in a capped
  * group so the detail page can show group-wide capacity beneath the
- * event's own. Only the cap > 0 case needs surfacing. */
+ * listing's own. Only the cap > 0 case needs surfacing. */
 export type GroupContext = {
   group: Group;
   attendeeCount: number;
 };
 
-export type AdminEventPageOptions = {
-  event: EventWithCount;
+export type AdminListingPageOptions = {
+  listing: ListingWithCount;
   attendees: Attendee[];
   allowedDomain: string;
   session: AdminSession;
@@ -243,16 +243,16 @@ export type AdminEventPageOptions = {
   groupContext?: GroupContext;
 };
 
-/** Top action nav for the event detail page */
-const EventActionNav = ({
-  event,
+/** Top action nav for the listing detail page */
+const ListingActionNav = ({
+  listing,
   dateFilter,
-  hasPaidEvent,
+  hasPaidListing,
   isOwner,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
   dateFilter: string | null;
-  hasPaidEvent: boolean;
+  hasPaidListing: boolean;
   isOwner: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
@@ -261,33 +261,33 @@ const EventActionNav = ({
       <ul>
         {!readOnly && (
           <li>
-            <a href={`/admin/event/${event.id}/edit`}>Edit</a>
+            <a href={`/admin/listing/${listing.id}/edit`}>Edit</a>
           </li>
         )}
         {!readOnly && (
           <li>
-            <a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a>
+            <a href={`/admin/listing/${listing.id}/duplicate`}>Duplicate</a>
           </li>
         )}
         <li>
-          <a href={`/admin/event/${event.id}/log`}>Log</a>
+          <a href={`/admin/listing/${listing.id}/log`}>Log</a>
         </li>
-        {!event.purchase_only && (
+        {!listing.purchase_only && (
           <li>
-            <a href={`/admin/event/${event.id}/scanner`}>Scanner</a>
+            <a href={`/admin/listing/${listing.id}/scanner`}>Scanner</a>
           </li>
         )}
         <li>
-          <a href={`/admin/event/${event.id}/questions`}>Questions</a>
+          <a href={`/admin/listing/${listing.id}/questions`}>Questions</a>
         </li>
         {!readOnly && (
           <li>
-            <a href={`/admin/event/${event.id}/qr`}>Booking QR</a>
+            <a href={`/admin/listing/${listing.id}/qr`}>Booking QR</a>
           </li>
         )}
         <li>
           <a
-            href={`/admin/event/${event.id}/export${
+            href={`/admin/listing/${listing.id}/export${
               dateFilter ? `?date=${dateFilter}` : ""
             }`}
           >
@@ -296,29 +296,29 @@ const EventActionNav = ({
         </li>
         {isOwner && (
           <li>
-            <a href={`/admin/emails?event=${event.id}`}>Email Attendees</a>
+            <a href={`/admin/emails?listing=${listing.id}`}>Email Attendees</a>
           </li>
         )}
-        {hasPaidEvent && (
+        {hasPaidListing && (
           <li>
-            <a class="danger" href={`/admin/event/${event.id}/refund-all`}>
+            <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
               Refund All
             </a>
           </li>
         )}
-        {event.active ? (
+        {listing.active ? (
           <li>
-            <a class="danger" href={`/admin/event/${event.id}/deactivate`}>
+            <a class="danger" href={`/admin/listing/${listing.id}/deactivate`}>
               Deactivate
             </a>
           </li>
         ) : (
           <li>
-            <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
+            <a href={`/admin/listing/${listing.id}/reactivate`}>Reactivate</a>
           </li>
         )}
         <li>
-          <a class="danger" href={`/admin/event/${event.id}/delete`}>
+          <a class="danger" href={`/admin/listing/${listing.id}/delete`}>
             Delete
           </a>
         </li>
@@ -329,64 +329,64 @@ const EventActionNav = ({
 
 /** Daily-specific schedule rows (bookable days, booking window) */
 const DailyScheduleRows = ({
-  event,
+  listing,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
 }): JSX.Element => (
   <>
     <tr>
       <th>Bookable Days</th>
-      <td>{formatBookableDays(event.bookable_days)}</td>
+      <td>{formatBookableDays(listing.bookable_days)}</td>
     </tr>
     <tr>
       <th>Booking Window</th>
       <td>
-        {event.minimum_days_before} to{" "}
-        {event.maximum_days_after === 0
+        {listing.minimum_days_before} to{" "}
+        {listing.maximum_days_after === 0
           ? "unlimited"
-          : event.maximum_days_after}{" "}
+          : listing.maximum_days_after}{" "}
         days from today
       </td>
     </tr>
     <tr>
       <th>Booking Duration</th>
-      <td>{event.duration_days} day(s)</td>
+      <td>{listing.duration_days} day(s)</td>
     </tr>
   </>
 );
 
 /** Attendee count cell content (varies by daily/date-filter state) */
 const AttendeeCountDisplay = ({
-  event,
+  listing,
   isDaily,
   dateFilter,
   adjustedCount,
   completeQuantitySum,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
   isDaily: boolean;
   dateFilter: string | null;
   adjustedCount: number;
   completeQuantitySum: number;
 }): JSX.Element => {
   if (isDaily && dateFilter) {
-    const overCap = completeQuantitySum >= event.max_attendees;
+    const overCap = completeQuantitySum >= listing.max_attendees;
     return (
       <span class={overCap ? "danger-text" : ""}>
-        {completeQuantitySum} / {event.max_attendees} &mdash;{" "}
-        {event.max_attendees - completeQuantitySum} remain
+        {completeQuantitySum} / {listing.max_attendees} &mdash;{" "}
+        {listing.max_attendees - completeQuantitySum} remain
       </span>
     );
   }
-  const nearCap = adjustedCount >= event.max_attendees * 0.9;
+  const nearCap = adjustedCount >= listing.max_attendees * 0.9;
   return (
     <span class={nearCap ? "danger-text" : ""}>
       {adjustedCount}
       {!isDaily && (
         <>
           {" "}
-          / {event.max_attendees} &mdash; {event.max_attendees - adjustedCount}{" "}
-          remain
+          / {listing.max_attendees} &mdash;{" "}
+          {listing.max_attendees - adjustedCount} remain
         </>
       )}
     </span>
@@ -395,14 +395,14 @@ const AttendeeCountDisplay = ({
 
 /** Attendees row (header + count summary + daily capacity note) */
 const AttendeesSummaryRow = ({
-  event,
+  listing,
   isDaily,
   dateFilter,
   dailySuffix,
   adjustedCount,
   completeQuantitySum,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
   isDaily: boolean;
   dateFilter: string | null;
   dailySuffix: string;
@@ -410,28 +410,28 @@ const AttendeesSummaryRow = ({
   completeQuantitySum: number;
 }): JSX.Element => (
   <tr>
-    <th>Event Attendees{dailySuffix}</th>
+    <th>Listing Attendees{dailySuffix}</th>
     <td>
       <AttendeeCountDisplay
         adjustedCount={adjustedCount}
         completeQuantitySum={completeQuantitySum}
         dateFilter={dateFilter}
-        event={event}
         isDaily={isDaily}
+        listing={listing}
       />
       {isDaily && !dateFilter && (
         <>
           {" "}
-          <small>Capacity of {event.max_attendees} applies per date</small>
+          <small>Capacity of {listing.max_attendees} applies per date</small>
         </>
       )}
     </td>
   </tr>
 );
 
-/** Group capacity row shown below the event-attendees row when the event
+/** Group capacity row shown below the listing-attendees row when the listing
  * belongs to a capped group. The label makes the group source explicit so
- * admins see why a not-yet-full event might still be sold out. */
+ * admins see why a not-yet-full listing might still be sold out. */
 const GroupAttendeesRow = ({
   group,
   groupAttendeeCount,
@@ -453,7 +453,7 @@ const GroupAttendeesRow = ({
           remain
         </span>{" "}
         <small>
-          across all events in{" "}
+          across all listings in{" "}
           <a href={`/admin/groups/${group.id}`}>{group.name}</a>
         </small>
       </td>
@@ -461,9 +461,9 @@ const GroupAttendeesRow = ({
   );
 };
 
-/** Event details table - all event metadata rows */
-const EventDetailsTable = ({
-  event,
+/** Listing details table - all listing metadata rows */
+const ListingDetailsTable = ({
+  listing,
   allowedDomain,
   ticketUrl,
   embedScriptCode,
@@ -476,7 +476,7 @@ const EventDetailsTable = ({
   groupContext,
   sharedRowsHtml,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
   allowedDomain: string;
   ticketUrl: string;
   embedScriptCode: string;
@@ -491,63 +491,65 @@ const EventDetailsTable = ({
 }): JSX.Element => (
   <article>
     <div class="table-scroll">
-      <table class="event-details-table">
+      <table class="listing-details-table">
         <tbody>
           <tr>
-            <th colspan="2">{event.name}</th>
+            <th colspan="2">{listing.name}</th>
           </tr>
-          {event.date && (
+          {listing.date && (
             <tr>
-              <th>Event Date</th>
+              <th>Listing Date</th>
               <td>
                 <span>
-                  <a href={`/admin/calendar?date=${event.date.slice(0, 10)}`}>
-                    {formatDatetimeLabel(event.date)}
+                  <a href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}>
+                    {formatDatetimeLabel(listing.date)}
                   </a>{" "}
                   <small>
-                    <em>({formatCountdown(event.date)})</em>
+                    <em>({formatCountdown(listing.date)})</em>
                   </small>
                 </span>
               </td>
             </tr>
           )}
-          {event.location && (
+          {listing.location && (
             <tr>
               <th>Location</th>
-              <td>{event.location}</td>
+              <td>{listing.location}</td>
             </tr>
           )}
           <tr>
-            <th>Event Type</th>
-            <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
+            <th>Listing Type</th>
+            <td>{listing.listing_type === "daily" ? "Daily" : "Standard"}</td>
           </tr>
-          {event.months_per_unit > 0 && (
+          {listing.months_per_unit > 0 && (
             <tr>
               <th>Renewal</th>
-              <td>{event.months_per_unit} month(s) per ticket</td>
+              <td>{listing.months_per_unit} month(s) per ticket</td>
             </tr>
           )}
-          {event.non_transferable && (
+          {listing.non_transferable && (
             <tr>
               <th>Non-Transferable</th>
               <td>Yes &mdash; ID verification required at entry</td>
             </tr>
           )}
-          {event.hidden && (
+          {listing.hidden && (
             <tr>
               <th>Hidden</th>
-              <td>Yes &mdash; not shown in public events list</td>
+              <td>Yes &mdash; not shown in public listings list</td>
             </tr>
           )}
-          {event.event_type === "daily" && <DailyScheduleRows event={event} />}
+          {listing.listing_type === "daily" && (
+            <DailyScheduleRows listing={listing} />
+          )}
           <tr>
             <th>Registration Closes</th>
             <td>
-              {event.closes_at ? (
+              {listing.closes_at ? (
                 <span>
-                  {formatDatetimeLabel(event.closes_at)}{" "}
+                  {formatDatetimeLabel(listing.closes_at)}{" "}
                   <small>
-                    <em>({formatCountdown(event.closes_at)})</em>
+                    <em>({formatCountdown(listing.closes_at)})</em>
                   </small>
                 </span>
               ) : (
@@ -558,53 +560,55 @@ const EventDetailsTable = ({
           <tr>
             <th>Public URL</th>
             <td>
-              <a href={ticketUrl}>{`${allowedDomain}/ticket/${event.slug}`}</a>
+              <a
+                href={ticketUrl}
+              >{`${allowedDomain}/ticket/${listing.slug}`}</a>
               <small>
                 {" "}
-                (<a href={`/ticket/${event.slug}/qr`}>QR Code</a>)
+                (<a href={`/ticket/${listing.slug}/qr`}>QR Code</a>)
               </small>
             </td>
           </tr>
-          {event.thank_you_url && (
+          {listing.thank_you_url && (
             <tr>
               <th>
-                <label for={`thank-you-url-${event.id}`}>Thank You URL</label>
+                <label for={`thank-you-url-${listing.id}`}>Thank You URL</label>
               </th>
               <td>
                 <input
                   data-select-on-click
-                  id={`thank-you-url-${event.id}`}
+                  id={`thank-you-url-${listing.id}`}
                   readonly
                   type="text"
-                  value={event.thank_you_url}
+                  value={listing.thank_you_url}
                 />
               </td>
             </tr>
           )}
-          {event.webhook_url && (
+          {listing.webhook_url && (
             <tr>
               <th>
-                <label for={`webhook-url-${event.id}`}>Webhook URL</label>
+                <label for={`webhook-url-${listing.id}`}>Webhook URL</label>
               </th>
               <td>
                 <input
                   data-select-on-click
-                  id={`webhook-url-${event.id}`}
+                  id={`webhook-url-${listing.id}`}
                   readonly
                   type="text"
-                  value={event.webhook_url}
+                  value={listing.webhook_url}
                 />
               </td>
             </tr>
           )}
           <tr>
             <th>
-              <label for={`embed-script-${event.id}`}>Embed Script</label>
+              <label for={`embed-script-${listing.id}`}>Embed Script</label>
             </th>
             <td>
               <input
                 data-select-on-click
-                id={`embed-script-${event.id}`}
+                id={`embed-script-${listing.id}`}
                 readonly
                 type="text"
                 value={embedScriptCode}
@@ -613,12 +617,12 @@ const EventDetailsTable = ({
           </tr>
           <tr>
             <th>
-              <label for={`embed-iframe-${event.id}`}>Embed Iframe</label>
+              <label for={`embed-iframe-${listing.id}`}>Embed Iframe</label>
             </th>
             <td>
               <input
                 data-select-on-click
-                id={`embed-iframe-${event.id}`}
+                id={`embed-iframe-${listing.id}`}
                 readonly
                 type="text"
                 value={embedIframeCode}
@@ -630,8 +634,8 @@ const EventDetailsTable = ({
             completeQuantitySum={completeQuantitySum}
             dailySuffix={dailySuffix}
             dateFilter={dateFilter}
-            event={event}
             isDaily={isDaily}
+            listing={listing}
           />
           {groupContext && (
             <GroupAttendeesRow
@@ -750,7 +754,7 @@ const AttendeesSection = ({
             returnUrl,
             rows: tableRows,
             showDate: isDaily,
-            showEvent: false,
+            showListing: false,
           })}
         />
       </div>
@@ -761,32 +765,35 @@ const AttendeesSection = ({
 /** Failed payments article (only rendered when there are incomplete attendees) */
 const FailedPaymentsSection = ({
   attendees,
-  eventId,
+  listingId,
 }: {
   attendees: Attendee[];
-  eventId: number;
+  listingId: number;
 }): JSX.Element => (
   <article>
     <h2 id="failed-payments">Failed Payments</h2>
     <p>{attendees.length} attendee(s) with unresolved payments</p>
     <div class="table-scroll">
-      <Raw html={FailedPaymentsTable({ attendees, eventId })} />
+      <Raw html={FailedPaymentsTable({ attendees, listingId })} />
     </div>
   </article>
 );
 
 /** Add attendee form article (only rendered in writable mode) */
 const AddAttendeeSection = ({
-  event,
+  listing,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
 }): JSX.Element => (
   <article>
     <h2 id="add-attendee">Add Attendee</h2>
-    <CsrfForm action={`/admin/event/${event.id}/attendee`}>
+    <CsrfForm action={`/admin/listing/${listing.id}/attendee`}>
       <Raw
         html={renderFields(
-          getAddAttendeeFields(event.fields, event.event_type === "daily"),
+          getAddAttendeeFields(
+            listing.fields,
+            listing.listing_type === "daily",
+          ),
         )}
       />
       <button type="submit">Add Attendee</button>
@@ -796,22 +803,23 @@ const AddAttendeeSection = ({
 
 /** Compute derived attendee stats needed by the detail page */
 const computeAttendeeStats = (
-  event: EventWithCount,
+  listing: ListingWithCount,
   attendees: Attendee[],
-  hasPaidEvent: boolean,
+  hasPaidListing: boolean,
 ): {
   incompleteAttendees: Attendee[];
   completeAttendees: Attendee[];
   adjustedCount: number;
   completeQuantitySum: number;
 } => {
-  const incompleteAttendees = hasPaidEvent
+  const incompleteAttendees = hasPaidListing
     ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
     : [];
-  const completeAttendees = hasPaidEvent
+  const completeAttendees = hasPaidListing
     ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
     : attendees;
-  const adjustedCount = event.attendee_count - sumQuantity(incompleteAttendees);
+  const adjustedCount =
+    listing.attendee_count - sumQuantity(incompleteAttendees);
   const completeQuantitySum = sumQuantity(completeAttendees);
   return {
     adjustedCount,
@@ -821,8 +829,8 @@ const computeAttendeeStats = (
   };
 };
 
-export const adminEventPage = ({
-  event,
+export const adminListingPage = ({
+  listing,
   attendees,
   allowedDomain,
   session,
@@ -835,19 +843,19 @@ export const adminEventPage = ({
   successMessage,
   questionData,
   groupContext,
-}: AdminEventPageOptions): string => {
-  const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
+}: AdminListingPageOptions): string => {
+  const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
-  const isDaily = event.event_type === "daily";
-  const hasPaidEvent = isPaidEvent(event);
+  const isDaily = listing.listing_type === "daily";
+  const hasPaidListing = isPaidListing(listing);
 
   const {
     incompleteAttendees,
     completeAttendees,
     adjustedCount,
     completeQuantitySum,
-  } = computeAttendeeStats(event, attendees, hasPaidEvent);
+  } = computeAttendeeStats(listing, attendees, hasPaidListing);
 
   const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
   const dailySuffix = isDaily
@@ -858,13 +866,13 @@ export const adminEventPage = ({
   const sharedRows = buildSharedDetailRows({
     attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,
     attendees: completeAttendees,
-    hasPaidEvent,
+    hasPaidListing,
     labelSuffix: dailySuffix,
-    maxCapacity: isDaily && !dateFilter ? 0 : event.max_attendees,
+    maxCapacity: isDaily && !dateFilter ? 0 : listing.max_attendees,
     questionData,
     skipAttendees: true,
   });
-  const basePath = `/admin/event/${event.id}`;
+  const basePath = `/admin/listing/${listing.id}`;
   const dateQs = dateFilter ? `?date=${dateFilter}` : "";
   const suffix = filterSuffix(activeFilter);
   const returnUrl = `${basePath}${suffix}${dateQs}#attendees`;
@@ -872,29 +880,29 @@ export const adminEventPage = ({
     map(
       (a: Attendee): AttendeeTableRow => ({
         attendee: a,
-        eventId: event.id,
-        eventName: event.name,
+        listingId: listing.id,
+        listingName: listing.name,
       }),
     ),
   )(filteredAttendees);
 
   return String(
-    <Layout title={`Event: ${event.name}`}>
+    <Layout title={`Listing: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
-      <EventActionNav
+      <ListingActionNav
         dateFilter={dateFilter}
-        event={event}
-        hasPaidEvent={hasPaidEvent}
+        hasPaidListing={hasPaidListing}
         isOwner={session.adminLevel === "owner"}
+        listing={listing}
       />
       <Flash success={successMessage} />
-      {!event.active && (
+      {!listing.active && (
         <div class="error" role="alert">
-          This event is deactivated and cannot be booked
+          This listing is deactivated and cannot be booked
         </div>
       )}
       <Flash error={errorMessage} />
-      <EventDetailsTable
+      <ListingDetailsTable
         adjustedCount={adjustedCount}
         allowedDomain={allowedDomain}
         completeQuantitySum={completeQuantitySum}
@@ -902,9 +910,9 @@ export const adminEventPage = ({
         dateFilter={dateFilter}
         embedIframeCode={embedIframeCode}
         embedScriptCode={embedScriptCode}
-        event={event}
         groupContext={groupContext}
         isDaily={isDaily}
+        listing={listing}
         sharedRowsHtml={renderDetailRows(sharedRows)}
         ticketUrl={ticketUrl}
       />
@@ -925,10 +933,10 @@ export const adminEventPage = ({
       {incompleteAttendees.length > 0 && (
         <FailedPaymentsSection
           attendees={incompleteAttendees}
-          eventId={event.id}
+          listingId={listing.id}
         />
       )}
-      {!isReadOnly() && <AddAttendeeSection event={event} />}
+      {!isReadOnly() && <AddAttendeeSection listing={listing} />}
     </Layout>,
   );
 };
@@ -941,8 +949,8 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
 
 const formatBookableDays = (days: string[]): string => days.join(",");
 
-const eventFieldFormatters: Partial<
-  Record<keyof EventWithCount, (e: EventWithCount) => string | null>
+const listingFieldFormatters: Partial<
+  Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
   assign_built_site: (e) => booleanToCheckbox(e.assign_built_site),
   bookable_days: (e) => formatBookableDays(e.bookable_days),
@@ -959,27 +967,27 @@ const eventFieldFormatters: Partial<
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
 };
 
-const allEventFields: Field[] = [
-  ...eventFields,
+const allListingFields: Field[] = [
+  ...listingFields,
   monthsPerUnitField,
   initialSiteMonthsField,
   assignBuiltSiteField,
 ];
 
-const eventToFieldValues = (event: EventWithCount): FieldValues =>
-  entityToFieldValues(event, allEventFields, eventFieldFormatters, {
-    slug: event.slug,
+const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
+  entityToFieldValues(listing, allListingFields, listingFieldFormatters, {
+    slug: listing.slug,
   });
 
-/** Event fields with autofocus on the name field */
-const eventFieldsWithAutofocus: Field[] = pipe(
+/** Listing fields with autofocus on the name field */
+const listingFieldsWithAutofocus: Field[] = pipe(
   map((f: Field): Field => (f.name === "name" ? { ...f, autofocus: true } : f)),
-)(eventFields);
+)(listingFields);
 
 /**
- * Admin event create page
+ * Admin listing create page
  */
-export const adminEventNewPage = (
+export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
   error?: string,
@@ -987,41 +995,41 @@ export const adminEventNewPage = (
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
-    ...eventFields,
+    ...listingFields,
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
   return String(
-    <Layout title="Add Event">
+    <Layout title="Add Listing">
       <AdminNav active="/admin/" session={session} />
 
-      <CsrfForm action="/admin/event" enctype="multipart/form-data">
-        <h1>Add Event</h1>
+      <CsrfForm action="/admin/listing" enctype="multipart/form-data">
+        <h1>Add Listing</h1>
         <Flash error={error} />
         <Raw html={renderFields(fields)} />
-        <EventGroupSelect groups={groups} selectedGroupId={0} />
-        <button type="submit">Create Event</button>
+        <ListingGroupSelect groups={groups} selectedGroupId={0} />
+        <button type="submit">Create Listing</button>
       </CsrfForm>
     </Layout>,
   );
 };
 
 /**
- * Admin duplicate event page - create form pre-filled with existing event settings
+ * Admin duplicate listing page - create form pre-filled with existing listing settings
  */
-export const adminDuplicateEventPage = (
-  event: EventWithCount,
+export const adminDuplicateListingPage = (
+  listing: ListingWithCount,
   groups: Group[],
   session: AdminSession,
 ): string => {
-  const values = eventToFieldValues(event);
+  const values = listingToFieldValues(listing);
   values.name = "";
   const builderEnabled = isBuilderEnabled();
   const storageEnabled = isStorageEnabled();
   const dupFields = [
-    ...eventFieldsWithAutofocus,
+    ...listingFieldsWithAutofocus,
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1029,26 +1037,29 @@ export const adminDuplicateEventPage = (
   ];
 
   return String(
-    <Layout title={`Duplicate: ${event.name}`}>
+    <Layout title={`Duplicate: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
-      <h2>Duplicate Event</h2>
+      <h2>Duplicate Listing</h2>
       <p>
-        Creating a new event based on <strong>{event.name}</strong>.
+        Creating a new listing based on <strong>{listing.name}</strong>.
       </p>
-      <CsrfForm action="/admin/event" enctype="multipart/form-data">
+      <CsrfForm action="/admin/listing" enctype="multipart/form-data">
         <Raw html={renderFields(dupFields, values)} />
-        <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
-        <button type="submit">Create Event</button>
+        <ListingGroupSelect
+          groups={groups}
+          selectedGroupId={listing.group_id}
+        />
+        <button type="submit">Create Listing</button>
       </CsrfForm>
     </Layout>,
   );
 };
 
 /**
- * Admin event edit page
+ * Admin listing edit page
  */
-export const adminEventEditPage = (
-  event: EventWithCount,
+export const adminListingEditPage = (
+  listing: ListingWithCount,
   groups: Group[],
   session: AdminSession,
   error?: string,
@@ -1056,57 +1067,60 @@ export const adminEventEditPage = (
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
-    ...eventFields,
+    ...listingFields,
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
   ];
   return String(
-    <Layout title={`Edit: ${event.name}`}>
+    <Layout title={`Edit: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
       <CsrfForm
-        action={`/admin/event/${event.id}/edit`}
+        action={`/admin/listing/${listing.id}/edit`}
         enctype="multipart/form-data"
-        id="event-edit-form"
+        id="listing-edit-form"
       >
-        <Raw html={renderFields(fields, eventToFieldValues(event))} />
-        <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
-        <Raw html={renderField(slugField, String(event.slug))} />
-        {storageEnabled && event.image_url && (
-          <Raw html={renderEventImage(event, "event-image-full")} />
+        <Raw html={renderFields(fields, listingToFieldValues(listing))} />
+        <ListingGroupSelect
+          groups={groups}
+          selectedGroupId={listing.group_id}
+        />
+        <Raw html={renderField(slugField, String(listing.slug))} />
+        {storageEnabled && listing.image_url && (
+          <Raw html={renderListingImage(listing, "listing-image-full")} />
         )}
         <div
-          data-duration-original={event.duration_days}
+          data-duration-original={listing.duration_days}
           hidden
           id="duration-warning"
         >
           <p>
             <strong>Warning:</strong> Changing booking duration will update
-            existing bookings for this event.
+            existing bookings for this listing.
           </p>
           <label>
             <input id="duration-warning-confirm" type="checkbox" />I understand
           </label>
         </div>
-        <button id="event-edit-submit" type="submit">
+        <button id="listing-edit-submit" type="submit">
           Save Changes
         </button>
       </CsrfForm>
-      {storageEnabled && event.image_url && (
-        <CsrfForm action={`/admin/event/${event.id}/image/delete`}>
+      {storageEnabled && listing.image_url && (
+        <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
           <button class="secondary" type="submit">
             Remove Image
           </button>
         </CsrfForm>
       )}
-      {storageEnabled && event.attachment_name && (
+      {storageEnabled && listing.attachment_name && (
         <div class="attachment-info">
           <p>
-            Current attachment: <strong>{event.attachment_name}</strong>
+            Current attachment: <strong>{listing.attachment_name}</strong>
           </p>
-          <CsrfForm action={`/admin/event/${event.id}/attachment/delete`}>
+          <CsrfForm action={`/admin/listing/${listing.id}/attachment/delete`}>
             <button class="secondary" type="submit">
               Remove Attachment
             </button>
@@ -1118,57 +1132,58 @@ export const adminEventEditPage = (
 };
 
 /**
- * Admin delete event confirmation page
+ * Admin delete listing confirmation page
  */
-export const adminDeleteEventPage = (
-  event: EventWithCount,
+export const adminDeleteListingPage = (
+  listing: ListingWithCount,
   session: AdminSession,
   error?: string,
 ): string =>
   String(
-    <Layout title={`Delete: ${event.name}`}>
+    <Layout title={`Delete: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/delete`}
-        buttonText="Delete Event"
-        label="Event name"
-        name={event.name}
+        action={`/admin/listing/${listing.id}/delete`}
+        buttonText="Delete Listing"
+        label="Listing name"
+        name={listing.name}
       >
         <p>
-          <strong>Warning:</strong> This will permanently delete the event, all{" "}
-          {event.attendee_count} attendee(s), any associated payment records,
-          and all activity log entries for this event.
+          <strong>Warning:</strong> This will permanently delete the listing,
+          all {listing.attendee_count} attendee(s), any associated payment
+          records, and all activity log entries for this listing.
         </p>
         <p>
-          To delete this event, type its name "{event.name}" into the box below:
+          To delete this listing, type its name "{listing.name}" into the box
+          below:
         </p>
       </ConfirmForm>
     </Layout>,
   );
 
 /**
- * Admin deactivate event confirmation page
+ * Admin deactivate listing confirmation page
  */
-export const adminDeactivateEventPage = (
-  event: EventWithCount,
+export const adminDeactivateListingPage = (
+  listing: ListingWithCount,
   session: AdminSession,
   error?: string,
 ): string =>
   String(
-    <Layout title={`Deactivate: ${event.name}`}>
+    <Layout title={`Deactivate: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/deactivate`}
-        buttonText="Deactivate Event"
-        label="Event name"
-        name={event.name}
+        action={`/admin/listing/${listing.id}/deactivate`}
+        buttonText="Deactivate Listing"
+        label="Listing name"
+        name={listing.name}
       >
         <p>
-          <strong>Warning:</strong> Deactivating this event will:
+          <strong>Warning:</strong> Deactivating this listing will:
         </p>
         <ul>
           <li>Return a 404 error on the public ticket page</li>
@@ -1177,35 +1192,35 @@ export const adminDeactivateEventPage = (
         </ul>
         <p>Existing attendees will not be affected.</p>
         <p>
-          To deactivate this event, type its name "{event.name}" into the box
-          below:
+          To deactivate this listing, type its name "{listing.name}" into the
+          box below:
         </p>
       </ConfirmForm>
     </Layout>,
   );
 
 /**
- * Admin reactivate event confirmation page
+ * Admin reactivate listing confirmation page
  */
-export const adminReactivateEventPage = (
-  event: EventWithCount,
+export const adminReactivateListingPage = (
+  listing: ListingWithCount,
   session: AdminSession,
   error?: string,
 ): string =>
   String(
-    <Layout title={`Reactivate: ${event.name}`}>
+    <Layout title={`Reactivate: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/reactivate`}
-        buttonText="Reactivate Event"
+        action={`/admin/listing/${listing.id}/reactivate`}
+        buttonText="Reactivate Listing"
         danger={false}
-        label="Event name"
-        name={event.name}
+        label="Listing name"
+        name={listing.name}
       >
         <p>
-          Reactivating this event will make it available for registrations
+          Reactivating this listing will make it available for registrations
           again.
         </p>
         <p>
@@ -1213,8 +1228,8 @@ export const adminReactivateEventPage = (
           register.
         </p>
         <p>
-          To reactivate this event, type its name "{event.name}" into the box
-          below:
+          To reactivate this listing, type its name "{listing.name}" into the
+          box below:
         </p>
       </ConfirmForm>
     </Layout>,

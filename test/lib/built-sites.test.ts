@@ -159,7 +159,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       const site = {
         assignable: false,
         assignedAttendeeId: null,
-        assignedEventId: null,
+        assignedListingId: null,
         bunnyScriptId: "",
         bunnyUrl: "test.bunny.run",
         created: "2026-01-01",
@@ -179,7 +179,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       const site = {
         assignable: true,
         assignedAttendeeId: null,
-        assignedEventId: null,
+        assignedListingId: null,
         bunnyScriptId: "script-123",
         bunnyUrl: "example.bunny.run",
         created: "2026-01-01",
@@ -357,7 +357,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(updated).not.toBeNull();
       expect(updated!.assignable).toBe(false);
       expect(updated!.assignedAttendeeId).toBe(42);
-      expect(updated!.assignedEventId).toBe(7);
+      expect(updated!.assignedListingId).toBe(7);
     });
 
     test("assignBuiltSite returns null for non-existent site", async () => {
@@ -365,12 +365,12 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(result).toBeNull();
     });
 
-    test("unassigned sites have null attendee and event IDs", async () => {
+    test("unassigned sites have null attendee and listing IDs", async () => {
       await insertBuiltSite("Unassigned", "u.b-cdn.net", "", "", true);
       const sites = await getAllBuiltSites();
       const site = sites.find((s) => s.name === "Unassigned")!;
       expect(site.assignedAttendeeId).toBeNull();
-      expect(site.assignedEventId).toBeNull();
+      expect(site.assignedListingId).toBeNull();
     });
   });
 

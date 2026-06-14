@@ -5,9 +5,9 @@
  *
  * ## Features
  *
- * - Free and paid events (Stripe/Square integration)
- * - Standard events (fixed capacity) and daily events (date-based booking)
- * - Multi-event bookings in one checkout
+ * - Free and paid listings (Stripe/Square integration)
+ * - Standard listings (fixed capacity) and daily listings (date-based booking)
+ * - Multi-listing bookings in one checkout
  * - Hybrid RSA-OAEP + AES-256-GCM encryption for PII at rest
  * - Check-in with QR codes (built-in scanner)
  * - Apple Wallet pass support
@@ -27,7 +27,7 @@
  * | [Payments](../docs/payments.ts) | Stripe and Square integration |
  * | [Email](../docs/email.ts) | Email sending and templates |
  * | [Tickets](../docs/tickets.ts) | QR codes, SVG tickets, Apple Wallet |
- * | [Events](../docs/events.ts) | Event fields, sorting, availability |
+ * | [Listings](../docs/listings.ts) | Listing fields, sorting, availability |
  * | [Config](../docs/config.ts) | Settings, environment, sessions |
  * | [Utilities](../docs/utilities.ts) | FP helpers, formatting, caching |
  * | [Embed](../docs/embed.ts) | Widget embedding and CDN |
@@ -49,7 +49,7 @@ export * from "./docs/database.ts";
 export * from "./docs/demo.ts";
 export * from "./docs/email.ts";
 export * from "./docs/embed.ts";
-export * from "./docs/events.ts";
+export * from "./docs/listings.ts";
 export * from "./docs/payments.ts";
 export * from "./docs/tickets.ts";
 export * from "./docs/utilities.ts";

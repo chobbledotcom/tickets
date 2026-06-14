@@ -64,12 +64,12 @@ describe("debugFooterHtml", () => {
     const html = debugFooterHtml({
       cacheStats: [],
       queries: [
-        { durationMs: 5.2, sql: "SELECT * FROM events" },
+        { durationMs: 5.2, sql: "SELECT * FROM listings" },
         { durationMs: 3.1, sql: "SELECT * FROM users WHERE id = ?" },
       ],
       renderTimeMs: 20,
     });
-    expect(html).toContain("SELECT * FROM events");
+    expect(html).toContain("SELECT * FROM listings");
     expect(html).toContain("5.2ms");
     expect(html).toContain("SELECT * FROM users WHERE id = ?");
     expect(html).toContain("3.1ms");
@@ -147,7 +147,7 @@ describe("debugFooterHtml", () => {
     const html = debugFooterHtml({
       cacheStats: [
         { entries: 5, name: "users" },
-        { entries: 10, name: "events" },
+        { entries: 10, name: "listings" },
       ],
       queries: [],
       renderTimeMs: 10,

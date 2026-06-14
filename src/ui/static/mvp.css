@@ -827,12 +827,12 @@ td.cell-description {
   text-overflow: ellipsis;
 }
 
-.event-details-table {
+.listing-details-table {
   width: auto;
   max-width: 100%;
 }
 
-.event-details-table th {
+.listing-details-table th {
   width: 220px;
 }
 
@@ -1072,7 +1072,7 @@ body.iframe form {
   padding: 0;
 }
 
-/* Multi-booking event list */
+/* Multi-booking listing list */
 .multi-booking-list {
   list-style: none;
   padding-left: 0;
@@ -1083,7 +1083,7 @@ fieldset {
   padding: 0 1rem;
 }
 
-.ticket-events {
+.ticket-listings {
   display: flex;
   flex-direction: column;
   gap: var(--space-s);
@@ -1123,20 +1123,20 @@ label.terms-agree {
   min-width: 0;
 }
 
-/* Hide daily-only fields when event type is "standard" */
-form:has(select[name="event_type"] option[value="standard"]:checked)
+/* Hide daily-only fields when listing type is "standard" */
+form:has(select[name="listing_type"] option[value="standard"]:checked)
   > label:has([name="bookable_days"]),
-form:has(select[name="event_type"] option[value="standard"]:checked)
+form:has(select[name="listing_type"] option[value="standard"]:checked)
   > label:has([name="minimum_days_before"]),
-form:has(select[name="event_type"] option[value="standard"]:checked)
+form:has(select[name="listing_type"] option[value="standard"]:checked)
   > label:has([name="maximum_days_after"]),
-form:has(select[name="event_type"] option[value="standard"]:checked)
+form:has(select[name="listing_type"] option[value="standard"]:checked)
   > label:has([name="duration_days"]) {
   display: none;
 }
 
-/* Hide event date field when event type is "daily" */
-form:has(select[name="event_type"] option[value="daily"]:checked)
+/* Hide listing date field when listing type is "daily" */
+form:has(select[name="listing_type"] option[value="daily"]:checked)
   > label:has([name="date_date"]) {
   display: none;
 }
@@ -1164,13 +1164,13 @@ form:not(:has(input[name="can_pay_more"]:checked))
   font-size: 0.9em;
 }
 
-/* Event images */
-.event-image {
+/* Listing images */
+.listing-image {
   max-width: min(100%, var(--width-card-wide));
   border-radius: 4px;
 }
 
-.event-thumbnail {
+.listing-thumbnail {
   width: 2rem;
   height: 2rem;
   border-radius: 4px;
@@ -1179,7 +1179,7 @@ form:not(:has(input[name="can_pay_more"]:checked))
   margin-right: 0.5rem;
 }
 
-.event-image-preview {
+.listing-image-preview {
   max-width: 300px;
   border-radius: 4px;
 }
@@ -1679,6 +1679,100 @@ button.secondary:hover {
   max-width: 400px;
   width: 100%;
   height: auto;
+}
+
+/* Link-based date picker calendar */
+.calendar {
+  max-width: 22rem;
+  margin-bottom: var(--space-m);
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: bold;
+}
+
+.calendar-nav a {
+  padding: 0 var(--space-s);
+  text-decoration: none;
+}
+
+/* The month label is a <select> styled to read as plain text */
+.calendar-month-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: bold;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.calendar-month-select:hover {
+  text-decoration: underline;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.calendar-dow {
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.cal-day {
+  display: block;
+  padding: 0.35rem 0;
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+}
+
+/* Selectable days are links; non-selectable days are plain greyed text */
+a.cal-day {
+  background: var(--color-accent);
+  text-decoration: none;
+}
+
+a.cal-day:hover {
+  background: var(--color-bg-secondary);
+}
+
+span.cal-day {
+  color: var(--color-text-secondary);
+}
+
+/* Days outside the displayed month (the extra week either side) */
+.cal-day-muted {
+  opacity: 0.45;
+}
+
+/* Today */
+.cal-day-today {
+  outline: 1px solid var(--color-link);
+}
+
+/* Currently selected date */
+.cal-day-selected,
+a.cal-day-selected:hover {
+  background: var(--color-link);
+  color: var(--color-bg);
 }
 
 /* Guide page */

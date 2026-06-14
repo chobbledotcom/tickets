@@ -480,25 +480,25 @@ describeWithEnv(
       },
     );
 
-    describe("POST /admin/settings/event-column-order", () => {
+    describe("POST /admin/settings/listing-column-order", () => {
       const formUrl =
-        "/admin/settings-advanced?form=settings-event-column-order#settings-event-column-order";
+        "/admin/settings-advanced?form=settings-listing-column-order#settings-listing-column-order";
 
-      test("saves valid event column order", async () => {
+      test("saves valid listing column order", async () => {
         const { response } = await adminFormPost(
-          "/admin/settings/event-column-order",
+          "/admin/settings/listing-column-order",
           { column_order: "{{name}}, {{status}}" },
         );
         expectRedirectWithFlash(
           formUrl,
-          "Event column order updated",
+          "Listing column order updated",
         )(response);
-        expect(settings.eventColumnOrder).toBe("{{name}}, {{status}}");
+        expect(settings.listingColumnOrder).toBe("{{name}}, {{status}}");
       });
 
       test("rejects invalid column name", async () => {
         const { response } = await adminFormPost(
-          "/admin/settings/event-column-order",
+          "/admin/settings/listing-column-order",
           { column_order: "{{invalid}}" },
         );
         expectRedirectWithFlash(formUrl, undefined, false)(response);
@@ -510,16 +510,16 @@ describeWithEnv(
       });
 
       test("clears to default when empty", async () => {
-        await settings.update.eventColumnOrder("{{name}}");
+        await settings.update.listingColumnOrder("{{name}}");
         const { response } = await adminFormPost(
-          "/admin/settings/event-column-order",
+          "/admin/settings/listing-column-order",
           { column_order: "" },
         );
         expectRedirectWithFlash(
           formUrl,
-          "Event column order updated",
+          "Listing column order updated",
         )(response);
-        expect(settings.eventColumnOrder).toBe("");
+        expect(settings.listingColumnOrder).toBe("");
       });
     });
 

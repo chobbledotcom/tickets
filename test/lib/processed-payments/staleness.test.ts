@@ -12,7 +12,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import {
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 
@@ -20,10 +20,10 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
   let attendeeId: number;
 
   beforeEach(async () => {
-    const event = await createTestEvent();
+    const listing = await createTestListing();
     const attendee = await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "Test User",
       "test@example.com",
     );

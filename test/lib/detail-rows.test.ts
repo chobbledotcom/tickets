@@ -150,7 +150,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 5,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
@@ -162,7 +162,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 5,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 20,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
@@ -174,7 +174,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 19,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 20,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
@@ -185,7 +185,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 5,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 20,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
@@ -196,7 +196,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 100,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
       });
       const attendeeRow = rows.find((r) => r.key === "Attendees");
@@ -207,7 +207,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 5,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
         skipAttendees: true,
       });
@@ -222,7 +222,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 2,
         attendees,
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
       });
       const checkedIn = rows.find((r) => r.key === "Checked In");
@@ -239,7 +239,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 5,
         attendees,
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
       });
       expect(rows.find((r) => r.key === "Tickets Checked In")).toBeDefined();
@@ -247,23 +247,23 @@ describe("detail-rows", () => {
       expect(rows.find((r) => r.key === "Checked In")).toBeUndefined();
     });
 
-    test("includes revenue row when hasPaidEvent is true", () => {
+    test("includes revenue row when hasPaidListing is true", () => {
       const attendees = [testAttendee({ price_paid: "1000" })];
       const rows = buildSharedDetailRows({
         attendeeCount: 1,
         attendees,
-        hasPaidEvent: true,
+        hasPaidListing: true,
         maxCapacity: 0,
       });
       const revenue = rows.find((r) => r.key === "Total Revenue");
       expect(revenue).toBeDefined();
     });
 
-    test("excludes revenue row when hasPaidEvent is false", () => {
+    test("excludes revenue row when hasPaidListing is false", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 1,
         attendees: [testAttendee()],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
       });
       expect(rows.find((r) => r.key === "Total Revenue")).toBeUndefined();
@@ -273,7 +273,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 0,
         attendees: [],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         maxCapacity: 0,
         questionData: {
           attendeeAnswerMap: new Map(),
@@ -293,7 +293,7 @@ describe("detail-rows", () => {
       const rows = buildSharedDetailRows({
         attendeeCount: 1,
         attendees: [testAttendee()],
-        hasPaidEvent: false,
+        hasPaidListing: false,
         labelSuffix: " (total)",
         maxCapacity: 0,
       });

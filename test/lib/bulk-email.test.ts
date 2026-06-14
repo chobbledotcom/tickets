@@ -29,8 +29,8 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
 import {
   createTestAttendeeDirect,
-  createTestEvent,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
 } from "#test-utils/db-helpers.ts";
 
 const audienceTarget = (audience: BulkEmailDraft["target"]) => audience;
@@ -50,24 +50,24 @@ describe("bulk-email audiences and targets", () => {
     expect(audienceById("all").label).toBe("All attendees");
   });
 
-  test("targetQuery round-trips audience and event targets", () => {
+  test("targetQuery round-trips audience and listing targets", () => {
     expect(targetQuery({ audience: "upcoming", kind: "audience" })).toBe(
       "?audience=upcoming",
     );
-    expect(targetQuery({ eventId: 7, kind: "event" })).toBe("?event=7");
+    expect(targetQuery({ kind: "listing", listingId: 7 })).toBe("?listing=7");
   });
 
   test("isBulkEmailTarget validates shape", () => {
     expect(isBulkEmailTarget({ audience: "active", kind: "audience" })).toBe(
       true,
     );
-    expect(isBulkEmailTarget({ eventId: 3, kind: "event" })).toBe(true);
+    expect(isBulkEmailTarget({ kind: "listing", listingId: 3 })).toBe(true);
     expect(isBulkEmailTarget({ audience: "bogus", kind: "audience" })).toBe(
       false,
     );
     expect(isBulkEmailTarget({ kind: "audience" })).toBe(false);
-    expect(isBulkEmailTarget({ eventId: 1.5, kind: "event" })).toBe(false);
-    expect(isBulkEmailTarget({ kind: "event" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: "listing", listingId: 1.5 })).toBe(false);
+    expect(isBulkEmailTarget({ kind: "listing" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "other" })).toBe(false);
     expect(isBulkEmailTarget(null)).toBe(false);
     expect(isBulkEmailTarget("nope")).toBe(false);
@@ -239,25 +239,28 @@ describeWithEnv("buildBulkMessages", { encryptionKey: true }, () => {
 
 describeWithEnv("resolveRecipientEmails", { db: true }, () => {
   const setup = async () => {
-    const active = await createTestEvent({ maxAttendees: 50, name: "Active" });
+    const active = await createTestListing({
+      maxAttendees: 50,
+      name: "Active",
+    });
     await createTestAttendeeDirect(active.id, "Alice", "alice@example.com");
     await createTestAttendeeDirect(active.id, "Bob", "bob@example.com");
 
-    const past = await createTestEvent({
+    const past = await createTestListing({
       date: "2020-06-01T10:00",
       maxAttendees: 50,
       name: "Past",
     });
     await createTestAttendeeDirect(past.id, "Dave", "dave@example.com");
-    // Alice also booked the past event — proves cross-event de-duplication.
+    // Alice also booked the past listing — proves cross-listing de-duplication.
     await createTestAttendeeDirect(past.id, "Alice", "alice@example.com");
 
-    const inactive = await createTestEvent({
+    const inactive = await createTestListing({
       maxAttendees: 50,
       name: "Inactive",
     });
     await createTestAttendeeDirect(inactive.id, "Carol", "carol@example.com");
-    await deactivateTestEvent(inactive.id);
+    await deactivateTestListing(inactive.id);
 
     return { active, inactive, past, pk: await getTestPrivateKey() };
   };
@@ -274,7 +277,7 @@ describeWithEnv("resolveRecipientEmails", { db: true }, () => {
     ]);
   });
 
-  test("active audience excludes deactivated events", async () => {
+  test("active audience excludes deactivated listings", async () => {
     const { pk } = await setup();
     expect(
       await resolveRecipientEmails(
@@ -284,7 +287,7 @@ describeWithEnv("resolveRecipientEmails", { db: true }, () => {
     ).toEqual(["alice@example.com", "bob@example.com", "dave@example.com"]);
   });
 
-  test("upcoming audience excludes past-dated and inactive events", async () => {
+  test("upcoming audience excludes past-dated and inactive listings", async () => {
     const { pk } = await setup();
     expect(
       await resolveRecipientEmails(
@@ -294,10 +297,10 @@ describeWithEnv("resolveRecipientEmails", { db: true }, () => {
     ).toEqual(["alice@example.com", "bob@example.com"]);
   });
 
-  test("event target returns only that event's attendees", async () => {
+  test("listing target returns only that listing's attendees", async () => {
     const { past, pk } = await setup();
     expect(
-      await resolveRecipientEmails({ eventId: past.id, kind: "event" }, pk),
+      await resolveRecipientEmails({ kind: "listing", listingId: past.id }, pk),
     ).toEqual(["alice@example.com", "dave@example.com"]);
   });
 });

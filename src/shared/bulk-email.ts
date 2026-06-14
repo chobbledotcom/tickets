@@ -13,16 +13,16 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
   getAllAttendeePiiBlobs,
-  getAttendeePiiBlobsForEvents,
+  getAttendeePiiBlobsForListings,
 } from "#shared/db/attendees/queries.ts";
-import { getAllEvents } from "#shared/db/events.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { hashEmail } from "#shared/db/unsubscribes.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import {
   createTypeGuard,
-  type EventWithCount,
   isRecord,
+  type ListingWithCount,
 } from "#shared/types.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
@@ -42,18 +42,18 @@ export type Audience = {
 /** Registry of audiences, in the order they appear in the dropdown. */
 export const AUDIENCES: readonly Audience[] = [
   {
-    description: "Everyone booked onto an event that is currently active.",
+    description: "Everyone booked onto a listing that is currently active.",
     id: "active",
-    label: "Active event attendees",
+    label: "Active listing attendees",
   },
   {
     description:
-      "Everyone booked onto an active event that has not happened yet.",
+      "Everyone booked onto an active listing that has not happened yet.",
     id: "upcoming",
-    label: "Upcoming event attendees",
+    label: "Upcoming listing attendees",
   },
   {
-    description: "Everyone who has ever registered, across every event.",
+    description: "Everyone who has ever registered, across every listing.",
     id: "all",
     label: "All attendees",
   },
@@ -70,16 +70,16 @@ export const audienceById = (id: AudienceId): Audience =>
 
 /**
  * What a bulk email is aimed at: either a named audience (from the Emails
- * page) or a single event (from that event's admin page).
+ * page) or a single listing (from that listing's admin page).
  */
 export type BulkEmailTarget =
   | { readonly kind: "audience"; readonly audience: AudienceId }
-  | { readonly kind: "event"; readonly eventId: number };
+  | { readonly kind: "listing"; readonly listingId: number };
 
 /** Query string that round-trips a target back to the compose page. */
 export const targetQuery = (target: BulkEmailTarget): string =>
-  target.kind === "event"
-    ? `?event=${target.eventId}`
+  target.kind === "listing"
+    ? `?listing=${target.listingId}`
     : `?audience=${target.audience}`;
 
 /** Runtime guard for a deserialized target (drafts are stored as JSON). */
@@ -88,34 +88,34 @@ export const isBulkEmailTarget = (v: unknown): v is BulkEmailTarget => {
   if (v.kind === "audience") {
     return typeof v.audience === "string" && isAudienceId(v.audience);
   }
-  if (v.kind === "event") {
-    return typeof v.eventId === "number" && Number.isInteger(v.eventId);
+  if (v.kind === "listing") {
+    return typeof v.listingId === "number" && Number.isInteger(v.listingId);
   }
   return false;
 };
 
 // ── Recipient resolution ────────────────────────────────────────────
 
-/** Whether an active event has not yet happened (no date = ongoing/undated). */
-const isUpcomingEvent = (event: EventWithCount, now: number): boolean => {
-  if (!event.active) return false;
-  if (event.date === "") return true;
+/** Whether an active listing has not yet happened (no date = ongoing/undated). */
+const isUpcomingListing = (listing: ListingWithCount, now: number): boolean => {
+  if (!listing.active) return false;
+  if (listing.date === "") return true;
   const todayStart = new Date(now);
   todayStart.setUTCHours(0, 0, 0, 0);
-  return event.date >= todayStart.toISOString();
+  return listing.date >= todayStart.toISOString();
 };
 
-/** Event IDs covered by an "active" or "upcoming" audience. */
-const audienceEventIds = async (
+/** Listing IDs covered by an "active" or "upcoming" audience. */
+const audienceListingIds = async (
   audience: Exclude<AudienceId, "all">,
   now: number,
 ): Promise<number[]> => {
-  const events = await getAllEvents();
+  const listings = await getAllListings();
   const matches =
     audience === "active"
-      ? filter((e: EventWithCount) => e.active)
-      : filter((e: EventWithCount) => isUpcomingEvent(e, now));
-  return map((e: EventWithCount) => e.id)(matches(events));
+      ? filter((l: ListingWithCount) => l.active)
+      : filter((l: ListingWithCount) => isUpcomingListing(l, now));
+  return map((l: ListingWithCount) => l.id)(matches(listings));
 };
 
 /** Load the encrypted PII blobs for whichever attendees a target covers. */
@@ -123,14 +123,14 @@ const loadTargetPiiBlobs = async (
   target: BulkEmailTarget,
   now: number,
 ): Promise<string[]> => {
-  if (target.kind === "event") {
-    return getAttendeePiiBlobsForEvents([target.eventId]);
+  if (target.kind === "listing") {
+    return getAttendeePiiBlobsForListings([target.listingId]);
   }
   if (target.audience === "all") {
     return getAllAttendeePiiBlobs();
   }
-  return getAttendeePiiBlobsForEvents(
-    await audienceEventIds(target.audience, now),
+  return getAttendeePiiBlobsForListings(
+    await audienceListingIds(target.audience, now),
   );
 };
 
@@ -240,7 +240,7 @@ export const unsubscribeUrl = (hash: string): string =>
   )}`;
 
 const FOOTER_INTRO =
-  "You're receiving this because you registered for one of our events.";
+  "You're receiving this because you registered for one of our listings.";
 
 /** HTML unsubscribe footer appended to marketing emails. */
 export const marketingFooterHtml = (url: string): string =>

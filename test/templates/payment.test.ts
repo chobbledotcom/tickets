@@ -9,7 +9,7 @@ import {
   paymentPage,
   successPage,
 } from "#templates/payment.tsx";
-import { setupTestEncryptionKey, testAttendee, testEvent } from "#test-utils";
+import { setupTestEncryptionKey, testAttendee, testListing } from "#test-utils";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -21,12 +21,12 @@ afterEach(() => {
 });
 
 describe("paymentPage", () => {
-  const event = testEvent({ unit_price: 1000 });
+  const listing = testListing({ unit_price: 1000 });
   const attendee = testAttendee();
 
   test("renders payment details", () => {
     const html = paymentPage(
-      event,
+      listing,
       attendee,
       "https://checkout.stripe.com/session",
       "£10.00",
@@ -39,7 +39,7 @@ describe("paymentPage", () => {
 
   test("includes checkout URL", () => {
     const html = paymentPage(
-      event,
+      listing,
       attendee,
       "https://checkout.stripe.com/session",
       "£10.00",
@@ -51,7 +51,7 @@ describe("paymentPage", () => {
   test("escapes user data", () => {
     const evilAttendee = testAttendee({ name: "<script>evil()</script>" });
     const html = paymentPage(
-      event,
+      listing,
       evilAttendee,
       "https://checkout.stripe.com/session",
       "£10.00",
@@ -190,17 +190,17 @@ test("does not show email notice for reservation when fromEmail is empty", () =>
 });
 
 describe("paymentCancelPage", () => {
-  const event = testEvent({ unit_price: 1000 });
+  const listing = testListing({ unit_price: 1000 });
 
   test("renders cancel message", () => {
-    const html = paymentCancelPage(event, "/ticket/ab12c");
+    const html = paymentCancelPage(listing, "/ticket/ab12c");
     expect(html).toContain("Payment Cancelled");
     expect(html).toContain("/ticket/ab12c");
     expect(html).toContain("Try again");
   });
 
   test("includes data-payment-result attribute for popup postMessage", () => {
-    const html = paymentCancelPage(event, "/ticket/ab12c");
+    const html = paymentCancelPage(listing, "/ticket/ab12c");
     expect(html).toContain('data-payment-result="cancel"');
   });
 });

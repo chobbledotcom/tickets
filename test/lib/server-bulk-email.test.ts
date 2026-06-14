@@ -19,7 +19,7 @@ import {
 } from "#test-utils";
 import {
   createTestAttendeeDirect,
-  createTestEvent,
+  createTestListing,
 } from "#test-utils/db-helpers.ts";
 
 /** Configure the owner's own (bulk-capable) email provider. */
@@ -38,17 +38,17 @@ const useSendgrid = () =>
     email_provider: "sendgrid",
   });
 
-const seedSingleAttendeeEvent = async () => {
-  const event = await createTestEvent({ maxAttendees: 50, name: "Solo" });
-  await createTestAttendeeDirect(event.id, "Alice", "alice@example.com");
-  return event;
+const seedSingleAttendeeListing = async () => {
+  const listing = await createTestListing({ maxAttendees: 50, name: "Solo" });
+  await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+  return listing;
 };
 
-const seedEventWithAttendees = async () => {
-  const event = await createTestEvent({ maxAttendees: 50, name: "Gig" });
-  await createTestAttendeeDirect(event.id, "Alice", "alice@example.com");
-  await createTestAttendeeDirect(event.id, "Bob", "bob@example.com");
-  return event;
+const seedListingWithAttendees = async () => {
+  const listing = await createTestListing({ maxAttendees: 50, name: "Gig" });
+  await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+  await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
+  return listing;
 };
 
 describeWithEnv("server (bulk email)", { db: true }, () => {
@@ -78,23 +78,26 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expect(html).not.toContain("Heads up");
     });
 
-    test("targets a single event via ?event", async () => {
-      const event = await seedEventWithAttendees();
-      const html = await awaitTestRequest(`/admin/emails?event=${event.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+    test("targets a single listing via ?listing", async () => {
+      const listing = await seedListingWithAttendees();
+      const html = await awaitTestRequest(
+        `/admin/emails?listing=${listing.id}`,
+        {
+          cookie: await testCookie(),
+        },
+      ).then((r) => r.text());
       expect(html).toContain("attendees of Gig");
     });
 
-    test("404s for a non-existent event", async () => {
-      const response = await awaitTestRequest("/admin/emails?event=9999", {
+    test("404s for a non-existent listing", async () => {
+      const response = await awaitTestRequest("/admin/emails?listing=9999", {
         cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
 
-    test("404s for a non-numeric event", async () => {
-      const response = await awaitTestRequest("/admin/emails?event=abc", {
+    test("404s for a non-numeric listing", async () => {
+      const response = await awaitTestRequest("/admin/emails?listing=abc", {
         cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
@@ -122,16 +125,19 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("prefills a saved draft and counts a single recipient", async () => {
-      const event = await seedSingleAttendeeEvent();
+      const listing = await seedSingleAttendeeListing();
       await adminFormPost("/admin/emails/preview", {
         body: "Saved body",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         marketing: "1",
         subject: "Saved subject",
       });
-      const html = await awaitTestRequest(`/admin/emails?event=${event.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await awaitTestRequest(
+        `/admin/emails?listing=${listing.id}`,
+        {
+          cookie: await testCookie(),
+        },
+      ).then((r) => r.text());
       expect(html).toContain('value="Saved subject"');
       expect(html).toContain("checked");
       expect(html).toContain("recipient — everyone");
@@ -177,28 +183,28 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expectFlash(response, "Subject is required", false);
     });
 
-    test("rejects a posted event that no longer exists", async () => {
+    test("rejects a posted listing that no longer exists", async () => {
       const { response } = await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        event_id: "9999",
+        listing_id: "9999",
         subject: "Subject",
       });
       expectRedirectWithFlash(
         "/admin/emails",
-        "That event no longer exists.",
+        "That listing no longer exists.",
         false,
       )(response);
     });
 
-    test("rejects a posted non-positive event id", async () => {
+    test("rejects a posted non-positive listing id", async () => {
       const { response } = await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        event_id: "0",
+        listing_id: "0",
         subject: "Subject",
       });
       expectRedirectWithFlash(
         "/admin/emails",
-        "That event no longer exists.",
+        "That listing no longer exists.",
         false,
       )(response);
     });
@@ -214,10 +220,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("renders the draft with a working send button when sendable", async () => {
       useResend();
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Hello **world**",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         subject: "Big news",
       });
       const html = await awaitTestRequest("/admin/emails/preview", {
@@ -231,10 +237,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("disables sending and explains marketing when not sendable", async () => {
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Promo time",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
@@ -248,7 +254,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("shows the audience description for an audience send", async () => {
       useResend();
-      await seedSingleAttendeeEvent();
+      await seedSingleAttendeeListing();
       await adminFormPost("/admin/emails/preview", {
         audience: "active",
         body: "Newsletter",
@@ -257,37 +263,37 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       const html = await awaitTestRequest("/admin/emails/preview", {
         cookie: await testCookie(),
       }).then((r) => r.text());
-      expect(html).toContain("Active event attendees");
+      expect(html).toContain("Active listing attendees");
       expect(html).toContain(
-        "Everyone booked onto an event that is currently active.",
+        "Everyone booked onto a listing that is currently active.",
       );
       expect(html).toContain("1 recipient");
       expect(html).not.toContain("1 recipients");
     });
 
-    test("labels a target whose event has since been deleted", async () => {
+    test("labels a target whose listing has since been deleted", async () => {
       useResend();
       settings.setForTest({
         bulk_email_draft: serializeDraft({
           body: "Body",
           marketing: false,
           subject: "Subject",
-          target: { eventId: 987654, kind: "event" },
+          target: { kind: "listing", listingId: 987654 },
         }),
       });
       const html = await awaitTestRequest("/admin/emails/preview", {
         cookie: await testCookie(),
       }).then((r) => r.text());
-      expect(html).toContain("Event attendees");
+      expect(html).toContain("Listing attendees");
     });
 
     test("notes how many unsubscribed recipients are skipped", async () => {
       useResend();
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       await unsubscribeHash(await hashEmail("alice@example.com"));
       await adminFormPost("/admin/emails/preview", {
         body: "Promo",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
@@ -311,10 +317,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("rejects the post without a bulk-capable provider", async () => {
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -328,10 +334,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("sends to recipients, clears the draft, and logs activity", async () => {
       useResend();
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         subject: "Update",
       });
 
@@ -349,10 +355,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("errors when the audience has no recipients", async () => {
       useResend();
-      const empty = await createTestEvent({ maxAttendees: 5, name: "Empty" });
+      const empty = await createTestListing({ maxAttendees: 5, name: "Empty" });
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        event_id: String(empty.id),
+        listing_id: String(empty.id),
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -365,12 +371,15 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("errors when every marketing recipient has unsubscribed", async () => {
       useResend();
-      const event = await createTestEvent({ maxAttendees: 5, name: "Solo" });
-      await createTestAttendeeDirect(event.id, "Alice", "alice@example.com");
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
       await unsubscribeHash(await hashEmail("alice@example.com"));
       await adminFormPost("/admin/emails/preview", {
         body: "Promo",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
@@ -384,11 +393,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("excludes unsubscribed recipients from a marketing send", async () => {
       useResend();
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       await unsubscribeHash(await hashEmail("alice@example.com"));
       await adminFormPost("/admin/emails/preview", {
         body: "Promo",
-        event_id: String(event.id),
+        listing_id: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
@@ -401,22 +410,22 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
   });
 
-  describe("event page Email Attendees link", () => {
-    test("owners see the link on the event page", async () => {
-      const event = await seedEventWithAttendees();
-      const html = await awaitTestRequest(`/admin/event/${event.id}`, {
+  describe("listing page Email Attendees link", () => {
+    test("owners see the link on the listing page", async () => {
+      const listing = await seedListingWithAttendees();
+      const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie: await testCookie(),
       }).then((r) => r.text());
-      expect(html).toContain(`/admin/emails?event=${event.id}`);
+      expect(html).toContain(`/admin/emails?listing=${listing.id}`);
     });
 
     test("managers do not see the link", async () => {
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       const cookie = await createTestManagerSession();
-      const html = await awaitTestRequest(`/admin/event/${event.id}`, {
+      const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie,
       }).then((r) => r.text());
-      expect(html).not.toContain("/admin/emails?event=");
+      expect(html).not.toContain("/admin/emails?listing=");
     });
   });
 
@@ -431,13 +440,13 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("a valid stored draft renders the preview", async () => {
       useResend();
-      const event = await seedEventWithAttendees();
+      const listing = await seedListingWithAttendees();
       settings.setForTest({
         bulk_email_draft: serializeDraft({
           body: "Stored body",
           marketing: false,
           subject: "Stored subject",
-          target: { eventId: event.id, kind: "event" },
+          target: { kind: "listing", listingId: listing.id },
         }),
       });
       await awaitTestRequest("/admin/emails/preview", {

@@ -8,8 +8,8 @@ import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  createTestEvent,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   mockRequest,
 } from "#test-utils";
@@ -20,181 +20,187 @@ const fetchFeedBody = async (feedPath: string): Promise<string> => {
   return response.text();
 };
 
-/** Assert a deactivated event is excluded from a feed */
+/** Assert a deactivated listing is excluded from a feed */
 const expectExcludesInactive = async (feedPath: string, absentTag: string) => {
   await settings.update.showPublicSite(true);
-  const event = await createTestEvent({ maxAttendees: 100, name: "Hidden" });
-  await deactivateTestEvent(event.id);
+  const listing = await createTestListing({
+    maxAttendees: 100,
+    name: "Hidden",
+  });
+  await deactivateTestListing(listing.id);
   const body = await fetchFeedBody(feedPath);
   expect(body).not.toContain("Hidden");
   expect(body).not.toContain(absentTag);
 };
 
-/** Assert an event with closed registration is excluded from a feed */
+/** Assert an listing with closed registration is excluded from a feed */
 const expectExcludesClosedRegistration = async (
   feedPath: string,
   absentTag: string,
 ) => {
   await settings.update.showPublicSite(true);
   const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-  await createTestEvent({
+  await createTestListing({
     closesAt: pastDate,
     maxAttendees: 100,
-    name: "Closed Event",
+    name: "Closed Listing",
   });
   const body = await fetchFeedBody(feedPath);
-  expect(body).not.toContain("Closed Event");
+  expect(body).not.toContain("Closed Listing");
   expect(body).not.toContain(absentTag);
 };
 
 describeWithEnv("feeds", { db: true }, () => {
-  describe("GET /feeds/events.ics", () => {
+  describe("GET /feeds/listings.ics", () => {
     test("redirects to admin when public site is disabled", async () => {
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/login");
     });
 
     test("returns text/calendar content type", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
         "text/calendar; charset=utf-8",
       );
     });
 
-    test("returns valid VCALENDAR wrapper with no events", async () => {
+    test("returns valid VCALENDAR wrapper with no listings", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).toContain("BEGIN:VCALENDAR");
       expect(body).toContain("VERSION:2.0");
       expect(body).toContain("PRODID:-//Chobble Tickets//EN");
       expect(body).toContain("END:VCALENDAR");
-      expect(body).not.toContain("BEGIN:VEVENT");
+      expect(body).not.toContain("BEGIN:VLISTING");
     });
 
     test("uses website title as calendar name", async () => {
       await settings.update.showPublicSite(true);
-      await settings.update.websiteTitle("My Events");
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      await settings.update.websiteTitle("My Listings");
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain("X-WR-CALNAME:My Events");
+      expect(body).toContain("X-WR-CALNAME:My Listings");
     });
 
-    test("defaults calendar name to Events when no title set", async () => {
+    test("defaults calendar name to Listings when no title set", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain("X-WR-CALNAME:Events");
+      expect(body).toContain("X-WR-CALNAME:Listings");
     });
 
-    test("includes VEVENT for active events", async () => {
+    test("includes VLISTING for active listings", async () => {
       await settings.update.showPublicSite(true);
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         name: "Concert",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain("BEGIN:VEVENT");
+      expect(body).toContain("BEGIN:VLISTING");
       expect(body).toContain("SUMMARY:Concert");
-      expect(body).toContain(`/ticket/${event.slug}`);
-      expect(body).toContain("END:VEVENT");
+      expect(body).toContain(`/ticket/${listing.slug}`);
+      expect(body).toContain("END:VLISTING");
     });
 
     test("includes UID and DTSTAMP", async () => {
       await settings.update.showPublicSite(true);
-      const event = await createTestEvent({ maxAttendees: 50, name: "Show" });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Show",
+      });
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain(`UID:${event.id}@`);
+      expect(body).toContain(`UID:${listing.id}@`);
       expect(body).toContain("DTSTAMP:");
     });
 
-    test("includes DTSTART when event has a date", async () => {
+    test("includes DTSTART when listing has a date", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         date: "2026-06-15T14:00",
         maxAttendees: 100,
-        name: "Dated Event",
+        name: "Dated Listing",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).toContain("DTSTART:20260615T140000Z");
     });
 
-    test("includes DESCRIPTION when event has a description", async () => {
+    test("includes DESCRIPTION when listing has a description", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
-        description: "A great event",
+      await createTestListing({
+        description: "A great listing",
         maxAttendees: 100,
         name: "Described",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).toContain("DESCRIPTION:A great event");
+      expect(body).toContain("DESCRIPTION:A great listing");
     });
 
-    test("includes LOCATION when event has a location", async () => {
+    test("includes LOCATION when listing has a location", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         location: "Town Hall",
         maxAttendees: 100,
         name: "Located",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).toContain("LOCATION:Town Hall");
     });
 
-    test("excludes inactive events", async () => {
-      await expectExcludesInactive("/feeds/events.ics", "BEGIN:VEVENT");
+    test("excludes inactive listings", async () => {
+      await expectExcludesInactive("/feeds/listings.ics", "BEGIN:VLISTING");
     });
 
-    test("excludes events with closed registration", async () => {
+    test("excludes listings with closed registration", async () => {
       await expectExcludesClosedRegistration(
-        "/feeds/events.ics",
-        "BEGIN:VEVENT",
+        "/feeds/listings.ics",
+        "BEGIN:VLISTING",
       );
     });
 
-    test("excludes hidden events", async () => {
+    test("excludes hidden listings", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         maxAttendees: 100,
-        name: "Secret Event",
+        name: "Secret Listing",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      expect(body).not.toContain("Secret Event");
-      expect(body).not.toContain("BEGIN:VEVENT");
+      expect(body).not.toContain("Secret Listing");
+      expect(body).not.toContain("BEGIN:VLISTING");
     });
 
-    test("excludes purchase_only events", async () => {
+    test("excludes purchase_only listings", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 100,
         name: "Raffle Tickets",
         purchaseOnly: true,
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).not.toContain("Raffle Tickets");
-      expect(body).not.toContain("BEGIN:VEVENT");
+      expect(body).not.toContain("BEGIN:VLISTING");
     });
 
-    test("escapes special characters in event fields", async () => {
+    test("escapes special characters in listing fields", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         description: "Fun, games; and more",
         location: "Hall A, Floor 2",
         maxAttendees: 100,
         name: "Rock, Paper; Scissors",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).toContain("SUMMARY:Rock\\, Paper\\; Scissors");
       expect(body).toContain("DESCRIPTION:Fun\\, games\\; and more");
@@ -202,25 +208,25 @@ describeWithEnv("feeds", { db: true }, () => {
     });
   });
 
-  describe("GET /feeds/events.rss", () => {
+  describe("GET /feeds/listings.rss", () => {
     test("redirects to admin when public site is disabled", async () => {
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/login");
     });
 
     test("returns application/rss+xml content type", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
         "application/rss+xml; charset=utf-8",
       );
     });
 
-    test("returns valid RSS wrapper with no events", async () => {
+    test("returns valid RSS wrapper with no listings", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain('<?xml version="1.0"');
       expect(body).toContain('<rss version="2.0">');
@@ -232,128 +238,131 @@ describeWithEnv("feeds", { db: true }, () => {
 
     test("uses website title in channel", async () => {
       await settings.update.showPublicSite(true);
-      await settings.update.websiteTitle("My Events");
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      await settings.update.websiteTitle("My Listings");
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      expect(body).toContain("<title>My Events</title>");
+      expect(body).toContain("<title>My Listings</title>");
       expect(body).toContain(
-        "<description>Events from My Events</description>",
+        "<description>Listings from My Listings</description>",
       );
     });
 
-    test("defaults title to Events when no title set", async () => {
+    test("defaults title to Listings when no title set", async () => {
       await settings.update.showPublicSite(true);
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      expect(body).toContain("<title>Events</title>");
+      expect(body).toContain("<title>Listings</title>");
     });
 
-    test("includes items for active events", async () => {
+    test("includes items for active listings", async () => {
       await settings.update.showPublicSite(true);
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         name: "Concert",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain("<item>");
       expect(body).toContain("<title>Concert</title>");
-      expect(body).toContain(`/ticket/${event.slug}`);
+      expect(body).toContain(`/ticket/${listing.slug}`);
       expect(body).toContain("<pubDate>");
       expect(body).toContain("</item>");
     });
 
     test("includes guid as permalink", async () => {
       await settings.update.showPublicSite(true);
-      const event = await createTestEvent({ maxAttendees: 50, name: "Show" });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Show",
+      });
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain(`<guid isPermaLink="true">`);
-      expect(body).toContain(`/ticket/${event.slug}</guid>`);
+      expect(body).toContain(`/ticket/${listing.slug}</guid>`);
     });
 
-    test("includes description when event has one", async () => {
+    test("includes description when listing has one", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
-        description: "A great event",
+      await createTestListing({
+        description: "A great listing",
         maxAttendees: 100,
         name: "Described",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      expect(body).toContain("A great event");
+      expect(body).toContain("A great listing");
     });
 
-    test("includes date in description when event has a date", async () => {
+    test("includes date in description when listing has a date", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         date: "2026-06-15T14:00",
         maxAttendees: 100,
         name: "Dated",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain("Date:");
       expect(body).toContain("15 Jun 2026");
     });
 
-    test("includes location in description when event has a location", async () => {
+    test("includes location in description when listing has a location", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         location: "Town Hall",
         maxAttendees: 100,
         name: "Located",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain("Location: Town Hall");
     });
 
     test("includes description, date, and location together", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         date: "2026-06-15T14:00",
-        description: "A great event",
+        description: "A great listing",
         location: "Town Hall",
         maxAttendees: 100,
-        name: "Full Event",
+        name: "Full Listing",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      expect(body).toContain("A great event");
+      expect(body).toContain("A great listing");
       expect(body).toContain("Date:");
       expect(body).toContain("Location: Town Hall");
     });
 
-    test("excludes inactive events", async () => {
-      await expectExcludesInactive("/feeds/events.rss", "<item>");
+    test("excludes inactive listings", async () => {
+      await expectExcludesInactive("/feeds/listings.rss", "<item>");
     });
 
-    test("excludes events with closed registration", async () => {
-      await expectExcludesClosedRegistration("/feeds/events.rss", "<item>");
+    test("excludes listings with closed registration", async () => {
+      await expectExcludesClosedRegistration("/feeds/listings.rss", "<item>");
     });
 
-    test("excludes hidden events", async () => {
+    test("excludes hidden listings", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         maxAttendees: 100,
-        name: "Secret Event",
+        name: "Secret Listing",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      expect(body).not.toContain("Secret Event");
+      expect(body).not.toContain("Secret Listing");
       expect(body).not.toContain("<item>");
     });
 
-    test("excludes purchase_only events", async () => {
+    test("excludes purchase_only listings", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 100,
         name: "Raffle Tickets",
         purchaseOnly: true,
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).not.toContain("Raffle Tickets");
       expect(body).not.toContain("<item>");
@@ -361,12 +370,12 @@ describeWithEnv("feeds", { db: true }, () => {
 
     test("XML-escapes special characters", async () => {
       await settings.update.showPublicSite(true);
-      await createTestEvent({
+      await createTestListing({
         description: 'He said "hello" & goodbye',
         maxAttendees: 100,
         name: "Rock & Roll <Live>",
       });
-      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain("<title>Rock &amp; Roll &lt;Live&gt;</title>");
       expect(body).toContain("He said &quot;hello&quot; &amp; goodbye");

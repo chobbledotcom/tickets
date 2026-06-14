@@ -20,7 +20,7 @@ import {
   mockFormRequest,
   mockRequestWithHost,
   setTestEnv,
-  setupEventAndLogin,
+  setupListingAndLogin,
   testCookie,
   testCsrfToken,
   testRequiresAuth,
@@ -459,9 +459,9 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
 
     test("resets database and redirects to setup on correct phrase", async () => {
       // Create some data first
-      const { cookie, csrfToken } = await setupEventAndLogin({
+      const { cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
-        name: "Test Event",
+        name: "Test Listing",
         thankYouUrl: "https://example.com/thanks",
       });
 
@@ -570,11 +570,11 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         setBunnyDnsEnv();
         const cookie = await testCookie();
         const token = cookie.split("=").slice(1).join("=").split(";")[0];
-        await settings.update.bunnySubdomain("myevent.tickets.example.com");
+        await settings.update.bunnySubdomain("mylisting.tickets.example.com");
         const response = await handleRequest(
           mockRequestWithHost(
             "/admin/settings-advanced",
-            "myevent.tickets.example.com",
+            "mylisting.tickets.example.com",
             {
               headers: {
                 cookie: `__Host-session=${token}`,
@@ -584,7 +584,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
         );
         expect(response.status).toBe(200);
         const html = await response.text();
-        expect(html).toContain("myevent.tickets.example.com");
+        expect(html).toContain("mylisting.tickets.example.com");
         expect(html).toContain("permanent and cannot be changed");
         expect(html).toContain("can be active at the same time");
       });
@@ -597,7 +597,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/host-subdomain",
               {
                 csrf_token: await testCsrfToken(),
-                subdomain: "myevent",
+                subdomain: "mylisting",
               },
               await testCookie(),
             ),
@@ -621,7 +621,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               "/admin/settings/host-subdomain",
               "existing.tickets.example.com",
               {
-                body: `subdomain=myevent&csrf_token=${encodeURIComponent(
+                body: `subdomain=mylisting&csrf_token=${encodeURIComponent(
                   csrfToken,
                 )}`,
                 headers: {
@@ -663,7 +663,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
                   available: true,
-                  fullDomain: "myevent.tickets.example.com",
+                  fullDomain: "mylisting.tickets.example.com",
                   ok: true as const,
                 }),
             },
@@ -673,7 +673,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   "/admin/settings/host-subdomain",
                   {
                     csrf_token: await testCsrfToken(),
-                    subdomain: "myevent",
+                    subdomain: "mylisting",
                   },
                   await testCookie(),
                 ),
@@ -693,7 +693,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
                   available: true,
-                  fullDomain: "myevent.tickets.example.com",
+                  fullDomain: "mylisting.tickets.example.com",
                   ok: true as const,
                 }),
             },
@@ -704,7 +704,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   "/admin/settings/host-subdomain",
                   {
                     csrf_token: await testCsrfToken(),
-                    subdomain: "myevent",
+                    subdomain: "mylisting",
                   },
                   cookie,
                 ),
@@ -715,7 +715,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 cookie,
               );
               const html = await page.text();
-              expect(html).toContain("myevent.tickets.example.com");
+              expect(html).toContain("mylisting.tickets.example.com");
               expect(html).toContain("is available");
             },
           );
@@ -737,7 +737,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   "/admin/settings/host-subdomain",
                   {
                     csrf_token: await testCsrfToken(),
-                    subdomain: "myevent",
+                    subdomain: "mylisting",
                   },
                   await testCookie(),
                 ),
@@ -759,7 +759,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
               checkSubdomainAvailable: () =>
                 Promise.resolve({
                   available: false,
-                  fullDomain: "myevent.tickets.example.com",
+                  fullDomain: "mylisting.tickets.example.com",
                   ok: true as const,
                 }),
             },
@@ -769,7 +769,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   "/admin/settings/host-subdomain",
                   {
                     csrf_token: await testCsrfToken(),
-                    subdomain: "myevent",
+                    subdomain: "mylisting",
                   },
                   await testCookie(),
                 ),
@@ -790,7 +790,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
             {
               registerBunnySubdomain: () =>
                 Promise.resolve({
-                  fullDomain: "myevent.tickets.example.com",
+                  fullDomain: "mylisting.tickets.example.com",
                   ok: true as const,
                 }),
             },
@@ -801,23 +801,23 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   {
                     csrf_token: await testCsrfToken(),
                     save: "1",
-                    subdomain: "myevent",
+                    subdomain: "mylisting",
                   },
                   await testCookie(),
                 ),
               );
               expectRedirectWithFlash(
                 "/admin/settings-advanced?form=settings-host-subdomain#settings-host-subdomain",
-                "Subdomain registered: myevent.tickets.example.com",
+                "Subdomain registered: mylisting.tickets.example.com",
               )(response);
               expect(settings.bunnySubdomain).toBe(
-                "myevent.tickets.example.com",
+                "mylisting.tickets.example.com",
               );
               const log = await getAllActivityLog();
               expect(
                 log.some((e) =>
                   e.message.includes(
-                    "Host subdomain set to myevent.tickets.example.com",
+                    "Host subdomain set to mylisting.tickets.example.com",
                   ),
                 ),
               ).toBe(true);
@@ -839,7 +839,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                   {
                     csrf_token: await testCsrfToken(),
                     save: "1",
-                    subdomain: "myevent",
+                    subdomain: "mylisting",
                   },
                   await testCookie(),
                 ),
@@ -864,7 +864,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
                 {
                   csrf_token: await testCsrfToken(),
                   save: "1",
-                  subdomain: "myevent",
+                  subdomain: "mylisting",
                 },
                 await testCookie(),
               ),

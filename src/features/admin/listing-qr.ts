@@ -1,10 +1,10 @@
 /**
- * Admin route for generating pre-filled booking QR codes for an event.
+ * Admin route for generating pre-filled booking QR codes for an listing.
  *
  * GET renders the form, POST validates input, signs a URL, and re-renders
  * the page with the generated QR beneath the form.
  *
- * GET /admin/event/:id/qr.json returns a fresh token as JSON so the page
+ * GET /admin/listing/:id/qr.json returns a fresh token as JSON so the page
  * can refresh the QR client-side (every minute) without a full reload.
  */
 
@@ -19,51 +19,53 @@ import {
 import { getEffectiveDomain } from "#shared/config.ts";
 import { validatePrice } from "#shared/currency.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { eventSupportsDirectCheckout, generateQrSvg } from "#shared/qr.ts";
+import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
-import type { AdminSession, EventWithCount } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import type {
-  AdminEventQrResult,
-  AdminEventQrValues,
-} from "#templates/admin/event-qr.tsx";
-import { adminEventQrPage } from "#templates/admin/event-qr.tsx";
+  AdminListingQrResult,
+  AdminListingQrValues,
+} from "#templates/admin/listing-qr.tsx";
+import { adminListingQrPage } from "#templates/admin/listing-qr.tsx";
 
-const EMPTY_VALUES: AdminEventQrValues = {
+const EMPTY_VALUES: AdminListingQrValues = {
   customer_name: "",
   date: "",
   quantity: "1",
   value: "",
 };
 
-/** Load bookable dates for daily events (empty for standard events) */
-const loadBookableDates = async (event: EventWithCount): Promise<string[]> => {
-  if (event.event_type !== "daily") return [];
+/** Load bookable dates for daily listings (empty for standard listings) */
+const loadBookableDates = async (
+  listing: ListingWithCount,
+): Promise<string[]> => {
+  if (listing.listing_type !== "daily") return [];
   const holidays = await getActiveHolidays();
-  return getAvailableDates(event, holidays);
+  return getAvailableDates(listing, holidays);
 };
 
-const withEvent = withEntityLoader(getEventWithCount);
+const withListing = withEntityLoader(getListingWithCount);
 
-/** Render the QR admin page; 404 when the event is missing */
+/** Render the QR admin page; 404 when the listing is missing */
 const renderPage = (
-  eventId: number,
+  listingId: number,
   session: AdminSession,
-  values: AdminEventQrValues,
-  extras: { error?: string; result?: AdminEventQrResult } = {},
+  values: AdminListingQrValues,
+  extras: { error?: string; result?: AdminListingQrResult } = {},
 ): Promise<Response> =>
-  withEvent(eventId)(async (event) => {
+  withListing(listingId)(async (listing) => {
     const [bookableDates, canDirectCheckout] = await Promise.all([
-      loadBookableDates(event),
-      eventSupportsDirectCheckout(event),
+      loadBookableDates(listing),
+      listingSupportsDirectCheckout(listing),
     ]);
     return htmlResponse(
-      adminEventQrPage({
+      adminListingQrPage({
         bookableDates,
         canDirectCheckout,
-        event,
+        listing,
         session,
         values,
         ...extras,
@@ -71,33 +73,33 @@ const renderPage = (
     );
   });
 
-/** GET /admin/event/:id/qr */
-const handleGet: TypedRouteHandler<"GET /admin/event/:id/qr"> = (
+/** GET /admin/listing/:id/qr */
+const handleGet: TypedRouteHandler<"GET /admin/listing/:id/qr"> = (
   request,
   { id },
 ) =>
   requireSessionOr(request, (session) => renderPage(id, session, EMPTY_VALUES));
 
 /** Extract raw form values without validation */
-const extractRawValues = (form: FormParams): AdminEventQrValues => ({
+const extractRawValues = (form: FormParams): AdminListingQrValues => ({
   customer_name: form.getString("customer_name").trim(),
   date: form.getString("date").trim(),
   quantity: form.getString("quantity").trim() || "1",
   value: form.getString("value").trim(),
 });
 
-/** Price range for an event: min/max allowed in minor units */
+/** Price range for an listing: min/max allowed in minor units */
 const getPriceBounds = (
-  event: EventWithCount,
+  listing: ListingWithCount,
 ): { minPrice: number; maxPrice: number } => ({
-  maxPrice: event.can_pay_more ? event.max_price : Number.MAX_SAFE_INTEGER,
-  minPrice: event.can_pay_more ? event.unit_price : 0,
+  maxPrice: listing.can_pay_more ? listing.max_price : Number.MAX_SAFE_INTEGER,
+  minPrice: listing.can_pay_more ? listing.unit_price : 0,
 });
 
-/** Build a form validator for the QR form, using event config for range checks */
+/** Build a form validator for the QR form, using listing config for range checks */
 const createQrFormValidator = (
-  event: EventWithCount,
-): FormValidator<AdminEventQrValues> => ({
+  listing: ListingWithCount,
+): FormValidator<AdminListingQrValues> => ({
   validate: (form) => {
     const values = extractRawValues(form);
 
@@ -105,23 +107,23 @@ const createQrFormValidator = (
     if (Number.isNaN(quantity) || quantity < 1) {
       return { error: "Quantity must be at least 1", valid: false };
     }
-    if (quantity > event.max_quantity) {
+    if (quantity > listing.max_quantity) {
       return {
-        error: `Quantity cannot exceed ${event.max_quantity}`,
+        error: `Quantity cannot exceed ${listing.max_quantity}`,
         valid: false,
       };
     }
 
     if (values.value) {
-      const { minPrice, maxPrice } = getPriceBounds(event);
+      const { minPrice, maxPrice } = getPriceBounds(listing);
       const priceResult = validatePrice(values.value, minPrice, maxPrice);
       if (!priceResult.ok) {
         return { error: priceResult.error, valid: false };
       }
     }
 
-    if (event.event_type === "daily" && !values.date) {
-      return { error: "Date is required for daily events", valid: false };
+    if (listing.listing_type === "daily" && !values.date) {
+      return { error: "Date is required for daily listings", valid: false };
     }
 
     return { valid: true, values };
@@ -137,13 +139,13 @@ type ParsedValues = {
 
 /** Parse validated string values into the typed shape needed for token signing */
 const parsedFromValues = (
-  values: AdminEventQrValues,
-  event: EventWithCount,
+  values: AdminListingQrValues,
+  listing: ListingWithCount,
 ): ParsedValues => {
   const quantity = Number.parseInt(values.quantity, 10);
   let valueMinor: number | undefined;
   if (values.value) {
-    const { minPrice, maxPrice } = getPriceBounds(event);
+    const { minPrice, maxPrice } = getPriceBounds(listing);
     const result = validatePrice(values.value, minPrice, maxPrice);
     if (result.ok) valueMinor = result.price;
   }
@@ -163,14 +165,14 @@ const buildQrUrl = (slug: string, token: string): string => {
   )}`;
 };
 
-/** Sign a fresh token for the given event and render its QR SVG */
+/** Sign a fresh token for the given listing and render its QR SVG */
 const signAndRenderQr = async (
-  event: EventWithCount,
+  listing: ListingWithCount,
   parsed: ParsedValues,
-): Promise<AdminEventQrResult> => {
+): Promise<AdminListingQrResult> => {
   const payload = buildQrBookPayload(parsed);
-  const token = await signQrBookToken(event.slug, payload);
-  const url = buildQrUrl(event.slug, token);
+  const token = await signQrBookToken(listing.slug, payload);
+  const url = buildQrUrl(listing.slug, token);
   const svg = await generateQrSvg(url);
   return { svg, url };
 };
@@ -179,56 +181,59 @@ const signAndRenderQr = async (
 const generateAndRender = async (
   id: number,
   session: AdminSession,
-  event: EventWithCount,
-  values: AdminEventQrValues,
+  listing: ListingWithCount,
+  values: AdminListingQrValues,
 ): Promise<Response> => {
-  const result = await signAndRenderQr(event, parsedFromValues(values, event));
+  const result = await signAndRenderQr(
+    listing,
+    parsedFromValues(values, listing),
+  );
   return renderPage(id, session, values, { result });
 };
 
-/** POST /admin/event/:id/qr */
+/** POST /admin/listing/:id/qr */
 const handlePost = createAuthedFormRoute<
-  AdminEventQrValues,
+  AdminListingQrValues,
   { id: number },
-  EventWithCount
+  ListingWithCount
 >({
-  form: (event) => createQrFormValidator(event),
-  loadContext: ({ id }) => getEventWithCount(id),
+  form: (listing) => createQrFormValidator(listing),
+  loadContext: ({ id }) => getListingWithCount(id),
   onInvalid: ({ error, form, params, session }) =>
     renderPage(params.id, session, extractRawValues(form), { error }),
-  onValid: ({ context: event, params, session, values }) =>
-    generateAndRender(params.id, session, event, values),
+  onValid: ({ context: listing, params, session, values }) =>
+    generateAndRender(params.id, session, listing, values),
 });
 
 /**
- * GET /admin/event/:id/qr.json
+ * GET /admin/listing/:id/qr.json
  *
  * Used by the admin page's client-side auto-refresh: it reads the current
  * form values, calls this endpoint, and swaps the rendered QR every minute
  * so stale links become obvious to any admin watching the screen.
  */
-const handleJsonGet: TypedRouteHandler<"GET /admin/event/:id/qr.json"> = (
+const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
   request,
   { id },
 ) =>
   requireSessionOr(request, () =>
-    withEvent(id)(async (event) => {
+    withListing(id)(async (listing) => {
       const form = new FormParams(new URL(request.url).searchParams);
-      const result = createQrFormValidator(event).validate(form);
+      const result = createQrFormValidator(listing).validate(form);
       if (!result.valid) {
         return jsonResponse({ error: result.error, ok: false }, 400);
       }
       const qrResult = await signAndRenderQr(
-        event,
-        parsedFromValues(result.values, event),
+        listing,
+        parsedFromValues(result.values, listing),
       );
       return jsonResponse({ ok: true, ...qrResult });
     }),
   );
 
 /** Exported admin routes for the QR generator */
-export const eventQrRoutes = defineRoutes({
-  "GET /admin/event/:id/qr": handleGet,
-  "GET /admin/event/:id/qr.json": handleJsonGet,
-  "POST /admin/event/:id/qr": handlePost,
+export const listingQrRoutes = defineRoutes({
+  "GET /admin/listing/:id/qr": handleGet,
+  "GET /admin/listing/:id/qr.json": handleJsonGet,
+  "POST /admin/listing/:id/qr": handlePost,
 });

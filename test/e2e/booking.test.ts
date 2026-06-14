@@ -5,17 +5,17 @@
  * which navigates purely by following links (by text) and submitting forms
  * (by button text) — just like a human would.
  *
- * Flow: setup → login → create event → create question with answers →
- *       assign question to event → create group → add event to group →
+ * Flow: setup → login → create listing → create question with answers →
+ *       assign question to listing → create group → add listing to group →
  *       visit group page → book ticket (answering question) → view ticket →
  *       admin verifies attendee → download CSV and verify answer
  */
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateEventsCache } from "#shared/db/events.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
@@ -35,7 +35,7 @@ const invalidateAllCaches = (): void => {
   settings.invalidateCache();
   settings.setup.clearCache();
   invalidateUsersCache();
-  invalidateEventsCache();
+  invalidateListingsCache();
   invalidateGroupsCache();
   invalidateHolidaysCache();
   resetSessionCache();
@@ -55,7 +55,7 @@ describe("e2e: full booking flow", () => {
     clearTestEncryptionKey();
   });
 
-  test("setup → create event → group → book → view ticket → admin sees attendee", async () => {
+  test("setup → create listing → group → book → view ticket → admin sees attendee", async () => {
     // 1. Visit setup directly — initial DB creation is only allowed there.
     await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
@@ -97,11 +97,11 @@ describe("e2e: full booking flow", () => {
       await browser.clickLink("Back to dashboard");
     }
     // Should be on admin dashboard now
-    expect(browser.containsText("Add Event")).toBe(true);
+    expect(browser.containsText("Add Listing")).toBe(true);
 
-    // 5. Create an event
-    await browser.clickLink("Add Event");
-    expect(browser.currentHtml).toContain("Add Event");
+    // 5. Create an listing
+    await browser.clickLink("Add Listing");
+    expect(browser.currentHtml).toContain("Add Listing");
 
     await browser.submitForm(
       {
@@ -111,9 +111,9 @@ describe("e2e: full booking flow", () => {
         max_quantity: "5",
         name: "Summer Concert",
       },
-      "Create Event",
+      "Create Listing",
     );
-    // Should be on the dashboard with the new event listed
+    // Should be on the dashboard with the new listing listed
     expect(browser.containsText("Summer Concert")).toBe(true);
 
     // 5b. Create a question with answers via /admin/questions
@@ -136,7 +136,7 @@ describe("e2e: full booking flow", () => {
     expect(browser.containsText("Medium")).toBe(true);
     expect(browser.containsText("Large")).toBe(true);
 
-    // 5c. Assign the question to the event
+    // 5c. Assign the question to the listing
     await browser.visit("/admin/");
     await browser.clickLink("Summer Concert");
     await browser.clickLink("Questions");
@@ -161,19 +161,19 @@ describe("e2e: full booking flow", () => {
     // Should redirect to the group detail page or groups list
     expect(browser.containsText("Summer Festival")).toBe(true);
 
-    // 7. Add the event to the group
-    //    The group detail page shows "Add Events to Group" with checkboxes
-    //    for ungrouped events. Select all of them.
-    const eventIds = browser.getCheckboxValues("event_ids");
-    expect(eventIds.length).toBeGreaterThan(0);
+    // 7. Add the listing to the group
+    //    The group detail page shows "Add Listings to Group" with checkboxes
+    //    for ungrouped listings. Select all of them.
+    const listingIds = browser.getCheckboxValues("listing_ids");
+    expect(listingIds.length).toBeGreaterThan(0);
 
     await browser.submitForm(
       {
-        event_ids: eventIds,
+        listing_ids: listingIds,
       },
-      "Add Selected Events",
+      "Add Selected Listings",
     );
-    // Should be back on the group detail page with the event now listed
+    // Should be back on the group detail page with the listing now listed
     expect(browser.containsText("Summer Concert")).toBe(true);
 
     // 8. Visit the public booking page for the group
@@ -190,14 +190,14 @@ describe("e2e: full booking flow", () => {
     await browser.visit(ticketPath);
 
     // 9. Book a ticket via the group booking form
-    //    For group/multi-ticket pages, quantity fields are per-event
-    //    Find the quantity field for our event
+    //    For group/multi-ticket pages, quantity fields are per-listing
+    //    Find the quantity field for our listing
     const quantityFields = browser.currentHtml.match(/name="quantity_(\d+)"/);
     const formData: Record<string, string> = {
       email: "jane@example.com",
       name: "Jane Doe",
     };
-    // If there's a per-event quantity field, set it
+    // If there's a per-listing quantity field, set it
     if (quantityFields) {
       formData[`quantity_${quantityFields[1]}`] = "1";
     }
@@ -232,7 +232,7 @@ describe("e2e: full booking flow", () => {
       );
     }
 
-    // 12. On admin dashboard, click the event to see attendees
+    // 12. On admin dashboard, click the listing to see attendees
     await browser.clickLink("Summer Concert");
     expect(browser.containsText("Jane Doe")).toBe(true);
     expect(browser.containsText("jane@example.com")).toBe(true);
@@ -312,7 +312,7 @@ describe("e2e: full booking flow", () => {
         await browser.clickLink("Back to dashboard");
       }
 
-      // 20. Verify the event and attendee are gone after reset
+      // 20. Verify the listing and attendee are gone after reset
       expect(browser.containsText("Summer Concert")).toBe(false);
 
       // 21. Navigate to backup page and restore from the saved zip
@@ -348,7 +348,7 @@ describe("e2e: full booking flow", () => {
         await browser.clickLink("Back to dashboard");
       }
 
-      // 24. Verify the event and attendee are back
+      // 24. Verify the listing and attendee are back
       expect(browser.containsText("Summer Concert")).toBe(true);
       await browser.clickLink("Summer Concert");
       expect(browser.containsText("Jane Doe")).toBe(true);

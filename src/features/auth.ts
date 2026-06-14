@@ -238,7 +238,7 @@ export const ADMIN_API: AuthPolicy<"json"> = {
 /**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
  * the session lifetime, so a logged-in admin can keep the scanner page open for
- * a whole event without check-ins failing on CSRF expiry.
+ * a whole listing without check-ins failing on CSRF expiry.
  */
 export const SCANNER_JSON: AuthPolicy<"json"> = {
   body: "json",

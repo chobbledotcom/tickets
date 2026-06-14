@@ -8,7 +8,7 @@ import {
 import {
   setupTestEncryptionKey,
   testBuiltSite,
-  testEventWithCount,
+  testListingWithCount,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -37,12 +37,12 @@ describe("adminBuiltSitesPage", () => {
     const site = testBuiltSite({ readOnlyFrom: "" });
     const html = adminBuiltSitesPage([site], TEST_SESSION, undefined, []);
     expect(html).toContain("Renewal tiers");
-    expect(html).toContain("No renewal tier event is configured");
+    expect(html).toContain("No renewal tier listing is configured");
     expect(html).toContain("won't be able to renew");
   });
 
   test("lists each tier with units sold from attendee_count", () => {
-    const monthly = testEventWithCount({
+    const monthly = testListingWithCount({
       attendee_count: 7,
       hidden: true,
       id: 11,
@@ -51,7 +51,7 @@ describe("adminBuiltSitesPage", () => {
       purchase_only: true,
       unit_price: 500,
     });
-    const annual = testEventWithCount({
+    const annual = testListingWithCount({
       attendee_count: 2,
       hidden: true,
       id: 12,
@@ -70,11 +70,11 @@ describe("adminBuiltSitesPage", () => {
     // Units sold = attendee_count
     expect(html).toContain(">7<");
     expect(html).toContain(">2<");
-    // Linked back to the event detail page
-    expect(html).toContain('href="/admin/event/11"');
-    expect(html).toContain('href="/admin/event/12"');
+    // Linked back to the listing detail page
+    expect(html).toContain('href="/admin/listing/11"');
+    expect(html).toContain('href="/admin/listing/12"');
     // Warning copy must not appear when tiers exist
-    expect(html).not.toContain("No renewal tier event is configured");
+    expect(html).not.toContain("No renewal tier listing is configured");
   });
 });
 
@@ -94,7 +94,7 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
     expect(html).toContain("re-sync-deadline");
     expect(html).toContain("Rotate token");
     expect(html).toContain("Re-sync deadline");
-    expect(html).not.toContain("tier_event_id");
+    expect(html).not.toContain("tier_listing_id");
     expect(html).not.toContain("set-renewal-tier");
   });
 
@@ -122,6 +122,6 @@ describe("adminBuiltSiteEditPage — unprovisioned site", () => {
     expect(html).toContain("override-deadline");
     expect(html).not.toContain("rotate-renewal-token");
     expect(html).not.toContain("re-sync-deadline");
-    expect(html).not.toContain("tier_event_id");
+    expect(html).not.toContain("tier_listing_id");
   });
 });

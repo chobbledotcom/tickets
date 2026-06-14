@@ -14,7 +14,7 @@ import {
 import {
   adminFormPost,
   createTestBuiltSite,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectRedirectWithFlash,
   provisionTestBuiltSite,
@@ -462,7 +462,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
   describe("POST /admin/built-sites/:id/provision-renewal", () => {
     test("provisions an unprovisioned site with token and deadline (no tier id stored)", async () => {
       // A qualifying tier must exist so the customer has something to pick at /renew.
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -490,7 +490,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       expect(renewResponse.status).toBe(200);
     });
 
-    test("rejects when no qualifying tier event exists", async () => {
+    test("rejects when no qualifying tier listing exists", async () => {
       const site = await createTestBuiltSite({
         bunnyScriptId: "6041",
         name: "No Tier Provision",
@@ -502,7 +502,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expectRedirectWithFlash(
         `/admin/built-sites/${site.id}/edit`,
-        "Create a qualifying renewal tier event before provisioning",
+        "Create a qualifying renewal tier listing before provisioning",
         false,
       )(response);
 
@@ -511,7 +511,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
     });
 
     test("redirects on already provisioned site", async () => {
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -535,7 +535,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
     });
 
     test("Bunny failure leaves renewal state unprovisioned", async () => {
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,

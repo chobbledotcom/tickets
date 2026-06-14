@@ -3,9 +3,9 @@
 
 (() => {
   const script = document.currentScript as HTMLScriptElement;
-  const events = script.dataset.events!.split(/[+,]/);
+  const listings = script.dataset.listings!.split(/[+,]/);
   const origin = new URL(script.src).origin;
-  const iframeSrc = `${origin}/ticket/${events.join("+")}?iframe=true`;
+  const iframeSrc = `${origin}/ticket/${listings.join("+")}?iframe=true`;
   const title = script.dataset.title ?? "Tickets";
 
   const iframe = document.createElement("iframe");

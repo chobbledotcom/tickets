@@ -16,9 +16,9 @@ import {
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
 import {
-  EVENT_DEFAULT_ORDER,
-  EVENT_TABLE_COLUMNS,
-} from "#shared/columns/event-columns.ts";
+  LISTING_DEFAULT_ORDER,
+  LISTING_TABLE_COLUMNS,
+} from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
@@ -102,14 +102,14 @@ export const adminGuidePage = (
       </p>
 
       <Section title="Getting Started">
-        <Q q="How do I create an event?">
+        <Q q="How do I create an listing?">
           <p>
-            From the <strong>Events</strong> page, click{" "}
-            <strong>Add Event</strong>. Give your event a name, set the
+            From the <strong>Listings</strong> page, click{" "}
+            <strong>Add Listing</strong>. Give your listing a name, set the
             capacity, and choose which contact details to collect (any
             combination of email, phone, postal address, and special
             instructions &mdash; or none at all for name-only registration). You
-            can leave the price blank for free events. Once created, share the
+            can leave the price blank for free listings. Once created, share the
             booking link with your attendees.
           </p>
         </Q>
@@ -127,12 +127,12 @@ export const adminGuidePage = (
       <Section title="Dashboard">
         <Q q="What is the dashboard?">
           <p>
-            The <strong>Events</strong> page is your dashboard. It lists all
-            your events with attendee counts, booking links, and quick actions.
-            At the top, the <strong>Active Event Statistics</strong> section
-            shows totals across all active events: total income, number of
-            ticket rows, and total attendee quantity. Click the heading to
-            expand or collapse it.
+            The <strong>Listings</strong> page is your dashboard. It lists all
+            your listings with attendee counts, booking links, and quick
+            actions. At the top, the <strong>Active Listing Statistics</strong>{" "}
+            section shows totals across all active listings: total income,
+            number of ticket rows, and total attendee quantity. Click the
+            heading to expand or collapse it.
           </p>
         </Q>
       </Section>
@@ -141,10 +141,10 @@ export const adminGuidePage = (
         <Q q="Should I test after changing settings?">
           <p>
             Yes. After changing any setting &mdash; especially payment
-            configuration, event capacity, or booking fields &mdash; you should
-            test the full booking process to make sure everything works as
-            expected. Create a test event (or use test payment credentials) and
-            complete a booking from start to finish.
+            configuration, listing capacity, or booking fields &mdash; you
+            should test the full booking process to make sure everything works
+            as expected. Create a test listing (or use test payment credentials)
+            and complete a booking from start to finish.
           </p>
         </Q>
 
@@ -160,66 +160,67 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section title="Events">
-        <Q q="What's the difference between standard and daily events?">
+      <Section title="Listings">
+        <Q q="What's the difference between standard and daily listings?">
           <p>
-            A <strong>standard event</strong> is a one-off &mdash; attendees
-            book a place and the capacity applies to the whole event. A{" "}
-            <strong>daily event</strong> lets attendees pick a specific date
+            A <strong>standard listing</strong> is a one-off &mdash; attendees
+            book a place and the capacity applies to the whole listing. A{" "}
+            <strong>daily listing</strong> lets attendees pick a specific date
             when booking. The capacity limit applies separately to each date, so
-            you can run the same event every day with a fresh allocation.
+            you can run the same listing every day with a fresh allocation.
           </p>
         </Q>
 
-        <Q q="How do I combine multiple events into one booking?">
+        <Q q="How do I combine multiple listings into one booking?">
           <p>
-            Join event slugs with a <code>+</code> in the URL, e.g.{" "}
-            <code>/ticket/event-one+event-two</code>. Attendees see a single
-            form, fill in their details once, and book all selected events in
+            Join listing slugs with a <code>+</code> in the URL, e.g.{" "}
+            <code>/ticket/listing-one+listing-two</code>. Attendees see a single
+            form, fill in their details once, and book all selected listings in
             one go. If any are paid, they complete one checkout for the total.
           </p>
           <p>
             The attendee gets a single ticket with one QR code covering all
-            their events. Their ticket page shows one card per event. In the
-            admin, they appear as one attendee linked to multiple events.
+            their listings. Their ticket page shows one card per listing. In the
+            admin, they appear as one attendee linked to multiple listings.
           </p>
           <p>
-            If the events have different contact-detail settings, the combined
+            If the listings have different contact-detail settings, the combined
             form asks for the union of all selected fields &mdash; so pairing an
-            email-only event with one that also collects a phone number will
+            email-only listing with one that also collects a phone number will
             require both from every attendee. Fields always appear in the same
             order (email, phone, address, special instructions) regardless of
-            which events are combined.
+            which listings are combined.
           </p>
           <p>
             To generate the link, open the <strong>Multi-booking link</strong>{" "}
-            section on the <strong>Events</strong> page and tick the events you
-            want to combine. The link updates as you select, and events appear
-            in the order you tick them.
+            section on the <strong>Listings</strong> page and tick the listings
+            you want to combine. The link updates as you select, and listings
+            appear in the order you tick them.
           </p>
         </Q>
 
         <Q q="What are groups?">
           <p>
-            Groups let you bundle related events under a single URL. Create a
-            group from the <strong>Groups</strong> page, then assign events to
-            it using the group dropdown on the event form. Share{" "}
+            Groups let you bundle related listings under a single URL. Create a
+            group from the <strong>Groups</strong> page, then assign listings to
+            it using the group dropdown on the listing form. Share{" "}
             <code>/ticket/your-group-slug</code> and attendees see all active
-            events in the group on one page. You can optionally set a maximum
-            attendee limit on the group to cap total bookings across all events
-            in it. If you add terms and conditions to a group, they replace the
-            global T&amp;Cs for that page.
+            listings in the group on one page. You can optionally set a maximum
+            attendee limit on the group to cap total bookings across all
+            listings in it. If you add terms and conditions to a group, they
+            replace the global T&amp;Cs for that page.
           </p>
         </Q>
 
-        <Q q="What are the event date and location fields for?">
+        <Q q="What are the listing date and location fields for?">
           <p>
             These are optional fields you can fill in when creating or editing
-            an event. The date is when the event takes place (in your configured
-            timezone) and the location is where it's held. Both are displayed on
-            the attendee's ticket page so they know when and where to go. For
-            daily events, attendees already pick a date when booking, so the
-            event date field is more useful for standard (one-off) events.
+            an listing. The date is when the listing takes place (in your
+            configured timezone) and the location is where it's held. Both are
+            displayed on the attendee's ticket page so they know when and where
+            to go. For daily listings, attendees already pick a date when
+            booking, so the listing date field is more useful for standard
+            (one-off) listings.
           </p>
         </Q>
 
@@ -238,14 +239,15 @@ export const adminGuidePage = (
             a fixed amount. The ticket price becomes a minimum. You can set a
             maximum price using the "Maximum Price" field — it must be at least{" "}
             {formatCurrency(100)} more than the ticket price. If the ticket
-            price is zero, it becomes a pay-what-you-want event where attendees
-            can optionally enter any amount up to the configured maximum.
+            price is zero, it becomes a pay-what-you-want listing where
+            attendees can optionally enter any amount up to the configured
+            maximum.
           </p>
         </Q>
 
         <Q q="What is 'Purchase Only' mode?">
           <p>
-            When you enable <strong>Purchase Only</strong> on an event, it
+            When you enable <strong>Purchase Only</strong> on an listing, it
             becomes a non-attendance purchase &mdash; ideal for raffles,
             fundraisers, donations, or merchandise. The booking button changes
             from &ldquo;Reserve&rdquo; to &ldquo;Buy now&rdquo;, and after
@@ -254,15 +256,15 @@ export const adminGuidePage = (
           </p>
           <p>
             Because there is nothing to attend, QR codes, the check-in scanner,
-            and wallet passes (Apple &amp; Google) are all hidden. The event is
-            also excluded from the ICS and RSS feeds. Non-transferable ID
+            and wallet passes (Apple &amp; Google) are all hidden. The listing
+            is also excluded from the ICS and RSS feeds. Non-transferable ID
             notices are suppressed too, since there is no door to check at.
           </p>
         </Q>
 
         <Q q="How do registration deadlines work?">
           <p>
-            Set a "closes at" date and time on your event. After that moment,
+            Set a "closes at" date and time on your listing. After that moment,
             the booking form shows a "registration closed" message and no
             further bookings are accepted. If someone loaded the form before the
             deadline but submits after, their booking is also rejected.
@@ -272,7 +274,7 @@ export const adminGuidePage = (
         <Q q="How do I embed the booking form on my website?">
           <p>
             You only need <strong>one</strong> of the two embed codes shown on
-            your event page &mdash; not both:
+            your listing page &mdash; not both:
           </p>
           <ul>
             <li>
@@ -295,17 +297,17 @@ export const adminGuidePage = (
 
         <Q q="How do I manually add an attendee?">
           <p>
-            Open the event page and scroll down to <strong>Add Attendee</strong>
-            . Fill in the name and contact details, set the quantity, and
-            submit. The attendee is added directly without needing to go through
-            the booking form or payment flow. Useful for walk-ins, comps, or
-            manual corrections.
+            Open the listing page and scroll down to{" "}
+            <strong>Add Attendee</strong>. Fill in the name and contact details,
+            set the quantity, and submit. The attendee is added directly without
+            needing to go through the booking form or payment flow. Useful for
+            walk-ins, comps, or manual corrections.
           </p>
         </Q>
 
         <Q q="How do I set a custom redirect after booking?">
           <p>
-            When creating or editing an event, enter a URL in the "thank you
+            When creating or editing an listing, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default
             confirmation page. The URL must use HTTPS, or you can use a relative
@@ -313,18 +315,18 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add an image to an event?">
+        <Q q="How do I add an image to an listing?">
           <p>
-            When creating or editing an event, use the image upload field to
+            When creating or editing an listing, use the image upload field to
             attach a picture. The image is displayed on the booking page and in
-            the public events listing. Supported formats are JPEG, PNG, GIF, and
-            WebP.
+            the public listings listing. Supported formats are JPEG, PNG, GIF,
+            and WebP.
           </p>
         </Q>
 
-        <Q q="How do I add a file attachment to an event?">
+        <Q q="How do I add a file attachment to an listing?">
           <p>
-            When creating or editing an event, use the attachment upload field
+            When creating or editing an listing, use the attachment upload field
             to attach a file. This can be any type of file &mdash; PDFs, Word
             documents, spreadsheets, images, audio, video, zip archives, you
             name it. The maximum file size is 25&nbsp;MB.
@@ -336,42 +338,42 @@ export const adminGuidePage = (
             they get a fresh link that works for a short window.
           </p>
           <p>
-            To remove an attachment, open the event and click{" "}
+            To remove an attachment, open the listing and click{" "}
             <strong>Delete</strong> next to the current file name.
           </p>
         </Q>
 
-        <Q q="Where can I find the event QR code?">
+        <Q q="Where can I find the listing QR code?">
           <p>
-            On the admin event page, click the <strong>QR code</strong> link
+            On the admin listing page, click the <strong>QR code</strong> link
             next to the public URL. This opens an SVG image of the QR code that
-            links to your event's registration page. You can save or print it
+            links to your listing's registration page. You can save or print it
             for posters, flyers, or other materials.
           </p>
         </Q>
 
-        <Q q="How do I duplicate an event?">
+        <Q q="How do I duplicate an listing?">
           <p>
-            Open the event and click <strong>Duplicate</strong>. This creates a
-            new event pre-filled with the same capacity, price, fields, group,
-            and other settings so you can adjust what you need without starting
-            from scratch. The name is left blank for you to fill in, and the
-            image, attachment, and assigned questions are not copied.
+            Open the listing and click <strong>Duplicate</strong>. This creates
+            a new listing pre-filled with the same capacity, price, fields,
+            group, and other settings so you can adjust what you need without
+            starting from scratch. The name is left blank for you to fill in,
+            and the image, attachment, and assigned questions are not copied.
           </p>
         </Q>
 
-        <Q q="How do I deactivate an event?">
+        <Q q="How do I deactivate an listing?">
           <p>
-            Open the event and click <strong>Deactivate</strong>. Deactivated
-            events no longer accept bookings and are hidden from the public
-            events listing, but all existing attendee data is kept. Click{" "}
-            <strong>Reactivate</strong> to make the event bookable again.
+            Open the listing and click <strong>Deactivate</strong>. Deactivated
+            listings no longer accept bookings and are hidden from the public
+            listings listing, but all existing attendee data is kept. Click{" "}
+            <strong>Reactivate</strong> to make the listing bookable again.
           </p>
         </Q>
 
         <Q q="What are non-transferable tickets?">
           <p>
-            When you enable <strong>Non-Transferable</strong> on an event,
+            When you enable <strong>Non-Transferable</strong> on an listing,
             attendees see a notice on their ticket saying "Non-transferable — ID
             required at entry". At check-in, the QR scanner prompts door staff
             to verify the attendee's ID matches the name on the ticket before
@@ -381,51 +383,51 @@ export const adminGuidePage = (
 
         <Q q="How do I edit an attendee?">
           <p>
-            Open the event's attendee list, find the attendee, and click{" "}
+            Open the listing's attendee list, find the attendee, and click{" "}
             <strong>Edit</strong>. The edit page has three sections:
           </p>
           <ul>
             <li>
               <strong>Contact Information</strong> &mdash; name, email, phone,
               address, special instructions, and custom question answers. These
-              are shared across all the attendee's event registrations.
+              are shared across all the attendee's listing registrations.
             </li>
             <li>
-              <strong>Event Registrations</strong> &mdash; a table showing each
-              event the attendee is registered for, with their quantity,
+              <strong>Listing Registrations</strong> &mdash; a table showing
+              each listing the attendee is registered for, with their quantity,
               check-in status, and refund status. You can update the quantity
-              per event or remove a registration.
+              per listing or remove a registration.
             </li>
             <li>
-              <strong>Add to Event</strong> &mdash; link the attendee to an
-              additional event. For daily events, you also pick a date. Capacity
-              is checked when adding.
+              <strong>Add to Listing</strong> &mdash; link the attendee to an
+              additional listing. For daily listings, you also pick a date.
+              Capacity is checked when adding.
             </li>
           </ul>
         </Q>
 
-        <Q q="How do I add an attendee to another event?">
+        <Q q="How do I add an attendee to another listing?">
           <p>
             Open the attendee's edit page and use the{" "}
-            <strong>Add to Event</strong> section at the bottom. Select the
-            event, choose a quantity, and for daily events pick a date. If the
-            event has enough capacity the attendee is linked immediately.
+            <strong>Add to Listing</strong> section at the bottom. Select the
+            listing, choose a quantity, and for daily listings pick a date. If
+            the listing has enough capacity the attendee is linked immediately.
           </p>
         </Q>
 
-        <Q q="How do I remove an attendee from an event?">
+        <Q q="How do I remove an attendee from an listing?">
           <p>
-            On the attendee's edit page, find the event in the{" "}
-            <strong>Event Registrations</strong> table and click{" "}
+            On the attendee's edit page, find the listing in the{" "}
+            <strong>Listing Registrations</strong> table and click{" "}
             <strong>Remove</strong>. If the attendee is registered for other
-            events they stay in the system. If it was their only event, the
+            listings they stay in the system. If it was their only listing, the
             attendee is deleted entirely.
           </p>
         </Q>
 
         <Q q="How do I delete an attendee?">
           <p>
-            Open the event's attendee list and click <strong>Delete</strong>{" "}
+            Open the listing's attendee list and click <strong>Delete</strong>{" "}
             next to the attendee. You'll see a confirmation page showing their
             name, email, quantity, and registration date. Type the attendee's
             exact name to confirm, then click <strong>Delete Attendee</strong>.
@@ -448,7 +450,7 @@ export const adminGuidePage = (
           </p>
           <p>
             You'll see a comparison of their contact details, custom question
-            answers, and event registrations. For each conflict &mdash; where
+            answers, and listing registrations. For each conflict &mdash; where
             the two records differ &mdash; choose which value to keep. Non-
             conflicting data (e.g. an answer only one of them provided) is
             adopted automatically. Once confirmed, the source attendee is
@@ -458,7 +460,7 @@ export const adminGuidePage = (
 
         <Q q="How do I resend a confirmation email?">
           <p>
-            In the event's attendee list, click{" "}
+            In the listing's attendee list, click{" "}
             <strong>Re-send Notification</strong> next to the attendee. You'll
             be asked to type their name to confirm. This re-sends both the
             attendee confirmation email (with their ticket link) and the admin
@@ -489,7 +491,7 @@ export const adminGuidePage = (
 
         <Q q="How do I create a question?">
           <p>
-            Open any event and click <strong>Questions</strong> in the event
+            Open any listing and click <strong>Questions</strong> in the listing
             menu, then follow the <strong>Manage Questions</strong> link. Type
             your question text and click <strong>Add Question</strong>. Then
             open the question and add your answer options. You can reorder
@@ -497,20 +499,20 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add a question to an event?">
+        <Q q="How do I add a question to an listing?">
           <p>
-            Open the event in the admin area and click{" "}
+            Open the listing in the admin area and click{" "}
             <strong>Questions</strong>. Tick the questions you want to appear on
-            that event's booking form and save. The same question can be shared
-            across multiple events &mdash; create it once and assign it wherever
-            you need it.
+            that listing's booking form and save. The same question can be
+            shared across multiple listings &mdash; create it once and assign it
+            wherever you need it.
           </p>
         </Q>
 
-        <Q q="Can I share questions between events?">
+        <Q q="Can I share questions between listings?">
           <p>
             Yes. Questions are created independently and then assigned to
-            events, so a single question can appear on as many events as you
+            listings, so a single question can appear on as many listings as you
             like. Updating the question text or answers updates it everywhere
             it's used.
           </p>
@@ -518,7 +520,7 @@ export const adminGuidePage = (
 
         <Q q="Where do I see the answers?">
           <p>
-            Answers appear in the attendee table on event and group pages, so
+            Answers appear in the attendee table on listing and group pages, so
             you can see at a glance what each attendee chose. They're also shown
             on the individual attendee detail page and included in the CSV
             export.
@@ -550,23 +552,23 @@ export const adminGuidePage = (
         <Q q="What is the public site?">
           <p>
             When enabled in <strong>Settings</strong>, your domain shows a
-            public website with navigation for Home and Events, plus T&amp;Cs
+            public website with navigation for Home and Listings, plus T&amp;Cs
             and Contact links if you've set those up. The{" "}
-            <strong>Events</strong> page lists all active events with booking
-            links. Visitors can browse event details and book directly. If the
-            public site is disabled, visitors can still book via direct ticket
-            links.
+            <strong>Listings</strong> page lists all active listings with
+            booking links. Visitors can browse listing details and book
+            directly. If the public site is disabled, visitors can still book
+            via direct ticket links.
           </p>
         </Q>
 
-        <Q q="Can I hide an event from the public list?">
+        <Q q="Can I hide an listing from the public list?">
           <p>
-            Yes. When editing an event, tick the <strong>Hidden Event</strong>{" "}
-            checkbox. Hidden events won&apos;t appear on the public Events page
-            and their ticket pages will be marked as{" "}
-            <code>noindex, nofollow</code> for search engines. The event is
-            still fully bookable via its direct link or when embedded in an
-            iframe.
+            Yes. When editing an listing, tick the{" "}
+            <strong>Hidden Listing</strong> checkbox. Hidden listings won&apos;t
+            appear on the public Listings page and their ticket pages will be
+            marked as <code>noindex, nofollow</code> for search engines. The
+            listing is still fully bookable via its direct link or when embedded
+            in an iframe.
           </p>
         </Q>
 
@@ -585,8 +587,8 @@ export const adminGuidePage = (
       <Section id="text-formatting" title="Text Formatting">
         <Q q="Which fields support formatting?">
           <p>
-            Event descriptions, terms and conditions, homepage text, and contact
-            page text all support{" "}
+            Listing descriptions, terms and conditions, homepage text, and
+            contact page text all support{" "}
             <a href="https://www.markdownguide.org/cheat-sheet/">Markdown</a>{" "}
             formatting.
           </p>
@@ -666,13 +668,13 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What if the event sells out while someone is paying?">
+        <Q q="What if the listing sells out while someone is paying?">
           <p>
-            If someone completes payment but the event has since sold out, they
-            are automatically refunded. They'll see a message explaining the
-            event is full and that their payment has been returned. This is rare
-            but possible &mdash; it's the trade-off described in the previous
-            question.
+            If someone completes payment but the listing has since sold out,
+            they are automatically refunded. They'll see a message explaining
+            the listing is full and that their payment has been returned. This
+            is rare but possible &mdash; it's the trade-off described in the
+            previous question.
           </p>
         </Q>
 
@@ -762,7 +764,7 @@ export const adminGuidePage = (
               Click the <strong>+</strong> button to create a new application
             </li>
             <li>
-              Give it a name (e.g. your organisation or event name) and click{" "}
+              Give it a name (e.g. your organisation or listing name) and click{" "}
               <strong>Save</strong>
             </li>
           </ol>
@@ -845,7 +847,7 @@ export const adminGuidePage = (
               on your <a href="/admin/settings">Settings</a> page
             </li>
             <li>
-              Subscribe to the <strong>payment.updated</strong> event
+              Subscribe to the <strong>payment.updated</strong> listing
             </li>
             <li>
               Save the subscription, then copy the{" "}
@@ -932,23 +934,23 @@ export const adminGuidePage = (
       <Section id="refunds" title="Refunds">
         <Q q="When do automatic refunds happen?">
           <p>
-            Automatic refunds happen in two scenarios. First, when an event
+            Automatic refunds happen in two scenarios. First, when an listing
             sells out while someone is completing payment. Their place is held
             for 5 minutes during checkout, but if another buyer fills the last
             spot first, the slower payer is automatically refunded and shown a
-            message explaining the event is full. Second, if an admin changes
-            the event price while someone is mid-checkout. The system detects
+            message explaining the listing is full. Second, if an admin changes
+            the listing price while someone is mid-checkout. The system detects
             that the amount charged no longer matches the current price and
-            refunds the payment automatically. In multi-event bookings, if any
-            single event fails (e.g. one of the combined events is full or its
-            price changed), the entire payment is refunded &mdash; not just the
-            portion for the affected event.
+            refunds the payment automatically. In multi-listing bookings, if any
+            single listing fails (e.g. one of the combined listings is full or
+            its price changed), the entire payment is refunded &mdash; not just
+            the portion for the affected listing.
           </p>
         </Q>
 
         <Q q="How do I refund an individual attendee?">
           <p>
-            Open the event's attendee list, find the attendee, and click{" "}
+            Open the listing's attendee list, find the attendee, and click{" "}
             <strong>Refund</strong>. You'll see a confirmation page showing
             their name, email, quantity, and the amount paid. Type the
             attendee's name to confirm and submit. The refund is issued through
@@ -957,13 +959,13 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I refund all attendees for an event?">
+        <Q q="How do I refund all attendees for an listing?">
           <p>
-            On the event page, click <strong>Refund All</strong> in the
-            navigation bar. Type the event name to confirm. Each attendee with a
-            recorded payment is refunded one by one. If some refunds fail (e.g.
-            a payment was already refunded via the provider dashboard), you'll
-            see a summary of how many succeeded and how many failed.
+            On the listing page, click <strong>Refund All</strong> in the
+            navigation bar. Type the listing name to confirm. Each attendee with
+            a recorded payment is refunded one by one. If some refunds fail
+            (e.g. a payment was already refunded via the provider dashboard),
+            you'll see a summary of how many succeeded and how many failed.
           </p>
         </Q>
 
@@ -989,20 +991,20 @@ export const adminGuidePage = (
           <p>
             The attendee <strong>remains registered</strong>. A refund only
             clears their payment record &mdash; it does not remove them from the
-            event. If you also want to remove them, delete the attendee
+            listing. If you also want to remove them, delete the attendee
             separately after refunding.
           </p>
           <p>
-            Refunds are per-event. If the attendee is registered for multiple
-            events, refunding one event does not affect their other
+            Refunds are per-listing. If the attendee is registered for multiple
+            listings, refunding one listing does not affect their other
             registrations.
           </p>
         </Q>
 
-        <Q q="Can I refund an attendee who booked a free event?">
+        <Q q="Can I refund an attendee who booked a free listing?">
           <p>
             No. The Refund button only appears for attendees who have a recorded
-            payment. Free-event attendees have no payment to refund.
+            payment. Free-listing attendees have no payment to refund.
           </p>
         </Q>
 
@@ -1027,31 +1029,31 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
-      <Section id="holidays" title="Daily Events &amp; Holidays">
-        <Q q="How do daily events work?">
+      <Section id="holidays" title="Daily Listings &amp; Holidays">
+        <Q q="How do daily listings work?">
           <p>
-            Daily events let attendees choose a specific date when booking. You
-            set which days of the week are available (e.g. Monday to Friday),
-            the minimum number of days before a date can be booked, and the
-            maximum number of days into the future to show. The capacity limit
-            applies independently to each date.
+            Daily listings let attendees choose a specific date when booking.
+            You set which days of the week are available (e.g. Monday to
+            Friday), the minimum number of days before a date can be booked, and
+            the maximum number of days into the future to show. The capacity
+            limit applies independently to each date.
           </p>
         </Q>
 
         <Q q="What are bookable days?">
           <p>
-            These are the days of the week your daily event runs on. If you only
-            tick Monday and Wednesday, those are the only days that appear in
-            the date picker. Weekends and unticked days are skipped.
+            These are the days of the week your daily listing runs on. If you
+            only tick Monday and Wednesday, those are the only days that appear
+            in the date picker. Weekends and unticked days are skipped.
           </p>
         </Q>
 
         <Q q="What are holidays?">
           <p>
-            Holidays are date ranges when no daily events can be booked. Add
+            Holidays are date ranges when no daily listings can be booked. Add
             them from the <strong>Holidays</strong> page. Any dates falling
             within a holiday range are removed from the booking calendar for all
-            daily events.
+            daily listings.
           </p>
         </Q>
       </Section>
@@ -1066,9 +1068,9 @@ export const adminGuidePage = (
             quantity, with a button to check them in or out.
           </p>
           <p>
-            Check-in is per-event. If an attendee is registered for multiple
-            events, checking them in at one event doesn't affect their status at
-            other events.
+            Check-in is per-listing. If an attendee is registered for multiple
+            listings, checking them in at one listing doesn't affect their
+            status at other listings.
           </p>
         </Q>
 
@@ -1083,7 +1085,7 @@ export const adminGuidePage = (
 
         <Q q="How do I use the QR scanner?">
           <p>
-            Open an event and click <strong>Scanner</strong>. Tap{" "}
+            Open an listing and click <strong>Scanner</strong>. Tap{" "}
             <strong>Start Camera</strong> to begin (grants camera permission on
             first use). Point the camera at an attendee's QR code and check-in
             happens automatically. The scanner works best with the rear camera
@@ -1100,13 +1102,13 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What if a QR code is for a different event?">
+        <Q q="What if a QR code is for a different listing?">
           <p>
-            The scanner checks all of the attendee's event registrations. If
-            they're registered for the event you're scanning, check-in proceeds
-            normally. If they're only registered for other events, you'll be
-            prompted to confirm before checking them in. This lets you handle
-            last-minute event changes without turning anyone away.
+            The scanner checks all of the attendee's listing registrations. If
+            they're registered for the listing you're scanning, check-in
+            proceeds normally. If they're only registered for other listings,
+            you'll be prompted to confirm before checking them in. This lets you
+            handle last-minute listing changes without turning anyone away.
           </p>
         </Q>
 
@@ -1118,10 +1120,10 @@ export const adminGuidePage = (
             as arrived. <strong>Refunded</strong> &mdash; the attendee has been
             refunded and cannot be checked in. <strong>Ticket not found</strong>{" "}
             &mdash; the QR code doesn't match any registration.{" "}
-            <strong>Different event</strong> &mdash; a confirmation dialogue
+            <strong>Different listing</strong> &mdash; a confirmation dialogue
             asks whether to check them in anyway.{" "}
             <strong>ID verification</strong> &mdash; for non-transferable
-            events, staff are asked to confirm the attendee's ID matches the
+            listings, staff are asked to confirm the attendee's ID matches the
             ticket name before check-in proceeds.
           </p>
         </Q>
@@ -1139,13 +1141,13 @@ export const adminGuidePage = (
 
         <Q q="How do I filter attendees by check-in status?">
           <p>
-            On the event page, above the attendee table, you'll see filter links
-            for <strong>All</strong>, <strong>Checked In</strong>, and{" "}
+            On the listing page, above the attendee table, you'll see filter
+            links for <strong>All</strong>, <strong>Checked In</strong>, and{" "}
             <strong>Checked Out</strong>. Click one to show only attendees
             matching that status. The filter works alongside the date selector
-            for daily events, so you can view e.g. only un-checked-in attendees
-            for a specific date. The CSV export reflects whichever filter is
-            active.
+            for daily listings, so you can view e.g. only un-checked-in
+            attendees for a specific date. The CSV export reflects whichever
+            filter is active.
           </p>
         </Q>
       </Section>
@@ -1157,7 +1159,7 @@ export const adminGuidePage = (
             <strong>Add to Apple Wallet</strong> button on their ticket page.
             Tapping it downloads a <code>.pkpass</code> file that adds the
             ticket to their iPhone Wallet and Apple Watch. The pass shows the
-            event name, date, location, ticket quantity, price paid, and a QR
+            listing name, date, location, ticket quantity, price paid, and a QR
             code for check-in.
           </p>
         </Q>
@@ -1224,8 +1226,8 @@ export const adminGuidePage = (
             When configured, attendees see an{" "}
             <strong>Add to Google Wallet</strong> button on their ticket page.
             Tapping it adds the ticket to their Android device's Google Wallet
-            app. The pass shows the event name, date, location, ticket quantity,
-            price paid, and a QR code for check-in.
+            app. The pass shows the listing name, date, location, ticket
+            quantity, price paid, and a QR code for check-in.
           </p>
         </Q>
 
@@ -1271,7 +1273,7 @@ export const adminGuidePage = (
         <Q q="Do Google Wallet passes update automatically?">
           <p>
             No. Unlike Apple Wallet, Google Wallet passes are generated as a
-            one-time snapshot when the attendee adds them. If event details
+            one-time snapshot when the attendee adds them. If listing details
             change later, the pass in the attendee&apos;s wallet won&apos;t
             update. The attendee can remove and re-add the pass from their
             ticket page to get the latest details.
@@ -1282,10 +1284,10 @@ export const adminGuidePage = (
       <Section id="user-classes" title="Users &amp; Permissions">
         <Q q="What's the difference between an owner and a manager?">
           <p>
-            <strong>Owners</strong> have full access: events, calendar, groups,
-            questions, holidays, users, site pages, settings, API keys,
+            <strong>Owners</strong> have full access: listings, calendar,
+            groups, questions, holidays, users, site pages, settings, API keys,
             sessions, and the activity log. <strong>Managers</strong> can manage
-            events, view the calendar, manage groups, issue refunds, and view
+            listings, view the calendar, manage groups, issue refunds, and view
             the activity log. They cannot change settings, manage users, manage
             questions or holidays, create API keys, edit site pages, or view
             sessions.
@@ -1373,21 +1375,22 @@ export const adminGuidePage = (
 
         <Q q="Can I export attendee data?">
           <p>
-            Yes. On any event's attendee list, click <strong>Export CSV</strong>
-            . The export includes name, email, phone, address, special
-            instructions, quantity, registration date, amount paid, transaction
-            ID, check-in status, ticket token, and ticket URL. If the event has
-            custom booking questions, each question is appended as an additional
-            column (one per question, in the order assigned to the event) with
-            the attendee's selected answer text. For daily events, the attendee
-            list has a date filter &mdash; select a date to see only that day's
-            attendees, and the CSV export respects the same filter.
+            Yes. On any listing's attendee list, click{" "}
+            <strong>Export CSV</strong>. The export includes name, email, phone,
+            address, special instructions, quantity, registration date, amount
+            paid, transaction ID, check-in status, ticket token, and ticket URL.
+            If the listing has custom booking questions, each question is
+            appended as an additional column (one per question, in the order
+            assigned to the listing) with the attendee's selected answer text.
+            For daily listings, the attendee list has a date filter &mdash;
+            select a date to see only that day's attendees, and the CSV export
+            respects the same filter.
           </p>
         </Q>
 
         <Q q="What does 'reset database' do?">
           <p>
-            It permanently deletes <strong>everything</strong>: all events,
+            It permanently deletes <strong>everything</strong>: all listings,
             attendees, groups, questions, users, holidays, API keys, activity
             logs, payment configuration, and sessions. The system returns to its
             initial setup state. You must type a confirmation phrase to proceed.
@@ -1400,16 +1403,16 @@ export const adminGuidePage = (
         <Q q="What are webhooks for?">
           <p>
             Webhooks send an automatic notification to a URL of your choice
-            whenever someone registers for an event. You can use them to connect
-            to other services, e.g. sending a Slack message or updating a
-            spreadsheet.
+            whenever someone registers for an listing. You can use them to
+            connect to other services, e.g. sending a Slack message or updating
+            a spreadsheet.
           </p>
         </Q>
 
         <Q q="How do I set up a webhook?">
           <p>
-            Add a webhook URL when creating or editing an event. Every time
-            someone books that event, a POST request is sent to your URL with
+            Add a webhook URL when creating or editing an listing. Every time
+            someone books that listing, a POST request is sent to your URL with
             the attendee's details.
           </p>
         </Q>
@@ -1418,7 +1421,7 @@ export const adminGuidePage = (
           <p>
             Each webhook is an HTTP POST with{" "}
             <code>Content-Type: application/json</code>. Here is an example
-            payload for a paid event booking:
+            payload for a paid listing booking:
           </p>
           <pre>
             <code>{WEBHOOK_EXAMPLE_JSON}</code>
@@ -1426,8 +1429,8 @@ export const adminGuidePage = (
           <p>
             Prices are in the smallest currency unit (e.g. pence for GBP, cents
             for USD). The <code>ticket_url</code> links to the attendee's ticket
-            page. For multi-event bookings the <code>tickets</code> array
-            contains one entry per event, all sharing the same ticket token.
+            page. For multi-listing bookings the <code>tickets</code> array
+            contains one entry per listing, all sharing the same ticket token.
           </p>
         </Q>
       </Section>
@@ -1487,8 +1490,8 @@ export const adminGuidePage = (
         <Q q="What is the calendar page?">
           <p>
             The <strong>Calendar</strong> page lets you pick a date and see
-            every attendee booked across all events on that day. This is
-            especially useful for daily events. You can export a CSV of the
+            every attendee booked across all listings on that day. This is
+            especially useful for daily listings. You can export a CSV of the
             day's attendees and manage check-ins, edits, and deletions from the
             same view.
           </p>
@@ -1499,10 +1502,10 @@ export const adminGuidePage = (
         <Q q="What is the activity log?">
           <p>
             The <strong>Log</strong> page shows a chronological list of admin
-            actions such as event creation, event updates, attendee changes, and
-            question changes. Both owners and managers can view the log. Each
-            event also has its own log, accessible from the event page, showing
-            only actions related to that event.
+            actions such as listing creation, listing updates, attendee changes,
+            and question changes. Both owners and managers can view the log.
+            Each listing also has its own log, accessible from the listing page,
+            showing only actions related to that listing.
           </p>
         </Q>
       </Section>
@@ -1604,12 +1607,12 @@ export const adminGuidePage = (
 
         <Q q="What does the confirmation email contain?">
           <p>
-            The attendee receives an email with the event name(s), quantity,
+            The attendee receives an email with the listing name(s), quantity,
             price paid, and a clickable link to their ticket page. Each email
             also includes an SVG ticket image as an attachment &mdash; one per
-            event, with a QR code for check-in. For{" "}
-            <strong>Purchase Only</strong> events the QR code is omitted since
-            there is no check-in. For multi-event bookings, all events are
+            listing, with a QR code for check-in. For{" "}
+            <strong>Purchase Only</strong> listings the QR code is omitted since
+            there is no check-in. For multi-listing bookings, all listings are
             listed in a single email with numbered ticket attachments. The
             business email is set as the reply-to address so attendees can reply
             directly to you.
@@ -1619,9 +1622,9 @@ export const adminGuidePage = (
         <Q q="What does the admin notification email contain?">
           <p>
             You receive an email showing the attendee's name, email, phone,
-            address, and any special instructions, along with the event name(s),
-            quantity, and price. The attendee's email is set as the reply-to
-            address so you can reply directly to them.
+            address, and any special instructions, along with the listing
+            name(s), quantity, and price. The attendee's email is set as the
+            reply-to address so you can reply directly to them.
           </p>
         </Q>
       </Section>
@@ -1644,8 +1647,8 @@ export const adminGuidePage = (
         <Q q="What variables can I use in templates?">
           <ul>
             <li>
-              <code>{"{{ event_names }}"}</code> &mdash; all event names joined
-              with &ldquo;and&rdquo;
+              <code>{"{{ listing_names }}"}</code> &mdash; all listing names
+              joined with &ldquo;and&rdquo;
             </li>
             <li>
               <code>{"{{ ticket_url }}"}</code> &mdash; link to view tickets
@@ -1667,12 +1670,13 @@ export const adminGuidePage = (
             </li>
           </ul>
           <p>
-            For multi-event bookings, loop through the <code>entries</code>{" "}
+            For multi-listing bookings, loop through the <code>entries</code>{" "}
             array: <code>{"{% for entry in entries %}"}</code>. Each entry has{" "}
-            <code>entry.event.name</code>, <code>entry.attendee.quantity</code>,{" "}
+            <code>entry.listing.name</code>,{" "}
+            <code>entry.attendee.quantity</code>,{" "}
             <code>entry.attendee.date</code>, etc. The quantity and date are
-            per-event &mdash; each entry shows the values for that specific
-            event registration.
+            per-listing &mdash; each entry shows the values for that specific
+            listing registration.
           </p>
         </Q>
 
@@ -1703,8 +1707,8 @@ export const adminGuidePage = (
         <Q q="How do I email a group of attendees?">
           <p>
             Open <strong>Emails</strong> in the top navigation (owners only), or
-            click <strong>Email Attendees</strong> on an event page to message
-            that event's attendees. Choose who receives it, write your message
+            click <strong>Email Attendees</strong> on a listing page to message
+            that listing's attendees. Choose who receives it, write your message
             in Markdown, tick <strong>marketing</strong> if it's promotional,
             then click <strong>Preview</strong>. The preview shows the rendered
             email, the exact recipient count, and what kind of message it is
@@ -1714,17 +1718,17 @@ export const adminGuidePage = (
 
         <Q q="Who can I send to?">
           <p>
-            From an event page, the recipients are that event's attendees. From
-            the <strong>Emails</strong> page you pick an audience:
+            From a listing page, the recipients are that listing's attendees.
+            From the <strong>Emails</strong> page you pick an audience:
           </p>
           <ul>
             <li>
-              <strong>Active event attendees</strong> &mdash; everyone booked
-              onto a currently-active event (the default).
+              <strong>Active listing attendees</strong> &mdash; everyone booked
+              onto a currently-active listing (the default).
             </li>
             <li>
-              <strong>Upcoming event attendees</strong> &mdash; everyone booked
-              onto an active event that hasn't happened yet.
+              <strong>Upcoming listing attendees</strong> &mdash; everyone
+              booked onto an active listing that hasn't happened yet.
             </li>
             <li>
               <strong>All attendees</strong> &mdash; everyone who has ever
@@ -1758,9 +1762,9 @@ export const adminGuidePage = (
         <Q q="What's the difference between a marketing and a transactional email?">
           <p>
             A <strong>transactional</strong> (service) email is essential
-            information about an event someone booked &mdash; a venue change, a
+            information about a listing someone booked &mdash; a venue change, a
             reminder, cancellation details. A <strong>marketing</strong> email
-            promotes something &mdash; a new event, an offer, a newsletter.
+            promotes something &mdash; a new listing, an offer, a newsletter.
           </p>
           <p>
             When you tick <strong>marketing</strong>, every email gets an{" "}
@@ -2121,7 +2125,7 @@ export const adminGuidePage = (
       )}
 
       <Section title="Feeds &amp; Mobilizon">
-        <Q q="What event feeds are available?">
+        <Q q="What listing feeds are available?">
           <p>
             When the public site is enabled, two machine-readable feeds are
             available:
@@ -2129,36 +2133,36 @@ export const adminGuidePage = (
           <ul>
             <li>
               <strong>ICS calendar</strong> &mdash;{" "}
-              <code>/feeds/events.ics</code> &mdash; subscribe from any calendar
-              app (Google Calendar, Apple Calendar, Thunderbird, etc.)
+              <code>/feeds/listings.ics</code> &mdash; subscribe from any
+              calendar app (Google Calendar, Apple Calendar, Thunderbird, etc.)
             </li>
             <li>
-              <strong>RSS feed</strong> &mdash; <code>/feeds/events.rss</code>{" "}
+              <strong>RSS feed</strong> &mdash; <code>/feeds/listings.rss</code>{" "}
               &mdash; subscribe from any RSS reader
             </li>
           </ul>
           <p>
-            Both feeds include all active, non-hidden events with open
-            registration. Hidden events are excluded. They update automatically
-            as you add, change, or close events.
+            Both feeds include all active, non-hidden listings with open
+            registration. Hidden listings are excluded. They update
+            automatically as you add, change, or close listings.
           </p>
         </Q>
 
         <Q q="How do I connect to Mobilizon?">
           <p>
-            <a href="https://mobilizon.org/">Mobilizon</a> is a federated event
-            platform. You can use its built-in importer to pull events from your
-            ICS feed:
+            <a href="https://mobilizon.org/">Mobilizon</a> is a federated
+            listing platform. You can use its built-in importer to pull listings
+            from your ICS feed:
           </p>
           <ol>
             <li>
-              On your Mobilizon instance, go to the event import tool (or use
+              On your Mobilizon instance, go to the listing import tool (or use
               the public importer at{" "}
               <a href="https://import.mobilizon.fr/">import.mobilizon.fr</a>)
             </li>
             <li>
               Enter your ICS feed URL:{" "}
-              <code>https://{getEffectiveDomain()}/feeds/events.ics</code>
+              <code>https://{getEffectiveDomain()}/feeds/listings.ics</code>
             </li>
             <li>
               Set <strong>joinMode</strong> to <strong>external</strong> so the
@@ -2167,7 +2171,7 @@ export const adminGuidePage = (
             </li>
           </ol>
           <p>
-            Events will appear on Mobilizon and federate across the Fediverse.
+            Listings will appear on Mobilizon and federate across the Fediverse.
             Users click through to your site to register and pay.
           </p>
         </Q>
@@ -2180,8 +2184,8 @@ export const adminGuidePage = (
             booking functionality as the web interface. It lets you build custom
             frontends, integrate with other services, or automate bookings. The
             public endpoints below need no authentication. There is also an
-            admin API for managing events, groups, and holidays &mdash; see the{" "}
-            <a href="#admin-api">Admin API</a> section below for details.
+            admin API for managing listings, groups, and holidays &mdash; see
+            the <a href="#admin-api">Admin API</a> section below for details.
           </p>
         </Q>
 
@@ -2193,22 +2197,23 @@ export const adminGuidePage = (
           </p>
           <ul>
             <li>
-              <code>GET /api/events</code> &mdash; list all active, non-hidden
-              events
+              <code>GET /api/listings</code> &mdash; list all active, non-hidden
+              listings
             </li>
             <li>
-              <code>GET /api/events/:slug</code> &mdash; get a single event by
-              its slug (hidden events are accessible if you know the slug)
+              <code>GET /api/listings/:slug</code> &mdash; get a single listing
+              by its slug (hidden listings are accessible if you know the slug)
             </li>
             <li>
               <code>
                 GET
-                /api/events/:slug/availability?quantity=N&amp;date=YYYY-MM-DD
+                /api/listings/:slug/availability?quantity=N&amp;date=YYYY-MM-DD
               </code>{" "}
               &mdash; check if spots are available
             </li>
             <li>
-              <code>POST /api/events/:slug/book</code> &mdash; create a booking
+              <code>POST /api/listings/:slug/book</code> &mdash; create a
+              booking
             </li>
           </ul>
           <p>
@@ -2217,58 +2222,58 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I list events?">
+        <Q q="How do I list listings?">
           <pre>
-            <code>{`GET /api/events\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code>
+            <code>{`GET /api/listings\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code>
           </pre>
           <p>
             Prices are in the smallest currency unit (e.g. pence for GBP, cents
-            for USD). <code>maxPurchasable</code> is 0 when the event is sold
+            for USD). <code>maxPurchasable</code> is 0 when the listing is sold
             out or registration is closed.
           </p>
         </Q>
 
-        <Q q="How do I get a single event?">
+        <Q q="How do I get a single listing?">
           <pre>
-            <code>{`GET /api/events/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code>
+            <code>{`GET /api/listings/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code>
           </pre>
           <p>
             The <code>availableDates</code> field is only included for daily
-            events. Returns <code>{'{ "error": "Event not found" }'}</code> with
-            status 404 if the event doesn&apos;t exist or is inactive.
+            listings. Returns <code>{'{ "error": "Listing not found" }'}</code>{" "}
+            with status 404 if the listing doesn&apos;t exist or is inactive.
           </p>
         </Q>
 
         <Q q="How do I check availability?">
           <pre>
-            <code>{`GET /api/events/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code>
+            <code>{`GET /api/listings/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code>
           </pre>
           <p>
-            For daily events, add <code>&amp;date=YYYY-MM-DD</code> to check a
+            For daily listings, add <code>&amp;date=YYYY-MM-DD</code> to check a
             specific date. The <code>quantity</code> parameter defaults to 1.
           </p>
         </Q>
 
         <Q q="How do I create a booking?">
           <pre>
-            <code>{`POST /api/events/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code>
+            <code>{`POST /api/listings/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code>
           </pre>
           <p>
-            Which fields are required depends on the event's field settings. The{" "}
-            <code>name</code> field is always required. <code>date</code> is
-            required for daily events (use a date from{" "}
+            Which fields are required depends on the listing's field settings.
+            The <code>name</code> field is always required. <code>date</code> is
+            required for daily listings (use a date from{" "}
             <code>availableDates</code>). <code>customPrice</code> is for
-            pay-more events only (in major currency units, e.g. 10.00 for
+            pay-more listings only (in major currency units, e.g. 10.00 for
             &pound;10).
           </p>
           <p>
-            <strong>Free event response:</strong>
+            <strong>Free listing response:</strong>
           </p>
           <pre>
             <code>{API_BOOK_FREE_EXAMPLE_JSON}</code>
           </pre>
           <p>
-            <strong>Paid event response:</strong>
+            <strong>Paid listing response:</strong>
           </p>
           <pre>
             <code>{API_BOOK_PAID_EXAMPLE_JSON}</code>
@@ -2276,7 +2281,7 @@ export const adminGuidePage = (
           <p>
             Redirect the user to <code>checkoutUrl</code> to complete payment.
             Possible error responses: 400 (validation error or registration
-            closed), 404 (event not found), 409 (not enough spots available).
+            closed), 404 (listing not found), 409 (not enough spots available).
           </p>
         </Q>
 
@@ -2305,7 +2310,7 @@ export const adminGuidePage = (
           <p>
             The admin API exposes the same management operations as the web
             admin area as JSON endpoints. Use it to script bulk changes, build
-            internal tooling, or sync events from another system. Unlike the
+            internal tooling, or sync listings from another system. Unlike the
             public API, it requires authentication with an API key and is
             available to <strong>owners only</strong>.
           </p>
@@ -2344,18 +2349,18 @@ export const adminGuidePage = (
 
         <Q q="What admin endpoints are available?">
           <p>
-            The admin API covers events, groups, and holidays. Each resource
+            The admin API covers listings, groups, and holidays. Each resource
             supports list, get, create, update, and delete:
           </p>
           <ul>
             <li>
-              <code>GET /api/admin/events</code>,{" "}
-              <code>POST /api/admin/events</code>,{" "}
-              <code>GET /api/admin/events/:id</code>,{" "}
-              <code>PUT /api/admin/events/:id</code>,{" "}
-              <code>DELETE /api/admin/events/:id</code>,{" "}
-              <code>POST /api/admin/events/:id/deactivate</code>,{" "}
-              <code>POST /api/admin/events/:id/reactivate</code>
+              <code>GET /api/admin/listings</code>,{" "}
+              <code>POST /api/admin/listings</code>,{" "}
+              <code>GET /api/admin/listings/:id</code>,{" "}
+              <code>PUT /api/admin/listings/:id</code>,{" "}
+              <code>DELETE /api/admin/listings/:id</code>,{" "}
+              <code>POST /api/admin/listings/:id/deactivate</code>,{" "}
+              <code>POST /api/admin/listings/:id/reactivate</code>
             </li>
             <li>
               <code>GET /api/admin/groups</code>,{" "}
@@ -2479,7 +2484,7 @@ export const adminGuidePage = (
             Read-only mode is switched on by the host (not from inside the
             admin) and is used for two things: sites that have fallen behind on
             billing, and sites undergoing maintenance. While it's on, bookings
-            are refused and the create/edit pages for events and groups are
+            are refused and the create/edit pages for listings and groups are
             blocked, but everything else stays viewable. If you think your site
             shouldn't be in read-only mode, get in touch with whoever hosts it
             for you.
@@ -2550,10 +2555,10 @@ export const adminGuidePage = (
             Yes. I offer customisation at a transparent flat rate &mdash; see{" "}
             <a href="https://chobble.com/prices">chobble.com/prices</a> for
             current pricing. I can help you with custom features, branding,
-            event image design, hosting setup, or whatever you need. You'll own
-            the code outright, and I can show you how to maintain it yourself or
-            handle updates for you. Over 20 years building web systems means I
-            can usually solve problems quickly and clearly.
+            listing image design, hosting setup, or whatever you need. You'll
+            own the code outright, and I can show you how to maintain it
+            yourself or handle updates for you. Over 20 years building web
+            systems means I can usually solve problems quickly and clearly.
           </p>
         </Q>
 
@@ -2561,7 +2566,7 @@ export const adminGuidePage = (
           <p>
             Yes to both. I can set you up on your own Bunny CDN account (or
             another host) and handle the technical configuration. I also design
-            event images if you need them. Get in touch and we'll figure out
+            listing images if you need them. Get in touch and we'll figure out
             exactly what you need.
           </p>
         </Q>
@@ -2570,13 +2575,13 @@ export const adminGuidePage = (
         <Q q="How do I customise which columns appear in tables?">
           <p>
             Go to <strong>Advanced Settings</strong> and find the{" "}
-            <strong>Event Table Columns</strong> or{" "}
+            <strong>Listing Table Columns</strong> or{" "}
             <strong>Attendee Table Columns</strong> section. Enter a
             comma-separated list of Liquid-style tags to control which columns
             appear and in what order.
           </p>
           <p>
-            For example, to show only the name and status on the events table:
+            For example, to show only the name and status on the listings table:
           </p>
           <pre>
             <code>{"{{name}}, {{status}}"}</code>
@@ -2587,12 +2592,12 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What event table columns are available?">
+        <Q q="What listing table columns are available?">
           <p>
             Default order:{" "}
-            <code>{buildDefaultTemplate(EVENT_DEFAULT_ORDER)}</code>
+            <code>{buildDefaultTemplate(LISTING_DEFAULT_ORDER)}</code>
           </p>
-          <Raw html={columnReferenceTable(EVENT_TABLE_COLUMNS)} />
+          <Raw html={columnReferenceTable(LISTING_TABLE_COLUMNS)} />
         </Q>
 
         <Q q="What attendee table columns are available?">

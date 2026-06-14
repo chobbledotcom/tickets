@@ -494,13 +494,13 @@ describe("fp", () => {
         100,
       );
 
-      // Start a fetch (simulates a concurrent request loading events)
+      // Start a fetch (simulates a concurrent request loading listings)
       const fetchPromise = cache.getAll();
 
-      // While fetch is in-flight, invalidate (simulates event creation)
+      // While fetch is in-flight, invalidate (simulates listing creation)
       cache.invalidate();
 
-      // Resolve the in-flight fetch with stale data (missing the new event)
+      // Resolve the in-flight fetch with stale data (missing the new listing)
       resolveFetch([1, 2]);
       const staleResult = await fetchPromise;
       expect(staleResult).toEqual([1, 2]); // caller gets what was fetched

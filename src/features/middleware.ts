@@ -77,7 +77,7 @@ export const getSecurityHeaders = (
   "content-security-policy": buildCspHeader(embeddable),
 });
 
-/** Single slug: alphanumeric segments joined by hyphens (e.g. "a1b2" or "my-event") */
+/** Single slug: alphanumeric segments joined by hyphens (e.g. "a1b2" or "my-listing") */
 const SLUG = "[a-z0-9]+(?:-[a-z0-9]+)*";
 
 /** Matches /ticket/ with one or more slugs separated by + */
@@ -215,7 +215,7 @@ export const applySecurityHeaders = async (
     buildCspHeader(embeddable, { provider, sandbox }),
   );
 
-  // Override x-robots-tag for hidden events (signal header set by route handlers)
+  // Override x-robots-tag for hidden listings (signal header set by route handlers)
   if (response.headers.has("x-robots-noindex")) {
     response.headers.set("x-robots-tag", "noindex, nofollow");
     response.headers.delete("x-robots-noindex");

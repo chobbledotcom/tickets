@@ -422,8 +422,8 @@ export const CROSSOVERS = [
   "garden-centre",
 ] as const;
 
-/** What the event itself is — sits where words like "show" / "matinee" used to be hard-coded */
-export const EVENT_TYPES = [
+/** What the listing itself is — sits where words like "show" / "matinee" used to be hard-coded */
+export const LISTING_TYPES = [
   "night",
   "matinee",
   "show",
@@ -453,7 +453,7 @@ export const EVENT_TYPES = [
   "exorcism",
 ] as const;
 
-/** Outdoor / event-style venue archetypes */
+/** Outdoor / listing-style venue archetypes */
 export const FESTIVAL_TYPES = [
   "Festival",
   "Fest",
@@ -906,7 +906,7 @@ export const NUMBER_WORDS = [
   "eleven",
   "twelve",
   "thirteen",
-  "seventeen",
+  "slistingeen",
   "twenty-one",
   "thirty",
   "an alarming number of",

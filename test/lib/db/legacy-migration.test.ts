@@ -8,12 +8,12 @@ import { resetDb, setupTestEncryptionKey } from "#test-utils";
 
 /**
  * Migration test: verifies that migrating from the main-branch schema
- * (attendees with event_id FK) to the new schema (event_attendees table)
+ * (attendees with listing_id FK) to the new schema (listing_attendees table)
  * works correctly even when PRAGMA foreign_keys=OFF is ineffective
  * (as happens in remote libsql / Turso where it doesn't persist across
  * HTTP requests).
  */
-describe("db > event_attendees migration from legacy schema", () => {
+describe("db > listing_attendees migration from legacy schema", () => {
   afterEach(() => {
     resetDb();
   });
@@ -24,7 +24,7 @@ describe("db > event_attendees migration from legacy schema", () => {
   /** SQL statements that create the complete legacy schema (as on main) */
   const LEGACY_SCHEMA_SQL = [
     "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
-    `CREATE TABLE events (
+    `CREATE TABLE listings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
       max_attendees INTEGER NOT NULL,
@@ -40,7 +40,7 @@ describe("db > event_attendees migration from legacy schema", () => {
       closes_at TEXT,
       name TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL DEFAULT '',
-      event_type TEXT NOT NULL DEFAULT 'standard',
+      listing_type TEXT NOT NULL DEFAULT 'standard',
       bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
       minimum_days_before INTEGER NOT NULL DEFAULT 1,
       maximum_days_after INTEGER NOT NULL DEFAULT 90,
@@ -54,7 +54,7 @@ describe("db > event_attendees migration from legacy schema", () => {
       hidden INTEGER NOT NULL DEFAULT 0,
       max_price INTEGER NOT NULL DEFAULT 0
     )`,
-    "CREATE UNIQUE INDEX idx_events_slug_index ON events(slug_index)",
+    "CREATE UNIQUE INDEX idx_listings_slug_index ON listings(slug_index)",
     `CREATE TABLE users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username_hash TEXT NOT NULL,
@@ -80,7 +80,7 @@ describe("db > event_attendees migration from legacy schema", () => {
     )`,
     `CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
+      listing_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       created TEXT NOT NULL,
@@ -100,7 +100,7 @@ describe("db > event_attendees migration from legacy schema", () => {
       checked_in_v2 INTEGER NOT NULL DEFAULT 0,
       refunded_v2 INTEGER NOT NULL DEFAULT 0,
       price_paid_v2 INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (event_id) REFERENCES events(id)
+      FOREIGN KEY (listing_id) REFERENCES listings(id)
     )`,
     `CREATE UNIQUE INDEX
      idx_attendees_ticket_token_index
@@ -115,9 +115,9 @@ describe("db > event_attendees migration from legacy schema", () => {
     `CREATE TABLE activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
-      event_id INTEGER,
+      listing_id INTEGER,
       message TEXT NOT NULL,
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
+      FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE SET NULL
     )`,
     `CREATE TABLE groups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,18 +157,18 @@ describe("db > event_attendees migration from legacy schema", () => {
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )`,
     "CREATE INDEX idx_answers_question_id ON answers(question_id)",
-    `CREATE TABLE event_questions (
+    `CREATE TABLE listing_questions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
+      listing_id INTEGER NOT NULL,
       question_id INTEGER NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (event_id) REFERENCES events(id),
+      FOREIGN KEY (listing_id) REFERENCES listings(id),
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )`,
-    "CREATE INDEX idx_event_questions_event_id ON event_questions(event_id)",
+    "CREATE INDEX idx_listing_questions_listing_id ON listing_questions(listing_id)",
     `CREATE UNIQUE INDEX
-     idx_event_questions_unique
-     ON event_questions(event_id, question_id)`,
+     idx_listing_questions_unique
+     ON listing_questions(listing_id, question_id)`,
     `CREATE TABLE built_sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       site_data TEXT NOT NULL,
@@ -247,15 +247,15 @@ describe("db > event_attendees migration from legacy schema", () => {
     });
   };
 
-  test("migration backfills event_attendees, event duration, and processed_payments", async () => {
+  test("migration backfills listing_attendees, listing duration, and processed_payments", async () => {
     const client = await createLegacyDb();
 
     await client.execute(
-      insert("events", {
+      insert("listings", {
         created: "2024-01-01T00:00:00Z",
         id: 1,
         max_attendees: 100,
-        name: "Test Event",
+        name: "Test Listing",
       }),
     );
     await client.execute(
@@ -264,8 +264,8 @@ describe("db > event_attendees migration from legacy schema", () => {
         created: "2024-01-01T00:00:00Z",
         date: "2024-06-15",
         email: "test@example.com",
-        event_id: 1,
         id: 1,
+        listing_id: 1,
         name: "Test User",
         price_paid_v2: 1000,
         quantity: 2,
@@ -287,12 +287,12 @@ describe("db > event_attendees migration from legacy schema", () => {
       pragmaStub.restore();
     }
 
-    const events = await client.execute("SELECT duration_days FROM events");
-    expect(events.rows[0]!.duration_days).toBe(1);
+    const listings = await client.execute("SELECT duration_days FROM listings");
+    expect(listings.rows[0]!.duration_days).toBe(1);
 
-    const ea = await client.execute("SELECT * FROM event_attendees");
+    const ea = await client.execute("SELECT * FROM listing_attendees");
     expect(ea.rows.length).toBe(1);
-    expect(ea.rows[0]!.event_id).toBe(1);
+    expect(ea.rows[0]!.listing_id).toBe(1);
     expect(ea.rows[0]!.attendee_id).toBe(1);
     expect(ea.rows[0]!.quantity).toBe(2);
     expect(ea.rows[0]!.price_paid).toBe(1000);
@@ -301,7 +301,7 @@ describe("db > event_attendees migration from legacy schema", () => {
 
     const cols = await client.execute("PRAGMA table_info(attendees)");
     const colNames = cols.rows.map((r) => r.name);
-    expect(colNames).not.toContain("event_id");
+    expect(colNames).not.toContain("listing_id");
     expect(colNames).not.toContain("date");
     expect(colNames).not.toContain("quantity");
     expect(colNames).not.toContain("name");
@@ -317,12 +317,12 @@ describe("db > event_attendees migration from legacy schema", () => {
     expect(payments.rows[0]!.attendee_id).toBe(1);
   });
 
-  test("drops PII columns when event_id was dropped in a prior partial run", async () => {
+  test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
     setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
 
-    // Simulate a DB in the intermediate state: event_id and its relatives
+    // Simulate a DB in the intermediate state: listing_id and its relatives
     // have already been dropped (e.g. by a partial earlier migration), but
     // the pre-pii_blob PII columns are still present with NOT NULL.
     await client.execute(
@@ -384,7 +384,7 @@ describe("db > event_attendees migration from legacy schema", () => {
     await seedLegacySchemaMarkers(client);
     await client.execute(`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
+      listing_id INTEGER NOT NULL,
       created TEXT NOT NULL
     )`);
 

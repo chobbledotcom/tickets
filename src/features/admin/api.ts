@@ -14,17 +14,17 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   computeSlugIndex,
-  type EventInput,
-  eventsTable,
-  getAllEvents,
-  getEventWithCount,
-} from "#shared/db/events.ts";
+  getAllListings,
+  getListingWithCount,
+  type ListingInput,
+  listingsTable,
+} from "#shared/db/listings.ts";
 import {
-  generateUniqueEventSlug,
-  performEventDelete,
-  toggleEventActive,
-  validateEventInput,
-} from "#shared/events-actions.ts";
+  generateUniqueListingSlug,
+  performListingDelete,
+  toggleListingActive,
+  validateListingInput,
+} from "#shared/listings-actions.ts";
 import {
   apiErrorResponse,
   type DeleteBody,
@@ -36,18 +36,18 @@ import {
 } from "#shared/rest/crud-api.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import type {
-  AdminEvent,
-  Event,
-  EventType,
-  EventWithCount,
+  AdminListing,
+  Listing,
+  ListingType,
+  ListingWithCount,
 } from "#shared/types.ts";
 
 // =============================================================================
 // Published API types — the contract for callers
 // =============================================================================
 
-/** JSON body accepted by POST /api/admin/events */
-export type CreateEventBody = {
+/** JSON body accepted by POST /api/admin/listings */
+export type CreateListingBody = {
   name: string;
   max_attendees: number;
   max_price?: number;
@@ -62,7 +62,7 @@ export type CreateEventBody = {
   active?: boolean;
   fields?: string;
   closes_at?: string | null;
-  event_type?: EventType;
+  listing_type?: ListingType;
   bookable_days?: string[];
   minimum_days_before?: number;
   maximum_days_after?: number;
@@ -72,11 +72,11 @@ export type CreateEventBody = {
   hidden?: boolean;
 };
 
-/** JSON body accepted by PUT /api/admin/events/:eventId (all fields optional) */
-export type UpdateEventBody = Partial<CreateEventBody> & { slug?: string };
+/** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
+export type UpdateListingBody = Partial<CreateListingBody> & { slug?: string };
 
-/** JSON body accepted by DELETE /api/admin/events/:eventId */
-export type DeleteEventBody = DeleteBody;
+/** JSON body accepted by DELETE /api/admin/listings/:listingId */
+export type DeleteListingBody = DeleteBody;
 
 // =============================================================================
 // Schema-driven field extraction
@@ -85,18 +85,18 @@ export type DeleteEventBody = DeleteBody;
 /** Field type tag for runtime checking */
 type FieldType = "string" | "number" | "boolean" | "string[]";
 
-/** The possible value types for event fields */
+/** The possible value types for listing fields */
 type FieldValue = string | number | boolean | string[];
 
-/** Partial EventInput fields keyed by camelCase name */
+/** Partial ListingInput fields keyed by camelCase name */
 type FieldRecord = Record<string, FieldValue>;
 
 /**
- * Field mapping: [apiKey, eventInputKey, type]
+ * Field mapping: [apiKey, listingInputKey, type]
  *
  * Single source of truth for the snake_case → camelCase mapping.
  * Drives both bodyToCreateInput (extract from JSON body) and
- * bodyToUpdateInput (defaults from existing event).
+ * bodyToUpdateInput (defaults from existing listing).
  */
 type FieldMapping = readonly [string, string, FieldType];
 
@@ -112,7 +112,7 @@ const optionalFields: FieldMapping[] = [
   ["active", "active", "boolean"],
   ["fields", "fields", "string"],
   ["closes_at", "closesAt", "string"],
-  ["event_type", "eventType", "string"],
+  ["listing_type", "listingType", "string"],
   ["bookable_days", "bookableDays", "string[]"],
   ["minimum_days_before", "minimumDaysBefore", "number"],
   ["maximum_days_after", "maximumDaysAfter", "number"],
@@ -155,26 +155,26 @@ const pickTypedFields = (
 };
 
 /**
- * Build EventInput defaults from an existing event (for updates).
- * Maps snake_case Event fields to camelCase EventInput keys.
+ * Build ListingInput defaults from an existing listing (for updates).
+ * Maps snake_case Listing fields to camelCase ListingInput keys.
  */
-const existingToDefaults = (existing: EventWithCount): FieldRecord => {
+const existingToDefaults = (existing: ListingWithCount): FieldRecord => {
   const result: FieldRecord = {};
   for (const [apiKey, outKey] of optionalFields) {
-    const val = existing[apiKey as keyof EventWithCount];
+    const val = existing[apiKey as keyof ListingWithCount];
     result[outKey] = val === null ? "" : val;
   }
   return result;
 };
 
 // =============================================================================
-// Body → EventInput converters
+// Body → ListingInput converters
 // =============================================================================
 
-/** Convert JSON body to EventInput for create (auto-generates slug) */
+/** Convert JSON body to ListingInput for create (auto-generates slug) */
 export const bodyToCreateInput = async (
   body: Record<string, unknown>,
-): Promise<ParseResult<EventInput>> => {
+): Promise<ParseResult<ListingInput>> => {
   if (typeof body.name !== "string" || body.name.trim() === "") {
     return { error: "name is required", ok: false };
   }
@@ -182,7 +182,7 @@ export const bodyToCreateInput = async (
     return { error: "max_attendees is required and must be >= 1", ok: false };
   }
 
-  const { slug, slugIndex } = await generateUniqueEventSlug();
+  const { slug, slugIndex } = await generateUniqueListingSlug();
 
   return {
     input: {
@@ -192,16 +192,16 @@ export const bodyToCreateInput = async (
       name: body.name.trim(),
       slug,
       slugIndex,
-    } as EventInput,
+    } as ListingInput,
     ok: true,
   };
 };
 
-/** Convert JSON body to EventInput for update (merges with existing) */
+/** Convert JSON body to ListingInput for update (merges with existing) */
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
-  existing: EventWithCount,
-): Promise<ParseResult<EventInput>> => {
+  existing: ListingWithCount,
+): Promise<ParseResult<ListingInput>> => {
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
@@ -232,7 +232,7 @@ export const bodyToUpdateInput = async (
       name: parsedName.name,
       slug,
       slugIndex,
-    } as EventInput,
+    } as ListingInput,
     ok: true,
   };
 };
@@ -241,81 +241,87 @@ export const bodyToUpdateInput = async (
 // Custom routes (delete with cleanup, activate/deactivate)
 // =============================================================================
 
-const withEvent = (
+const withListing = (
   request: Request,
-  eventId: number,
+  listingId: number,
   handler: (
-    event: EventWithCount,
+    listing: ListingWithCount,
     body: Record<string, unknown>,
   ) => Promise<Response>,
 ): Promise<Response> =>
   withApiEntity(
     request,
-    getEventWithCount,
-    eventId,
-    "Event",
-    (event, _session, body) => handler(event, body),
+    getListingWithCount,
+    listingId,
+    "Listing",
+    (listing, _session, body) => handler(listing, body),
   );
 
-/** Custom DELETE handler: performEventDelete handles storage cleanup + logging with counts */
-const handleDeleteEvent: RouteHandlerFn = (request, { eventId }) =>
-  withEvent(request, eventId as number, async (event, body) => {
+/** Custom DELETE handler: performListingDelete handles storage cleanup + logging with counts */
+const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
+  withListing(request, listingId as number, async (listing, body) => {
     const error = verifyIdentifierOrJsonError(
-      event.name,
+      listing.name,
       body.confirm_identifier,
-      "Event name",
+      "Listing name",
     );
     if (error) return apiErrorResponse(error);
-    await performEventDelete(event);
+    await performListingDelete(listing);
     return jsonResponse({ status: "ok" });
   });
 
-/** Toggle event active/inactive state */
+/** Toggle listing active/inactive state */
 const handleToggleActive = (
   request: Request,
-  eventId: number,
+  listingId: number,
   active: boolean,
 ): Promise<Response> =>
-  withEvent(request, eventId, async (event) => {
-    const updated = await toggleEventActive(eventId, event, active);
+  withListing(request, listingId, async (listing) => {
+    const updated = await toggleListingActive(listingId, listing, active);
     if (!updated) {
       return apiErrorResponse(
-        `Event is already ${active ? "active" : "deactivated"}`,
+        `Listing is already ${active ? "active" : "deactivated"}`,
       );
     }
-    return jsonResponse({ event: toAdminEvent(updated) });
+    return jsonResponse({ listing: toAdminListing(updated) });
   });
 
-/** Strip slug_index from event row, producing the admin API shape */
-export const toAdminEvent = ({
+/** Strip slug_index from listing row, producing the admin API shape */
+export const toAdminListing = ({
   slug_index: _,
   ...rest
-}: EventWithCount): AdminEvent => rest;
+}: ListingWithCount): AdminListing => rest;
 
-const eventApiRoutes = defineCrudApi<Event, EventInput, EventWithCount>({
-  extraRoutes: {
-    "DELETE /api/admin/events/:eventId": handleDeleteEvent,
-    "POST /api/admin/events/:eventId/deactivate": (request, { eventId }) =>
-      handleToggleActive(request, eventId as number, false),
-    "POST /api/admin/events/:eventId/reactivate": (request, { eventId }) =>
-      handleToggleActive(request, eventId as number, true),
+const listingApiRoutes = defineCrudApi<Listing, ListingInput, ListingWithCount>(
+  {
+    extraRoutes: {
+      "DELETE /api/admin/listings/:listingId": handleDeleteListing,
+      "POST /api/admin/listings/:listingId/deactivate": (
+        request,
+        { listingId },
+      ) => handleToggleActive(request, listingId as number, false),
+      "POST /api/admin/listings/:listingId/reactivate": (
+        request,
+        { listingId },
+      ) => handleToggleActive(request, listingId as number, true),
+    },
+    getAll: getAllListings,
+    linkActivityToRow: true,
+    listExtras: (session) => ({ admin_level: session.adminLevel }),
+    lookup: getListingWithCount,
+    name: "listings",
+    nameField: "name",
+    singular: "Listing",
+    stripKeys: ["slug_index"],
+    table: listingsTable,
+    toCreateInput: bodyToCreateInput,
+    toUpdateInput: bodyToUpdateInput,
+    validate: validateListingInput,
   },
-  getAll: getAllEvents,
-  linkActivityToRow: true,
-  listExtras: (session) => ({ admin_level: session.adminLevel }),
-  lookup: getEventWithCount,
-  name: "events",
-  nameField: "name",
-  singular: "Event",
-  stripKeys: ["slug_index"],
-  table: eventsTable,
-  toCreateInput: bodyToCreateInput,
-  toUpdateInput: bodyToUpdateInput,
-  validate: validateEventInput,
-});
+);
 
 export const adminApiRoutes = {
   ...holidayApiRoutes,
   ...groupApiRoutes,
-  ...eventApiRoutes,
+  ...listingApiRoutes,
 };

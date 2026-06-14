@@ -42,7 +42,7 @@ const intent = {
   date: null,
   email: "alice@example.com",
   items: [
-    { eventId: 1, name: "Evt", quantity: 2, slug: "evt", unitPrice: 1000 },
+    { listingId: 1, name: "Evt", quantity: 2, slug: "evt", unitPrice: 1000 },
   ],
   name: "Alice",
   phone: "",

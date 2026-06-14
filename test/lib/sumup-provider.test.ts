@@ -146,7 +146,13 @@ describe("sumup-provider", () => {
       date: null,
       email: "alice@example.com",
       items: [
-        { eventId: 1, name: "Evt", quantity: 1, slug: "evt", unitPrice: 1000 },
+        {
+          listingId: 1,
+          name: "Evt",
+          quantity: 1,
+          slug: "evt",
+          unitPrice: 1000,
+        },
       ],
       name: "Alice",
       phone: "",
@@ -190,15 +196,15 @@ describe("sumup-provider", () => {
   });
 
   describe("resolveWebhookSession", () => {
-    const event = (id: string) => ({
+    const listing = (id: string) => ({
       data: { object: { id } },
       id,
       type: "CHECKOUT_STATUS_CHANGED",
     });
 
-    test("returns null when the event carries no id", async () => {
+    test("returns null when the listing carries no id", async () => {
       expect(
-        await sumupPaymentProvider.resolveWebhookSession(event("")),
+        await sumupPaymentProvider.resolveWebhookSession(listing("")),
       ).toBeNull();
     });
 
@@ -206,7 +212,7 @@ describe("sumup-provider", () => {
       await stageCheckout();
       await withFetched(checkout(), async (calls) => {
         expect(
-          await sumupPaymentProvider.resolveWebhookSession(event("co_spam")),
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_spam")),
         ).toBe("skip");
         expect(calls()).toEqual([]);
       });
@@ -216,7 +222,7 @@ describe("sumup-provider", () => {
       await stageCheckout();
       await withFetched(null, async () => {
         expect(
-          await sumupPaymentProvider.resolveWebhookSession(event("co_1")),
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
         ).toBeNull();
       });
     });
@@ -227,17 +233,17 @@ describe("sumup-provider", () => {
         checkout({ status: "PENDING", transactionId: "" }),
         async () => {
           expect(
-            await sumupPaymentProvider.resolveWebhookSession(event("co_1")),
+            await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
           ).toBe("skip");
         },
       );
     });
 
-    test("fetches the checkout by event id and returns the paid session", async () => {
+    test("fetches the checkout by listing id and returns the paid session", async () => {
       await stageCheckout();
       await withFetched(checkout(), async (calls) => {
         const result = await sumupPaymentProvider.resolveWebhookSession(
-          event("co_1"),
+          listing("co_1"),
         );
         expect(result).toEqual(
           expect.objectContaining({ id: "ref", paymentReference: "txn" }),
@@ -271,7 +277,7 @@ describe("sumup-provider", () => {
       expect(
         await verify('{"event_type":"CHECKOUT_STATUS_CHANGED","id":"co_42"}'),
       ).toEqual({
-        event: {
+        listing: {
           data: { object: { id: "co_42" } },
           id: "co_42",
           type: "CHECKOUT_STATUS_CHANGED",
@@ -282,7 +288,7 @@ describe("sumup-provider", () => {
 
     test("defaults missing fields to empty strings", async () => {
       expect(await verify("{}")).toEqual({
-        event: { data: { object: { id: "" } }, id: "", type: "" },
+        listing: { data: { object: { id: "" } }, id: "", type: "" },
         valid: true,
       });
     });
