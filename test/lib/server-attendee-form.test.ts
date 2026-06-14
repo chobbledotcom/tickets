@@ -61,6 +61,18 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
+  describe("edit route (/admin/attendees/:id) requires auth", () => {
+    // The edit GET/POST share the same session guards as /new. Assert them on
+    // the edit endpoints directly so an unauthenticated request can never reach
+    // (or mutate) an existing attendee. Auth is checked before the attendee is
+    // loaded, so a placeholder id is fine.
+    testRequiresAuth("/admin/attendees/1");
+    testRequiresAuth("/admin/attendees/1", {
+      body: { line_count: "1", name: "X" },
+      method: "POST",
+    });
+  });
+
   describe("POST /admin/attendees/new", () => {
     testRequiresAuth("/admin/attendees/new", {
       body: { line_count: "1", name: "X" },
@@ -850,6 +862,76 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       expect(saved.has(aA.id)).toBe(true);
       expect(saved.has(aB.id)).toBe(true);
+    });
+
+    test("never persists an answer id the admin didn't have as an option", async () => {
+      const { aA, attendeeId, qA, qB } = await setupMultiEventQuestions();
+
+      // Valid answer for qA; a bogus id for qB that isn't one of its options.
+      const form = await buildAttendeeEditForm(attendeeId, {
+        extra: {
+          [`question_${qA.id}`]: String(aA.id),
+          [`question_${qB.id}`]: "99999",
+        },
+        name: "Multi",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      const saved = new Set(
+        (await getAttendeeAnswersBatch([attendeeId])).get(attendeeId) ?? [],
+      );
+      // The bogus id is silently dropped (admin answers are optional), never
+      // written — so the form can't inject an arbitrary answer row.
+      expect(saved.has(aA.id)).toBe(true);
+      expect(saved.has(99999)).toBe(false);
+    });
+
+    test("editing one attendee's answers leaves another attendee's untouched", async () => {
+      const event = await createTestEvent({ maxAttendees: 10, name: "Shared" });
+      const q = await questionsTable.insert({ text: "Size?" });
+      const a1 = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "S",
+      });
+      const a2 = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 1,
+        text: "L",
+      });
+      await setEventQuestions(event.id, [q.id]);
+
+      const makeAttendee = async (name: string, email: string) => {
+        const result = await createAttendeeAtomic({
+          bookings: [{ eventId: event.id, quantity: 1 }],
+          email,
+          name,
+        });
+        if (!result.success) throw new Error("setup");
+        return result.attendees[0]!.id;
+      };
+      const alice = await makeAttendee("Alice", "alice@example.com");
+      const bob = await makeAttendee("Bob", "bob@example.com");
+      await saveAttendeeAnswers(new Map([[alice, [a1.id]]]));
+      await saveAttendeeAnswers(new Map([[bob, [a2.id]]]));
+
+      // Edit Alice's answer; her save must not touch Bob's row.
+      const form = await buildAttendeeEditForm(alice, {
+        extra: { [`question_${q.id}`]: String(a2.id) },
+        name: "Alice",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${alice}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      const bobAnswers = (await getAttendeeAnswersBatch([bob])).get(bob) ?? [];
+      expect(bobAnswers).toEqual([a2.id]);
     });
   });
 });
