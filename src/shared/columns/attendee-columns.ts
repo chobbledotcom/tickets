@@ -51,8 +51,10 @@ const date: AttendeeCol = {
 };
 
 const name: AttendeeCol = {
-  cell: (row) => row.attendee.name,
-  description: "Attendee name",
+  cell: (row) =>
+    `<a href="/admin/attendees/${row.attendee.id}">${escapeHtml(row.attendee.name)}</a>`,
+  description: "Attendee name with link to the edit attendee page",
+  isHtml: true,
   label: "Name",
 };
 
