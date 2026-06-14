@@ -24,7 +24,8 @@ import {
   REMOVE_LINE_ACTION_PREFIX,
   SAVE_ACTION,
 } from "#routes/admin/attendee-form-model.ts";
-import { formatDateRangeLabel } from "#shared/dates.ts";
+import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
+import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -66,6 +67,9 @@ export type AttendeeFormTemplateData = {
   todayIso: string;
   /** Optional return URL the caller came from. */
   returnUrl?: string;
+  /** Bulk-email contact history for the attendee's email (edit mode only;
+   * null when there is no email on file or it has never been contacted). */
+  emailStats?: EmailStats | null;
 };
 
 /** One row of the line-item editor — one listing registration. */
@@ -204,6 +208,34 @@ const LineEditor = ({
       value={data.parsed.lines.length}
     />
   </>
+);
+
+/** Render the bulk-email contact history (edit mode only, attendee has an
+ * email). Shows a placeholder when the attendee has never been contacted. */
+const EmailHistory = ({
+  emailStats,
+}: {
+  emailStats: EmailStats | null;
+}): JSX.Element => (
+  <article>
+    <h3>Email History</h3>
+    {emailStats && emailStats.contactCount > 0 ? (
+      <ul>
+        <li>
+          <strong>Total messages:</strong> {emailStats.contactCount}
+        </li>
+        <li>
+          <strong>Last contacted:</strong>{" "}
+          {formatDatetimeShort(emailStats.lastContact)}
+        </li>
+        <li>
+          <strong>Last subject:</strong> {emailStats.lastSubject}
+        </li>
+      </ul>
+    ) : (
+      <p>Never contacted by bulk email.</p>
+    )}
+  </article>
 );
 
 /** Render the "Merge Attendee" section (edit mode only). */
@@ -420,6 +452,10 @@ export const attendeeFormPage = (
           </a>
         </p>
       </CsrfForm>
+
+      {isEdit && a && a.email && (
+        <EmailHistory emailStats={data.emailStats ?? null} />
+      )}
 
       {isEdit && a && <MergeSection attendee={a} />}
 

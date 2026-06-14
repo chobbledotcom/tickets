@@ -26,7 +26,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
-import type { AdminLevel, NagItem } from "#shared/types.ts";
+import { type AdminLevel, isRecord, type NagItem } from "#shared/types.ts";
 
 // Re-export for callers that need it
 export { generateSecureToken };
@@ -354,10 +354,6 @@ export const authFailure = (
   reason: AuthFailureReason,
 ): Response => AUTH_FAILURES[reason][channel]();
 
-/** True if the value is a non-null, non-array object (i.e. a Record shape) */
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
 /** Parse JSON body, returning empty object for non-JSON GET/HEAD requests */
 const parseJsonBody = async (
   request: Request,
@@ -387,7 +383,7 @@ const parseJsonBody = async (
       400,
     );
   }
-  if (!isPlainObject(parsed)) {
+  if (!isRecord(parsed)) {
     return jsonResponse(
       { message: "Invalid request body", status: "error" },
       400,

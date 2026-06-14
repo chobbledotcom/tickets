@@ -14,7 +14,6 @@ import { addDays } from "#shared/dates.ts";
 import type {
   BatchAvailabilityItem,
   ListingBooking,
-  UpdateListingLinkResult,
 } from "#shared/db/attendee-types.ts";
 import {
   buildCapacityCondition,
@@ -22,17 +21,8 @@ import {
   dateToRange,
 } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
-import {
-  getListingWithCount,
-  invalidateListingsCache,
-} from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { type ListingType, normalizeDurationDays } from "#shared/types.ts";
-
-/** Shared failure result for capacity-exceeded */
-export const CAPACITY_EXCEEDED = {
-  reason: "capacity_exceeded" as const,
-  success: false as const,
-};
 
 /** Convert nullable date to start_at/end_at (null-safe wrapper around dateToRange) */
 export const dateToStartEnd = (
@@ -159,19 +149,9 @@ export const buildCapacityCheckedInsert = (
   };
 };
 
-/** Check a capacity-guarded write result and invalidate cache on success */
-export const checkCapacityResult = (result: {
-  rowsAffected: number;
-}): UpdateListingLinkResult => {
-  if (!result.rowsAffected) return CAPACITY_EXCEEDED;
-  invalidateListingsCache();
-  return { success: true };
-};
-
 // ---------------------------------------------------------------------------
-// Per-day preflight helpers used by hasAvailableSpots / addListingLink /
-// updateListingLink. They mirror the per-day SQL safety net but in JS so we
-// can self-exclude an attendee row cleanly.
+// Per-day preflight helpers used by hasAvailableSpots. They mirror the per-day
+// SQL safety net but in JS so we can self-exclude an attendee row cleanly.
 //
 // Per-day loads are computed by fetching every row overlapping the whole
 // booking span ONCE and summing per-day in JS — one round trip instead of

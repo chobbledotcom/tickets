@@ -55,6 +55,11 @@ import {
   type ListingAttendeeRow,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
+import {
+  type EmailStats,
+  getEmailStats,
+  hashEmail,
+} from "#shared/db/email-preferences.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -198,6 +203,7 @@ const buildTemplateData = async (
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
+    emailStats?: EmailStats | null;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const allListings = await getListingsForSelector(parsed);
@@ -210,6 +216,7 @@ const buildTemplateData = async (
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
     dailyDefaults,
+    emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
     mode,
@@ -298,13 +305,26 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       attendeeId,
       loaded.existing,
     );
+    const emailStats = await loadEmailStats(session, loaded.attendee);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
+      emailStats,
       questions,
       returnUrl: getSearchParam(request, "return_url"),
       selectedAnswerIds,
     });
     return renderAttendeeFormPage(request, data, session);
   });
+
+/** Read the attendee's bulk-email contact history (null when no email on
+ * file). Reused by the edit page to show the "Email History" section. */
+const loadEmailStats = async (
+  session: AuthSession,
+  attendee: Attendee,
+): Promise<EmailStats | null> => {
+  if (!attendee.email) return null;
+  const pk = await requirePrivateKey(session);
+  return getEmailStats(await hashEmail(attendee.email), pk);
+};
 
 /** Load an attendee + all its listing_attendees rows for the edit page. */
 const loadAttendeeForEdit = async (

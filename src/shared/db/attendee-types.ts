@@ -123,16 +123,3 @@ export type DesiredListingLine = {
   /** True when the line carries an existing listing_attendees identity. */
   exists: boolean;
 };
-
-/** Input for updating a single listing link */
-export type UpdateListingLinkInput = {
-  quantity: number;
-  date: string | null;
-  /** Duration in days (defaults to 1). Only meaningful when date is set. */
-  durationDays?: number;
-};
-
-/** Result of updating an listing link */
-export type UpdateListingLinkResult =
-  | { success: true }
-  | { success: false; reason: "capacity_exceeded" };

@@ -31,8 +31,6 @@ export type {
   ListingAttendeeRow,
   ListingBooking,
   UpdateAttendeePIIInput,
-  UpdateListingLinkInput,
-  UpdateListingLinkResult,
 } from "#shared/db/attendee-types.ts";
 export {
   type AtomicDesiredLine,
@@ -50,10 +48,7 @@ export {
   buildAttendeeInsert,
   ensureAllBookings,
 } from "#shared/db/attendees/create.ts";
-export {
-  deleteAttendee,
-  unlinkAttendeeFromListing,
-} from "#shared/db/attendees/delete.ts";
+export { deleteAttendee } from "#shared/db/attendees/delete.ts";
 export {
   buildPiiBlob,
   contactFields,
@@ -69,7 +64,9 @@ export {
 export {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
+  getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByTokens,
   getAttendeesRaw,
@@ -77,14 +74,12 @@ export {
 } from "#shared/db/attendees/queries.ts";
 export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
 export {
-  addListingLink,
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   markRefunded,
   recomputeListingBookingRanges,
   updateAttendeePII,
   updateCheckedIn,
-  updateListingLink,
 } from "#shared/db/attendees/update.ts";
 
 import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/db/attendees/atomic-update.ts";

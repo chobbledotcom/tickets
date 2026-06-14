@@ -3,19 +3,8 @@
  */
 
 import { filter, map, pipe, reduce, unique } from "#fp";
-import type {
-  ListingBooking,
-  UpdateAttendeePIIInput,
-  UpdateListingLinkInput,
-  UpdateListingLinkResult,
-} from "#shared/db/attendee-types.ts";
-import {
-  buildCapacityCheckedInsert,
-  checkCapacityResult,
-  dateToStartEnd,
-} from "#shared/db/attendees/capacity.ts";
+import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -208,49 +197,3 @@ export const checkGroupCapAfterDurationChange = async (
   }
   return null;
 };
-
-/**
- * Update a single listing link's quantity and date with atomic capacity check.
- *
- * The per-day SQL WHERE clause enforces capacity atomically. High-traffic
- * paths (public booking) should preflight with checkListingAvailability or
- * checkBatchAvailability to fail fast before hitting the DB — admin paths
- * may rely on the SQL guard alone.
- */
-export const updateListingLink = async (
-  attendeeId: number,
-  listingId: number,
-  input: UpdateListingLinkInput,
-): Promise<UpdateListingLinkResult> => {
-  const { quantity: qty, date, durationDays = 1 } = input;
-  const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const condition = buildCapacityCondition(
-    listingId,
-    qty,
-    date,
-    attendeeId,
-    durationDays,
-  );
-
-  const result = await getDb().execute({
-    args: [qty, startAt, endAt, attendeeId, listingId, ...condition.args],
-    sql: `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
-          WHERE attendee_id = ? AND listing_id = ? AND ${condition.sql}`,
-  });
-
-  return checkCapacityResult(result);
-};
-
-/**
- * Add a new listing link for an existing attendee with atomic capacity check.
- *
- * The per-day SQL WHERE clause enforces capacity atomically. See
- * updateListingLink for preflight guidance.
- */
-export const addListingLink = async (
-  attendeeId: number,
-  booking: ListingBooking,
-): Promise<UpdateListingLinkResult> =>
-  checkCapacityResult(
-    await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
-  );

@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -452,6 +452,24 @@ const SCHEMA: [name: string, table: Table][] = [
           name: "idx_attendee_answers_unique",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    // Per-email marketing preferences + contact history, keyed by the HMAC of
+    // the address (same blind-index approach as ticket_token_index, so a DB
+    // dump never reveals which address a row belongs to). `unsubscribed` is
+    // plaintext so the public, key-less /unsubscribe page can toggle it;
+    // `stats_blob` is a hybrid-encrypted {c,t,s} (contact count, last contact,
+    // last subject) only the admin private key can read.
+    "email_preferences",
+    {
+      columns: [
+        ["email_hash", "TEXT PRIMARY KEY"],
+        ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
+        ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
+        ["created", "TEXT NOT NULL"],
       ],
     },
   ],
@@ -925,6 +943,16 @@ const MIGRATIONS: Migration[] = [
       await getDb().execute(
         "UPDATE questions SET sort_order = id WHERE sort_order = 0",
       );
+    },
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add email_preferences table for marketing opt-outs and contact history",
+    id: "2026-06-14_email_preferences",
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
     },
     verify: verifyCurrentAppSchema,
   },

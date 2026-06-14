@@ -15,10 +15,8 @@ import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
-  createAttendeeAtomic,
   getAttendeesRaw,
   hasAvailableSpots,
-  unlinkAttendeeFromListing,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
@@ -1270,48 +1268,6 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       expect(winners.length).toBe(1);
     });
 
-    test("5: unlink multi-day booking and re-add on same listing/date", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 5,
-      });
-      const listing2 = await createDailyTestListing({ maxAttendees: 5 });
-
-      // Book attendee on two listings (so unlinking one doesn't delete attendee).
-      const result = await createAttendeeAtomic({
-        bookings: [
-          {
-            date: "2026-07-01",
-            durationDays: 3,
-            listingId: listing.id,
-            quantity: 1,
-          },
-          { date: "2026-07-01", listingId: listing2.id, quantity: 1 },
-        ],
-        email: "relink@test.com",
-        name: "Relink",
-      });
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      const attendeeId = result.attendees[0]!.id;
-
-      // Unlink from the multi-day listing.
-      const { addListingLink } = await import("#shared/db/attendees.ts");
-      await unlinkAttendeeFromListing(attendeeId, listing.id);
-      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-
-      // Re-add same listing/date — should succeed (old row is deleted).
-      const relink = await addListingLink(attendeeId, {
-        date: "2026-07-01",
-        durationDays: 3,
-        listingId: listing.id,
-        quantity: 1,
-      });
-      expect(relink.success).toBe(true);
-      const range = await rawListingRange(listing.id);
-      expect(range!.end_at).toBe("2026-07-04T00:00:00.000Z");
-    });
-
     test("6: group cart with mismatched durations rejects when overlap days exceed cap", async () => {
       // ListingA is 2-day, ListingB is 4-day. Both in same group with cap=3.
       // Cart: qty=2 each → overlap on days 1-2 sees 4 > 3.
@@ -1336,66 +1292,6 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           "2026-08-01",
         ),
       ).toBe(false);
-    });
-
-    test("7: admin qty increase on multi-day booking rejected when one day overflows", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 2,
-        maxAttendees: 5,
-      });
-      const x = await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 2,
-        quantity: 2,
-      });
-      if (!x.success) throw new Error("setup");
-      await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 1,
-        quantity: 2,
-      });
-      // Day 12: X(2) + other(2) = 4. Admin bumps X to 4 → 4+2=6 > 5.
-      const { updateListingLink } = await import("#shared/db/attendees.ts");
-      const result = await updateListingLink(x.attendees[0]!.id, listing.id, {
-        date: "2026-06-12",
-        durationDays: 2,
-        quantity: 4,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    test("8: admin date move where old and new ranges do not overlap", async () => {
-      // Booking at cap on days 1-2. Move to days 10-11 (completely disjoint).
-      // Self-exclusion must remove the old row from both old and new capacity.
-      const listing = await createDailyTestListing({
-        durationDays: 2,
-        maxAttendees: 1,
-      });
-      const result = await bookAttendee(listing, {
-        date: "2026-06-01",
-        durationDays: 2,
-      });
-      if (!result.success) throw new Error("setup");
-
-      const { updateListingLink } = await import("#shared/db/attendees.ts");
-      const moved = await updateListingLink(
-        result.attendees[0]!.id,
-        listing.id,
-        {
-          date: "2026-06-10",
-          durationDays: 2,
-          quantity: 1,
-        },
-      );
-      expect(moved.success).toBe(true);
-
-      // Old dates free, new dates occupied.
-      expect(await hasAvailableSpots(listing.id, 1, "2026-06-01", 2)).toBe(
-        true,
-      );
-      expect(await hasAvailableSpots(listing.id, 1, "2026-06-10", 2)).toBe(
-        false,
-      );
     });
 
     test("9: listing type switch from standard to daily preserves existing attendees", async () => {

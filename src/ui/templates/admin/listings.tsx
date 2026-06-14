@@ -249,10 +249,12 @@ const ListingActionNav = ({
   listing,
   dateFilter,
   hasPaidListing,
+  isOwner,
 }: {
   listing: ListingWithCount;
   dateFilter: string | null;
   hasPaidListing: boolean;
+  isOwner: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
   return (
@@ -293,6 +295,11 @@ const ListingActionNav = ({
             Export CSV
           </a>
         </li>
+        {isOwner && (
+          <li>
+            <a href={`/admin/emails?listing=${listing.id}`}>Email Attendees</a>
+          </li>
+        )}
         {hasPaidListing && (
           <li>
             <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
@@ -886,6 +893,7 @@ export const adminListingPage = ({
       <ListingActionNav
         dateFilter={dateFilter}
         hasPaidListing={hasPaidListing}
+        isOwner={session.adminLevel === "owner"}
         listing={listing}
       />
       <Flash success={successMessage} />
