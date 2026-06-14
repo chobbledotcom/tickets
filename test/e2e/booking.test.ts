@@ -120,14 +120,15 @@ describe("e2e: full booking flow", () => {
     await browser.visit("/admin/questions");
     expect(browser.containsText("Custom Questions")).toBe(true);
 
+    // Creating a question redirects straight to its detail page so answers
+    // can be added immediately.
     await browser.submitForm(
       { text: "What is your t-shirt size?" },
       "Add Question",
     );
     expect(browser.containsText("What is your t-shirt size?")).toBe(true);
 
-    // Navigate to the question detail page and add answers
-    await browser.clickLink("What is your t-shirt size?");
+    // Add answers on the question detail page
     await browser.submitForm({ text: "Small" }, "Add Answer");
     await browser.submitForm({ text: "Medium" }, "Add Answer");
     await browser.submitForm({ text: "Large" }, "Add Answer");

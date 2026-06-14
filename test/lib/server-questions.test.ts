@@ -83,6 +83,21 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(id).toBeGreaterThan(0);
     });
 
+    test("redirects to the new question's detail page", async () => {
+      const { response } = await adminFormPost("/admin/questions", {
+        text: "Redirect target?",
+      });
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const questions = await getAllQuestionsWithAnswers();
+      const found = questions.find((q) => q.text === "Redirect target?")!;
+      expectRedirectWithFlash(
+        `/admin/questions/${found.id}`,
+        "Question created",
+      )(response);
+    });
+
     test("rejects empty text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
         text: "",
@@ -251,6 +266,83 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(question!.answers[1]!.sort_order).toBe(1);
       expect(question!.answers[2]!.text).toBe("Third");
       expect(question!.answers[2]!.sort_order).toBe(2);
+    });
+  });
+
+  describe("POST /admin/questions/:id/events", () => {
+    testRequiresAuth("/admin/questions/1/events", {
+      body: { event_ids: "1" },
+      method: "POST",
+      setup: async () => {
+        await createQuestion("Events auth question");
+      },
+    });
+
+    test("returns 404 for non-existent question", async () => {
+      const event = await createTestEvent({ name: "Orphan event" });
+      const { response } = await adminFormPost("/admin/questions/999/events", {
+        event_ids: String(event.id),
+      });
+      expectStatus(404)(response);
+    });
+
+    test("assigns question to a single event and redirects", async () => {
+      const event = await createTestEvent({ name: "Target event" });
+      const qId = await createQuestion("Assign me?");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/events`,
+        { event_ids: String(event.id) },
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Events updated",
+      )(response);
+
+      const { getQuestionEventIds } = await import("#shared/db/questions.ts");
+      expect(await getQuestionEventIds(qId)).toEqual([event.id]);
+    });
+
+    test("removes question from unchecked events", async () => {
+      const event = await createTestEvent({ name: "Unassign event" });
+      const qId = await createQuestion("Unassign me?");
+
+      const { setQuestionEvents, getQuestionEventIds } = await import(
+        "#shared/db/questions.ts"
+      );
+      await setQuestionEvents(qId, [event.id]);
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/events`,
+        {},
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Events updated",
+      )(response);
+      expect(await getQuestionEventIds(qId)).toEqual([]);
+    });
+
+    test("logs singular when assigned to one event", async () => {
+      const event = await createTestEvent({ name: "Singular event" });
+      const qId = await createQuestion("Singular events log");
+      await adminFormPost(`/admin/questions/${qId}/events`, {
+        event_ids: String(event.id),
+      });
+
+      const { response } = await adminGet("/admin/log");
+      const body = await response.text();
+      expect(body).toContain("assigned to 1 event");
+      expect(body).not.toContain("assigned to 1 events");
+    });
+
+    test("logs plural when assigned to zero events", async () => {
+      const qId = await createQuestion("Plural events log");
+      await adminFormPost(`/admin/questions/${qId}/events`, {});
+
+      const { response } = await adminGet("/admin/log");
+      const body = await response.text();
+      expect(body).toContain("assigned to 0 events");
     });
   });
 
