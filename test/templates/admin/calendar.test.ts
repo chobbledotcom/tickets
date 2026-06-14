@@ -46,13 +46,13 @@ describe("adminCalendarPage", () => {
   test("renders date selector dropdown", () => {
     const dates = [
       {
-        hasBookings: true,
         label: "Sunday 15 March 2026",
+        selectable: true,
         value: "2026-03-15",
       },
       {
-        hasBookings: false,
         label: "Monday 16 March 2026",
+        selectable: false,
         value: "2026-03-16",
       },
     ];
@@ -72,8 +72,8 @@ describe("adminCalendarPage", () => {
   test("disables options for dates without bookings", () => {
     const dates = [
       {
-        hasBookings: false,
         label: "Sunday 15 March 2026",
+        selectable: false,
         value: "2026-03-15",
       },
     ];
@@ -91,8 +91,8 @@ describe("adminCalendarPage", () => {
   test("enables options for dates with bookings", () => {
     const dates = [
       {
-        hasBookings: true,
         label: "Sunday 15 March 2026",
+        selectable: true,
         value: "2026-03-15",
       },
     ];
@@ -249,23 +249,23 @@ describe("adminCalendarPage", () => {
   test("places Select a date between past and future dates", () => {
     const dates = [
       {
-        hasBookings: true,
         label: "Sunday 8 March 2026",
+        selectable: true,
         value: "2026-03-08",
       },
       {
-        hasBookings: true,
         label: "Monday 9 March 2026",
+        selectable: true,
         value: "2026-03-09",
       },
       {
-        hasBookings: true,
         label: "Sunday 15 March 2026",
+        selectable: true,
         value: "2026-03-15",
       },
       {
-        hasBookings: true,
         label: "Monday 16 March 2026",
+        selectable: true,
         value: "2026-03-16",
       },
     ];
@@ -293,13 +293,13 @@ describe("adminCalendarPage", () => {
   test("places Select a date at end when all dates are past", () => {
     const dates = [
       {
-        hasBookings: true,
         label: "Sunday 8 March 2026",
+        selectable: true,
         value: "2026-03-08",
       },
       {
-        hasBookings: true,
         label: "Monday 9 March 2026",
+        selectable: true,
         value: "2026-03-09",
       },
     ];
@@ -325,13 +325,13 @@ describe("adminCalendarPage", () => {
   test("places Select a date at start when all dates are future", () => {
     const dates = [
       {
-        hasBookings: true,
         label: "Sunday 15 March 2026",
+        selectable: true,
         value: "2026-03-15",
       },
       {
-        hasBookings: true,
         label: "Monday 16 March 2026",
+        selectable: true,
         value: "2026-03-16",
       },
     ];
@@ -352,6 +352,85 @@ describe("adminCalendarPage", () => {
       "Sunday 15 March 2026",
       "Monday 16 March 2026",
     ]);
+  });
+
+  test("renders the calendar grid above the dropdown", () => {
+    const html = adminCalendarPage(
+      [],
+      "localhost",
+      TEST_SESSION,
+      null,
+      [
+        {
+          label: "Sunday 15 March 2026",
+          selectable: true,
+          value: "2026-03-15",
+        },
+      ],
+      "2026-03-10",
+    );
+    expect(html).toContain('class="calendar"');
+    expect(html).toContain("calendar-grid");
+    expect(html.indexOf('class="calendar"')).toBeLessThan(
+      html.indexOf("<select"),
+    );
+  });
+
+  test("calendar day for a selectable date links to that date", () => {
+    const html = adminCalendarPage(
+      [],
+      "localhost",
+      TEST_SESSION,
+      null,
+      [
+        {
+          label: "Thursday 12 March 2026",
+          selectable: true,
+          value: "2026-03-12",
+        },
+      ],
+      "2026-03-10",
+    );
+    expect(html).toContain('href="/admin/calendar?date=2026-03-12#attendees"');
+  });
+
+  test("calendar shows the selected date's month", () => {
+    const html = adminCalendarPage(
+      [],
+      "localhost",
+      TEST_SESSION,
+      "2026-03-15",
+      [],
+      "2026-01-10",
+    );
+    expect(html).toContain("<strong>March 2026</strong>");
+  });
+
+  test("calendar respects the view month parameter", () => {
+    const html = adminCalendarPage(
+      [],
+      "localhost",
+      TEST_SESSION,
+      null,
+      [],
+      "2026-03-10",
+      "2026-08",
+    );
+    expect(html).toContain("<strong>August 2026</strong>");
+  });
+
+  test("month navigation links preserve the selected date", () => {
+    const html = adminCalendarPage(
+      [],
+      "localhost",
+      TEST_SESSION,
+      "2026-03-15",
+      [],
+      "2026-03-10",
+    );
+    // The selected date rides along on the month-paging links so paging
+    // months never clears the current selection.
+    expect(html).toContain("date=2026-03-15&amp;cal=");
   });
 });
 

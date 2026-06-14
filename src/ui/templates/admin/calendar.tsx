@@ -16,14 +16,8 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
+import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
-
-/** Calendar date option for the date filter dropdown */
-export type CalendarDateOption = {
-  value: string;
-  label: string;
-  hasBookings: boolean;
-};
 
 /** Attendee row with event context for display */
 export type CalendarAttendeeRow = Attendee & {
@@ -34,35 +28,6 @@ export type CalendarAttendeeRow = Attendee & {
   eventId: number;
 };
 
-/** Build date selector dropdown for calendar view */
-const CalendarDateSelector = ({
-  dateFilter,
-  dates,
-  today,
-}: {
-  dateFilter: string | null;
-  dates: CalendarDateOption[];
-  today: string;
-}): string => {
-  const selectOption = `<option value="/admin/calendar#attendees"${
-    !dateFilter ? " selected" : ""
-  }>Select a date</option>`;
-  const dateOptions = dates.map((d) =>
-    d.hasBookings
-      ? `<option value="/admin/calendar?date=${d.value}#attendees"${
-          dateFilter === d.value ? " selected" : ""
-        }>${d.label}</option>`
-      : `<option disabled>${d.label}</option>`,
-  );
-  // Insert "Select a date" before the first current/future date to split past from future
-  const splitIndex = dates.findIndex((d) => d.value >= today);
-  const insertAt = splitIndex === -1 ? dateOptions.length : splitIndex;
-  dateOptions.splice(insertAt, 0, selectOption);
-  return `<select data-nav-select aria-label="Select a date">${dateOptions.join(
-    "",
-  )}</select>`;
-};
-
 /**
  * Admin calendar page - shows attendees across all daily events for a selected date
  */
@@ -71,8 +36,9 @@ export const adminCalendarPage = (
   allowedDomain: string,
   session: AdminSession,
   dateFilter: string | null,
-  availableDates: CalendarDateOption[],
+  availableDates: DatePickerDate[],
   today: string,
+  viewMonth: string | null = null,
   phonePrefix?: string,
   questionData?: TableQuestionData,
   hasPaidEvent = false,
@@ -116,12 +82,19 @@ export const adminCalendarPage = (
 
       <article>
         <h2 id="attendees">Attendees by Date</h2>
-        <Raw
-          html={CalendarDateSelector({
-            dateFilter,
-            dates: availableDates,
-            today,
-          })}
+        <DatePicker
+          ariaLabel="Select a date"
+          clearHref="/admin/calendar#attendees"
+          dates={availableDates}
+          dayHref={(value) => `/admin/calendar?date=${value}#attendees`}
+          monthHref={(month) =>
+            `/admin/calendar?${
+              dateFilter ? `date=${dateFilter}&` : ""
+            }cal=${month}#calendar`
+          }
+          selected={dateFilter}
+          today={today}
+          viewMonth={viewMonth}
         />
         {dateFilter && (
           <p>

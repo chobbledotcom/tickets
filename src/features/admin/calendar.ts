@@ -6,6 +6,7 @@ import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import {
   csvResponse,
   getDateFilter,
+  getMonthFilter,
   loadQuestionData,
 } from "#routes/admin/actions.ts";
 import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
@@ -37,9 +38,9 @@ import {
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,
-  type CalendarDateOption,
 } from "#templates/admin/calendar.tsx";
 import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
+import type { DatePickerDate } from "#templates/date-picker.tsx";
 
 /** Build a map of YYYY-MM-DD → event IDs for standard events that have a date */
 const buildStandardEventDateMap = (
@@ -67,7 +68,7 @@ const compileDateOptions = (
     start_date: string;
     end_date: string;
   }[],
-): CalendarDateOption[] => {
+): DatePickerDate[] => {
   const availableDates = pipe(
     flatMap((event: EventWithCount) => getAvailableDates(event, holidays)),
     (dates: string[]) => unique(dates),
@@ -93,8 +94,8 @@ const compileDateOptions = (
   );
 
   return map((d: string) => ({
-    hasBookings: attendeeDateSet.has(d) || standardDatesWithBookings.has(d),
     label: formatDateLabel(d),
+    selectable: attendeeDateSet.has(d) || standardDatesWithBookings.has(d),
     value: d,
   }))(allDates);
 };
@@ -231,6 +232,7 @@ const handleAdminCalendarGet = (request: Request) =>
         dateFilter,
         availableDates,
         todayInTz(settings.timezone),
+        getMonthFilter(request),
         settings.phonePrefix,
         questionData,
         hasPaidEvent,

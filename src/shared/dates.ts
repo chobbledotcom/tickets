@@ -234,6 +234,40 @@ export const formatDateLabel = (dateStr: string): string => {
 };
 
 /**
+ * Shift a YYYY-MM month string by `delta` months (negative goes backwards).
+ * Crosses year boundaries: shiftMonth("2026-12", 1) → "2027-01".
+ */
+export const shiftMonth = (month: string, delta: number): string => {
+  const d = new Date(`${month}-01T00:00:00Z`);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + delta, 1))
+    .toISOString()
+    .slice(0, 7);
+};
+
+/**
+ * Format a YYYY-MM month string for display, e.g. "July 2026".
+ */
+export const formatMonthLabel = (month: string): string => {
+  const d = new Date(`${month}-01T00:00:00Z`);
+  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+};
+
+/**
+ * Build the calendar grid for a YYYY-MM month as a flat list of YYYY-MM-DD
+ * strings. The grid is whole Monday→Sunday weeks spanning the month plus one
+ * extra full week on each side, so adjacent-month context is always visible.
+ */
+export const calendarGridDates = (month: string): string[] => {
+  const first = `${month}-01`;
+  const firstDow = new Date(`${first}T00:00:00Z`).getUTCDay();
+  const start = addDays(first, -(((firstDow + 6) % 7) + 7));
+  const last = addDays(`${shiftMonth(month, 1)}-01`, -1);
+  const lastDow = new Date(`${last}T00:00:00Z`).getUTCDay();
+  const end = addDays(last, ((7 - lastDow) % 7) + 7);
+  return dateRange(start, end);
+};
+
+/**
  * Compact English date-range formatter. Uses an en dash (`–`) for ranges.
  *
  * - Same day: `2 February 2027`

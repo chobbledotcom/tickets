@@ -1681,4 +1681,75 @@ button.secondary:hover {
   height: auto;
 }
 
+/* Link-based date picker calendar */
+.calendar {
+  max-width: 22rem;
+  margin-bottom: var(--space-m);
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: bold;
+}
+
+.calendar-nav a {
+  padding: 0 var(--space-s);
+  text-decoration: none;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.calendar-dow {
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.cal-day {
+  display: block;
+  padding: 0.35rem 0;
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+}
+
+/* Selectable days are links; non-selectable days are plain greyed text */
+a.cal-day {
+  background: var(--color-accent);
+  text-decoration: none;
+}
+
+a.cal-day:hover {
+  background: var(--color-bg-secondary);
+}
+
+span.cal-day {
+  color: var(--color-text-secondary);
+}
+
+/* Days outside the displayed month (the extra week either side) */
+.cal-day-muted {
+  opacity: 0.45;
+}
+
+/* Today */
+.cal-day-today {
+  outline: 1px solid var(--color-link);
+}
+
+/* Currently selected date */
+.cal-day-selected,
+a.cal-day-selected:hover {
+  background: var(--color-link);
+  color: var(--color-bg);
+}
+
 /* Guide page */
