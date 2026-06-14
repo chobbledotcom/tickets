@@ -8,6 +8,7 @@ import {
   questionsTable,
   setListingQuestions,
 } from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import {
   adminAttendeeAction,
@@ -1816,6 +1817,39 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Not refunded",
         "Refresh payment status",
       );
+    });
+
+    test("links the payment id to the configured provider dashboard", async () => {
+      settings.setForTest({
+        payment_provider: "stripe",
+        stripe_secret_key: "sk_live_abc",
+      });
+      try {
+        const listing = await createTestListing({
+          maxAttendees: 100,
+          unitPrice: 1000,
+        });
+        const result = await bookAttendee(listing, {
+          email: "linked@example.com",
+          name: "Linked User",
+          paymentId: "pi_linked_123",
+          pricePaid: 1000,
+          quantity: 1,
+        });
+        if (!result.success) throw new Error("Failed to create attendee");
+        const response = await awaitTestRequest(
+          `/admin/attendees/${result.attendees[0]!.id}`,
+          { cookie: await testCookie() },
+        );
+        await expectHtmlResponse(
+          response,
+          200,
+          'href="https://dashboard.stripe.com/payments/pi_linked_123"',
+          'target="_blank"',
+        );
+      } finally {
+        settings.clearTestOverrides();
+      }
     });
 
     test("shows refunded status for refunded attendee", async () => {
