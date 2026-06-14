@@ -62,6 +62,32 @@ describe("adminListingEditPage duration warning", () => {
   });
 });
 
+describe("adminListingEditPage day prices", () => {
+  test("renders priced day-count inputs and checks the customisable toggle", () => {
+    const listing = testListingWithCount({
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    // One input per day up to the maximum duration, pre-filled from day_prices.
+    expect(html).toContain('name="day_price_1"');
+    expect(html).toContain('value="10.00"');
+    expect(html).toContain('name="day_price_2"');
+    expect(html).toContain('value="18.00"');
+    // The customisable-days checkbox is rendered checked for such a listing.
+    expect(html).toContain('name="customisable_days"');
+    expect(html).toContain("Day Prices (customisable days)");
+  });
+
+  test("renders a single blank day-price row on the new-listing form", () => {
+    const html = adminListingNewPage([], TEST_SESSION);
+    expect(html).toContain('name="day_price_1"');
+    // The maximum defaults to 1 day for a new listing, so only one row shows.
+    expect(html).not.toContain('name="day_price_2"');
+  });
+});
+
 describe("adminListingPage duration display", () => {
   test("shows booking duration row for daily listings", () => {
     const listing = testListingWithCount({

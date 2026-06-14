@@ -743,6 +743,7 @@ const TicketPageForm = ({
   hasDaily,
   durationDays,
   dates,
+  hasCustomisable,
   dayCounts,
   dayCountPriceFor,
   listingRows,
@@ -759,6 +760,7 @@ const TicketPageForm = ({
   hasDaily: boolean;
   durationDays: number;
   dates: string[] | undefined;
+  hasCustomisable: boolean;
   dayCounts: number[];
   dayCountPriceFor?: (days: number) => number | null;
   listingRows: string;
@@ -782,7 +784,7 @@ const TicketPageForm = ({
           html={renderDateSelector(dates, qrPrefill?.date ?? "", durationDays)}
         />
       )}
-      {dayCounts.length > 0 && (
+      {hasCustomisable && (
         <Raw html={renderDayCountSelector(dayCounts, dayCountPriceFor)} />
       )}
 
@@ -814,6 +816,7 @@ const dayConfig = (
   listings: TicketListing[],
   singleListing: ListingWithCount | null,
 ): {
+  hasCustomisable: boolean;
   dayCounts: number[];
   dayCountPriceFor?: (days: number) => number | null;
   dateDurationDays: number;
@@ -826,6 +829,7 @@ const dayConfig = (
     ? (days: number) => dayPriceFor(singleListing, days)
     : undefined,
   dayCounts: sharedDayCounts(listings),
+  hasCustomisable: listings.some((e) => e.listing.customisable_days),
 });
 
 /**
@@ -859,10 +863,8 @@ export const ticketPage = ({
   const singleListing = isSingleListing ? listings[0]!.listing : null;
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
-  const { dayCounts, dayCountPriceFor, dateDurationDays } = dayConfig(
-    listings,
-    singleListing,
-  );
+  const { hasCustomisable, dayCounts, dayCountPriceFor, dateDurationDays } =
+    dayConfig(listings, singleListing);
 
   const availableListings = listings.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =
@@ -917,6 +919,7 @@ export const ticketPage = ({
           dayCounts={dayCounts}
           durationDays={dateDurationDays}
           fields={fields}
+          hasCustomisable={hasCustomisable}
           hasDaily={hasDaily}
           hideQuantity={hideQuantity}
           isSingleListing={isSingleListing}

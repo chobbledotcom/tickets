@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { validateGroupListingType } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
@@ -1008,6 +1009,48 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "Group Attendees",
         "(no group cap)",
       );
+    });
+  });
+
+  describe("validateGroupListingType - customisable days", () => {
+    test("rejects a non-customisable listing joining a customisable group", async () => {
+      const group = await createTestGroup({ name: "Cust Group" });
+      await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000 },
+        durationDays: 1,
+        groupId: group.id,
+        name: "Customisable Member",
+      });
+      const error = await validateGroupListingType(group.id, "standard", false);
+      expect(error).toBe(
+        "This group already contains listings with customisable days — all listings in a group must match",
+      );
+    });
+
+    test("rejects a customisable listing joining a non-customisable group", async () => {
+      const group = await createTestGroup({ name: "Plain Group" });
+      await createTestListing({
+        groupId: group.id,
+        name: "Plain Member",
+      });
+      const error = await validateGroupListingType(group.id, "standard", true);
+      expect(error).toBe(
+        "This group already contains listings without customisable days — all listings in a group must match",
+      );
+    });
+
+    test("accepts a listing whose customisable setting matches the group", async () => {
+      const group = await createTestGroup({ name: "Match Group" });
+      await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000 },
+        durationDays: 1,
+        groupId: group.id,
+        name: "Match Member",
+      });
+      const error = await validateGroupListingType(group.id, "standard", true);
+      expect(error).toBeNull();
     });
   });
 

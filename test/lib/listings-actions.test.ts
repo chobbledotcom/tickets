@@ -56,4 +56,55 @@ describe("validateListingInput", () => {
     };
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
+
+  const customisableInput = (
+    overrides: Partial<ListingInput>,
+  ): ListingInput => ({
+    ...testListingInput({ customisableDays: true, ...overrides }),
+    slug: "test-listing",
+    slugIndex: "test-index",
+  });
+
+  test("rejects customisable days combined with pay-more", async () => {
+    const input = customisableInput({
+      canPayMore: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 1,
+    });
+    await expect(validateListingInput(input)).resolves.toBe(
+      "Customisable days cannot be combined with Allow Pay More",
+    );
+  });
+
+  test("rejects customisable days when neither prices nor a duration are set", async () => {
+    const input = customisableInput({});
+    await expect(validateListingInput(input)).resolves.toBe(
+      "Set a price for at least one day count (1 up to the maximum days)",
+    );
+  });
+
+  test("rejects customisable days with no priced day counts", async () => {
+    const input = customisableInput({ dayPrices: {}, durationDays: 3 });
+    await expect(validateListingInput(input)).resolves.toBe(
+      "Set a price for at least one day count (1 up to the maximum days)",
+    );
+  });
+
+  test("rejects customisable days when prices only exceed the maximum", async () => {
+    const input = customisableInput({
+      dayPrices: { 5: 4000 },
+      durationDays: 3,
+    });
+    await expect(validateListingInput(input)).resolves.toBe(
+      "Set a price for at least one day count (1 up to the maximum days)",
+    );
+  });
+
+  test("accepts customisable days with at least one in-range price", async () => {
+    const input = customisableInput({
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 3,
+    });
+    await expect(validateListingInput(input)).resolves.toBeNull();
+  });
 });

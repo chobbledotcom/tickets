@@ -161,11 +161,10 @@ const pickTypedFields = (
 const existingToDefaults = (existing: ListingWithCount): FieldRecord => {
   const result: FieldRecord = {};
   for (const [apiKey, outKey] of optionalFields) {
-    const val = existing[apiKey as keyof ListingWithCount];
-    // Object-valued columns (e.g. day_prices) aren't exposed as scalar API
-    // field values, and none appear in optionalFields, so skip them.
-    if (val !== null && typeof val === "object" && !Array.isArray(val))
-      continue;
+    // optionalFields only names scalar/array columns, so the value is always a
+    // FieldValue at runtime; the cast narrows away object columns (e.g.
+    // day_prices) that the indexed-access type otherwise admits.
+    const val = existing[apiKey as keyof ListingWithCount] as FieldValue | null;
     result[outKey] = val === null ? "" : val;
   }
   return result;

@@ -378,6 +378,21 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("rejects customisable-days listings (must book via the website)", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        maxAttendees: 10,
+      });
+      const { response, body } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+      });
+      expect(response.status).toBe(400);
+      expect(body.error).toContain("website");
+    });
+
     test("returns 400 when required name is missing", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug, {
