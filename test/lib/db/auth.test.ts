@@ -14,7 +14,7 @@ import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import {
   bookAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -87,14 +87,14 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("password change allows decryption of both old and new attendee records", async () => {
       const newPassword = "newpassword456";
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
-        name: "Password Test Event",
+        name: "Password Test Listing",
         thankYouUrl: "https://example.com/thanks",
       });
 
       // Create an attendee BEFORE password change
-      const beforeResult = await bookAttendee(event, {
+      const beforeResult = await bookAttendee(listing, {
         email: "alice@example.com",
         name: "Alice Before",
         paymentId: "pi_before_change",
@@ -117,7 +117,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
-      const afterResult = await bookAttendee(event, {
+      const afterResult = await bookAttendee(listing, {
         email: "bob@example.com",
         name: "Bob After",
         paymentId: "pi_after_change",

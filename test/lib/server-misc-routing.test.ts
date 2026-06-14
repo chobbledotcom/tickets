@@ -18,7 +18,7 @@ import { detectIframeMode } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
 import {
   createTestDb,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
@@ -36,15 +36,17 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
   const getTicketPageResponse = getEmbeddableTicketResponse;
 
   async function getMultiSlugTicketPageResponse(): Promise<Response> {
-    const event1 = await createTestEvent({
+    const listing1 = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
-    const event2 = await createTestEvent({
+    const listing2 = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
-    return handleRequest(mockRequest(`/ticket/${event1.slug}+${event2.slug}`));
+    return handleRequest(
+      mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
+    );
   }
 
   describe("security headers", () => {
@@ -317,13 +319,13 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
   describe("routes/router.ts (slug and generic param patterns)", () => {
     test("slug pattern matches lowercase alphanumeric with hyphens", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
-        name: "My Test Event",
+        name: "My Test Listing",
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
+        mockRequest(`/ticket/${listing.slug}`),
       );
       expect(response.status).toBe(200);
     });
@@ -412,12 +414,12 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     test("preserves existing query params without adding message", () =>
       withRequestContext(() => {
         const response = redirect(
-          "/admin/event/1?tab=attendees",
+          "/admin/listing/1?tab=attendees",
           "Updated",
           true,
         );
         expectRedirectWithFlash(
-          "/admin/event/1?tab=attendees",
+          "/admin/listing/1?tab=attendees",
           "Updated",
         )(response);
       }));
@@ -430,8 +432,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
     test("encodes special characters in flash cookie", () =>
       withRequestContext(() => {
-        const response = redirect("/admin/event/1", "A & B", true);
-        expectRedirectWithFlash("/admin/event/1", "A & B")(response);
+        const response = redirect("/admin/listing/1", "A & B", true);
+        expectRedirectWithFlash("/admin/listing/1", "A & B")(response);
       }));
 
     test("uses request ID as flash key in redirect URL", () =>
@@ -512,37 +514,37 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
   describe("Tracking parameter stripping", () => {
     describe("getCleanUrl", () => {
       test("returns null when URL has no tracking params", () => {
-        const url = new URL("http://localhost/ticket/my-event");
+        const url = new URL("http://localhost/ticket/my-listing");
         expect(getCleanUrl(url)).toBeNull();
       });
 
       test("returns null when URL has only non-tracking params", () => {
-        const url = new URL("http://localhost/ticket/my-event?iframe=true");
+        const url = new URL("http://localhost/ticket/my-listing?iframe=true");
         expect(getCleanUrl(url)).toBeNull();
       });
 
       test("strips fbclid parameter", () => {
-        const url = new URL("http://localhost/ticket/my-event?fbclid=abc123");
-        expect(getCleanUrl(url)).toBe("/ticket/my-event");
+        const url = new URL("http://localhost/ticket/my-listing?fbclid=abc123");
+        expect(getCleanUrl(url)).toBe("/ticket/my-listing");
       });
 
       test("strips fbclid but preserves other params", () => {
         const url = new URL(
-          "http://localhost/ticket/my-event?iframe=true&fbclid=abc123",
+          "http://localhost/ticket/my-listing?iframe=true&fbclid=abc123",
         );
-        expect(getCleanUrl(url)).toBe("/ticket/my-event?iframe=true");
+        expect(getCleanUrl(url)).toBe("/ticket/my-listing?iframe=true");
       });
 
       test("strips utm parameters", () => {
         const url = new URL(
-          "http://localhost/ticket/my-event?utm_source=facebook&utm_medium=social",
+          "http://localhost/ticket/my-listing?utm_source=facebook&utm_medium=social",
         );
-        expect(getCleanUrl(url)).toBe("/ticket/my-event");
+        expect(getCleanUrl(url)).toBe("/ticket/my-listing");
       });
 
       test("strips gclid parameter", () => {
-        const url = new URL("http://localhost/ticket/my-event?gclid=xyz789");
-        expect(getCleanUrl(url)).toBe("/ticket/my-event");
+        const url = new URL("http://localhost/ticket/my-listing?gclid=xyz789");
+        expect(getCleanUrl(url)).toBe("/ticket/my-listing");
       });
 
       test("strips multiple tracking params while preserving non-tracking ones", () => {
@@ -556,28 +558,28 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     describe("handleRequest redirect", () => {
       test("redirects GET requests with fbclid to clean URL", async () => {
         const response = await handleRequest(
-          mockRequest("/ticket/my-event?fbclid=IwdGRjcAQFOkpleHRuA2FlbQ"),
+          mockRequest("/ticket/my-listing?fbclid=IwdGRjcAQFOkpleHRuA2FlbQ"),
         );
         expect(response.status).toBe(301);
-        expect(response.headers.get("location")).toBe("/ticket/my-event");
+        expect(response.headers.get("location")).toBe("/ticket/my-listing");
       });
 
       test("redirects GET requests preserving non-tracking params", async () => {
         const response = await handleRequest(
-          mockRequest("/ticket/my-event?iframe=true&fbclid=abc123"),
+          mockRequest("/ticket/my-listing?iframe=true&fbclid=abc123"),
         );
         expect(response.status).toBe(301);
         expect(response.headers.get("location")).toBe(
-          "/ticket/my-event?iframe=true",
+          "/ticket/my-listing?iframe=true",
         );
       });
 
       test("does not redirect POST requests with tracking params", async () => {
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           maxAttendees: 50,
         });
         const response = await handleRequest(
-          mockFormRequest(`/ticket/${event.slug}?fbclid=abc123`, {
+          mockFormRequest(`/ticket/${listing.slug}?fbclid=abc123`, {
             name: "Test",
           }),
         );
@@ -585,11 +587,11 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       });
 
       test("does not redirect GET requests without tracking params", async () => {
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           maxAttendees: 50,
         });
         const response = await handleRequest(
-          mockRequest(`/ticket/${event.slug}`),
+          mockRequest(`/ticket/${listing.slug}`),
         );
         expect(response.status).toBe(200);
       });
@@ -598,12 +600,12 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
   describe("routes/router.ts (param patterns)", () => {
     test("matches slug pattern with lowercase alphanumeric and hyphens", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
-        name: "My Test Event",
+        name: "My Test Listing",
       });
       const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}`),
+        mockRequest(`/ticket/${listing.slug}`),
       );
       expect(response.status).toBe(200);
     });
@@ -624,10 +626,10 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
           return new Response("matched slug");
         },
       });
-      const req = new Request("http://localhost/item/my-test-event");
-      const response = await router(req, "/item/my-test-event", "GET");
+      const req = new Request("http://localhost/item/my-test-listing");
+      const response = await router(req, "/item/my-test-listing", "GET");
       expect(response).not.toBeNull();
-      expect(capturedParams.slug).toBe("my-test-event");
+      expect(capturedParams.slug).toBe("my-test-listing");
       const text = await response!.text();
       expect(text).toBe("matched slug");
     });
@@ -764,10 +766,12 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
     test("rethrows unhandled errors in test mode", async () => {
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
-      const { invalidateEventsCache } = await import("#shared/db/events.ts");
+      const { invalidateListingsCache } = await import(
+        "#shared/db/listings.ts"
+      );
       const { settings: s } = await import("#shared/db/settings.ts");
       const db = getDbFn();
-      invalidateEventsCache();
+      invalidateListingsCache();
       await s.loadAll();
       const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
       Deno.env.delete("TEST_EXPECT_ERROR");

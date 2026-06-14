@@ -27,9 +27,9 @@ export const ConfirmationEmailTemplateForm = (
       <table>
         <tr>
           <td>
-            <code>{"{{ event_names }}"}</code>
+            <code>{"{{ listing_names }}"}</code>
           </td>
-          <td>All event names joined with "and"</td>
+          <td>All listing names joined with "and"</td>
         </tr>
         <tr>
           <td>
@@ -71,19 +71,19 @@ export const ConfirmationEmailTemplateForm = (
           <td>
             <code>{"{{ entries }}"}</code>
           </td>
-          <td>Array of event+attendee pairs</td>
+          <td>Array of listing+attendee pairs</td>
         </tr>
         <tr>
           <td>
-            <code>{"{{ entry.event.name }}"}</code>
+            <code>{"{{ entry.listing.name }}"}</code>
           </td>
-          <td>Event name (in loop)</td>
+          <td>Listing name (in loop)</td>
         </tr>
         <tr>
           <td>
-            <code>{"{{ entry.event.is_paid }}"}</code>
+            <code>{"{{ entry.listing.is_paid }}"}</code>
           </td>
-          <td>Whether event has a price</td>
+          <td>Whether listing has a price</td>
         </tr>
         <tr>
           <td>

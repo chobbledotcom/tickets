@@ -41,7 +41,7 @@ export const verifyIdentifier = (expected: string, provided: string): boolean =>
 /**
  * Verify a form confirmation field matches an expected value, or return an error redirect.
  * One function to handle all confirmation flows consistently:
- *   const error = verifyOrRedirect(form, event.name, "/admin/event/1/delete", "Event name", "deletion");
+ *   const error = verifyOrRedirect(form, listing.name, "/admin/listing/1/delete", "Listing name", "deletion");
  *   if (error) return error;
  */
 export const verifyOrRedirect = (
@@ -64,7 +64,7 @@ export const verifyOrRedirect = (
 /**
  * Verify a JSON body confirmation field matches an expected value, or return an error message.
  * API-safe counterpart to verifyOrRedirect for JSON endpoints:
- *   const error = verifyIdentifierOrJsonError(event.name, body.confirm_identifier, "Event name");
+ *   const error = verifyIdentifierOrJsonError(listing.name, body.confirm_identifier, "Listing name");
  *   if (error) return errorResponse(error);
  */
 export const verifyIdentifierOrJsonError = (
@@ -86,7 +86,7 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
 > & {
   /** The identifier the user must type (e.g. entity name) */
   identifier: (context: TContext, params: TParams) => string | Promise<string>;
-  /** Label for the identifier field (e.g. "Event name") */
+  /** Label for the identifier field (e.g. "Listing name") */
   identifierLabel: string;
   /** Action suffix for the mismatch error (e.g. "deletion") */
   actionLabel?: string;

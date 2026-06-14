@@ -9,21 +9,21 @@ import {
   type RegistrationEntry,
   sendRegistrationWebhooks,
   sendWebhook,
-  type WebhookEvent,
+  type WebhookListing,
   type WebhookPayload,
 } from "#shared/webhook.ts";
 import {
   createTestDbWithSetup,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   type EmailEntry,
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
-  makeTestEvent as makeEvent,
+  makeTestListing as makeListing,
   resetDb,
 } from "#test-utils";
 
-/** Default single-entry registration (free event, default attendee) */
+/** Default single-entry registration (free listing, default attendee) */
 const defaultEntries = (): EmailEntry[] => [makeEntry()];
 
 /** Extract first arg (as string) from each spy call */
@@ -35,11 +35,11 @@ const withErrorSpy = bracket(
   (s: { restore: () => void }) => s.restore(),
 );
 
-/** Convert a db event + webhook_url into makeEvent overrides */
-const eventFromDb = (
+/** Convert a db listing + webhook_url into makeListing overrides */
+const listingFromDb = (
   { id, name, slug }: { id: number; name: string; slug: string },
   webhook_url: string,
-): Partial<WebhookEvent> => ({ id, name, slug, webhook_url });
+): Partial<WebhookListing> => ({ id, name, slug, webhook_url });
 
 /** Flush pending async operations (fire-and-forget webhooks) */
 const flushAsync = (): Promise<void> =>
@@ -90,10 +90,10 @@ describe("webhook", () => {
       s.invalidateCache();
     });
 
-    test("builds payload for a single free event", async () => {
+    test("builds payload for a single free listing", async () => {
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
-      expect(payload.event_type).toBe("registration.completed");
+      expect(payload.notification_type).toBe("registration.completed");
       expect(payload.name).toBe("Jane Doe");
       expect(payload.email).toBe("jane@example.com");
       expect(payload.phone).toBe("555-1234");
@@ -102,8 +102,8 @@ describe("webhook", () => {
       expect(payload.payment_id).toBeNull();
       expect(payload.ticket_url).toBe("https://localhost/t/AABB001122");
       expect(payload.tickets).toHaveLength(1);
-      expect(payload.tickets[0]!.event_name).toBe("Test Event");
-      expect(payload.tickets[0]!.event_slug).toBe("test-event");
+      expect(payload.tickets[0]!.listing_name).toBe("Test Listing");
+      expect(payload.tickets[0]!.listing_slug).toBe("test-listing");
       expect(payload.tickets[0]!.unit_price).toBe(0);
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
@@ -112,7 +112,7 @@ describe("webhook", () => {
       expect(payload.business_email).toBe("");
     });
 
-    test("builds payload for a single paid event with price_paid on attendee", async () => {
+    test("builds payload for a single paid listing with price_paid on attendee", async () => {
       const entries = [
         makeEntry(
           { unit_price: 500 },
@@ -129,10 +129,10 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.quantity).toBe(2);
     });
 
-    test("builds payload for multi-event entries", async () => {
+    test("builds payload for multi-listing entries", async () => {
       const entries = [
         makeEntry(
-          { id: 1, name: "Event A", slug: "event-a", unit_price: 300 },
+          { id: 1, name: "Listing A", slug: "listing-a", unit_price: 300 },
           {
             payment_id: "pi_multi",
             price_paid: "300",
@@ -140,7 +140,7 @@ describe("webhook", () => {
           },
         ),
         makeEntry(
-          { id: 2, name: "Event B", slug: "event-b", unit_price: 700 },
+          { id: 2, name: "Listing B", slug: "listing-b", unit_price: 700 },
           {
             payment_id: "pi_multi",
             price_paid: "1400",
@@ -159,23 +159,23 @@ describe("webhook", () => {
         "https://localhost/t/AA00BB11CC+DD22EE33FF",
       );
       expect(payload.tickets).toHaveLength(2);
-      expect(payload.tickets[0]!.event_name).toBe("Event A");
+      expect(payload.tickets[0]!.listing_name).toBe("Listing A");
       expect(payload.tickets[0]!.unit_price).toBe(300);
       expect(payload.tickets[0]!.ticket_token).toBe("AA00BB11CC");
-      expect(payload.tickets[1]!.event_name).toBe("Event B");
+      expect(payload.tickets[1]!.listing_name).toBe("Listing B");
       expect(payload.tickets[1]!.unit_price).toBe(700);
       expect(payload.tickets[1]!.quantity).toBe(2);
       expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
     });
 
-    test("includes price_paid for free can_pay_more event where attendee paid", async () => {
+    test("includes price_paid for free can_pay_more listing where attendee paid", async () => {
       const entries: RegistrationEntry[] = [
         {
           attendee: makeAttendee({
             payment_id: "pi_donate",
             price_paid: "500",
           }),
-          event: makeEvent({ can_pay_more: true, unit_price: 0 }),
+          listing: makeListing({ can_pay_more: true, unit_price: 0 }),
         },
       ];
 
@@ -194,14 +194,14 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.date).toBe("2025-07-15");
     });
 
-    test("includes mixed dates for multi-event with daily and standard events", async () => {
+    test("includes mixed dates for multi-listing with daily and standard listings", async () => {
       const entries = [
         makeEntry(
-          { id: 1, name: "Daily Event", slug: "daily-event" },
+          { id: 1, name: "Daily Listing", slug: "daily-listing" },
           { date: "2025-07-15", ticket_token: "AA00BB11CC" },
         ),
         makeEntry(
-          { id: 2, name: "Standard Event", slug: "standard-event" },
+          { id: 2, name: "Standard Listing", slug: "standard-listing" },
           { date: null, ticket_token: "DD22EE33FF" },
         ),
       ];
@@ -212,7 +212,7 @@ describe("webhook", () => {
       expect(payload.tickets[1]!.date).toBeNull();
     });
 
-    test("returns 0 price_paid when attendee has no price_paid on paid event", async () => {
+    test("returns 0 price_paid when attendee has no price_paid on paid listing", async () => {
       const payload = await buildWebhookPayload(
         [makeEntry({ unit_price: 500 }, { quantity: 3 })],
         "GBP",
@@ -253,7 +253,7 @@ describe("webhook", () => {
       expect(options.headers).toEqual({ "Content-Type": "application/json" });
 
       const body = JSON.parse(options.body as string) as WebhookPayload;
-      expect(body.event_type).toBe("registration.completed");
+      expect(body.notification_type).toBe("registration.completed");
       expect(body.name).toBe("Jane Doe");
       expect(body.tickets).toHaveLength(1);
     });
@@ -350,7 +350,7 @@ describe("webhook", () => {
 
       await expectWebhookActivityError(
         502,
-        "Error: Webhook send failed (status=502 for 'Test Event')",
+        "Error: Webhook send failed (status=502 for 'Test Listing')",
       );
     });
 
@@ -368,22 +368,22 @@ describe("webhook", () => {
       expect(errorEntries).toHaveLength(0);
     });
 
-    test("logs comma-separated event names for multi-event payload", async () => {
+    test("logs comma-separated listing names for multi-listing payload", async () => {
       await drainAndResetDb();
 
       const multiEntries: RegistrationEntry[] = [
         makeEntry(
-          { id: 1, name: "Event A", slug: "event-a" },
+          { id: 1, name: "Listing A", slug: "listing-a" },
           { ticket_token: "AA11BB22CC" },
         ),
         makeEntry(
-          { id: 2, name: "Event B", slug: "event-b" },
+          { id: 2, name: "Listing B", slug: "listing-b" },
           { ticket_token: "DD33EE44FF" },
         ),
       ];
       await expectWebhookActivityError(
         500,
-        "Error: Webhook send failed (status=500 for 'Event A, Event B')",
+        "Error: Webhook send failed (status=500 for 'Listing A, Listing B')",
         multiEntries,
       );
     });
@@ -436,30 +436,32 @@ describe("webhook", () => {
   });
 
   describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
-    test("sends webhook when event has webhook_url", async () => {
+    test("sends webhook when listing has webhook_url", async () => {
       const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
-      const dbEvent = await createTestEvent({
+      const dbListing = await createTestListing({
         webhookUrl: "https://example.com/hook",
       });
-      const event = makeEvent(eventFromDb(dbEvent, "https://example.com/hook"));
+      const listing = makeListing(
+        listingFromDb(dbListing, "https://example.com/hook"),
+      );
 
-      await logAndNotifyRegistration([{ attendee: makeAttendee(), event }]);
+      await logAndNotifyRegistration([{ attendee: makeAttendee(), listing }]);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
       const [url, options] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://example.com/hook");
       const body = JSON.parse(options.body as string) as WebhookPayload;
-      expect(body.event_type).toBe("registration.completed");
+      expect(body.notification_type).toBe("registration.completed");
       expect(body.name).toBe("Jane Doe");
     });
 
-    test("does not send webhook when event has no webhook_url", async () => {
+    test("does not send webhook when listing has no webhook_url", async () => {
       const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
-      const dbEvent = await createTestEvent();
-      const event = makeEvent(eventFromDb(dbEvent, ""));
+      const dbListing = await createTestListing();
+      const listing = makeListing(listingFromDb(dbListing, ""));
 
-      await logAndNotifyRegistration([{ attendee: makeAttendee(), event }]);
+      await logAndNotifyRegistration([{ attendee: makeAttendee(), listing }]);
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(0);
@@ -467,17 +469,17 @@ describe("webhook", () => {
   });
 
   describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
-    test("sends webhooks for multi-event registration", async () => {
+    test("sends webhooks for multi-listing registration", async () => {
       const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
-      const dbEventA = await createTestEvent({
+      const dbListingA = await createTestListing({
         webhookUrl: "https://hook.com",
       });
-      const dbEventB = await createTestEvent({
+      const dbListingB = await createTestListing({
         webhookUrl: "https://hook.com",
       });
       const entries = [
-        makeEntry(eventFromDb(dbEventA, "https://hook.com")),
-        makeEntry(eventFromDb(dbEventB, "https://hook.com")),
+        makeEntry(listingFromDb(dbListingA, "https://hook.com")),
+        makeEntry(listingFromDb(dbListingB, "https://hook.com")),
       ];
 
       await logAndNotifyRegistration(entries);
@@ -489,13 +491,13 @@ describe("webhook", () => {
       expect(body.tickets).toHaveLength(2);
     });
 
-    test("does not send webhook when no events have webhook URLs", async () => {
+    test("does not send webhook when no listings have webhook URLs", async () => {
       const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
-      const dbEventA = await createTestEvent();
-      const dbEventB = await createTestEvent();
+      const dbListingA = await createTestListing();
+      const dbListingB = await createTestListing();
       const entries = [
-        makeEntry(eventFromDb(dbEventA, "")),
-        makeEntry(eventFromDb(dbEventB, "")),
+        makeEntry(listingFromDb(dbListingA, "")),
+        makeEntry(listingFromDb(dbListingB, "")),
       ];
 
       await logAndNotifyRegistration(entries);

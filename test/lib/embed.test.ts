@@ -4,10 +4,10 @@ import { buildEmbedSnippets } from "#shared/embed.ts";
 
 describe("embed", () => {
   describe("buildEmbedSnippets", () => {
-    test("script variant is a single script tag with data-events", () => {
+    test("script variant is a single script tag with data-listings", () => {
       const result = buildEmbedSnippets("https://example.com/ticket/test");
       expect(result.script).toBe(
-        '<script async src="https://example.com/embed.js" data-events="test"></script>',
+        '<script async src="https://example.com/embed.js" data-listings="test"></script>',
       );
     });
 
@@ -18,9 +18,9 @@ describe("embed", () => {
       );
     });
 
-    test("uses plus-delimited slugs in data-events and iframe src", () => {
+    test("uses plus-delimited slugs in data-listings and iframe src", () => {
       const result = buildEmbedSnippets("https://example.com/ticket/a+b");
-      expect(result.script).toContain('data-events="a+b"');
+      expect(result.script).toContain('data-listings="a+b"');
       expect(result.iframe).toContain(
         "https://example.com/ticket/a+b?iframe=true",
       );
@@ -35,9 +35,9 @@ describe("embed", () => {
       );
     });
 
-    test("handles non-ticket URLs by emitting empty data-events", () => {
+    test("handles non-ticket URLs by emitting empty data-listings", () => {
       const result = buildEmbedSnippets("https://example.com/");
-      expect(result.script).toContain('data-events=""');
+      expect(result.script).toContain('data-listings=""');
     });
   });
 });

@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
-  deleteAllEventStorageFiles,
+  deleteAllListingStorageFiles,
   deleteFile,
   detectImageType,
   downloadImage,
@@ -503,7 +503,7 @@ describeWithEnv(
     });
 
     describeWithEnv(
-      "deleteAllEventStorageFiles",
+      "deleteAllListingStorageFiles",
       {
         env: {
           STORAGE_ZONE_KEY: "testkey",
@@ -511,8 +511,8 @@ describeWithEnv(
         },
       },
       () => {
-        test("deletes images and attachments for all events", async () => {
-          const events = [
+        test("deletes images and attachments for all listings", async () => {
+          const listings = [
             { attachment_url: "att1.pdf", id: 1, image_url: "img1.jpg" },
             { attachment_url: "", id: 2, image_url: "img2.png" },
             { attachment_url: "att3.pdf", id: 3, image_url: "" },
@@ -535,7 +535,7 @@ describeWithEnv(
                   return null;
                 });
 
-                await deleteAllEventStorageFiles(events);
+                await deleteAllListingStorageFiles(listings);
 
                 expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(
                   true,
@@ -555,8 +555,8 @@ describeWithEnv(
           );
         });
 
-        test("skips events with no image or attachment", async () => {
-          const events = [{ attachment_url: "", id: 1, image_url: "" }];
+        test("skips listings with no image or attachment", async () => {
+          const listings = [{ attachment_url: "", id: 1, image_url: "" }];
 
           await withFetchMock(async (originalFetch) => {
             const deletedUrls: string[] = [];
@@ -572,18 +572,18 @@ describeWithEnv(
               return null;
             });
 
-            await deleteAllEventStorageFiles(events);
+            await deleteAllListingStorageFiles(listings);
 
             expect(deletedUrls).toHaveLength(0);
           });
         });
 
-        test("handles empty events array", async () => {
-          await deleteAllEventStorageFiles([]);
+        test("handles empty listings array", async () => {
+          await deleteAllListingStorageFiles([]);
         });
 
         test("continues deleting when individual file delete fails", async () => {
-          const events = [
+          const listings = [
             { attachment_url: "", id: 1, image_url: "fail.jpg" },
             { attachment_url: "", id: 2, image_url: "succeed.jpg" },
           ];
@@ -608,7 +608,7 @@ describeWithEnv(
                   return null;
                 });
 
-                await deleteAllEventStorageFiles(events);
+                await deleteAllListingStorageFiles(listings);
 
                 expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
                   true,

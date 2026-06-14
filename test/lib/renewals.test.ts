@@ -8,7 +8,7 @@ import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { applyRenewalsForEntries } from "#shared/webhook.ts";
 import {
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   makeTestEntry,
   provisionTestBuiltSite,
@@ -37,15 +37,15 @@ const setupRenewalSite = async (readOnlyFrom: string) => {
 };
 
 const makeRenewalEntry = (
-  event: { id: number; months_per_unit: number },
+  listing: { id: number; months_per_unit: number },
   quantity: number,
 ) =>
   makeTestEntry(
     {
       active: true,
       hidden: true,
-      id: event.id,
-      months_per_unit: event.months_per_unit,
+      id: listing.id,
+      months_per_unit: listing.months_per_unit,
       purchase_only: true,
     },
     { quantity },
@@ -72,7 +72,7 @@ const withFakeTimeAndStub = async (
 
 describeWithEnv("renewals", { db: true }, () => {
   test("site with future read_only_from + 3 months bumps from existing deadline", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,
@@ -93,7 +93,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("expired site + 6 month renewal bumps from now, not past", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,
@@ -114,7 +114,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("months_per_unit=3 with quantity=2 adds 6 months", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 3,
       purchaseOnly: true,
@@ -135,7 +135,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("pushReadOnlyFrom is called exactly once with computed cutoff", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,
@@ -155,7 +155,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("entry with no siteToken produces no Bunny call", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,
@@ -181,7 +181,7 @@ describeWithEnv("renewals", { db: true }, () => {
     });
   });
 
-  test("siteToken present with a non-renewal event does not bump deadline", async () => {
+  test("siteToken present with a non-renewal listing does not bump deadline", async () => {
     const baseDate = new Date(NOW_MS).toISOString();
     const { tokenIndex, site } = await setupRenewalSite(baseDate);
 
@@ -206,7 +206,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("end-of-month: Jan 31 + 1mo lands on Feb 28", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,
@@ -226,7 +226,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("pushReadOnlyFrom failure does not advance host-side read_only_from", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,
@@ -253,7 +253,7 @@ describeWithEnv("renewals", { db: true }, () => {
   });
 
   test("applyRenewalsForEntries pushes READ_ONLY_FROM, logs activity, persists cutoff", async () => {
-    const tier = await createTestEvent({
+    const tier = await createTestListing({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,

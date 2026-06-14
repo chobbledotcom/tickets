@@ -1,7 +1,7 @@
 /**
  * Tests for the QR scanner admin feature
- * GET /admin/event/:id/scanner - Scanner page
- * POST /admin/event/:id/scan - JSON check-in API
+ * GET /admin/listing/:id/scanner - Scanner page
+ * POST /admin/listing/:id/scan - JSON check-in API
  */
 
 import { expect } from "@std/expect";
@@ -16,24 +16,24 @@ import {
   assertJson,
   awaitTestRequest,
   createTestAttendeeWithToken,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectHtmlResponse,
   requestAsSession,
-  setupEventAndLogin,
+  setupListingAndLogin,
   testCookie,
   testCsrfToken,
 } from "#test-utils";
 
 /** Create a JSON POST request for the scan API */
 const mockScanRequest = (
-  eventId: number,
+  listingId: number,
   body: Record<string, unknown>,
   cookie: string,
   csrfToken: string,
 ): Request =>
   requestAsSession(
-    `/admin/event/${eventId}/scan`,
+    `/admin/listing/${listingId}/scan`,
     { cookie, csrfToken },
     {
       body: JSON.stringify(body),
@@ -42,19 +42,19 @@ const mockScanRequest = (
     },
   );
 
-/** Create event + attendee and return session + scan-ready token */
+/** Create listing + attendee and return session + scan-ready token */
 const setupScanTest = async (
   name: string,
   email: string,
-  eventOverrides = {},
+  listingOverrides = {},
 ) => {
-  const { event, token } = await createTestAttendeeWithToken(
+  const { listing, token } = await createTestAttendeeWithToken(
     name,
     email,
-    eventOverrides,
+    listingOverrides,
   );
   return {
-    event,
+    listing,
     session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
     token,
   };
@@ -62,35 +62,40 @@ const setupScanTest = async (
 
 /** Send a scan request and parse the JSON result */
 const scanAndGetJson = (
-  eventId: number,
+  listingId: number,
   body: Record<string, unknown>,
   cookie: string,
   csrfToken: string,
 ) =>
   assertJson(
-    handleRequest(mockScanRequest(eventId, body, cookie, csrfToken)),
+    handleRequest(mockScanRequest(listingId, body, cookie, csrfToken)),
     200,
   );
 
-/** Send a scan request using fresh auth cookies (for cross-event tests) */
-const crossEventScanAndGetJson = async (
-  eventId: number,
+/** Send a scan request using fresh auth cookies (for cross-listing tests) */
+const crossListingScanAndGetJson = async (
+  listingId: number,
   body: Record<string, unknown>,
 ) =>
   assertJson(
     handleRequest(
-      mockScanRequest(eventId, body, await testCookie(), await testCsrfToken()),
+      mockScanRequest(
+        listingId,
+        body,
+        await testCookie(),
+        await testCsrfToken(),
+      ),
     ),
     200,
   );
 
 /** Create an unauthenticated POST to the scan endpoint */
 const unauthScanPost = (
-  eventId: number,
+  listingId: number,
   contentType: string,
   body: string,
 ): Request =>
-  new Request(`http://localhost/admin/event/${eventId}/scan`, {
+  new Request(`http://localhost/admin/listing/${listingId}/scan`, {
     body,
     headers: {
       "content-type": contentType,
@@ -101,11 +106,11 @@ const unauthScanPost = (
 
 /** Create a scan POST with custom headers (for partial-auth tests) */
 const scanPostWithHeaders = (
-  eventId: number,
+  listingId: number,
   headers: Record<string, string>,
   body: string,
 ): Request =>
-  new Request(`http://localhost/admin/event/${eventId}/scan`, {
+  new Request(`http://localhost/admin/listing/${listingId}/scan`, {
     body,
     headers: {
       "content-type": "application/json",
@@ -115,17 +120,17 @@ const scanPostWithHeaders = (
     method: "POST",
   });
 
-/** Get scanner page body text for a given event */
-const getScannerBody = async (eventId: number) => {
-  const { response } = await adminGet(`/admin/event/${eventId}/scanner`);
+/** Get scanner page body text for a given listing */
+const getScannerBody = async (listingId: number) => {
+  const { response } = await adminGet(`/admin/listing/${listingId}/scanner`);
   return await response.text();
 };
 
-/** Create a test event and return its scanner page body */
-const createEventAndGetScannerBody = async () => {
-  const event = await createTestEvent({ maxAttendees: 10 });
-  const body = await getScannerBody(event.id);
-  return { body, event };
+/** Create a test listing and return its scanner page body */
+const createListingAndGetScannerBody = async () => {
+  const listing = await createTestListing({ maxAttendees: 10 });
+  const body = await getScannerBody(listing.id);
+  return { body, listing };
 };
 
 /** Setup scan test and execute a scan request, returning the response */
@@ -133,40 +138,40 @@ const setupAndScan = async (
   name: string,
   email: string,
   bodyOverrides: Record<string, unknown> = {},
-  eventOverrides = {},
+  listingOverrides = {},
 ) => {
-  const { event, token, session } = await setupScanTest(
+  const { listing, token, session } = await setupScanTest(
     name,
     email,
-    eventOverrides,
+    listingOverrides,
   );
   const body = { token, ...bodyOverrides };
   const response = await handleRequest(
-    mockScanRequest(event.id, body, session.cookie, session.csrfToken),
+    mockScanRequest(listing.id, body, session.cookie, session.csrfToken),
   );
-  return { event, response, session, token };
+  return { listing, response, session, token };
 };
 
-/** Setup event with login and send a scan request */
+/** Setup listing with login and send a scan request */
 const setupLoginAndScan = async (
   body: Record<string, unknown>,
   csrfTokenOverride?: string,
 ) => {
-  const { event, ...session } = await setupEventAndLogin({
+  const { listing, ...session } = await setupListingAndLogin({
     maxAttendees: 10,
   });
   const response = await handleRequest(
     mockScanRequest(
-      event.id,
+      listing.id,
       body,
       session.cookie,
       csrfTokenOverride ?? session.csrfToken,
     ),
   );
-  return { event, response, session };
+  return { listing, response, session };
 };
 
-/** Setup event with login and send a raw scan POST with session-derived headers */
+/** Setup listing with login and send a raw scan POST with session-derived headers */
 const setupLoginAndRawScan = async (
   headersFn: (s: {
     cookie: string;
@@ -174,16 +179,16 @@ const setupLoginAndRawScan = async (
   }) => Record<string, string>,
   body: string,
 ) => {
-  const { event, ...session } = await setupEventAndLogin({
+  const { listing, ...session } = await setupListingAndLogin({
     maxAttendees: 10,
   });
   const response = await handleRequest(
-    scanPostWithHeaders(event.id, headersFn(session), body),
+    scanPostWithHeaders(listing.id, headersFn(session), body),
   );
-  return { event, response, session };
+  return { listing, response, session };
 };
 
-/** Point an attendee at a non-existent event to simulate orphan */
+/** Point an attendee at a non-existent listing to simulate orphan */
 const orphanAttendee = async (token: string) => {
   const { getDb } = await import("#shared/db/client.ts");
   const { computeTicketTokenIndex } = await import("#shared/crypto/hashing.ts");
@@ -191,8 +196,8 @@ const orphanAttendee = async (token: string) => {
   await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
   await getDb().execute({
     args: [tokenIndex],
-    sql: `UPDATE event_attendees
-          SET event_id = 99999
+    sql: `UPDATE listing_attendees
+          SET listing_id = 99999
           WHERE attendee_id = (
             SELECT id FROM attendees
             WHERE ticket_token_index = ?
@@ -203,28 +208,28 @@ const orphanAttendee = async (token: string) => {
 
 describeWithEnv("QR Scanner", { db: true }, () => {
   describe("isJsonApiPath", () => {
-    test("matches scan endpoint with numeric event ID", () => {
-      expect(isJsonApiPath("/admin/event/123/scan")).toBe(true);
+    test("matches scan endpoint with numeric listing ID", () => {
+      expect(isJsonApiPath("/admin/listing/123/scan")).toBe(true);
     });
 
-    test("matches scan endpoint with single-digit event ID", () => {
-      expect(isJsonApiPath("/admin/event/1/scan")).toBe(true);
+    test("matches scan endpoint with single-digit listing ID", () => {
+      expect(isJsonApiPath("/admin/listing/1/scan")).toBe(true);
     });
 
     test("does not match non-scan admin paths", () => {
-      expect(isJsonApiPath("/admin/event/123/edit")).toBe(false);
+      expect(isJsonApiPath("/admin/listing/123/edit")).toBe(false);
     });
 
-    test("does not match paths without event ID", () => {
-      expect(isJsonApiPath("/admin/event//scan")).toBe(false);
+    test("does not match paths without listing ID", () => {
+      expect(isJsonApiPath("/admin/listing//scan")).toBe(false);
     });
 
     test("does not match webhook path", () => {
       expect(isJsonApiPath("/payment/webhook")).toBe(false);
     });
 
-    test("does not match with non-numeric event ID", () => {
-      expect(isJsonApiPath("/admin/event/abc/scan")).toBe(false);
+    test("does not match with non-numeric listing ID", () => {
+      expect(isJsonApiPath("/admin/listing/abc/scan")).toBe(false);
     });
   });
 
@@ -236,11 +241,11 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("rejects non-JSON content type for scan endpoint", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
 
       const response = await handleRequest(
         unauthScanPost(
-          event.id,
+          listing.id,
           "application/x-www-form-urlencoded",
           "token=test",
         ),
@@ -250,10 +255,12 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/event/:id/scanner", () => {
+  describe("GET /admin/listing/:id/scanner", () => {
     test("renders scanner page when authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const { response } = await adminGet(`/admin/event/${event.id}/scanner`);
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { response } = await adminGet(
+        `/admin/listing/${listing.id}/scanner`,
+      );
 
       await expectHtmlResponse(
         response,
@@ -262,30 +269,30 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "scanner-container",
         "scanner-video",
         "scanner-start",
-        `data-event-id="${event.id}"`,
+        `data-listing-id="${listing.id}"`,
         "scanner.js",
         "scanner-confirm",
       );
     });
 
     test("redirects to /admin when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/scanner`,
+        `/admin/listing/${listing.id}/scanner`,
       );
 
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
     });
 
-    test("returns 404 for non-existent event", async () => {
-      const { response } = await adminGet("/admin/event/99999/scanner");
+    test("returns 404 for non-existent listing", async () => {
+      const { response } = await adminGet("/admin/listing/99999/scanner");
       expect(response.status).toBe(404);
     });
 
     test("includes manual check-in form with combobox", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const body = await getScannerBody(event.id);
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const body = await getScannerBody(listing.id);
       expect(body).toContain("Manual Check-in");
       expect(body).toContain("data-manual-checkin");
       expect(body).toContain('id="ticket-options"');
@@ -294,25 +301,30 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("datalist includes unchecked-in attendees", async () => {
-      const { event, token } = await createTestAttendeeWithToken(
+      const { listing, token } = await createTestAttendeeWithToken(
         "Alice Unchecked",
         "alice-uc@test.com",
       );
-      const body = await getScannerBody(event.id);
+      const body = await getScannerBody(listing.id);
       expect(body).toContain(token);
       expect(body).toContain("Alice Unchecked");
     });
 
     test("datalist excludes checked-in attendees", async () => {
-      const { event, token, session } = await setupScanTest(
+      const { listing, token, session } = await setupScanTest(
         "Bob Checked",
         "bob-checked@test.com",
       );
       // Check in the attendee
       await handleRequest(
-        mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          listing.id,
+          { token },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
-      const body = await getScannerBody(event.id);
+      const body = await getScannerBody(listing.id);
       expect(body).not.toContain(token);
     });
 
@@ -320,39 +332,39 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { getAttendeesByTokens, markRefunded } = await import(
         "#shared/db/attendees.ts"
       );
-      const { event, token } = await createTestAttendeeWithToken(
+      const { listing, token } = await createTestAttendeeWithToken(
         "Carol Refunded",
         "carol-ref@test.com",
       );
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, event.id);
-      const body = await getScannerBody(event.id);
+      await markRefunded(attendees[0]!.id, listing.id);
+      const body = await getScannerBody(listing.id);
       expect(body).not.toContain(token);
     });
 
     test("datalist shows attendee quantity", async () => {
-      const { event } = await createTestAttendeeWithToken(
+      const { listing } = await createTestAttendeeWithToken(
         "Dave Multi",
         "dave-multi@test.com",
         {},
         3,
       );
-      const body = await getScannerBody(event.id);
+      const body = await getScannerBody(listing.id);
       expect(body).toContain("3 attendees");
     });
 
     test("datalist shows singular attendee for quantity 1", async () => {
-      const { event } = await createTestAttendeeWithToken(
+      const { listing } = await createTestAttendeeWithToken(
         "Eve Single",
         "eve-single@test.com",
       );
-      const body = await getScannerBody(event.id);
+      const body = await getScannerBody(listing.id);
       expect(body).toContain("1 attendee)");
     });
   });
 
-  describe("POST /admin/event/:id/scan", () => {
-    test("checks in attendee from same event", async () => {
+  describe("POST /admin/listing/:id/scan", () => {
+    test("checks in attendee from same listing", async () => {
       const { response } = await setupAndScan("Alice", "alice@test.com");
       await assertJson(Promise.resolve(response), 200, (result) => {
         expect(result.status).toBe("checked_in");
@@ -362,14 +374,14 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns already_checked_in for checked-in attendee", async () => {
-      const { event, token, session } = await setupAndScan(
+      const { listing, token, session } = await setupAndScan(
         "Bob",
         "bob@test.com",
       );
 
       // Second scan - already checked in
       const result = await scanAndGetJson(
-        event.id,
+        listing.id,
         { token },
         session.cookie,
         session.csrfToken,
@@ -383,16 +395,16 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { getAttendeesByTokens, markRefunded } = await import(
         "#shared/db/attendees.ts"
       );
-      const { event, token, session } = await setupScanTest(
+      const { listing, token, session } = await setupScanTest(
         "Refund",
         "refund@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, event.id);
+      await markRefunded(attendees[0]!.id, listing.id);
 
       const result = await scanAndGetJson(
-        event.id,
+        listing.id,
         { token },
         session.cookie,
         session.csrfToken,
@@ -401,29 +413,29 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(result.name).toBe("Refund");
     });
 
-    test("returns wrong_event for attendee from different event", async () => {
-      const { event: eventA, token } = await createTestAttendeeWithToken(
+    test("returns wrong_listing for attendee from different listing", async () => {
+      const { listing: listingA, token } = await createTestAttendeeWithToken(
         "Carol",
         "carol@test.com",
       );
-      const eventB = await createTestEvent({ maxAttendees: 10 });
+      const listingB = await createTestListing({ maxAttendees: 10 });
 
-      // Scan token from event A while on event B's scanner
-      const result = await crossEventScanAndGetJson(eventB.id, { token });
-      expect(result.status).toBe("wrong_event");
+      // Scan token from listing A while on listing B's scanner
+      const result = await crossListingScanAndGetJson(listingB.id, { token });
+      expect(result.status).toBe("wrong_listing");
       expect(result.name).toBe("Carol");
-      expect(result.eventName).toBe(eventA.name);
+      expect(result.listingName).toBe(listingA.name);
     });
 
-    test("checks in cross-event attendee with force flag", async () => {
+    test("checks in cross-listing attendee with force flag", async () => {
       const { token } = await createTestAttendeeWithToken(
         "Dave",
         "dave@test.com",
       );
-      const eventB = await createTestEvent({ maxAttendees: 10 });
+      const listingB = await createTestListing({ maxAttendees: 10 });
 
-      // Force check-in from event B's scanner
-      const result = await crossEventScanAndGetJson(eventB.id, {
+      // Force check-in from listing B's scanner
+      const result = await crossListingScanAndGetJson(listingB.id, {
         force: true,
         token,
       });
@@ -431,21 +443,21 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(result.name).toBe("Dave");
     });
 
-    test("returns Unknown event when attendee's event is deleted", async () => {
+    test("returns Unknown listing when attendee's listing is deleted", async () => {
       const { token } = await createTestAttendeeWithToken(
         "Frank",
         "frank@test.com",
       );
-      const eventB = await createTestEvent({ maxAttendees: 10 });
+      const listingB = await createTestListing({ maxAttendees: 10 });
 
-      // Point attendee at a non-existent event to simulate orphan
+      // Point attendee at a non-existent listing to simulate orphan
       const { getDb } = await orphanAttendee(token);
       await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
 
-      // Scan from event B - attendee's event_id still points to deleted event A
-      const result = await crossEventScanAndGetJson(eventB.id, { token });
-      expect(result.status).toBe("wrong_event");
-      expect(result.eventName).toBe("Unknown event");
+      // Scan from listing B - attendee's listing_id still points to deleted listing A
+      const result = await crossListingScanAndGetJson(listingB.id, { token });
+      expect(result.status).toBe("wrong_listing");
+      expect(result.listingName).toBe("Unknown listing");
     });
 
     test("returns not_found for invalid token", async () => {
@@ -458,11 +470,11 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns 401 when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
 
       const response = await handleRequest(
         unauthScanPost(
-          event.id,
+          listing.id,
           "application/json",
           JSON.stringify({ token: "test" }),
         ),
@@ -481,10 +493,10 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("accepts a CSRF token older than the 1-hour default", async () => {
-      // Admins keep the scanner page open for a whole event, so its CSRF token
+      // Admins keep the scanner page open for a whole listing, so its CSRF token
       // is given an extended window. A token well past the standard 1-hour
       // expiry should still check attendees in.
-      const { event, token, session } = await setupScanTest(
+      const { listing, token, session } = await setupScanTest(
         "Aged",
         "aged@test.com",
       );
@@ -500,7 +512,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
         // ...but the scanner endpoint still accepts it.
         const result = await scanAndGetJson(
-          event.id,
+          listing.id,
           { token },
           session.cookie,
           agedToken,
@@ -554,7 +566,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
     });
 
-    test("returns verify_id for non-transferable event without id_verified", async () => {
+    test("returns verify_id for non-transferable listing without id_verified", async () => {
       const { response } = await setupAndScan(
         "Alice",
         "alice@test.com",
@@ -581,7 +593,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
     });
 
-    test("checks in transferable event without id_verified", async () => {
+    test("checks in transferable listing without id_verified", async () => {
       const { response } = await setupAndScan("Carol", "carol@test.com");
       await assertJson(Promise.resolve(response), 200, (result) => {
         expect(result.status).toBe("checked_in");
@@ -589,21 +601,21 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
     });
 
-    test("force check-in with deleted event returns not_found", async () => {
+    test("force check-in with deleted listing returns not_found", async () => {
       const { token } = await createTestAttendeeWithToken(
         "Eve",
         "eve@test.com",
       );
-      const eventB = await createTestEvent({ maxAttendees: 10 });
+      const listingB = await createTestListing({ maxAttendees: 10 });
 
-      // Point attendee at a non-existent event to simulate orphan
+      // Point attendee at a non-existent listing to simulate orphan
       const { getDb } = await orphanAttendee(token);
 
-      // Force check-in from event B — event 99999 doesn't exist,
+      // Force check-in from listing B — listing 99999 doesn't exist,
       // so no entries can be resolved and check-in returns not_found
       const { response } = await setupLoginAndScan({
-        eventId: eventB.id,
         force: true,
+        listingId: listingB.id,
         token,
       });
       await assertJson(Promise.resolve(response), 404, (json) => {
@@ -614,28 +626,28 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("logs activity when checking in via scanner", async () => {
-      const { event, session } = await setupAndScan("Eve", "eve@test.com");
+      const { listing, session } = await setupAndScan("Eve", "eve@test.com");
 
       // Check activity log
       const logResponse = await awaitTestRequest(
-        `/admin/event/${event.id}/log`,
+        `/admin/listing/${listing.id}/log`,
         { cookie: session.cookie },
       );
       const logBody = await logResponse.text();
-      expect(logBody).toContain("checked in via scanner for 'Test Event 1'");
+      expect(logBody).toContain("checked in via scanner for 'Test Listing 1'");
     });
   });
 
   describe("scanner template", () => {
     test("contains CSRF token in meta tag", async () => {
-      const { body } = await createEventAndGetScannerBody();
+      const { body } = await createListingAndGetScannerBody();
       expect(body).toContain('name="csrf-token"');
     });
 
-    test("contains back link to event page", async () => {
-      const { event, body } = await createEventAndGetScannerBody();
-      expect(body).toContain(`/admin/event/${event.id}`);
-      expect(body).toContain(event.name);
+    test("contains back link to listing page", async () => {
+      const { listing, body } = await createListingAndGetScannerBody();
+      expect(body).toContain(`/admin/listing/${listing.id}`);
+      expect(body).toContain(listing.name);
     });
   });
 
@@ -650,12 +662,12 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
   });
 
-  describe("event page scanner link", () => {
-    test("event admin page has scanner link", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const { response } = await adminGet(`/admin/event/${event.id}`);
+  describe("listing page scanner link", () => {
+    test("listing admin page has scanner link", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { response } = await adminGet(`/admin/listing/${listing.id}`);
       const body = await response.text();
-      expect(body).toContain(`/admin/event/${event.id}/scanner`);
+      expect(body).toContain(`/admin/listing/${listing.id}/scanner`);
       expect(body).toContain("Scanner");
     });
   });

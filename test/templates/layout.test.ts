@@ -5,11 +5,11 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { buildTicketEvent, ticketPage } from "#templates/public.tsx";
+import { buildTicketListing, ticketPage } from "#templates/public.tsx";
 import {
   describeWithEnv,
   setupTestEncryptionKey,
-  testEventWithCount,
+  testListingWithCount,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -91,11 +91,11 @@ describeWithEnv(
     });
 
     test("ticketPage hides booking form in read-only mode", () => {
-      const event = testEventWithCount({ attendee_count: 0 });
+      const listing = testListingWithCount({ attendee_count: 0 });
       const html = ticketPage({
         dates: [],
-        events: [buildTicketEvent(event, false, undefined)],
-        slugs: [event.slug],
+        listings: [buildTicketListing(listing, false, undefined)],
+        slugs: [listing.slug],
       });
       expect(html).toContain("Registration closed.");
       expect(html).not.toContain("Continue");

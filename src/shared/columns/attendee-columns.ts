@@ -35,17 +35,17 @@ const status = componentRenderedCol(
   (row, opts) => opts.renderStatus(row),
 );
 
-const event: AttendeeCol = {
+const listing: AttendeeCol = {
   cell: (row) =>
-    `<a href="/admin/event/${row.eventId}">${escapeHtml(row.eventName)}</a>`,
-  description: "Event name with link to the event detail page",
+    `<a href="/admin/listing/${row.listingId}">${escapeHtml(row.listingName)}</a>`,
+  description: "Listing name with link to the listing detail page",
   isHtml: true,
-  label: "Event",
+  label: "Listing",
 };
 
 const date: AttendeeCol = {
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
-  description: "Booking date for daily events",
+  description: "Booking date for daily listings",
   label: "Date",
   rawValue: (row) => row.attendee.date || "",
 };
@@ -192,7 +192,7 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
   answers,
   date,
   email,
-  event,
+  listing,
   name,
   phone,
   qty,
@@ -205,7 +205,7 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
 /** Default column order for the attendee table */
 export const ATTENDEE_DEFAULT_ORDER = [
   "status",
-  "event",
+  "listing",
   "date",
   "name",
   "email",

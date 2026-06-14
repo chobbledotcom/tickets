@@ -6,7 +6,7 @@ import type {
   BookingIntent,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import type { Attendee, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 
 export type { BookingIntent };
 
@@ -21,21 +21,21 @@ export type SessionValidation =
   | { ok: true; data: ValidatedSession }
   | { ok: false; response: Response };
 
-/** Validate event is eligible for post-payment registration */
-export type EventValidation =
-  | { ok: true; event: EventWithCount }
+/** Validate listing is eligible for post-payment registration */
+export type ListingValidation =
+  | { ok: true; listing: ListingWithCount }
   | { ok: false; error: string; status?: number };
 
-/** Validate event and compute expected price for post-payment attendee creation */
-export type EventPriceValidation =
-  | { ok: true; event: EventWithCount; expectedPrice: number }
+/** Validate listing and compute expected price for post-payment attendee creation */
+export type ListingPriceValidation =
+  | { ok: true; listing: ListingWithCount; expectedPrice: number }
   | { ok: false; error: string; status?: number };
 
 /** Successful payment result with created attendee details */
 type PaymentSuccess = {
   success: true;
   attendee: Pick<Attendee, "id">;
-  event: EventWithCount;
+  listing: ListingWithCount;
   ticketTokens: string[];
 };
 

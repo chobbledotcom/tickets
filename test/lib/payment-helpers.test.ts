@@ -12,7 +12,7 @@ import {
   hasRequiredSessionMetadata,
   PaymentUserError,
   safeAsync,
-  singleEventAnswerIds,
+  singleListingAnswerIds,
   toBookingItems,
   toCheckoutResult,
 } from "#shared/payment-helpers.ts";
@@ -25,13 +25,13 @@ import { describeWithEnv } from "#test-utils";
 
 describe("payment-helpers", () => {
   describe("metadata round-trip: build → validate → extract", () => {
-    test("single-event metadata survives full pipeline", () => {
+    test("single-listing metadata survives full pipeline", () => {
       const metadata = buildMetadata({
         address: "123 Main St",
         date: "2026-02-10",
         email: "alice@example.com",
-        eventAnswerIds: { "42": [10, 20] },
         items: [{ e: 42, p: 0, q: 3 }],
+        listingAnswerIds: { "42": [10, 20] },
         name: "Alice",
         phone: "+1234567890",
         special_instructions: "No nuts",
@@ -56,23 +56,23 @@ describe("payment-helpers", () => {
         address: "",
         date: null,
         email: "bob@example.com",
-        eventAnswerIds: { "1": [10], "2": [20, 21] },
         items: [
           {
-            eventId: 1,
+            listingId: 1,
             name: "E1",
             quantity: 2,
             slug: "evt-1",
             unitPrice: 1000,
           },
           {
-            eventId: 2,
+            listingId: 2,
             name: "E2",
             quantity: 1,
             slug: "evt-2",
             unitPrice: 500,
           },
         ],
+        listingAnswerIds: { "1": [10], "2": [20, 21] },
         name: "Bob",
         phone: "+9876543210",
         special_instructions: "",
@@ -139,15 +139,15 @@ describe("payment-helpers", () => {
       expect(extracted.answer_ids).toBe("");
     });
 
-    test("cart with no phone, empty eventAnswerIds omits optional fields", () => {
+    test("cart with no phone, empty listingAnswerIds omits optional fields", () => {
       const intent = {
         address: "",
         date: null,
         email: "eve@example.com",
-        eventAnswerIds: {},
         items: [
-          { eventId: 5, name: "E", quantity: 1, slug: "e", unitPrice: 100 },
+          { listingId: 5, name: "E", quantity: 1, slug: "e", unitPrice: 100 },
         ],
+        listingAnswerIds: {},
         name: "Eve",
         phone: "",
         special_instructions: "",
@@ -161,7 +161,7 @@ describe("payment-helpers", () => {
       expect("answer_ids" in metadata).toBe(false);
     });
 
-    test("single-event with date null omits date", () => {
+    test("single-listing with date null omits date", () => {
       const metadata = buildMetadata({
         date: null,
         email: "x@x.com",
@@ -177,7 +177,7 @@ describe("payment-helpers", () => {
         date: null,
         email: "x@x.com",
         items: [
-          { eventId: 1, name: "E", quantity: 1, slug: "e", unitPrice: 100 },
+          { listingId: 1, name: "E", quantity: 1, slug: "e", unitPrice: 100 },
         ],
         name: "X",
         phone: "",
@@ -190,12 +190,12 @@ describe("payment-helpers", () => {
       expect("date" in metadata).toBe(false);
     });
 
-    test("single-event with empty answerIds omits answer_ids", () => {
+    test("single-listing with empty answerIds omits answer_ids", () => {
       const metadata = buildMetadata({
         date: null,
         email: "x@x.com",
-        eventAnswerIds: {},
         items: [{ e: 1, p: 0, q: 1 }],
+        listingAnswerIds: {},
         name: "X",
       });
       expect("answer_ids" in metadata).toBe(false);
@@ -243,7 +243,7 @@ describe("payment-helpers", () => {
 
     test("toBookingItems produces compact items with total price", () => {
       const items = [
-        { eventId: 10, name: "B", quantity: 3, slug: "b", unitPrice: 700 },
+        { listingId: 10, name: "B", quantity: 3, slug: "b", unitPrice: 700 },
       ];
       const result = toBookingItems(items);
       expect(result).toEqual([{ e: 10, p: 2100, q: 3 }]);
@@ -253,14 +253,14 @@ describe("payment-helpers", () => {
       expect(toBookingItems([])).toEqual([]);
     });
 
-    test("singleEventAnswerIds wraps answerIds for one event", () => {
-      expect(singleEventAnswerIds(42, [10, 20])).toEqual({ "42": [10, 20] });
+    test("singleListingAnswerIds wraps answerIds for one listing", () => {
+      expect(singleListingAnswerIds(42, [10, 20])).toEqual({ "42": [10, 20] });
     });
 
-    test("singleEventAnswerIds returns undefined for empty or missing", () => {
-      expect(singleEventAnswerIds(1, [])).toBeUndefined();
-      expect(singleEventAnswerIds(1, undefined)).toBeUndefined();
-      expect(singleEventAnswerIds(1)).toBeUndefined();
+    test("singleListingAnswerIds returns undefined for empty or missing", () => {
+      expect(singleListingAnswerIds(1, [])).toBeUndefined();
+      expect(singleListingAnswerIds(1, undefined)).toBeUndefined();
+      expect(singleListingAnswerIds(1)).toBeUndefined();
     });
   });
 
@@ -289,7 +289,7 @@ describe("payment-helpers", () => {
       ).toBe(false);
     });
 
-    test("returns true for valid single-event (email optional)", () => {
+    test("returns true for valid single-listing (email optional)", () => {
       expect(hasRequiredSessionMetadata({ items: "[]", name: "Alice" })).toBe(
         true,
       );
@@ -298,7 +298,7 @@ describe("payment-helpers", () => {
       ).toBe(true);
     });
 
-    test("returns true for valid multi-event metadata", () => {
+    test("returns true for valid multi-listing metadata", () => {
       expect(
         hasRequiredSessionMetadata({
           email: "a@b.com",
@@ -452,7 +452,7 @@ describe("payment-helpers", () => {
         PaymentUserError,
       );
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
-        /too many events/i,
+        /too many listings/i,
       );
     });
 
@@ -512,7 +512,7 @@ describeWithEnv(
       email: "renew@example.com",
       items: [
         {
-          eventId: 1,
+          listingId: 1,
           name: "Tier",
           quantity: 1,
           slug: "t",

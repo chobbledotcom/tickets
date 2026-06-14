@@ -5,7 +5,6 @@ import {
   addMonthsIso,
   DAY_NAMES,
   daysAgo,
-  eventDateToCalendarDate,
   formatDateLabel,
   formatDateRangeLabel,
   formatDateRangeLabelCompactEn,
@@ -13,11 +12,12 @@ import {
   formatDatetimeShort,
   getAvailableDates,
   getNextBookableDate,
+  listingDateToCalendarDate,
   normalizeDatetime,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { describeWithEnv, testEvent, testWithSetting } from "#test-utils";
+import { describeWithEnv, testListing, testWithSetting } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -112,14 +112,14 @@ describeWithEnv("dates", { db: true }, () => {
 
   describe("getAvailableDates", () => {
     test("returns dates filtered by bookable days", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: ["Monday"],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 14,
         minimum_days_before: 0,
       });
 
-      const dates = getAvailableDates(event, []);
+      const dates = getAvailableDates(listing, []);
       expect(dates.length).toBeGreaterThan(0);
       // Every returned date should be a Monday
       for (const d of dates) {
@@ -128,10 +128,10 @@ describeWithEnv("dates", { db: true }, () => {
       }
     });
 
-    const dailyEventWithAllDays = () =>
-      testEvent({
+    const dailyListingWithAllDays = () =>
+      testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 7,
         minimum_days_before: 0,
       });
@@ -143,7 +143,7 @@ describeWithEnv("dates", { db: true }, () => {
     test("excludes holidays", () => {
       const holidayDate = addDays(today(), 1);
       const dates = getAvailableDates(
-        dailyEventWithAllDays(),
+        dailyListingWithAllDays(),
         makeHoliday("Holiday", holidayDate, holidayDate),
       );
       expect(dates).not.toContain(holidayDate);
@@ -153,7 +153,7 @@ describeWithEnv("dates", { db: true }, () => {
       const holidayStart = addDays(today(), 1);
       const holidayEnd = addDays(today(), 3);
       const dates = getAvailableDates(
-        dailyEventWithAllDays(),
+        dailyListingWithAllDays(),
         makeHoliday("Holiday Range", holidayStart, holidayEnd),
       );
       expect(dates).not.toContain(holidayStart);
@@ -162,41 +162,41 @@ describeWithEnv("dates", { db: true }, () => {
     });
 
     test("respects minimum_days_before", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 10,
         minimum_days_before: 3,
       });
 
-      const dates = getAvailableDates(event, []);
+      const dates = getAvailableDates(listing, []);
       const earliest = dates[0]!;
       expect(earliest >= addDays(today(), 3)).toBe(true);
     });
 
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 0,
         minimum_days_before: 0,
       });
 
-      const dates = getAvailableDates(event, []);
+      const dates = getAvailableDates(listing, []);
       const latest = dates[dates.length - 1]!;
       // Should extend close to 730 days (2 years)
       expect(latest >= addDays(today(), 700)).toBe(true);
     });
 
     test("respects maximum_days_after when non-zero", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 7,
         minimum_days_before: 0,
       });
 
-      const dates = getAvailableDates(event, []);
+      const dates = getAvailableDates(listing, []);
       const latest = dates[dates.length - 1]!;
       expect(latest <= addDays(today(), 7)).toBe(true);
     });
@@ -204,14 +204,14 @@ describeWithEnv("dates", { db: true }, () => {
     test("returns empty array when no bookable days match", () => {
       // Choose a day that doesn't appear in the 7-day range from today
       // by picking a bogus day name
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 7,
         minimum_days_before: 0,
       });
 
-      const dates = getAvailableDates(event, []);
+      const dates = getAvailableDates(listing, []);
       expect(dates).toEqual([]);
     });
 
@@ -225,14 +225,14 @@ describeWithEnv("dates", { db: true }, () => {
           start_date: holidayStart,
         },
       ];
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
         duration_days: 3,
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 14,
         minimum_days_before: 0,
       });
-      const dates = getAvailableDates(event, holidays);
+      const dates = getAvailableDates(listing, holidays);
       // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
       expect(dates).not.toContain(addDays(today(), 1));
       // day+3 start is the holiday itself → excluded
@@ -300,39 +300,39 @@ describeWithEnv("dates", { db: true }, () => {
 
   describe("getNextBookableDate", () => {
     test("returns the first available date", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 14,
         minimum_days_before: 0,
       });
 
-      const result = getNextBookableDate(event, []);
+      const result = getNextBookableDate(listing, []);
       expect(result).toBe(today());
     });
 
     test("returns null when no bookable days configured", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 7,
         minimum_days_before: 0,
       });
 
-      expect(getNextBookableDate(event, [])).toBeNull();
+      expect(getNextBookableDate(listing, [])).toBeNull();
     });
 
     test("skips start dates whose multi-day range extends past the window", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
         duration_days: 3,
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 4,
         minimum_days_before: 0,
       });
-      const result = getNextBookableDate(event, []);
+      const result = getNextBookableDate(listing, []);
       expect(result).toBe(today());
-      const dates = getAvailableDates(event, []);
+      const dates = getAvailableDates(listing, []);
       // A 3-day booking can only start on days 0, 1, or 2 — day 3 and 4
       // can't fit a 3-day range within the 4-day window.
       expect(dates.length).toBeLessThanOrEqual(3);
@@ -345,26 +345,26 @@ describeWithEnv("dates", { db: true }, () => {
         { end_date: todayStr, id: 1, name: "Holiday", start_date: todayStr },
       ];
 
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 7,
         minimum_days_before: 0,
       });
 
-      const result = getNextBookableDate(event, holidays);
+      const result = getNextBookableDate(listing, holidays);
       expect(result).toBe(addDays(todayStr, 1));
     });
 
     test("respects minimum_days_before", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 10,
         minimum_days_before: 3,
       });
 
-      const result = getNextBookableDate(event, []);
+      const result = getNextBookableDate(listing, []);
       expect(result).toBe(addDays(today(), 3));
     });
 
@@ -375,37 +375,37 @@ describeWithEnv("dates", { db: true }, () => {
         { end_date: end, id: 1, name: "Long Holiday", start_date: start },
       ];
 
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 3,
         minimum_days_before: 1,
       });
 
-      expect(getNextBookableDate(event, holidays)).toBeNull();
+      expect(getNextBookableDate(listing, holidays)).toBeNull();
     });
 
     test("uses 730 days when maximum_days_after is 0", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: [...VALID_DAY_NAMES],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 0,
         minimum_days_before: 0,
       });
 
-      const result = getNextBookableDate(event, []);
+      const result = getNextBookableDate(listing, []);
       expect(result).toBe(today());
     });
 
     test("returns first matching day when only specific days are bookable", () => {
-      const event = testEvent({
+      const listing = testListing({
         bookable_days: ["Monday"],
-        event_type: "daily",
+        listing_type: "daily",
         maximum_days_after: 14,
         minimum_days_before: 0,
       });
 
-      const result = getNextBookableDate(event, []);
+      const result = getNextBookableDate(listing, []);
       expect(result).not.toBeNull();
       const dayName = DAY_NAMES[new Date(`${result}T00:00:00Z`).getUTCDay()];
       expect(dayName).toBe("Monday");
@@ -446,9 +446,9 @@ describeWithEnv("dates", { db: true }, () => {
     );
   });
 
-  describe("eventDateToCalendarDate", () => {
+  describe("listingDateToCalendarDate", () => {
     test("converts UTC datetime to YYYY-MM-DD in UTC", () => {
-      expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBe(
+      expect(listingDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBe(
         "2026-06-15",
       );
     });
@@ -458,36 +458,38 @@ describeWithEnv("dates", { db: true }, () => {
       { timezone: "Europe/London" },
       () => {
         // 23:30 UTC on June 15 = 00:30 BST on June 16 (Europe/London in summer)
-        expect(eventDateToCalendarDate("2026-06-15T23:30:00.000Z")).toBe(
+        expect(listingDateToCalendarDate("2026-06-15T23:30:00.000Z")).toBe(
           "2026-06-16",
         );
       },
     );
 
     test("returns null for empty string", () => {
-      expect(eventDateToCalendarDate("")).toBeNull();
+      expect(listingDateToCalendarDate("")).toBeNull();
     });
 
     test("returns null for invalid datetime", () => {
-      expect(eventDateToCalendarDate("not-a-date")).toBeNull();
+      expect(listingDateToCalendarDate("not-a-date")).toBeNull();
     });
 
     testWithSetting(
       "returns null for invalid timezone",
       { timezone: "Invalid/Zone" },
       () => {
-        expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBeNull();
+        expect(
+          listingDateToCalendarDate("2026-06-15T14:00:00.000Z"),
+        ).toBeNull();
       },
     );
 
     test("handles midnight UTC", () => {
-      expect(eventDateToCalendarDate("2026-03-01T00:00:00.000Z")).toBe(
+      expect(listingDateToCalendarDate("2026-03-01T00:00:00.000Z")).toBe(
         "2026-03-01",
       );
     });
 
     test("pads single-digit month and day", () => {
-      expect(eventDateToCalendarDate("2026-01-05T12:00:00.000Z")).toBe(
+      expect(listingDateToCalendarDate("2026-01-05T12:00:00.000Z")).toBe(
         "2026-01-05",
       );
     });
@@ -525,7 +527,7 @@ describeWithEnv("dates", { db: true }, () => {
         // Asia/Tokyo is UTC+9, so 16:00 UTC = 01:00 next day in Tokyo
         const todayTokyo = todayInTz("Asia/Tokyo");
         const yesterdayTokyo = addDays(todayTokyo, -1);
-        // Event at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
+        // Listing at 16:00 UTC yesterday = 01:00 today in Tokyo → should be null (today)
         expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
       },
     );

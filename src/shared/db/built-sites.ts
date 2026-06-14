@@ -36,7 +36,7 @@ export interface SiteDataBlob {
 export interface BuiltSiteRow {
   assignable: number;
   assigned_attendee_id: number | null;
-  assigned_event_id: number | null;
+  assigned_listing_id: number | null;
   created: string;
   id: number;
   read_only_from: string;
@@ -49,7 +49,7 @@ export type BuiltSiteInput = {
   siteData: string;
   assignable?: number;
   assignedAttendeeId?: number | null;
-  assignedEventId?: number | null;
+  assignedListingId?: number | null;
   renewalTokenIndex?: string | null;
   readOnlyFrom?: string;
 };
@@ -58,7 +58,7 @@ export type BuiltSiteInput = {
 export interface BuiltSite {
   assignable: boolean;
   assignedAttendeeId: number | null;
-  assignedEventId: number | null;
+  assignedListingId: number | null;
   bunnyScriptId: string;
   bunnyUrl: string;
   created: string;
@@ -91,7 +91,7 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   schema: {
     assignable: assignableCol,
     assigned_attendee_id: nullCol,
-    assigned_event_id: nullCol,
+    assigned_listing_id: nullCol,
     created: createdCol,
     id: idCol,
     read_only_from: col.withDefault(() => ""),
@@ -150,7 +150,7 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
   return {
     assignable: Boolean(row.assignable),
     assignedAttendeeId: row.assigned_attendee_id ?? null,
-    assignedEventId: row.assigned_event_id ?? null,
+    assignedListingId: row.assigned_listing_id ?? null,
     bunnyScriptId: blob.s ?? "",
     bunnyUrl: blob.u,
     created: row.created,
@@ -250,7 +250,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   schema: {
     assignable: {} as ColumnDef<boolean>,
     assignedAttendeeId: {} as ColumnDef<number | null>,
-    assignedEventId: {} as ColumnDef<number | null>,
+    assignedListingId: {} as ColumnDef<number | null>,
     bunnyScriptId: {} as ColumnDef<string>,
     bunnyUrl: {} as ColumnDef<string>,
     created: createdCol,
@@ -336,17 +336,17 @@ const withBuiltSiteForUpdate = async <T>(
   return existing ? update(existing) : null;
 };
 
-/** Assign a built site to an attendee/event — sets assignable=0 and stores IDs */
+/** Assign a built site to an attendee/listing — sets assignable=0 and stores IDs */
 export const assignBuiltSite = (
   siteId: number,
   attendeeId: number,
-  eventId: number,
+  listingId: number,
 ): Promise<BuiltSite | null> => {
   return withBuiltSiteForUpdate(siteId, async () => {
     const row = (await builtSitesTable.update(siteId, {
       assignable: 0,
       assignedAttendeeId: attendeeId,
-      assignedEventId: eventId,
+      assignedListingId: listingId,
     })) as BuiltSiteRow;
     return rowToBuiltSite(row);
   });

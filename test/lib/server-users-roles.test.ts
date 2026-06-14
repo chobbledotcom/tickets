@@ -89,7 +89,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "mgr-dash-session",
         "dashmanager",
       );
-      await assertAdminHtmlWithCookie("/admin/", cookie, "Events");
+      await assertAdminHtmlWithCookie("/admin/", cookie, "Listings");
     });
   });
 

@@ -23,8 +23,8 @@ import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   addMonthsToRenewalDeadline,
-  getQualifyingTierEvents,
-  pickTierEvent,
+  getQualifyingTierListings,
+  pickTierListing,
   provisionSiteRenewal,
   renewalUrlFor,
   rotateRenewalToken,
@@ -232,18 +232,18 @@ const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
 
 /** POST /admin/built-sites/:id/provision-renewal
  *
- * Gates on the existence of at least one qualifying renewal tier event so an
+ * Gates on the existence of at least one qualifying renewal tier listing so an
  * admin doesn't generate a token that would dead-end at an empty /renew picker.
  * (The customer picks the actual tier at renew time.) */
 const handleProvisionRenewal = ownerPost(async (site, form, id) => {
   if (isProvisioned(site)) {
     return editError(id, "Renewal is already provisioned for this site");
   }
-  const tier = await pickTierEvent();
+  const tier = await pickTierListing();
   if (!tier) {
     return editError(
       id,
-      "Create a qualifying renewal tier event before provisioning",
+      "Create a qualifying renewal tier listing before provisioning",
     );
   }
   const months = readClampedMonths(form);
@@ -272,7 +272,7 @@ const handleBuiltSitesListGet = (request: Request) =>
     applyFlash(request);
     const [sites, tiers] = await Promise.all([
       getAllBuiltSites(),
-      getQualifyingTierEvents(),
+      getQualifyingTierListings(),
     ]);
     return htmlResponse(
       adminBuiltSitesPage(sites, session, getFlash().success, tiers),

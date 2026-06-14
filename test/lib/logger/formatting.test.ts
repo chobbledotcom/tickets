@@ -42,11 +42,11 @@ describe("formatErrorMessage", () => {
     );
   });
 
-  test("ignores eventId (metadata only for log routing)", () => {
+  test("ignores listingId (metadata only for log routing)", () => {
     const context: ErrorContext = {
       code: ErrorCode.PAYMENT_SESSION,
       detail: "price mismatch",
-      eventId: 42,
+      listingId: 42,
     };
     expect(formatErrorMessage(context)).toBe(
       "Error: Payment session error (price mismatch)",
@@ -64,8 +64,8 @@ describe("formatRequestError", () => {
 
   test("formats non-Error value as string", () => {
     expect(
-      formatRequestError("POST", "/admin/events/5", "connection reset"),
-    ).toBe("POST /admin/events/[id]: connection reset");
+      formatRequestError("POST", "/admin/listings/5", "connection reset"),
+    ).toBe("POST /admin/listings/[id]: connection reset");
   });
 
   test("redacts path in the output", () => {

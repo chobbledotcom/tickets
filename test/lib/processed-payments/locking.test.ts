@@ -12,7 +12,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import {
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 
@@ -31,10 +31,10 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
   let attendeeId: number;
 
   beforeEach(async () => {
-    const event = await createTestEvent();
+    const listing = await createTestListing();
     const attendee = await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "Test User",
       "test@example.com",
     );
@@ -210,10 +210,20 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
   describe("idempotency", () => {
     test("concurrent processing attempts only create one record", async () => {
-      const event = await createTestEvent();
+      const listing = await createTestListing();
       const [a2, a3] = await Promise.all([
-        createTestAttendee(event.id, event.slug, "User 2", "u2@example.com"),
-        createTestAttendee(event.id, event.slug, "User 3", "u3@example.com"),
+        createTestAttendee(
+          listing.id,
+          listing.slug,
+          "User 2",
+          "u2@example.com",
+        ),
+        createTestAttendee(
+          listing.id,
+          listing.slug,
+          "User 3",
+          "u3@example.com",
+        ),
       ]);
 
       const results = await Promise.all([

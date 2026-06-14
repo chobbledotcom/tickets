@@ -145,12 +145,12 @@ export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
  * // → { sql: "INSERT INTO users (name, admin_level) VALUES (?, ?)",
  * //     args: ["Alice", encLevel] }
  *
- * insert("event_attendees", {
- *   event_id: 1,
+ * insert("listing_attendees", {
+ *   listing_id: 1,
  *   attendee_id: rawSql("last_insert_rowid()"),
  *   quantity: 2,
  * })
- * // → { sql: "INSERT INTO event_attendees (...) VALUES (?, last_insert_rowid(), ?)",
+ * // → { sql: "INSERT INTO listing_attendees (...) VALUES (?, last_insert_rowid(), ?)",
  * //     args: [1, 2] }
  * ```
  */

@@ -45,7 +45,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("saves terms and conditions", async () => {
       const { response } = await adminFormPost("/admin/settings/terms", {
-        terms_and_conditions: "By registering you agree to our event policy.",
+        terms_and_conditions: "By registering you agree to our listing policy.",
       });
 
       expect(response.status).toBe(302);

@@ -12,14 +12,14 @@ import {
   deleteAttendee,
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   type AdminSession,
-  type EventWithCount,
-  isPaidEvent,
+  isPaidListing,
+  type ListingWithCount,
 } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
@@ -36,13 +36,13 @@ import {
   handleRefreshPayment,
 } from "./attendees-edit.ts";
 import {
-  handleAddEventLink,
-  handleUnlinkEvent,
-  handleUpdateEventLink,
+  handleAddListingLink,
+  handleUnlinkListing,
+  handleUpdateListingLink,
 } from "./attendees-links.ts";
 import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
 import {
-  type AttendeeWithEvent,
+  type AttendeeWithListing,
   attendeeFormAction,
   attendeeGetRoute,
   getReturnUrl,
@@ -51,7 +51,7 @@ import {
 
 /** Signature shared by all attendee GET page renderers */
 type AttendeePageRenderer = (
-  data: AttendeeWithEvent,
+  data: AttendeeWithListing,
   session: AdminSession,
   returnUrl?: string,
   error?: string,
@@ -66,38 +66,41 @@ const attendeePageRoute = (render: AttendeePageRenderer) =>
     );
   });
 
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
+/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeePageRoute(adminDeleteAttendeePage);
 
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
+/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = verifiedAttendeeForm(
   "delete",
   "deletion",
-  async (data, form, eventId, attendeeId) => {
+  async (data, form, listingId, attendeeId) => {
     await deleteAttendee(attendeeId);
-    await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-    return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, {
+    await logActivity(
+      `Attendee deleted from '${data.listing.name}'`,
+      listingId,
+    );
+    return redirect(`/admin/listing/${listingId}`, "Attendee deleted", true, {
       form,
     });
   },
 );
 
 /**
- * Handle POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete
+ * Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete
  * Deletes an attendee with an incomplete payment without requiring name confirmation.
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(
-  async (data, _session, _form, eventId, attendeeId) => {
-    const hasPaidEvent = isPaidEvent(data.event);
+  async (data, _session, _form, listingId, attendeeId) => {
+    const hasPaidListing = isPaidListing(data.listing);
     const isIncomplete =
-      hasPaidEvent &&
+      hasPaidListing &&
       !data.attendee.payment_id &&
       Number.parseInt(data.attendee.price_paid, 10) > 0;
 
     if (!isIncomplete) {
       return redirect(
-        `/admin/event/${eventId}`,
+        `/admin/listing/${listingId}`,
         "Attendee does not have an incomplete payment",
         false,
       );
@@ -105,29 +108,29 @@ const handleDeleteIncomplete = attendeeFormAction(
 
     await deleteAttendee(attendeeId);
     await logActivity(
-      `Incomplete attendee deleted from '${data.event.name}'`,
-      eventId,
+      `Incomplete attendee deleted from '${data.listing.name}'`,
+      listingId,
     );
     return redirect(
-      `/admin/event/${eventId}`,
+      `/admin/listing/${listingId}`,
       "Incomplete registration removed",
       true,
     );
   },
 );
 
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
+/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin */
 const handleAttendeeCheckin = attendeeFormAction(
-  async (data, _session, form, eventId, attendeeId) => {
+  async (data, _session, form, listingId, attendeeId) => {
     const wasCheckedIn = data.attendee.checked_in;
     const nowCheckedIn = !wasCheckedIn;
 
-    await updateCheckedIn(attendeeId, eventId, nowCheckedIn);
+    await updateCheckedIn(attendeeId, listingId, nowCheckedIn);
 
     const status = nowCheckedIn ? "in" : "out";
     await logActivity(
-      `Attendee checked ${status} for '${data.event.name}'`,
-      eventId,
+      `Attendee checked ${status} for '${data.listing.name}'`,
+      listingId,
     );
 
     const returnUrl = form.getString("return_url");
@@ -144,7 +147,7 @@ const handleAttendeeCheckin = attendeeFormAction(
     const suffix =
       filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
     return redirectResponse(
-      `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
+      `/admin/listing/${listingId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
     );
   },
 );
@@ -152,18 +155,18 @@ const handleAttendeeCheckin = attendeeFormAction(
 /** Build create-attendee input from validated form values */
 const buildCreateAttendeeInput = (
   values: AddAttendeeFormValues,
-  event: { id: number; event_type: string; duration_days: number },
+  listing: { id: number; listing_type: string; duration_days: number },
 ) => {
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
-  const isDaily = event.event_type === "daily";
+  const isDaily = listing.listing_type === "daily";
   return {
     address: address || "",
     bookings: [
       {
         date: isDaily ? date : null,
-        durationDays: isDaily ? event.duration_days : undefined,
-        eventId: event.id,
+        durationDays: isDaily ? listing.duration_days : undefined,
+        listingId: listing.id,
         quantity,
       },
     ],
@@ -177,52 +180,55 @@ const buildCreateAttendeeInput = (
 /** Convert a failed createAttendeeAtomic result into a redirect response */
 const handleCreateAttendeeFailure = (
   result: { success: false; reason: string },
-  eventId: number,
+  listingId: number,
 ): Response => {
   if (result.reason === "encryption_error") {
     logError({
       code: ErrorCode.ENCRYPT_FAILED,
       detail: "manual add attendee",
-      eventId,
+      listingId,
     });
   }
   const errorMsg =
     result.reason === "capacity_exceeded"
       ? "Not enough spots available"
       : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-  return redirect(`/admin/event/${eventId}`, errorMsg, false);
+  return redirect(`/admin/listing/${listingId}`, errorMsg, false);
 };
 
-/** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
-const handleAddAttendee: TypedRouteHandler<"POST /admin/event/:eventId/attendee"> =
+/** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
+const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/attendee"> =
   createAuthedFormRoute<
     AddAttendeeFormValues,
-    { eventId: number },
-    EventWithCount
+    { listingId: number },
+    ListingWithCount
   >({
-    form: (event) => ({
+    form: (listing) => ({
       validate: (form) =>
         validateForm<AddAttendeeFormValues>(
           form,
-          getAddAttendeeFields(event.fields, event.event_type === "daily"),
+          getAddAttendeeFields(
+            listing.fields,
+            listing.listing_type === "daily",
+          ),
         ),
     }),
-    loadContext: ({ eventId }) => getEventWithCount(eventId),
+    loadContext: ({ listingId }) => getListingWithCount(listingId),
     onInvalid: ({ error, params }) =>
-      redirect(`/admin/event/${params.eventId}`, error, false),
-    onValid: async ({ context: event, params, values }) => {
+      redirect(`/admin/listing/${params.listingId}`, error, false),
+    onValid: async ({ context: listing, params, values }) => {
       const createResult = await createAttendeeAtomic(
-        buildCreateAttendeeInput(values, event),
+        buildCreateAttendeeInput(values, listing),
       );
       if (!createResult.success) {
-        return handleCreateAttendeeFailure(createResult, params.eventId);
+        return handleCreateAttendeeFailure(createResult, params.listingId);
       }
       await logActivity(
         `Attendee '${values.name}' added manually`,
-        params.eventId,
+        params.listingId,
       );
       return redirect(
-        `/admin/event/${params.eventId}`,
+        `/admin/listing/${params.listingId}`,
         `Added ${values.name}`,
         true,
       );
@@ -230,60 +236,66 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/event/:eventId/attendee"
     preprocessForm: (form) => applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS),
   });
 
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
+/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification */
 const handleAdminResendNotificationGet = attendeePageRoute(
   adminResendNotificationPage,
 );
 
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
+/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification */
 const handleResendNotification = verifiedAttendeeForm(
   "resend-notification",
   undefined,
-  async (data, form, eventId, _attendeeId) => {
+  async (data, form, listingId, _attendeeId) => {
     await Promise.all([
       logAndNotifyRegistration([
-        { attendee: data.attendee, event: data.event },
+        { attendee: data.attendee, listing: data.listing },
       ]),
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
-        eventId,
+        listingId,
       ),
     ]);
-    return redirect(`/admin/event/${eventId}`, "Notification re-sent", true, {
-      form,
-    });
+    return redirect(
+      `/admin/listing/${listingId}`,
+      "Notification re-sent",
+      true,
+      {
+        form,
+      },
+    );
   },
 );
 
 /**
  * Attendee routes
- * Event-link management: attendees-links.ts
+ * Listing-link management: attendees-links.ts
  * Edit page + refresh payment: attendees-edit.ts
  * Merge: attendees-merge.ts
  * Refunds: attendee-refunds.ts
  */
 export const attendeesRoutes = defineRoutes({
-  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
+  "DELETE /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
   "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
-  "GET /admin/event/:eventId/attendee/:attendeeId/delete":
+  "GET /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAdminAttendeeDeleteGet,
-  "GET /admin/event/:eventId/attendee/:attendeeId/resend-notification":
+  "GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
     handleAdminResendNotificationGet,
   "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
-  "POST /admin/attendees/:attendeeId/event/:eventId": handleUpdateEventLink,
-  "POST /admin/attendees/:attendeeId/link": handleAddEventLink,
+  "POST /admin/attendees/:attendeeId/link": handleAddListingLink,
+  "POST /admin/attendees/:attendeeId/listing/:listingId":
+    handleUpdateListingLink,
   "POST /admin/attendees/:attendeeId/merge": handleMergePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
-  "POST /admin/attendees/:attendeeId/unlink/:eventId": handleUnlinkEvent,
-  "POST /admin/event/:eventId/attendee": handleAddAttendee,
-  "POST /admin/event/:eventId/attendee/:attendeeId/checkin":
+  "POST /admin/attendees/:attendeeId/unlink/:listingId": handleUnlinkListing,
+  "POST /admin/listing/:listingId/attendee": handleAddAttendee,
+  "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":
     handleAttendeeCheckin,
-  "POST /admin/event/:eventId/attendee/:attendeeId/delete":
+  "POST /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
-  "POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete":
+  "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
     handleDeleteIncomplete,
-  "POST /admin/event/:eventId/attendee/:attendeeId/resend-notification":
+  "POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
     handleResendNotification,
 });

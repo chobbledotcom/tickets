@@ -21,7 +21,7 @@
  *
  * The row also records the SumUp-side checkout id (set right after creation).
  * It is not sensitive — an attacker with the SumUp API key can list checkout
- * ids anyway — and it lets the webhook handler reject events for checkouts we
+ * ids anyway — and it lets the webhook handler reject listings for checkouts we
  * never created without spending an outbound API call.
  *
  * Rows are short-lived: pruned after PRUNE_SUMUP_RETENTION_HOURS (see

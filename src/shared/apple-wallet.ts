@@ -2,7 +2,7 @@
  * Apple Wallet (.pkpass) generation
  *
  * Generates signed .pkpass files (ZIP archives) containing:
- * - pass.json: Declarative pass content (event name, date, QR code, etc.)
+ * - pass.json: Declarative pass content (listing name, date, QR code, etc.)
  * - icon.png / icon@2x.png / icon@3x.png: Pre-rendered pass icons
  * - manifest.json: SHA-1 hashes of all files
  * - signature: PKCS#7 detached signature of manifest.json
@@ -20,7 +20,7 @@ import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 // load native crypto — causing "Dynamic require of 'crypto' is not supported".
 forge.options.usePureJavaScript = true;
 
-/** Data needed to generate a pass — maps to existing ticket/event data */
+/** Data needed to generate a pass — maps to existing ticket/listing data */
 export type PassData = {
   /** Unique token identifying this ticket */
   serialNumber: string;
@@ -28,13 +28,13 @@ export type PassData = {
   organizationName: string;
   /** VoiceOver accessibility description for the pass */
   description: string;
-  /** Event name displayed in the primary field */
-  eventName: string;
+  /** Listing name displayed in the primary field */
+  listingName: string;
   /** ISO 8601 date used for relevantDate and secondary field */
-  eventDate: string;
+  listingDate: string;
   /** Venue shown in secondary field */
-  eventLocation: string;
-  /** Selected date for daily/recurring events (null for one-off events) */
+  listingLocation: string;
+  /** Selected date for daily/recurring listings (null for one-off listings) */
   attendeeDate: string | null;
   /** Ticket quantity and price (in minor units, e.g. pence) */
   quantity: number;
@@ -89,10 +89,10 @@ export const generatePassJson = (
       },
     ],
     description: data.description,
-    eventTicket: buildEventTicketFields(data),
     foregroundColor: data.foregroundColor ?? "rgb(0, 0, 0)",
     formatVersion: 1,
     labelColor: data.labelColor ?? "rgb(100, 100, 100)",
+    listingTicket: buildListingTicketFields(data),
     organizationName: data.organizationName,
     passTypeIdentifier: creds.passTypeId,
     serialNumber: data.serialNumber,
@@ -100,8 +100,8 @@ export const generatePassJson = (
     webServiceURL: data.webServiceURL,
   };
 
-  if (data.eventDate) {
-    pass.relevantDate = data.eventDate;
+  if (data.listingDate) {
+    pass.relevantDate = data.listingDate;
   }
 
   return pass;
@@ -117,38 +117,40 @@ type PassField = {
   currencyCode?: string;
 };
 
-/** eventTicket field groups with typed arrays */
-type EventTicketFields = {
+/** listingTicket field groups with typed arrays */
+type ListingTicketFields = {
   primaryFields: PassField[];
   secondaryFields: PassField[];
   auxiliaryFields: PassField[];
   backFields: PassField[];
 };
 
-/** Build the eventTicket field groups */
-const buildEventTicketFields = (data: PassData): EventTicketFields => {
-  const fields: EventTicketFields = {
+/** Build the listingTicket field groups */
+const buildListingTicketFields = (data: PassData): ListingTicketFields => {
+  const fields: ListingTicketFields = {
     auxiliaryFields: [],
     backFields: [],
-    primaryFields: [{ key: "event", label: "EVENT", value: data.eventName }],
+    primaryFields: [
+      { key: "listing", label: "LISTING", value: data.listingName },
+    ],
     secondaryFields: [],
   };
 
-  if (data.eventDate) {
+  if (data.listingDate) {
     fields.secondaryFields.push({
       dateStyle: "PKDateStyleMedium",
       key: "date",
       label: "DATE",
       timeStyle: "PKDateStyleShort",
-      value: data.eventDate,
+      value: data.listingDate,
     });
   }
 
-  if (data.eventLocation) {
+  if (data.listingLocation) {
     fields.secondaryFields.push({
       key: "location",
       label: "LOCATION",
-      value: data.eventLocation,
+      value: data.listingLocation,
     });
   }
 

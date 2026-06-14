@@ -21,13 +21,13 @@ import {
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
-import { getEventWithAttendeesRaw } from "#shared/db/events.ts";
+import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import {
   getAttendeeAnswersBatch,
-  getQuestionsWithEventIds,
+  getQuestionsWithListingIds,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Attendee, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
@@ -55,43 +55,43 @@ export const requirePrivateKey = async (
   return key;
 };
 
-/** Handler that receives a decrypted event with its attendees */
-export type EventAttendeesHandler = (
-  event: EventWithCount,
+/** Handler that receives a decrypted listing with its attendees */
+export type ListingAttendeesHandler = (
+  listing: ListingWithCount,
   attendees: Attendee[],
   session: AuthSession,
 ) => Response | Promise<Response>;
 
 /**
- * Load event with decrypted attendees, returning 404 if not found.
+ * Load listing with decrypted attendees, returning 404 if not found.
  */
 export const withDecryptedAttendees = async (
   session: AuthSession,
-  eventId: number,
-  handler: EventAttendeesHandler,
+  listingId: number,
+  handler: ListingAttendeesHandler,
 ): Promise<Response> => {
   const pk = await requirePrivateKey(session);
-  const result = await getEventWithAttendeesRaw(eventId);
+  const result = await getListingWithAttendeesRaw(listingId);
   if (!result) return notFoundResponse();
   const attendees = await decryptAttendees(result.attendeesRaw, pk);
-  return handler(result.event, attendees, session);
+  return handler(result.listing, attendees, session);
 };
 
-/** Require auth then load event with decrypted attendees */
-export const withEventAttendeesAuth = (
+/** Require auth then load listing with decrypted attendees */
+export const withListingAttendeesAuth = (
   request: Request,
-  eventId: number,
-  handler: EventAttendeesHandler,
+  listingId: number,
+  handler: ListingAttendeesHandler,
 ): Promise<Response> =>
   requireSessionOr(request, (session) =>
-    withDecryptedAttendees(session, eventId, handler),
+    withDecryptedAttendees(session, listingId, handler),
   );
 
-/** Curried: require auth then load event with decrypted attendees */
-export const eventAttendeesLoader =
-  (request: Request, eventId: number) =>
-  (handler: EventAttendeesHandler): Promise<Response> =>
-    withEventAttendeesAuth(request, eventId, handler);
+/** Curried: require auth then load listing with decrypted attendees */
+export const listingAttendeesLoader =
+  (request: Request, listingId: number) =>
+  (handler: ListingAttendeesHandler): Promise<Response> =>
+    withListingAttendeesAuth(request, listingId, handler);
 
 /** Error mapping: convert an Error into a redirect response */
 export type ErrorMapper = (error: Error) => Response;
@@ -104,8 +104,8 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   bodyMode?: "form" | "multipart";
   /** Executor: receives session and parsed form, returns nothing on success */
   execute: (session: TSession, form: FormParams) => Promise<void>;
-  /** Optional event/resource id for activity logging context */
-  eventId?: number | ((form: FormParams) => number | undefined);
+  /** Optional listing/resource id for activity logging context */
+  listingId?: number | ((form: FormParams) => number | undefined);
   /** Message used for both flash and activity log */
   message:
     | string
@@ -136,11 +136,11 @@ export const createActionHandler = <TSession = AuthSession>(
         ? OWNER_FORM
         : AUTH_FORM;
 
-  const resolveEventId = (form: FormParams): number | undefined => {
-    if (config.eventId === undefined) return undefined;
-    return typeof config.eventId === "function"
-      ? config.eventId(form)
-      : config.eventId;
+  const resolveListingId = (form: FormParams): number | undefined => {
+    if (config.listingId === undefined) return undefined;
+    return typeof config.listingId === "function"
+      ? config.listingId(form)
+      : config.listingId;
   };
 
   const resolveString = async (
@@ -195,7 +195,7 @@ export const createActionHandler = <TSession = AuthSession>(
         form,
       );
       const logMsg = secret ? msg.replaceAll(secret, "***") : msg;
-      await logActivity(logMsg, resolveEventId(form));
+      await logActivity(logMsg, resolveListingId(form));
 
       const redirectUrl = await resolveString(
         config.successRedirect,
@@ -206,14 +206,14 @@ export const createActionHandler = <TSession = AuthSession>(
     });
 };
 
-/** Load question data for attendees across multiple events */
+/** Load question data for attendees across multiple listings */
 export const loadQuestionData = async (
-  eventIds: number[],
+  listingIds: number[],
   attendeeIds: number[],
 ): Promise<TableQuestionData | undefined> => {
-  if (attendeeIds.length === 0 || eventIds.length === 0) return undefined;
+  if (attendeeIds.length === 0 || listingIds.length === 0) return undefined;
   const [{ questions }, attendeeAnswerMap] = await Promise.all([
-    getQuestionsWithEventIds(eventIds),
+    getQuestionsWithListingIds(listingIds),
     getAttendeeAnswersBatch(attendeeIds),
   ]);
   return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;

@@ -2,14 +2,14 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  activeEventStatsSection,
+  activeListingStatsSection,
   adminDashboardPage,
 } from "#templates/admin/dashboard.tsx";
 import {
   describeWithEnv,
   setupTestEncryptionKey,
   testAttendee,
-  testEventWithCount,
+  testListingWithCount,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -20,31 +20,31 @@ beforeAll(async () => {
 });
 
 describe("adminDashboardPage", () => {
-  test("renders empty state when no events", () => {
+  test("renders empty state when no listings", () => {
     const html = adminDashboardPage([], TEST_SESSION);
-    expect(html).toContain("Events");
-    expect(html).toContain("No events yet");
+    expect(html).toContain("Listings");
+    expect(html).toContain("No listings yet");
   });
 
-  test("renders events table", () => {
-    const events = [testEventWithCount({ attendee_count: 25 })];
-    const html = adminDashboardPage(events, TEST_SESSION);
-    expect(html).toContain("Test Event");
+  test("renders listings table", () => {
+    const listings = [testListingWithCount({ attendee_count: 25 })];
+    const html = adminDashboardPage(listings, TEST_SESSION);
+    expect(html).toContain("Test Listing");
     expect(html).toContain("25 / 100");
-    expect(html).toContain("/admin/event/1");
+    expect(html).toContain("/admin/listing/1");
   });
 
-  test("displays event name", () => {
-    const events = [testEventWithCount({ name: "My Test Event" })];
-    const html = adminDashboardPage(events, TEST_SESSION);
-    expect(html).toContain("My Test Event");
-    expect(html).toContain("Event Name");
+  test("displays listing name", () => {
+    const listings = [testListingWithCount({ name: "My Test Listing" })];
+    const html = adminDashboardPage(listings, TEST_SESSION);
+    expect(html).toContain("My Test Listing");
+    expect(html).toContain("Listing Name");
   });
 
-  test("renders add event link", () => {
+  test("renders add listing link", () => {
     const html = adminDashboardPage([], TEST_SESSION);
-    expect(html).toContain('href="/admin/event/new"');
-    expect(html).toContain("Add Event");
+    expect(html).toContain('href="/admin/listing/new"');
+    expect(html).toContain("Add Listing");
   });
 
   test("includes logout link", () => {
@@ -53,12 +53,17 @@ describe("adminDashboardPage", () => {
   });
 
   test("renders newest attendees in an open details element", () => {
-    const events = [testEventWithCount({ id: 1, name: "Gala Night" })];
+    const listings = [testListingWithCount({ id: 1, name: "Gala Night" })];
     const attendees = [
-      testAttendee({ event_id: 1, id: 1, name: "Alice" }),
-      testAttendee({ event_id: 1, id: 2, name: "Bob" }),
+      testAttendee({ id: 1, listing_id: 1, name: "Alice" }),
+      testAttendee({ id: 2, listing_id: 1, name: "Bob" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
     expect(html).toContain("<details open");
     expect(html).toContain("Newest 2 Attendees");
   });
@@ -70,45 +75,67 @@ describe("adminDashboardPage", () => {
   });
 
   test("newest attendees shows singular for single attendee", () => {
-    const events = [testEventWithCount({ id: 1 })];
-    const attendees = [testAttendee({ event_id: 1, id: 1 })];
-    const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
+    const listings = [testListingWithCount({ id: 1 })];
+    const attendees = [testAttendee({ id: 1, listing_id: 1 })];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
     expect(html).toContain("Newest 1 Attendee</summary>");
   });
 
-  test("newest attendees shows event column", () => {
-    const events = [testEventWithCount({ id: 1, name: "Workshop" })];
-    const attendees = [testAttendee({ event_id: 1, id: 1 })];
-    const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
-    expect(html).toContain("<th>Event</th>");
+  test("newest attendees shows listing column", () => {
+    const listings = [testListingWithCount({ id: 1, name: "Workshop" })];
+    const attendees = [testAttendee({ id: 1, listing_id: 1 })];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
+    expect(html).toContain("<th>Listing</th>");
     expect(html).toContain("Workshop");
   });
 
-  test("newest attendees not shown when all attendees have unknown event_id", () => {
-    const events = [testEventWithCount({ id: 1 })];
-    const attendees = [testAttendee({ event_id: 999, id: 1 })];
-    const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
+  test("newest attendees not shown when all attendees have unknown listing_id", () => {
+    const listings = [testListingWithCount({ id: 1 })];
+    const attendees = [testAttendee({ id: 1, listing_id: 999 })];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
     expect(html).not.toContain("Newest");
     expect(html).not.toContain("<details open");
   });
 
-  test("newest attendees skips attendees with unknown event_id", () => {
-    const events = [testEventWithCount({ id: 1, name: "Known Event" })];
+  test("newest attendees skips attendees with unknown listing_id", () => {
+    const listings = [testListingWithCount({ id: 1, name: "Known Listing" })];
     const attendees = [
-      testAttendee({ event_id: 1, id: 1, name: "Valid" }),
-      testAttendee({ event_id: 999, id: 2, name: "Orphan" }),
+      testAttendee({ id: 1, listing_id: 1, name: "Valid" }),
+      testAttendee({ id: 2, listing_id: 999, name: "Orphan" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION, undefined, attendees);
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      attendees,
+    );
     expect(html).toContain("Valid");
     expect(html).not.toContain("Orphan");
     expect(html).toContain("Newest 1 Attendee</summary>");
   });
 });
 
-describe("adminDashboardPage inactive events", () => {
-  test("renders inactive event with reduced opacity", () => {
-    const events = [testEventWithCount({ active: false, attendee_count: 5 })];
-    const html = adminDashboardPage(events, TEST_SESSION);
+describe("adminDashboardPage inactive listings", () => {
+  test("renders inactive listing with reduced opacity", () => {
+    const listings = [
+      testListingWithCount({ active: false, attendee_count: 5 }),
+    ];
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain("inactive-row");
     expect(html).toContain("Inactive");
   });
@@ -116,9 +143,11 @@ describe("adminDashboardPage inactive events", () => {
 
 describe("adminDashboardPage with column template filters", () => {
   test("applies date filter to created column", () => {
-    const events = [testEventWithCount({ created: "2026-04-10T14:00:00Z" })];
+    const listings = [
+      testListingWithCount({ created: "2026-04-10T14:00:00Z" }),
+    ];
     const html = adminDashboardPage(
-      events,
+      listings,
       TEST_SESSION,
       undefined,
       [],
@@ -130,9 +159,11 @@ describe("adminDashboardPage with column template filters", () => {
   });
 
   test("renders default cell format when no filter applied", () => {
-    const events = [testEventWithCount({ created: "2026-04-10T14:00:00Z" })];
+    const listings = [
+      testListingWithCount({ created: "2026-04-10T14:00:00Z" }),
+    ];
     const html = adminDashboardPage(
-      events,
+      listings,
       TEST_SESSION,
       undefined,
       [],
@@ -146,14 +177,14 @@ describe("adminDashboardPage with column template filters", () => {
   });
 });
 
-describe("activeEventStatsSection", () => {
+describe("activeListingStatsSection", () => {
   test("renders income, tickets, and attendees", () => {
-    const html = activeEventStatsSection({
+    const html = activeListingStatsSection({
       attendees: 52,
       income: 5000,
       tickets: 30,
     });
-    expect(html).toContain("Active Event Statistics");
+    expect(html).toContain("Active Listing Statistics");
     expect(html).toContain("<strong>Income:</strong>");
     expect(html).toContain("<strong>Tickets:</strong>");
     expect(html).toContain("<strong>Attendees:</strong>");
@@ -162,7 +193,7 @@ describe("activeEventStatsSection", () => {
   });
 
   test("renders zero values", () => {
-    const html = activeEventStatsSection({
+    const html = activeListingStatsSection({
       attendees: 0,
       income: 0,
       tickets: 0,
@@ -172,7 +203,7 @@ describe("activeEventStatsSection", () => {
   });
 
   test("renders as closed details element", () => {
-    const html = activeEventStatsSection({
+    const html = activeListingStatsSection({
       attendees: 0,
       income: 0,
       tickets: 0,
@@ -182,7 +213,7 @@ describe("activeEventStatsSection", () => {
   });
 });
 
-describe("adminDashboardPage active event statistics", () => {
+describe("adminDashboardPage active listing statistics", () => {
   test("shows stats section when stats provided", () => {
     const html = adminDashboardPage(
       [],
@@ -196,7 +227,7 @@ describe("adminDashboardPage active event statistics", () => {
         tickets: 5,
       },
     );
-    expect(html).toContain("Active Event Statistics");
+    expect(html).toContain("Active Listing Statistics");
   });
 
   test("does not show stats section when stats is null", () => {
@@ -208,90 +239,90 @@ describe("adminDashboardPage active event statistics", () => {
       undefined,
       null,
     );
-    expect(html).not.toContain("Active Event Statistics");
+    expect(html).not.toContain("Active Listing Statistics");
   });
 
   test("does not show stats section when stats not provided", () => {
     const html = adminDashboardPage([], TEST_SESSION);
-    expect(html).not.toContain("Active Event Statistics");
+    expect(html).not.toContain("Active Listing Statistics");
   });
 });
 
 describe("adminDashboardPage multi-booking link", () => {
-  test("does not show multi-booking section with zero events", () => {
+  test("does not show multi-booking section with zero listings", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).not.toContain("Multi-booking link");
   });
 
-  test("does not show multi-booking section with one active event", () => {
-    const events = [testEventWithCount({ id: 1, slug: "ab12c" })];
-    const html = adminDashboardPage(events, TEST_SESSION);
+  test("does not show multi-booking section with one active listing", () => {
+    const listings = [testListingWithCount({ id: 1, slug: "ab12c" })];
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).not.toContain("Multi-booking link");
   });
 
-  test("shows multi-booking section with two active events", () => {
-    const events = [
-      testEventWithCount({ id: 1, name: "Event A", slug: "ab12c" }),
-      testEventWithCount({ id: 2, name: "Event B", slug: "cd34e" }),
+  test("shows multi-booking section with two active listings", () => {
+    const listings = [
+      testListingWithCount({ id: 1, name: "Listing A", slug: "ab12c" }),
+      testListingWithCount({ id: 2, name: "Listing B", slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain("Multi-booking link");
-    expect(html).toContain("Event A");
-    expect(html).toContain("Event B");
+    expect(html).toContain("Listing A");
+    expect(html).toContain("Listing B");
   });
 
-  test("does not count inactive events toward threshold", () => {
-    const events = [
-      testEventWithCount({ active: true, id: 1, slug: "ab12c" }),
-      testEventWithCount({ active: false, id: 2, slug: "cd34e" }),
+  test("does not count inactive listings toward threshold", () => {
+    const listings = [
+      testListingWithCount({ active: true, id: 1, slug: "ab12c" }),
+      testListingWithCount({ active: false, id: 2, slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).not.toContain("Multi-booking link");
   });
 
-  test("excludes inactive events from checkboxes", () => {
-    const events = [
-      testEventWithCount({
+  test("excludes inactive listings from checkboxes", () => {
+    const listings = [
+      testListingWithCount({
         active: true,
         id: 1,
         name: "Active One",
         slug: "ab12c",
       }),
-      testEventWithCount({
+      testListingWithCount({
         active: false,
         id: 2,
         name: "Inactive",
         slug: "cd34e",
       }),
-      testEventWithCount({
+      testListingWithCount({
         active: true,
         id: 3,
         name: "Active Two",
         slug: "ef56g",
       }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain("Active One");
     expect(html).toContain("Active Two");
     expect(html).not.toContain('data-multi-booking-slug="cd34e"');
   });
 
   test("renders checkboxes with slug data attributes", () => {
-    const events = [
-      testEventWithCount({ id: 1, slug: "ab12c" }),
-      testEventWithCount({ id: 2, slug: "cd34e" }),
+    const listings = [
+      testListingWithCount({ id: 1, slug: "ab12c" }),
+      testListingWithCount({ id: 2, slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain('data-multi-booking-slug="ab12c"');
     expect(html).toContain('data-multi-booking-slug="cd34e"');
   });
 
   test("renders URL input with domain data attribute", () => {
-    const events = [
-      testEventWithCount({ id: 1, slug: "ab12c" }),
-      testEventWithCount({ id: 2, slug: "cd34e" }),
+    const listings = [
+      testListingWithCount({ id: 1, slug: "ab12c" }),
+      testListingWithCount({ id: 2, slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain('data-domain="localhost"');
     expect(html).toContain("data-multi-booking-url");
     expect(html).toContain("readonly");
@@ -300,21 +331,21 @@ describe("adminDashboardPage multi-booking link", () => {
   });
 
   test("is collapsed by default via details element", () => {
-    const events = [
-      testEventWithCount({ id: 1, slug: "ab12c" }),
-      testEventWithCount({ id: 2, slug: "cd34e" }),
+    const listings = [
+      testListingWithCount({ id: 1, slug: "ab12c" }),
+      testListingWithCount({ id: 2, slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain("<details>");
     expect(html).toContain("<summary>");
   });
 
   test("renders embed code inputs", () => {
-    const events = [
-      testEventWithCount({ fields: "email", id: 1, slug: "ab12c" }),
-      testEventWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
+    const listings = [
+      testListingWithCount({ fields: "email", id: 1, slug: "ab12c" }),
+      testListingWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain("data-multi-booking-embed-script");
     expect(html).toContain("data-multi-booking-embed-iframe");
     expect(html).toContain('for="multi-booking-embed-script"');
@@ -324,31 +355,31 @@ describe("adminDashboardPage multi-booking link", () => {
   });
 
   test("checkboxes include data-fields attribute for embed code generation", () => {
-    const events = [
-      testEventWithCount({ fields: "email", id: 1, slug: "ab12c" }),
-      testEventWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
+    const listings = [
+      testListingWithCount({ fields: "email", id: 1, slug: "ab12c" }),
+      testListingWithCount({ fields: "email,phone", id: 2, slug: "cd34e" }),
     ];
-    const html = adminDashboardPage(events, TEST_SESSION);
+    const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain('data-fields="email"');
     expect(html).toContain('data-fields="email,phone"');
   });
 });
 
 describeWithEnv(
-  "event images",
+  "listing images",
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
     describe("adminDashboardPage with images", () => {
-      test("shows thumbnail when event has image_url", () => {
-        const events = [testEventWithCount({ image_url: "thumb.jpg" })];
-        const html = adminDashboardPage(events, TEST_SESSION);
+      test("shows thumbnail when listing has image_url", () => {
+        const listings = [testListingWithCount({ image_url: "thumb.jpg" })];
+        const html = adminDashboardPage(listings, TEST_SESSION);
         expect(html).toContain("/image/thumb.jpg");
-        expect(html).toContain('class="event-thumbnail"');
+        expect(html).toContain('class="listing-thumbnail"');
       });
 
-      test("does not show thumbnail when event has no image_url", () => {
-        const events = [testEventWithCount({ image_url: "" })];
-        const html = adminDashboardPage(events, TEST_SESSION);
+      test("does not show thumbnail when listing has no image_url", () => {
+        const listings = [testListingWithCount({ image_url: "" })];
+        const html = adminDashboardPage(listings, TEST_SESSION);
         expect(html).not.toContain('src="/image/');
       });
     });

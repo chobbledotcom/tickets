@@ -1,17 +1,17 @@
 /// <reference lib="dom" />
 /** Question visibility: show custom questions only when at least one
- * associated event has quantity > 0. Questions without data-event-ids are
- * always visible (single-event pages). */
+ * associated listing has quantity > 0. Questions without data-listing-ids are
+ * always visible (single-listing pages). */
 export const initQuestionVisibility = (): void => {
   const questionFields = document.querySelectorAll<HTMLFieldSetElement>(
-    "fieldset.custom-question[data-event-ids]",
+    "fieldset.custom-question[data-listing-ids]",
   );
   if (questionFields.length === 0) return;
 
   const updateVisibility = () => {
     for (const fieldset of questionFields) {
-      const eventIds = (fieldset.dataset.eventIds ?? "").split(" ");
-      const hasSelected = eventIds.some((id) => {
+      const listingIds = (fieldset.dataset.listingIds ?? "").split(" ");
+      const hasSelected = listingIds.some((id) => {
         const qty = document.querySelector<
           HTMLSelectElement | HTMLInputElement
         >(`[name="quantity_${id}"]`);

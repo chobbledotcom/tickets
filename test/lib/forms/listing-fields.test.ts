@@ -3,76 +3,76 @@ import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
-  eventFields,
   groupCreateFields,
   holidayFields,
+  listingFields,
   validateBookableDays,
   validateDate,
 } from "#templates/fields.ts";
-import { baseEventForm, expectInvalid, expectValid } from "#test-utils";
+import { baseListingForm, expectInvalid, expectValid } from "#test-utils";
 
-const eventForm = (
+const listingForm = (
   overrides: Record<string, string> = {},
 ): Record<string, string> => ({
-  ...baseEventForm,
+  ...baseListingForm,
   ...overrides,
 });
 
-describe("eventFields — required fields", () => {
-  test("rejects missing event name", () => {
-    const { name: _, ...withoutName } = baseEventForm;
-    expectInvalid("Event Name is required")(eventFields, withoutName);
+describe("listingFields — required fields", () => {
+  test("rejects missing listing name", () => {
+    const { name: _, ...withoutName } = baseListingForm;
+    expectInvalid("Listing Name is required")(listingFields, withoutName);
   });
 });
 
-describe("eventFields — description", () => {
+describe("listingFields — description", () => {
   test("rejects description exceeding max length", () => {
     expectInvalid(
       `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
     )(
-      eventFields,
-      eventForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH + 1) }),
+      listingFields,
+      listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH + 1) }),
     );
   });
 
   test("accepts description at and below max length", () => {
     expectValid(
-      eventFields,
-      eventForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH) }),
+      listingFields,
+      listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH) }),
     );
-    expectValid(eventFields, eventForm({ description: "" }));
+    expectValid(listingFields, listingForm({ description: "" }));
   });
 });
 
-describe("eventFields — thank_you_url", () => {
+describe("listingFields — thank_you_url", () => {
   test("accepts relative URLs", () => {
-    expectValid(eventFields, eventForm({ thank_you_url: "/thank-you" }));
+    expectValid(listingFields, listingForm({ thank_you_url: "/thank-you" }));
   });
 
   test("rejects http and javascript protocols", () => {
     expectInvalid("URL must use https://")(
-      eventFields,
-      eventForm({ thank_you_url: "http://example.com" }),
+      listingFields,
+      listingForm({ thank_you_url: "http://example.com" }),
     );
     expectInvalid("URL must use https://")(
-      eventFields,
-      eventForm({ thank_you_url: "javascript:alert(1)" }),
+      listingFields,
+      listingForm({ thank_you_url: "javascript:alert(1)" }),
     );
   });
 
   test("rejects invalid URL format", () => {
     expectInvalid("Invalid URL format")(
-      eventFields,
-      eventForm({ thank_you_url: "not-a-valid-url" }),
+      listingFields,
+      listingForm({ thank_you_url: "not-a-valid-url" }),
     );
   });
 });
 
-describe("eventFields — webhook_url", () => {
+describe("listingFields — webhook_url", () => {
   test("accepts valid https URLs", () => {
     expectValid(
-      eventFields,
-      eventForm({ webhook_url: "https://example.com/webhook" }),
+      listingFields,
+      listingForm({ webhook_url: "https://example.com/webhook" }),
     );
   });
 
@@ -187,56 +187,58 @@ describe("eventFields — webhook_url", () => {
 
   for (const { expected, url, label } of rejected) {
     test(`rejects ${label} webhook URL`, () => {
-      expectInvalid(expected)(eventFields, eventForm({ webhook_url: url }));
+      expectInvalid(expected)(listingFields, listingForm({ webhook_url: url }));
     });
   }
 
   test("accepts non-private IPs that look similar", () => {
     expectValid(
-      eventFields,
-      eventForm({ webhook_url: "https://169.0.0.0/webhook" }),
+      listingFields,
+      listingForm({ webhook_url: "https://169.0.0.0/webhook" }),
     );
     expectValid(
-      eventFields,
-      eventForm({ webhook_url: "https://255.0.0.0/webhook" }),
+      listingFields,
+      listingForm({ webhook_url: "https://255.0.0.0/webhook" }),
     );
   });
 
   test("accepts public IPv6 addresses", () => {
     expectValid(
-      eventFields,
-      eventForm({ webhook_url: "https://[2001:db8::1]/webhook" }),
+      listingFields,
+      listingForm({ webhook_url: "https://[2001:db8::1]/webhook" }),
     );
     expectValid(
-      eventFields,
-      eventForm({ webhook_url: "https://[2607:f8b0:4004:800::200e]/webhook" }),
+      listingFields,
+      listingForm({
+        webhook_url: "https://[2607:f8b0:4004:800::200e]/webhook",
+      }),
     );
   });
 });
 
-describe("eventFields — pricing", () => {
+describe("listingFields — pricing", () => {
   test("rejects negative unit_price", () => {
     expectInvalid("Price must be 0 or greater")(
-      eventFields,
-      eventForm({ unit_price: "-100" }),
+      listingFields,
+      listingForm({ unit_price: "-100" }),
     );
   });
 
   test("rejects negative max_price and accepts valid values", () => {
     expectInvalid("Price must be 0 or greater")(
-      eventFields,
-      eventForm({ max_price: "-50" }),
+      listingFields,
+      listingForm({ max_price: "-50" }),
     );
-    expectValid(eventFields, eventForm({ max_price: "100.00" }));
-    expectValid(eventFields, eventForm({ max_price: "" }));
+    expectValid(listingFields, listingForm({ max_price: "100.00" }));
+    expectValid(listingFields, listingForm({ max_price: "" }));
   });
 });
 
-describe("eventFields — contact fields setting", () => {
+describe("listingFields — contact fields setting", () => {
   test("rejects unknown contact field name", () => {
     expectInvalid("Invalid contact field: invalid")(
-      eventFields,
-      eventForm({ fields: "invalid" }),
+      listingFields,
+      listingForm({ fields: "invalid" }),
     );
   });
 
@@ -248,36 +250,36 @@ describe("eventFields — contact fields setting", () => {
       "special_instructions",
       "email,phone",
     ]) {
-      expectValid(eventFields, eventForm({ fields: value }));
+      expectValid(listingFields, listingForm({ fields: value }));
     }
   });
 
   test("warns that attendees won't be emailed their ticket without email collection", () => {
-    const fieldsField = eventFields.find((f) => f.name === "fields")!;
+    const fieldsField = listingFields.find((f) => f.name === "fields")!;
     expect(fieldsField.hintHtml).toContain("<strong>");
     expect(fieldsField.hintHtml).toContain("emailed their ticket");
   });
 });
 
-describe("eventFields — event_type", () => {
+describe("listingFields — listing_type", () => {
   test("accepts standard and daily, rejects anything else", () => {
-    expectValid(eventFields, eventForm({ event_type: "standard" }));
-    expectValid(eventFields, eventForm({ event_type: "daily" }));
-    expectInvalid("Event Type must be standard or daily")(
-      eventFields,
-      eventForm({ event_type: "weekly" }),
+    expectValid(listingFields, listingForm({ listing_type: "standard" }));
+    expectValid(listingFields, listingForm({ listing_type: "daily" }));
+    expectInvalid("Listing Type must be standard or daily")(
+      listingFields,
+      listingForm({ listing_type: "weekly" }),
     );
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(eventFields, eventForm());
+    expectValid(listingFields, listingForm());
   });
 });
 
-describe("eventFields — duration_days", () => {
+describe("listingFields — duration_days", () => {
   for (const value of ["", "1", String(MAX_DURATION_DAYS)]) {
     test(`accepts ${JSON.stringify(value)}`, () => {
-      expectValid(eventFields, eventForm({ duration_days: value }));
+      expectValid(listingFields, listingForm({ duration_days: value }));
     });
   }
   const invalid: [value: string, error: string][] = [
@@ -291,20 +293,23 @@ describe("eventFields — duration_days", () => {
   ];
   for (const [value, error] of invalid) {
     test(`rejects ${JSON.stringify(value)}`, () => {
-      expectInvalid(error)(eventFields, eventForm({ duration_days: value }));
+      expectInvalid(error)(
+        listingFields,
+        listingForm({ duration_days: value }),
+      );
     });
   }
 });
 
-describe("eventFields — bookable_days", () => {
+describe("listingFields — bookable_days", () => {
   test("accepts valid day names", () => {
     expectValid(
-      eventFields,
-      eventForm({ bookable_days: "Monday,Wednesday,Friday" }),
+      listingFields,
+      listingForm({ bookable_days: "Monday,Wednesday,Friday" }),
     );
     expectValid(
-      eventFields,
-      eventForm({
+      listingFields,
+      listingForm({
         bookable_days:
           "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
       }),
@@ -314,18 +319,18 @@ describe("eventFields — bookable_days", () => {
   test("rejects invalid day name", () => {
     expectInvalid(
       "Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
-    )(eventFields, eventForm({ bookable_days: "Monday,Funday" }));
+    )(listingFields, listingForm({ bookable_days: "Monday,Funday" }));
   });
 
   test("rejects empty-after-trimming value", () => {
     expectInvalid("At least one day is required")(
-      eventFields,
-      eventForm({ bookable_days: "," }),
+      listingFields,
+      listingForm({ bookable_days: "," }),
     );
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(eventFields, eventForm());
+    expectValid(listingFields, listingForm());
   });
 });
 

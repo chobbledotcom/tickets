@@ -1,5 +1,5 @@
 /**
- * Admin calendar view template - shows attendees across all daily events by date
+ * Admin calendar view template - shows attendees across all daily listings by date
  */
 
 import { map, pipe } from "#fp";
@@ -25,13 +25,13 @@ export type CalendarDateOption = {
   hasBookings: boolean;
 };
 
-/** Attendee row with event context for display */
+/** Attendee row with listing context for display */
 export type CalendarAttendeeRow = Attendee & {
   durationDays: number;
-  eventName: string;
-  eventDate: string;
-  eventLocation: string;
-  eventId: number;
+  listingName: string;
+  listingDate: string;
+  listingLocation: string;
+  listingId: number;
 };
 
 /** Build date selector dropdown for calendar view */
@@ -64,7 +64,7 @@ const CalendarDateSelector = ({
 };
 
 /**
- * Admin calendar page - shows attendees across all daily events for a selected date
+ * Admin calendar page - shows attendees across all daily listings for a selected date
  */
 export const adminCalendarPage = (
   attendees: CalendarAttendeeRow[],
@@ -75,14 +75,14 @@ export const adminCalendarPage = (
   today: string,
   phonePrefix?: string,
   questionData?: TableQuestionData,
-  hasPaidEvent = false,
+  hasPaidListing = false,
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
       (a: CalendarAttendeeRow): AttendeeTableRow => ({
         attendee: a,
-        eventId: a.eventId,
-        eventName: a.eventName,
+        listingId: a.listingId,
+        listingName: a.listingName,
       }),
     ),
   )(attendees);
@@ -100,7 +100,7 @@ export const adminCalendarPage = (
       ? buildSharedDetailRows({
           attendeeCount: attendees.length,
           attendees,
-          hasPaidEvent,
+          hasPaidListing,
           maxCapacity: 0,
           questionData,
         })
@@ -135,7 +135,7 @@ export const adminCalendarPage = (
         )}
         {sharedRows.length > 0 && (
           <div class="table-scroll">
-            <table class="event-details-table">
+            <table class="listing-details-table">
               <tbody>
                 <Raw html={renderDetailRows(sharedRows)} />
               </tbody>
@@ -152,7 +152,7 @@ export const adminCalendarPage = (
               returnUrl,
               rows: tableRows,
               showDate: false,
-              showEvent: true,
+              showListing: true,
             })}
           />
         </div>

@@ -8,7 +8,7 @@
  * ## Provider Interface
  *
  * {@link PaymentProvider} defines the common contract:
- * - Create single and multi-event checkout sessions
+ * - Create single and multi-listing checkout sessions
  * - Verify webhook signatures
  * - Retrieve session details and process refunds
  *

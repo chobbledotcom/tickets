@@ -6,7 +6,7 @@ import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   createTestDbWithSetup,
-  createTestEvent,
+  createTestListing,
   resetDb,
   setTestEnv,
 } from "#test-utils";
@@ -28,7 +28,7 @@ const setupErrorSpy = () => {
   };
 };
 
-// Outer describe ensures sequential execution — createTestEvent() calls
+// Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.
 // Without sequential ordering, that context can leak into later blocks.
 describe("log-error", () => {
@@ -49,9 +49,11 @@ describe("log-error", () => {
       expect(spyRef.lastMessage()).toBe("[Error] E_DB_CONNECTION");
     });
 
-    test("logs error with event ID", () => {
-      logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
-      expect(spyRef.lastMessage()).toBe("[Error] E_CAPACITY_EXCEEDED event=42");
+    test("logs error with listing ID", () => {
+      logError({ code: ErrorCode.CAPACITY_EXCEEDED, listingId: 42 });
+      expect(spyRef.lastMessage()).toBe(
+        "[Error] E_CAPACITY_EXCEEDED listing=42",
+      );
     });
 
     test("logs error with attendee ID", () => {
@@ -69,12 +71,12 @@ describe("log-error", () => {
     test("logs error with all context fields", () => {
       logError({
         attendeeId: 2,
-        code: ErrorCode.NOT_FOUND_EVENT,
+        code: ErrorCode.NOT_FOUND_LISTING,
         detail: "inactive",
-        eventId: 1,
+        listingId: 1,
       });
       expect(spyRef.lastMessage()).toBe(
-        '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
+        '[Error] E_NOT_FOUND_LISTING listing=1 attendee=2 detail="inactive"',
       );
     });
 
@@ -142,16 +144,16 @@ describe("log-error", () => {
             "Error: Stripe checkout failed (session creation failed)",
         );
         expect(match).toBeDefined();
-        expect(match!.event_id).toBeNull();
+        expect(match!.listing_id).toBeNull();
       });
 
-      test("persists error with event ID to activity log", async () => {
-        const event = await createTestEvent();
+      test("persists error with listing ID to activity log", async () => {
+        const listing = await createTestListing();
         await runWithPendingWork(async () => {
           logError({
             code: ErrorCode.PAYMENT_REFUND,
             detail: "refund declined",
-            eventId: event.id,
+            listingId: listing.id,
           });
           await flushPendingWork();
         });
@@ -161,7 +163,7 @@ describe("log-error", () => {
           (e) => e.message === "Error: Payment refund failed (refund declined)",
         );
         expect(match).toBeDefined();
-        expect(match!.event_id).toBe(event.id);
+        expect(match!.listing_id).toBe(listing.id);
       });
 
       test("persists error without detail to activity log", async () => {
@@ -209,10 +211,10 @@ describe("log-error", () => {
       logErrorLocal({
         code: ErrorCode.CDN_REQUEST,
         detail: "ntfy send failed",
-        eventId: 5,
+        listingId: 5,
       });
       expect(spyRef.lastMessage()).toBe(
-        '[Error] E_CDN_REQUEST event=5 detail="ntfy send failed"',
+        '[Error] E_CDN_REQUEST listing=5 detail="ntfy send failed"',
       );
     });
 

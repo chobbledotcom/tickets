@@ -8,7 +8,7 @@ import {
   getAttendeeAnswersByQuestion,
   questionsTable,
   saveAttendeeAnswers,
-  setEventQuestions,
+  setListingQuestions,
 } from "#shared/db/questions.ts";
 import {
   applyAttendeeMerge,
@@ -23,17 +23,17 @@ import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
-import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
+import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
 
 /** Create a test attendee directly via the DB */
 const createAttendee = async (
-  eventId: number,
+  listingId: number,
   name = "Alice",
   email?: string,
   date?: string | null,
 ) => {
   const result = await createAttendeeAtomic({
-    bookings: [{ date, eventId }],
+    bookings: [{ date, listingId }],
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
   });
@@ -46,7 +46,7 @@ const createAttendee = async (
 /** Get bookings for an attendee */
 const getBookings = (attendeeId: number) =>
   queryAll<{
-    event_id: number;
+    listing_id: number;
     start_at: string | null;
     end_at: string | null;
     quantity: number;
@@ -55,18 +55,18 @@ const getBookings = (attendeeId: number) =>
     price_paid: number;
     attachment_downloads: number;
   }>(
-    `SELECT event_id, start_at, end_at, quantity,
+    `SELECT listing_id, start_at, end_at, quantity,
             checked_in, refunded, price_paid,
             attachment_downloads
-     FROM event_attendees
+     FROM listing_attendees
      WHERE attendee_id = ?
-     ORDER BY start_at, event_id`,
+     ORDER BY start_at, listing_id`,
     [attendeeId],
   );
 
-/** Create a question with answers and assign to event */
+/** Create a question with answers and assign to listing */
 const createQuestionWithAnswers = async (
-  eventId: number,
+  listingId: number,
   questionText: string,
   answerTexts: string[],
 ) => {
@@ -80,7 +80,7 @@ const createQuestionWithAnswers = async (
     });
     answers.push(a);
   }
-  await setEventQuestions(eventId, [q.id]);
+  await setListingQuestions(listingId, [q.id]);
   return { answers, question: q };
 };
 
@@ -133,9 +133,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("returns Duplicate for duplicate conflict class", () => {
       const item = {
         conflictClass: "duplicate" as const,
-        eventId: 1,
+        listingId: 1,
         sourceBooking:
-          {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
+          {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
         startAt: null,
         targetBooking: null,
       };
@@ -145,9 +145,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("returns Conflicting metadata for conflicting_metadata class", () => {
       const item = {
         conflictClass: "conflicting_metadata" as const,
-        eventId: 1,
+        listingId: 1,
         sourceBooking:
-          {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
+          {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
         startAt: null,
         targetBooking: null,
       };
@@ -160,9 +160,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const items = [
         {
           conflictClass: "moveable" as const,
-          eventId: 1,
+          listingId: 1,
           sourceBooking:
-            {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
+            {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
           startAt: null,
           targetBooking: null,
         },
@@ -174,17 +174,17 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const items = [
         {
           conflictClass: "moveable" as const,
-          eventId: 1,
+          listingId: 1,
           sourceBooking:
-            {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
+            {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
           startAt: null,
           targetBooking: null,
         },
         {
           conflictClass: "duplicate" as const,
-          eventId: 2,
+          listingId: 2,
           sourceBooking:
-            {} as import("#shared/db/attendee-types.ts").EventAttendeeRow,
+            {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
           startAt: null,
           targetBooking: null,
         },
@@ -195,9 +195,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   describe("buildAttendeeMergeDiff", () => {
     test("detects PII diffs", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const target = await createAttendee(event.id, "Alice", "alice@test.com");
-      const source = await createAttendee(event.id, "Bob", "bob@test.com");
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const target = await createAttendee(
+        listing.id,
+        "Alice",
+        "alice@test.com",
+      );
+      const source = await createAttendee(listing.id, "Bob", "bob@test.com");
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
 
@@ -237,15 +241,15 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("detects answer conflicts", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { question, answers } = await createQuestionWithAnswers(
-        event.id,
+        listing.id,
         "Favourite colour?",
         ["Red", "Blue"],
       );
 
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event.id, "Bob");
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing.id, "Bob");
 
       await saveAttendeeAnswers([target.id], [answers[0]!.id]); // Red
       await saveAttendeeAnswers([source.id], [answers[1]!.id]); // Blue
@@ -287,15 +291,15 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("marks non-conflicting answers when only one has answer", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { question, answers } = await createQuestionWithAnswers(
-        event.id,
+        listing.id,
         "Size?",
         ["Small", "Large"],
       );
 
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event.id, "Bob");
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing.id, "Bob");
 
       // Only source has an answer
       await saveAttendeeAnswers([source.id], [answers[1]!.id]);
@@ -334,21 +338,21 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("classifies bookings as moveable, duplicate, or conflicting", async () => {
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 10,
         name: "E1",
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
 
-      const target = await createAttendee(event1.id, "Alice");
-      const source = await createAttendee(event1.id, "Bob");
-      // Add source to event2 as well
-      await bookAttendee(event2, { email: "bob@test.com", name: "Bob" });
+      const target = await createAttendee(listing1.id, "Alice");
+      const source = await createAttendee(listing1.id, "Bob");
+      // Add source to listing2 as well
+      await bookAttendee(listing2, { email: "bob@test.com", name: "Bob" });
       // But for this test, let's use direct attendees
-      // target is on event1, source is on event1 (duplicate) and event2 (moveable)
+      // target is on listing1, source is on listing1 (duplicate) and listing2 (moveable)
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
@@ -377,16 +381,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         [],
       );
 
-      // Source has 1 booking (event1) that conflicts with target's event1
+      // Source has 1 booking (listing1) that conflicts with target's listing1
       expect(diff.bookingItems.length).toBe(1);
-      // Both on same event with same start_at (null) — duplicate
+      // Both on same listing with same start_at (null) — duplicate
       expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
     });
 
     test("includes version hash in diff", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event.id, "Bob");
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing.id, "Bob");
 
       const diff = await buildAttendeeMergeDiff(
         {
@@ -418,17 +422,17 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   });
 
   test("uses fallback question text for orphaned answers", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
+    const listing = await createTestListing({ maxAttendees: 10 });
     const q = await questionsTable.insert({ text: "Hidden Q" });
     const a1 = await answersTable.insert({
       questionId: q.id,
       sortOrder: 0,
       text: "Yes",
     });
-    await setEventQuestions(event.id, [q.id]);
+    await setListingQuestions(listing.id, [q.id]);
 
-    const target = await createAttendee(event.id, "Alice", "alice@test.com");
-    const source = await createAttendee(event.id, "Bob", "bob@test.com");
+    const target = await createAttendee(listing.id, "Alice", "alice@test.com");
+    const source = await createAttendee(listing.id, "Bob", "bob@test.com");
     await saveAttendeeAnswers([source.id], [a1.id]);
 
     const targetBookings = await getBookings(target.id);
@@ -524,12 +528,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         bookingItems: [
           {
             conflictClass: "conflicting_metadata",
-            eventId: 5,
+            listingId: 5,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
-              event_id: 5,
+              listing_id: 5,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -540,7 +544,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
-              event_id: 5,
+              listing_id: 5,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -562,22 +566,22 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const result = validateAttendeeMergeDecision(diff, decision);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors[0]).toContain("Event #5");
+        expect(result.errors[0]).toContain("Listing #5");
       }
     });
 
-    test("rejects missing booking decision for daily event conflict", () => {
+    test("rejects missing booking decision for daily listing conflict", () => {
       const diff: AttendeeMergeDiff = {
         answerItems: [],
         bookingItems: [
           {
             conflictClass: "duplicate",
-            eventId: 7,
+            listingId: 7,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
-              event_id: 7,
+              listing_id: 7,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -588,7 +592,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
-              event_id: 7,
+              listing_id: 7,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -630,12 +634,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         bookingItems: [
           {
             conflictClass: "duplicate",
-            eventId: 5,
+            listingId: 5,
             sourceBooking: {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
-              event_id: 5,
+              listing_id: 5,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -646,7 +650,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
-              event_id: 5,
+              listing_id: 5,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -672,23 +676,27 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   describe("applyAttendeeMerge", () => {
     test("applies PII and answer decisions correctly", async () => {
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 10,
         name: "E1",
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
 
       const { question, answers } = await createQuestionWithAnswers(
-        event1.id,
+        listing1.id,
         "Colour?",
         ["Red", "Blue"],
       );
 
-      const target = await createAttendee(event1.id, "Alice", "alice@test.com");
-      const source = await createAttendee(event2.id, "Bob", "bob@test.com");
+      const target = await createAttendee(
+        listing1.id,
+        "Alice",
+        "alice@test.com",
+      );
+      const source = await createAttendee(listing2.id, "Bob", "bob@test.com");
 
       await saveAttendeeAnswers([target.id], [answers[0]!.id]); // Red
       await saveAttendeeAnswers([source.id], [answers[1]!.id]); // Blue
@@ -753,7 +761,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(result.success).toBe(true);
       expect(result.summary.piiFieldsFromSource).toEqual(["name"]);
       expect(result.summary.answersTakenFromSource).toBe(1);
-      expect(result.summary.bookingsMoved).toBe(1); // event2 moved to target
+      expect(result.summary.bookingsMoved).toBe(1); // listing2 moved to target
 
       // Verify answers were updated
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
@@ -766,30 +774,30 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       );
       expect(sourceRows.length).toBe(0);
 
-      // Verify target has both event links
-      const eventLinks = await queryAll<{ event_id: number }>(
-        "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+      // Verify target has both listing links
+      const listingLinks = await queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
         [target.id],
       );
-      expect(eventLinks.map((r) => r.event_id).sort()).toEqual(
-        [event1.id, event2.id].sort(),
+      expect(listingLinks.map((r) => r.listing_id).sort()).toEqual(
+        [listing1.id, listing2.id].sort(),
       );
     });
 
     test("clears answers when decision is clear", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
       const { question, answers } = await createQuestionWithAnswers(
-        event.id,
+        listing.id,
         "Size?",
         ["S", "L"],
       );
 
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event2.id, "Bob");
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing2.id, "Bob");
 
       await saveAttendeeAnswers([target.id], [answers[0]!.id]);
       await saveAttendeeAnswers([source.id], [answers[1]!.id]);
@@ -855,19 +863,19 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("adopts source answers when target has none", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
       const { question, answers } = await createQuestionWithAnswers(
-        event.id,
+        listing.id,
         "Meal?",
         ["Chicken", "Fish"],
       );
 
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event2.id, "Bob");
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing2.id, "Bob");
 
       // Only source has answer
       await saveAttendeeAnswers([source.id], [answers[1]!.id]);
@@ -933,10 +941,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("handles duplicate booking with keep_target decision", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
 
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event.id, "Bob");
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing.id, "Bob");
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
@@ -967,7 +975,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
 
-      const key = bookingKey(event.id, null);
+      const key = bookingKey(listing.id, null);
       const result = await applyAttendeeMerge({
         decision: {
           answers: {},
@@ -1000,22 +1008,22 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(result.summary.bookingsMoved).toBe(0);
 
       // Target still has exactly 1 booking
-      const links = await queryAll<{ event_id: number }>(
-        "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+      const links = await queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
         [target.id],
       );
       expect(links.length).toBe(1);
     });
 
     test("replaces target booking with take_source decision", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
 
-      const target = await createAttendee(event.id, "Alice");
-      const source = await createAttendee(event.id, "Bob");
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing.id, "Bob");
 
       // Update source booking to have different quantity to create conflicting_metadata
       await queryAll(
-        "UPDATE event_attendees SET quantity = 5 WHERE attendee_id = ?",
+        "UPDATE listing_attendees SET quantity = 5 WHERE attendee_id = ?",
         [source.id],
       );
 
@@ -1048,7 +1056,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("conflicting_metadata");
 
-      const key = bookingKey(event.id, null);
+      const key = bookingKey(listing.id, null);
       const result = await applyAttendeeMerge({
         decision: {
           answers: {},
@@ -1082,27 +1090,27 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // Target's booking should now have qty 5
       const links = await queryAll<{ quantity: number }>(
         `SELECT quantity
-         FROM event_attendees
+         FROM listing_attendees
          WHERE attendee_id = ?
-           AND event_id = ?`,
-        [target.id, event.id],
+           AND listing_id = ?`,
+        [target.id, listing.id],
       );
       expect(links.length).toBe(1);
       expect(links[0]!.quantity).toBe(5);
     });
 
     test("returns accurate summary counts", async () => {
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 10,
         name: "E1",
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
 
-      const target = await createAttendee(event1.id, "Alice");
-      const source = await createAttendee(event2.id, "Bob");
+      const target = await createAttendee(listing1.id, "Alice");
+      const source = await createAttendee(listing2.id, "Bob");
 
       const diff = await buildAttendeeMergeDiff(
         {
@@ -1128,7 +1136,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         [],
       );
 
-      // Source is on event2 only, target on event1 — no conflicts, 1 moveable
+      // Source is on listing2 only, target on listing1 — no conflicts, 1 moveable
       expect(diff.bookingItems.length).toBe(1);
       expect(diff.bookingItems[0]!.conflictClass).toBe("moveable");
 

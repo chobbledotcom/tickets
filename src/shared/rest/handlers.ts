@@ -2,9 +2,9 @@
  * REST route handler factories - integrates auth/CSRF with resource operations.
  *
  * Usage:
- *   const eventsResource = defineResource({...});
- *   const handleCreateEvent = createHandler(eventsResource, {...});
- *   const handleDeleteEvent = deleteHandler(eventsResource, {...});
+ *   const listingsResource = defineResource({...});
+ *   const handleCreateListing = createHandler(listingsResource, {...});
+ *   const handleDeleteListing = deleteHandler(listingsResource, {...});
  */
 
 import type { InValue } from "@libsql/client";

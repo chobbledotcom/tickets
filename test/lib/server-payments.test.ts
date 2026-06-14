@@ -6,8 +6,8 @@ import {
   assertPublicHtml,
   awaitTestRequest,
   bookAttendee,
-  createTestEvent,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -52,7 +52,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -65,7 +65,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "John",
               },
               payment_intent: "pi_test",
@@ -118,19 +118,19 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       );
     });
 
-    test("rejects payment for inactive event and refunds", async () => {
+    test("rejects payment for inactive listing and refunds", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
 
-      // Deactivate the event
-      await deactivateTestEvent(event.id);
+      // Deactivate the listing
+      await deactivateTestListing(listing.id);
 
       await withMocks(
         () => ({
@@ -144,7 +144,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "John",
               },
               payment_intent: "pi_test_123",
@@ -171,20 +171,20 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       );
     });
 
-    test("refunds payment when event is sold out at confirmation time", async () => {
+    test("refunds payment when listing is sold out at confirmation time", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
-      // Create event with only 1 spot
-      const event = await createTestEvent({
+      // Create listing with only 1 spot
+      const listing = await createTestListing({
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
 
-      // Fill the event with another attendee (using atomic to simulate production flow)
-      await bookAttendee(event, {
+      // Fill the listing with another attendee (using atomic to simulate production flow)
+      await bookAttendee(listing, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -203,7 +203,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test",
               metadata: {
                 email: "second@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "Second",
               },
               payment_intent: "pi_second",
@@ -287,7 +287,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       );
     });
 
-    test("returns error when event not found", async () => {
+    test("returns error when listing not found", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
@@ -299,7 +299,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_cancel",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(99999, 1, 0), // Non-existent event
+                items: singleItem(99999, 1, 0), // Non-existent listing
                 name: "John",
               },
               payment_status: "unpaid",
@@ -311,7 +311,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
           );
-          await expectHtmlResponse(response, 404, "Event not found");
+          await expectHtmlResponse(response, 404, "Listing not found");
         },
         resetStripeClient,
       );
@@ -322,7 +322,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -335,7 +335,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_cancel",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "John",
               },
               payment_status: "unpaid",
@@ -347,7 +347,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           await assertPublicHtml(
             "/payment/cancel?session_id=cs_test_cancel",
             "Payment Cancelled",
-            `/ticket/${event.slug}`,
+            `/ticket/${listing.slug}`,
           );
         },
         resetStripeClient,
@@ -359,12 +359,12 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 2000,
@@ -378,8 +378,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               metadata: {
                 email: "john@example.com",
                 items: JSON.stringify([
-                  { e: event.id, p: 1000, q: 1 },
-                  { e: event2.id, p: 4000, q: 2 },
+                  { e: listing.id, p: 1000, q: 1 },
+                  { e: listing2.id, p: 4000, q: 2 },
                 ]),
                 name: "John",
               },
@@ -392,7 +392,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           await assertPublicHtml(
             "/payment/cancel?session_id=cs_test_cancel_multi",
             "Payment Cancelled",
-            `/ticket/${event.slug}`,
+            `/ticket/${listing.slug}`,
           );
         },
         resetStripeClient,
@@ -423,7 +423,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel_bad_multi"),
           );
-          await expectHtmlResponse(response, 404, "Event not found");
+          await expectHtmlResponse(response, 404, "Listing not found");
         },
         resetStripeClient,
       );
@@ -453,15 +453,15 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       // Set a fake Stripe key to enable payments (in database)
       await setupStripe("sk_test_fake_key");
 
-      // Create a paid event
-      const event = await createTestEvent({
+      // Create a paid listing
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000, // 10.00 price
       });
 
       // Try to reserve a ticket - should fail because Stripe key is invalid
-      const response = await submitTicketForm(event.slug, {
+      const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
         name: "John Doe",
       });
@@ -478,7 +478,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
     test("shows specific error when payment provider returns validation error", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -500,7 +500,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       );
 
       try {
-        const response = await submitTicketForm(event.slug, {
+        const response = await submitTicketForm(listing.slug, {
           email: "john@example.com",
           name: "John Doe",
         });
@@ -521,14 +521,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
     test("free ticket still works when payments enabled", async () => {
       await setupStripe("sk_test_fake_key");
 
-      // Create a free event (no price)
-      const event = await createTestEvent({
+      // Create a free listing (no price)
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 0, // free
       });
 
-      const response = await submitTicketForm(event.slug, {
+      const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
         name: "John Doe",
       });
@@ -540,14 +540,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
     test("zero price ticket is treated as free", async () => {
       await setupStripe("sk_test_fake_key");
 
-      // Create event with 0 price
-      const event = await createTestEvent({
+      // Create listing with 0 price
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 0, // zero price
       });
 
-      const response = await submitTicketForm(event.slug, {
+      const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
         name: "John Doe",
       });
@@ -559,13 +559,13 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
     test("redirects to Stripe checkout with stripe-mock", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000, // 10.00 price
       });
 
-      const response = await submitTicketForm(event.slug, {
+      const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
         name: "John Doe",
       });
@@ -578,7 +578,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       expect(location?.startsWith("https://")).toBe(true);
     });
 
-    test("returns error when event not found in session metadata without refund", async () => {
+    test("returns error when listing not found in session metadata without refund", async () => {
       const { spy, stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
@@ -591,7 +591,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(99999, 1, 0), // Non-existent event
+                items: singleItem(99999, 1, 0), // Non-existent listing
                 name: "John",
               },
               payment_intent: "pi_test",
@@ -605,8 +605,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
-          await expectHtmlResponse(response, 404, "Event not found");
-          // Event not found should NOT trigger a refund (webhook may be for a different instance)
+          await expectHtmlResponse(response, 404, "Listing not found");
+          // Listing not found should NOT trigger a refund (webhook may be for a different instance)
           expect(mockRefund.calls.length).toBe(0);
         },
         resetStripeClient,
@@ -619,7 +619,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -633,7 +633,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_paid",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "John",
               },
               payment_intent: "pi_test_123",
@@ -666,7 +666,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
           // Verify attendee was created with encrypted PII blob
           const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-          const attendees = await getAttendeesRaw(event.id);
+          const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.pii_blob).not.toBe("");
 
@@ -686,14 +686,14 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
       });
 
       // Create attendee as if payment was already processed (using atomic to simulate production flow)
-      await bookAttendee(event, {
+      await bookAttendee(listing, {
         email: "john@example.com",
         name: "John",
         paymentId: "pi_test_123",
@@ -707,7 +707,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_paid",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "John",
               },
               payment_intent: "pi_test_123",
@@ -723,7 +723,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
           // Capacity check will now fail since we already have the attendee
           // This is expected - in the new flow, replaying creates a duplicate attempt
-          // which fails the capacity check if event is near full
+          // which fails the capacity check if listing is near full
           // For idempotent behavior, we'd need to check payment_intent uniqueness
           // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
           expect([200, 302]).toContain(response.status);
@@ -737,7 +737,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
         thankYouUrl: "https://example.com/thanks",
@@ -752,7 +752,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test_paid",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 3, 3000),
+                items: singleItem(listing.id, 3, 3000),
                 name: "John",
               },
               payment_intent: "pi_test_123",
@@ -775,32 +775,32 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
           // Verify attendee was created with correct quantity
           const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-          const attendees = await getAttendeesRaw(event.id);
+          const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(3);
         },
       );
     });
 
-    test("rejects paid event registration when sold out before payment", async () => {
+    test("rejects paid listing registration when sold out before payment", async () => {
       await setupStripe();
 
-      // Create paid event with only 1 spot
-      const event = await createTestEvent({
+      // Create paid listing with only 1 spot
+      const listing = await createTestListing({
         maxAttendees: 1,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
       });
 
-      // Fill the event (using atomic to simulate production flow)
-      await bookAttendee(event, {
+      // Fill the listing (using atomic to simulate production flow)
+      await bookAttendee(listing, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
       });
 
       // Try to register - should fail before Stripe session is created
-      const response = await submitTicketForm(event.slug, {
+      const response = await submitTicketForm(listing.slug, {
         email: "second@example.com",
         name: "Second",
       });
@@ -820,7 +820,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
 
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -845,7 +845,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
               id: "cs_test",
               metadata: {
                 email: "john@example.com",
-                items: singleItem(event.id, 1, 1000),
+                items: singleItem(listing.id, 1, 1000),
                 name: "John",
               },
               payment_intent: "pi_test_123",

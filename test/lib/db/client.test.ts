@@ -38,14 +38,14 @@ describeWithEnv("db > client", { db: true }, () => {
   });
 
   test("insert supports rawSql for expressions", () => {
-    const stmt = insert("event_attendees", {
+    const stmt = insert("listing_attendees", {
       attendee_id: rawSql("last_insert_rowid()"),
-      event_id: 1,
+      listing_id: 1,
       quantity: 2,
     });
     expect(stmt.sql).toBe(
-      "INSERT INTO event_attendees" +
-        " (attendee_id, event_id, quantity)" +
+      "INSERT INTO listing_attendees" +
+        " (attendee_id, listing_id, quantity)" +
         " VALUES (last_insert_rowid(), ?, ?)",
     );
     expect(stmt.args).toEqual([1, 2]);

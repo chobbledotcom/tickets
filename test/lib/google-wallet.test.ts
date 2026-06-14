@@ -16,9 +16,9 @@ const makePassData = (
   attendeeDate: null,
   checkinUrl: "https://example.com/checkin/ABC123",
   currencyCode: "GBP",
-  eventDate: "2026-06-15T19:00:00Z",
-  eventLocation: "Town Hall",
-  eventName: "Summer Concert",
+  listingDate: "2026-06-15T19:00:00Z",
+  listingLocation: "Town Hall",
+  listingName: "Summer Concert",
   organizationName: "Test Platform",
   pricePaid: 0,
   quantity: 1,
@@ -45,19 +45,19 @@ describe("google-wallet", () => {
       return JSON.parse(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
     };
 
-    test("includes class with issuer name, event name, and correct ids", async () => {
+    test("includes class with issuer name, listing name, and correct ids", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData());
-      const cls = decoded.payload.eventTicketClasses[0];
+      const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.id).toBe("1234567890.ABC123-class");
       expect(cls.issuerName).toBe("Test Platform");
-      expect(cls.eventName.defaultValue.value).toBe("Summer Concert");
+      expect(cls.listingName.defaultValue.value).toBe("Summer Concert");
     });
 
     test("includes object with id, classId, QR barcode, and ACTIVE state", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData());
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.id).toBe("1234567890.ABC123");
       expect(obj.classId).toBe("1234567890.ABC123-class");
       expect(obj.state).toBe("ACTIVE");
@@ -65,38 +65,40 @@ describe("google-wallet", () => {
       expect(obj.barcode.value).toBe("https://example.com/checkin/ABC123");
     });
 
-    test("includes dateTime when eventDate is present", async () => {
+    test("includes dateTime when listingDate is present", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData());
-      const cls = decoded.payload.eventTicketClasses[0];
+      const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.dateTime.start).toBe("2026-06-15T19:00:00Z");
     });
 
-    test("omits dateTime when eventDate is empty", async () => {
+    test("omits dateTime when listingDate is empty", async () => {
       await ensureCreds();
-      const decoded = await extractPayload(makePassData({ eventDate: "" }));
-      const cls = decoded.payload.eventTicketClasses[0];
+      const decoded = await extractPayload(makePassData({ listingDate: "" }));
+      const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.dateTime).toBeUndefined();
     });
 
-    test("includes venue when eventLocation is present", async () => {
+    test("includes venue when listingLocation is present", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData());
-      const cls = decoded.payload.eventTicketClasses[0];
+      const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.venue.name.defaultValue.value).toBe("Town Hall");
     });
 
-    test("omits venue when eventLocation is empty", async () => {
+    test("omits venue when listingLocation is empty", async () => {
       await ensureCreds();
-      const decoded = await extractPayload(makePassData({ eventLocation: "" }));
-      const cls = decoded.payload.eventTicketClasses[0];
+      const decoded = await extractPayload(
+        makePassData({ listingLocation: "" }),
+      );
+      const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.venue).toBeUndefined();
     });
 
     test("omits textModulesData when no optional fields", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData());
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
@@ -105,7 +107,7 @@ describe("google-wallet", () => {
       const decoded = await extractPayload(
         makePassData({ attendeeDate: "2026-06-15" }),
       );
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       const bookingDate = obj.textModulesData.find(
         (m: Record<string, string>) => m.id === "booking-date",
       );
@@ -116,7 +118,7 @@ describe("google-wallet", () => {
     test("includes quantity when greater than 1", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData({ quantity: 3 }));
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       const qty = obj.textModulesData.find(
         (m: Record<string, string>) => m.id === "qty",
       );
@@ -127,7 +129,7 @@ describe("google-wallet", () => {
     test("omits quantity when equal to 1", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData({ quantity: 1 }));
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
@@ -136,7 +138,7 @@ describe("google-wallet", () => {
       const decoded = await extractPayload(
         makePassData({ currencyCode: "EUR", pricePaid: 2500 }),
       );
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       const price = obj.textModulesData.find(
         (m: Record<string, string>) => m.id === "price",
       );
@@ -147,7 +149,7 @@ describe("google-wallet", () => {
     test("omits price when zero", async () => {
       await ensureCreds();
       const decoded = await extractPayload(makePassData({ pricePaid: 0 }));
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
@@ -156,7 +158,7 @@ describe("google-wallet", () => {
       const decoded = await extractPayload(
         makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
       );
-      const obj = decoded.payload.eventTicketObjects[0];
+      const obj = decoded.payload.listingTicketObjects[0];
       const price = obj.textModulesData.find(
         (m: Record<string, string>) => m.id === "price",
       );
@@ -174,12 +176,12 @@ describe("google-wallet", () => {
       expect(typeof payload.iat).toBe("number");
     });
 
-    test("includes event ticket class and object in payload", async () => {
+    test("includes listing ticket class and object in payload", async () => {
       await ensureCreds();
       const jwt = buildJwtPayload(makePassData(), creds);
       const inner = jwt.payload as Record<string, unknown[]>;
-      expect(inner.eventTicketClasses).toHaveLength(1);
-      expect(inner.eventTicketObjects).toHaveLength(1);
+      expect(inner.listingTicketClasses).toHaveLength(1);
+      expect(inner.listingTicketObjects).toHaveLength(1);
     });
   });
 

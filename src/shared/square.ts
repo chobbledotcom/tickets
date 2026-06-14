@@ -5,7 +5,7 @@
  * Square flow differs from Stripe:
  * - Checkout uses Payment Links (CreatePaymentLink) instead of sessions
  * - Metadata is stored on the Order object
- * - Webhook event is payment.updated (check status === "COMPLETED")
+ * - Webhook listing is payment.updated (check status === "COMPLETED")
  * - Webhook signature uses HMAC-SHA256 of notification_url + body
  * - Retrieving session data requires fetching the Order by ID
  */
@@ -568,14 +568,14 @@ export const squareApi: {
   retrievePayment: (paymentId: string) => Promise<SquarePayment | null>;
   refundPayment: (paymentId: string) => Promise<boolean>;
 } = {
-  /** Create a payment link for one or more events */
+  /** Create a payment link for one or more listings */
   createPaymentLink: async (
     intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
     const prep = await preparePaymentLink(
       await buildItemsMetadata(intent),
-      `payment link for ${intent.items.length} event(s)`,
+      `payment link for ${intent.items.length} listing(s)`,
     );
     if (!prep) return null;
 
@@ -845,8 +845,8 @@ export const verifyWebhookSignature = async (
   }
 
   try {
-    const event = JSON.parse(payload) as WebhookEvent;
-    return { event, valid: true };
+    const listing = JSON.parse(payload) as WebhookEvent;
+    return { listing, valid: true };
   } catch {
     logError({ code: ErrorCode.SQUARE_SIGNATURE, detail: "invalid JSON" });
     return { error: "Invalid JSON payload", valid: false };
@@ -859,11 +859,11 @@ export const verifyWebhookSignature = async (
  * Square signs: notification_url + raw_body (base64-encoded HMAC-SHA256).
  */
 export const constructTestWebhookEvent = async (
-  event: WebhookEvent,
+  listing: WebhookEvent,
   secret: string,
   notificationUrl: string,
 ): Promise<{ payload: string; signature: string }> => {
-  const body = JSON.stringify(event);
+  const body = JSON.stringify(listing);
   const bodyBytes = new TextEncoder().encode(body);
   const signedPayload = buildSignedPayload(notificationUrl, bodyBytes);
   const signature = await computeSquareSignature(signedPayload, secret);

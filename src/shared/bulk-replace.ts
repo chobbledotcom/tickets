@@ -1,36 +1,36 @@
 /**
  * Pure string and date replacement logic for bulk actions.
  *
- * Used by both the server (to apply replacements when duplicating events)
+ * Used by both the server (to apply replacements when duplicating listings)
  * and the client (to render a live preview of the same replacements).
  * Shared module must be browser-compatible: no runtime imports.
  */
 
-/** Inputs describing a single find/replace pass over a group's events */
+/** Inputs describing a single find/replace pass over a group's listings */
 export interface DuplicateReplacements {
   /** Reference date (YYYY-MM-DD). Empty → no date shift. */
   dateFind: string;
   /** Target date (YYYY-MM-DD). Empty → no date shift. */
   dateReplace: string;
-  /** Substring to find inside event names (empty → no name change) */
+  /** Substring to find inside listing names (empty → no name change) */
   nameFind: string;
   /** Substring to substitute for `nameFind` */
   nameReplace: string;
 }
 
-/** Preview of what a single event becomes after replacements are applied */
+/** Preview of what a single listing becomes after replacements are applied */
 export interface DuplicatePreviewRow {
   id: number;
-  /** Shifted UTC ISO datetime, or empty string for events with no date */
+  /** Shifted UTC ISO datetime, or empty string for listings with no date */
   newDate: string;
   newName: string;
-  /** Original UTC ISO datetime, or empty string for events with no date */
+  /** Original UTC ISO datetime, or empty string for listings with no date */
   originalDate: string;
   originalName: string;
 }
 
-/** Event data needed to compute a preview row */
-export interface PreviewableEvent {
+/** Listing data needed to compute a preview row */
+export interface PreviewableListing {
   date: string;
   id: number;
   name: string;
@@ -68,13 +68,13 @@ export const shiftUtcIsoByDays = (iso: string, days: number): string => {
   return new Date(Date.parse(iso) + days * MS_PER_DAY).toISOString();
 };
 
-/** Build preview rows for a list of events using the shared replacement rules */
+/** Build preview rows for a list of listings using the shared replacement rules */
 export const buildDuplicatePreview = (
-  events: readonly PreviewableEvent[],
+  listings: readonly PreviewableListing[],
   r: DuplicateReplacements,
 ): DuplicatePreviewRow[] => {
   const offset = computeDayOffset(r.dateFind, r.dateReplace);
-  return events.map((e) => ({
+  return listings.map((e) => ({
     id: e.id,
     newDate: shiftUtcIsoByDays(e.date, offset),
     newName: applyNameReplacement(e.name, r.nameFind, r.nameReplace),

@@ -43,13 +43,13 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("displays existing values", async () => {
-      await settings.update.websiteTitle("My Events");
+      await settings.update.websiteTitle("My Listings");
       await settings.update.homepageText("Welcome!");
       const response = await awaitTestRequest("/admin/site", {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      expect(html).toContain("My Events");
+      expect(html).toContain("My Listings");
       expect(html).toContain("Welcome!");
     });
 
