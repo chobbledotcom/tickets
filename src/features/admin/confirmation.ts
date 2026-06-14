@@ -109,11 +109,9 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
 export const createVerifiedFormRoute = <TParams, TContext>(
   config: VerifiedFormRouteConfig<TParams, TContext>,
 ) =>
-  /* jscpd:ignore-start */
   createAuthedHandler<TParams, TContext>({
-    auth: config.auth,
+    ...config,
     handle: async (args) => {
-      /* jscpd:ignore-end */
       const expected = await config.identifier(args.context, args.params);
       const error = verifyOrRedirect(
         args.form,
@@ -125,7 +123,6 @@ export const createVerifiedFormRoute = <TParams, TContext>(
       if (error) return error;
       return config.onConfirm(args);
     },
-    loadContext: config.loadContext,
   });
 
 /** Auth option: string shorthand or explicit guard pair */
