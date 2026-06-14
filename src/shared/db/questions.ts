@@ -228,6 +228,43 @@ export const getEventQuestionIds = async (eventId: number): Promise<number[]> =>
     ),
   );
 
+/** Get the IDs of the events a question is assigned to */
+export const getQuestionEventIds = async (
+  questionId: number,
+): Promise<number[]> =>
+  map((r: { event_id: number }) => r.event_id)(
+    await queryAll<{ event_id: number }>(
+      "SELECT event_id FROM event_questions WHERE question_id = ? ORDER BY event_id",
+      [questionId],
+    ),
+  );
+
+/** Set which events a question is assigned to.
+ * Adds the question to newly-checked events (appended after each event's
+ * existing questions) and removes it from unchecked ones, leaving the
+ * ordering of the other questions on each event untouched. */
+export const setQuestionEvents = async (
+  questionId: number,
+  eventIds: number[],
+): Promise<void> => {
+  const current = new Set(await getQuestionEventIds(questionId));
+  const target = new Set(eventIds);
+  const toRemove = [...current].filter((id) => !target.has(id));
+  const toAdd = eventIds.filter((id) => !current.has(id));
+  const statements = [
+    ...toRemove.map((eventId) => ({
+      args: [eventId, questionId],
+      sql: "DELETE FROM event_questions WHERE event_id = ? AND question_id = ?",
+    })),
+    ...toAdd.map((eventId) => ({
+      args: [eventId, questionId, eventId],
+      sql: `INSERT INTO event_questions (event_id, question_id, sort_order)
+            VALUES (?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM event_questions WHERE event_id = ?), 0))`,
+    })),
+  ];
+  if (statements.length > 0) await executeBatch(statements);
+};
+
 /** Map from question ID to the set of event IDs that use it */
 export type QuestionEventMap = Map<number, number[]>;
 

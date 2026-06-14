@@ -175,12 +175,15 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Bob Jones")).toBe(true);
     expect(browser.containsText("Check out")).toBe(true);
 
-    // Find Bob's edit link — he's the second attendee
-    const attendeeLinks = browser.links.filter((l) =>
-      l.href.includes("/admin/attendees/"),
-    );
-    expect(attendeeLinks.length).toBeGreaterThanOrEqual(2);
-    await browser.visit(attendeeLinks[1]!.href);
+    // Find Bob's edit link — he's the second attendee. Each row now links to
+    // the attendee edit page from both the name and the Edit action, so dedupe
+    // by attendee id before indexing.
+    const attendeeIds = browser.links
+      .map((l) => l.href.match(/\/admin\/attendees\/(\d+)/)?.[1])
+      .filter((id): id is string => !!id);
+    const uniqueAttendeeIds = [...new Set(attendeeIds)];
+    expect(uniqueAttendeeIds.length).toBeGreaterThanOrEqual(2);
+    await browser.visit(`/admin/attendees/${uniqueAttendeeIds[1]}`);
     expect(browser.containsText("Bob Jones")).toBe(true);
 
     // Verify Bob is NOT checked in on his edit page
@@ -203,6 +206,18 @@ describe("e2e: ticket editing flow", () => {
     //    booking are shown there directly.
     expect(browser.containsText("Robert Jones")).toBe(true);
     expect(browser.containsText("Bob Jones")).toBe(false);
+
+    // Navigate to Bob's edit page to verify fields and booking. Dedupe by
+    // attendee id since each row links from both the name and the Edit action.
+    const bobAttendeeIds = [
+      ...new Set(
+        browser.links
+          .map((l) => l.href.match(/\/admin\/attendees\/(\d+)/)?.[1])
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    // Bob (Robert Jones) should be the second attendee
+    await browser.visit(`/admin/attendees/${bobAttendeeIds[1]}`);
     expect(browser.currentHtml).toContain("robert@example.com");
     expect(browser.currentHtml).toContain("+441111222333");
     expect(browser.currentHtml).toContain("7 Pine Avenue");
