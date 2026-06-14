@@ -5,6 +5,7 @@
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { GuideLink } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type BackupEntry = {
@@ -59,8 +60,8 @@ export const adminBackupPage = (
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
       <h1>Database Backup &amp; Restore</h1>
-      <p>
-        <a href="/admin/guide#backups">Backup guide</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#backups">Backup guide</GuideLink>
       </p>
       <Flash error={error} success={success} />
 

@@ -10,6 +10,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { GuideLink } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Label of the Square signature error, used to spot it in log messages */
@@ -62,10 +63,11 @@ export const adminListingActivityLogPage = (
   String(
     <Layout title={`Log: ${listing.name}`}>
       <AdminNav active="/admin/log" session={session} />
-      <p>
+      <p class="actions">
         <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
-        {" | "}
-        <a href="/admin/guide#activity-log">Activity log guide</a>
+        <GuideLink href="/admin/guide#activity-log">
+          Activity log guide
+        </GuideLink>
       </p>
       <div class="table-scroll">
         <table>
@@ -94,8 +96,10 @@ export const adminGlobalActivityLogPage = (
   String(
     <Layout title="Log">
       <AdminNav active="/admin/log" session={session} />
-      <p>
-        <a href="/admin/guide#activity-log">Activity log guide</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#activity-log">
+          Activity log guide
+        </GuideLink>
       </p>
       <div class="table-scroll">
         <table>

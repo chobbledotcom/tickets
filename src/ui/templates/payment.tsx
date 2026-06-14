@@ -4,6 +4,7 @@
 
 import { getIframeMode } from "#shared/iframe.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
+import { Icon } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
@@ -34,8 +35,9 @@ export const paymentPage = (
       <p>
         Click the button below to complete your payment securely via Stripe.
       </p>
-      <a href={checkoutUrl}>
-        <b>Pay Now</b>
+      <a class="btn" href={checkoutUrl}>
+        <Icon name="credit-card" />
+        <span>Pay Now</span>
       </a>
     </Layout>,
   );
@@ -117,8 +119,9 @@ export const paymentCancelPage = (
           Your payment was cancelled. Your ticket reservation has been removed.
         </p>
         <p>
-          <a href={ticketUrl}>
-            <i>Try again</i>
+          <a class="btn outline" href={ticketUrl}>
+            <Icon name="rotate-ccw" />
+            <span>Try again</span>
           </a>
         </p>
       </div>
@@ -152,12 +155,14 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
         <p>Payment is processed in a new window.</p>
         <p>
           <a
+            class="btn"
             data-open-checkout
             href={checkoutUrl}
             rel="noopener"
             target="_blank"
           >
-            <b>Pay Now</b>
+            <Icon name="credit-card" />
+            <span>Pay Now</span>
           </a>
         </p>
         <div data-checkout-waiting hidden>

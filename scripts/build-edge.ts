@@ -31,6 +31,7 @@ const TEXT = "text/plain; charset=utf-8";
 const ASSET_DEFS: [string, string, string, string][] = [
   ["robots.txt", "handleRobotsTxt", TEXT, ""],
   ["favicon.svg", "handleFavicon", SVG, ""],
+  ["icons.svg", "handleIcons", SVG, "ICONS_PATH"],
   ["mvp.css", "handleMvpCss", CSS, "CSS_PATH"],
   ["admin.js", "handleAdminJs", JS, "JS_PATH"],
   ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],

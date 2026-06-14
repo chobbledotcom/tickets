@@ -8,6 +8,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
+import { GuideLink } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const SessionRow = ({
@@ -55,8 +56,8 @@ export const adminSessionsPage = (
 
       <Flash success={success} />
 
-      <p>
-        <a href="/admin/guide#login">Sessions guide</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#login">Sessions guide</GuideLink>
       </p>
 
       <div class="table-scroll">

@@ -452,10 +452,9 @@ a:active {
 
 a b,
 a em,
-a i,
-a strong,
 button,
-input[type="submit"] {
+input[type="submit"],
+.btn {
   border-radius: var(--border-radius);
   display: inline-block;
   font-size: medium;
@@ -466,37 +465,71 @@ input[type="submit"] {
 }
 
 button,
-input[type="submit"] {
+input[type="submit"],
+.btn {
   font-family: var(--font-family);
 }
 
 button:hover,
-input[type="submit"]:hover {
+input[type="submit"]:hover,
+.btn:hover {
   cursor: pointer;
   filter: brightness(var(--hover-brightness));
 }
 
 button:active,
-input[type="submit"]:active {
+input[type="submit"]:active,
+.btn:active {
   filter: brightness(var(--active-brightness));
 }
 
-a b,
-a strong,
 button,
-input[type="submit"] {
+input[type="submit"],
+.btn {
   background-color: var(--color-link);
   border: 2px solid var(--color-link);
   color: var(--color-bg);
 }
 
-a em,
-a i {
-  border: 2px solid var(--color-link);
-  border-radius: var(--border-radius);
+/*
+ * Button-styled links. Use the .btn class on an <a> (or <button>) to render a
+ * standard action button. Modifiers: .outline (hollow) and .secondary (muted).
+ * Icons sit inline before the label via inline-flex + gap.
+ */
+.btn {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4em;
+  text-decoration: none;
+}
+
+.btn.outline {
+  background-color: transparent;
   color: var(--color-link);
-  display: inline-block;
-  padding: 0.2rem var(--space-m);
+}
+
+/* Inline SVG icons from the sprite, sized to the current text */
+.icon {
+  flex: none;
+  height: 1em;
+  vertical-align: -0.125em;
+  width: 1em;
+}
+
+/* Consistent help/guide links: muted, icon + label */
+.guide-link {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  gap: 0.3em;
+}
+
+/* Horizontal toolbar for page-level actions + guide links */
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
 }
 
 article aside a {
@@ -1192,19 +1225,23 @@ form:not(:has(input[name="can_pay_more"]:checked))
 }
 
 /* Secondary button */
-button.secondary {
+button.secondary,
+.btn.secondary {
   --color-secondary: #6c757d;
   --color-secondary-hover: #565e64;
   background-color: var(--color-secondary);
   border-color: var(--color-secondary);
+  color: var(--color-bg);
 }
 
-button.secondary:hover {
+button.secondary:hover,
+.btn.secondary:hover {
   background-color: var(--color-secondary-hover);
   border-color: var(--color-secondary-hover);
 }
 
-[data-theme="dark"] button.secondary {
+[data-theme="dark"] button.secondary,
+[data-theme="dark"] .btn.secondary {
   --color-secondary: #6272a4;
   --color-secondary-hover: #7a8abf;
 }
