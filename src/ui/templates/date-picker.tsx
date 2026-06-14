@@ -143,7 +143,7 @@ export const DatePicker = ({
   const month = viewMonth ?? (selected ?? today).slice(0, 7);
   const day = renderDay(byValue, month, selected, today, dayHref);
   return (
-    <>
+    <div class="date-picker">
       <div class="calendar" id="calendar">
         <div class="calendar-nav">
           <a
@@ -177,6 +177,6 @@ export const DatePicker = ({
         </div>
       </div>
       {renderSelect(dates, selected, today, dayHref, clearHref, ariaLabel)}
-    </>
+    </div>
   );
 };

@@ -207,29 +207,33 @@ const extractMappedIPv4 = (
   return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
 };
 
+/**
+ * Classify a bracketed-IPv6 hostname (without brackets) as private/internal.
+ * Recognizes the unspecified/loopback, IPv4-mapped, link-local, and unique-
+ * local ranges that the URL parser can hand us.
+ */
+const isPrivateIPv6 = (ipv6: string): boolean => {
+  // :: (unspecified — equivalent to 0.0.0.0) and ::1 (loopback)
+  if (ipv6 === "::" || ipv6 === "::1") return true;
+  // IPv4-mapped IPv6 (::ffff:127.0.0.1 normalizes to [::ffff:7f00:1])
+  const mapped = extractMappedIPv4(ipv6);
+  if (mapped) return isPrivateIPv4(...mapped);
+  // fe80::/10 — link-local (first 10 bits: 1111111010 → first group 0xfe80..0xfebf)
+  // fc00::/7  — unique local (first 7 bits: 1111110  → first group 0xfc00..0xfdff)
+  const firstGroup = ipv6.split(":")[0]!;
+  if (firstGroup.length < 3) return false;
+  const n = Number.parseInt(firstGroup, 16);
+  if (!Number.isFinite(n)) return false;
+  return (n >= 0xfe80 && n <= 0xfebf) || (n >= 0xfc00 && n <= 0xfdff);
+};
+
 /** Check if a hostname is a private/internal IP or localhost */
 const isPrivateHostname = (hostname: string): boolean => {
   if (hostname === "localhost") return true;
 
   // IPv6 hostnames from the URL parser arrive wrapped in brackets.
   if (hostname.startsWith("[") && hostname.endsWith("]")) {
-    const ipv6 = hostname.slice(1, -1);
-    // :: (unspecified — equivalent to 0.0.0.0) and ::1 (loopback)
-    if (ipv6 === "::" || ipv6 === "::1") return true;
-    // IPv4-mapped IPv6 (::ffff:127.0.0.1 normalizes to [::ffff:7f00:1])
-    const mapped = extractMappedIPv4(ipv6);
-    if (mapped) return isPrivateIPv4(...mapped);
-    // fe80::/10 — link-local (first 10 bits: 1111111010 → first group 0xfe80..0xfebf)
-    // fc00::/7  — unique local (first 7 bits: 1111110  → first group 0xfc00..0xfdff)
-    const firstGroup = ipv6.split(":")[0]!;
-    if (firstGroup.length >= 3) {
-      const n = Number.parseInt(firstGroup, 16);
-      if (Number.isFinite(n)) {
-        if (n >= 0xfe80 && n <= 0xfebf) return true;
-        if (n >= 0xfc00 && n <= 0xfdff) return true;
-      }
-    }
-    return false;
+    return isPrivateIPv6(hostname.slice(1, -1));
   }
 
   const parts = hostname.split(".");
@@ -237,11 +241,12 @@ const isPrivateHostname = (hostname: string): boolean => {
     parts.length === 4 &&
     parts.every((p) => p !== "" && !Number.isNaN(Number(p)))
   ) {
-    const a = Number(parts[0]);
-    const b = Number(parts[1]);
-    const c = Number(parts[2]);
-    const d = Number(parts[3]);
-    return isPrivateIPv4(a, b, c, d);
+    return isPrivateIPv4(
+      Number(parts[0]),
+      Number(parts[1]),
+      Number(parts[2]),
+      Number(parts[3]),
+    );
   }
 
   return false;

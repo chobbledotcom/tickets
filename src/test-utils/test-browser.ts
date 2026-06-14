@@ -187,6 +187,33 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
     (m) => decodeEntities(m[1]!),
   );
 
+/** Sentinel value that tells `appendFormValue` to auto-select every checkbox value. */
+const ALL_CHECKBOXES = "__ALL_CHECKBOXES__";
+
+/**
+ * Append a single user-provided form value, first removing any prior entry for
+ * the same key. Array values spread across multiple entries; the
+ * `__ALL_CHECKBOXES__` sentinel pulls every matching checkbox value from the
+ * form HTML (mirroring a user ticking all of them).
+ */
+const appendFormValue = (
+  params: URLSearchParams,
+  key: string,
+  value: string | string[],
+  body: string,
+): void => {
+  params.delete(key);
+  if (Array.isArray(value)) {
+    for (const v of value) params.append(key, v);
+  } else if (value === ALL_CHECKBOXES) {
+    for (const v of extractCheckboxValues(body, key)) {
+      params.append(key, v);
+    }
+  } else {
+    params.append(key, value);
+  }
+};
+
 /** Find a form whose body contains the given button text, or throw.
  * Also returns the matching button's name/value attributes when present,
  * so the caller can include them in the submission (mirrors how a real
@@ -437,20 +464,7 @@ export class TestBrowser {
 
     // Add user-provided data (overrides everything)
     for (const [key, value] of Object.entries(data)) {
-      params.delete(key);
-      if (Array.isArray(value)) {
-        for (const v of value) {
-          params.append(key, v);
-        }
-      } else if (value === "__ALL_CHECKBOXES__") {
-        // Auto-select all checkbox values for this field
-        const values = extractCheckboxValues(body, key);
-        for (const v of values) {
-          params.append(key, v);
-        }
-      } else {
-        params.append(key, value);
-      }
+      appendFormValue(params, key, value, body);
     }
 
     await this.request(action, {

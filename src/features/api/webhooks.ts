@@ -65,6 +65,7 @@ import {
   type BookingItem,
   getActivePaymentProvider,
   type ValidatedPaymentSession,
+  type WebhookEvent,
 } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
@@ -847,22 +848,24 @@ const getWebhookSignatureHeader = (request: Request): string | null =>
   null;
 
 /**
- * Handle POST /payment/webhook (payment provider webhook endpoint)
- *
- * Receives listings directly from the payment provider with signature verification.
- * Primary handler for payment completion - more reliable than redirects.
+ * Authenticate an incoming webhook: resolve the provider, require the signature
+ * header when the provider needs one, and verify signature/payload integrity.
+ * Returns the verified listing + provider on success, or a Response to short-
+ * circuit the request on failure.
  */
-const handlePaymentWebhook = async (request: Request): Promise<Response> => {
-  // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
-  // can garbage-collect the underlying request body resource during awaits
-  // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
-  // Cannot read body as underlying resource unavailable" errors.
-  const payloadBytes = new Uint8Array(await request.arrayBuffer());
-  const payload = new TextDecoder().decode(payloadBytes);
-
-  // Resolve the provider first: only it knows whether a signature is required.
-  // Unsigned-webhook providers (SumUp) establish authenticity by re-fetching
-  // the checkout from their API inside resolveWebhookSession instead.
+const authenticateWebhook = async (
+  request: Request,
+  payload: string,
+  payloadBytes: Uint8Array,
+): Promise<
+  | Response
+  | {
+      provider: NonNullable<
+        Awaited<ReturnType<typeof getActivePaymentProvider>>
+      >;
+      listing: WebhookEvent;
+    }
+> => {
   const provider = await getActivePaymentProvider();
   if (!provider) {
     logError({
@@ -873,7 +876,6 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return plainResponse("Payment provider not configured", 400);
   }
 
-  // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request) ?? "";
   if (provider.requiresWebhookSignature && !signature) {
     logError({
@@ -889,8 +891,6 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // public https:// URL. Deriving from request.url fails behind CDNs that
   // terminate TLS (the edge runtime sees http:// instead of https://).
   const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
-
-  // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
   const verification = await provider.verifyWebhookSignature(
     payload,
     signature,
@@ -906,7 +906,26 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return plainResponse(verification.error, 400);
   }
 
-  const listing = verification.listing;
+  return { listing: verification.listing, provider };
+};
+
+/**
+ * Handle POST /payment/webhook (payment provider webhook endpoint)
+ *
+ * Receives listings directly from the payment provider with signature verification.
+ * Primary handler for payment completion - more reliable than redirects.
+ */
+const handlePaymentWebhook = async (request: Request): Promise<Response> => {
+  // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
+  // can garbage-collect the underlying request body resource during awaits
+  // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
+  // Cannot read body as underlying resource unavailable" errors.
+  const payloadBytes = new Uint8Array(await request.arrayBuffer());
+  const payload = new TextDecoder().decode(payloadBytes);
+
+  const auth = await authenticateWebhook(request, payload, payloadBytes);
+  if (auth instanceof Response) return auth;
+  const { provider, listing } = auth;
 
   // Only handle checkout completed listings
   if (listing.type !== provider.checkoutCompletedEventType) {

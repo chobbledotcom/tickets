@@ -111,23 +111,25 @@ import { withEntityFromParam } from "./entity-handlers.ts";
 const parseBookableDays = (value: string): string[] | undefined =>
   value ? splitCsv(value) : undefined;
 
+/** Normalize an optional datetime field to UTC, passing through blanks/undefined. */
+const normalizeOptionalDatetime = (
+  raw: string | undefined,
+  field: string,
+): string | undefined => (raw ? normalizeDatetime(raw, field) : raw);
+
+/** Parse an optional minor-units price field, undefined when blank. */
+const parseOptionalPrice = (raw: string | undefined): number | undefined =>
+  raw ? toMinorUnits(Number.parseFloat(raw)) : undefined;
+
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (values: ListingFormValues) => {
-  const rawDate = values.date ?? "";
-  const date = rawDate ? normalizeDatetime(rawDate, "date") : rawDate;
-  const unitPrice = values.unit_price
-    ? toMinorUnits(Number.parseFloat(values.unit_price))
-    : undefined;
-  const closesAt = values.closes_at
-    ? normalizeDatetime(values.closes_at, "closes_at")
-    : values.closes_at;
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
     bookableDays: parseBookableDays(values.bookable_days),
     canPayMore: values.can_pay_more === "1",
-    closesAt,
-    date,
+    closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
+    date: normalizeOptionalDatetime(values.date, "date"),
     description: values.description,
     durationDays: values.duration_days ?? 1,
     fields: values.fields || "",
@@ -146,7 +148,7 @@ const extractCommonFields = (values: ListingFormValues) => {
     nonTransferable: values.non_transferable === "1",
     purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
-    unitPrice,
+    unitPrice: parseOptionalPrice(values.unit_price),
     webhookUrl,
   };
 };
@@ -513,6 +515,38 @@ const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/
 const handleAdminListingEditGet: TypedRouteHandler<"GET /admin/listing/:id/edit"> =
   withListingAndGroupsPage(adminListingEditPage);
 
+/**
+ * If a daily listing's duration changed on edit, recompute booking ranges and
+ * detect group-capacity overflow. Returns a string to append to the flash
+ * message ("" when no reconciliation was needed or no overflow occurred).
+ */
+const reconcileDurationChange = async (
+  row: {
+    id: number;
+    name: string;
+    listing_type: string;
+    duration_days: number;
+    group_id: number;
+  },
+  previousDurationDays: number,
+): Promise<string> => {
+  if (row.listing_type !== "daily") return "";
+  if (row.duration_days === previousDurationDays) return "";
+
+  await recomputeListingBookingRanges(row.id, row.duration_days);
+  await logActivity(
+    `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
+    row,
+  );
+  const overDay = await checkGroupCapAfterDurationChange(row.id, row.group_id);
+  if (!overDay) return "";
+  await logActivity(
+    `Duration change caused group capacity overflow on ${overDay}`,
+    row,
+  );
+  return ` Warning: group capacity exceeded on ${overDay}`;
+};
+
 /** Handle POST /admin/listing/:id/edit */
 const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
@@ -541,33 +575,10 @@ const handleAdminListingEditPost: TypedRouteHandler<
 
       const result = await updateResource.update(id, form);
       if (result.ok) {
-        // If duration changed on a daily listing, reconcile existing booking ranges
-        // so stored end_at values match the listing's current policy.
-        let durationWarning = "";
-        if (
-          result.row.listing_type === "daily" &&
-          result.row.duration_days !== existing.duration_days
-        ) {
-          await recomputeListingBookingRanges(
-            result.row.id,
-            result.row.duration_days,
-          );
-          await logActivity(
-            `Listing '${result.row.name}' duration changed to ${result.row.duration_days} day(s)`,
-            result.row,
-          );
-          const overDay = await checkGroupCapAfterDurationChange(
-            result.row.id,
-            result.row.group_id,
-          );
-          if (overDay) {
-            durationWarning = ` Warning: group capacity exceeded on ${overDay}`;
-            await logActivity(
-              `Duration change caused group capacity overflow on ${overDay}`,
-              result.row,
-            );
-          }
-        }
+        const durationWarning = await reconcileDurationChange(
+          result.row,
+          existing.duration_days,
+        );
         await logActivity(`Listing '${result.row.name}' updated`, result.row);
         return processUploadsAndRedirect(
           formData,

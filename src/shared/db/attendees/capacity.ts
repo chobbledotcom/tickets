@@ -382,11 +382,10 @@ const demandedDays = (bucket: DemandBucket): string[] | null =>
  * group id (for group-cap checks).
  */
 const aggregateDemand = <K>(
-  items: BatchAvailabilityItem[],
-  listingsById: Map<number, ListingRow>,
-  date: string | null | undefined,
+  ctx: BatchAvailabilityContext,
   keyOf: (ev: ListingRow) => K | null,
 ): Map<K, DemandBucket> => {
+  const { items, listingsById, date } = ctx;
   const buckets = new Map<K, DemandBucket>();
   for (const item of items) {
     const ev = listingsById.get(item.listingId)!;
@@ -409,6 +408,98 @@ const aggregateDemand = <K>(
 };
 
 /**
+ * Shared inputs to a batch-capacity check: the items under test, the resolved
+ * listing rows they reference, and the optional anchor date for daily listings.
+ */
+type BatchAvailabilityContext = {
+  items: BatchAvailabilityItem[];
+  listingsById: Map<number, ListingRow>;
+  date: string | null | undefined;
+};
+
+/**
+ * Walk each (key, bucket) pair in `demand`, awaiting `passes` and returning
+ * false on the first failure. Centralizes the short-circuiting iteration that
+ * listing-cap and group-cap checks both need.
+ */
+const everyBucketPasses = async <K>(
+  demand: Map<K, DemandBucket>,
+  passes: (key: K, bucket: DemandBucket) => Promise<boolean>,
+): Promise<boolean> => {
+  for (const [key, bucket] of demand) {
+    if (!(await passes(key, bucket))) return false;
+  }
+  return true;
+};
+
+/**
+ * Curried: given the listings lookup, build an async predicate that checks a
+ * single listing's demand against its `max_attendees` — per-day for daily
+ * listings, and as a total against existing bookings.
+ */
+const listingBucketPasses =
+  (listingsById: Map<number, ListingRow>) =>
+  async (listingId: number, bucket: DemandBucket): Promise<boolean> => {
+    const ev = listingsById.get(listingId)!;
+    const days = demandedDays(bucket);
+    if (days) {
+      const loads = perDayLoads(
+        await getOverlappingRows(listingId, days),
+        days,
+      );
+      const overCap = [...bucket.perDay].some(
+        ([day, qty]) => loads.get(day)! + qty > ev.max_attendees,
+      );
+      if (overCap) return false;
+    }
+    if (bucket.total > 0 && ev.attendee_count + bucket.total > ev.max_attendees)
+      return false;
+    return true;
+  };
+
+/**
+ * Async predicate: does a single group's demand fit within its remaining
+ * capacity, both per-day across the requested days and as a total against the
+ * group's baseline occupancy?
+ */
+const groupBucketPasses = async (
+  groupId: number,
+  bucket: DemandBucket,
+): Promise<boolean> => {
+  const days = demandedDays(bucket);
+  if (days) {
+    const remaining = await getGroupRemainingPerDay(groupId, days);
+    const overCap =
+      remaining &&
+      [...bucket.perDay].some(
+        ([day, qty]) => qty + bucket.total > remaining.get(day)!,
+      );
+    if (overCap) return false;
+  } else if (bucket.total > 0) {
+    // Pure non-daily demand against baseline group occupancy.
+    const remaining = (await getGroupRemainingByGroupId([groupId], null)).get(
+      groupId,
+    );
+    if (remaining !== undefined && bucket.total > remaining) return false;
+  }
+  return true;
+};
+
+/**
+ * Aggregate demand for `ctx` by `keyOf`, then verify every resulting bucket
+ * passes `bucketPasses`. The shared shape of the listing-cap and group-cap
+ * checks (both follow this aggregate-then-verify pattern) lives here.
+ */
+const checkCaps = (
+  ctx: BatchAvailabilityContext,
+  keyOf: (ev: ListingRow) => number | null,
+  bucketPasses: (key: number, bucket: DemandBucket) => Promise<boolean>,
+): Promise<boolean> => {
+  const demand = aggregateDemand(ctx, keyOf);
+  return everyBucketPasses(demand, bucketPasses);
+};
+
+/**
  * Check availability for multiple listings in a single preflight pass.
  * For multi-day daily listings, expands each booking into per-day demand so
  * that every day in the range is checked independently. Group caps are
@@ -422,7 +513,7 @@ export const checkBatchAvailabilityImpl = async (
   // Reject negative quantities outright — would otherwise offset positive
   // rows and bypass the cap. Form validation clamps upstream; defensive.
   if (items.some((i) => i.quantity < 0)) return false;
-  const listingIds = items.map((i) => i.listingId);
+  const listingIds = map((i: BatchAvailabilityItem) => i.listingId)(items);
 
   const listingRows = await queryAll<ListingRow>(
     `SELECT e.id, e.max_attendees, e.group_id, e.listing_type,
@@ -438,52 +529,17 @@ export const checkBatchAvailabilityImpl = async (
   // Every item must reference a known listing.
   if (items.some((i) => !listingsById.has(i.listingId))) return false;
 
-  // Listing-cap checks: per-day where applicable, total for non-daily/date-less.
-  // One overlap fetch per listing covers every demanded day at once.
-  const listingDemand = aggregateDemand(
-    items,
-    listingsById,
-    date,
-    (ev) => ev.id,
-  );
-  for (const [listingId, bucket] of listingDemand) {
-    const ev = listingsById.get(listingId)!;
-    const days = demandedDays(bucket);
-    if (days) {
-      const loads = perDayLoads(
-        await getOverlappingRows(listingId, days),
-        days,
-      );
-      const overCap = [...bucket.perDay].some(
-        ([day, qty]) => loads.get(day)! + qty > ev.max_attendees,
-      );
-      if (overCap) return false;
-    }
-    if (bucket.total > 0 && ev.attendee_count + bucket.total > ev.max_attendees)
-      return false;
+  const ctx: BatchAvailabilityContext = { date, items, listingsById };
+  // Per-listing caps: each listing's per-day and total demand within max_attendees.
+  if (
+    !(await checkCaps(ctx, (ev) => ev.id, listingBucketPasses(listingsById)))
+  ) {
+    return false;
   }
-
-  // Group-cap checks: per-day across the union of requested days in the group.
-  const groupDemand = aggregateDemand(items, listingsById, date, (ev) =>
-    ev.group_id > 0 ? ev.group_id : null,
+  // Group caps: each group's per-day and total demand within its remaining capacity.
+  return checkCaps(
+    ctx,
+    (ev) => (ev.group_id > 0 ? ev.group_id : null),
+    groupBucketPasses,
   );
-  for (const [groupId, bucket] of groupDemand) {
-    const days = demandedDays(bucket);
-    if (days) {
-      const remaining = await getGroupRemainingPerDay(groupId, days);
-      const overCap =
-        remaining &&
-        [...bucket.perDay].some(
-          ([day, qty]) => qty + bucket.total > remaining.get(day)!,
-        );
-      if (overCap) return false;
-    } else if (bucket.total > 0) {
-      // Pure non-daily demand against baseline group occupancy.
-      const remaining = (await getGroupRemainingByGroupId([groupId], null)).get(
-        groupId,
-      );
-      if (remaining !== undefined && bucket.total > remaining) return false;
-    }
-  }
-  return true;
 };

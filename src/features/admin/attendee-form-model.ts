@@ -237,10 +237,10 @@ export const parseAttendeeForm = (
       ? Math.min(lineCountRaw, MAX_FORM_LINES)
       : 1;
 
-  const lines: AttendeeFormLine[] = [];
-  for (let i = 0; i < lineCount; i++) {
-    lines.push(parseAttendeeLine(form, i, listingsById, existingByKey));
-  }
+  const indices = Array.from({ length: lineCount }, (_, i) => i);
+  const lines = map((i: number) =>
+    parseAttendeeLine(form, i, listingsById, existingByKey),
+  )(indices);
 
   return {
     action: parseAction(form),
