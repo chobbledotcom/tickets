@@ -11,7 +11,7 @@ import {
 import { getBaseUrl } from "#routes/url.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { getAvailableDates, isBookingRangeValid } from "#shared/dates.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
@@ -23,6 +23,7 @@ import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   type CheckoutIntent,
@@ -31,6 +32,7 @@ import {
 } from "#shared/payments.ts";
 import {
   type ContactInfo,
+  dayPriceFor,
   type Group,
   normalizeDurationDays,
 } from "#shared/types.ts";
@@ -126,32 +128,56 @@ export const checkAvailability = (
   listings: TicketListing[],
   quantities: Map<number, number>,
   date?: string | null,
+  dayCount = 1,
 ): Promise<boolean> =>
   checkBatchAvailability(
-    buildBookings(listingsWithQuantity(listings, quantities), date ?? null),
+    buildBookings(
+      listingsWithQuantity(listings, quantities),
+      date ?? null,
+      dayCount,
+    ),
     date,
   );
 
 /**
  * Shared booking-date fields (date + durationDays). Keeps the payment and
- * webhook flows aligned: both read duration from the listing at insert time.
+ * webhook flows aligned. For "customisable days" listings the booking span is
+ * the visitor's chosen `dayCount`; otherwise daily listings use their fixed
+ * `duration_days` and standard listings span a single day.
  */
 export const bookingDateFields = (
-  listing: Pick<TicketListing["listing"], "listing_type" | "duration_days">,
+  listing: Pick<
+    TicketListing["listing"],
+    "listing_type" | "duration_days" | "customisable_days"
+  >,
   date: string | null,
+  dayCount = 1,
 ): { date: string | null; durationDays: number } => ({
   date: listing.listing_type === "daily" ? date : null,
-  durationDays:
-    listing.listing_type === "daily"
+  durationDays: listing.customisable_days
+    ? normalizeDurationDays(dayCount)
+    : listing.listing_type === "daily"
       ? normalizeDurationDays(listing.duration_days)
       : 1,
 });
+
+/** Resolve the per-ticket price for a selected listing: customisable listings
+ * are priced by the chosen day count, others by their custom/fixed unit price. */
+const itemUnitPrice = (
+  listing: TicketListing["listing"],
+  customPrices: Map<number, number>,
+  dayCount: number,
+): number =>
+  listing.customisable_days
+    ? (dayPriceFor(listing, dayCount) ?? 0)
+    : (customPrices.get(listing.id) ?? listing.unit_price);
 
 /** Build registration items from listings and quantities */
 export const buildRegistrationItems = (
   listings: TicketListing[],
   quantities: Map<number, number>,
   customPrices: Map<number, number>,
+  dayCount = 1,
 ): CheckoutItem[] => {
   const selected = listings.filter(({ listing }) => {
     const qty = quantities.get(listing.id);
@@ -162,7 +188,7 @@ export const buildRegistrationItems = (
     name: listing.name,
     quantity: quantities.get(listing.id)!,
     slug: listing.slug,
-    unitPrice: customPrices.get(listing.id) ?? listing.unit_price,
+    unitPrice: itemUnitPrice(listing, customPrices, dayCount),
   }));
 };
 
@@ -192,6 +218,7 @@ export const handlePaymentFlow = (
 const buildBookings = (
   selected: ListingQty[],
   date: string | null,
+  dayCount = 1,
 ): {
   listingId: number;
   quantity: number;
@@ -201,8 +228,49 @@ const buildBookings = (
   selected.map(({ listing, qty }) => ({
     listingId: listing.id,
     quantity: qty,
-    ...bookingDateFields(listing, date),
+    ...bookingDateFields(listing, date, dayCount),
   }));
+
+/**
+ * Parse and validate the visitor's chosen day count for "customisable days"
+ * listings. Returns `{ dayCount }` (1 when no selected listing is customisable),
+ * or `{ error }` when the choice is missing, unpriced, or — for daily listings
+ * — would run the range into a holiday or past the booking window.
+ */
+export const resolveDayCount = async (
+  selected: ListingQty[],
+  form: FormParams,
+  date: string | null,
+): Promise<{ dayCount: number } | { error: string }> => {
+  const customisable = selected.filter(
+    ({ listing }) => listing.customisable_days,
+  );
+  if (customisable.length === 0) return { dayCount: 1 };
+
+  const raw = Number.parseInt(form.getString("day_count"), 10);
+  if (!Number.isInteger(raw) || raw < 1) {
+    return { error: "Please choose how many days to book" };
+  }
+  for (const { listing } of customisable) {
+    if (dayPriceFor(listing, raw) === null) {
+      return { error: `${listing.name} does not offer a ${raw}-day booking` };
+    }
+  }
+  const dailyCustomisable = customisable.filter(
+    ({ listing }) => listing.listing_type === "daily",
+  );
+  if (date && dailyCustomisable.length > 0) {
+    const holidays = await getActiveHolidays();
+    for (const { listing } of dailyCustomisable) {
+      if (!isBookingRangeValid(listing, date, raw, holidays)) {
+        return {
+          error: `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+        };
+      }
+    }
+  }
+  return { dayCount: raw };
+};
 
 export const processFreeReservation = async (
   listings: TicketListing[],
@@ -210,12 +278,13 @@ export const processFreeReservation = async (
   contact: ContactInfo,
   date: string | null,
   siteToken?: string,
+  dayCount = 1,
 ): Promise<
   | { success: true; token: string; entries: EmailEntry[] }
   | { success: false; error: string }
 > => {
   const selected = listingsWithQuantity(listings, quantities);
-  const bookings = buildBookings(selected, date);
+  const bookings = buildBookings(selected, date, dayCount);
   const result = await createAttendeeAtomic({ ...contact, bookings });
 
   const check = await ensureAllBookings(result, bookings.length);
@@ -270,8 +339,18 @@ export const computeSharedDates = async (
   );
   if (dailyListings.length === 0) return [];
   const holidays = await getActiveHolidays();
+  // Customisable-days listings store duration_days as the *maximum*; their date
+  // list is computed for a single day (every individually-bookable start) and
+  // the chosen span is validated separately at submit time.
   const dateSets = dailyListings.map(
-    (e) => new Set(getAvailableDates(e.listing, holidays)),
+    (e) =>
+      new Set(
+        getAvailableDates(
+          e.listing,
+          holidays,
+          e.listing.customisable_days ? 1 : undefined,
+        ),
+      ),
   );
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };

@@ -45,6 +45,7 @@ import {
   getTicketContext,
   handlePaymentFlow,
   processFreeReservation,
+  resolveDayCount,
   withActiveListings,
 } from "./ticket-payment.ts";
 import {
@@ -169,6 +170,8 @@ type PathParams = {
   ctx: TicketCtx;
   quantities: Map<number, number>;
   date: string | null;
+  dayCount: number;
+  hasCustomisable: boolean;
   contact: ReturnType<typeof extractContact>;
   info: AnswerInfo;
 };
@@ -178,8 +181,22 @@ const handlePaidPath = async (
   request: Request,
   params: PathParams & { items: ReturnType<typeof buildRegistrationItems> },
 ): Promise<Response> => {
-  const { ctx, quantities, date, contact, items, info } = params;
-  const available = await checkAvailability(ctx.listings, quantities, date);
+  const {
+    ctx,
+    quantities,
+    date,
+    dayCount,
+    hasCustomisable,
+    contact,
+    items,
+    info,
+  } = params;
+  const available = await checkAvailability(
+    ctx.listings,
+    quantities,
+    date,
+    dayCount,
+  );
   if (!available) {
     return ticketFormErrorResponse(ctx)(
       "Sorry, some tickets are no longer available",
@@ -191,6 +208,10 @@ const handlePaidPath = async (
     date,
     items,
     listingAnswerIds,
+    // Carry the chosen span only when a customisable listing is involved, so
+    // the webhook re-prices and dates the booking by day count, not the
+    // listing's fixed duration.
+    ...(hasCustomisable ? { dayCount } : {}),
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
   };
   return handlePaymentFlow(request, intent, ctx);
@@ -198,13 +219,14 @@ const handlePaidPath = async (
 
 /** Handle the free registration path */
 const handleFreePath = async (params: PathParams): Promise<Response> => {
-  const { ctx, quantities, date, contact, info } = params;
+  const { ctx, quantities, date, dayCount, contact, info } = params;
   const result = await processFreeReservation(
     ctx.listings,
     quantities,
     contact,
     date,
     ctx.siteToken,
+    dayCount,
   );
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
@@ -277,6 +299,14 @@ const processSubmission = async (
     if (!date) return errorResponse("Please select a valid date");
   }
 
+  const selected = listingsWithQuantity(ctx.listings, quantities);
+  const hasCustomisable = selected.some(
+    ({ listing }) => listing.customisable_days,
+  );
+  const dayResult = await resolveDayCount(selected, form, date);
+  if ("error" in dayResult) return errorResponse(dayResult.error);
+  const dayCount = dayResult.dayCount;
+
   const customPricesResult = parseCustomPrices(form, ctx, quantities);
   if (customPricesResult instanceof Response) return customPricesResult;
 
@@ -286,6 +316,7 @@ const processSubmission = async (
     ctx.listings,
     quantities,
     customPricesResult,
+    dayCount,
   );
 
   const info: AnswerInfo = {
@@ -299,12 +330,22 @@ const processSubmission = async (
       contact,
       ctx,
       date,
+      dayCount,
+      hasCustomisable,
       info,
       items,
       quantities,
     });
   }
-  return handleFreePath({ contact, ctx, date, info, quantities });
+  return handleFreePath({
+    contact,
+    ctx,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    quantities,
+  });
 };
 
 /** Handle POST for ticket registration */

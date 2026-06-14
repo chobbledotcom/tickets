@@ -221,6 +221,7 @@ const validateListingTypesForGroup = async (
       const typeError = await validateGroupListingType(
         groupId,
         listing.listing_type,
+        listing.customisable_days,
       );
       if (typeError) return typeError;
     }

@@ -18,7 +18,11 @@ import {
 } from "#shared/db/listings.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
-import type { Listing, ListingWithCount } from "#shared/types.ts";
+import {
+  type Listing,
+  type ListingWithCount,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 
 /** Generate a unique listing slug, retrying on collision */
 export const generateUniqueListingSlug = (excludeListingId?: number) =>
@@ -49,8 +53,28 @@ const validateListingGroup = async (
   return validateGroupListingType(
     input.groupId,
     input.listingType!,
+    input.customisableDays ?? false,
     existingId ?? 0,
   );
+};
+
+/**
+ * Validate the customisable-days configuration: when enabled, a listing must
+ * offer at least one priced day count within [1, duration_days] and cannot also
+ * allow pay-what-you-want (the two pricing models are mutually exclusive).
+ */
+const validateCustomisableDays = (input: ListingInput): string | null => {
+  if (!input.customisableDays) return null;
+  if (input.canPayMore) {
+    return "Customisable days cannot be combined with Allow Pay More";
+  }
+  const max = normalizeDurationDays(input.durationDays ?? 1);
+  const counts = Object.keys(input.dayPrices ?? {})
+    .map(Number)
+    .filter((n) => n >= 1 && n <= max);
+  return counts.length === 0
+    ? "Set a price for at least one day count (1 up to the maximum days)"
+    : null;
 };
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
@@ -66,6 +90,8 @@ export const validateListingInput = async (
     const maxPriceError = validateMaxPrice(input);
     if (maxPriceError) return maxPriceError;
   }
+  const customisableError = validateCustomisableDays(input);
+  if (customisableError) return customisableError;
   const groupError = await validateListingGroup(input, existingId);
   if (groupError) return groupError;
 

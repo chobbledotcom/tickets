@@ -248,6 +248,15 @@ const handleBook = withActiveListing(async (request, listing) => {
   if (isRegistrationClosed(listing)) {
     return apiResponse({ error: "Registration is closed" }, 400);
   }
+  // Customisable-days listings are priced by a chosen day count, which this
+  // endpoint doesn't accept — booking them here would charge the wrong amount,
+  // so they must be booked through the website form.
+  if (listing.customisable_days) {
+    return apiResponse(
+      { error: "This listing must be booked through the website." },
+      400,
+    );
+  }
 
   const bodyOrError = await parseApiJsonBody(request);
   if (bodyOrError instanceof Response) return bodyOrError;

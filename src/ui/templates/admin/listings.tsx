@@ -25,7 +25,7 @@ import {
   renderField,
   renderFields,
 } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import {
@@ -34,6 +34,7 @@ import {
   type Group,
   isPaidListing,
   type ListingWithCount,
+  normalizeDurationDays,
 } from "#shared/types.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
@@ -950,6 +951,41 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
 
 const formatBookableDays = (days: string[]): string => days.join(",");
 
+/**
+ * Render the per-day-count price inputs for "customisable days" listings: one
+ * text input per day from 1 to the listing's maximum booking duration,
+ * pre-filled from the stored `day_prices`. Rendered on every listing form but
+ * only meaningful when "Customisable Days" is enabled (the client script and
+ * server validation both gate on that checkbox). New listings start with a
+ * single row; increasing the maximum and saving reveals more rows.
+ */
+export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
+  const max = listing ? normalizeDurationDays(listing.duration_days) : 1;
+  const prices = listing?.day_prices ?? {};
+  const rows = Array.from({ length: max }, (_, i) => i + 1)
+    .map((n) => {
+      const stored = prices[n];
+      const value = stored !== undefined ? toMajorUnits(stored) : "";
+      return (
+        `<label>${n} day${n === 1 ? "" : "s"} price` +
+        `<input type="text" inputmode="decimal" name="day_price_${n}" ` +
+        `value="${escapeHtml(value)}" pattern="\\d+(\\.\\d{1,2})?" ` +
+        `placeholder="e.g. 10.00" title="A non-negative number (e.g. 10.00)" />` +
+        "</label>"
+      );
+    })
+    .join("");
+  return (
+    `<fieldset data-day-prices id="day-prices">` +
+    "<legend>Day Prices (customisable days)</legend>" +
+    "<p><small>Set a price for each number of days you want to offer. Leave a " +
+    "row blank to not offer that length. The maximum matches the Booking " +
+    "Duration (days) above — increase it and save to add more rows.</small></p>" +
+    rows +
+    "</fieldset>"
+  );
+};
+
 const listingFieldFormatters: Partial<
   Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
@@ -957,6 +993,7 @@ const listingFieldFormatters: Partial<
   bookable_days: (e) => formatBookableDays(e.bookable_days),
   can_pay_more: (e) => booleanToCheckbox(e.can_pay_more),
   closes_at: (e) => formatDatetimeLocal(e.closes_at),
+  customisable_days: (e) => booleanToCheckbox(e.customisable_days),
   date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
   hidden: (e) => booleanToCheckbox(e.hidden),
   initial_site_months: (e) =>
@@ -1010,6 +1047,7 @@ export const adminListingNewPage = (
         <h1>Add Listing</h1>
         <Flash error={error} />
         <Raw html={renderFields(fields)} />
+        <Raw html={renderDayPricesFieldset()} />
         <ListingGroupSelect groups={groups} selectedGroupId={0} />
         <SubmitButton icon="plus">Create Listing</SubmitButton>
       </CsrfForm>
@@ -1046,6 +1084,7 @@ export const adminDuplicateListingPage = (
       </p>
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
         <Raw html={renderFields(dupFields, values)} />
+        <Raw html={renderDayPricesFieldset(listing)} />
         <ListingGroupSelect
           groups={groups}
           selectedGroupId={listing.group_id}
@@ -1084,6 +1123,7 @@ export const adminListingEditPage = (
         id="listing-edit-form"
       >
         <Raw html={renderFields(fields, listingToFieldValues(listing))} />
+        <Raw html={renderDayPricesFieldset(listing)} />
         <ListingGroupSelect
           groups={groups}
           selectedGroupId={listing.group_id}

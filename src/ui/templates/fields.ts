@@ -59,6 +59,7 @@ export type ListingFormValues = {
   minimum_days_before: number | null;
   maximum_days_after: number | null;
   duration_days: number | null;
+  customisable_days: string;
   non_transferable: string;
   group_id: string;
   can_pay_more: string;
@@ -505,7 +506,7 @@ export const listingFields: Field[] = [
     type: "number",
   },
   {
-    hint: "How many days each booking reserves. Only applies to daily listings.",
+    hint: "How many days each booking reserves. With Customisable Days on, this is the maximum a visitor can choose. Only applies to daily listings unless Customisable Days is on.",
     label: "Booking Duration (days)",
     max: MAX_DURATION_DAYS,
     min: 1,
@@ -524,6 +525,13 @@ export const listingFields: Field[] = [
       }
       return null;
     },
+  },
+  {
+    hint: "Let visitors choose how many days to book (1 up to the Booking Duration above), each priced separately below. Works for standard and daily listings. Cannot be combined with Allow Pay More.",
+    label: "Customisable Days",
+    name: "customisable_days",
+    options: [{ label: "Let visitors choose the number of days", value: "1" }],
+    type: "checkbox-group",
   },
   {
     hint: "Which contact details to collect from attendees",

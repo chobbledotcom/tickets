@@ -67,7 +67,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
@@ -313,13 +313,20 @@ const validateListingForPayment = async (
 const validateAndPrice = async (
   input: { listingId: number; quantity: number },
   includeListingName = false,
+  dayCount?: number,
 ): Promise<ListingPriceValidation> => {
   const validation = await validateListingForPayment(
     input.listingId,
     includeListingName,
   );
   if (!validation.ok) return validation;
-  const expectedPrice = validation.listing.unit_price * input.quantity;
+  // Customisable-days listings are priced by the chosen day count, not by the
+  // flat unit_price, so the per-item amount must be re-derived the same way the
+  // checkout computed it.
+  const perTicket = validation.listing.customisable_days
+    ? (dayPriceFor(validation.listing, dayCount ?? 1) ?? 0)
+    : validation.listing.unit_price;
+  const expectedPrice = perTicket * input.quantity;
   return { expectedPrice, listing: validation.listing, ok: true };
 };
 
@@ -427,9 +434,14 @@ const extractIntent = (
   const items = parseBookingItems(metadata.items);
   if (!items || items.length === 0) return null;
 
+  const parsedDayCount = Number.parseInt(metadata.day_count, 10);
   return {
     address: metadata.address,
     date: metadata.date || null,
+    dayCount:
+      Number.isInteger(parsedDayCount) && parsedDayCount > 0
+        ? parsedDayCount
+        : undefined,
     email: metadata.email,
     items,
     listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
@@ -496,6 +508,7 @@ const validateAllItems = async (
     const vp = await validateAndPrice(
       { listingId: item.e, quantity: item.q },
       includeListingName,
+      intent.dayCount,
     );
     if (!vp.ok) return validationFailure(session, vp, item.e);
     validatedItems.push({
@@ -566,7 +579,7 @@ const createAttendeeForSession = async (
     listingId: item.e,
     pricePaid: item.p,
     quantity: item.q,
-    ...bookingDateFields(listing, intent.date),
+    ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
 
   const result = await createAttendeeAtomic({

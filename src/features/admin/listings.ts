@@ -53,6 +53,8 @@ import {
   LISTING_DEMO_FIELDS,
 } from "#shared/demo.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { Field } from "#shared/forms.tsx";
 import {
   generateUniqueListingSlug,
   performListingDelete,
@@ -73,11 +75,13 @@ import {
   validateAttachment,
   validateImage,
 } from "#shared/storage.ts";
-import type {
-  AdminSession,
-  Attendee,
-  Group,
-  ListingWithCount,
+import {
+  type AdminSession,
+  type Attendee,
+  type DayPrices,
+  type Group,
+  type ListingWithCount,
+  parseDayPrices,
 } from "#shared/types.ts";
 import { adminListingActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -111,6 +115,24 @@ import { withEntityFromParam } from "./entity-handlers.ts";
 const parseBookableDays = (value: string): string[] | undefined =>
   value ? splitCsv(value) : undefined;
 
+/**
+ * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
+ * the raw form into a {@link DayPrices} map. Only days 1..maxDays are read
+ * (matching the inputs the form renders); blank rows are skipped so that count
+ * isn't offered. {@link parseDayPrices} drops any non-numeric entries.
+ */
+const parseDayPricesFromForm = (
+  form: FormParams,
+  maxDays: number,
+): DayPrices => {
+  const result: DayPrices = {};
+  for (let n = 1; n <= maxDays; n++) {
+    const raw = form.getString(`day_price_${n}`).trim();
+    if (raw !== "") result[n] = toMinorUnits(Number.parseFloat(raw));
+  }
+  return parseDayPrices(result);
+};
+
 /** Normalize an optional datetime field to UTC, passing through blanks/undefined. */
 const normalizeOptionalDatetime = (
   raw: string | undefined,
@@ -122,16 +144,19 @@ const parseOptionalPrice = (raw: string | undefined): number | undefined =>
   raw ? toMinorUnits(Number.parseFloat(raw)) : undefined;
 
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
-const extractCommonFields = (values: ListingFormValues) => {
+const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
   const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
+  const durationDays = values.duration_days ?? 1;
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
     bookableDays: parseBookableDays(values.bookable_days),
     canPayMore: values.can_pay_more === "1",
     closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
+    customisableDays: values.customisable_days === "1",
     date: normalizeOptionalDatetime(values.date, "date") ?? "",
+    dayPrices: parseDayPricesFromForm(form, durationDays),
     description: values.description,
-    durationDays: values.duration_days ?? 1,
+    durationDays,
     fields: values.fields || "",
     groupId: Number(values.group_id) || 0,
     hidden: values.hidden === "1",
@@ -156,34 +181,55 @@ const extractCommonFields = (values: ListingFormValues) => {
 /** Extract listing input from validated form (async to compute slugIndex) */
 const extractListingInput = async (
   values: ListingFormValues,
+  form: FormParams,
 ): Promise<ListingInput> => {
   const { slug, slugIndex } = await generateUniqueListingSlug();
-  return { ...extractCommonFields(values), slug, slugIndex };
+  return { ...extractCommonFields(values, form), slug, slugIndex };
 };
 
 /** Extract listing input for update (reads slug from form, normalizes it) */
 const extractListingUpdateInput = async (
   values: ListingEditFormValues,
+  form: FormParams,
 ): Promise<ListingInput> => {
   const slug = normalizeSlug(values.slug);
   const slugIndex = await computeSlugIndex(slug);
-  return { ...extractCommonFields(values), slug, slugIndex };
+  return { ...extractCommonFields(values, form), slug, slugIndex };
 };
 
-/** Listings resource for REST create operations */
-const listingsResource = defineResource({
-  fields: [
-    ...listingFields,
-    monthsPerUnitField,
-    initialSiteMonthsField,
-    assignBuiltSiteField,
-    groupIdField,
-  ],
-  nameField: "name",
-  table: listingsTable,
-  toInput: extractListingInput,
-  validate: validateListingInput,
-});
+/** Fields parsed for every listing create/update (slug added for updates). */
+const listingResourceFields: Field[] = [
+  ...listingFields,
+  monthsPerUnitField,
+  initialSiteMonthsField,
+  assignBuiltSiteField,
+  groupIdField,
+];
+
+/**
+ * Build a per-request listings create resource whose `toInput` closes over the
+ * raw form, so the dynamic `day_price_*` inputs can be read alongside the
+ * validated fields (the resource only hands `toInput` the validated values).
+ */
+const buildCreateListingResource = (form: FormParams) =>
+  defineResource({
+    fields: listingResourceFields,
+    nameField: "name",
+    table: listingsTable,
+    toInput: (values: ListingFormValues) => extractListingInput(values, form),
+    validate: validateListingInput,
+  });
+
+/** Build a per-request listings update resource (includes the slug field). */
+const buildUpdateListingResource = (form: FormParams) =>
+  defineResource({
+    fields: [...listingResourceFields, slugField],
+    nameField: "name",
+    table: listingsTable,
+    toInput: (values: ListingEditFormValues) =>
+      extractListingUpdateInput(values, form),
+    validate: validateListingInput,
+  });
 
 /** Generic form file processor: extract, validate, replace old, upload, update listing */
 const processFormFile = async (opts: {
@@ -345,7 +391,7 @@ const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
   withAuth(request, AUTH_MULTIPART, async (session, formData) => {
     const form = formDataToParams(formData);
     applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-    const result = await listingsResource.create(form);
+    const result = await buildCreateListingResource(form).create(form);
     if (!result.ok) {
       const groups = await getAllGroups();
       return htmlResponse(
@@ -558,22 +604,7 @@ const handleAdminListingEditPost: TypedRouteHandler<
 
       // Build a resource that includes the slug field; uniqueness is enforced
       // by validateListingInput when existingId is set.
-      const updateResource = defineResource({
-        fields: [
-          ...listingFields,
-          monthsPerUnitField,
-          initialSiteMonthsField,
-          assignBuiltSiteField,
-          slugField,
-          groupIdField,
-        ],
-        nameField: "name",
-        table: listingsTable,
-        toInput: extractListingUpdateInput,
-        validate: validateListingInput,
-      });
-
-      const result = await updateResource.update(id, form);
+      const result = await buildUpdateListingResource(form).update(id, form);
       if (result.ok) {
         const durationWarning = await reconcileDurationChange(
           result.row,

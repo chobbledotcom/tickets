@@ -168,17 +168,51 @@ const isRangeBookable = (
  * Filters by bookable days of the week and excludes holidays.
  * For listings with `duration_days > 1`, excludes start dates whose full range
  * would hit a non-bookable day or extend past the booking window.
+ *
+ * `durationOverride` lets callers compute availability for a span other than
+ * the listing's stored `duration_days` — used for "customisable days" listings,
+ * where `duration_days` is only the *maximum*, so the date list is built for a
+ * single day (every individually-bookable start) and the chosen span is
+ * validated separately at submit time via {@link isBookingRangeValid}.
+ *
  * Returns sorted array of YYYY-MM-DD strings.
  */
 export const getAvailableDates = (
   listing: Listing,
   holidays: Holiday[],
+  durationOverride?: number,
 ): string[] => {
   const range = bookableRange(listing);
-  const duration = normalizeDurationDays(listing.duration_days);
+  const duration = normalizeDurationDays(
+    durationOverride ?? listing.duration_days,
+  );
   return filter((d: string) =>
     isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
   )(dateRange(range.start, range.end));
+};
+
+/**
+ * Whether booking `days` consecutive days starting on `date` is valid for a
+ * daily listing: every day must be a bookable weekday, fall outside all
+ * holidays, and stay within the listing's booking window. Used to enforce the
+ * visitor's chosen span on "customisable days" listings at submit time, where
+ * the day count isn't known when the date list is rendered.
+ */
+export const isBookingRangeValid = (
+  listing: Listing,
+  date: string,
+  days: number,
+  holidays: Holiday[],
+): boolean => {
+  const range = bookableRange(listing);
+  if (date < range.start) return false;
+  return isRangeBookable(
+    date,
+    normalizeDurationDays(days),
+    range.bookableDays,
+    holidays,
+    range.end,
+  );
 };
 
 /**

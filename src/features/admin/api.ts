@@ -162,6 +162,10 @@ const existingToDefaults = (existing: ListingWithCount): FieldRecord => {
   const result: FieldRecord = {};
   for (const [apiKey, outKey] of optionalFields) {
     const val = existing[apiKey as keyof ListingWithCount];
+    // Object-valued columns (e.g. day_prices) aren't exposed as scalar API
+    // field values, and none appear in optionalFields, so skip them.
+    if (val !== null && typeof val === "object" && !Array.isArray(val))
+      continue;
     result[outKey] = val === null ? "" : val;
   }
   return result;

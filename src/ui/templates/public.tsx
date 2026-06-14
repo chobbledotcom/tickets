@@ -22,6 +22,8 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
+  availableDayCounts,
+  dayPriceFor,
   type Group,
   isPaidListing,
   type ListingFields,
@@ -272,6 +274,47 @@ const renderDateSelector = (
                  d,
                )}</option>`,
            )
+           .join("")}
+       </select>`;
+
+/**
+ * Shared day-count options across every "customisable days" listing on the
+ * page: the intersection of each listing's offered counts so one selector can
+ * drive the whole booking (groups enforce a uniform setting, but ad-hoc
+ * multi-listing URLs may still mix). Empty when no listing is customisable.
+ */
+export const sharedDayCounts = (listings: TicketListing[]): number[] => {
+  const customisable = listings.filter((e) => e.listing.customisable_days);
+  if (customisable.length === 0) return [];
+  const sets = customisable.map((e) => new Set(availableDayCounts(e.listing)));
+  const [first, ...rest] = sets;
+  return [...first!]
+    .filter((n) => rest.every((s) => s.has(n)))
+    .sort((a, b) => a - b);
+};
+
+/** Render the "number of days" selector for customisable-days listings. When a
+ * single listing drives the page, each option shows its price for that span. */
+const renderDayCountSelector = (
+  counts: number[],
+  priceFor?: (days: number) => number | null,
+): string =>
+  counts.length === 0
+    ? `<div class="error" role="alert">No booking lengths are currently available.</div>`
+    : `<label for="day_count">Number of days</label>
+       <select name="day_count" id="day_count" required>
+         <option value="">— Select —</option>
+         ${counts
+           .map((n) => {
+             const price = priceFor?.(n);
+             const suffix =
+               price !== undefined && price !== null
+                 ? ` — ${formatCurrency(price)}`
+                 : "";
+             return `<option value="${n}">${n} day${
+               n === 1 ? "" : "s"
+             }${suffix}</option>`;
+           })
            .join("")}
        </select>`;
 
@@ -700,6 +743,8 @@ const TicketPageForm = ({
   hasDaily,
   durationDays,
   dates,
+  dayCounts,
+  dayCountPriceFor,
   listingRows,
   hideQuantity,
   isSingleListing,
@@ -714,6 +759,8 @@ const TicketPageForm = ({
   hasDaily: boolean;
   durationDays: number;
   dates: string[] | undefined;
+  dayCounts: number[];
+  dayCountPriceFor?: (days: number) => number | null;
   listingRows: string;
   hideQuantity: boolean;
   isSingleListing: boolean;
@@ -735,6 +782,9 @@ const TicketPageForm = ({
           html={renderDateSelector(dates, qrPrefill?.date ?? "", durationDays)}
         />
       )}
+      {dayCounts.length > 0 && (
+        <Raw html={renderDayCountSelector(dayCounts, dayCountPriceFor)} />
+      )}
 
       {hideQuantity || isSingleListing ? (
         <Raw html={listingRows} />
@@ -753,6 +803,30 @@ const TicketPageForm = ({
     </CsrfForm>
   );
 };
+
+/**
+ * Day-selection config for the booking form, derived from the page's listings.
+ * Customisable-days listings drive a shared "number of days" selector; on a
+ * single-listing page each option carries its price, and the date selector's
+ * duration label is suppressed because the span is chosen rather than fixed.
+ */
+const dayConfig = (
+  listings: TicketListing[],
+  singleListing: ListingWithCount | null,
+): {
+  dayCounts: number[];
+  dayCountPriceFor?: (days: number) => number | null;
+  dateDurationDays: number;
+} => ({
+  dateDurationDays:
+    singleListing && !singleListing.customisable_days
+      ? singleListing.duration_days
+      : 1,
+  dayCountPriceFor: singleListing?.customisable_days
+    ? (days: number) => dayPriceFor(singleListing, days)
+    : undefined,
+  dayCounts: sharedDayCounts(listings),
+});
 
 /**
  * Ticket page - register for one or more listings
@@ -784,6 +858,11 @@ export const ticketPage = ({
   const isSingleListing = listings.length === 1;
   const singleListing = isSingleListing ? listings[0]!.listing : null;
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
+
+  const { dayCounts, dayCountPriceFor, dateDurationDays } = dayConfig(
+    listings,
+    singleListing,
+  );
 
   const availableListings = listings.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =
@@ -834,7 +913,9 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           dates={dates}
-          durationDays={singleListing?.duration_days ?? 1}
+          dayCountPriceFor={dayCountPriceFor}
+          dayCounts={dayCounts}
+          durationDays={dateDurationDays}
           fields={fields}
           hasDaily={hasDaily}
           hideQuantity={hideQuantity}
