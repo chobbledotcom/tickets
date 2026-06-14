@@ -2076,7 +2076,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("pre-selects existing answer on edit page", async () => {
       const { attendee, a1 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
@@ -2127,7 +2127,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const form = await buildAttendeeEditForm(attendee.id, {
         email: "john@example.com",
@@ -2149,7 +2149,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const form = await buildAttendeeEditForm(attendee.id, {
         email: "john@example.com",
@@ -3163,11 +3163,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers: save } = await import(
         "#shared/db/questions.ts"
       );
-      await save([target.id], [a1.id]);
+      await save(new Map([[target.id, [a1.id]]]));
       // Need source attendee ID
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([sourceData!.id], [a2.id]);
+      await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const response = await awaitTestRequest(
         `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
@@ -3218,8 +3218,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([target.id], [a1.id]); // Small
-      await save([sourceData!.id], [a2.id]); // Large
+      await save(new Map([[target.id, [a1.id]]])); // Small
+      await save(new Map([[sourceData!.id, [a2.id]]])); // Large
 
       // Get merge version from preview page
       const previewPage = await awaitTestRequest(
@@ -3356,8 +3356,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([target.id], [a1.id]);
-      await save([sourceData!.id], [a2.id]);
+      await save(new Map([[target.id, [a1.id]]]));
+      await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
@@ -3410,8 +3410,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([target.id], [a1.id]);
-      await save([sourceData!.id], [a2.id]);
+      await save(new Map([[target.id, [a1.id]]]));
+      await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
@@ -3460,7 +3460,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([sourceData!.id], [a1.id]);
+      await save(new Map([[sourceData!.id, [a1.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
@@ -3506,7 +3506,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Only target has an answer — no conflict
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
         await import("#shared/db/questions.ts");
-      await save([target.id], [a1.id]);
+      await save(new Map([[target.id, [a1.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 

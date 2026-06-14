@@ -13,7 +13,7 @@ import { invalidateEventsCache } from "#shared/db/events.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
-  saveAttendeeAnswersByQuestion,
+  saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import type {
   ApplyAttendeeMergeInput,
@@ -523,8 +523,8 @@ export const applyAttendeeMerge = async (
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
 
-  // Save merged answers for target
-  await saveAttendeeAnswersByQuestion(targetId, finalAnswers);
+  // Save merged answers for target (one answer per question → flat id list).
+  await saveAttendeeAnswers(new Map([[targetId, [...finalAnswers.values()]]]));
 
   invalidateEventsCache();
 

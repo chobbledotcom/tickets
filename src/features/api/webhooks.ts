@@ -56,7 +56,7 @@ import {
   type ProcessedPayment,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { saveEventAnswers } from "#shared/db/questions.ts";
+import { groupEventAnswers, saveAttendeeAnswers } from "#shared/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   type BookingItem,
@@ -630,7 +630,9 @@ const processPaymentSession = async (
   const createdEntries = created.entries;
 
   if (intent.eventAnswerIds) {
-    await saveEventAnswers(createdEntries, intent.eventAnswerIds);
+    await saveAttendeeAnswers(
+      groupEventAnswers(createdEntries, intent.eventAnswerIds),
+    );
   }
 
   const firstAttendee = createdEntries[0]!;

@@ -22,13 +22,8 @@ import {
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#shared/db/events.ts";
-import {
-  getAttendeeAnswersBatch,
-  getQuestionsWithEventIds,
-} from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, EventWithCount } from "#shared/types.ts";
-import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {
@@ -204,17 +199,4 @@ export const createActionHandler = <TSession = AuthSession>(
       );
       return redirect(redirectUrl, msg, true);
     });
-};
-
-/** Load question data for attendees across multiple events */
-export const loadQuestionData = async (
-  eventIds: number[],
-  attendeeIds: number[],
-): Promise<TableQuestionData | undefined> => {
-  if (attendeeIds.length === 0 || eventIds.length === 0) return undefined;
-  const [{ questions }, attendeeAnswerMap] = await Promise.all([
-    getQuestionsWithEventIds(eventIds),
-    getAttendeeAnswersBatch(attendeeIds),
-  ]);
-  return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 };

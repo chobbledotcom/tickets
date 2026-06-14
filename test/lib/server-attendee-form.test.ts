@@ -813,7 +813,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       if (!created.success) throw new Error("setup");
       const attendeeId = created.attendees[0]!.id;
-      await saveAttendeeAnswers([attendeeId], [aA.id, aB.id]);
+      await saveAttendeeAnswers(new Map([[attendeeId, [aA.id, aB.id]]]));
       return { aA, aB, attendeeId, qA, qB };
     };
 

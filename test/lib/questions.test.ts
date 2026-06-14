@@ -63,7 +63,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await setEventQuestions(event.id, [q.id]);
 
       const attendee = await createAttendee(event.id);
-      await saveAttendeeAnswers([attendee.id], [a.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));
 
       await deleteQuestion(q.id);
 
@@ -306,7 +306,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const event = await createTestEvent();
       const attendee = await createAttendee(event.id);
 
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const batch = await getAttendeeAnswersBatch([attendee.id]);
       expect(batch.get(attendee.id)).toEqual([a1.id]);
@@ -329,8 +329,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const att1 = await createAttendee(event.id, "Alice");
       const att2 = await createAttendee(event.id, "Bob");
 
-      await saveAttendeeAnswers([att1.id], [a1.id]);
-      await saveAttendeeAnswers([att2.id], [a2.id]);
+      await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
+      await saveAttendeeAnswers(new Map([[att2.id, [a2.id]]]));
 
       const batch = await getAttendeeAnswersBatch([att1.id, att2.id]);
       expect(batch.get(att1.id)).toEqual([a1.id]);
@@ -342,14 +342,14 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(batch.size).toBe(0);
     });
 
-    test("saveAttendeeAnswers does nothing for empty attendeeIds", async () => {
-      await saveAttendeeAnswers([], [1]);
-      // No error thrown, no rows inserted
+    test("saveAttendeeAnswers does nothing for an empty map", async () => {
+      await saveAttendeeAnswers(new Map());
+      // No error thrown, no batch executed
     });
 
-    test("saveAttendeeAnswers does nothing for empty answerIds", async () => {
-      await saveAttendeeAnswers([1], []);
-      // No error thrown, no rows inserted
+    test("saveAttendeeAnswers skips inserts for an answerless attendee", async () => {
+      await saveAttendeeAnswers(new Map([[1, []]]));
+      // No error thrown, no rows inserted (delete-only path)
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
@@ -367,12 +367,12 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const event = await createTestEvent();
       const att = await createAttendee(event.id);
-      await saveAttendeeAnswers([att.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
       const before = await getAttendeeAnswersBatch([att.id]);
       expect(before.get(att.id)).toEqual([a1.id]);
 
-      await saveAttendeeAnswers([att.id], [a2.id]);
+      await saveAttendeeAnswers(new Map([[att.id, [a2.id]]]));
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toEqual([a2.id]);
@@ -388,9 +388,9 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const event = await createTestEvent();
       const att = await createAttendee(event.id);
-      await saveAttendeeAnswers([att.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
-      await saveAttendeeAnswers([att.id], []);
+      await saveAttendeeAnswers(new Map([[att.id, []]]));
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toBeUndefined();
@@ -475,8 +475,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       });
       const att1 = await createAttendee(event.id, "Alice");
       const att2 = await createAttendee(event.id, "Bob");
-      await saveAttendeeAnswers([att1.id], [a1.id]);
-      await saveAttendeeAnswers([att2.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
+      await saveAttendeeAnswers(new Map([[att2.id, [a1.id]]]));
       const counts = await getAnswerCountsForQuestion(q.id);
       expect(counts.get(a1.id)).toBe(2);
       expect(counts.get(a2.id)).toBe(0);

@@ -3,11 +3,8 @@
  */
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import {
-  csvResponse,
-  getDateFilter,
-  loadQuestionData,
-} from "#routes/admin/actions.ts";
+import { csvResponse, getDateFilter } from "#routes/admin/actions.ts";
+import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -216,7 +213,7 @@ const handleAdminCalendarGet = (request: Request) =>
       standardCtx.standardEvents,
       holidays,
     );
-    const questionData = await loadQuestionData(
+    const questionData = await loadAttendeeQuestionData(
       attendees.map((a) => a.eventId),
       attendees.map((a) => a.id),
     );
