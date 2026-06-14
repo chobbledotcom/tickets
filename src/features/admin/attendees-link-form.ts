@@ -10,6 +10,12 @@ import { getListingWithCount } from "#shared/db/listings.ts";
 import { defineForm } from "#shared/forms.tsx";
 import type { ListingWithCount } from "#shared/types.ts";
 
+type ListingLinkOption = {
+  active: boolean;
+  id: number;
+  name: string;
+};
+
 const listingOptionLabel = { label: "Select listing...", value: "" };
 const dateOptionLabel = { label: "Select date...", value: "" };
 const defaultQuantityField = {
@@ -31,34 +37,46 @@ const defaultDateField = {
   type: "select",
 } as const;
 
-/** Listing-link form backing the legacy per-listing add-link POST. It is used
- * for server-side validation only (the dropdown is rendered elsewhere), so a
- * single placeholder option suffices. */
-export const linkListingForm = defineForm({
-  fields: [
-    {
-      id: "add_listing_id",
-      label: "Listing",
-      name: "listing_id",
-      options: [listingOptionLabel],
-      parse: (value) => Number.parseInt(value, 10),
-      required: true,
-      type: "select",
-      validate: (value) => {
-        const listingId = Number.parseInt(value, 10);
-        return listingId > 0 ? null : "Listing is required";
+/** Build a listing-link form populated with the given listings' active options.
+ * Pass no arguments to get a placeholder-only form (used for server-side
+ * validation only — the dropdown is rendered elsewhere on the page). */
+export const createLinkListingForm = (listings: ListingLinkOption[] = []) =>
+  defineForm({
+    fields: [
+      {
+        id: "add_listing_id",
+        label: "Listing",
+        name: "listing_id",
+        options: [
+          listingOptionLabel,
+          ...listings
+            .filter((listing) => listing.active)
+            .map((listing) => ({
+              label: listing.name,
+              value: String(listing.id),
+            })),
+        ],
+        parse: (value) => Number.parseInt(value, 10),
+        required: true,
+        type: "select",
+        validate: (value) => {
+          const listingId = Number.parseInt(value, 10);
+          return listingId > 0 ? null : "Listing is required";
+        },
       },
-    },
-    defaultQuantityField,
-    defaultDateField,
-  ] as const,
-  id: "linkListing",
-});
+      defaultQuantityField,
+      defaultDateField,
+    ] as const,
+    id: "linkListing",
+  });
 
 export const linkListingUpdateForm = defineForm({
   fields: [defaultQuantityField, defaultDateField] as const,
   id: "linkListingUpdate",
 });
+
+/** Default listing-link form (placeholder option only). */
+export const linkListingForm = createLinkListingForm();
 type LinkFormValues = {
   date: string | null;
   durationDays?: number;
