@@ -27,19 +27,37 @@ export const isContactFormActive = (): boolean =>
  * Botpoison is not configured, in which case no widget is shown. */
 export const contactFormPublicKey = (): string => getBotpoisonPublicKey();
 
-/** Build the owner-notification email body (plain text + escaped HTML). */
+/** Case-insensitive comparison of two email addresses. */
+const sameEmail = (a: string, b: string): boolean =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Bold warning prepended when the submitter claimed the owner's own address. */
+const SPOOF_WARNING =
+  "It looks like this sender entered your own business email address — they may be attempting to spoof you.";
+
+/**
+ * Build the owner-notification email body (plain text + escaped HTML).
+ * When `spoofed` is set, a bold warning is prepended: the submitter used the
+ * owner's own business email, which we no longer trust as a Reply-To target.
+ */
 const buildMessageBody = (
   email: string,
   message: string,
+  spoofed: boolean,
 ): { subject: string; text: string; html: string } => {
   const domain = getEffectiveDomain();
+  const warningHtml = spoofed
+    ? `<p><strong>${escapeHtml(SPOOF_WARNING)}</strong></p>`
+    : "";
+  const warningText = spoofed ? `${SPOOF_WARNING}\n\n` : "";
   return {
     html:
+      warningHtml +
       `<p>You have received a message via the ${escapeHtml(domain)} contact form.</p>` +
       `<p><strong>From:</strong> ${escapeHtml(email)}</p>` +
       `<p><strong>Message:</strong></p><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
     subject: `Contact form message from ${email}`,
-    text: `You have received a message via the ${domain} contact form.\n\nFrom: ${email}\n\nMessage:\n${message}`,
+    text: `${warningText}You have received a message via the ${domain} contact form.\n\nFrom: ${email}\n\nMessage:\n${message}`,
   };
 };
 
@@ -68,10 +86,15 @@ export const sendContactMessage = async (
   const businessEmail = settings.businessEmail;
   if (!businessEmail) return false;
 
-  const { subject, text, html } = buildMessageBody(email, message);
+  // Anti-spoof: when the submitter claims the owner's own address, a
+  // Reply-To of that address makes the message look self-sent and receiving
+  // mailboxes munge the visible sender (e.g. noreply@invalid.invalid). Fall
+  // back to the normal from address and flag it in the body instead.
+  const spoofed = sameEmail(email, businessEmail);
+  const { subject, text, html } = buildMessageBody(email, message, spoofed);
   const status = await sendEmail(config, {
     html,
-    replyTo: email,
+    replyTo: spoofed ? config.fromAddress : email,
     subject,
     text,
     to: businessEmail,

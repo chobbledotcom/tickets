@@ -160,6 +160,27 @@ describe("sendContactMessage", () => {
     expect(String(captured.body.html)).toContain("Hello there");
   });
 
+  test("uses the from address as Reply-To and warns when the submitter claims the owner's own email", async () => {
+    settings.setForTest({
+      business_email: "owner@example.com",
+      email_api_key: "re_test_key",
+      email_from_address: "sender@example.com",
+      email_provider: "resend",
+    });
+    const captured = { body: {} as Record<string, unknown> };
+    stubFetch((_url, init) => {
+      captured.body = JSON.parse(String(init?.body));
+      return Promise.resolve(new Response(null, { status: 200 }));
+    });
+
+    const result = await sendContactMessage("OWNER@example.com", "Hi me");
+
+    expect(result).toBe(true);
+    expect(captured.body.reply_to).toBe("sender@example.com");
+    expect(String(captured.body.html)).toContain("spoof");
+    expect(String(captured.body.text)).toContain("spoof");
+  });
+
   test("returns false when the email provider responds with an error", async () => {
     configureEmail();
     stubFetch(() => Promise.resolve(new Response("nope", { status: 422 })));
