@@ -37,11 +37,6 @@ import {
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
-import {
-  handleAddListingLink,
-  handleUnlinkListing,
-  handleUpdateListingLink,
-} from "./attendees-links.ts";
 import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
@@ -270,8 +265,8 @@ const handleResendNotification = verifiedAttendeeForm(
 
 /**
  * Attendee routes
- * Listing-link management: attendees-links.ts
- * Unified add/edit page: attendee-form-routes.ts
+ * Unified add/edit page (add/update/remove listing registrations):
+ *   attendee-form-routes.ts
  * Refresh payment: attendees-edit.ts
  * Merge: attendees-merge.ts
  * Refunds: attendee-refunds.ts
@@ -287,12 +282,8 @@ export const attendeesRoutes = defineRoutes({
   "GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification":
     handleAdminResendNotificationGet,
   "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
-  "POST /admin/attendees/:attendeeId/link": handleAddListingLink,
-  "POST /admin/attendees/:attendeeId/listing/:listingId":
-    handleUpdateListingLink,
   "POST /admin/attendees/:attendeeId/merge": handleMergePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
-  "POST /admin/attendees/:attendeeId/unlink/:listingId": handleUnlinkListing,
   "POST /admin/attendees/new": handleAttendeeNewPost,
   "POST /admin/listing/:listingId/attendee": handleAddAttendee,
   "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":

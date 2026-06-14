@@ -509,61 +509,6 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     });
   });
 
-  describe("HTTP layer: admin listing link management", () => {
-    test("admin add-listing-link stores multi-day range", async () => {
-      // Admin attaches an attendee to a second multi-day listing via the
-      // link form. The new listing_attendees row must use the listing's
-      // duration, not default to 1.
-      const listing1 = await createDailyTestListing({ maxAttendees: 5 });
-      const listing2 = await createDailyTestListing({
-        durationDays: 4,
-        maxAttendees: 5,
-      });
-
-      const result = await bookAttendee(listing1, { date: "2026-07-01" });
-      if (!result.success) throw new Error("setup");
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${result.attendees[0]!.id}/link`,
-        {
-          date: "2026-07-10",
-          listing_id: String(listing2.id),
-          quantity: "1",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const range = await rawListingRange(listing2.id);
-      expect(range).not.toBeNull();
-      expect(range!.end_at).toBe("2026-07-14T00:00:00.000Z");
-    });
-
-    test("admin update-listing-link preserves multi-day range on date move", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 5,
-      });
-      const result = await bookAttendee(listing, {
-        date: "2026-07-01",
-        durationDays: 3,
-      });
-      if (!result.success) throw new Error("setup");
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${result.attendees[0]!.id}/listing/${listing.id}`,
-        {
-          date: "2026-07-10",
-          quantity: "1",
-        },
-      );
-      expect(response.status).toBe(302);
-
-      const range = await rawListingRange(listing.id);
-      expect(range!.start_at).toBe("2026-07-10T00:00:00Z");
-      expect(range!.end_at).toBe("2026-07-13T00:00:00.000Z");
-    });
-  });
-
   describe("CSV export", () => {
     test("date column shows range for multi-day bookings", async () => {
       const listing = await createDailyTestListing({
