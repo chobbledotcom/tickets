@@ -31,10 +31,12 @@ import {
   getAddAttendeeFields,
 } from "#templates/fields.ts";
 import {
-  handleEditAttendeeGet,
-  handleEditAttendeePost,
-  handleRefreshPayment,
-} from "./attendees-edit.ts";
+  handleAttendeeEditGet,
+  handleAttendeeEditPost,
+  handleAttendeeNewGet,
+  handleAttendeeNewPost,
+} from "./attendee-form-routes.ts";
+import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
   handleAddEventLink,
   handleUnlinkEvent,
@@ -258,20 +260,23 @@ const handleResendNotification = verifiedAttendeeForm(
 /**
  * Attendee routes
  * Event-link management: attendees-links.ts
- * Edit page + refresh payment: attendees-edit.ts
+ * Unified add/edit page: attendee-form-routes.ts
+ * Refresh payment: attendees-edit.ts
  * Merge: attendees-merge.ts
  * Refunds: attendee-refunds.ts
  */
 export const attendeesRoutes = defineRoutes({
   "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
-  "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
+  "GET /admin/attendees/new": handleAttendeeNewGet,
+  "GET /admin/attendees/:attendeeId": handleAttendeeEditGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
   "GET /admin/event/:eventId/attendee/:attendeeId/delete":
     handleAdminAttendeeDeleteGet,
   "GET /admin/event/:eventId/attendee/:attendeeId/resend-notification":
     handleAdminResendNotificationGet,
-  "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
+  "POST /admin/attendees/new": handleAttendeeNewPost,
+  "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
   "POST /admin/attendees/:attendeeId/event/:eventId": handleUpdateEventLink,
   "POST /admin/attendees/:attendeeId/link": handleAddEventLink,
   "POST /admin/attendees/:attendeeId/merge": handleMergePost,

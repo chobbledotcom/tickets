@@ -1463,5 +1463,21 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       expect(shortDates.length).toBeGreaterThan(longDates.length);
       expect(longDates.length).toBeGreaterThan(0);
     });
+
+    test("checkGroupCapAfterDurationChange sort comparator with equal-start ranges", async () => {
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const event = await createDailyTestEvent({
+        groupId: group.id,
+        maxAttendees: 100,
+        maximumDaysAfter: 60,
+      });
+      await bookAttendee(event, { date: "2026-10-01", quantity: 3 });
+      await bookAttendee(event, { date: "2026-10-01", quantity: 4 });
+      const result = await checkGroupCapAfterDurationChange(
+        event.id,
+        group.id,
+      );
+      expect(result).toBeNull();
+    });
   });
 });

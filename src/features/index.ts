@@ -195,6 +195,7 @@ const READ_ONLY_GET_PATTERNS = [
   /^\/admin\/event\/\d+\/duplicate$/,
   /^\/admin\/groups\/new$/,
   /^\/admin\/groups\/\d+\/edit$/,
+  /^\/admin\/attendees\/new$/,
 ];
 
 /** Paths that should be blocked when POSTed in read-only mode */
@@ -206,6 +207,7 @@ const READ_ONLY_POST_PATTERNS = [
   /^\/admin\/groups\/\d+\/edit$/,
   /^\/admin\/groups\/\d+\/add-events$/,
   /^\/admin\/event\/\d+\/attendee$/,
+  /^\/admin\/attendees\/new$/,
 ];
 
 /**

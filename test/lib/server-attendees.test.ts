@@ -16,6 +16,7 @@ import {
   assertAdminHtml,
   awaitTestRequest,
   bookAttendee,
+  buildAttendeeEditForm,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
@@ -1039,13 +1040,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Event Registrations",
-        "Add to Event",
-        "Save Contact Info",
+        "Add Event Line",
+        "Save Attendee",
       );
       // Event link table shows the event
       expect(html).toContain("Edit Page Event");
-      // Add-to-event section has event selector
-      expect(html).toContain("add_event_id");
+      // Line editor has event selector
+      expect(html).toContain("line_event_id_");
     });
 
     test("edit page shows checked-in badge for checked-in attendee", async () => {
@@ -1091,7 +1092,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Daily Dates Event",
-        "available-dates-data",
+        "attendee-form-data",
       );
       expect(html).toContain("2026-");
     });
@@ -1125,7 +1126,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       body: {
         address: "",
         email: "jane@example.com",
-        event_id: "1",
+        line_count: "1",
+        line_event_id_0: "1",
+        line_key_0: "",
+        line_quantity_0: "1",
         name: "Jane Doe",
         phone: "",
         special_instructions: "",
@@ -1146,7 +1150,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/attendees/999", {
         address: "",
         email: "jane@example.com",
-        event_id: "1",
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
         name: "Jane Doe",
         phone: "",
         special_instructions: "",
@@ -1169,7 +1175,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             address: "",
             csrf_token: "invalid-token",
             email: "jane@example.com",
-            event_id: String(event.id),
+            line_count: "1",
+            line_event_id_0: String(event.id),
+            line_quantity_0: "1",
             name: "Jane Doe",
             phone: "",
             special_instructions: "",
@@ -1188,19 +1196,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, { name: "" });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          event_id: String(event.id),
-          name: "",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Name is required"), false);
+      // Validation failure re-renders the form (200) with the error inline.
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
     });
 
     test("preserves return_url on edit validation error", async () => {
@@ -1213,20 +1217,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const returnUrl = "/admin/calendar#attendees";
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        name: "",
+        returnUrl,
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          event_id: String(event.id),
-          name: "",
-          phone: "",
-          return_url: returnUrl,
-          special_instructions: "",
-        },
+        form,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Name is required"), false);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
+      expect(html).toContain(returnUrl);
     });
 
     test("rejects whitespace-only name", async () => {
@@ -1237,19 +1239,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, { name: "   " });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          event_id: String(event.id),
-          name: "   ",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Name is required"), false);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
     });
 
     test("updates attendee with new data", async () => {
@@ -1260,21 +1257,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, {
+        address: "456 Oak Ave",
+        email: "jane@example.com",
+        name: "Jane Doe",
+        phone: "555-9999",
+        special_instructions: "Wheelchair access",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "456 Oak Ave",
-          email: "jane@example.com",
-          event_id: String(event.id),
-          name: "Jane Doe",
-          phone: "555-9999",
-          quantity: "1",
-          special_instructions: "Wheelchair access",
-        },
+        form,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/event/${event.id}#attendees`,
+        `/admin/attendees/${attendee.id}`,
         "Updated Jane Doe",
       )(response);
 
@@ -1302,18 +1298,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        name: "John Doe",
+        returnUrl,
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          event_id: String(event.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          return_url: returnUrl,
-          special_instructions: "",
-        },
+        form,
       );
       expectRedirect(
         response,
@@ -1335,19 +1327,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "jane@example.com",
+        name: "Jane Smith",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          name: "Jane Smith",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/event/${event.id}#attendees`,
+        `/admin/attendees/${attendee.id}`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1363,15 +1353,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
         3,
       );
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "jane@example.com",
+        name: "Jane Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -1439,7 +1427,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         200,
         "Event 1",
         "Event 2",
-        "Add to Event",
+        "Add Event Line",
       );
     });
 
@@ -1504,16 +1492,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "",
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "",
-          event_id: String(event.id),
-          name: "John Doe",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
     });
@@ -1531,20 +1516,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        address: "456 Oak Ave",
+        email: "jane@example.com",
+        name: "Jane Smith",
+        phone: "555-9999",
+        special_instructions: "Special access needed",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "456 Oak Ave",
-          email: "jane@example.com",
-          event_id: String(event.id),
-          name: "Jane Smith",
-          phone: "555-9999",
-          special_instructions: "Special access needed",
-        },
+        form,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/event/${event.id}#attendees`,
+        `/admin/attendees/${attendee.id}`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1564,7 +1549,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
+      await expectHtmlResponse(response, 200, 'name="line_quantity_');
     });
   });
 
@@ -1915,6 +1900,26 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("returns 404 when attendee has no bookings", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const db = getDbFn();
+      await db.execute(
+        "DELETE FROM event_attendees WHERE attendee_id = ?",
+        [attendee.id],
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/refresh-payment`,
+      );
+      expect(response.status).toBe(404);
+    });
+
     test("returns error when no payment provider configured", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -2096,19 +2101,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("saves selected answer on edit", async () => {
-      const { event, attendee, q, a2 } = await setupQuestionAndAttendee();
+      const { attendee, q, a2 } = await setupQuestionAndAttendee();
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        extra: { [`question_${q.id}`]: String(a2.id) },
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          event_id: String(event.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-          [`question_${q.id}`]: String(a2.id),
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2120,24 +2121,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates answer from one option to another", async () => {
-      const { event, attendee, q, a1, a2 } = await setupQuestionAndAttendee();
+      const { attendee, q, a1, a2 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        extra: { [`question_${q.id}`]: String(a2.id) },
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          event_id: String(event.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-          [`question_${q.id}`]: String(a2.id),
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2146,23 +2143,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("clears answers when no question field submitted", async () => {
-      const { event, attendee, a1 } = await setupQuestionAndAttendee();
+      const { attendee, a1 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
       await saveAttendeeAnswers([attendee.id], [a1.id]);
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          event_id: String(event.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2172,20 +2165,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("ignores invalid answer ID for question", async () => {
-      const { event, attendee, q } = await setupQuestionAndAttendee();
+      const { attendee, q } = await setupQuestionAndAttendee();
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        extra: { [`question_${q.id}`]: "99999" },
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          event_id: String(event.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-          [`question_${q.id}`]: "99999",
-        },
+        form,
       );
       expect(response.status).toBe(302);
 

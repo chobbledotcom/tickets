@@ -17,6 +17,7 @@
     "npm:@iframe-resizer/core@^5.5.9": "5.5.9",
     "npm:@iframe-resizer/parent@^5.5.9": "5.5.9",
     "npm:@internationalized/date@^3.12.0": "3.12.0",
+    "npm:@libsql/client@0.17.2": "0.17.2",
     "npm:@libsql/client@~0.17.2": "0.17.2",
     "npm:@sumup/sdk@~0.1.6": "0.1.6",
     "npm:auto-console-group@^1.3.0": "1.3.0",

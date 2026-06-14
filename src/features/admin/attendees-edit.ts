@@ -1,74 +1,42 @@
 /**
- * Admin attendee edit routes (edit page, refresh payment)
+ * Admin attendee refresh-payment route.
+ *
+ * The unified add/edit attendee page lives in `attendee-form-routes.ts`.
+ * This module keeps the smaller refresh-payment handler that polls the
+ * payment provider for an updated refund status and flips the booking's
+ * `refunded` flag when the provider says it has been refunded.
  */
 
-/* jscpd:ignore-start */
-import { compact, filter, map, uniqueBy } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
-import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
-import type { AuthSession } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import type { AttendeeRouteParams } from "#routes/entity.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { getAvailableDates } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
-import {
-  ATTENDEE_LEFT_JOIN_SELECT,
-  decryptAttendeeOrNull,
-  type EventAttendeeRow,
-  markRefunded,
-  updateAttendeePII,
-} from "#shared/db/attendees.ts";
+import { ATTENDEE_LEFT_JOIN_SELECT, decryptAttendeeOrNull, markRefunded } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
-import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import {
-  getAttendeeAnswersBatch,
-  getQuestionsForEvent,
-  type QuestionWithAnswers,
-  saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
-import type { FormParams } from "#shared/form-data.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import {
+  AUTH_FORM,
+  type AuthSession,
+  withAuth,
+} from "#routes/auth.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import type { Attendee, EventWithCount } from "#shared/types.ts";
-import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
-import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
+import { getEventWithCount } from "#shared/db/events.ts";
+import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 
-/* jscpd:ignore-end */
-
-/** Get all events (active + the current event), uniquified */
-const getEventsForSelector = async (
-  currentEventId: number,
-): Promise<EventWithCount[]> => {
-  const allEvents = await getAllEvents();
-  const currentEvent = allEvents.find((e) => e.id === currentEventId);
-  const activeEvents = filter((e: EventWithCount) => e.active)(allEvents);
-  return uniqueBy((e: EventWithCount) => e.id)(
-    compact([currentEvent, ...activeEvents]),
-  );
-};
-
-/** A resolved event link for display in the edit page */
-type EventLinkData = {
+/** Minimal context needed by the refresh-payment flow. */
+type RefreshPaymentContext = {
+  attendee: Attendee;
+  /** First event the attendee is registered for — used for activity log. */
   event: EventWithCount;
-  booking: EventAttendeeRow;
-  date: string | null;
 };
 
-const loadAttendeeForEdit = async (
+/** Load the attendee + its first event for the refresh-payment flow. */
+const loadRefreshContext = async (
   session: AuthSession,
   attendeeId: number,
-): Promise<{
-  attendee: Attendee;
-  event: EventWithCount;
-  eventLinks: EventLinkData[];
-  allEvents: EventWithCount[];
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  /** Available dates per daily event (for date picker) */
-  availableDatesByEvent: Record<number, string[]>;
-} | null> => {
+): Promise<RefreshPaymentContext | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
@@ -79,182 +47,63 @@ const loadAttendeeForEdit = async (
   );
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
-
-  // Load all event bookings for this attendee
-  const bookingRows = await queryAll<EventAttendeeRow>(
-    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM event_attendees WHERE attendee_id = ?
-     ORDER BY start_at, event_id`,
+  const bookings = await queryAll<EventAttendeeRow>(
+    "SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads FROM event_attendees WHERE attendee_id = ? ORDER BY start_at, event_id LIMIT 1",
     [attendeeId],
   );
-
-  // Resolve events for each booking in parallel (event always exists — referential integrity)
-  const eventLinks = await Promise.all(
-    map(
-      async (booking: EventAttendeeRow): Promise<EventLinkData> => ({
-        booking,
-        date: booking.start_at?.slice(0, 10) ?? null,
-        event: (await getEventWithCount(booking.event_id))!,
-      }),
-    )(bookingRows),
-  );
-
-  // Attendees always have at least one event link (enforced by createAttendeeAtomic)
-  const firstEvent = eventLinks[0]!.event;
-  const allEvents = await getEventsForSelector(firstEvent.id);
-  const questions = await getQuestionsForEvent(firstEvent.id);
-  const answersMap = await getAttendeeAnswersBatch([attendeeId]);
-  const holidays = await getActiveHolidays();
-  const selectedAnswerIds = answersMap.get(attendeeId) ?? [];
-
-  // Build available dates for each daily event
-  const availableDatesByEvent: Record<number, string[]> = {};
-  for (const evt of allEvents) {
-    if (evt.event_type === "daily") {
-      availableDatesByEvent[evt.id] = getAvailableDates(evt, holidays);
-    }
-  }
-
-  return {
-    allEvents,
-    attendee,
-    availableDatesByEvent,
-    event: firstEvent,
-    eventLinks,
-    questions,
-    selectedAnswerIds,
-  };
+  const firstEventId = bookings[0]?.event_id ?? attendee.event_id;
+  const event = await getEventWithCount(firstEventId);
+  if (!event) return null;
+  return { attendee, event };
 };
 
-type EditAttendeeData = NonNullable<
-  Awaited<ReturnType<typeof loadAttendeeForEdit>>
->;
-
-/** Curried: load edit attendee data then render with flash */
-const editAttendeePage =
-  (request: Request, session: AuthSession) =>
-  (data: EditAttendeeData): Response => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminEditAttendeePage(
-        data,
-        session,
-        getReturnUrl(request),
-        flash.success,
-        flash.error,
-      ),
-    );
-  };
-
-const handlers = createEntityRouteHandlers(
-  loadAttendeeForEdit,
-  ({ attendeeId }: AttendeeRouteParams) => attendeeId,
-);
-
-/** Handle GET /admin/attendees/:attendeeId */
-export const handleEditAttendeeGet = handlers.get((request, session, data) =>
-  editAttendeePage(request, session)(data),
-);
-
-/** Handle POST /admin/attendees/:attendeeId */
-async function editAttendeeHandler(
-  _session: AuthSession,
-  form: FormParams,
-  data: EditAttendeeData,
-  attendeeId: number,
-): Promise<Response> {
-  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-  const editError = (msg: string) =>
-    errorRedirect(`/admin/attendees/${attendeeId}`, msg);
-  const name = form.getString("name");
-  const email = form.getString("email");
-  const phone = form.getString("phone");
-  const address = form.getString("address");
-  const special_instructions = form.getString("special_instructions");
-
-  if (!name.trim()) return editError("Name is required");
-
-  // Parse question answers
-  const answerIds: number[] = [];
-  for (const q of data.questions) {
-    const raw = form.get(`question_${q.id}`);
-    if (raw) {
-      const answerId = Number.parseInt(raw, 10);
-      if (q.answers.some((a) => a.id === answerId)) {
-        answerIds.push(answerId);
-      }
-    }
-  }
-
-  // Update PII (shared across events)
-  await updateAttendeePII(attendeeId, {
-    address,
-    email,
-    name,
-    payment_id: data.attendee.payment_id,
-    phone,
-    special_instructions,
-    ticket_token: data.attendee.ticket_token,
-  });
-
-  // Update answers (atomic delete + insert)
-  if (data.questions.length > 0) {
-    await saveAttendeeAnswers([attendeeId], answerIds);
-  }
-
-  await logActivity(`Attendee '${name}' updated`, data.event.id);
-
-  return redirect(
-    `/admin/event/${data.event.id}#attendees`,
-    `Updated ${name}`,
-    true,
-    { form },
-  );
-}
-export const handleEditAttendeePost = handlers.post((session, form, data) =>
-  editAttendeeHandler(session, form, data, data.attendee.id),
-);
-
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
-async function refreshPaymentHandler(
-  _session: AuthSession,
-  _form: FormParams,
-  data: EditAttendeeData,
-  attendeeId: number,
-): Promise<Response> {
-  if (!data.attendee.payment_id) {
+export const handleRefreshPayment: TypedRouteHandler<
+  "POST /admin/attendees/:attendeeId/refresh-payment"
+> = (request, { attendeeId }) =>
+  withAuth(request, AUTH_FORM, async (session, _form) => {
+    const ctx = await loadRefreshContext(session, attendeeId);
+    if (!ctx) return htmlResponse("", 404);
+
+    const { attendee, event } = ctx;
+    const form = _form as FormParams;
+
+    if (!attendee.payment_id) {
+      return redirect(
+        `/admin/attendees/${attendeeId}`,
+        "No payment to refresh",
+        false,
+        { form },
+      );
+    }
+
+    const provider = await getActivePaymentProvider();
+    if (!provider) {
+      return errorRedirect(
+        `/admin/attendees/${attendeeId}`,
+        NO_PROVIDER_ERROR,
+      );
+    }
+
+    const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
+    if (isRefunded && !attendee.refunded) {
+      await markRefunded(attendeeId, event.id);
+      await logActivity(
+        `Payment marked as refunded for attendee '${attendee.name}'`,
+        event.id,
+      );
+      return redirect(
+        `/admin/attendees/${attendeeId}`,
+        "Payment status updated: refunded",
+        true,
+        { form },
+      );
+    }
+
     return redirect(
       `/admin/attendees/${attendeeId}`,
-      "No payment to refresh",
-      false,
-    );
-  }
-
-  const provider = await getActivePaymentProvider();
-  if (!provider) {
-    return errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR);
-  }
-
-  const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);
-  if (isRefunded && !data.attendee.refunded) {
-    await markRefunded(attendeeId, data.event.id);
-    await logActivity(
-      `Payment marked as refunded for attendee '${data.attendee.name}'`,
-      data.event.id,
-    );
-    return redirect(
-      `/admin/attendees/${attendeeId}`,
-      "Payment status updated: refunded",
+      "Payment status is up to date",
       true,
+      { form },
     );
-  }
-
-  return redirect(
-    `/admin/attendees/${attendeeId}`,
-    "Payment status is up to date",
-    true,
-  );
-}
-export const handleRefreshPayment = handlers.post((session, form, data) =>
-  refreshPaymentHandler(session, form, data, data.attendee.id),
-);
+  });

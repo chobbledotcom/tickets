@@ -149,9 +149,9 @@ describe("e2e: ticket editing flow", () => {
         phone: "+449876543210",
         special_instructions: "Needs wheelchair access",
       },
-      "Save Contact Info",
+      "Save Attendee",
     );
-    // Redirects to event page with flash message
+    // Redirects to edit page with flash message
     expect(browser.containsText("Updated Alice Johnson")).toBe(true);
 
     // 4. Verify edited details appear on the event page
@@ -201,7 +201,7 @@ describe("e2e: ticket editing flow", () => {
         phone: "+441111222333",
         special_instructions: "Vegetarian meals",
       },
-      "Save Contact Info",
+      "Save Attendee",
     );
     expect(browser.containsText("Updated Robert Jones")).toBe(true);
 
@@ -306,31 +306,41 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.currentHtml).toContain("/admin/event/");
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
-    // 8. Extract the Evening Seminar event ID from the "Add to Event" select options
+    // 8. Extract the Evening Seminar event ID from the line-event select options.
+    //    The unified edit form renders an <option> per active event inside
+    //    each line's event <select>; the option value is the numeric event id.
     const eveningSeminarId = extractEventIdFromSelect(
       browser.currentHtml,
       "Evening Seminar",
     );
     expect(eveningSeminarId).toBeTruthy();
 
-    // 9. Add Alice to Evening Seminar via the "Add to Event" form
+    // 9. Add Alice to Evening Seminar via the unified form. The form
+    //    already has one existing line (Morning Workshop) plus a trailing
+    //    blank line at index 1. Fill in the blank slot's event id and
+    //    quantity, then submit "Save Attendee".
     await browser.submitForm(
-      { event_id: eveningSeminarId!, quantity: "1" },
-      "Add to Event",
+      {
+        [`line_event_id_1`]: eveningSeminarId!,
+        [`line_quantity_1`]: "1",
+        name: "Alice Smith",
+      },
+      "Save Attendee",
     );
-    // Flash confirms Alice was added to Evening Seminar
-    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
-    // Both events now appear in the Event Registrations table as links
+    // Flash confirms the save (the return_url bounces back to the event page).
+    expect(browser.containsText("Updated Alice Smith")).toBe(true);
+
+    // Verify both events are now registered by re-opening the edit page.
+    await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 10. Remove Alice from Morning Workshop.
-    //     Event links are ordered by event_id ascending, so Morning Workshop
-    //     (lower ID) appears first in the Event Registrations table.
-    //     The first "Remove" form targets Morning Workshop.
+    // 10. Remove Alice from Morning Workshop. The first "Remove" button
+    //     targets the first existing line, which is Morning Workshop
+    //     (lower event id). Single-click removal via the per-line button.
     await browser.submitForm({}, "Remove");
     expect(
-      browser.containsText("Attendee unlinked from 'Morning Workshop'"),
+      browser.containsText("Removed from 'Morning Workshop'"),
     ).toBe(true);
 
     // 11. Navigate back to Morning Workshop and confirm Alice is no longer there.
@@ -356,17 +366,24 @@ describe("e2e: ticket editing flow", () => {
 
     // 13. Add Bob to Evening Seminar using the same event ID extracted earlier
     await browser.submitForm(
-      { event_id: eveningSeminarId!, quantity: "1" },
-      "Add to Event",
+      {
+        [`line_event_id_1`]: eveningSeminarId!,
+        [`line_quantity_1`]: "1",
+        name: "Bob Jones",
+      },
+      "Save Attendee",
     );
-    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
+    expect(browser.containsText("Updated Bob Jones")).toBe(true);
+
+    // Verify both events are registered by re-opening the edit page.
+    await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 14. Remove Bob from Morning Workshop (first "Remove" form = Morning Workshop)
+    // 14. Remove Bob from Morning Workshop (first "Remove" button = Morning Workshop)
     await browser.submitForm({}, "Remove");
     expect(
-      browser.containsText("Attendee unlinked from 'Morning Workshop'"),
+      browser.containsText("Removed from 'Morning Workshop'"),
     ).toBe(true);
 
     // 15. Verify Morning Workshop is now empty — neither Alice nor Bob appear

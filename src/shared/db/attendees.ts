@@ -77,13 +77,30 @@ export {
   updateCheckedIn,
   updateEventLink,
 } from "#shared/db/attendees/update.ts";
+export {
+  lineKeyFromBooking,
+  loadExistingLines,
+  type AtomicDesiredLine,
+  type ExistingLine,
+  type UpdateAttendeeAtomicResult,
+} from "#shared/db/attendees/atomic-update.ts";
+import {
+  applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl,
+} from "#shared/db/attendees/atomic-update.ts";
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
+  applyAttendeeAtomicEdit: applyAttendeeAtomicEditImpl,
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,
   hasAvailableSpots: checkEventAvailability,
 };
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+export const applyAttendeeAtomicEdit = (
+  ...args: Parameters<typeof attendeesApi.applyAttendeeAtomicEdit>
+): ReturnType<typeof attendeesApi.applyAttendeeAtomicEdit> =>
+  attendeesApi.applyAttendeeAtomicEdit(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const hasAvailableSpots = (

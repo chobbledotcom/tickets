@@ -97,6 +97,75 @@ const extractHiddenInputs = (formHtml: string): Record<string, string> => {
   return result;
 };
 
+/** Extract the value of a visible input field from form HTML.
+ * Covers text/number/email/date/url inputs (with a value attribute),
+ * textareas (inner text), and selects (the selected option's value).
+ * Checkboxes and radios are skipped here — they're handled separately
+ * by extractCheckboxValues / the user's data bag, mirroring how a real
+ * browser only submits them when checked. */
+const extractVisibleInputValue = (
+  formHtml: string,
+  name: string,
+): string | undefined => {
+  // <textarea name="X">value</textarea>
+  const textareaRe = new RegExp(
+    `<textarea[^>]*name="${name}"[^>]*>([\\s\\S]*?)</textarea>`,
+    "i",
+  );
+  const textareaMatch = formHtml.match(textareaRe);
+  if (textareaMatch) return decodeEntities(textareaMatch[1]!).trim();
+  // <select name="X">...<option value="V" selected>...</option>...</select>
+  const selectRe = new RegExp(
+    `<select[^>]*name="${name}"[^>]*>([\\s\\S]*?)</select>`,
+    "i",
+  );
+  const selectMatch = formHtml.match(selectRe);
+  if (selectMatch) {
+    const inner = selectMatch[1]!;
+    const selectedRe = /<option[^>]*value="([^"]*)"[^>]*selected[^>]*>/i;
+    const sel = inner.match(selectedRe);
+    if (sel) return decodeEntities(sel[1]!);
+    // Fall back to first non-placeholder option
+    const firstRe = /<option[^>]*value="([^"]+)"[^>]*>/i;
+    const first = inner.match(firstRe);
+    return first ? decodeEntities(first[1]!) : "";
+  }
+  // <input name="X" value="V"> for non-checkbox/non-radio types only.
+  // Skip checkboxes and radios entirely — they need to be "checked" to
+  // be submitted, which extractCheckboxValues + user data handle.
+  const inputRe = new RegExp(
+    `<input\\b([^>]*?)\\sname="${name}"([^>]*?)>`,
+    "i",
+  );
+  const inputMatch = formHtml.match(inputRe);
+  if (inputMatch) {
+    const attrs = `${inputMatch[1]!} ${inputMatch[2]!}`;
+    if (/\btype="(?:checkbox|radio)"/i.test(attrs)) return undefined;
+    const valueMatch = attrs.match(/value="([^"]*)"/);
+    return valueMatch ? decodeEntities(valueMatch[1]!) : undefined;
+  }
+  return undefined;
+};
+
+/** Extract all visible, non-empty field values from a form. Used to
+ * simulate a real browser's default form submission — the user-provided
+ * data overrides these. Returns a single value per name (the first
+ * occurrence), which is enough for the line-item editor. */
+const extractVisibleInputs = (formHtml: string): Record<string, string> => {
+  const result: Record<string, string> = {};
+  const seen = new Set<string>();
+  // Collect every named input/select/textarea in document order.
+  const tagRe = /<(?:input|select|textarea)\b[^>]*name="([^"]+)"[^>]*>/gi;
+  for (const match of regexCollect(tagRe, formHtml, (m) => m)) {
+    const name = match[1];
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    const value = extractVisibleInputValue(formHtml, name);
+    if (value !== undefined) result[name] = value;
+  }
+  return result;
+};
+
 type FormInfo = { action: string; body: string };
 
 /** Find all forms in HTML, returning their action and body */
@@ -118,13 +187,36 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
     (m) => decodeEntities(m[1]!),
   );
 
-/** Find a form whose body contains the given button text, or throw */
-const findFormByButton = (forms: FormInfo[], buttonText: string): FormInfo => {
+/** Find a form whose body contains the given button text, or throw.
+ * Also returns the matching button's name/value attributes when present,
+ * so the caller can include them in the submission (mirrors how a real
+ * browser submits a `<button name="…" value="…">` only when clicked). */
+const findFormByButton = (
+  forms: FormInfo[],
+  buttonText: string,
+): { action: string; body: string; buttonName?: string; buttonValue?: string } => {
   const lower = buttonText.toLowerCase();
-  const form = forms.find((f) =>
-    stripTags(f.body).toLowerCase().includes(lower),
-  );
-  if (form) return form;
+  for (const f of forms) {
+    if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
+    // Try to find the specific button with this text and extract its
+    // name/value attributes (used by routes that dispatch on `action`).
+    const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
+    for (const m of regexCollect(buttonRe, f.body, (x) => x)) {
+      const btnText = stripTags(m[2]!).toLowerCase().trim();
+      if (btnText.includes(lower)) {
+        const attrs = m[1] ?? "";
+        const nameMatch = attrs.match(/name="([^"]+)"/);
+        const valueMatch = attrs.match(/value="([^"]*)"/);
+        return {
+          action: f.action,
+          body: f.body,
+          buttonName: nameMatch?.[1],
+          buttonValue: valueMatch?.[1],
+        };
+      }
+    }
+    return { action: f.action, body: f.body };
+  }
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
     `No form found with button text "${buttonText}". Available forms:\n${available.join(
@@ -273,21 +365,37 @@ export class TestBrowser {
     action: string;
     body: string;
     hiddenFields: Record<string, string>;
+    visibleFields: Record<string, string>;
+    buttonName?: string;
+    buttonValue?: string;
   } {
     const forms = findForms(this.currentHtml);
-    const form = buttonText
-      ? findFormByButton(forms, buttonText)
-      : (forms[0] ?? throwNoForm());
+    if (!buttonText) {
+      const form = forms[0] ?? throwNoForm();
+      return {
+        action: form.action,
+        body: form.body,
+        hiddenFields: extractHiddenInputs(form.body),
+        visibleFields: extractVisibleInputs(form.body),
+      };
+    }
+    const found = findFormByButton(forms, buttonText);
     return {
-      action: form.action,
-      body: form.body,
-      hiddenFields: extractHiddenInputs(form.body),
+      action: found.action,
+      body: found.body,
+      buttonName: found.buttonName,
+      buttonValue: found.buttonValue,
+      hiddenFields: extractHiddenInputs(found.body),
+      visibleFields: extractVisibleInputs(found.body),
     };
   }
 
   /**
    * Submit a form by providing field data and identifying the form by its submit button text.
-   * Auto-includes CSRF token and any hidden fields found in the form.
+   * Auto-includes CSRF token, hidden fields, AND visible input values (select/number/text)
+   * found in the form — like a real browser would. User-provided data overrides all
+   * auto-collected values. When `buttonText` matches a `<button name="…" value="…">`,
+   * that name/value pair is also included (so routes that dispatch on `action` work).
    * For array fields (like checkboxes), pass "all" to auto-select all values,
    * or pass a specific value.
    */
@@ -295,7 +403,8 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const { action, body, hiddenFields } = this.findForm(buttonText);
+    const { action, body, hiddenFields, visibleFields, buttonName, buttonValue } = this
+      .findForm(buttonText);
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();
@@ -304,13 +413,20 @@ export class TestBrowser {
     for (const [key, value] of Object.entries(hiddenFields)) {
       params.append(key, value);
     }
+    // Then visible field defaults (a real browser submits these too)
+    for (const [key, value] of Object.entries(visibleFields)) {
+      params.delete(key);
+      params.append(key, value);
+    }
+    // Then the clicked button's name/value (matches real browser behavior)
+    if (buttonName && buttonValue !== undefined) {
+      params.delete(buttonName);
+      params.append(buttonName, buttonValue);
+    }
 
-    // Add user-provided data (overrides hidden fields)
+    // Add user-provided data (overrides everything)
     for (const [key, value] of Object.entries(data)) {
-      // Remove any hidden field with the same name first
-      if (hiddenFields[key] !== undefined) {
-        params.delete(key);
-      }
+      params.delete(key);
       if (Array.isArray(value)) {
         for (const v of value) {
           params.append(key, v);
