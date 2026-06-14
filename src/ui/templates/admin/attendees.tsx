@@ -6,6 +6,7 @@ import { createLinkListingForm } from "#routes/admin/attendees-link-form.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -231,6 +232,7 @@ export const adminEditAttendeePage = (
     questions = [],
     selectedAnswerIds = [],
     availableDatesByListing = {},
+    emailStats = null,
   }: {
     listing: ListingWithCount;
     attendee: Attendee;
@@ -239,6 +241,7 @@ export const adminEditAttendeePage = (
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
     availableDatesByListing?: Record<number, string[]>;
+    emailStats?: EmailStats | null;
   },
   session: AdminSession,
   returnUrl?: string,
@@ -319,6 +322,29 @@ export const adminEditAttendeePage = (
 
         <SubmitButton icon="save">Save Contact Info</SubmitButton>
       </CsrfForm>
+
+      {/* Email history Section */}
+      {attendee.email && (
+        <>
+          <h3>Email History</h3>
+          {emailStats && emailStats.contactCount > 0 ? (
+            <ul>
+              <li>
+                <strong>Total messages:</strong> {emailStats.contactCount}
+              </li>
+              <li>
+                <strong>Last contacted:</strong>{" "}
+                {formatDatetimeShort(emailStats.lastContact)}
+              </li>
+              <li>
+                <strong>Last subject:</strong> {emailStats.lastSubject}
+              </li>
+            </ul>
+          ) : (
+            <p>Never contacted by bulk email.</p>
+          )}
+        </>
+      )}
 
       {/* Listing Links Section */}
       <h3>Listing Registrations</h3>

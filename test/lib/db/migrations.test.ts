@@ -875,8 +875,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-12_sumup_checkouts",
         "2026-06-13_event_attendees_overlap_index",
         "2026-06-14_rename_events_to_listings",
+        "2026-06-14_email_preferences",
       ],
-      schemaHash: "c2fsfy",
+      schemaHash: "5sj9p9",
     });
   });
 });

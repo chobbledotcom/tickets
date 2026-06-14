@@ -8,6 +8,10 @@ export const createTypeGuard =
   (s: string): s is T =>
     (values as readonly string[]).includes(s);
 
+/** Type guard: a non-null, non-array object (a Record shape). */
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 /**
  * Unique identifiers for settings nags that prompt the admin to complete
  * required or recommended configuration.

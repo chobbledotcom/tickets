@@ -20,6 +20,11 @@ import {
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  type EmailStats,
+  getEmailStats,
+  hashEmail,
+} from "#shared/db/email-preferences.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import {
@@ -68,6 +73,8 @@ const loadAttendeeForEdit = async (
   selectedAnswerIds: number[];
   /** Available dates per daily listing (for date picker) */
   availableDatesByListing: Record<number, string[]>;
+  /** Contact history for this attendee's email (null when no email on file). */
+  emailStats: EmailStats | null;
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
@@ -115,10 +122,15 @@ const loadAttendeeForEdit = async (
     }
   }
 
+  const emailStats = attendee.email
+    ? await getEmailStats(await hashEmail(attendee.email), pk)
+    : null;
+
   return {
     allListings,
     attendee,
     availableDatesByListing,
+    emailStats,
     listing: firstListing,
     listingLinks,
     questions,

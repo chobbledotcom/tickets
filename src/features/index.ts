@@ -147,6 +147,19 @@ const loadAdminApiRoutes = once(async () =>
   createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
 );
 
+/** Lazy-load unsubscribe routes */
+const loadUnsubscribeRoutes = once(async () => {
+  const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
+    "#routes/public/unsubscribe.ts"
+  );
+  return createRouter(
+    defineRoutes({
+      "GET /unsubscribe": handleUnsubscribeGet,
+      "POST /unsubscribe": handleUnsubscribePost,
+    }),
+  );
+});
+
 /** Lazy-load renewal routes */
 const loadRenewalRoutes = once(async () => {
   const { handleRenewalGet, handleRenewalPost } = await import(
@@ -309,6 +322,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   renew: lazyRoute(loadRenewalRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   ticket: lazyRoute(loadTicketRoutes),
+  unsubscribe: lazyRoute(loadUnsubscribeRoutes),
   v1: lazyRoute(loadWalletWebserviceRoutes),
   wallet: lazyRoute(loadWalletRoutes),
 };

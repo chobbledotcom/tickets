@@ -15,6 +15,10 @@ import {
   encryptAttendeeFields,
 } from "#shared/db/attendees/pii.ts";
 import { executeBatchWithResults, insert } from "#shared/db/client.ts";
+import {
+  ensureEmailPreference,
+  hashEmail,
+} from "#shared/db/email-preferences.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import type { Attendee } from "#shared/types.ts";
 
@@ -157,6 +161,12 @@ export const createAttendeeAtomicImpl = async (
 
   if (successfulBookings.length === 0) {
     return { reason: "capacity_exceeded", success: false };
+  }
+
+  // Seed an email-preferences record (count 0) so the attendee shows up in
+  // contact history before any bulk email goes out.
+  if (typeof email === "string" && email.trim()) {
+    await ensureEmailPreference(await hashEmail(email));
   }
 
   invalidateListingsCache();
