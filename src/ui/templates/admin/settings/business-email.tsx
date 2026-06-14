@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm
@@ -25,6 +26,6 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
         value={s.businessEmail}
       />
     </label>
-    <button type="submit">Save Business Email</button>
+    <SubmitButton icon="save">Save Business Email</SubmitButton>
   </CsrfForm>
 );

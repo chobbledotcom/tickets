@@ -5,6 +5,7 @@
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/google-wallet" id="settings-google-wallet">
@@ -50,6 +51,6 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
         {s.googleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>
     </label>
-    <button type="submit">Save Google Wallet Settings</button>
+    <SubmitButton icon="save">Save Google Wallet Settings</SubmitButton>
   </CsrfForm>
 );

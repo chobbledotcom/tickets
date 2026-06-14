@@ -7,6 +7,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Sub-navigation for site editor pages */
@@ -49,7 +50,7 @@ export const adminSiteHomePage = (
             website_title: websiteTitle,
           })}
         />
-        <button type="submit">Save</button>
+        <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -78,7 +79,7 @@ export const adminSiteContactPage = (
             contact_page_text: contactPageText,
           })}
         />
-        <button type="submit">Save</button>
+        <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

@@ -6,6 +6,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
   s.storageEnabled ? (
@@ -21,7 +22,7 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
             action="/admin/settings/header-image/delete"
             id="settings-header-image-delete"
           >
-            <button type="submit">Remove Image</button>
+            <SubmitButton icon="trash-2">Remove Image</SubmitButton>
           </CsrfForm>
         </div>
       )}
@@ -43,7 +44,7 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
             type="file"
           />
         </label>
-        <button type="submit">Upload</button>
+        <SubmitButton icon="save">Upload</SubmitButton>
       </CsrfForm>
     </div>
   ) : null;

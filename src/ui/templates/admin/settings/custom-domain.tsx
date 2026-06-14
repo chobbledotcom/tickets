@@ -5,6 +5,7 @@
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const CustomDomainForm = (
   s: AdvancedSettingsPageState,
@@ -32,7 +33,7 @@ export const CustomDomainForm = (
             value={s.customDomain}
           />
         </label>
-        <button type="submit">Save Custom Domain</button>
+        <SubmitButton icon="save">Save Custom Domain</SubmitButton>
         <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
       </CsrfForm>
 
@@ -82,7 +83,7 @@ export const CustomDomainForm = (
               <small>Last validated: {s.customDomainLastValidated}</small>
             </p>
           )}
-          <button type="submit">Validate Custom Domain</button>
+          <SubmitButton icon="check">Validate Custom Domain</SubmitButton>
         </CsrfForm>
       )}
     </div>

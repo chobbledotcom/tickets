@@ -17,6 +17,7 @@ import {
 } from "#shared/columns/listing-columns.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 const listingDefault = buildDefaultTemplate(LISTING_DEFAULT_ORDER);
 const attendeeDefault = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
@@ -62,7 +63,7 @@ export const ListingColumnOrderForm = (
     <p>
       <AvailableTags columns={LISTING_TABLE_COLUMNS} />
     </p>
-    <button type="submit">Save Listing Columns</button>
+    <SubmitButton icon="save">Save Listing Columns</SubmitButton>
   </CsrfForm>
 );
 
@@ -94,6 +95,6 @@ export const AttendeeColumnOrderForm = (
     <p>
       <AvailableTags columns={ATTENDEE_TABLE_COLUMNS} />
     </p>
-    <button type="submit">Save Attendee Columns</button>
+    <SubmitButton icon="save">Save Attendee Columns</SubmitButton>
   </CsrfForm>
 );

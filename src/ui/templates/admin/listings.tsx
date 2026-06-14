@@ -43,6 +43,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   assignBuiltSiteField,
   attachmentField,
@@ -553,9 +554,9 @@ const ListingDetailsTable = ({
           <tr>
             <th>Public URL</th>
             <td>
-              <a
-                href={ticketUrl}
-              >{`${allowedDomain}/ticket/${listing.slug}`}</a>
+              <a href={ticketUrl}>
+                {`${allowedDomain}/ticket/${listing.slug}`}
+              </a>
               <small>
                 {" "}
                 (<a href={`/ticket/${listing.slug}/qr`}>QR Code</a>)
@@ -789,7 +790,7 @@ const AddAttendeeSection = ({
           ),
         )}
       />
-      <button type="submit">Add Attendee</button>
+      <SubmitButton icon="plus">Add Attendee</SubmitButton>
     </CsrfForm>
   </article>
 );
@@ -1002,7 +1003,7 @@ export const adminListingNewPage = (
         <Flash error={error} />
         <Raw html={renderFields(fields)} />
         <ListingGroupSelect groups={groups} selectedGroupId={0} />
-        <button type="submit">Create Listing</button>
+        <SubmitButton icon="plus">Create Listing</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -1041,7 +1042,7 @@ export const adminDuplicateListingPage = (
           groups={groups}
           selectedGroupId={listing.group_id}
         />
-        <button type="submit">Create Listing</button>
+        <SubmitButton icon="plus">Create Listing</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -1096,15 +1097,15 @@ export const adminListingEditPage = (
             <input id="duration-warning-confirm" type="checkbox" />I understand
           </label>
         </div>
-        <button id="listing-edit-submit" type="submit">
+        <SubmitButton icon="save" id="listing-edit-submit">
           Save Changes
-        </button>
+        </SubmitButton>
       </CsrfForm>
       {storageEnabled && listing.image_url && (
         <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
-          <button class="secondary" type="submit">
+          <SubmitButton class="secondary" icon="trash-2">
             Remove Image
-          </button>
+          </SubmitButton>
         </CsrfForm>
       )}
       {storageEnabled && listing.attachment_name && (
@@ -1113,9 +1114,9 @@ export const adminListingEditPage = (
             Current attachment: <strong>{listing.attachment_name}</strong>
           </p>
           <CsrfForm action={`/admin/listing/${listing.id}/attachment/delete`}>
-            <button class="secondary" type="submit">
+            <SubmitButton class="secondary" icon="trash-2">
               Remove Attachment
-            </button>
+            </SubmitButton>
           </CsrfForm>
         </div>
       )}

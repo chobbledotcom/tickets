@@ -6,6 +6,7 @@ import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const EmailNotificationsForm = (
   s: AdvancedSettingsPageState,
@@ -50,13 +51,13 @@ export const EmailNotificationsForm = (
           value={s.emailFromAddress}
         />
       </label>
-      <button type="submit">Save Email Settings</button>
+      <SubmitButton icon="save">Save Email Settings</SubmitButton>
     </CsrfForm>
     {s.emailProvider && (
       <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
-        <button class="secondary" type="submit">
+        <SubmitButton class="secondary" icon="arrow-right">
           Send Test Email
-        </button>
+        </SubmitButton>
       </CsrfForm>
     )}
   </>

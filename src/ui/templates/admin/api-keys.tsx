@@ -9,6 +9,7 @@ import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 type ApiKeyDisplay = {
@@ -97,7 +98,7 @@ export const adminApiKeysPage = (
       <CsrfForm action="/admin/api-keys">
         <h2>Create API key</h2>
         <Raw html={apiKeyForm.render()} />
-        <button type="submit">Create key</button>
+        <SubmitButton icon="plus">Create key</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

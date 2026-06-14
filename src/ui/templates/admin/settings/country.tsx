@@ -5,6 +5,7 @@
 import { COUNTRIES, type CountryData } from "#shared/countries.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const CountryForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/country" id="settings-country">
@@ -22,6 +23,6 @@ export const CountryForm = (s: SettingsPageState): JSX.Element => (
         )}
       </select>
     </label>
-    <button type="submit">Save Country</button>
+    <SubmitButton icon="save">Save Country</SubmitButton>
   </CsrfForm>
 );

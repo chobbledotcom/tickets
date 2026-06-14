@@ -5,7 +5,7 @@
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
-import { GuideLink } from "#templates/components/actions.tsx";
+import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type BackupEntry = {
@@ -108,7 +108,7 @@ export const adminBackupPage = (
               class="no-bg"
               id="backup-create"
             >
-              <button type="submit">Create Backup Now</button>
+              <SubmitButton icon="plus">Create Backup Now</SubmitButton>
             </CsrfForm>
           </section>
 
@@ -165,7 +165,7 @@ export const adminBackupPage = (
                 Backup file (.zip)
                 <input accept=".zip" name="backup_file" required type="file" />
               </label>
-              <button type="submit">Upload &amp; Review</button>
+              <SubmitButton icon="rotate-ccw">Upload &amp; Review</SubmitButton>
             </CsrfForm>
           </section>
         </>

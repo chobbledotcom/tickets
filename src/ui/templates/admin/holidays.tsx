@@ -12,7 +12,11 @@ import {
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { ActionButton, GuideLink } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { holidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -88,7 +92,7 @@ export const adminHolidayNewPage = (
         <h1>Add Holiday</h1>
         <Flash error={error} />
         <Raw html={renderFields(holidayFields)} />
-        <button type="submit">Create Holiday</button>
+        <SubmitButton icon="plus">Create Holiday</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -110,7 +114,7 @@ export const adminHolidayEditPage = (
         <Raw
           html={renderFields(holidayFields, holidayToFieldValues(holiday))}
         />
-        <button type="submit">Save Changes</button>
+        <SubmitButton icon="save">Save Changes</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

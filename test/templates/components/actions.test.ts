@@ -5,6 +5,7 @@ import {
   ActionButton,
   GuideLink,
   Icon,
+  SubmitButton,
 } from "#templates/components/actions.tsx";
 
 describe("Icon", () => {
@@ -54,6 +55,38 @@ describe("ActionButton", () => {
       ActionButton({ children: "Try again", href: "/x", variant: "outline" }),
     );
     expect(html).toContain('class="btn outline"');
+  });
+});
+
+describe("SubmitButton", () => {
+  test("renders a submit button with a leading icon and label", () => {
+    const html = String(SubmitButton({ children: "Save Theme", icon: "save" }));
+    expect(html).toContain('type="submit"');
+    expect(html).toContain(`href="${ICONS_PATH}#save"`);
+    expect(html).toContain("<span>Save Theme</span>");
+  });
+
+  test("passes through a class for button modifiers", () => {
+    const html = String(
+      SubmitButton({
+        children: "Reset Database",
+        class: "danger",
+        icon: "trash-2",
+      }),
+    );
+    expect(html).toContain('class="danger"');
+    expect(html).toContain(`href="${ICONS_PATH}#trash-2"`);
+  });
+
+  test("passes through an id for script-targeted buttons", () => {
+    const html = String(
+      SubmitButton({
+        children: "Save Changes",
+        icon: "save",
+        id: "listing-edit-submit",
+      }),
+    );
+    expect(html).toContain('id="listing-edit-submit"');
   });
 });
 

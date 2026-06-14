@@ -22,6 +22,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
@@ -183,7 +184,7 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
         class="inline"
       >
-        <button type="submit">Refresh payment status</button>
+        <SubmitButton icon="rotate-ccw">Refresh payment status</SubmitButton>
       </CsrfForm>
     </article>,
   );
@@ -316,7 +317,7 @@ export const adminEditAttendeePage = (
 
         <Raw html={renderEditQuestions(questions, selectedAnswerIds)} />
 
-        <button type="submit">Save Contact Info</button>
+        <SubmitButton icon="save">Save Contact Info</SubmitButton>
       </CsrfForm>
 
       {/* Listing Links Section */}
@@ -394,7 +395,7 @@ export const adminEditAttendeePage = (
           <Raw html={linkListingForm.field("date").render()} />
         </div>
 
-        <button type="submit">Add to Listing</button>
+        <SubmitButton icon="plus">Add to Listing</SubmitButton>
       </CsrfForm>
 
       {/* Available dates JSON for client-side date picker filtering (read by admin.ts) */}
@@ -423,7 +424,7 @@ export const adminEditAttendeePage = (
             type="text"
           />
         </label>
-        <button type="submit">Search</button>
+        <SubmitButton icon="search">Search</SubmitButton>
       </form>
     </Layout>,
   );
@@ -689,7 +690,7 @@ export const adminMergeAttendeePage = (
             value={searchToken || ""}
           />
         </label>
-        <button type="submit">Search</button>
+        <SubmitButton icon="search">Search</SubmitButton>
       </form>
 
       {source && mergeDiff && (
@@ -758,9 +759,9 @@ export const adminMergeAttendeePage = (
               <strong>Warning:</strong> This will permanently delete the source
               attendee. This action cannot be undone.
             </p>
-            <button class="danger" type="submit">
+            <SubmitButton class="danger" icon="trash-2">
               Merge and Delete Source Attendee
-            </button>
+            </SubmitButton>
           </CsrfForm>
         </div>
       )}

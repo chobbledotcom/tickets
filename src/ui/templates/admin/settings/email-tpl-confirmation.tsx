@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 
 export const ConfirmationEmailTemplateForm = (
@@ -152,6 +153,6 @@ export const ConfirmationEmailTemplateForm = (
       <small>Edit default template</small>
     </a>
     <br />
-    <button type="submit">Save Confirmation Template</button>
+    <SubmitButton icon="save">Save Confirmation Template</SubmitButton>
   </CsrfForm>
 );

@@ -38,7 +38,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -122,7 +122,7 @@ export const adminGroupNewPage = (
         <h1>Add Group</h1>
         <Flash error={error} />
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
-        <button type="submit">Create Group</button>
+        <SubmitButton icon="plus">Create Group</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -142,7 +142,7 @@ export const adminGroupEditPage = (
         <h1>Edit Group</h1>
         <Flash error={error} />
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
-        <button type="submit">Save Changes</button>
+        <SubmitButton icon="save">Save Changes</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -407,7 +407,7 @@ export const adminGroupDetailPage = (
                 </label>
               ))}
             </fieldset>
-            <button type="submit">Add Selected Listings</button>
+            <SubmitButton icon="plus">Add Selected Listings</SubmitButton>
           </CsrfForm>
         </>
       )}
