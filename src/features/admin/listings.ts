@@ -129,7 +129,7 @@ const extractCommonFields = (values: ListingFormValues) => {
     bookableDays: parseBookableDays(values.bookable_days),
     canPayMore: values.can_pay_more === "1",
     closesAt: normalizeOptionalDatetime(values.closes_at, "closes_at"),
-    date: normalizeOptionalDatetime(values.date, "date"),
+    date: normalizeOptionalDatetime(values.date, "date") ?? "",
     description: values.description,
     durationDays: values.duration_days ?? 1,
     fields: values.fields || "",
