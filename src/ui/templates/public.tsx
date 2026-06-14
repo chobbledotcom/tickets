@@ -113,36 +113,42 @@ export const publicSitePage = (
   );
 };
 
-/** Botpoison-protected message form shown on the public contact page.
- * The public key is rendered into a data attribute for the browser widget;
- * the matching secret key stays server-side for verification. */
+/** Message form shown on the public contact page.
+ * When a Botpoison public key is supplied it is rendered into a data attribute
+ * for the browser widget (the secret key stays server-side for verification);
+ * without one the form posts as a plain CSRF-protected form. */
 const ContactForm = ({
   botpoisonPublicKey,
 }: {
   botpoisonPublicKey: string;
-}): JSX.Element => (
-  <CsrfForm action="/contact" data-botpoison-public-key={botpoisonPublicKey}>
-    <h2>Send us a message</h2>
-    <label>
-      Your email address
-      <input autocomplete="email" name="email" required type="email" />
-    </label>
-    <label>
-      Message
-      <textarea
-        maxlength={MAX_TEXTAREA_LENGTH}
-        name="message"
-        required
-      ></textarea>
-    </label>
-    <button type="submit">Send message</button>
-  </CsrfForm>
-);
+}): JSX.Element => {
+  const botpoisonAttr: Record<`data-${string}`, string> = botpoisonPublicKey
+    ? { "data-botpoison-public-key": botpoisonPublicKey }
+    : {};
+  return (
+    <CsrfForm action="/contact" {...botpoisonAttr}>
+      <h2>Send us a message</h2>
+      <label>
+        Your email address
+        <input autocomplete="email" name="email" required type="email" />
+      </label>
+      <label>
+        Message
+        <textarea
+          maxlength={MAX_TEXTAREA_LENGTH}
+          name="message"
+          required
+        ></textarea>
+      </label>
+      <button type="submit">Send message</button>
+    </CsrfForm>
+  );
+};
 
 /**
  * Public contact page - optional descriptive text plus, when the contact form
- * is active, a Botpoison-protected message form. The browser widget script is
- * only loaded when the form is shown.
+ * is active, a message form. The Botpoison widget script is loaded only when a
+ * public key is configured (progressive enhancement).
  */
 export const contactPage = (options: {
   websiteTitle?: string | null;
@@ -154,7 +160,8 @@ export const contactPage = (options: {
 }): string => {
   const { websiteTitle, content, formActive, botpoisonPublicKey } = options;
   const pageTitle = websiteTitle ? `Contact - ${websiteTitle}` : "Contact";
-  const headExtra = formActive
+  const loadWidget = formActive && botpoisonPublicKey !== "";
+  const headExtra = loadWidget
     ? `${FEED_DISCOVERY_TAGS}\n<script defer src="${CONTACT_JS_PATH}"></script>`
     : FEED_DISCOVERY_TAGS;
 

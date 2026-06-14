@@ -11,7 +11,7 @@ import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { isContactFormAvailable } from "#shared/contact-form.ts";
+import { isBotpoisonEnabled } from "#shared/config.ts";
 import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -98,7 +98,7 @@ const renderContactPage: PageRenderer = (session, error, success) => {
     session,
     settings.contactPageText,
     {
-      available: isContactFormAvailable(),
+      botpoisonEnabled: isBotpoisonEnabled(),
       enabled: settings.contactFormEnabled,
       hasBusinessEmail: settings.businessEmail !== "",
     },

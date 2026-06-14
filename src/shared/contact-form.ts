@@ -1,39 +1,30 @@
 /**
  * Public contact form: availability rules and message delivery.
  *
- * The feature is gated three ways:
- *  - the host configures Botpoison (both env keys) — see isBotpoisonEnabled
- *  - the owner enables the form on the admin contact page
+ * The form itself only needs two things:
+ *  - the owner enables it on the admin contact page
  *  - the site has a business email address to deliver messages to
  *
- * Only when all three hold is the public form shown and submissions accepted.
+ * Spam protection is a progressive enhancement layered on top: when Botpoison
+ * is configured (both env keys) the form gains a proof-of-work widget and
+ * submissions are verified server-side. Without it the form still works, ready
+ * for a different spam-protection provider to be added in future.
  */
 
-import {
-  getBotpoisonPublicKey,
-  getEffectiveDomain,
-  isBotpoisonEnabled,
-} from "#shared/config.ts";
+import { getBotpoisonPublicKey, getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
 /**
- * Whether the contact form feature is available to configure.
- * True when the host has set both Botpoison env keys.
- */
-export const isContactFormAvailable = (): boolean => isBotpoisonEnabled();
-
-/**
  * Whether the public contact form should be rendered and accept submissions:
- * Botpoison configured + owner enabled it + a business email is set.
+ * the owner enabled it and a business email is set. Botpoison is not required.
  */
 export const isContactFormActive = (): boolean =>
-  isBotpoisonEnabled() &&
-  settings.contactFormEnabled &&
-  settings.businessEmail !== "";
+  settings.contactFormEnabled && settings.businessEmail !== "";
 
-/** Public Botpoison key to embed in the form for the browser widget. */
+/** Public Botpoison key to embed in the form for the browser widget. Empty when
+ * Botpoison is not configured, in which case no widget is shown. */
 export const contactFormPublicKey = (): string => getBotpoisonPublicKey();
 
 /** Build the owner-notification email body (plain text + escaped HTML). */

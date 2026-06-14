@@ -8,7 +8,6 @@ import {
 import {
   contactFormPublicKey,
   isContactFormActive,
-  isContactFormAvailable,
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -37,23 +36,7 @@ describe("contact form availability", () => {
     settings.clearTestOverrides();
   });
 
-  test("isContactFormAvailable is true when both Botpoison keys are set", () => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
-    expect(isContactFormAvailable()).toBe(true);
-  });
-
-  test("isContactFormAvailable is false without Botpoison keys", () => {
-    restoreEnv = setTestEnv(NO_KEYS);
-    expect(isContactFormAvailable()).toBe(false);
-  });
-
-  test("contactFormPublicKey returns the public env key", () => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
-    expect(contactFormPublicKey()).toBe("pk_test_public");
-  });
-
-  test("isContactFormActive needs keys, toggle on, and a business email", () => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
+  test("isContactFormActive is true with the toggle on and a business email", () => {
     settings.setForTest({
       business_email: "owner@example.com",
       contact_form_enabled: true,
@@ -61,17 +44,16 @@ describe("contact form availability", () => {
     expect(isContactFormActive()).toBe(true);
   });
 
-  test("isContactFormActive is false when Botpoison is not configured", () => {
+  test("isContactFormActive does not require Botpoison", () => {
     restoreEnv = setTestEnv(NO_KEYS);
     settings.setForTest({
       business_email: "owner@example.com",
       contact_form_enabled: true,
     });
-    expect(isContactFormActive()).toBe(false);
+    expect(isContactFormActive()).toBe(true);
   });
 
   test("isContactFormActive is false when the toggle is off", () => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
     settings.setForTest({
       business_email: "owner@example.com",
       contact_form_enabled: false,
@@ -80,12 +62,21 @@ describe("contact form availability", () => {
   });
 
   test("isContactFormActive is false when no business email is set", () => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
     settings.setForTest({
       business_email: "",
       contact_form_enabled: true,
     });
     expect(isContactFormActive()).toBe(false);
+  });
+
+  test("contactFormPublicKey returns the public env key when set", () => {
+    restoreEnv = setTestEnv(BOTH_KEYS);
+    expect(contactFormPublicKey()).toBe("pk_test_public");
+  });
+
+  test("contactFormPublicKey is empty when Botpoison is not configured", () => {
+    restoreEnv = setTestEnv(NO_KEYS);
+    expect(contactFormPublicKey()).toBe("");
   });
 });
 

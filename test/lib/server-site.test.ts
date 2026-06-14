@@ -170,13 +170,14 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       );
     });
 
-    test("hides the contact form toggle when Botpoison is not configured", async () => {
+    test("shows the contact form toggle even without Botpoison", async () => {
       const response = await awaitTestRequest("/admin/site/contact", {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      expect(html).not.toContain("contact_form_enabled");
-      expect(html).not.toContain("Enable contact form");
+      expect(html).toContain("contact_form_enabled");
+      expect(html).toContain("Enable contact form");
+      expect(html).toContain("No spam-protection provider is configured");
     });
 
     test("displays existing contact text", async () => {
@@ -333,6 +334,14 @@ describeWithEnv(
           "contact_form_enabled",
           "Enable contact form",
         );
+      });
+
+      test("notes that Botpoison spam protection is active", async () => {
+        const response = await awaitTestRequest("/admin/site/contact", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain("Botpoison is active");
       });
 
       test("warns when no business email is set", async () => {

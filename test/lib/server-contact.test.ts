@@ -385,20 +385,81 @@ describeWithEnv(
   "server (public contact form, Botpoison not configured)",
   { db: true },
   () => {
-    test("never renders the form even when enabled with a business email", async () => {
+    /** Enable the form without Botpoison (progressive enhancement is off). */
+    const activate = async (): Promise<void> => {
       await settings.update.showPublicSite(true);
       await settings.update.businessEmail("owner@example.com");
       await settings.update.contactFormEnabled(true);
-      await settings.update.contactPageText("Some text");
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+    };
+
+    const contactCsrf = async (): Promise<string> => {
+      const response = await handleRequest(mockRequest("/contact"));
+      const token = extractCsrfToken(await response.text());
+      if (!token) throw new Error("No CSRF token on /contact");
+      return token;
+    };
+
+    test("renders the form without the Botpoison widget", async () => {
+      await activate();
       const response = await handleRequest(mockRequest("/contact"));
       const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain('action="/contact"');
+      expect(html).toContain('name="email"');
+      expect(html).toContain('name="message"');
       expect(html).not.toContain("data-botpoison-public-key");
+      expect(html).not.toContain("/contact.js");
     });
 
-    test("404s POST /contact because the form is not active", async () => {
+    test("accepts a submission without verification and emails the owner", async () => {
+      await activate();
+      const mock = installContactFetch({ botpoisonOk: false });
+      try {
+        const csrf_token = await contactCsrf();
+        const response = await handleRequest(
+          mockFormRequest("/contact", {
+            csrf_token,
+            email: "visitor@example.com",
+            message: "Hello!",
+          }),
+        );
+        expectRedirect(response, "/contact");
+        expectFlash(response, "Message sent");
+        // The Botpoison API must not be called when it is not configured.
+        expect(
+          mock.calls.some((c) => c.url.includes("api.botpoison.com")),
+        ).toBe(false);
+        expect(mock.emailCall()?.body?.to).toEqual(["owner@example.com"]);
+      } finally {
+        mock.restore();
+      }
+    });
+
+    test("still validates the email field", async () => {
+      await activate();
+      const mock = installContactFetch({ botpoisonOk: false });
+      try {
+        const csrf_token = await contactCsrf();
+        const response = await handleRequest(
+          mockFormRequest("/contact", {
+            csrf_token,
+            email: "not-an-email",
+            message: "Hello!",
+          }),
+        );
+        expectRedirect(response, "/contact");
+        expectFlash(response, "Please enter a valid email address.", false);
+        expect(mock.calls.length).toBe(0);
+      } finally {
+        mock.restore();
+      }
+    });
+
+    test("404s when the form is not enabled", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.businessEmail("owner@example.com");
-      await settings.update.contactFormEnabled(true);
       const response = await handleRequest(
         mockFormRequest("/contact", {
           email: "visitor@example.com",

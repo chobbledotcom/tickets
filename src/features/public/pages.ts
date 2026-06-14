@@ -12,6 +12,7 @@ import {
 } from "#routes/response.ts";
 import { BOTPOISON_FIELD, verifyBotpoisonSolution } from "#shared/botpoison.ts";
 import { isValidBusinessEmail } from "#shared/business-email.ts";
+import { isBotpoisonEnabled } from "#shared/config.ts";
 import {
   contactFormPublicKey,
   isContactFormActive,
@@ -136,14 +137,18 @@ const processContactSubmission = async (
   const validationError = validateContactSubmission(email, message);
   if (validationError) return errorRedirect("/contact", validationError);
 
-  const verified = await verifyBotpoisonSolution(
-    form.getString(BOTPOISON_FIELD),
-  );
-  if (!verified) {
-    return errorRedirect(
-      "/contact",
-      "Could not verify your submission. Please try again.",
+  // Botpoison is an optional spam-protection layer: when configured the
+  // submission must pass verification; otherwise it is accepted as-is.
+  if (isBotpoisonEnabled()) {
+    const verified = await verifyBotpoisonSolution(
+      form.getString(BOTPOISON_FIELD),
     );
+    if (!verified) {
+      return errorRedirect(
+        "/contact",
+        "Could not verify your submission. Please try again.",
+      );
+    }
   }
 
   const sent = await sendContactMessage(email, message);

@@ -57,25 +57,45 @@ export const adminSiteHomePage = (
 
 /** State of the optional public contact form feature */
 interface ContactFormState {
-  /** Whether the host has configured Botpoison (gates the whole section) */
-  available: boolean;
   /** Whether the owner has enabled the form */
   enabled: boolean;
   /** Whether a business email is set (required for delivery) */
   hasBusinessEmail: boolean;
+  /** Whether Botpoison spam protection is configured (env keys set) */
+  botpoisonEnabled: boolean;
 }
 
-/** Toggle for the public contact form — only shown when Botpoison is configured */
+/** Spam-protection status note: Botpoison is an optional enhancement. */
+const SpamProtectionNote = ({
+  botpoisonEnabled,
+}: {
+  botpoisonEnabled: boolean;
+}): JSX.Element =>
+  botpoisonEnabled ? (
+    <p>
+      <small>Spam protection: Botpoison is active.</small>
+    </p>
+  ) : (
+    <p>
+      <small>
+        No spam-protection provider is configured, so submissions are accepted
+        without a spam check. Set <code>BOTPOISON_PUBLIC_KEY</code> and{" "}
+        <code>BOTPOISON_SECRET_KEY</code> to enable Botpoison.
+      </small>
+    </p>
+  );
+
+/** Toggle for the public contact form (always available; Botpoison optional) */
 const ContactFormToggle = ({
   enabled,
   hasBusinessEmail,
-}: Omit<ContactFormState, "available">): JSX.Element => (
+  botpoisonEnabled,
+}: ContactFormState): JSX.Element => (
   <CsrfForm action="/admin/site/contact/form">
     <h2>Contact Form</h2>
     <p>
-      Add a spam-protected contact form to the public contact page. Visitors
-      enter their email address and a message, which is sent to your business
-      email.
+      Add a contact form to the public contact page. Visitors enter their email
+      address and a message, which is sent to your business email.
     </p>
     {!hasBusinessEmail && (
       <p class="error" role="alert">
@@ -83,6 +103,7 @@ const ContactFormToggle = ({
         messages.
       </p>
     )}
+    <SpamProtectionNote botpoisonEnabled={botpoisonEnabled} />
     <label>
       <input
         checked={enabled}
@@ -124,11 +145,10 @@ export const adminSiteContactPage = (
         <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
 
-      {contactForm.available && (
-        <ContactFormToggle
-          enabled={contactForm.enabled}
-          hasBusinessEmail={contactForm.hasBusinessEmail}
-        />
-      )}
+      <ContactFormToggle
+        botpoisonEnabled={contactForm.botpoisonEnabled}
+        enabled={contactForm.enabled}
+        hasBusinessEmail={contactForm.hasBusinessEmail}
+      />
     </Layout>,
   );
