@@ -122,7 +122,10 @@ const extractVisibleInputValue = (
   const selectMatch = formHtml.match(selectRe);
   if (selectMatch) {
     const inner = selectMatch[1]!;
-    const selectedRe = /<option[^>]*value="([^"]*)"[^>]*selected[^>]*>/i;
+    // Match the selected option regardless of attribute order — the value and
+    // `selected` attributes can appear in either order (e.g. formatters that
+    // sort attributes alphabetically render `<option selected value="…">`).
+    const selectedRe = /<option\b(?=[^>]*\bselected\b)[^>]*\bvalue="([^"]*)"/i;
     const sel = inner.match(selectedRe);
     if (sel) return decodeEntities(sel[1]!);
     // Fall back to first non-placeholder option

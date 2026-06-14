@@ -24,7 +24,6 @@ import {
   REMOVE_LINE_ACTION_PREFIX,
   SAVE_ACTION,
 } from "#routes/admin/attendee-form-model.ts";
-import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -34,7 +33,9 @@ import type {
   Attendee,
   ListingWithCount,
 } from "#shared/types.ts";
+import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { Icon, SubmitButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Per-listing available dates (daily listings only) for client-side filtering. */
@@ -67,202 +68,170 @@ export type AttendeeFormTemplateData = {
   returnUrl?: string;
 };
 
-/** Render a single <option> for the listing selector. */
-const renderListingOption = (
-  listing: ListingWithCount,
-  selectedId: number,
-): string => {
-  const selected = listing.id === selectedId ? " selected" : "";
-  const dimmed = listing.active ? "" : " (inactive)";
-  return `<option value="${listing.id}"${selected}>${escapeHtml(listing.name)}${dimmed}</option>`;
-};
-
-/** Build the listing-selector <select> HTML for one line. */
-const renderListingSelect = (
-  line: AttendeeFormLine,
-  allListings: ListingWithCount[],
-  index: number,
-): string => {
-  const options = allListings
-    .map((listing) => renderListingOption(listing, line.listingId))
-    .join("");
-  const placeholder = `<option value=""${line.listingId === 0 ? " selected" : ""}>Select event…</option>`;
-  return `<select name="${LINE_EVENT_ID_PREFIX}${index}" aria-label="Event for line ${index + 1}" data-line-event>${placeholder}${options}</select>`;
-};
-
-/** Render the date input for one line. */
-const renderDateInput = (line: AttendeeFormLine, index: number): string => {
-  const isDaily = line.listing?.listing_type === "daily" || !line.listing;
-  const value = line.date ? escapeHtml(line.date) : "";
-  // The date field is never required at the HTML level — the server
-  // validates it conditionally for daily listings. Hidden when a listing is
-  // picked and that listing is non-daily (handled by the inline script).
-  return `<input type="date" name="${LINE_DATE_PREFIX}${index}" value="${value}" aria-label="Date for line ${index + 1}" data-line-date${isDaily ? "" : " hidden"}>`;
-};
-
-/** Render one line-item row. */
-const renderLineRow = (
-  line: AttendeeFormLine,
-  index: number,
-  allListings: ListingWithCount[],
-): string => {
-  const qty = line.quantity === null ? "" : String(line.quantity);
-  // Only emit max when a listing is chosen — an empty max="" is meaningless.
-  const maxAttr = line.listing ? ` max="${line.listing.max_quantity}"` : "";
-  const errorHtml = line.error
-    ? `<div class="error" role="alert">${escapeHtml(line.error)}</div>`
-    : "";
+/** One row of the line-item editor — one listing registration. */
+const LineRow = ({
+  line,
+  index,
+  allListings,
+}: {
+  line: AttendeeFormLine;
+  index: number;
+  allListings: ListingWithCount[];
+}): JSX.Element => {
+  // The date field is hidden when a listing is picked and is non-daily; the
+  // server validates it conditionally so it is never required at the HTML
+  // level. Blank lines default to daily so a newly-added row shows the picker.
+  const isDaily = !line.listing || line.listing.listing_type === "daily";
   const removeLabel = line.existingBooking ? "Remove" : "Drop";
-  // Show the existing booking status (checked-in / refunded) inline so the
-  // operator has the same context the old edit page provided.
-  const statusBadges: string[] = [];
-  if (line.existingBooking?.checked_in) {
-    statusBadges.push(`<span class="badge">Checked in</span>`);
-  }
-  if (line.existingBooking?.refunded) {
-    statusBadges.push(`<span class="badge danger">Refunded</span>`);
-  }
-  const statusHtml = statusBadges.length
-    ? `<div class="muted small">${statusBadges.join(" ")}</div>`
-    : "";
-
-  return `<tr data-line-row>
-    <td>${renderListingSelect(line, allListings, index)}${statusHtml}</td>
-    <td>${renderDateInput(line, index)}</td>
-    <td><input type="number" name="${LINE_QUANTITY_PREFIX}${index}" value="${escapeHtml(qty)}" min="1"${maxAttr} aria-label="Quantity for line ${index + 1}" style="width:5em"></td>
-    <td>${renderExistingDateLabel(line)}${errorHtml}</td>
-    <td style="white-space:nowrap">
-      <input type="hidden" name="${LINE_KEY_PREFIX}${index}" value="${escapeHtml(line.key)}">
-      <button class="link-button danger" type="submit" name="${ACTION_FIELD}" value="${REMOVE_LINE_ACTION_PREFIX}${index}" formnovalidate>${removeLabel}</button>
-    </td>
-  </tr>`;
-};
-
-/** Friendly label for an existing booking's stored date range. */
-const renderExistingDateLabel = (line: AttendeeFormLine): string => {
-  if (!line.existingBooking?.start_at) return "";
-  const label = formatDateRangeLabel(
-    line.existingBooking.start_at,
-    line.existingBooking.end_at,
-  );
-  return `<div class="muted small">${escapeHtml(label)}</div>`;
-};
-
-/** Render the line-item editor table. */
-const renderLineEditor = (data: AttendeeFormTemplateData): string => {
-  const rows = data.parsed.lines
-    .map((line, index) => renderLineRow(line, index, data.allListings))
-    .join("");
-  return `<div class="table-scroll">
-    <table class="line-editor">
-      <thead>
-        <tr>
-          <th>Event</th>
-          <th>Date</th>
-          <th>Qty</th>
-          <th></th>
-          <th style="width:1%"></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>
-  <input type="hidden" name="${LINE_COUNT_FIELD}" value="${data.parsed.lines.length}">`;
-};
-
-/** Render the mixed-timing alert (non-blocking). */
-const renderMixedTimingAlert = (data: AttendeeFormTemplateData): string => {
-  if (!data.dailyDefaults.hasMixedTimings) return "";
-  return String(
-    <output class="warning">
-      This attendee's existing daily events have different start dates or
-      durations. You can still add daily lines, but they won't inherit a shared
-      default — pick the date explicitly for each new line.
-    </output>,
-  );
-};
-
-/** Render the read-only payment-details section (edit mode only). */
-const renderPaymentDetails = (attendee: Attendee): string => {
-  if (!attendee.payment_id) return "";
-  const pricePaid = Number.parseInt(attendee.price_paid, 10);
-  const isRefunded = attendee.refunded;
-  const refundBadge = isRefunded
-    ? '<span class="badge-alert">Refunded</span>'
-    : "Not refunded";
-  return String(
-    <article>
-      <h3>Payment Details</h3>
-      <p>
-        <strong>Payment ID:</strong> {attendee.payment_id}
-      </p>
-      {pricePaid > 0 && (
-        <p>
-          <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
-        </p>
-      )}
-      <p>
-        <strong>Refund Status:</strong> <Raw html={refundBadge} />
-      </p>
-      <CsrfForm
-        action={`/admin/attendees/${attendee.id}/refresh-payment`}
-        class="inline"
-      >
-        <button type="submit">Refresh payment status</button>
-      </CsrfForm>
-    </article>,
+  return (
+    <tr data-line-row>
+      <td>
+        <select
+          aria-label={`Listing for line ${index + 1}`}
+          data-line-event
+          name={`${LINE_EVENT_ID_PREFIX}${index}`}
+        >
+          <option selected={line.listingId === 0} value="">
+            Select listing…
+          </option>
+          {allListings.map((listing) => (
+            <option selected={listing.id === line.listingId} value={listing.id}>
+              {listing.name}
+              {listing.active ? "" : " (inactive)"}
+            </option>
+          ))}
+        </select>
+        {(line.existingBooking?.checked_in || line.existingBooking?.refunded) && (
+          <div class="muted small">
+            {line.existingBooking?.checked_in ? (
+              <span class="badge">Checked in</span>
+            ) : null}
+            {line.existingBooking?.checked_in && line.existingBooking?.refunded
+              ? " "
+              : null}
+            {line.existingBooking?.refunded ? (
+              <span class="badge danger">Refunded</span>
+            ) : null}
+          </div>
+        )}
+      </td>
+      <td>
+        <input
+          aria-label={`Date for line ${index + 1}`}
+          data-line-date
+          hidden={!isDaily}
+          name={`${LINE_DATE_PREFIX}${index}`}
+          type="date"
+          value={line.date}
+        />
+      </td>
+      <td>
+        <input
+          aria-label={`Quantity for line ${index + 1}`}
+          max={line.listing ? line.listing.max_quantity : undefined}
+          min="1"
+          name={`${LINE_QUANTITY_PREFIX}${index}`}
+          style="width:5em"
+          type="number"
+          value={line.quantity === null ? "" : String(line.quantity)}
+        />
+      </td>
+      <td>
+        {line.existingBooking?.start_at ? (
+          <div class="muted small">
+            {formatDateRangeLabel(
+              line.existingBooking.start_at,
+              line.existingBooking.end_at,
+            )}
+          </div>
+        ) : null}
+        {line.error ? (
+          <div class="error" role="alert">
+            {line.error}
+          </div>
+        ) : null}
+      </td>
+      <td style="white-space:nowrap">
+        <input
+          name={`${LINE_KEY_PREFIX}${index}`}
+          type="hidden"
+          value={line.key}
+        />
+        <button
+          class="link-button danger"
+          formnovalidate
+          name={ACTION_FIELD}
+          type="submit"
+          value={`${REMOVE_LINE_ACTION_PREFIX}${index}`}
+        >
+          {removeLabel}
+        </button>
+      </td>
+    </tr>
   );
 };
+
+/** The repeatable line-item editor plus the hidden line-count field the parser
+ * loops over. */
+const LineEditor = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element => (
+  <>
+    <div class="table-scroll">
+      <table class="line-editor">
+        <thead>
+          <tr>
+            <th>Listing</th>
+            <th>Date</th>
+            <th>Qty</th>
+            <th></th>
+            <th style="width:1%"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.parsed.lines.map((line, index) => (
+            <LineRow allListings={data.allListings} index={index} line={line} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <input
+      name={LINE_COUNT_FIELD}
+      type="hidden"
+      value={data.parsed.lines.length}
+    />
+  </>
+);
 
 /** Render the "Merge Attendee" section (edit mode only). */
-const renderMergeSection = (attendee: Attendee): string =>
-  String(
-    <article>
-      <h3>Merge Attendee</h3>
-      <p>
-        Search for another attendee by their ticket token and merge their event
-        registrations into this attendee.
-      </p>
-      <form
-        action={`/admin/attendees/${attendee.id}/merge`}
-        class="inline-row"
-        method="get"
-      >
-        <label for="merge_token">
-          Ticket token
-          <input
-            id="merge_token"
-            name="token"
-            placeholder="Enter ticket token…"
-            required
-            type="text"
-          />
-        </label>
-        <button type="submit">Search</button>
-      </form>
-    </article>,
-  );
-
-/** Render custom question fields with pre-selected answers for admin edit. */
-const renderEditQuestions = (
-  questions: QuestionWithAnswers[],
-  selectedAnswerIds: number[],
-): string => {
-  const checked = (id: number) =>
-    selectedAnswerIds.includes(id) ? " checked" : "";
-  const questionHtml = questions
-    .map((q) => {
-      const options = q.answers
-        .map(
-          (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked(a.id)}> ${escapeHtml(a.text)}</label>`,
-        )
-        .join("");
-      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
-    })
-    .join("");
-  return `<h3>Custom Questions</h3>${questionHtml}`;
-};
+const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
+  <article>
+    <h3>Merge Attendee</h3>
+    <p>
+      Search for another attendee by their ticket token and merge their listing
+      registrations into this attendee.
+    </p>
+    <form
+      action={`/admin/attendees/${attendee.id}/merge`}
+      class="inline-row"
+      method="get"
+    >
+      <label for="merge_token">
+        Ticket token
+        <input
+          id="merge_token"
+          name="token"
+          placeholder="Enter ticket token…"
+          required
+          type="text"
+        />
+      </label>
+      <SubmitButton icon="search">Search</SubmitButton>
+    </form>
+  </article>
+);
 
 /** Page title for the layout. */
 const pageTitle = (data: AttendeeFormTemplateData): string =>
@@ -279,23 +248,23 @@ const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
   for (const listing of data.allListings) {
     listingsByType[listing.id] = listing.listing_type;
   }
-  const eventsByTypeJson = JSON.stringify(listingsByType);
-  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-event-types='${escapeHtml(eventsByTypeJson)}'></script>
+  const listingTypesJson = JSON.stringify(listingsByType);
+  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-listing-types='${escapeHtml(listingTypesJson)}'></script>
   <script>
     (function () {
       var dataEl = document.getElementById('attendee-form-data');
       if (!dataEl) return;
       var availableDates = JSON.parse(dataEl.getAttribute('data-available-dates') || '{}');
-      var eventTypes = JSON.parse(dataEl.getAttribute('data-event-types') || '{}');
+      var listingTypes = JSON.parse(dataEl.getAttribute('data-listing-types') || '{}');
       function updateRow(row) {
         var select = row.querySelector('[data-line-event]');
         var dateInput = row.querySelector('[data-line-date]');
         if (!select || !dateInput) return;
-        var eventId = Number(select.value);
-        var isDaily = eventTypes[eventId] === 'daily';
+        var listingId = Number(select.value);
+        var isDaily = listingTypes[listingId] === 'daily';
         dateInput.hidden = !isDaily;
         if (isDaily && !dateInput.value) {
-          var dates = availableDates[eventId] || [];
+          var dates = availableDates[listingId] || [];
           if (dates.length) dateInput.value = dates[0];
         }
       }
@@ -323,7 +292,6 @@ export const attendeeFormPage = (
     data.mode === "create"
       ? "/admin/attendees/new"
       : `/admin/attendees/${data.attendee!.id}`;
-  const nameValue = data.parsed.name;
   const isEdit = data.mode === "edit";
   const a = data.attendee;
 
@@ -333,7 +301,7 @@ export const attendeeFormPage = (
 
       <h2>{pageTitle(data)}</h2>
 
-      {isEdit && a && <Raw html={renderPaymentDetails(a)} />}
+      {isEdit && a && <Raw html={PaymentDetails({ attendee: a })} />}
 
       {data.attendeeError && (
         <div class="error" role="alert">
@@ -341,7 +309,13 @@ export const attendeeFormPage = (
         </div>
       )}
 
-      <Raw html={renderMixedTimingAlert(data)} />
+      {data.dailyDefaults.hasMixedTimings && (
+        <output class="warning">
+          This attendee's existing daily listings have different start dates or
+          durations. You can still add daily lines, but they won't inherit a
+          shared default — pick the date explicitly for each new line.
+        </output>
+      )}
 
       <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
         <Flash error={data.flashError} success={data.flashSuccess} />
@@ -359,7 +333,7 @@ export const attendeeFormPage = (
             name="name"
             required
             type="text"
-            value={nameValue}
+            value={data.parsed.name}
           />
         </label>
 
@@ -405,13 +379,17 @@ export const attendeeFormPage = (
         </label>
 
         {data.questions && data.questions.length > 0 && (
-          <Raw
-            html={renderEditQuestions(data.questions, data.selectedAnswerIds)}
-          />
+          <>
+            <h3>Custom Questions</h3>
+            <EditQuestions
+              questions={data.questions}
+              selectedAnswerIds={data.selectedAnswerIds}
+            />
+          </>
         )}
 
-        <h3>Event Registrations</h3>
-        <Raw html={renderLineEditor(data)} />
+        <h3>Listing Registrations</h3>
+        <LineEditor data={data} />
         <p>
           <button
             formnovalidate
@@ -419,7 +397,8 @@ export const attendeeFormPage = (
             type="submit"
             value={ADD_LINE_ACTION}
           >
-            Add Event Line
+            <Icon name="plus" />
+            <span>Add Listing Line</span>
           </button>
         </p>
 
@@ -432,7 +411,8 @@ export const attendeeFormPage = (
             type="submit"
             value={SAVE_ACTION}
           >
-            {isEdit ? "Save Attendee" : "Create Attendee"}
+            <Icon name="save" />
+            <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
           </button>
           <a class="button" href={data.returnUrl || "/admin/"}>
             Back without saving
@@ -440,7 +420,7 @@ export const attendeeFormPage = (
         </p>
       </CsrfForm>
 
-      {isEdit && a && <Raw html={renderMergeSection(a)} />}
+      {isEdit && a && <MergeSection attendee={a} />}
 
       <Raw html={renderEnhancementScript(data)} />
     </Layout>,

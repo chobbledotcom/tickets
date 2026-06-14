@@ -32,10 +32,10 @@ import type {
   ListingAttendeeRow,
   UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
+import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
   dateToStartEnd,
-  hasDuplicateBookingSlot,
 } from "#shared/db/attendees/capacity.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import {

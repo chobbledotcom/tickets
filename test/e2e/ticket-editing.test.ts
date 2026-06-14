@@ -294,7 +294,9 @@ describe("e2e: ticket editing flow", () => {
     // The Listing Registrations line editor shows Alice's existing booking as a
     // <select> with Morning Workshop pre-selected (the new form edits the listing
     // via a dropdown rather than linking out to the listing page).
-    expect(browser.currentHtml).toContain("selected>Morning Workshop</option>");
+    expect(browser.currentHtml).toMatch(
+      /<option selected\b[^>]*>Morning Workshop<\/option>/,
+    );
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
     // 8. Extract the Evening Seminar listing ID from the line select options.

@@ -401,7 +401,14 @@ const applyLineAction = (
 };
 
 /** Common submit handler for create + edit. `attendeeId` is null in create
- * mode. */
+ * mode.
+ *
+ * This uses `withAuth` directly rather than the `createAuthedFormRoute` factory
+ * the simpler admin forms use: a single POST here can mean add-line, remove-line,
+ * or save, and the non-save actions must re-render the in-progress form without
+ * validating or persisting. That preserve-and-rerender, multi-action flow does
+ * not fit the factory's validate→onValid/onInvalid shape, so the control flow
+ * lives here explicitly. */
 const handleSubmit =
   (mode: "create" | "edit", attendeeId: number | null) =>
   (request: Request): Promise<Response> =>
@@ -498,7 +505,13 @@ type SaveOutcome =
   | { ok: false; flashError: string };
 
 /** Shown when a submission has no usable listing lines. */
-const NO_LINES_ERROR = "Add at least one event line before saving";
+const NO_LINES_ERROR = "Add at least one listing line before saving";
+
+/** Shown when capacity can't fit the submitted lines. One wording for both the
+ * create and edit paths so the operator never sees two phrasings of the same
+ * failure. */
+const CAPACITY_SAVE_ERROR =
+  "Not enough spots available for one or more selected listings — nothing was saved. Please review your listing lines and try again.";
 
 /** The edit page for an attendee, carrying the return_url through so the
  * "Back without saving" link still works after a save. */
@@ -529,11 +542,7 @@ const applyCreate = async (
   const createResult = await createAttendeeAtomic(input);
   const check = await ensureAllBookings(createResult, input.bookings.length);
   if (!check.ok) {
-    return {
-      flashError:
-        "Not enough spots available for one or more selected events — nothing was saved",
-      ok: false,
-    };
+    return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
   // ensureAllBookings guarantees full success past the ok check.
   const { attendees } = createResult as Extract<
@@ -541,9 +550,9 @@ const applyCreate = async (
     { success: true }
   >;
 
-  const firstListingId = parsed.lines.find(
-    (line) => line.listingId > 0,
-  )!.listingId;
+  // input.bookings is non-empty (guarded above) and every booking comes from a
+  // fillable line, so its listing id is always present — no re-scan needed.
+  const firstListingId = input.bookings[0]!.listingId;
   await logActivity(`Attendee '${parsed.name}' added manually`, firstListingId);
 
   const newId = attendees[0]!.id;
@@ -587,11 +596,7 @@ const applyEdit = async (
     if (editResult.reason === "no_lines") {
       return { flashError: NO_LINES_ERROR, ok: false };
     }
-    return {
-      flashError:
-        "Not enough spots remain for one of the selected events — nothing was saved. Please review your event lines and try again.",
-      ok: false,
-    };
+    return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
 
   // Save question answers (atomic delete + insert) when the listing has any.

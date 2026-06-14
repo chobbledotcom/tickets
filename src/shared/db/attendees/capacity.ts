@@ -44,29 +44,6 @@ export const dateToStartEnd = (
   return { endAt: range.endAt, startAt: range.startAt };
 };
 
-/** Identity of a booking slot: `${listingId}|${date}`. Two rows with the same
- * slot would collide on the `listing_attendees` (listing_id, attendee_id,
- * start_at) unique index. */
-export const bookingSlotKey = (
-  listingId: number,
-  date: string | null | undefined,
-): string => `${listingId}|${date ?? ""}`;
-
-/** True when any two of the given lines target the same booking slot — which
- * the unique index would reject. Shared by the create and edit paths so the
- * slot identity is defined once. */
-export const hasDuplicateBookingSlot = (
-  lines: readonly { listingId: number; date?: string | null }[],
-): boolean => {
-  const seen = new Set<string>();
-  for (const line of lines) {
-    const key = bookingSlotKey(line.listingId, line.date);
-    if (seen.has(key)) return true;
-    seen.add(key);
-  }
-  return false;
-};
-
 type RemainingMap = Map<number, number>;
 
 /**

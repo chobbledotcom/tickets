@@ -19,6 +19,7 @@ import type {
   ListingAttendeeRow,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
+import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { Holiday, ListingWithCount } from "#shared/types.ts";
@@ -119,16 +120,6 @@ export type DailyDefaults = {
 // Keys + helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Build the stable line key matching `listing_attendees` identity.
- * The unique index is (listing_id, attendee_id, start_at), so for a single
- * attendee (listing_id, start_at) uniquely identifies a row.
- */
-export const buildLineKey = (
-  listingId: number,
-  startAt: string | null,
-): string => `${listingId}|${startAt ?? ""}`;
-
 /** True when the line has no listing selected and no existing identity. */
 export const isBlankLine = (line: AttendeeFormLine): boolean =>
   line.listingId <= 0 && !line.key;
@@ -196,13 +187,6 @@ const resolveListing = (
   return { id, listing: listingsById.get(id) ?? null };
 };
 
-/** Parse an optional integer field — empty/NaN yields null. */
-const parseOptionalInt = (raw: string): number | null => {
-  if (raw === "") return null;
-  const n = Number.parseInt(raw, 10);
-  return Number.isNaN(n) ? null : n;
-};
-
 /** Parse a single line of the editor from the indexed form fields. */
 const parseAttendeeLine = (
   form: FormParams,
@@ -222,7 +206,7 @@ const parseAttendeeLine = (
     key,
     listing,
     listingId: id,
-    quantity: parseOptionalInt(form.getString(`${LINE_QUANTITY_PREFIX}${i}`)),
+    quantity: form.getOptionalInt(`${LINE_QUANTITY_PREFIX}${i}`),
   };
 };
 
@@ -231,9 +215,9 @@ export const parseAttendeeForm = (
   listingsById: Map<number, ListingWithCount>,
   existingByKey: Map<string, ListingAttendeeRow> = new Map(),
 ): ParsedAttendeeForm => {
-  const lineCountRaw = Number.parseInt(form.getString(LINE_COUNT_FIELD), 10);
+  const lineCountRaw = form.getOptionalInt(LINE_COUNT_FIELD);
   const lineCount =
-    Number.isInteger(lineCountRaw) && lineCountRaw > 0
+    lineCountRaw !== null && lineCountRaw > 0
       ? Math.min(lineCountRaw, MAX_FORM_LINES)
       : 1;
 
@@ -350,10 +334,10 @@ const validateLine = (
   if (isBlankLine(line)) return null;
 
   if (!line.listing) {
-    return "Event no longer exists or is inactive";
+    return "Listing no longer exists or is inactive";
   }
   if (!line.listing.active) {
-    return `Event '${line.listing.name}' is inactive`;
+    return `Listing '${line.listing.name}' is inactive`;
   }
 
   const qty = line.quantity;
@@ -366,21 +350,22 @@ const validateLine = (
 
   const isDaily = line.listing.listing_type === "daily";
   if (isDaily) {
-    if (!line.date) return "Date is required for daily events";
+    if (!line.date) return "Date is required for daily listings";
     if (!isValidDateString(line.date)) {
       return "Date must be a valid YYYY-MM-DD value";
     }
     const allowed = new Set(getAvailableDates(line.listing, holidays));
     if (!allowed.has(line.date)) {
-      return "Date is not bookable for this event";
+      return "Date is not bookable for this listing";
     }
   }
 
   // Duplicate-line check: same listing + same date would collide on the
-  // (listing_id, attendee_id, start_at) unique index.
-  const dedupeKey = buildLineKey(line.listingId, isDaily ? line.date : null);
+  // (listing_id, attendee_id, start_at) unique index. Reuse the same slot
+  // identity the DB layer dedupes on (bookingSlotKey) so both agree.
+  const dedupeKey = bookingSlotKey(line.listingId, isDaily ? line.date : null);
   if (seenLineKeys.has(dedupeKey)) {
-    return "Duplicate event line — same event and date already added";
+    return "Duplicate listing line — same listing and date already added";
   }
   seenLineKeys.add(dedupeKey);
   return null;

@@ -4,7 +4,6 @@ import {
   ADD_LINE_ACTION,
   type AttendeeFormLine,
   bookingDurationDays,
-  buildLineKey,
   parseAttendeeForm,
   resolveDailyDefaults,
   trimTrailingBlankLines,
@@ -44,18 +43,6 @@ const bookingRow = (
   refunded: 0,
   start_at: null,
   ...overrides,
-});
-
-describe("buildLineKey", () => {
-  test("round-trips listing id and start_at via the canonical key string", () => {
-    const key = buildLineKey(42, "2026-06-14T00:00:00Z");
-    expect(key).toBe("42|2026-06-14T00:00:00Z");
-  });
-
-  test("handles null start_at (standard listings)", () => {
-    const key = buildLineKey(7, null);
-    expect(key).toBe("7|");
-  });
 });
 
 describe("trimTrailingBlankLines", () => {
@@ -632,7 +619,7 @@ describe("validateLine daily date checks", () => {
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.lineErrors.get(0)).toBe(
-        "Date is not bookable for this event",
+        "Date is not bookable for this listing",
       );
     }
   });

@@ -1052,8 +1052,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const html = await expectHtmlResponse(
         response,
         200,
-        "Event Registrations",
-        "Add Event Line",
+        "Listing Registrations",
+        "Add Listing Line",
         "Save Attendee",
       );
       // Listing link table shows the listing
@@ -1446,7 +1446,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         200,
         "Listing 1",
         "Listing 2",
-        "Add Event Line",
+        "Add Listing Line",
       );
     });
 
@@ -2091,7 +2091,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("pre-selects existing answer on edit page", async () => {
-      const { attendee, a1 } = await setupQuestionAndAttendee();
+      const { attendee, a1, q } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
@@ -2100,7 +2100,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).toContain(`value="${a1.id}" checked`);
+      // The radio for the previously-saved answer is pre-checked.
+      expect(html).toContain(
+        `<input checked name="question_${q.id}" type="radio" value="${a1.id}">`,
+      );
     });
 
     test("does not show questions when listing has none", async () => {

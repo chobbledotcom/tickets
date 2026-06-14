@@ -40,14 +40,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         response,
         200,
         "Add Attendee",
-        "Event Registrations",
+        "Listing Registrations",
         "Create Attendee",
-        "Add Event Line",
+        "Add Listing Line",
         "Pick Me",
       );
       // One blank line is rendered
       expect(html).toContain('name="line_event_id_0"');
-      expect(html).toContain('name="line_count" value="1"');
+      expect(html).toContain('name="line_count" type="hidden" value="1"');
     });
 
     test("preserves return_url as a hidden field when provided", async () => {
@@ -82,7 +82,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       },
     });
 
-    test("creates an attendee with one event line", async () => {
+    test("creates an attendee with one listing line", async () => {
       const { listing: event } = await setupListingAndLogin({
         maxAttendees: 100,
         maxQuantity: 5,
@@ -110,7 +110,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(attendees[0]!.quantity).toBe(2);
     });
 
-    test("creates an attendee with multiple event lines in one submission", async () => {
+    test("creates an attendee with multiple listing lines in one submission", async () => {
       const event1 = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
@@ -147,7 +147,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(att2[0]!.quantity).toBe(3);
     });
 
-    test("re-renders the form without saving when 'Add Event Line' is clicked", async () => {
+    test("re-renders the form without saving when 'Add Listing Line' is clicked", async () => {
       const event = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
@@ -294,7 +294,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("POST /admin/attendees/:id — line edits via the unified form", () => {
-    test("adds a new event line to an existing attendee", async () => {
+    test("adds a new listing line to an existing attendee", async () => {
       const event1 = await createTestListing({ maxAttendees: 50, name: "E1" });
       const event2 = await createTestListing({ maxAttendees: 50, name: "E2" });
       const attendee = await createTestAttendee(
@@ -332,7 +332,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect((await getAttendeesRaw(event2.id)).length).toBe(1);
     });
 
-    test("removes an existing event line via the unified form", async () => {
+    test("removes an existing listing line via the unified form", async () => {
       const event1 = await createTestListing({ maxAttendees: 50, name: "E1" });
       const event2 = await createTestListing({ maxAttendees: 50, name: "E2" });
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
@@ -611,7 +611,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("error paths and edge cases", () => {
-    test("create re-renders with an error when no event line is filled in", async () => {
+    test("create re-renders with an error when no listing line is filled in", async () => {
       await createTestListing({ maxAttendees: 100 });
       const { response } = await adminFormPost("/admin/attendees/new", {
         line_count: "1",
@@ -620,7 +620,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Add at least one event line");
+      expect(html).toContain("Add at least one listing line");
       expect(html).toContain("No Lines");
     });
 
@@ -758,7 +758,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         },
       );
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("Add at least one event line");
+      expect(await response.text()).toContain("Add at least one listing line");
       // The existing booking is untouched (no_lines short-circuits the diff).
       expect((await getAttendeesRaw(event.id)).length).toBe(1);
     });
@@ -842,7 +842,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         },
       );
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("Add at least one event line");
+      expect(await response.text()).toContain("Add at least one listing line");
     });
   });
 

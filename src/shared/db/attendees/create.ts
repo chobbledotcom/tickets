@@ -9,10 +9,8 @@ import type {
   CreateAttendeeResult,
   EncryptedAttendeeData,
 } from "#shared/db/attendee-types.ts";
-import {
-  buildCapacityCheckedInsert,
-  hasDuplicateBookingSlot,
-} from "#shared/db/attendees/capacity.ts";
+import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
+import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import {
   contactFields,
