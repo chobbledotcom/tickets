@@ -40,6 +40,7 @@ import {
   handleUnlinkListing,
   handleUpdateListingLink,
 } from "./attendees-links.ts";
+import { handleAttendeesListGet } from "./attendees-list.ts";
 import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
@@ -276,6 +277,7 @@ const handleResendNotification = verifiedAttendeeForm(
 export const attendeesRoutes = defineRoutes({
   "DELETE /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
+  "GET /admin/attendees": handleAttendeesListGet,
   "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
   "GET /admin/listing/:listingId/attendee/:attendeeId/delete":

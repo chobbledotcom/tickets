@@ -22,6 +22,26 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).toContain('href="/admin/settings#settings-superuser"');
   });
 
+  test("AdminNav links to the attendees browser for owners and managers", () => {
+    for (const adminLevel of ["owner", "manager"] as const) {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel } }),
+      );
+      expect(html).toContain('href="/admin/attendees"');
+      expect(html).toContain("Attendees");
+    }
+  });
+
+  test("AdminNav marks the attendees link active on the attendees page", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/attendees",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).toContain('class="active" href="/admin/attendees"');
+  });
+
   test("AdminNav does NOT render SettingsNagBanner for non-owner sessions", () => {
     const html = String(
       AdminNav({

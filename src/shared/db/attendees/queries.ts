@@ -58,6 +58,48 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
     [limit],
   );
 
+/** Sort order for the admin attendees browser */
+export type AttendeeSort = "newest" | "oldest";
+
+/**
+ * Get one page of attendee+booking rows for the admin attendees browser.
+ *
+ * Returns one row per (attendee, listing) booking, ordered by registration
+ * date — newest or oldest first — with id as a stable tiebreaker so paging is
+ * deterministic. When `listingId` is given, only that listing's bookings are
+ * returned; otherwise every booking across all listings is included.
+ *
+ * Pagination is offset-based: callers fetch `limit` rows starting at `offset`.
+ * PII stays encrypted — decrypt with decryptAttendees before display.
+ */
+export const getAttendeesPage = ({
+  listingId,
+  sort,
+  limit,
+  offset,
+}: {
+  listingId: number | null;
+  sort: AttendeeSort;
+  limit: number;
+  offset: number;
+}): Promise<Attendee[]> => {
+  // `dir` is derived from the AttendeeSort enum and the WHERE clause is fixed
+  // text, so neither is user-controlled — only the bound args are.
+  const dir = sort === "oldest" ? "ASC" : "DESC";
+  const where = listingId === null ? "" : "WHERE ea.listing_id = ?";
+  const args =
+    listingId === null ? [limit, offset] : [listingId, limit, offset];
+  return queryAll<Attendee>(
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     ${where}
+     ORDER BY a.created ${dir}, a.id ${dir}
+     LIMIT ? OFFSET ?`,
+    args,
+  );
+};
+
 /**
  * Get every attendee's encrypted PII blob (one row per attendee).
  * Used to resolve bulk-email recipient lists, where only the email inside each
