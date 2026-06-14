@@ -3,7 +3,6 @@
  */
 
 import { filter, map, pipe, reduce, sort, unique } from "#fp";
-import { normalizeDurationDays } from "#shared/types.ts";
 import type {
   EventBooking,
   UpdateAttendeePIIInput,
@@ -20,6 +19,7 @@ import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { invalidateEventsCache } from "#shared/db/events.ts";
 import { settings } from "#shared/db/settings.ts";
+import { normalizeDurationDays } from "#shared/types.ts";
 
 /** Update a per-event status field on event_attendees */
 const updateEventAttendeeField =
@@ -140,9 +140,7 @@ export const checkGroupCapAfterDurationChange = async (
   // count (pre-daily legacy bookings), mirroring the SQL overlap predicate.
   type GroupRow = (typeof rows)[number];
   const isDailyWithRange = (row: GroupRow): boolean =>
-    row.event_type === "daily" &&
-    row.start_at !== null &&
-    row.end_at !== null;
+    row.event_type === "daily" && row.start_at !== null && row.end_at !== null;
   const toDayInterval = (row: GroupRow): DayInterval => ({
     end: row.end_at!.slice(0, 10),
     quantity: row.quantity,
@@ -178,7 +176,7 @@ export const checkGroupCapAfterDurationChange = async (
   // max end of this event's ranges that start at or before the candidate —
   // the candidate is inside this event's booked days iff that end is later.
   const sortedRanges = sort((a: DayInterval, b: DayInterval) =>
-    a.start < b.start ? -1 : 1
+    a.start < b.start ? -1 : 1,
   )(eventRanges);
   const startDays = unique(
     map((interval: DayInterval) => interval.start)(intervals),
@@ -186,7 +184,10 @@ export const checkGroupCapAfterDurationChange = async (
   let rangeIdx = 0;
   let maxEnd = "";
   for (const day of startDays) {
-    while (rangeIdx < sortedRanges.length && sortedRanges[rangeIdx]!.start <= day) {
+    while (
+      rangeIdx < sortedRanges.length &&
+      sortedRanges[rangeIdx]!.start <= day
+    ) {
       const end = sortedRanges[rangeIdx]!.end;
       if (end > maxEnd) maxEnd = end;
       rangeIdx++;

@@ -326,12 +326,12 @@ export const questionsRoutes = {
     "POST /admin/event/:id/questions": handleEventQuestionsPost,
     "POST /admin/questions": handleQuestionsPost,
     "POST /admin/questions/:id/answers": handleAddAnswer,
-    "POST /admin/questions/:id/events": handleQuestionEvents,
     "POST /admin/questions/:id/answers/:answerId/delete":
       handleDeleteAnswerPost,
     "POST /admin/questions/:id/answers/:answerId/move-down":
       handleMoveAnswerDown,
     "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
     "POST /admin/questions/:id/edit": handleQuestionEdit,
+    "POST /admin/questions/:id/events": handleQuestionEvents,
   }),
 };

@@ -5,8 +5,8 @@
 import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter, reduce, sort, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { addDays } from "#shared/dates.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { addDays } from "#shared/dates.ts";
 import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
@@ -181,9 +181,8 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
-export const eventsTable = withCacheInvalidation(
-  rawEventsTable,
-  () => invalidateEventsCache(),
+export const eventsTable = withCacheInvalidation(rawEventsTable, () =>
+  invalidateEventsCache(),
 );
 
 /** Find a cached event by ID */
@@ -231,18 +230,15 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
     // Delete orphaned attendees (no remaining event links) and their dependent data
     {
       args: [],
-      sql:
-        "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql: "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
     {
       args: [],
-      sql:
-        "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql: "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
     {
       args: [],
-      sql:
-        "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
     },
     { args: [eventId], sql: "DELETE FROM activity_log WHERE event_id = ?" },
     { args: [eventId], sql: "DELETE FROM events WHERE id = ?" },
@@ -471,8 +467,7 @@ export const getEventWithAttendeeRaw = async (
     },
     {
       args: [eventId],
-      sql:
-        "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
+      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
     },
   ]);
 

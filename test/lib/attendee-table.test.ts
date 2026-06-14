@@ -76,7 +76,9 @@ describe("AttendeeTable", () => {
     });
 
     test("links Name to the edit attendee page", () => {
-      const rows = [makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain('<a href="/admin/attendees/7">Jane</a>');
     });

@@ -32,7 +32,6 @@ import {
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "checkout.session.completed",
-  requiresWebhookSignature: true,
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
     withCheckoutError(async () => {
@@ -49,6 +48,7 @@ export const stripePaymentProvider: PaymentProvider = {
     const result = await stripeRefund(paymentReference);
     return result !== null;
   },
+  requiresWebhookSignature: true,
 
   resolveWebhookSession({
     data: { object: obj },

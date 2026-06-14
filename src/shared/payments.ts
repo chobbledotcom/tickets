@@ -96,7 +96,11 @@ export type SessionMetadata = {
 
 /** Valid payment status values. "failed" is a terminal non-payment (declined
  * or expired checkout) — distinct from "unpaid", which may still complete. */
-export type PaymentStatus = "paid" | "unpaid" | "no_payment_required" | "failed";
+export type PaymentStatus =
+  | "paid"
+  | "unpaid"
+  | "no_payment_required"
+  | "failed";
 
 /** Runtime array of valid payment status values */
 const PAYMENT_STATUSES: readonly PaymentStatus[] = [

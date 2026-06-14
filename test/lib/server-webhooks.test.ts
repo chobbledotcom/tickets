@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
   questionsTable,
   setEventQuestions,
 } from "#shared/db/questions.ts";
-import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
@@ -123,7 +123,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect((await response.json()).processed).toBe(true);
 
         // A retried webhook resolves to the already-created attendee
-        const retry = await handleRequest(mockWebhookRequest(sumupWebhookEvent));
+        const retry = await handleRequest(
+          mockWebhookRequest(sumupWebhookEvent),
+        );
         expect((await retry.json()).processed).toBe(true);
       } finally {
         restore.restore();
