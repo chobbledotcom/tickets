@@ -247,8 +247,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const target = await createAttendee(event.id, "Alice");
       const source = await createAttendee(event.id, "Bob");
 
-      await saveAttendeeAnswers([target.id], [answers[0]!.id]); // Red
-      await saveAttendeeAnswers([source.id], [answers[1]!.id]); // Blue
+      await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]])); // Red
+      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]])); // Blue
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
@@ -298,7 +298,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const source = await createAttendee(event.id, "Bob");
 
       // Only source has an answer
-      await saveAttendeeAnswers([source.id], [answers[1]!.id]);
+      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]]));
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
@@ -429,7 +429,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     const target = await createAttendee(event.id, "Alice", "alice@test.com");
     const source = await createAttendee(event.id, "Bob", "bob@test.com");
-    await saveAttendeeAnswers([source.id], [a1.id]);
+    await saveAttendeeAnswers(new Map([[source.id, [a1.id]]]));
 
     const targetBookings = await getBookings(target.id);
     const sourceBookings = await getBookings(source.id);
@@ -690,8 +690,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const target = await createAttendee(event1.id, "Alice", "alice@test.com");
       const source = await createAttendee(event2.id, "Bob", "bob@test.com");
 
-      await saveAttendeeAnswers([target.id], [answers[0]!.id]); // Red
-      await saveAttendeeAnswers([source.id], [answers[1]!.id]); // Blue
+      await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]])); // Red
+      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]])); // Blue
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
@@ -791,8 +791,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const target = await createAttendee(event.id, "Alice");
       const source = await createAttendee(event2.id, "Bob");
 
-      await saveAttendeeAnswers([target.id], [answers[0]!.id]);
-      await saveAttendeeAnswers([source.id], [answers[1]!.id]);
+      await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]]));
+      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]]));
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);
@@ -870,7 +870,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const source = await createAttendee(event2.id, "Bob");
 
       // Only source has answer
-      await saveAttendeeAnswers([source.id], [answers[1]!.id]);
+      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]]));
 
       const targetBookings = await getBookings(target.id);
       const sourceBookings = await getBookings(source.id);

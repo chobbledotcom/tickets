@@ -9,7 +9,6 @@ import { validatePrice } from "#shared/currency.ts";
 import {
   type QuestionEventMap,
   type QuestionWithAnswers,
-  readQuestionAnswer,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { EventFields } from "#shared/types.ts";
@@ -43,26 +42,6 @@ export const formatAtomicError = capacityErrorFormatter({
   generic: "Sorry, not enough spots available",
   withName: (name) => `Sorry, ${name} no longer has enough spots available`,
 });
-
-/** Parse and validate answers for custom questions from form data.
- * Returns answer IDs if valid, or an error message if any required question is unanswered. */
-export const parseQuestionAnswers = (
-  form: URLSearchParams,
-  questions: QuestionWithAnswers[],
-): { ok: true; answerIds: number[] } | { ok: false; error: string } => {
-  const answerIds: number[] = [];
-  for (const q of questions) {
-    const answer = readQuestionAnswer(form, q);
-    if (answer.status === "missing") {
-      return { error: `Please answer: ${q.text}`, ok: false };
-    }
-    if (answer.status === "invalid") {
-      return { error: `Invalid answer for: ${q.text}`, ok: false };
-    }
-    answerIds.push(answer.answerId);
-  }
-  return { answerIds, ok: true };
-};
 
 /** Build a per-event answer map from parsed answers and the question-event mapping.
  * Each event gets only the answer IDs for questions assigned to it. */

@@ -34,10 +34,9 @@ import { getAllEvents } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  getAttendeeAnswersBatch,
-  getQuestionsWithEventIds,
+  loadAttendeeQuestionData,
+  parseQuestionAnswers,
   type QuestionWithAnswers,
-  readQuestionAnswer,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { getAvailableDates } from "#shared/dates.ts";
@@ -234,14 +233,11 @@ const loadQuestionsForExisting = async (
   existing: ExistingLine[],
 ): Promise<{ questions: QuestionWithAnswers[]; selectedAnswerIds: number[] }> => {
   const eventIds = unique(existing.map((e) => e.booking.event_id));
-  if (eventIds.length === 0) return { questions: [], selectedAnswerIds: [] };
-  const [{ questions }, answersMap] = await Promise.all([
-    getQuestionsWithEventIds(eventIds),
-    getAttendeeAnswersBatch([attendeeId]),
-  ]);
+  const data = await loadAttendeeQuestionData(eventIds, [attendeeId]);
+  if (!data) return { questions: [], selectedAnswerIds: [] };
   return {
-    questions,
-    selectedAnswerIds: answersMap.get(attendeeId) ?? [],
+    questions: data.questions,
+    selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
   };
 };
 
@@ -476,7 +472,8 @@ const handleSubmitInner = async (
       parsed,
       attendee!,
       questions,
-      parseQuestionAnswers(form, questions),
+      // Admin edit treats answers as optional — keep only the valid ones.
+      parseQuestionAnswers({ optional: true })(form, questions).answerIds,
     );
   if (outcome.ok) return outcome.response;
   // In-place re-render (no redirect): show the failure inside the form, the
@@ -512,20 +509,6 @@ const savedRedirect = (
   message: string,
 ): Response =>
   redirect(`${attendeePath(id, returnUrl)}#${ATTENDEE_FORM_ID}`, message, true);
-
-/** Read submitted question answers from the form, filtered to valid options. */
-const parseQuestionAnswers = (
-  form: FormParams,
-  questions: QuestionWithAnswers[],
-): number[] => {
-  const answerIds: number[] = [];
-  for (const q of questions) {
-    // Admin edit treats answers as optional — keep only the valid ones.
-    const answer = readQuestionAnswer(form, q);
-    if (answer.status === "ok") answerIds.push(answer.answerId);
-  }
-  return answerIds;
-};
 
 /** Run the atomic create flow. All-or-nothing: `ensureAllBookings` rolls the
  * attendee back unless every submitted line fits, so a partial booking never
@@ -605,7 +588,7 @@ const applyEdit = async (
 
   // Save question answers (atomic delete + insert) when the event has any.
   if (questions.length > 0) {
-    await saveAttendeeAnswers([attendeeId], answerIds);
+    await saveAttendeeAnswers(new Map([[attendeeId, answerIds]]));
   }
 
   const firstEventId = desired[0]?.eventId;

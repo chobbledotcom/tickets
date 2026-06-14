@@ -3,7 +3,8 @@
  */
 
 import { map } from "#fp";
-import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
@@ -188,7 +189,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       }
       const allowedDomain = getEffectiveDomain();
       const successMessage = getFlash().success;
-      const questionData = await loadQuestionData(
+      const questionData = await loadAttendeeQuestionData(
         eventIds,
         attendees.map((a) => a.id),
       );
