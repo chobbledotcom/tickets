@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import {
   getAllActivityLog,
-  getEventActivityLog,
+  getListingActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
 import {
@@ -14,169 +14,194 @@ import {
 import { getDb } from "#shared/db/client.ts";
 import {
   computeSlugIndex,
-  deleteEvent,
-  eventsTable,
-  getAllEvents,
-  getEvent,
-  getEventsBySlugsBatch,
-  getEventWithAttendeeRaw,
-  getEventWithAttendeesRaw,
-  getEventWithCount,
+  deleteListing,
+  getAllListings,
+  getListing,
+  getListingsBySlugsBatch,
+  getListingWithAttendeeRaw,
+  getListingWithAttendeesRaw,
+  getListingWithCount,
   isSlugTaken,
+  listingsTable,
   writeClosesAt,
-  writeEventDate,
-} from "#shared/db/events.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
+  writeListingDate,
+} from "#shared/db/listings.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
   bookAttendee,
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
 
-describeWithEnv("db > events", { db: true }, () => {
+describeWithEnv("db > listings", { db: true }, () => {
   describe("CRUD", () => {
-    test("createEvent creates event with correct properties", async () => {
-      const event = await createTestEvent({
+    test("createListing creates listing with correct properties", async () => {
+      const listing = await createTestListing({
         maxAttendees: 100,
-        name: "My Test Event",
+        name: "My Test Listing",
         thankYouUrl: "https://example.com/thanks",
       });
 
-      expect(event.id).toBe(1);
-      expect(event.name).toBe("My Test Event");
-      expect(event.slug).toBeDefined();
-      expect(event.max_attendees).toBe(100);
-      expect(event.thank_you_url).toBe("https://example.com/thanks");
-      expect(event.created).toBeDefined();
-      expect(event.unit_price).toBe(0);
+      expect(listing.id).toBe(1);
+      expect(listing.name).toBe("My Test Listing");
+      expect(listing.slug).toBeDefined();
+      expect(listing.max_attendees).toBe(100);
+      expect(listing.thank_you_url).toBe("https://example.com/thanks");
+      expect(listing.created).toBeDefined();
+      expect(listing.unit_price).toBe(0);
     });
 
-    test("createEvent creates event with unit_price", async () => {
-      const event = await createTestEvent({
+    test("createListing creates listing with unit_price", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
       });
 
-      expect(event.unit_price).toBe(1000);
+      expect(listing.unit_price).toBe(1000);
     });
 
-    test("createEvent stores and retrieves description", async () => {
-      const event = await createTestEvent({
+    test("createListing stores and retrieves description", async () => {
+      const listing = await createTestListing({
         description: "A test description",
         maxAttendees: 50,
       });
 
-      expect(event.description).toBe("A test description");
+      expect(listing.description).toBe("A test description");
     });
 
-    test("createEvent defaults description to empty string", async () => {
-      const event = await createTestEvent({
+    test("createListing defaults description to empty string", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
       });
 
-      expect(event.description).toBe("");
+      expect(listing.description).toBe("");
     });
 
-    test("getAllEvents returns empty array when no events", async () => {
-      const events = await getAllEvents();
-      expect(events).toEqual([]);
+    test("getAllListings returns empty array when no listings", async () => {
+      const listings = await getAllListings();
+      expect(listings).toEqual([]);
     });
 
-    test("getAllEvents returns events with attendee count", async () => {
-      await createTestEvent({
+    test("getAllListings returns listings with attendee count", async () => {
+      await createTestListing({
         maxAttendees: 50,
-        name: "Event One",
+        name: "Listing One",
         thankYouUrl: "https://example.com",
       });
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 100,
-        name: "Event Two",
+        name: "Listing Two",
         thankYouUrl: "https://example.com",
       });
 
-      const events = await getAllEvents();
-      expect(events.length).toBe(2);
-      expect(events[0]?.attendee_count).toBe(0);
-      expect(events[1]?.attendee_count).toBe(0);
+      const listings = await getAllListings();
+      expect(listings.length).toBe(2);
+      expect(listings[0]?.attendee_count).toBe(0);
+      expect(listings[1]?.attendee_count).toBe(0);
     });
 
-    test("getEvent returns null for missing event", async () => {
-      const event = await getEvent(999);
-      expect(event).toBeNull();
+    test("getListing returns null for missing listing", async () => {
+      const listing = await getListing(999);
+      expect(listing).toBeNull();
     });
 
-    test("getEvent returns event by id", async () => {
-      const created = await createTestEvent({
+    test("getListing returns listing by id", async () => {
+      const created = await createTestListing({
         maxAttendees: 50,
         name: "Fetch Test",
         thankYouUrl: "https://example.com",
       });
-      const fetched = await getEvent(created.id);
+      const fetched = await getListing(created.id);
 
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("Fetch Test");
     });
 
-    test("getEventWithCount returns null for missing event", async () => {
-      const event = await getEventWithCount(999);
-      expect(event).toBeNull();
+    test("getListingWithCount returns null for missing listing", async () => {
+      const listing = await getListingWithCount(999);
+      expect(listing).toBeNull();
     });
 
-    test("getEventWithCount returns event with count", async () => {
-      const created = await createTestEvent({
+    test("getListingWithCount returns listing with count", async () => {
+      const created = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const fetched = await getEventWithCount(created.id);
+      const fetched = await getListingWithCount(created.id);
 
       expect(fetched).not.toBeNull();
       expect(fetched?.attendee_count).toBe(0);
     });
 
-    test("getEventWithCount reflects added attendees", async () => {
-      const event = await createTestEvent({
+    test("getListingWithCount reflects added attendees", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "Alice", "a@example.com");
-      await createTestAttendee(event.id, event.slug, "Bob", "b@example.com");
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Alice",
+        "a@example.com",
+      );
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Bob",
+        "b@example.com",
+      );
 
-      const fetched = await getEventWithCount(event.id);
+      const fetched = await getListingWithCount(listing.id);
       expect(fetched?.attendee_count).toBe(2);
     });
 
-    test("getAllEvents reflects added attendees per event", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 50 });
+    test("getAllListings reflects added attendees per listing", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
 
-      await createTestAttendee(event1.id, event1.slug, "A", "a@example.com");
-      await createTestAttendee(event1.id, event1.slug, "B", "b@example.com");
-      await createTestAttendee(event2.id, event2.slug, "C", "c@example.com");
+      await createTestAttendee(
+        listing1.id,
+        listing1.slug,
+        "A",
+        "a@example.com",
+      );
+      await createTestAttendee(
+        listing1.id,
+        listing1.slug,
+        "B",
+        "b@example.com",
+      );
+      await createTestAttendee(
+        listing2.id,
+        listing2.slug,
+        "C",
+        "c@example.com",
+      );
 
-      const events = await getAllEvents();
-      const byId = new Map(events.map((e) => [e.id, e.attendee_count]));
-      expect(byId.get(event1.id)).toBe(2);
-      expect(byId.get(event2.id)).toBe(1);
+      const listings = await getAllListings();
+      const byId = new Map(listings.map((e) => [e.id, e.attendee_count]));
+      expect(byId.get(listing1.id)).toBe(2);
+      expect(byId.get(listing2.id)).toBe(1);
     });
 
-    test("eventsTable.update updates event properties", async () => {
-      const created = await createTestEvent({
+    test("listingsTable.update updates listing properties", async () => {
+      const created = await createTestListing({
         maxAttendees: 50,
-        name: "Original Event",
+        name: "Original Listing",
         thankYouUrl: "https://example.com/original",
       });
 
-      const updated = await eventsTable.update(created.id, {
+      const updated = await listingsTable.update(created.id, {
         maxAttendees: 100,
-        name: "Updated Event",
+        name: "Updated Listing",
         slug: created.slug,
         slugIndex: created.slug_index,
         thankYouUrl: "https://example.com/updated",
@@ -184,14 +209,14 @@ describeWithEnv("db > events", { db: true }, () => {
       });
 
       expect(updated).not.toBeNull();
-      expect(updated?.name).toBe("Updated Event");
+      expect(updated?.name).toBe("Updated Listing");
       expect(updated?.max_attendees).toBe(100);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(1500);
     });
 
-    test("eventsTable.update returns null for non-existent event", async () => {
-      const result = await eventsTable.update(999, {
+    test("listingsTable.update returns null for non-existent listing", async () => {
+      const result = await listingsTable.update(999, {
         maxAttendees: 50,
         name: "Non Existent",
         slug: "non-existent",
@@ -201,14 +226,14 @@ describeWithEnv("db > events", { db: true }, () => {
       expect(result).toBeNull();
     });
 
-    test("eventsTable.update can set unit_price to zero", async () => {
-      const created = await createTestEvent({
+    test("listingsTable.update can set unit_price to zero", async () => {
+      const created = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
 
-      const updated = await eventsTable.update(created.id, {
+      const updated = await listingsTable.update(created.id, {
         maxAttendees: 50,
         name: created.name,
         slug: created.slug,
@@ -221,105 +246,105 @@ describeWithEnv("db > events", { db: true }, () => {
     });
   });
 
-  describe("deleteEvent", () => {
-    test("removes event", async () => {
-      const event = await createTestEvent({
+  describe("deleteListing", () => {
+    test("removes listing", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      await deleteEvent(event.id);
+      await deleteListing(listing.id);
 
-      const fetched = await getEvent(event.id);
+      const fetched = await getListing(listing.id);
       expect(fetched).toBeNull();
     });
 
-    test("removes all attendees for the event", async () => {
-      const event = await createTestEvent({
+    test("removes all attendees for the listing", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John",
         "john@example.com",
       );
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Jane",
         "jane@example.com",
       );
 
-      await deleteEvent(event.id);
+      await deleteListing(listing.id);
 
       const privateKey = await getTestPrivateKey();
-      const raw = await getAttendeesRaw(event.id);
+      const raw = await getAttendeesRaw(listing.id);
       const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees).toEqual([]);
     });
 
     test("removes processed payment records for attendees", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
 
-      await reserveSession("sess_event_delete");
-      await finalizePaymentSession("sess_event_delete", attendee.id);
+      await reserveSession("sess_listing_delete");
+      await finalizePaymentSession("sess_listing_delete", attendee.id);
 
-      await deleteEvent(event.id);
+      await deleteListing(listing.id);
 
-      const processed = await isSessionProcessed("sess_event_delete");
+      const processed = await isSessionProcessed("sess_listing_delete");
       expect(processed).toBeNull();
     });
 
-    test("removes activity log entries for the event", async () => {
-      const event = await createTestEvent({
+    test("removes activity log entries for the listing", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      await logActivity("Action for event", event.id);
-      await logActivity("Another action", event.id);
+      await logActivity("Action for listing", listing.id);
+      await logActivity("Another action", listing.id);
       await logActivity("Global action");
 
-      await deleteEvent(event.id);
+      await deleteListing(listing.id);
 
-      const eventLog = await getEventActivityLog(event.id);
-      expect(eventLog).toEqual([]);
+      const listingLog = await getListingActivityLog(listing.id);
+      expect(listingLog).toEqual([]);
 
       const allLog = await getAllActivityLog();
       const messages = allLog.map((e) => e.message);
-      expect(messages).not.toContain("Action for event");
+      expect(messages).not.toContain("Action for listing");
       expect(messages).not.toContain("Another action");
       expect(messages).toContain("Global action");
     });
 
     test("works with no attendees", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      await deleteEvent(event.id);
+      await deleteListing(listing.id);
 
-      const fetched = await getEvent(event.id);
+      const fetched = await getListing(listing.id);
       expect(fetched).toBeNull();
     });
 
-    test("preserves attendees linked to other events", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 50 });
+    test("preserves attendees linked to other listings", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
       const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+        bookings: [{ listingId: listing1.id }, { listingId: listing2.id }],
         email: "multi@example.com",
         name: "Multi",
       });
@@ -327,23 +352,23 @@ describeWithEnv("db > events", { db: true }, () => {
       if (!result.success) return;
       const attendeeId = result.attendees[0]!.id;
 
-      await deleteEvent(event1.id);
+      await deleteListing(listing1.id);
 
-      const raw = await getAttendeesRaw(event2.id);
+      const raw = await getAttendeesRaw(listing2.id);
       expect(raw.length).toBe(1);
       expect(raw[0]!.id).toBe(attendeeId);
     });
 
     test("cleans up orphaned attendees", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+      const listing = await createTestListing({ maxAttendees: 50 });
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Solo",
         "solo@example.com",
       );
 
-      await deleteEvent(event.id);
+      await deleteListing(listing.id);
 
       const { getDb } = await import("#shared/db/client.ts");
       const rows = await getDb().execute(
@@ -353,63 +378,63 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("invalidates cache", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      const before = await getEvent(event.id);
+      const before = await getListing(listing.id);
       expect(before).not.toBeNull();
 
-      await eventsTable.deleteById(event.id);
+      await listingsTable.deleteById(listing.id);
 
-      const after = await getEvent(event.id);
+      const after = await getListing(listing.id);
       expect(after).toBeNull();
     });
   });
 
-  describe("unlinkAttendeeFromEvent", () => {
+  describe("unlinkAttendeeFromListing", () => {
     test("removes link and preserves attendee", async () => {
-      const { unlinkAttendeeFromEvent } = await import(
+      const { unlinkAttendeeFromListing } = await import(
         "#shared/db/attendees.ts"
       );
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
       const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+        bookings: [{ listingId: listing1.id }, { listingId: listing2.id }],
         email: "unlink@example.com",
         name: "Unlink",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
 
-      const { attendeeDeleted } = await unlinkAttendeeFromEvent(
+      const { attendeeDeleted } = await unlinkAttendeeFromListing(
         result.attendees[0]!.id,
-        event1.id,
+        listing1.id,
       );
 
       expect(attendeeDeleted).toBe(false);
-      const raw = await getAttendeesRaw(event2.id);
+      const raw = await getAttendeesRaw(listing2.id);
       expect(raw.length).toBe(1);
-      const raw1 = await getAttendeesRaw(event1.id);
+      const raw1 = await getAttendeesRaw(listing1.id);
       expect(raw1.length).toBe(0);
     });
 
     test("deletes orphaned attendee", async () => {
-      const { unlinkAttendeeFromEvent } = await import(
+      const { unlinkAttendeeFromListing } = await import(
         "#shared/db/attendees.ts"
       );
-      const event = await createTestEvent({ maxAttendees: 50 });
-      const result = await bookAttendee(event, {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const result = await bookAttendee(listing, {
         email: "orphan@example.com",
         name: "Orphan",
       });
       expect(result.success).toBe(true);
       if (!result.success) return;
 
-      const { attendeeDeleted } = await unlinkAttendeeFromEvent(
+      const { attendeeDeleted } = await unlinkAttendeeFromListing(
         result.attendees[0]!.id,
-        event.id,
+        listing.id,
       );
 
       expect(attendeeDeleted).toBe(true);
@@ -422,101 +447,104 @@ describeWithEnv("db > events", { db: true }, () => {
   });
 
   describe("slug", () => {
-    test("isSlugTaken with excludeEventId excludes that event", async () => {
-      const event = await createTestEvent({
+    test("isSlugTaken with excludeListingId excludes that listing", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Slug Taken Test",
         thankYouUrl: "https://example.com",
       });
 
-      const taken = await isSlugTaken(event.slug);
+      const taken = await isSlugTaken(listing.slug);
       expect(taken).toBe(true);
 
-      const notTaken = await isSlugTaken(event.slug, event.id);
+      const notTaken = await isSlugTaken(listing.slug, listing.id);
       expect(notTaken).toBe(false);
     });
   });
 
   describe("batch queries", () => {
-    test("getEventWithAttendeesRaw returns event with attendees", async () => {
-      const event = await createTestEvent({
+    test("getListingWithAttendeesRaw returns listing with attendees", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Alice",
         "alice@example.com",
       );
 
-      const result = await getEventWithAttendeesRaw(event.id);
+      const result = await getListingWithAttendeesRaw(listing.id);
       expect(result).not.toBeNull();
-      expect(result?.event.id).toBe(event.id);
-      expect(result?.event.attendee_count).toBe(1);
+      expect(result?.listing.id).toBe(listing.id);
+      expect(result?.listing.attendee_count).toBe(1);
       expect(result?.attendeesRaw.length).toBe(1);
     });
 
-    test("getEventWithAttendeesRaw returns null for non-existent event", async () => {
-      const result = await getEventWithAttendeesRaw(999);
+    test("getListingWithAttendeesRaw returns null for non-existent listing", async () => {
+      const result = await getListingWithAttendeesRaw(999);
       expect(result).toBeNull();
     });
 
-    test("getEventWithAttendeeRaw returns event with count fallback", async () => {
-      const event = await createTestEvent({
+    test("getListingWithAttendeeRaw returns listing with count fallback", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Bob",
         "bob@example.com",
       );
 
-      const result = await getEventWithAttendeeRaw(event.id, attendee.id);
+      const result = await getListingWithAttendeeRaw(listing.id, attendee.id);
       expect(result).not.toBeNull();
-      expect(result?.event.id).toBe(event.id);
+      expect(result?.listing.id).toBe(listing.id);
       expect(result?.attendeeRaw).not.toBeNull();
-      expect(result?.event.attendee_count).toBe(1);
+      expect(result?.listing.attendee_count).toBe(1);
     });
 
-    test("getEventWithAttendeeRaw returns null for non-existent event", async () => {
-      const result = await getEventWithAttendeeRaw(999, 1);
+    test("getListingWithAttendeeRaw returns null for non-existent listing", async () => {
+      const result = await getListingWithAttendeeRaw(999, 1);
       expect(result).toBeNull();
     });
 
-    test("getEventsBySlugsBatch returns empty array for empty slugs", async () => {
-      const result = await getEventsBySlugsBatch([]);
+    test("getListingsBySlugsBatch returns empty array for empty slugs", async () => {
+      const result = await getListingsBySlugsBatch([]);
       expect(result).toEqual([]);
     });
 
-    test("getEventsBySlugsBatch returns events in slug order", async () => {
-      const event1 = await createTestEvent({
+    test("getListingsBySlugsBatch returns listings in slug order", async () => {
+      const listing1 = await createTestListing({
         maxAttendees: 10,
         name: "Batch A",
         thankYouUrl: "https://example.com",
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 20,
         name: "Batch B",
         thankYouUrl: "https://example.com",
       });
 
-      const results = await getEventsBySlugsBatch([event2.slug, event1.slug]);
+      const results = await getListingsBySlugsBatch([
+        listing2.slug,
+        listing1.slug,
+      ]);
       expect(results.length).toBe(2);
-      expect(results[0]?.id).toBe(event2.id);
-      expect(results[1]?.id).toBe(event1.id);
+      expect(results[0]?.id).toBe(listing2.id);
+      expect(results[1]?.id).toBe(listing1.id);
     });
 
-    test("getEventsBySlugsBatch returns null for missing slugs", async () => {
-      const event = await createTestEvent({
+    test("getListingsBySlugsBatch returns null for missing slugs", async () => {
+      const listing = await createTestListing({
         maxAttendees: 10,
         name: "Exists",
         thankYouUrl: "https://example.com",
       });
 
-      const results = await getEventsBySlugsBatch([event.slug, "missing"]);
+      const results = await getListingsBySlugsBatch([listing.slug, "missing"]);
       expect(results.length).toBe(2);
       expect(results[0]).not.toBeNull();
       expect(results[1]).toBeNull();
@@ -564,10 +592,10 @@ describeWithEnv("db > events", { db: true }, () => {
     });
   });
 
-  describe("writeEventDate", () => {
+  describe("writeListingDate", () => {
     test("encrypts empty string for no date", async () => {
       const { decrypt } = await import("#shared/crypto/encryption.ts");
-      const result = await writeEventDate("");
+      const result = await writeListingDate("");
       expect(typeof result).toBe("string");
       expect(result).not.toBe("");
       const decrypted = await decrypt(result);
@@ -577,14 +605,14 @@ describeWithEnv("db > events", { db: true }, () => {
     test("normalizes datetime-local string without timezone as UTC", async () => {
       const { decrypt } = await import("#shared/crypto/encryption.ts");
       const input = "2026-06-15T14:00";
-      const result = await writeEventDate(input);
+      const result = await writeListingDate(input);
       const decrypted = await decrypt(result);
       expect(decrypted).toBe(new Date(`${input}Z`).toISOString());
     });
 
     test("handles already-normalized ISO string", async () => {
       const { decrypt } = await import("#shared/crypto/encryption.ts");
-      const result = await writeEventDate("2026-06-15T14:00:00.000Z");
+      const result = await writeListingDate("2026-06-15T14:00:00.000Z");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
     });
@@ -592,7 +620,7 @@ describeWithEnv("db > events", { db: true }, () => {
     test("normalizes timezone offset to UTC", async () => {
       const { decrypt } = await import("#shared/crypto/encryption.ts");
       const input = "2026-06-15T14:00:00+02:00";
-      const result = await writeEventDate(input);
+      const result = await writeListingDate(input);
       const decrypted = await decrypt(result);
       expect(decrypted).toBe(new Date(input).toISOString());
     });
@@ -600,7 +628,7 @@ describeWithEnv("db > events", { db: true }, () => {
     test("returns empty string for invalid datetime", async () => {
       const errorSpy = spy(console, "error");
       const { decrypt } = await import("#shared/crypto/encryption.ts");
-      const result = await writeEventDate("not-a-dateZ");
+      const result = await writeListingDate("not-a-dateZ");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("");
       expect(errorSpy.calls.length).toBeGreaterThan(0);
@@ -608,9 +636,9 @@ describeWithEnv("db > events", { db: true }, () => {
     });
   });
 
-  describe("event date read transform", () => {
-    test("returns empty string for no-date event", async () => {
-      const event = await eventsTable.insert({
+  describe("listing date read transform", () => {
+    test("returns empty string for no-date listing", async () => {
+      const listing = await listingsTable.insert({
         date: "",
         maxAttendees: 100,
         maxPrice: 10000,
@@ -618,12 +646,12 @@ describeWithEnv("db > events", { db: true }, () => {
         slug: "test-date-read-1",
         slugIndex: await computeSlugIndex("test-date-read-1"),
       });
-      const saved = await getEventWithCount(event.id);
+      const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("");
     });
 
     test("returns normalized ISO string for valid datetime", async () => {
-      const event = await eventsTable.insert({
+      const listing = await listingsTable.insert({
         date: "2026-06-15T14:00",
         maxAttendees: 100,
         maxPrice: 10000,
@@ -631,14 +659,14 @@ describeWithEnv("db > events", { db: true }, () => {
         slug: "test-date-read-2",
         slugIndex: await computeSlugIndex("test-date-read-2"),
       });
-      const saved = await getEventWithCount(event.id);
+      const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
     });
   });
 
   describe("closes_at read transform", () => {
-    test("returns null for no-deadline event", async () => {
-      const event = await eventsTable.insert({
+    test("returns null for no-deadline listing", async () => {
+      const listing = await listingsTable.insert({
         closesAt: "",
         maxAttendees: 100,
         maxPrice: 10000,
@@ -646,12 +674,12 @@ describeWithEnv("db > events", { db: true }, () => {
         slug: "test-read-1",
         slugIndex: await computeSlugIndex("test-read-1"),
       });
-      const saved = await getEventWithCount(event.id);
+      const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBeNull();
     });
 
     test("returns normalized ISO string for valid datetime", async () => {
-      const event = await eventsTable.insert({
+      const listing = await listingsTable.insert({
         closesAt: "2099-12-31T23:59",
         maxAttendees: 100,
         maxPrice: 10000,
@@ -659,14 +687,14 @@ describeWithEnv("db > events", { db: true }, () => {
         slug: "test-read-2",
         slugIndex: await computeSlugIndex("test-read-2"),
       });
-      const saved = await getEventWithCount(event.id);
+      const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
     });
   });
 
   describe("duration_days write clamp", () => {
     const insertWithDuration = async (slug: string, durationDays: number) => {
-      const event = await eventsTable.insert({
+      const listing = await listingsTable.insert({
         durationDays,
         maxAttendees: 100,
         maxPrice: 10000,
@@ -674,7 +702,7 @@ describeWithEnv("db > events", { db: true }, () => {
         slug,
         slugIndex: await computeSlugIndex(slug),
       });
-      return (await getEventWithCount(event.id))!.duration_days;
+      return (await getListingWithCount(listing.id))!.duration_days;
     };
 
     test(`clamps values above MAX_DURATION_DAYS down to ${MAX_DURATION_DAYS}`, async () => {
@@ -700,15 +728,15 @@ describeWithEnv("db > events", { db: true }, () => {
     });
 
     test("clamps on update as well as insert", async () => {
-      const event = await eventsTable.insert({
+      const listing = await listingsTable.insert({
         maxAttendees: 100,
         maxPrice: 10000,
         name: "test-duration",
         slug: "test-dur-upd",
         slugIndex: await computeSlugIndex("test-dur-upd"),
       });
-      await eventsTable.update(event.id, { durationDays: 1000 });
-      expect((await getEventWithCount(event.id))!.duration_days).toBe(
+      await listingsTable.update(listing.id, { durationDays: 1000 });
+      expect((await getListingWithCount(listing.id))!.duration_days).toBe(
         MAX_DURATION_DAYS,
       );
     });
@@ -716,7 +744,7 @@ describeWithEnv("db > events", { db: true }, () => {
 
   describe("bookable_days read transform", () => {
     test("returns empty array when DB contains non-array JSON", async () => {
-      const event = await eventsTable.insert({
+      const listing = await listingsTable.insert({
         maxAttendees: 100,
         maxPrice: 10000,
         name: "test-bd",
@@ -724,10 +752,10 @@ describeWithEnv("db > events", { db: true }, () => {
         slugIndex: await computeSlugIndex("test-bd-1"),
       });
       await getDb().execute({
-        args: ['"not-an-array"', event.id],
-        sql: "UPDATE events SET bookable_days = ? WHERE id = ?",
+        args: ['"not-an-array"', listing.id],
+        sql: "UPDATE listings SET bookable_days = ? WHERE id = ?",
       });
-      const saved = await getEventWithCount(event.id);
+      const saved = await getListingWithCount(listing.id);
       expect(saved?.bookable_days).toEqual([]);
     });
   });

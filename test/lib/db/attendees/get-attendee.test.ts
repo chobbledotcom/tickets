@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendee } from "#shared/db/attendees.ts";
 import {
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
@@ -16,13 +16,13 @@ describeWithEnv("db > attendees > getAttendee", { db: true }, () => {
   });
 
   test("returns attendee by id", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
     const created = await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "John Doe",
       "john@example.com",
     );

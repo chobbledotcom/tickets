@@ -1,6 +1,6 @@
 /**
  * Unified attendee table component — renders attendee lists consistently
- * across the event detail, check-in, and calendar views.
+ * across the listing detail, check-in, and calendar views.
  *
  * Column order is configurable via a Liquid template stored in settings.
  * The template determines which columns appear and in what order.
@@ -59,7 +59,7 @@ export type AttendeeColumnOpts = {
 export type AttendeeTableOptions = {
   rows: AttendeeTableRow[];
   allowedDomain: string;
-  showEvent: boolean;
+  showListing: boolean;
   showDate: boolean;
   activeFilter?: string;
   returnUrl?: string;
@@ -91,7 +91,7 @@ const computeVisibilityMap = (
     answers: !!opts.questionData && opts.questionData.questions.length > 0,
     date: opts.showDate,
     email: rows.some((r) => !!r.attendee.email),
-    event: opts.showEvent,
+    listing: opts.showListing,
     name: true,
     phone: rows.some((r) => !!r.attendee.phone),
     qty: true,
@@ -140,14 +140,14 @@ const compareAttendeeRows = (
     const dateCmp = dateA.localeCompare(dateB);
     if (dateCmp !== 0) return dateCmp;
   }
-  const nameCmp = a.eventName.localeCompare(b.eventName);
+  const nameCmp = a.listingName.localeCompare(b.listingName);
   if (nameCmp !== 0) return nameCmp;
   const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
   if (attendeeCmp !== 0) return attendeeCmp;
   return a.attendee.id - b.attendee.id;
 };
 
-/** Sort attendee rows by date, event name, attendee name, then id */
+/** Sort attendee rows by date, listing name, attendee name, then id */
 export const sortAttendeeRows: (
   rows: AttendeeTableRow[],
 ) => AttendeeTableRow[] = sort(compareAttendeeRows);
@@ -192,12 +192,12 @@ const returnSuffix = (returnUrl: string | undefined): string =>
 /** Render the check-in/check-out button form */
 const CheckinButton = ({
   a,
-  eventId,
+  listingId,
   activeFilter,
   returnUrl,
 }: {
   a: Attendee;
-  eventId: number;
+  listingId: number;
   activeFilter: string;
   returnUrl: string | undefined;
 }): string => {
@@ -208,7 +208,7 @@ const CheckinButton = ({
     : "link-button checkin";
   return String(
     <CsrfForm
-      action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
+      action={`/admin/listing/${listingId}/attendee/${a.id}/checkin`}
       class="inline"
     >
       <input name="return_filter" type="hidden" value={activeFilter} />
@@ -234,7 +234,7 @@ const createStatusRenderer =
     return CheckinButton({
       a: row.attendee,
       activeFilter: opts.activeFilter ?? "all",
-      eventId: row.eventId,
+      listingId: row.listingId,
       returnUrl: opts.returnUrl,
     });
   };
@@ -250,7 +250,7 @@ const createActionsRenderer =
         {isRefundable(row) && (
           <a
             class="danger"
-            href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
+            href={`/admin/listing/${row.listingId}/attendee/${a.id}/refund${suffix}`}
           >
             Refund
           </a>
@@ -259,12 +259,12 @@ const createActionsRenderer =
         <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
         <a
           class="danger"
-          href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
+          href={`/admin/listing/${row.listingId}/attendee/${a.id}/delete${suffix}`}
         >
           Delete
         </a>{" "}
         <a
-          href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}
+          href={`/admin/listing/${row.listingId}/attendee/${a.id}/resend-notification${suffix}`}
         >
           Re-send Notification
         </a>

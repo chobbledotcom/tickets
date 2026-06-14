@@ -82,7 +82,6 @@ export const CONFIG_KEYS = {
   EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
   EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
   EMBED_HOSTS: "embed_hosts",
-  EVENT_COLUMN_ORDER: "event_column_order",
   GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
@@ -95,6 +94,7 @@ export const CONFIG_KEYS = {
   LAST_PRUNED_TOKENS: "last_pruned_tokens",
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
+  LISTING_COLUMN_ORDER: "listing_column_order",
   PAYMENT_PROVIDER: "payment_provider",
   PUBLIC_KEY: "public_key",
   SETUP_COMPLETE: "setup_complete",
@@ -192,7 +192,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LATEST_SCRIPT_VERSION,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
   CONFIG_KEYS.SUPERUSER_CHOICE,
-  CONFIG_KEYS.EVENT_COLUMN_ORDER,
+  CONFIG_KEYS.LISTING_COLUMN_ORDER,
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
@@ -391,7 +391,6 @@ const STRING_ACCESSORS = {
     readOnly: true,
   },
   embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
-  eventColumnOrder: { key: CONFIG_KEYS.EVENT_COLUMN_ORDER },
   headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
@@ -401,6 +400,7 @@ const STRING_ACCESSORS = {
   lastPrunedTokens: { key: CONFIG_KEYS.LAST_PRUNED_TOKENS },
   latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
   latestScriptVersionName: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME },
+  listingColumnOrder: { key: CONFIG_KEYS.LISTING_COLUMN_ORDER },
   // readOnly: key material is only written by setup/password flows
   publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
   terms: { key: CONFIG_KEYS.TERMS_AND_CONDITIONS },
@@ -944,11 +944,6 @@ const settingsBase = {
         CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
       ),
     },
-    // --- SumUp writes ---
-    sumup: {
-      apiKey: encryptedUpdate(CONFIG_KEYS.SUMUP_API_KEY),
-      merchantCode: plaintextUpdate(CONFIG_KEYS.SUMUP_MERCHANT_CODE),
-    },
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
@@ -967,6 +962,11 @@ const settingsBase = {
         data.stripe_webhook_secret = config.secret;
         data.stripe_webhook_endpoint_id = config.endpointId;
       },
+    },
+    // --- SumUp writes ---
+    sumup: {
+      apiKey: encryptedUpdate(CONFIG_KEYS.SUMUP_API_KEY),
+      merchantCode: plaintextUpdate(CONFIG_KEYS.SUMUP_MERCHANT_CODE),
     },
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
       v: SuperuserChoice,

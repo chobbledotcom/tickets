@@ -16,7 +16,7 @@ export const initTicketQuantityRequired = (): void => {
 
     let errorEl: HTMLDivElement | null = null;
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", (listing) => {
       let total = 0;
       for (const input of qtyInputs) {
         const value = Number.parseInt(input.value, 10);
@@ -24,7 +24,7 @@ export const initTicketQuantityRequired = (): void => {
       }
       if (total > 0) return;
 
-      event.preventDefault();
+      listing.preventDefault();
       if (!errorEl) {
         errorEl = document.createElement("div");
         errorEl.className = "error";

@@ -8,7 +8,7 @@ import {
   bookAttendee,
   createDailyTestAttendee,
   createTestAttendeeWithToken,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   mockFormRequest,
   testCookie,
@@ -19,19 +19,19 @@ import {
 const setupCheckinTest = async (
   name: string,
   email: string,
-  eventOverrides = {},
+  listingOverrides = {},
   quantity = 1,
   phone = "",
 ) => {
-  const { event, token } = await createTestAttendeeWithToken(
+  const { listing, token } = await createTestAttendeeWithToken(
     name,
     email,
-    eventOverrides,
+    listingOverrides,
     quantity,
     phone,
   );
   return {
-    event,
+    listing,
     session: { cookie: await testCookie(), csrfToken: await testCsrfToken() },
     token,
   };
@@ -104,10 +104,10 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain("555-1234");
     });
 
-    test("shows multiple attendees from different events", async () => {
-      const { event: eventA, token: tokenA } =
+    test("shows multiple attendees from different listings", async () => {
+      const { listing: listingA, token: tokenA } =
         await createTestAttendeeWithToken("Carol", "carol@test.com");
-      const { event: eventB, token: tokenB } =
+      const { listing: listingB, token: tokenB } =
         await createTestAttendeeWithToken("Carol", "carol@test.com");
 
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
@@ -116,8 +116,8 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      expect(body).toContain(eventA.name);
-      expect(body).toContain(eventB.name);
+      expect(body).toContain(listingA.name);
+      expect(body).toContain(listingB.name);
     });
 
     test("returns 404 for invalid tokens when authenticated", async () => {
@@ -125,22 +125,22 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 for orphaned attendee with no event links", async () => {
-      const { event, token } = await setupCheckinTest(
+    test("returns 404 for orphaned attendee with no listing links", async () => {
+      const { listing, token } = await setupCheckinTest(
         "Orphan",
         "orphan@test.com",
       );
       const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
-        args: [event.id],
-        sql: "DELETE FROM event_attendees WHERE event_id = ?",
+        args: [listing.id],
+        sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
       });
       const { response } = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(404);
     });
 
-    test("shows event name and quantity in admin view", async () => {
-      const { event, token, session } = await setupCheckinTest(
+    test("shows listing name and quantity in admin view", async () => {
+      const { listing, token, session } = await setupCheckinTest(
         "Dave",
         "dave@test.com",
         { maxQuantity: 5 },
@@ -150,12 +150,12 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         cookie: session.cookie,
       });
       const body = await response.text();
-      expect(body).toContain(event.name);
+      expect(body).toContain(listing.name);
       expect(body).toContain("3");
     });
 
-    test("links event name to admin event page", async () => {
-      const { event, token, session } = await setupCheckinTest(
+    test("links listing name to admin listing page", async () => {
+      const { listing, token, session } = await setupCheckinTest(
         "Fay",
         "fay@test.com",
       );
@@ -163,7 +163,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
         cookie: session.cookie,
       });
       const body = await response.text();
-      expect(body).toContain(`href="/admin/event/${event.id}"`);
+      expect(body).toContain(`href="/admin/listing/${listing.id}"`);
     });
 
     test("shows green bulk check-in button when not checked in", async () => {
@@ -177,7 +177,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain('value="true"');
     });
 
-    test("displays booked date for daily event in admin view", async () => {
+    test("displays booked date for daily listing in admin view", async () => {
       const date = "2026-02-15";
       const { token } = await createDailyTestAttendee(
         "Zara",
@@ -195,7 +195,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain("<th>Date</th>");
     });
 
-    test("shows empty date cell for standard event when combined with daily event", async () => {
+    test("shows empty date cell for standard listing when combined with daily listing", async () => {
       const date = "2026-02-15";
       const { token: tokenA } = await createDailyTestAttendee(
         "Zara",
@@ -213,13 +213,13 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const body = await response.text();
       expect(body).toContain("<th>Date</th>");
       expect(body).toContain(formatDateLabel(date));
-      // Standard event attendee has no date - empty cell rendered
+      // Standard listing attendee has no date - empty cell rendered
       expect(body).toContain("Alice");
     });
 
     test("renders empty email and phone for attendee without contact details", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const result = await bookAttendee(event, {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const result = await bookAttendee(listing, {
         email: "",
         name: "NoContact",
       });
@@ -232,7 +232,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain("NoContact");
     });
 
-    test("does not show date column for standard event in admin view", async () => {
+    test("does not show date column for standard listing in admin view", async () => {
       const { token, session } = await setupCheckinTest(
         "Alice",
         "alice@test.com",
@@ -335,13 +335,13 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const { getAttendeesByTokens, markRefunded } = await import(
         "#shared/db/attendees.ts"
       );
-      const { event, token, session } = await setupCheckinTest(
+      const { listing, token, session } = await setupCheckinTest(
         "Refund",
         "refund@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, event.id);
+      await markRefunded(attendees[0]!.id, listing.id);
 
       const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
@@ -354,13 +354,13 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       const { getAttendeesByTokens, markRefunded } = await import(
         "#shared/db/attendees.ts"
       );
-      const { event, token, session } = await setupCheckinTest(
+      const { listing, token, session } = await setupCheckinTest(
         "Refund2",
         "refund2@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, event.id);
+      await markRefunded(attendees[0]!.id, listing.id);
 
       const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);

@@ -1,5 +1,5 @@
 /**
- * Seed data generation for populating the database with sample events and attendees.
+ * Seed data generation for populating the database with sample listings and attendees.
  * Uses batch writes for efficient database operations.
  */
 
@@ -11,14 +11,14 @@ import {
   encryptAttendeeFields,
 } from "#shared/db/attendees.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   DEMO_ADDRESSES,
   DEMO_EMAILS,
-  DEMO_EVENT_DESCRIPTIONS,
-  DEMO_EVENT_LOCATIONS,
-  DEMO_EVENT_NAMES,
+  DEMO_LISTING_DESCRIPTIONS,
+  DEMO_LISTING_LOCATIONS,
+  DEMO_LISTING_NAMES,
   DEMO_NAMES,
   DEMO_PHONES,
   DEMO_SPECIAL_INSTRUCTIONS,
@@ -27,13 +27,13 @@ import {
 import { nowIso } from "#shared/now.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 
-/** Max attendees per seeded event */
+/** Max attendees per seeded listing */
 export const SEED_MAX_ATTENDEES = 100_000;
 
 /** Pick a random ticket quantity (1-4) */
 const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);
 
-/** Sample unit prices in minor units (e.g. pence/cents) for paid events */
+/** Sample unit prices in minor units (e.g. pence/cents) for paid listings */
 const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 
 /** Sum an array of numbers */
@@ -53,18 +53,19 @@ const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
   return results;
 };
 
-/** Prepare encrypted values for a single event */
-const prepareEvent = async (
+/** Prepare encrypted values for a single listing */
+const prepareListing = async (
   index: number,
   maxAttendees: number,
   unitPrice: number,
   slug: string,
   slugIndex: string,
 ) => {
-  const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length]!;
+  const name = DEMO_LISTING_NAMES[index % DEMO_LISTING_NAMES.length]!;
   const description =
-    DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length]!;
-  const location = DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length]!;
+    DEMO_LISTING_DESCRIPTIONS[index % DEMO_LISTING_DESCRIPTIONS.length]!;
+  const location =
+    DEMO_LISTING_LOCATIONS[index % DEMO_LISTING_LOCATIONS.length]!;
   const created = nowIso();
 
   const encryptBatch = <const T extends readonly string[]>(...values: T) =>
@@ -87,7 +88,7 @@ const prepareEvent = async (
     encAttachmentName,
   ] = await encryptBatch("", "", "", "", "", "", "");
 
-  return insert("events", {
+  return insert("listings", {
     active: 1,
     attachment_name: encAttachmentName,
     attachment_url: encAttachmentUrl,
@@ -104,10 +105,10 @@ const prepareEvent = async (
     created,
     date: encDate,
     description: encDesc,
-    event_type: "standard",
     fields: "email",
     group_id: 0,
     image_url: encImageUrl,
+    listing_type: "standard",
     location: encLoc,
     max_attendees: maxAttendees,
     max_quantity: 4,
@@ -125,13 +126,13 @@ const prepareEvent = async (
 
 /** Prepare encrypted values for a single attendee */
 const prepareAttendee = async (
-  eventId: number,
+  listingId: number,
   quantity: number,
   unitPrice: number,
 ) => {
   const pricePaid = unitPrice * quantity;
   const paymentId =
-    unitPrice > 0 ? `seed_${eventId}_${quantity}_${pricePaid}` : "";
+    unitPrice > 0 ? `seed_${listingId}_${quantity}_${pricePaid}` : "";
   const enc = (await encryptAttendeeFields({
     address: randomChoice(DEMO_ADDRESSES),
     email: randomChoice(DEMO_EMAILS),
@@ -144,9 +145,9 @@ const prepareAttendee = async (
 
   return [
     buildAttendeeInsert(enc),
-    insert("event_attendees", {
+    insert("listing_attendees", {
       attendee_id: rawSql("last_insert_rowid()"),
-      event_id: eventId,
+      listing_id: listingId,
       price_paid: pricePaid,
       quantity,
     }),
@@ -155,25 +156,25 @@ const prepareAttendee = async (
 
 /** Result of a seed operation */
 export type SeedResult = {
-  eventsCreated: number;
+  listingsCreated: number;
   attendeesCreated: number;
 };
 
 /**
- * Create seed events and attendees using efficient batch writes.
+ * Create seed listings and attendees using efficient batch writes.
  * Encrypts all data before inserting, matching production behavior.
  * Assigns random ticket quantities (1-4) per attendee without overselling.
  */
 export const createSeeds = async (
-  eventCount: number,
-  attendeesPerEvent: number,
+  listingCount: number,
+  attendeesPerListing: number,
 ): Promise<SeedResult> => {
   if (!settings.publicKey) throw new Error("Public key not configured");
 
-  // Build structured event data: quantities, capacity, price, and slug per event
-  const slugs = await generateUniqueSlugs(eventCount);
-  const eventData = Array.from({ length: eventCount }, (_, i) => {
-    const quantities = Array.from({ length: attendeesPerEvent }, () =>
+  // Build structured listing data: quantities, capacity, price, and slug per listing
+  const slugs = await generateUniqueSlugs(listingCount);
+  const listingData = Array.from({ length: listingCount }, (_, i) => {
+    const quantities = Array.from({ length: attendeesPerListing }, () =>
       randomQuantity(),
     );
     return {
@@ -185,54 +186,54 @@ export const createSeeds = async (
     };
   });
 
-  // Prepare and insert events in a single batch
-  const eventStatements = await Promise.all(
-    map((d: (typeof eventData)[number]) =>
-      prepareEvent(
+  // Prepare and insert listings in a single batch
+  const listingStatements = await Promise.all(
+    map((d: (typeof listingData)[number]) =>
+      prepareListing(
         d.index,
         d.capacity,
         d.unitPrice,
         d.slug.slug,
         d.slug.slugIndex,
       ),
-    )(eventData),
+    )(listingData),
   );
-  await executeBatch(eventStatements);
-  invalidateEventsCache();
+  await executeBatch(listingStatements);
+  invalidateListingsCache();
 
-  // Query the newly created event IDs (ordered by id DESC, limit to eventCount)
+  // Query the newly created listing IDs (ordered by id DESC, limit to listingCount)
   const rows = await queryAll<{ id: number }>(
-    "SELECT id FROM events ORDER BY id DESC LIMIT ?",
-    [eventCount],
+    "SELECT id FROM listings ORDER BY id DESC LIMIT ?",
+    [listingCount],
   );
-  const eventIds = map((r: { id: number }) => r.id)(rows).reverse();
+  const listingIds = map((r: { id: number }) => r.id)(rows).reverse();
 
   // Prepare all attendee inserts in parallel, in chunks to avoid memory pressure
   const CHUNK_SIZE = 50;
   let totalAttendees = 0;
 
-  for (const [e, eventId] of eventIds.entries()) {
-    const { quantities, unitPrice } = eventData[e]!;
+  for (const [e, listingId] of listingIds.entries()) {
+    const { quantities, unitPrice } = listingData[e]!;
 
-    for (let offset = 0; offset < attendeesPerEvent; offset += CHUNK_SIZE) {
-      const batchSize = Math.min(CHUNK_SIZE, attendeesPerEvent - offset);
+    for (let offset = 0; offset < attendeesPerListing; offset += CHUNK_SIZE) {
+      const batchSize = Math.min(CHUNK_SIZE, attendeesPerListing - offset);
       const chunkQuantities = quantities.slice(offset, offset + batchSize);
       const statementPairs = await Promise.all(
-        map((q: number) => prepareAttendee(eventId, q, unitPrice))(
+        map((q: number) => prepareAttendee(listingId, q, unitPrice))(
           chunkQuantities,
         ),
       );
-      // Each pair is [attendee INSERT, event_attendees INSERT] — flatten in order
-      // so each event_attendees INSERT follows its attendee (last_insert_rowid works)
+      // Each pair is [attendee INSERT, listing_attendees INSERT] — flatten in order
+      // so each listing_attendees INSERT follows its attendee (last_insert_rowid works)
       await executeBatch(statementPairs.flat());
       totalAttendees += batchSize;
     }
   }
 
-  invalidateEventsCache();
+  invalidateListingsCache();
 
   return {
     attendeesCreated: totalAttendees,
-    eventsCreated: eventCount,
+    listingsCreated: listingCount,
   };
 };

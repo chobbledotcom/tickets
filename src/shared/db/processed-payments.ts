@@ -70,7 +70,7 @@ export const deleteStaleReservation = async (
 
 /**
  * Delete all stale reservations (unfinalized and older than STALE_RESERVATION_MS).
- * Called from admin event views to clean up abandoned checkouts.
+ * Called from admin listing views to clean up abandoned checkouts.
  */
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();

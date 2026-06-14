@@ -58,7 +58,7 @@ export const MAX_TEXTAREA_LENGTH = readLimit("MAX_TEXTAREA_LENGTH", 10_240);
  * Maximum number of line items one attendee-form submission may declare
  * (default: 1000).
  *
- * The attendee add/edit form reads its repeated event-registration rows from
+ * The attendee add/edit form reads its repeated listing-registration rows from
  * an operator-controlled `line_count`, looping once per declared line. Without
  * a ceiling a hand-crafted POST with `line_count=1e9` would spin the edge
  * worker allocating millions of blank line objects — a cheap denial of
@@ -83,7 +83,7 @@ export const SESSION_MAX_AGE_S = readLimit("SESSION_MAX_AGE_S", 60 * 60 * 24);
 /**
  * CSRF token validity for the scanner check-in API in seconds.
  * Defaults to the session lifetime: admins keep the scanner page open for a
- * whole event, so the embedded CSRF token should stay valid for as long as the
+ * whole listing, so the embedded CSRF token should stay valid for as long as the
  * session that authenticates them — otherwise check-ins fail on CSRF expiry
  * while the admin is still logged in.
  */

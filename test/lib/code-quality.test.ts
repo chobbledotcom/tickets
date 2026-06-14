@@ -520,12 +520,12 @@ describe("code quality", () => {
       "shared/square.ts:constructTestWebhookEvent",
       // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
       "shared/db/processed-payments.ts:getProcessedAttendeeId",
-      // Raw attendee fetch for testing encrypted data (production uses batched getEventWithAttendeesRaw)
+      // Raw attendee fetch for testing encrypted data (production uses batched getListingWithAttendeesRaw)
       "shared/db/attendees/queries.ts:getAttendeesRaw",
-      // Single attendee fetch for tests (production uses batched getEventWithAttendeeRaw)
+      // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)
       "shared/db/attendees/queries.ts:getAttendee",
-      // Event activity log fetch for tests (production uses batched getEventWithActivityLog)
-      "shared/db/activityLog.ts:getEventActivityLog",
+      // Listing activity log fetch for tests (production uses batched getListingWithActivityLog)
+      "shared/db/activityLog.ts:getListingActivityLog",
       // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
       "shared/csrf.ts:isSignedCsrfToken",
       // Response cookie helper used by auth tests (production sets cookies directly)

@@ -78,13 +78,13 @@ describe("bulk-replace", () => {
   });
 
   describe("buildDuplicatePreview", () => {
-    const events = [
+    const listings = [
       { date: "2026-04-16T09:00:00.000Z", id: 1, name: "Spring Workshop" },
       { date: "2026-04-18T12:00:00.000Z", id: 2, name: "Spring Picnic" },
     ];
 
-    test("applies both name and date replacements across all events", () => {
-      const rows = buildDuplicatePreview(events, {
+    test("applies both name and date replacements across all listings", () => {
+      const rows = buildDuplicatePreview(listings, {
         dateFind: "2026-04-16",
         dateReplace: "2026-04-23",
         nameFind: "Spring",
@@ -109,7 +109,7 @@ describe("bulk-replace", () => {
     });
 
     test("echoes the original values when no replacements are set", () => {
-      const rows = buildDuplicatePreview(events, {
+      const rows = buildDuplicatePreview(listings, {
         dateFind: "",
         dateReplace: "",
         nameFind: "",
@@ -119,7 +119,7 @@ describe("bulk-replace", () => {
       expect(rows[0]!.newDate).toBe("2026-04-16T09:00:00.000Z");
     });
 
-    test("returns an empty array when the group has no events", () => {
+    test("returns an empty array when the group has no listings", () => {
       expect(
         buildDuplicatePreview([], {
           dateFind: "2026-04-16",

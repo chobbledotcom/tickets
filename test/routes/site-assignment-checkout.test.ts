@@ -5,7 +5,7 @@ import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   extractCsrfToken,
   mockFormRequest,
@@ -25,9 +25,9 @@ describeWithEnv(
     });
 
     describe("POST /ticket/:slug", () => {
-      test("blocks checkout when a site-assignment event has no renewal tier", async () => {
+      test("blocks checkout when a site-assignment listing has no renewal tier", async () => {
         await setupStripe();
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           assignBuiltSite: true,
           initialSiteMonths: 3,
           maxAttendees: 100,
@@ -37,7 +37,7 @@ describeWithEnv(
 
         const csrf = extractCsrfToken(
           await (
-            await handleRequest(mockRequest(`/ticket/${event.slug}`))
+            await handleRequest(mockRequest(`/ticket/${listing.slug}`))
           ).text(),
         )!;
 
@@ -53,11 +53,11 @@ describeWithEnv(
 
         try {
           const response = await handleRequest(
-            mockFormRequest(`/ticket/${event.slug}`, {
+            mockFormRequest(`/ticket/${listing.slug}`, {
               csrf_token: csrf,
               email: "site@example.com",
               name: "Site Buyer",
-              [`quantity_${event.id}`]: "1",
+              [`quantity_${listing.id}`]: "1",
             }),
           );
 

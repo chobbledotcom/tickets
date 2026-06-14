@@ -16,16 +16,16 @@ import { addPendingWork } from "#shared/pending-work.ts";
 import {
   addMonthsToRenewalDeadline,
   assignAndNotifyBuiltSites,
-  isQualifyingTierEvent,
+  isQualifyingTierListing,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
-import { type ContactInfo, isPaidEvent } from "#shared/types.ts";
+import { type ContactInfo, isPaidListing } from "#shared/types.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
-  event_name: string;
-  event_slug: string;
+  listing_name: string;
+  listing_slug: string;
   unit_price: number;
   quantity: number;
   date: string | null;
@@ -34,7 +34,7 @@ export type WebhookTicket = {
 
 /** Consolidated payload sent to webhook endpoints */
 export type WebhookPayload = ContactInfo & {
-  event_type: "registration.completed";
+  notification_type: "registration.completed";
   price_paid: number | null;
   currency: string;
   payment_id: string | null;
@@ -44,8 +44,8 @@ export type WebhookPayload = ContactInfo & {
   business_email: string;
 };
 
-/** Event data needed for webhook notifications */
-export type WebhookEvent = {
+/** Listing data needed for webhook notifications */
+export type WebhookListing = {
   id: number;
   name: string;
   slug: string;
@@ -67,9 +67,9 @@ export type WebhookAttendee = ContactInfo & {
   date: string | null;
 };
 
-/** Registration entry: event + attendee pair */
+/** Registration entry: listing + attendee pair */
 export type RegistrationEntry = {
-  event: WebhookEvent;
+  listing: WebhookListing;
   attendee: WebhookAttendee;
 };
 
@@ -86,26 +86,26 @@ export const buildWebhookPayload = (
     0,
   );
 
-  const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
+  const hasPaidListing = entries.some(({ listing }) => isPaidListing(listing));
   return {
     address: first.attendee.address,
     business_email: settings.businessEmail,
     currency,
     email: first.attendee.email,
-    event_type: "registration.completed",
     name: first.attendee.name,
+    notification_type: "registration.completed",
     payment_id: first.attendee.payment_id || null,
     phone: first.attendee.phone,
-    price_paid: hasPaidEvent ? totalPricePaid : null,
+    price_paid: hasPaidListing ? totalPricePaid : null,
     special_instructions: first.attendee.special_instructions,
     ticket_url: buildTicketUrl(entries),
-    tickets: entries.map(({ event, attendee }) => ({
+    tickets: entries.map(({ listing, attendee }) => ({
       date: attendee.date,
-      event_name: event.name,
-      event_slug: event.slug,
+      listing_name: listing.name,
+      listing_slug: listing.slug,
       quantity: attendee.quantity,
       ticket_token: attendee.ticket_token,
-      unit_price: event.unit_price,
+      unit_price: listing.unit_price,
     })),
     timestamp: nowIso(),
   };
@@ -118,7 +118,7 @@ export const buildWebhookPayload = (
 export const sendWebhook = async (
   webhookUrl: string,
   payload: WebhookPayload,
-  eventId?: number,
+  listingId?: number,
 ): Promise<void> => {
   try {
     const { ok, status } = await fetchText(webhookUrl, {
@@ -127,18 +127,18 @@ export const sendWebhook = async (
       method: "POST",
     });
     if (!ok) {
-      const eventName = payload.tickets.map((t) => t.event_name).join(", ");
+      const listingName = payload.tickets.map((t) => t.listing_name).join(", ");
       logError({
         code: ErrorCode.WEBHOOK_SEND,
-        detail: `status=${status} for '${eventName}'`,
-        eventId,
+        detail: `status=${status} for '${listingName}'`,
+        listingId,
       });
     }
   } catch (error) {
     logError({
       code: ErrorCode.WEBHOOK_SEND,
       detail: error instanceof Error ? error.message : String(error),
-      eventId,
+      listingId,
     });
   }
 };
@@ -151,14 +151,14 @@ export const sendRegistrationWebhooks = async (
   currency: string,
 ): Promise<void> => {
   const webhookUrls = unique(
-    compact(entries.map((e) => e.event.webhook_url || null)),
+    compact(entries.map((e) => e.listing.webhook_url || null)),
   );
   if (webhookUrls.length === 0) return;
 
   const payload = await buildWebhookPayload(entries, currency);
-  const firstEventId = entries[0]?.event.id;
+  const firstListingId = entries[0]?.listing.id;
   await Promise.allSettled(
-    webhookUrls.map((url) => sendWebhook(url, payload, firstEventId)),
+    webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),
   );
 };
 
@@ -177,13 +177,13 @@ export const applyRenewalsForEntries = async (
   if (!siteTokenIndex) return;
 
   const invalidEntry = entries.find(
-    ({ event }) => !isQualifyingTierEvent(event),
+    ({ listing }) => !isQualifyingTierListing(listing),
   );
   if (invalidEntry) {
     logError({
       code: ErrorCode.DATA_INVALID,
-      detail: `Renewal rejected: event ${invalidEntry.event.id} is not an active hidden purchase-only renewal tier`,
-      eventId: invalidEntry.event.id,
+      detail: `Renewal rejected: listing ${invalidEntry.listing.id} is not an active hidden purchase-only renewal tier`,
+      listingId: invalidEntry.listing.id,
     });
     return;
   }
@@ -203,7 +203,7 @@ export const applyRenewalsForEntries = async (
   const renewalEntries = entries
     .map((entry) => ({
       entry,
-      months: entry.attendee.quantity * entry.event.months_per_unit,
+      months: entry.attendee.quantity * entry.listing.months_per_unit,
     }))
     .filter(({ months }) => months > 0);
   const totalMonths = renewalEntries.reduce(
@@ -218,7 +218,7 @@ export const applyRenewalsForEntries = async (
   if (result.ok) {
     await logActivity(
       `Renewal of '${site.name}' for ${totalMonths} month(s)`,
-      renewalEntries[0]!.entry.event.id,
+      renewalEntries[0]!.entry.listing.id,
     );
   } else {
     logError({
@@ -231,7 +231,7 @@ export const applyRenewalsForEntries = async (
 
 /**
  * Log attendee registration and send consolidated webhook
- * Used for single-event registrations
+ * Used for single-listing registrations
  *
  * Webhook sends are queued as pending work so they run in the background
  * but complete before the edge runtime tears down the request context.
@@ -240,8 +240,8 @@ export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
   siteTokenIndex?: string,
 ): Promise<void> => {
-  for (const { event } of entries) {
-    await logActivity(`Attendee registered for '${event.name}'`, event);
+  for (const { listing } of entries) {
+    await logActivity(`Attendee registered for '${listing.name}'`, listing);
   }
   const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));

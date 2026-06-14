@@ -32,7 +32,7 @@ export type QrBookPayload = {
   v: number;
   /** Quantity to book (defaults to 1 when creating a token) */
   q: number;
-  /** Date for daily events (YYYY-MM-DD). Empty string = not provided */
+  /** Date for daily listings (YYYY-MM-DD). Empty string = not provided */
   d: string;
   /** Expiry as unix seconds */
   e: number;
@@ -103,7 +103,7 @@ export const buildQrBookPayload = (input: {
 };
 
 /**
- * Sign a QR booking payload for the given event slug.
+ * Sign a QR booking payload for the given listing slug.
  * Returns the encoded token "qr1.{payload}.{hmac}".
  */
 export const signQrBookToken = async (
@@ -117,7 +117,7 @@ export const signQrBookToken = async (
 };
 
 /**
- * Verify a QR booking token for the given event slug.
+ * Verify a QR booking token for the given listing slug.
  * Checks the prefix, HMAC signature, expiry, and clock-skew bounds.
  * Returns the decoded payload on success, or null on any failure.
  */

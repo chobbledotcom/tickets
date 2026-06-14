@@ -20,7 +20,7 @@ import {
   EXAMPLE_ATTENDEE,
   EXAMPLE_BUSINESS_EMAIL,
   EXAMPLE_CURRENCY,
-  EXAMPLE_EVENT,
+  EXAMPLE_LISTING,
   WEBHOOK_EXAMPLE_JSON,
   WEBHOOK_EXAMPLE_PAYLOAD,
 } from "#shared/webhook-example.ts";
@@ -77,15 +77,15 @@ describe("webhook example", () => {
       special_instructions: EXAMPLE_ATTENDEE.special_instructions,
       ticket_token: EXAMPLE_ATTENDEE.ticket_token,
     },
-    event: {
+    listing: {
       attendee_count: 10,
       can_pay_more: false,
       id: 1,
       max_attendees: 100,
       months_per_unit: 0,
-      name: EXAMPLE_EVENT.name,
-      slug: EXAMPLE_EVENT.slug,
-      unit_price: EXAMPLE_EVENT.unit_price,
+      name: EXAMPLE_LISTING.name,
+      slug: EXAMPLE_LISTING.slug,
+      unit_price: EXAMPLE_LISTING.unit_price,
       webhook_url: "https://hooks.example.com/registration",
     },
   });

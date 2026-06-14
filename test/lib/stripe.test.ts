@@ -26,7 +26,7 @@ import {
   resetDb,
   resetTestSlugCounter,
   setTestEnv,
-  testEvent,
+  testListing,
   urlFromFetchInput,
   withFetchMock,
   withMocks,
@@ -145,7 +145,7 @@ describeWithEnv(
         await settings.update.stripe.secretKey("sk_test_mock");
 
         // First create a session using intent-based flow
-        const event = {
+        const listing = {
           active: true,
           attachment_name: "",
           attachment_url: "",
@@ -163,22 +163,22 @@ describeWithEnv(
           created: new Date().toISOString(),
           date: "",
           description: "Test Description",
-          event_type: "standard" as const,
           fields: "email" as const,
           group_id: 0,
           hidden: false,
           id: 1,
           image_url: "",
+          listing_type: "standard" as const,
           location: "",
           max_attendees: 50,
           max_price: 0,
           max_quantity: 1,
           maximum_days_after: 90,
           minimum_days_before: 1,
-          name: "Test Event",
+          name: "Test Listing",
           non_transferable: false,
-          slug: "test-event",
-          slug_index: "test-event-index",
+          slug: "test-listing",
+          slug_index: "test-listing-index",
           thank_you_url: "https://example.com/thanks",
           unit_price: 1000,
           webhook_url: "",
@@ -189,11 +189,11 @@ describeWithEnv(
           email: "john@example.com",
           items: [
             {
-              eventId: 1,
-              name: event.name,
+              listingId: 1,
+              name: listing.name,
               quantity: 1,
-              slug: event.slug,
-              unitPrice: event.unit_price,
+              slug: listing.slug,
+              unitPrice: listing.unit_price,
             },
           ],
           name: "John Doe",
@@ -218,7 +218,7 @@ describeWithEnv(
       test("creates checkout session with intent metadata", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
-        const event = {
+        const listing = {
           active: true,
           attachment_name: "",
           attachment_url: "",
@@ -236,22 +236,22 @@ describeWithEnv(
           created: new Date().toISOString(),
           date: "",
           description: "Test Description",
-          event_type: "standard" as const,
           fields: "email" as const,
           group_id: 0,
           hidden: false,
           id: 1,
           image_url: "",
+          listing_type: "standard" as const,
           location: "",
           max_attendees: 50,
           max_price: 0,
           max_quantity: 5,
           maximum_days_after: 90,
           minimum_days_before: 1,
-          name: "Test Event",
+          name: "Test Listing",
           non_transferable: false,
-          slug: "test-event",
-          slug_index: "test-event-index",
+          slug: "test-listing",
+          slug_index: "test-listing-index",
           thank_you_url: "https://example.com/thanks",
           unit_price: 1000,
           webhook_url: "",
@@ -263,11 +263,11 @@ describeWithEnv(
           email: "john@example.com",
           items: [
             {
-              eventId: 1,
-              name: event.name,
+              listingId: 1,
+              name: listing.name,
               quantity: 2,
-              slug: event.slug,
-              unitPrice: event.unit_price,
+              slug: listing.slug,
+              unitPrice: listing.unit_price,
             },
           ],
           name: "John Doe",
@@ -305,10 +305,10 @@ describeWithEnv(
           email: "john@example.com",
           items: [
             {
-              eventId: 1,
+              listingId: 1,
               name: "Test",
               quantity: 1,
-              slug: "test-event",
+              slug: "test-listing",
               unitPrice: 1000,
             },
           ],
@@ -336,18 +336,18 @@ describeWithEnv(
         );
 
         try {
-          const event = testEvent({ unit_price: 1000 });
+          const listing = testListing({ unit_price: 1000 });
           const intent = {
             address: "",
             date: null,
             email: "jane@example.com",
             items: [
               {
-                eventId: event.id,
-                name: event.name,
+                listingId: listing.id,
+                name: listing.name,
                 quantity: 1,
-                slug: event.slug,
-                unitPrice: event.unit_price,
+                slug: listing.slug,
+                unitPrice: listing.unit_price,
               },
             ],
             name: "Jane",
@@ -540,7 +540,7 @@ describeWithEnv(
       });
 
       test("verifies valid signature successfully", async () => {
-        const event: StripeWebhookEvent = {
+        const listing: StripeWebhookEvent = {
           data: {
             object: {
               id: "cs_test_123",
@@ -557,15 +557,15 @@ describeWithEnv(
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
-          event,
+          listing,
           TEST_SECRET,
         );
 
         const result = await verifyWebhookSignature(payload, signature);
         expect(result.valid).toBe(true);
         if (result.valid) {
-          expect(result.event.id).toBe("evt_test_123");
-          expect(result.event.type).toBe("checkout.session.completed");
+          expect(result.listing.id).toBe("evt_test_123");
+          expect(result.listing.type).toBe("checkout.session.completed");
         }
       });
 
@@ -787,7 +787,7 @@ describeWithEnv(
     describe("constructTestWebhookEvent", () => {
       test("creates valid payload and signature pair", async () => {
         const secret = "whsec_test_construction";
-        const event: StripeWebhookEvent = {
+        const listing: StripeWebhookEvent = {
           data: {
             object: {
               amount: 1000,
@@ -799,7 +799,7 @@ describeWithEnv(
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
-          event,
+          listing,
           secret,
         );
 
@@ -911,18 +911,18 @@ describeWithEnv(
       test("includes phone in metadata when provided", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
-        const event = testEvent({ unit_price: 1000 });
+        const listing = testListing({ unit_price: 1000 });
         const intent = {
           address: "",
           date: null,
           email: "john@example.com",
           items: [
             {
-              eventId: event.id,
-              name: event.name,
+              listingId: listing.id,
+              name: listing.name,
               quantity: 1,
-              slug: event.slug,
-              unitPrice: event.unit_price,
+              slug: listing.slug,
+              unitPrice: listing.unit_price,
             },
           ],
           name: "John Doe",
@@ -945,18 +945,18 @@ describeWithEnv(
       test("creates checkout session without customer_email when email is empty", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
 
-        const event = testEvent({ unit_price: 1000 });
+        const listing = testListing({ unit_price: 1000 });
         const intent = {
           address: "",
           date: null,
           email: "",
           items: [
             {
-              eventId: event.id,
-              name: event.name,
+              listingId: listing.id,
+              name: listing.name,
               quantity: 1,
-              slug: event.slug,
-              unitPrice: event.unit_price,
+              slug: listing.slug,
+              unitPrice: listing.unit_price,
             },
           ],
           name: "No Email User",
@@ -985,17 +985,17 @@ describeWithEnv(
           email: "jane@example.com",
           items: [
             {
-              eventId: 1,
-              name: "Event A",
+              listingId: 1,
+              name: "Listing A",
               quantity: 2,
-              slug: "event-a",
+              slug: "listing-a",
               unitPrice: 1000,
             },
             {
-              eventId: 2,
-              name: "Event B",
+              listingId: 2,
+              name: "Listing B",
               quantity: 1,
-              slug: "event-b",
+              slug: "listing-b",
               unitPrice: 2000,
             },
           ],
@@ -1020,10 +1020,10 @@ describeWithEnv(
           email: "jane@example.com",
           items: [
             {
-              eventId: 1,
-              name: "Event A",
+              listingId: 1,
+              name: "Listing A",
               quantity: 1,
-              slug: "event-a",
+              slug: "listing-a",
               unitPrice: 1000,
             },
           ],
@@ -1048,17 +1048,17 @@ describeWithEnv(
           email: "",
           items: [
             {
-              eventId: 1,
-              name: "Event A",
+              listingId: 1,
+              name: "Listing A",
               quantity: 1,
-              slug: "event-a",
+              slug: "listing-a",
               unitPrice: 1000,
             },
             {
-              eventId: 2,
-              name: "Event B",
+              listingId: 2,
+              name: "Listing B",
               quantity: 2,
-              slug: "event-b",
+              slug: "listing-b",
               unitPrice: 2000,
             },
           ],
@@ -1392,15 +1392,15 @@ describeWithEnv(
           secret: TEST_SECRET,
         });
 
-        // Create event with proper signature
-        const event: StripeWebhookEvent = {
+        // Create listing with proper signature
+        const listing: StripeWebhookEvent = {
           data: { object: { id: "cs_test" } },
           id: "evt_ts_test",
           type: "checkout.session.completed",
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
-          event,
+          listing,
           TEST_SECRET,
         );
 
@@ -1638,18 +1638,18 @@ describeWithEnv(
         );
 
         try {
-          const event = testEvent({ unit_price: 1000 });
+          const listing = testListing({ unit_price: 1000 });
           const intent = {
             address: "",
             date: null,
             email: "john@example.com",
             items: [
               {
-                eventId: event.id,
-                name: event.name,
+                listingId: listing.id,
+                name: listing.name,
                 quantity: 1,
-                slug: event.slug,
-                unitPrice: event.unit_price,
+                slug: listing.slug,
+                unitPrice: listing.unit_price,
               },
             ],
             name: "John",
@@ -1679,18 +1679,18 @@ describeWithEnv(
         );
 
         try {
-          const event = testEvent({ unit_price: 1000 });
+          const listing = testListing({ unit_price: 1000 });
           const intent = {
             address: "",
             date: null,
             email: "john@example.com",
             items: [
               {
-                eventId: event.id,
-                name: event.name,
+                listingId: listing.id,
+                name: listing.name,
                 quantity: 1,
-                slug: event.slug,
-                unitPrice: event.unit_price,
+                slug: listing.slug,
+                unitPrice: listing.unit_price,
               },
             ],
             name: "John",
@@ -1812,7 +1812,7 @@ describeWithEnv(
         }
       });
 
-      test("returns valid session for single-event checkout", async () => {
+      test("returns valid session for single-listing checkout", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");
         const client = await getStripeClient();
         if (!client) throw new Error("Expected client");
@@ -1968,14 +1968,14 @@ describeWithEnv(
           secret: TEST_SECRET,
         });
 
-        const event: StripeWebhookEvent = {
+        const listing: StripeWebhookEvent = {
           data: { object: { id: "cs_test" } },
           id: "evt_provider",
           type: "checkout.session.completed",
         };
 
         const { payload, signature } = await constructTestWebhookEvent(
-          event,
+          listing,
           TEST_SECRET,
         );
 
@@ -1987,7 +1987,7 @@ describeWithEnv(
         );
         expect(result.valid).toBe(true);
         if (result.valid) {
-          expect(result.event.id).toBe("evt_provider");
+          expect(result.listing.id).toBe("evt_provider");
         }
       });
 
@@ -2225,7 +2225,7 @@ describeWithEnv(
             email: "jane@example.com",
             items: [
               {
-                eventId: 1,
+                listingId: 1,
                 name: "Evt",
                 quantity: 1,
                 slug: "evt",
@@ -2252,10 +2252,10 @@ describeWithEnv(
         await settings.update.stripe.secretKey("sk_test_mock");
         // Generate enough items to exceed 500-char serialized metadata
         const items = Array.from({ length: 40 }, (_, i) => ({
-          eventId: i + 1,
-          name: `Event ${i + 1}`,
+          listingId: i + 1,
+          name: `Listing ${i + 1}`,
           quantity: 1,
-          slug: `event-${i + 1}`,
+          slug: `listing-${i + 1}`,
           unitPrice: 1000,
         }));
         const intent = {
@@ -2273,7 +2273,9 @@ describeWithEnv(
         );
         expect(result).not.toBeNull();
         expect(result).toHaveProperty("error");
-        expect((result as { error: string }).error).toMatch(/too many events/i);
+        expect((result as { error: string }).error).toMatch(
+          /too many listings/i,
+        );
       });
 
       test("returns null for non-PaymentUserError exceptions", async () => {
@@ -2290,7 +2292,7 @@ describeWithEnv(
             email: "john@example.com",
             items: [
               {
-                eventId: 1,
+                listingId: 1,
                 name: "Evt",
                 quantity: 1,
                 slug: "evt",
@@ -2313,7 +2315,7 @@ describeWithEnv(
     });
 
     describe("resolveWebhookSession", () => {
-      test("extracts session directly from event with complete metadata", async () => {
+      test("extracts session directly from listing with complete metadata", async () => {
         const result = await stripePaymentProvider.resolveWebhookSession({
           data: {
             object: {
@@ -2341,7 +2343,7 @@ describeWithEnv(
         }
       });
 
-      test("falls back to retrieveSession when event lacks metadata", async () => {
+      test("falls back to retrieveSession when listing lacks metadata", async () => {
         const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
           Promise.resolve(null),
         );
@@ -2357,7 +2359,7 @@ describeWithEnv(
             id: "evt_no_meta",
             type: "checkout.session.completed",
           });
-          // retrieveSession called with event object id
+          // retrieveSession called with listing object id
           expect(mockRetrieve.calls[0]!.args[0]).toBe("cs_no_meta");
           expect(result).toBeNull();
         } finally {
@@ -2365,7 +2367,7 @@ describeWithEnv(
         }
       });
 
-      test("returns null when event has no id", async () => {
+      test("returns null when listing has no id", async () => {
         const result = await stripePaymentProvider.resolveWebhookSession({
           data: {
             object: {

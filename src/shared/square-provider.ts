@@ -7,7 +7,7 @@
  * Key differences from Stripe:
  * - Uses Payment Links instead of checkout sessions
  * - Order ID is the session equivalent
- * - Webhook event is payment.updated (not checkout.session.completed)
+ * - Webhook listing is payment.updated (not checkout.session.completed)
  * - Retrieving session requires fetching Order + checking payment status
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
@@ -37,7 +37,6 @@ import {
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "payment.updated",
-  requiresWebhookSignature: true,
 
   createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
     return withCheckoutError(async () => {
@@ -55,11 +54,12 @@ export const squarePaymentProvider: PaymentProvider = {
   refundPayment(paymentReference: string): Promise<boolean> {
     return refundPayment(paymentReference);
   },
+  requiresWebhookSignature: true,
 
   async resolveWebhookSession(
-    event: WebhookEvent,
+    listing: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null> {
-    const obj = event.data.object;
+    const obj = listing.data.object;
 
     // Square nests payment fields under data.object.payment
     const payment =

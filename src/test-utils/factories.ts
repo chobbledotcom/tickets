@@ -1,18 +1,18 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import type { EventInput } from "#shared/db/events.ts";
-import type { EmailEntry, EmailEvent } from "#shared/email.ts";
+import type { ListingInput } from "#shared/db/listings.ts";
+import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type {
   Attendee,
-  Event,
-  EventWithCount,
   Group,
   Holiday,
+  Listing,
+  ListingWithCount,
 } from "#shared/types.ts";
 import type { WebhookAttendee } from "#shared/webhook.ts";
-import { generateTestEventName } from "#test-utils/internal.ts";
+import { generateTestListingName } from "#test-utils/internal.ts";
 
-export const testEvent = (overrides: Partial<Event> = {}): Event => ({
+export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   active: true,
   assign_built_site: false,
   attachment_name: "",
@@ -32,13 +32,13 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   date: "",
   description: "",
   duration_days: 1,
-  event_type: "standard",
   fields: "email",
   group_id: 0,
   hidden: false,
   id: 1,
   image_url: "",
   initial_site_months: 0,
+  listing_type: "standard",
   location: "",
   max_attendees: 100,
   max_price: 0,
@@ -46,21 +46,21 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   maximum_days_after: 0,
   minimum_days_before: 0,
   months_per_unit: 0,
-  name: "Test Event",
+  name: "Test Listing",
   non_transferable: false,
   purchase_only: false,
   slug: "ab12c",
-  slug_index: "test-event-index",
+  slug_index: "test-listing-index",
   thank_you_url: "https://example.com/thanks",
   unit_price: 0,
   webhook_url: "",
   ...overrides,
 });
 
-export const testEventWithCount = (
-  overrides: Partial<EventWithCount> = {},
-): EventWithCount => ({
-  ...testEvent(overrides),
+export const testListingWithCount = (
+  overrides: Partial<ListingWithCount> = {},
+): ListingWithCount => ({
+  ...testListing(overrides),
   attendee_count: 0,
   ...overrides,
 });
@@ -72,8 +72,8 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   created: "2024-01-01T12:00:00Z",
   date: null,
   email: "john@example.com",
-  event_id: 1,
   id: 1,
+  listing_id: 1,
   name: "John Doe",
   payment_id: "",
   phone: "",
@@ -112,7 +112,7 @@ export const testBuiltSite = (
 ): BuiltSite => ({
   assignable: false,
   assignedAttendeeId: null,
-  assignedEventId: null,
+  assignedListingId: null,
   bunnyScriptId: "",
   bunnyUrl: "https://test.b-cdn.net",
   created: "2026-01-01T00:00:00Z",
@@ -126,20 +126,20 @@ export const testBuiltSite = (
   ...overrides,
 });
 
-export const testEventInput = (
-  overrides: Partial<Omit<EventInput, "slugIndex" | "slug">> = {},
-): Omit<EventInput, "slugIndex" | "slug"> => ({
+export const testListingInput = (
+  overrides: Partial<Omit<ListingInput, "slugIndex" | "slug">> = {},
+): Omit<ListingInput, "slugIndex" | "slug"> => ({
   maxAttendees: 100,
   maxPrice: 10000,
-  name: generateTestEventName(),
+  name: generateTestListingName(),
   thankYouUrl: "https://example.com/thanks",
   ...overrides,
 });
 
-export const baseEventForm: Record<string, string> = {
+export const baseListingForm: Record<string, string> = {
   max_attendees: "100",
   max_quantity: "1",
-  name: "My Event",
+  name: "My Listing",
   thank_you_url: "https://example.com",
 };
 
@@ -159,34 +159,34 @@ export const webhookMeta = (
 });
 
 export const singleItem = (
-  eventId: number,
+  listingId: number,
   quantity: number,
   price: number,
-): string => JSON.stringify([{ e: eventId, p: price, q: quantity }]);
+): string => JSON.stringify([{ e: listingId, p: price, q: quantity }]);
 
 export const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 export const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
-export const makeTestEvent = (
-  overrides: Partial<EmailEvent> = {},
-): EmailEvent => ({
+export const makeTestListing = (
+  overrides: Partial<EmailListing> = {},
+): EmailListing => ({
   active: true,
   assign_built_site: false,
   attendee_count: 10,
   can_pay_more: false,
   date: "",
   duration_days: 1,
-  event_type: "standard",
   hidden: false,
   id: 1,
   initial_site_months: 0,
+  listing_type: "standard",
   location: "",
   max_attendees: 100,
   months_per_unit: 0,
-  name: "Test Event",
+  name: "Test Listing",
   purchase_only: false,
-  slug: "test-event",
+  slug: "test-listing",
   unit_price: 0,
   webhook_url: "",
   ...overrides,
@@ -210,9 +210,9 @@ export const makeTestAttendee = (
 });
 
 export const makeTestEntry = (
-  eventOverrides?: Partial<EmailEvent>,
+  listingOverrides?: Partial<EmailListing>,
   attendeeOverrides?: Partial<WebhookAttendee>,
 ): EmailEntry => ({
   attendee: makeTestAttendee(attendeeOverrides),
-  event: makeTestEvent(eventOverrides),
+  listing: makeTestListing(listingOverrides),
 });

@@ -4,7 +4,7 @@
 
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
-import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -14,7 +14,11 @@ import {
   nonConflictAnswerLabel,
 } from "#shared/merge/attendee-merge.ts";
 import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#shared/types.ts";
+import type {
+  AdminSession,
+  Attendee,
+  ListingWithCount,
+} from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -22,7 +26,7 @@ import { Layout } from "#templates/layout.tsx";
  * Admin delete attendee confirmation page
  */
 export const adminDeleteAttendeePage = (
-  { event, attendee }: { event: EventWithCount; attendee: Attendee },
+  { listing, attendee }: { listing: ListingWithCount; attendee: Attendee },
   session: AdminSession,
   returnUrl?: string,
   error?: string,
@@ -33,7 +37,7 @@ export const adminDeleteAttendeePage = (
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}
+        action={`/admin/listing/${listing.id}/attendee/${attendee.id}/delete`}
         buttonText="Delete Attendee"
         label="Attendee name"
         name={attendee.name}
@@ -41,7 +45,7 @@ export const adminDeleteAttendeePage = (
       >
         <p>
           <strong>Warning:</strong> This will permanently remove this attendee
-          from the event and delete any associated payment records.
+          from the listing and delete any associated payment records.
         </p>
         <h2>Attendee Details</h2>
         <p>
@@ -68,7 +72,7 @@ export const adminDeleteAttendeePage = (
  * Admin refund attendee confirmation page
  */
 export const adminRefundAttendeePage = (
-  { event, attendee }: { event: EventWithCount; attendee: Attendee },
+  { listing, attendee }: { listing: ListingWithCount; attendee: Attendee },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -79,7 +83,7 @@ export const adminRefundAttendeePage = (
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}
+        action={`/admin/listing/${listing.id}/attendee/${attendee.id}/refund`}
         buttonText="Refund Attendee"
         label="Attendee name"
         name={attendee.name}
@@ -119,21 +123,21 @@ export const adminRefundAttendeePage = (
  * Admin refund all attendees confirmation page
  */
 export const adminRefundAllAttendeesPage = (
-  event: EventWithCount,
+  listing: ListingWithCount,
   refundableCount: number,
   session: AdminSession,
   error?: string,
 ): string =>
   String(
-    <Layout title={`Refund All: ${event.name}`}>
+    <Layout title={`Refund All: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/refund-all`}
+        action={`/admin/listing/${listing.id}/refund-all`}
         buttonText="Refund All Attendees"
-        label="Event name"
-        name={event.name}
+        label="Listing name"
+        name={listing.name}
       >
         <p>
           <strong>Warning:</strong> This will issue a full refund for all{" "}
@@ -141,8 +145,8 @@ export const adminRefundAllAttendeesPage = (
           registered.
         </p>
         <p>
-          To refund all attendees, type the event name "{event.name}" into the
-          box below:
+          To refund all attendees, type the listing name "{listing.name}" into
+          the box below:
         </p>
       </ConfirmForm>
     </Layout>,
@@ -161,7 +165,7 @@ type MergeSourceInfo = {
   address: string;
   special_instructions: string;
   ticket_token: string;
-  bookings: EventAttendeeRow[];
+  bookings: ListingAttendeeRow[];
 };
 
 /** Render a value as either plain text or a preformatted span */
@@ -293,12 +297,12 @@ const MergeBookingsDecisionTable = ({
 
   return String(
     <div>
-      <h4>Event Registrations</h4>
+      <h4>Listing Registrations</h4>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Event</th>
+              <th>Listing</th>
               <th>Date</th>
               <th>Source (qty)</th>
               <th>Status</th>
@@ -307,7 +311,7 @@ const MergeBookingsDecisionTable = ({
           </thead>
           <tbody>
             {diff.bookingItems.map((item) => {
-              const key = bookingKey(item.eventId, item.startAt);
+              const key = bookingKey(item.listingId, item.startAt);
               const name = `booking_${key}`;
               const dateStr = item.startAt
                 ? formatDateRangeLabel(item.startAt, item.sourceBooking.end_at)
@@ -316,7 +320,7 @@ const MergeBookingsDecisionTable = ({
               if (item.conflictClass === "moveable") {
                 return (
                   <tr>
-                    <td>Event #{item.eventId}</td>
+                    <td>Listing #{item.listingId}</td>
                     <td>{dateStr}</td>
                     <td>{item.sourceBooking.quantity}</td>
                     <td>
@@ -333,7 +337,7 @@ const MergeBookingsDecisionTable = ({
 
               return (
                 <tr>
-                  <td>Event #{item.eventId}</td>
+                  <td>Listing #{item.listingId}</td>
                   <td>{dateStr}</td>
                   <td>{sourceQty}</td>
                   <td>
@@ -494,7 +498,7 @@ export const adminMergeAttendeePage = (
  * Admin re-send notification confirmation page
  */
 export const adminResendNotificationPage = (
-  { event, attendee }: { event: EventWithCount; attendee: Attendee },
+  { listing, attendee }: { listing: ListingWithCount; attendee: Attendee },
   session: AdminSession,
   returnUrl?: string,
   error?: string,
@@ -505,7 +509,7 @@ export const adminResendNotificationPage = (
       <Flash error={error} />
 
       <ConfirmForm
-        action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}
+        action={`/admin/listing/${listing.id}/attendee/${attendee.id}/resend-notification`}
         buttonText="Re-send Notification"
         danger={false}
         label="Attendee name"

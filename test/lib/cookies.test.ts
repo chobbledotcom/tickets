@@ -150,11 +150,11 @@ describe("clearFlashCookie", () => {
 
 describe("parseFlashValue", () => {
   test("parses success flash value", () => {
-    const encoded = JSON.stringify({ m: "Event created", t: "s" });
+    const encoded = JSON.stringify({ m: "Listing created", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
       result: undefined,
-      success: "Event created",
+      success: "Listing created",
     });
   });
 

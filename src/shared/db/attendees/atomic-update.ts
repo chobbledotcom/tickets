@@ -1,14 +1,14 @@
 /**
- * Atomic attendee update — apply a desired set of event-registration lines
+ * Atomic attendee update — apply a desired set of listing-registration lines
  * to an existing attendee, all-or-nothing.
  *
- * Computes the diff between the attendee's current `event_attendees` rows
+ * Computes the diff between the attendee's current `listing_attendees` rows
  * and the desired final state, then applies the writes as one ACID batch:
  *
  *   1. UPDATE attendees (PII)            — unconditional
- *   2. DELETE removed event_attendees    — one per removed line
- *   3. UPDATE existing event_attendees   — capacity-checked per line
- *   4. INSERT new event_attendees        — capacity-checked per line
+ *   2. DELETE removed listing_attendees    — one per removed line
+ *   3. UPDATE existing listing_attendees   — capacity-checked per line
+ *   4. INSERT new listing_attendees        — capacity-checked per line
  *
  * Capacity is enforced twice. A read-only preflight (`allLinesFit`) rejects an
  * over-capacity edit before any write, which handles the common case and
@@ -21,15 +21,15 @@
  * does not support reliably), and a zero-row capacity statement is not itself
  * an error, which is exactly why the guard is needed.
  *
- * The attendee is never left without at least one event link — a guard
+ * The attendee is never left without at least one listing link — a guard
  * clause rejects "remove every line" up front so the DELETE step never
  * strips the attendee down to an orphan row.
  */
 
 import type { InValue } from "@libsql/client";
 import type {
-  DesiredEventLine,
-  EventAttendeeRow,
+  DesiredListingLine,
+  ListingAttendeeRow,
   UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
 import {
@@ -43,13 +43,13 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 
 /**
  * A guard statement that aborts the whole write batch when the immediately
  * preceding capacity-checked write affected zero rows. `changes()` reports
  * the prior statement's row count; on zero, this tries to insert a NULL
- * event_id, which violates the NOT NULL constraint and rolls the batch back.
+ * listing_id, which violates the NOT NULL constraint and rolls the batch back.
  * When the prior write succeeded, `changes() > 0`, the WHERE matches nothing,
  * and the guard is a no-op. This is what makes the edit all-or-nothing on a
  * `batch()` — a zero-row capacity statement is not itself an error and would
@@ -57,18 +57,18 @@ import { invalidateEventsCache } from "#shared/db/events.ts";
  */
 const CAPACITY_GUARD = {
   args: [] as [],
-  sql: `INSERT INTO event_attendees (event_id, attendee_id, quantity)
+  sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
         SELECT NULL, NULL, 1 WHERE changes() = 0`,
 };
 
 /** A desired final-state line for the atomic update path. Re-exported from
  * the shared types module so callers can keep importing it from here. */
-export type AtomicDesiredLine = DesiredEventLine;
+export type AtomicDesiredLine = DesiredListingLine;
 
 /** Build the self-excluding capacity condition for one desired line. */
 const lineCapacityCondition = (line: AtomicDesiredLine, attendeeId: number) =>
   buildCapacityCondition(
-    line.eventId,
+    line.listingId,
     line.quantity,
     line.date,
     attendeeId,
@@ -84,17 +84,17 @@ export type UpdateAttendeeAtomicResult =
 /** A pre-fetched existing booking row plus its line key. */
 export type ExistingLine = {
   key: string;
-  booking: EventAttendeeRow;
+  booking: ListingAttendeeRow;
 };
 
-/** Read all current event_attendees rows for an attendee, with line keys. */
+/** Read all current listing_attendees rows for an attendee, with line keys. */
 export const loadExistingLines = async (
   attendeeId: number,
 ): Promise<ExistingLine[]> => {
-  const rows = await queryAll<EventAttendeeRow>(
-    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM event_attendees WHERE attendee_id = ?
-     ORDER BY start_at, event_id`,
+  const rows = await queryAll<ListingAttendeeRow>(
+    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM listing_attendees WHERE attendee_id = ?
+     ORDER BY start_at, listing_id`,
     [attendeeId],
   );
   return rows.map((booking) => ({
@@ -104,14 +104,14 @@ export const loadExistingLines = async (
 };
 
 /** Build the canonical line key from a stored booking row (matches the
- * `${eventId}|${startAt}` identity carried by the form's hidden key field). */
-export const lineKeyFromBooking = (booking: EventAttendeeRow): string =>
-  `${booking.event_id}|${booking.start_at ?? ""}`;
+ * `${listingId}|${startAt}` identity carried by the form's hidden key field). */
+export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
+  `${booking.listing_id}|${booking.start_at ?? ""}`;
 
 /**
  * Read-only preflight: returns true when every desired line fits, using the
  * same self-excluding capacity expression the write guards use. Each line's
- * check is independent (lines target distinct event/date slots and exclude
+ * check is independent (lines target distinct listing/date slots and exclude
  * the attendee's own rows), so a true result means the whole edit can be
  * applied. The per-line `CAPACITY_GUARD` in the write batch still closes the
  * narrow window between this check and the commit.
@@ -149,8 +149,8 @@ export const applyAttendeeAtomicEdit = async (
     return { reason: "no_lines", success: false };
   }
 
-  // Reject duplicate (eventId, date) pairs up front — two desired lines on the
-  // same slot would collide on the event_attendees unique index.
+  // Reject duplicate (listingId, date) pairs up front — two desired lines on the
+  // same slot would collide on the listing_attendees unique index.
   if (hasDuplicateBookingSlot(desired)) {
     return { reason: "capacity_exceeded", success: false };
   }
@@ -185,18 +185,18 @@ export const applyAttendeeAtomicEdit = async (
     sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
 
-  // Step 2: Delete removed lines (identified by event_id + old start_at).
+  // Step 2: Delete removed lines (identified by listing_id + old start_at).
   for (const { booking } of removed) {
     statements.push({
-      args: [attendeeId, booking.event_id, booking.start_at ?? null],
-      sql: `DELETE FROM event_attendees
-            WHERE attendee_id = ? AND event_id = ? AND start_at IS ?`,
+      args: [attendeeId, booking.listing_id, booking.start_at ?? null],
+      sql: `DELETE FROM listing_attendees
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?`,
     });
   }
 
   // Step 3: Update existing lines (capacity-checked, self-excluding). The
   // WHERE pins the row by its *old* start_at so an attendee holding two
-  // rows for the same daily event on different dates updates only the one.
+  // rows for the same daily listing on different dates updates only the one.
   for (const line of updates) {
     const oldStartAt = existingByKey.get(line.key)?.start_at ?? null;
     const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
@@ -207,12 +207,12 @@ export const applyAttendeeAtomicEdit = async (
         startAt,
         endAt,
         attendeeId,
-        line.eventId,
+        line.listingId,
         oldStartAt,
         ...condition.args,
       ],
-      sql: `UPDATE event_attendees SET quantity = ?, start_at = ?, end_at = ?
-            WHERE attendee_id = ? AND event_id = ? AND start_at IS ?
+      sql: `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?
               AND ${condition.sql}`,
     });
     statements.push(CAPACITY_GUARD);
@@ -225,7 +225,7 @@ export const applyAttendeeAtomicEdit = async (
         {
           date: line.date,
           durationDays: line.durationDays,
-          eventId: line.eventId,
+          listingId: line.listingId,
           quantity: line.quantity,
         },
         "?",
@@ -241,7 +241,7 @@ export const applyAttendeeAtomicEdit = async (
   // thrown error (the caller retries), never a partial write.
   await executeBatchWithResults(statements);
 
-  invalidateEventsCache();
+  invalidateListingsCache();
   return { success: true };
 };
 

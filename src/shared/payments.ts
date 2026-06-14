@@ -25,7 +25,7 @@ export type { PaymentProviderType };
 
 /** Single item within a checkout */
 export type CheckoutItem = {
-  eventId: number;
+  listingId: number;
   quantity: number;
   unitPrice: number;
   slug: string;
@@ -39,19 +39,19 @@ export type BookingItem = { e: number; q: number; p: number };
 export type BookingIntent = ContactInfo & {
   date: string | null;
   items: BookingItem[];
-  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
-  eventAnswerIds?: Record<string, number[]>;
+  /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
+  listingAnswerIds?: Record<string, number[]>;
   /** HMAC index of the site renewal token. The plain token never reaches the
    * payment provider, so a compromised provider cannot use it at /renew. */
   siteTokenIndex?: string;
 };
 
-/** Registration intent for checkout (one or more events) */
+/** Registration intent for checkout (one or more listings) */
 export type CheckoutIntent = ContactInfo & {
   date: string | null;
   items: CheckoutItem[];
-  /** Per-event answer IDs: maps eventId → answerIds for that event's questions */
-  eventAnswerIds?: Record<string, number[]>;
+  /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
+  listingAnswerIds?: Record<string, number[]>;
   /** Plain site renewal token from /renew. Hashed before storage in provider
    * metadata; never stored at the provider in plaintext. */
   siteToken?: string;
@@ -96,7 +96,11 @@ export type SessionMetadata = {
 
 /** Valid payment status values. "failed" is a terminal non-payment (declined
  * or expired checkout) — distinct from "unpaid", which may still complete. */
-export type PaymentStatus = "paid" | "unpaid" | "no_payment_required" | "failed";
+export type PaymentStatus =
+  | "paid"
+  | "unpaid"
+  | "no_payment_required"
+  | "failed";
 
 /** Runtime array of valid payment status values */
 const PAYMENT_STATUSES: readonly PaymentStatus[] = [
@@ -122,7 +126,7 @@ export type ValidatedPaymentSession = {
 
 /** Result of webhook signature verification */
 export type WebhookVerifyResult =
-  | { valid: true; event: WebhookEvent }
+  | { valid: true; listing: WebhookEvent }
   | { valid: false; error: string };
 
 /** Provider-agnostic webhook event */
@@ -156,7 +160,7 @@ export interface PaymentProvider {
   readonly requiresWebhookSignature: boolean;
 
   /**
-   * Create a checkout session for one or more events.
+   * Create a checkout session for one or more listings.
    * Returns a session ID and hosted checkout URL, or null on failure.
    */
   createCheckoutSession(
@@ -188,7 +192,7 @@ export interface PaymentProvider {
    *          without processing (e.g. pending payment), or null on error.
    */
   resolveWebhookSession(
-    event: WebhookEvent,
+    listing: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null>;
 
   /**
@@ -210,7 +214,7 @@ export interface PaymentProvider {
   readonly type: PaymentProviderType;
 
   /**
-   * Verify a webhook request's signature and parse the event payload.
+   * Verify a webhook request's signature and parse the listing payload.
    * @param webhookUrl - The webhook endpoint URL derived from the incoming request
    * @param payloadBytes - Raw body bytes from request.arrayBuffer()
    */

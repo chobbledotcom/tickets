@@ -46,10 +46,10 @@ export type IdRouteHandler = (
 /** Route params for attendee-scoped routes */
 export type AttendeeRouteParams = { attendeeId: number };
 
-/** Route params for attendee + event-scoped routes */
-export type AttendeeEventRouteParams = {
+/** Route params for attendee + listing-scoped routes */
+export type AttendeeListingRouteParams = {
   attendeeId: number;
-  eventId: number;
+  listingId: number;
 };
 
 /**

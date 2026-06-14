@@ -32,7 +32,6 @@ import {
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "checkout.session.completed",
-  requiresWebhookSignature: true,
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
     withCheckoutError(async () => {
@@ -49,6 +48,7 @@ export const stripePaymentProvider: PaymentProvider = {
     const result = await stripeRefund(paymentReference);
     return result !== null;
   },
+  requiresWebhookSignature: true,
 
   resolveWebhookSession({
     data: { object: obj },
@@ -61,7 +61,7 @@ export const stripePaymentProvider: PaymentProvider = {
     const paymentStatus = asString(obj.payment_status);
     const amountTotal = obj.amount_total;
 
-    // Stripe includes the full session in the event — extract directly
+    // Stripe includes the full session in the listing — extract directly
     if (
       id &&
       paymentStatus &&
@@ -79,7 +79,7 @@ export const stripePaymentProvider: PaymentProvider = {
       });
     }
 
-    // Fallback: retrieve session by ID from event data
+    // Fallback: retrieve session by ID from listing data
     if (id) {
       return this.retrieveSession(id);
     }
@@ -129,7 +129,7 @@ export const stripePaymentProvider: PaymentProvider = {
       return { error: result.error, valid: false };
     }
     return {
-      event: result.event,
+      listing: result.listing,
       valid: true,
     };
   },

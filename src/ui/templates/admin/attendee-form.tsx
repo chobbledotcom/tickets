@@ -6,7 +6,7 @@
  * table — add/remove line controls are submit buttons that re-render the
  * form server-side, so the page works without JavaScript. A small inline
  * script progressively enhances date-field visibility (hide on non-daily
- * events) but is not required for the form to function.
+ * listings) but is not required for the form to function.
  */
 
 import {
@@ -15,12 +15,12 @@ import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   type DailyDefaults,
-  type ParsedAttendeeForm,
   LINE_COUNT_FIELD,
   LINE_DATE_PREFIX,
-  LINE_EVENT_ID_PREFIX,
   LINE_KEY_PREFIX,
+  LINE_LISTING_ID_PREFIX,
   LINE_QUANTITY_PREFIX,
+  type ParsedAttendeeForm,
   REMOVE_LINE_ACTION_PREFIX,
   SAVE_ACTION,
 } from "#routes/admin/attendee-form-model.ts";
@@ -29,11 +29,15 @@ import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#shared/types.ts";
+import type {
+  AdminSession,
+  Attendee,
+  ListingWithCount,
+} from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Per-event available dates (daily events only) for client-side filtering. */
+/** Per-listing available dates (daily listings only) for client-side filtering. */
 export type AttendeeFormTemplateData = {
   /** "create" or "edit". */
   mode: "create" | "edit";
@@ -41,10 +45,10 @@ export type AttendeeFormTemplateData = {
   parsed: ParsedAttendeeForm;
   /** Attendee being edited (edit mode only; create mode passes a shell). */
   attendee: Attendee | null;
-  /** All selectable events (active + any currently-selected inactive events). */
-  allEvents: EventWithCount[];
-  /** Available dates per daily event id (for the date picker). */
-  availableDatesByEvent: Record<number, string[]>;
+  /** All selectable listings (active + any currently-selected inactive listings). */
+  allListings: ListingWithCount[];
+  /** Available dates per daily listing id (for the date picker). */
+  availableDatesByListing: Record<number, string[]>;
   /** Daily-line defaults computed from existing bookings. */
   dailyDefaults: DailyDefaults;
   /** Attendee-level error (e.g. "Name is required"). */
@@ -53,7 +57,7 @@ export type AttendeeFormTemplateData = {
    * failure like capacity lost to a race). */
   flashError?: string;
   flashSuccess?: string;
-  /** Custom questions for the first existing event (edit mode only). */
+  /** Custom questions for the first existing listing (edit mode only). */
   questions?: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
@@ -63,39 +67,36 @@ export type AttendeeFormTemplateData = {
   returnUrl?: string;
 };
 
-/** Render a single <option> for the event selector. */
-const renderEventOption = (
-  event: EventWithCount,
+/** Render a single <option> for the listing selector. */
+const renderListingOption = (
+  listing: ListingWithCount,
   selectedId: number,
 ): string => {
-  const selected = event.id === selectedId ? " selected" : "";
-  const dimmed = event.active ? "" : " (inactive)";
-  return `<option value="${event.id}"${selected}>${escapeHtml(event.name)}${dimmed}</option>`;
+  const selected = listing.id === selectedId ? " selected" : "";
+  const dimmed = listing.active ? "" : " (inactive)";
+  return `<option value="${listing.id}"${selected}>${escapeHtml(listing.name)}${dimmed}</option>`;
 };
 
-/** Build the event-selector <select> HTML for one line. */
-const renderEventSelect = (
+/** Build the listing-selector <select> HTML for one line. */
+const renderListingSelect = (
   line: AttendeeFormLine,
-  allEvents: EventWithCount[],
+  allListings: ListingWithCount[],
   index: number,
 ): string => {
-  const options = allEvents
-    .map((event) => renderEventOption(event, line.eventId))
+  const options = allListings
+    .map((listing) => renderListingOption(listing, line.listingId))
     .join("");
-  const placeholder = `<option value=""${line.eventId === 0 ? " selected" : ""}>Select event…</option>`;
-  return `<select name="${LINE_EVENT_ID_PREFIX}${index}" aria-label="Event for line ${index + 1}" data-line-event>${placeholder}${options}</select>`;
+  const placeholder = `<option value=""${line.listingId === 0 ? " selected" : ""}>Select listing…</option>`;
+  return `<select name="${LINE_LISTING_ID_PREFIX}${index}" aria-label="Listing for line ${index + 1}" data-line-listing>${placeholder}${options}</select>`;
 };
 
 /** Render the date input for one line. */
-const renderDateInput = (
-  line: AttendeeFormLine,
-  index: number,
-): string => {
-  const isDaily = line.event?.event_type === "daily" || !line.event;
+const renderDateInput = (line: AttendeeFormLine, index: number): string => {
+  const isDaily = line.listing?.listing_type === "daily" || !line.listing;
   const value = line.date ? escapeHtml(line.date) : "";
   // The date field is never required at the HTML level — the server
-  // validates it conditionally for daily events. Hidden when an event is
-  // picked and that event is non-daily (handled by the inline script).
+  // validates it conditionally for daily listings. Hidden when an listing is
+  // picked and that listing is non-daily (handled by the inline script).
   return `<input type="date" name="${LINE_DATE_PREFIX}${index}" value="${value}" aria-label="Date for line ${index + 1}" data-line-date${isDaily ? "" : " hidden"}>`;
 };
 
@@ -103,11 +104,11 @@ const renderDateInput = (
 const renderLineRow = (
   line: AttendeeFormLine,
   index: number,
-  allEvents: EventWithCount[],
+  allListings: ListingWithCount[],
 ): string => {
   const qty = line.quantity === null ? "" : String(line.quantity);
-  // Only emit max when an event is chosen — an empty max="" is meaningless.
-  const maxAttr = line.event ? ` max="${line.event.max_quantity}"` : "";
+  // Only emit max when an listing is chosen — an empty max="" is meaningless.
+  const maxAttr = line.listing ? ` max="${line.listing.max_quantity}"` : "";
   const errorHtml = line.error
     ? `<div class="error" role="alert">${escapeHtml(line.error)}</div>`
     : "";
@@ -126,7 +127,7 @@ const renderLineRow = (
     : "";
 
   return `<tr data-line-row>
-    <td>${renderEventSelect(line, allEvents, index)}${statusHtml}</td>
+    <td>${renderListingSelect(line, allListings, index)}${statusHtml}</td>
     <td>${renderDateInput(line, index)}</td>
     <td><input type="number" name="${LINE_QUANTITY_PREFIX}${index}" value="${escapeHtml(qty)}" min="1"${maxAttr} aria-label="Quantity for line ${index + 1}" style="width:5em"></td>
     <td>${renderExistingDateLabel(line)}${errorHtml}</td>
@@ -148,17 +149,15 @@ const renderExistingDateLabel = (line: AttendeeFormLine): string => {
 };
 
 /** Render the line-item editor table. */
-const renderLineEditor = (
-  data: AttendeeFormTemplateData,
-): string => {
+const renderLineEditor = (data: AttendeeFormTemplateData): string => {
   const rows = data.parsed.lines
-    .map((line, index) => renderLineRow(line, index, data.allEvents))
+    .map((line, index) => renderLineRow(line, index, data.allListings))
     .join("");
   return `<div class="table-scroll">
     <table class="line-editor">
       <thead>
         <tr>
-          <th>Event</th>
+          <th>Listing</th>
           <th>Date</th>
           <th>Qty</th>
           <th></th>
@@ -176,9 +175,9 @@ const renderMixedTimingAlert = (data: AttendeeFormTemplateData): string => {
   if (!data.dailyDefaults.hasMixedTimings) return "";
   return String(
     <div class="warning" role="status">
-      This attendee's existing daily events have different start dates or
-      durations. You can still add daily lines, but they won't inherit a
-      shared default — pick the date explicitly for each new line.
+      This attendee's existing daily listings have different start dates or
+      durations. You can still add daily lines, but they won't inherit a shared
+      default — pick the date explicitly for each new line.
     </div>,
   );
 };
@@ -222,7 +221,7 @@ const renderMergeSection = (attendee: Attendee): string =>
       <h3>Merge Attendee</h3>
       <p>
         Search for another attendee by their ticket token and merge their
-        event registrations into this attendee.
+        listing registrations into this attendee.
       </p>
       <form
         action={`/admin/attendees/${attendee.id}/merge`}
@@ -251,15 +250,17 @@ const renderEditQuestions = (
 ): string => {
   const checked = (id: number) =>
     selectedAnswerIds.includes(id) ? " checked" : "";
-  const questionHtml = questions.map((q) => {
-    const options = q.answers
-      .map(
-        (a) =>
-          `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked(a.id)}> ${escapeHtml(a.text)}</label>`,
-      )
-      .join("");
-    return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
-  }).join("");
+  const questionHtml = questions
+    .map((q) => {
+      const options = q.answers
+        .map(
+          (a) =>
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked(a.id)}> ${escapeHtml(a.text)}</label>`,
+        )
+        .join("");
+      return `<fieldset class="custom-question"><legend>${escapeHtml(q.text)}</legend>${options}</fieldset>`;
+    })
+    .join("");
   return `<h3>Custom Questions</h3>${questionHtml}`;
 };
 
@@ -270,36 +271,36 @@ const pageTitle = (data: AttendeeFormTemplateData): string =>
     : `Edit Attendee: ${data.attendee!.name}`;
 
 /** Tiny progressive-enhancement script: hide the date field on non-daily
- * events and populate defaults when a daily event is first chosen. The
+ * listings and populate defaults when a daily listing is first chosen. The
  * form is fully usable without it — the server validates conditionally. */
 const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
-  const availableDatesJson = JSON.stringify(data.availableDatesByEvent);
-  const eventsByType: Record<number, "daily" | "standard"> = {};
-  for (const event of data.allEvents) {
-    eventsByType[event.id] = event.event_type;
+  const availableDatesJson = JSON.stringify(data.availableDatesByListing);
+  const listingsByType: Record<number, "daily" | "standard"> = {};
+  for (const listing of data.allListings) {
+    listingsByType[listing.id] = listing.listing_type;
   }
-  const eventsByTypeJson = JSON.stringify(eventsByType);
-  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-event-types='${escapeHtml(eventsByTypeJson)}'></script>
+  const listingsByTypeJson = JSON.stringify(listingsByType);
+  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-listing-types='${escapeHtml(listingsByTypeJson)}'></script>
   <script>
     (function () {
       var dataEl = document.getElementById('attendee-form-data');
       if (!dataEl) return;
       var availableDates = JSON.parse(dataEl.getAttribute('data-available-dates') || '{}');
-      var eventTypes = JSON.parse(dataEl.getAttribute('data-event-types') || '{}');
+      var listingTypes = JSON.parse(dataEl.getAttribute('data-listing-types') || '{}');
       function updateRow(row) {
-        var select = row.querySelector('[data-line-event]');
+        var select = row.querySelector('[data-line-listing]');
         var dateInput = row.querySelector('[data-line-date]');
         if (!select || !dateInput) return;
-        var eventId = Number(select.value);
-        var isDaily = eventTypes[eventId] === 'daily';
+        var listingId = Number(select.value);
+        var isDaily = listingTypes[listingId] === 'daily';
         dateInput.hidden = !isDaily;
         if (isDaily && !dateInput.value) {
-          var dates = availableDates[eventId] || [];
+          var dates = availableDates[listingId] || [];
           if (dates.length) dateInput.value = dates[0];
         }
       }
       document.querySelectorAll('[data-line-row]').forEach(function (row) {
-        var select = row.querySelector('[data-line-event]');
+        var select = row.querySelector('[data-line-listing]');
         if (select) select.addEventListener('change', function () { updateRow(row); });
         updateRow(row);
       });
@@ -318,9 +319,10 @@ export const attendeeFormPage = (
   data: AttendeeFormTemplateData,
   session: AdminSession,
 ): string => {
-  const formAction = data.mode === "create"
-    ? "/admin/attendees/new"
-    : `/admin/attendees/${data.attendee!.id}`;
+  const formAction =
+    data.mode === "create"
+      ? "/admin/attendees/new"
+      : `/admin/attendees/${data.attendee!.id}`;
   const nameValue = data.parsed.name;
   const isEdit = data.mode === "edit";
   const a = data.attendee;
@@ -404,23 +406,20 @@ export const attendeeFormPage = (
 
         {data.questions && data.questions.length > 0 && (
           <Raw
-            html={renderEditQuestions(
-              data.questions,
-              data.selectedAnswerIds,
-            )}
+            html={renderEditQuestions(data.questions, data.selectedAnswerIds)}
           />
         )}
 
-        <h3>Event Registrations</h3>
+        <h3>Listing Registrations</h3>
         <Raw html={renderLineEditor(data)} />
         <p>
           <button
             formnovalidate
-            type="submit"
             name={ACTION_FIELD}
+            type="submit"
             value={ADD_LINE_ACTION}
           >
-            Add Event Line
+            Add Listing Line
           </button>
         </p>
 
@@ -429,8 +428,8 @@ export const attendeeFormPage = (
         <p class="form-actions">
           <button
             class="primary"
-            type="submit"
             name={ACTION_FIELD}
+            type="submit"
             value={SAVE_ACTION}
           >
             {isEdit ? "Save Attendee" : "Create Attendee"}

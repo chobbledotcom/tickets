@@ -32,21 +32,21 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "https://example.com/t/ABC",
       );
 
-      expect(data.event_names).toBe("Test Event");
+      expect(data.listing_names).toBe("Test Listing");
       expect(data.ticket_url).toBe("https://example.com/t/ABC");
       expect(data.currency).toBe("GBP");
       expect(data.entries.length).toBe(1);
-      expect(data.entries[0]!.event.name).toBe("Test Event");
-      expect(data.entries[0]!.event.slug).toBe("test-event");
-      expect(data.entries[0]!.event.is_paid).toBe(false);
+      expect(data.entries[0]!.listing.name).toBe("Test Listing");
+      expect(data.entries[0]!.listing.slug).toBe("test-listing");
+      expect(data.entries[0]!.listing.is_paid).toBe(false);
       expect(data.attendee.name).toBe("Jane Doe");
       expect(data.attendee.email).toBe("jane@example.com");
     });
 
     test("builds correct data shape from multiple entries", () => {
       const entries = [
-        makeEntry({ name: "Event A" }),
-        makeEntry({ name: "Event B" }),
+        makeEntry({ name: "Listing A" }),
+        makeEntry({ name: "Listing B" }),
       ];
       const data = buildTemplateData(
         entries,
@@ -54,16 +54,16 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "https://example.com/t/ABC+DEF",
       );
 
-      expect(data.event_names).toBe("Event A and Event B");
+      expect(data.listing_names).toBe("Listing A and Listing B");
       expect(data.entries.length).toBe(2);
       expect(data.attendee.name).toBe("Jane Doe");
     });
 
-    test("formats three or more event names with commas and 'and'", () => {
+    test("formats three or more listing names with commas and 'and'", () => {
       const entries = [
-        makeEntry({ name: "Event A" }),
-        makeEntry({ name: "Event B" }),
-        makeEntry({ name: "Event C" }),
+        makeEntry({ name: "Listing A" }),
+        makeEntry({ name: "Listing B" }),
+        makeEntry({ name: "Listing C" }),
       ];
       const data = buildTemplateData(
         entries,
@@ -71,10 +71,10 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "https://example.com/t/ABC+DEF+GHI",
       );
 
-      expect(data.event_names).toBe("Event A, Event B, and Event C");
+      expect(data.listing_names).toBe("Listing A, Listing B, and Listing C");
     });
 
-    test("marks paid events correctly", () => {
+    test("marks paid listings correctly", () => {
       const entries = [makeEntry({ unit_price: 1000 })];
       const data = buildTemplateData(
         entries,
@@ -82,10 +82,10 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "https://example.com/t/ABC",
       );
 
-      expect(data.entries[0]!.event.is_paid).toBe(true);
+      expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
-    test("marks can_pay_more events as paid", () => {
+    test("marks can_pay_more listings as paid", () => {
       const entries = [makeEntry({ can_pay_more: true, unit_price: 0 })];
       const data = buildTemplateData(
         entries,
@@ -93,7 +93,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "https://example.com/t/ABC",
       );
 
-      expect(data.entries[0]!.event.is_paid).toBe(true);
+      expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
     test("includes attendee date when present", () => {
@@ -110,11 +110,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
     // Helper for the date_range_label tests — every case follows the same
     // makeEntry → buildTemplateData → read label flow.
     const dateRangeLabelFor = (
-      event: Partial<Parameters<typeof makeEntry>[0]>,
+      listing: Partial<Parameters<typeof makeEntry>[0]>,
       attendee: Partial<Parameters<typeof makeEntry>[1]>,
     ): string =>
       buildTemplateData(
-        [makeEntry(event, attendee)],
+        [makeEntry(listing, attendee)],
         "GBP",
         "https://example.com/t/ABC",
       ).entries[0]!.attendee.date_range_label;
@@ -122,7 +122,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
     test("date_range_label: single-day daily booking formats as a date", () => {
       expect(
         dateRangeLabelFor(
-          { duration_days: 1, event_type: "daily" },
+          { duration_days: 1, listing_type: "daily" },
           { date: "2026-04-15" },
         ),
       ).toContain("15 April");
@@ -131,7 +131,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
     test("date_range_label: multi-day booking uses en dash", () => {
       expect(
         dateRangeLabelFor(
-          { duration_days: 3, event_type: "daily" },
+          { duration_days: 3, listing_type: "daily" },
           { date: "2026-04-15" },
         ),
       ).toBe("15\u201317 April 2026");
@@ -169,10 +169,10 @@ describeWithEnv("email-renderer", { db: true }, () => {
             quantity: 2,
             special_instructions: "",
           },
-          event: { is_paid: true, name: "Concert", slug: "concert" },
+          listing: { is_paid: true, name: "Concert", slug: "concert" },
         },
       ],
-      event_names: "Concert",
+      listing_names: "Concert",
       ticket_url: "https://example.com/t/ABC",
     };
 
@@ -184,8 +184,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(result).toBe("Hello Jane");
     });
 
-    test("renders event_names variable", async () => {
-      const result = await renderTemplate("For {{ event_names }}", sampleData);
+    test("renders listing_names variable", async () => {
+      const result = await renderTemplate(
+        "For {{ listing_names }}",
+        sampleData,
+      );
       expect(result).toBe("For Concert");
     });
 
@@ -238,24 +241,24 @@ describeWithEnv("email-renderer", { db: true }, () => {
         entries: [
           {
             ...sampleData.entries[0]!,
-            event: { is_paid: false, name: "Event A", slug: "a" },
+            listing: { is_paid: false, name: "Listing A", slug: "a" },
           },
           {
             ...sampleData.entries[0]!,
-            event: { is_paid: false, name: "Event B", slug: "b" },
+            listing: { is_paid: false, name: "Listing B", slug: "b" },
           },
         ],
       };
       const result = await renderTemplate(
-        "{% for entry in entries %}{{ entry.event.name }} {% endfor %}",
+        "{% for entry in entries %}{{ entry.listing.name }} {% endfor %}",
         data,
       );
-      expect(result).toBe("Event A Event B");
+      expect(result).toBe("Listing A Listing B");
     });
 
     test("renders conditional on is_paid", async () => {
       const result = await renderTemplate(
-        "{% for entry in entries %}{% if entry.event.is_paid %}paid{% else %}free{% endif %}{% endfor %}",
+        "{% for entry in entries %}{% if entry.listing.is_paid %}paid{% else %}free{% endif %}{% endfor %}",
         sampleData,
       );
       expect(result).toBe("paid");
@@ -298,10 +301,10 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
       const result = await renderEmailContent("confirmation", data);
 
-      expect(result.subject).toContain("Test Event");
-      expect(result.html).toContain("Test Event");
+      expect(result.subject).toContain("Test Listing");
+      expect(result.html).toContain("Test Listing");
       expect(result.html).toContain("https://example.com/t/ABC");
-      expect(result.text).toContain("Test Event");
+      expect(result.text).toContain("Test Listing");
       expect(result.text).toContain("https://example.com/t/ABC");
     });
 
@@ -309,7 +312,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       await settings.update.email.template(
         "confirmation",
         "subject",
-        "Custom: {{ event_names }}",
+        "Custom: {{ listing_names }}",
       );
       await settings.update.email.template(
         "confirmation",
@@ -332,7 +335,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       );
       const result = await renderEmailContent("confirmation", data);
 
-      expect(result.subject).toBe("Custom: Test Event");
+      expect(result.subject).toBe("Custom: Test Listing");
       expect(result.html).toBe("<b>Custom HTML for Jane Doe</b>");
       expect(result.text).toBe("Custom text for Jane Doe");
     });
@@ -357,7 +360,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         const result = await renderEmailContent("confirmation", data);
 
         // Should fall back to default subject
-        expect(result.subject).toContain("Test Event");
+        expect(result.subject).toContain("Test Listing");
         // Should have logged the error
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
           errorSpy.calls,
@@ -385,7 +388,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       const result = await renderEmailContent("admin", data);
 
       expect(result.subject).toContain("Jane Doe");
-      expect(result.subject).toContain("Test Event");
+      expect(result.subject).toContain("Test Listing");
       expect(result.html).toContain("Jane Doe");
       expect(result.text).toContain("Name: Jane Doe");
     });
@@ -431,7 +434,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       expect(result.text).not.toContain("Notes:");
     });
 
-    test("renders paid event with currency in confirmation", async () => {
+    test("renders paid listing with currency in confirmation", async () => {
       const entries = [
         makeEntry({ unit_price: 1000 }, { price_paid: "2000", quantity: 2 }),
       ];
@@ -465,7 +468,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       await settings.update.email.template(
         "confirmation",
         "subject",
-        "Custom Subject: {{ event_names }}",
+        "Custom Subject: {{ listing_names }}",
       );
       // html and text remain default
       settings.invalidateCache();
@@ -479,7 +482,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       );
       const result = await renderEmailContent("confirmation", data);
 
-      expect(result.subject).toBe("Custom Subject: Test Event");
+      expect(result.subject).toBe("Custom Subject: Test Listing");
       // html and text should still use defaults
       expect(result.html).toContain("Thanks for registering!");
       expect(result.text).toContain("Thanks for registering!");
@@ -489,7 +492,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       await settings.update.email.template(
         "confirmation",
         "subject",
-        "Custom {{ event_names }}",
+        "Custom {{ listing_names }}",
       );
       settings.invalidateCache();
       await settings.loadAll();
@@ -549,7 +552,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       );
       const result = await renderEmailContent("confirmation", data);
 
-      expect(result.subject).toContain("Test Event");
+      expect(result.subject).toContain("Test Listing");
     });
   });
 

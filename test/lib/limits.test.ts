@@ -169,7 +169,7 @@ describe("limits", () => {
 
   describe("SCANNER_CSRF_MAX_AGE_S", () => {
     test("defaults to the session lifetime", () => {
-      // The scanner page stays open for a whole event, so its CSRF token must
+      // The scanner page stays open for a whole listing, so its CSRF token must
       // outlive the 1-hour default and remain valid for as long as the session
       // that authenticates the admin.
       expect(SCANNER_CSRF_MAX_AGE_S).toBe(SESSION_MAX_AGE_S);

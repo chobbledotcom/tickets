@@ -7,22 +7,22 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
-import type { Event, EventWithCount } from "#shared/types.ts";
+import type { Listing, ListingWithCount } from "#shared/types.ts";
 
 /** Activity log entry */
 export interface ActivityLogEntry {
   created: string;
-  event_id: number | null;
+  listing_id: number | null;
   id: number;
   message: string;
 }
 
 /** Activity log input for create */
 export type ActivityLogInput = {
-  eventId?: number | null;
+  listingId?: number | null;
   message: string;
 };
 
@@ -36,39 +36,39 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
     primaryKey: "id",
     schema: {
       created: col.withDefault(() => nowIso()),
-      event_id: col.simple<number | null>(),
       id: col.generated<number>(),
+      listing_id: col.simple<number | null>(),
       message: col.encrypted<string>(encrypt, decrypt),
     },
   },
 );
 
-/** Accept an event ID as a number or an object with `.id` */
-type EventRef = number | { id: number };
+/** Accept an listing ID as a number or an object with `.id` */
+type ListingRef = number | { id: number };
 
-/** Extract event ID from an EventRef */
-const toEventId = (event?: EventRef | null): number | null =>
-  event == null ? null : typeof event === "number" ? event : event.id;
+/** Extract listing ID from an ListingRef */
+const toListingId = (listing?: ListingRef | null): number | null =>
+  listing == null ? null : typeof listing === "number" ? listing : listing.id;
 
 /**
  * Log an activity
  */
 export const logActivity = (
   message: string,
-  event?: EventRef | null,
+  listing?: ListingRef | null,
 ): Promise<ActivityLogEntry> =>
   activityLogTable.insert({
-    eventId: toEventId(event),
+    listingId: toListingId(listing),
     message,
   });
 
-/** Query activity log with optional event filter, decrypts messages */
+/** Query activity log with optional listing filter, decrypts messages */
 const queryActivityLog = async (
-  eventId: number | null,
+  listingId: number | null,
   limit: number,
 ): Promise<ActivityLogEntry[]> => {
-  const whereClause = eventId !== null ? "WHERE event_id = ?" : "";
-  const args = eventId !== null ? [eventId, limit] : [limit];
+  const whereClause = listingId !== null ? "WHERE listing_id = ?" : "";
+  const args = listingId !== null ? [listingId, limit] : [limit];
   const rows = await queryAll<ActivityLogEntry>(
     `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
     args,
@@ -77,12 +77,12 @@ const queryActivityLog = async (
 };
 
 /**
- * Get activity log entries for an event (most recent first)
+ * Get activity log entries for an listing (most recent first)
  */
-export const getEventActivityLog = (
-  eventId: number,
+export const getListingActivityLog = (
+  listingId: number,
   limit = 100,
-): Promise<ActivityLogEntry[]> => queryActivityLog(eventId, limit);
+): Promise<ActivityLogEntry[]> => queryActivityLog(listingId, limit);
 
 /**
  * Get all activity log entries (most recent first)
@@ -90,44 +90,46 @@ export const getEventActivityLog = (
 export const getAllActivityLog = (limit = 100): Promise<ActivityLogEntry[]> =>
   queryActivityLog(null, limit);
 
-/** Result type for event + activity log batch query */
-export type EventWithActivityLog = {
-  event: EventWithCount;
+/** Result type for listing + activity log batch query */
+export type ListingWithActivityLog = {
+  listing: ListingWithCount;
   entries: ActivityLogEntry[];
 };
 
 /**
- * Get event and its activity log in a single database round-trip.
+ * Get listing and its activity log in a single database round-trip.
  * Uses batch API to reduce latency for remote databases.
  */
-export const getEventWithActivityLog = async (
-  eventId: number,
+export const getListingWithActivityLog = async (
+  listingId: number,
   limit = 100,
-): Promise<EventWithActivityLog | null> => {
+): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
     {
-      args: [eventId],
+      args: [listingId],
       sql: `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-            FROM events e
-            LEFT JOIN event_attendees ea ON e.id = ea.event_id
+            FROM listings e
+            LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
             WHERE e.id = ?
             GROUP BY e.id`,
     },
     {
-      args: [eventId, limit],
-      sql: "SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?",
+      args: [listingId, limit],
+      sql: "SELECT * FROM activity_log WHERE listing_id = ? ORDER BY created DESC, id DESC LIMIT ?",
     },
   ]);
 
-  const eventRows = resultRows<Event & { attendee_count: number }>(results[0]!);
-  const eventRow = eventRows[0];
-  if (!eventRow) return null;
+  const listingRows = resultRows<Listing & { attendee_count: number }>(
+    results[0]!,
+  );
+  const listingRow = listingRows[0];
+  if (!listingRow) return null;
 
-  // Decrypt event fields
-  const decryptedEvent = await eventsTable.fromDb(eventRow);
-  const event: EventWithCount = {
-    ...decryptedEvent,
-    attendee_count: eventRow.attendee_count,
+  // Decrypt listing fields
+  const decryptedListing = await listingsTable.fromDb(listingRow);
+  const listing: ListingWithCount = {
+    ...decryptedListing,
+    attendee_count: listingRow.attendee_count,
   };
 
   const logRows = resultRows<ActivityLogEntry>(results[1]!);
@@ -135,5 +137,5 @@ export const getEventWithActivityLog = async (
     logRows.map((row) => activityLogTable.fromDb(row)),
   );
 
-  return { entries, event };
+  return { entries, listing };
 };

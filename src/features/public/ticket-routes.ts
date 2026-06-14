@@ -5,11 +5,11 @@
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getEventWithCountBySlug } from "#shared/db/events.ts";
 import {
   computeGroupSlugIndex,
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
+import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
@@ -36,7 +36,7 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   return htmlResponse(successPage({ fromEmail, ticketUrl }));
 };
 
-/** Handle ticket request: try events by slugs, fall back to group for single slugs */
+/** Handle ticket request: try listings by slugs, fall back to group for single slugs */
 const handleTicketBySlug = async (
   request: Request,
   { slug }: { slug: string },
@@ -59,13 +59,13 @@ const qrResponse = async (slug: string): Promise<Response> => {
   });
 };
 
-/** Handle GET /ticket/:slug/qr (event first, then group fallback) */
+/** Handle GET /ticket/:slug/qr (listing first, then group fallback) */
 export const handleTicketQrGet = async (
   _request: Request,
   { slug }: { slug: string },
 ): Promise<Response> => {
-  const event = await getEventWithCountBySlug(slug);
-  if (event) return qrResponse(slug);
+  const listing = await getListingWithCountBySlug(slug);
+  if (listing) return qrResponse(slug);
 
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);

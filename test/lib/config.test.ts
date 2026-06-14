@@ -94,8 +94,8 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   });
 
   test("seedEffectiveDomainHost sets the request hostname before settings load", () => {
-    seedEffectiveDomainHost("https://event.example.com/ticket/abc");
-    expect(getEffectiveDomain()).toBe("event.example.com");
+    seedEffectiveDomainHost("https://listing.example.com/ticket/abc");
+    expect(getEffectiveDomain()).toBe("listing.example.com");
   });
 
   test("loadEffectiveDomain refines the seeded host with the validated custom domain", async () => {
@@ -142,14 +142,14 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   });
 
   test("uses the bunny subdomain when it is set and no custom domain is configured", async () => {
-    await settings.update.bunnySubdomain("myevent.tickets.example.com");
+    await settings.update.bunnySubdomain("mylisting.tickets.example.com");
     expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
-      "myevent.tickets.example.com",
+      "mylisting.tickets.example.com",
     );
   });
 
   test("validated custom domain takes priority over bunny subdomain", async () => {
-    await settings.update.bunnySubdomain("myevent.tickets.example.com");
+    await settings.update.bunnySubdomain("mylisting.tickets.example.com");
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomainLastValidated();
     expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
@@ -158,10 +158,10 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   });
 
   test("bunny subdomain is used when custom domain is set but not validated", async () => {
-    await settings.update.bunnySubdomain("myevent.tickets.example.com");
+    await settings.update.bunnySubdomain("mylisting.tickets.example.com");
     await settings.update.customDomain("tickets.example.com");
     expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
-      "myevent.tickets.example.com",
+      "mylisting.tickets.example.com",
     );
   });
 

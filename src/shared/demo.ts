@@ -414,38 +414,38 @@ export const DEMO_SPECIAL_INSTRUCTIONS = [
 ] as const;
 
 /**
- * Demo event names — pretend rock/heavy-metal band listings.
+ * Demo listing names — pretend rock/heavy-metal band listings.
  * Generated procedurally from a seeded PRNG so the list stays deterministic
  * across runs (tests rely on this) but offers far more variety than a
  * hand-curated list while staying on-theme.
  */
-export const DEMO_EVENT_NAMES = generateBandNames(
+export const DEMO_LISTING_NAMES = generateBandNames(
   60,
   DEFAULT_BAND_SEED,
 ) as readonly string[];
 
 /**
- * Demo event descriptions — rock-themed gig blurbs assembled from word pools.
+ * Demo listing descriptions — rock-themed gig blurbs assembled from word pools.
  * Like the names above, the list is procedurally generated but seeded so it
  * stays deterministic across runs.
  */
-export const DEMO_EVENT_DESCRIPTIONS = generateDescriptions(
+export const DEMO_LISTING_DESCRIPTIONS = generateDescriptions(
   40,
   DEFAULT_DESCRIPTION_SEED,
 ) as readonly string[];
 
 /**
- * Demo event locations — pretend rock-venue / festival listings.
+ * Demo listing locations — pretend rock-venue / festival listings.
  * Procedurally generated from the venue word pools using a seeded PRNG.
  */
-export const DEMO_EVENT_LOCATIONS = generateVenueNames(
+export const DEMO_LISTING_LOCATIONS = generateVenueNames(
   40,
   DEFAULT_VENUE_SEED,
 ) as readonly string[];
 
 /** Demo group names */
 export const DEMO_GROUP_NAMES = [
-  "Summer Events",
+  "Summer Listings",
   "Winter Programme",
   "Community Activities",
   "Youth Club",
@@ -456,11 +456,11 @@ export const DEMO_GROUP_NAMES = [
 /** Demo group descriptions */
 export const DEMO_GROUP_DESCRIPTIONS = [
   "A collection of summer activities for the whole family",
-  "Warm up with our winter programme of events",
+  "Warm up with our winter programme of listings",
   "Community-led activities open to all",
   "Fun activities for young people aged 11-18",
   "Help us raise money for local causes",
-  "Stay active with our sports and fitness events",
+  "Stay active with our sports and fitness listings",
 ] as const;
 
 /** Demo holiday names */
@@ -475,24 +475,24 @@ export const DEMO_HOLIDAY_NAMES = [
 
 /** Demo website titles */
 export const DEMO_WEBSITE_TITLES = [
-  "Village Events",
+  "Village Listings",
   "Community Hub",
-  "Parish Council Events",
+  "Parish Council Listings",
   "Town Hall Bookings",
 ] as const;
 
 /** Demo page text (homepage / contact) */
 export const DEMO_PAGE_TEXT = [
-  "Welcome to our community events page. Browse upcoming events and book your tickets online.",
-  "Find out about local events in our village. Everyone is welcome to attend!",
-  "Your one-stop destination for community events and activities.",
+  "Welcome to our community listings page. Browse upcoming listings and book your tickets online.",
+  "Find out about local listings in our village. Everyone is welcome to attend!",
+  "Your one-stop destination for community listings and activities.",
 ] as const;
 
 /** Demo terms and conditions */
 export const DEMO_TERMS = [
-  "Tickets are non-refundable. Please arrive 15 minutes before the event start time.",
-  "By registering you agree to our community event guidelines. Refunds available up to 48 hours before the event.",
-  "All attendees must follow the venue code of conduct. Photography may take place at this event.",
+  "Tickets are non-refundable. Please arrive 15 minutes before the listing start time.",
+  "By registering you agree to our community listing guidelines. Refunds available up to 48 hours before the listing.",
+  "All attendees must follow the venue code of conduct. Photography may take place at this listing.",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -511,11 +511,11 @@ export const ATTENDEE_DEMO_FIELDS: DemoFieldMap = {
   special_instructions: DEMO_SPECIAL_INSTRUCTIONS,
 };
 
-/** Event metadata fields */
-export const EVENT_DEMO_FIELDS: DemoFieldMap = {
-  description: DEMO_EVENT_DESCRIPTIONS,
-  location: DEMO_EVENT_LOCATIONS,
-  name: DEMO_EVENT_NAMES,
+/** Listing metadata fields */
+export const LISTING_DEMO_FIELDS: DemoFieldMap = {
+  description: DEMO_LISTING_DESCRIPTIONS,
+  location: DEMO_LISTING_LOCATIONS,
+  name: DEMO_LISTING_NAMES,
 };
 
 /** Group name and description fields */

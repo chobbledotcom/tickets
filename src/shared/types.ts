@@ -59,10 +59,10 @@ export const CONTACT_FIELDS: readonly ContactField[] = [
 export const isContactField = createTypeGuard(CONTACT_FIELDS);
 
 /**
- * Contact fields setting for an event (comma-separated ContactField names, or empty for name-only).
- * Alias kept for documentation; runtime enforcement happens in parseEventFields.
+ * Contact fields setting for an listing (comma-separated ContactField names, or empty for name-only).
+ * Alias kept for documentation; runtime enforcement happens in parseListingFields.
  */
-export type EventFields = string;
+export type ListingFields = string;
 
 /** Attendee contact details — the core PII fields collected at registration */
 export type ContactInfo = {
@@ -109,19 +109,19 @@ export const isPaymentProviderSetting = createTypeGuard(
   PAYMENT_PROVIDER_SETTINGS,
 );
 
-/** Event type: standard (one-time) or daily (date-based booking) */
-export type EventType = "standard" | "daily";
+/** Listing type: standard (one-time) or daily (date-based booking) */
+export type ListingType = "standard" | "daily";
 
-/** Valid event type values */
-const EVENT_TYPES: readonly EventType[] = ["standard", "daily"];
+/** Valid listing type values */
+const LISTING_TYPES: readonly ListingType[] = ["standard", "daily"];
 
-/** Type guard: check if an arbitrary string is a valid EventType */
-export const isEventType = createTypeGuard(EVENT_TYPES);
+/** Type guard: check if an arbitrary string is a valid ListingType */
+export const isListingType = createTypeGuard(LISTING_TYPES);
 
-/** Whether an event can accept payments (has a price or allows pay-what-you-want) */
-export const isPaidEvent = (
-  event: Pick<Event, "unit_price" | "can_pay_more">,
-): boolean => event.unit_price > 0 || event.can_pay_more;
+/** Whether an listing can accept payments (has a price or allows pay-what-you-want) */
+export const isPaidListing = (
+  listing: Pick<Listing, "unit_price" | "can_pay_more">,
+): boolean => listing.unit_price > 0 || listing.can_pay_more;
 
 /** Upper bound on multi-day booking duration. Each day in a booking range
  * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
@@ -136,14 +136,14 @@ export const MAX_DURATION_DAYS = 90;
  * through here so the clamping policy lives in exactly one place — the column
  * write, the per-day capacity expansion (JS + SQL), and all display paths
  * agree by construction. Idempotent, so applying it to an already-normalized
- * value (e.g. a column-clamped `event.duration_days`) is a safe no-op.
+ * value (e.g. a column-clamped `listing.duration_days`) is a safe no-op.
  */
 export const normalizeDurationDays = (value: number): number =>
   Number.isFinite(value)
     ? Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)))
     : 1;
 
-export interface Event {
+export interface Listing {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -154,8 +154,8 @@ export interface Event {
   created: string;
   date: string; // encrypted UTC ISO datetime or empty string
   description: string;
-  event_type: EventType;
-  fields: EventFields;
+  listing_type: ListingType;
+  fields: ListingFields;
   group_id: number;
   hidden: boolean;
   id: number;
@@ -184,7 +184,7 @@ export interface Attendee extends ContactInfo {
   checked_in: boolean;
   created: string;
   date: string | null;
-  event_id: number;
+  listing_id: number;
   id: number;
   payment_id: string;
   pii_blob: string;
@@ -274,20 +274,20 @@ export interface Group {
   terms_and_conditions: string;
 }
 
-export interface EventWithCount extends Event {
+export interface ListingWithCount extends Listing {
   attendee_count: number;
 }
 
 /**
- * Admin API event shape — all event fields except internal indices.
+ * Admin API listing shape — all listing fields except internal indices.
  * Used by both admin JSON API and admin templates to ensure consistent
  * field exposure. Snake_case keys match the DB schema.
  */
-export type AdminEvent = Omit<EventWithCount, "slug_index">;
+export type AdminListing = Omit<ListingWithCount, "slug_index">;
 
-/** A single row in the attendee table (attendee + parent event context) */
+/** A single row in the attendee table (attendee + parent listing context) */
 export type AttendeeTableRow = {
   attendee: Attendee;
-  eventId: number;
-  eventName: string;
+  listingId: number;
+  listingName: string;
 };

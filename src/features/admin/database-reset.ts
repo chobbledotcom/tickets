@@ -15,12 +15,12 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { createFormRoute } from "#shared/app-forms.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllEvents } from "#shared/db/events.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
 import { isDemoMode } from "#shared/demo.ts";
 import { defineForm } from "#shared/forms.tsx";
 import {
-  deleteAllEventStorageFiles,
+  deleteAllListingStorageFiles,
   isStorageEnabled,
 } from "#shared/storage.ts";
 import {
@@ -67,7 +67,7 @@ const resetRoute = createFormRoute({
   onInvalid: ({ error }) => errorRedirect("/demo/reset", error),
   onValid: async () => {
     if (isStorageEnabled()) {
-      await deleteAllEventStorageFiles(await getAllEvents());
+      await deleteAllListingStorageFiles(await getAllListings());
     }
     await resetDatabase();
     return redirect("/setup/", "Database reset", true, {

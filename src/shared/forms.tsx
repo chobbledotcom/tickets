@@ -374,7 +374,7 @@ const validateSingleField = (
  * Parse and validate form data against field definitions.
  *
  * Supply a type parameter to get strongly-typed values back:
- *   validateForm<EventFormValues>(form, eventFields)
+ *   validateForm<ListingFormValues>(form, listingFields)
  *
  * Without a type parameter, values default to the loose FieldValues dict.
  */
@@ -595,13 +595,13 @@ export const CsrfForm = ({
  * Children are rendered above the prompt as warning/detail content.
  *
  *   <ConfirmForm
- *     action={`/admin/event/${id}/delete`}
- *     name={event.name}
- *     label="Event name"
- *     buttonText="Delete Event"
+ *     action={`/admin/listing/${id}/delete`}
+ *     name={listing.name}
+ *     label="Listing name"
+ *     buttonText="Delete Listing"
  *   >
- *     <p><strong>Warning:</strong> This will permanently delete the event.</p>
- *     <p>To delete this event, type its name "{event.name}" into the box below:</p>
+ *     <p><strong>Warning:</strong> This will permanently delete the listing.</p>
+ *     <p>To delete this listing, type its name "{listing.name}" into the box below:</p>
  *   </ConfirmForm>
  */
 export const ConfirmForm = ({

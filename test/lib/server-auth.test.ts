@@ -32,7 +32,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     });
 
     test("shows dashboard when authenticated", async () => {
-      await assertAdminHtml("/admin/", "Events");
+      await assertAdminHtml("/admin/", "Listings");
     });
   });
 
@@ -532,8 +532,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(html).toContain("Login");
       expect(html).toContain("<form");
       expect(html.length).toBeGreaterThan(100); // Not blank
-      expect(html).not.toContain("Events"); // Should not show dashboard
-      expect(html).not.toContain("No events yet"); // Should not show events table
+      expect(html).not.toContain("Listings"); // Should not show dashboard
+      expect(html).not.toContain("No listings yet"); // Should not show listings table
 
       // Verify session was deleted from database after expiration check
       const deletedSession = await getSession(expiredToken);
@@ -560,8 +560,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         // Each request should consistently show login page, not blank or dashboard
         expect(html).toContain("Login");
         expect(html.length).toBeGreaterThan(100);
-        expect(html).not.toContain("Events");
-        expect(html).not.toContain("No events yet");
+        expect(html).not.toContain("Listings");
+        expect(html).not.toContain("No listings yet");
       }
 
       // Verify session was deleted after first access
@@ -577,9 +577,9 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements that should never be blank
-      expect(html).toContain("Events"); // Page title
+      expect(html).toContain("Listings"); // Page title
       expect(html).toContain("<table"); // Table structure
-      expect(html).toContain("Event Name"); // Table header
+      expect(html).toContain("Listing Name"); // Table header
       expect(html.length).toBeGreaterThan(500); // Substantial content
     });
 
@@ -668,7 +668,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(getResponse.status).toBe(200);
       expect(html).toContain("Login");
       expect(html).toContain("Username or password was wrong");
-      expect(html).not.toContain("Event Name");
+      expect(html).not.toContain("Listing Name");
     });
   });
 });

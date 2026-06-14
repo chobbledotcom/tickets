@@ -4,8 +4,8 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { adminGroupDetailPage } from "#templates/admin/groups.tsx";
 import {
   setupTestEncryptionKey,
-  testEventWithCount,
   testGroup,
+  testListingWithCount,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -18,13 +18,13 @@ beforeAll(async () => {
 describe("adminGroupDetailPage", () => {
   test("shows Group Attendees row with cap, count, and remaining", () => {
     const group = testGroup({ max_attendees: 50, name: "Summer Festival" });
-    const events = [
-      testEventWithCount({ attendee_count: 12, group_id: group.id, id: 1 }),
-      testEventWithCount({ attendee_count: 8, group_id: group.id, id: 2 }),
+    const listings = [
+      testListingWithCount({ attendee_count: 12, group_id: group.id, id: 1 }),
+      testListingWithCount({ attendee_count: 8, group_id: group.id, id: 2 }),
     ];
     const html = adminGroupDetailPage(
       group,
-      events,
+      listings,
       [],
       [],
       TEST_SESSION,
@@ -33,17 +33,17 @@ describe("adminGroupDetailPage", () => {
     expect(html).toContain("Group Attendees");
     expect(html).toContain("20 / 50");
     expect(html).toContain("30 remain");
-    expect(html).toContain("across all events");
+    expect(html).toContain("across all listings");
   });
 
   test("Group Attendees row drops cap fragment when group is uncapped", () => {
     const group = testGroup({ max_attendees: 0, name: "Open Group" });
-    const events = [
-      testEventWithCount({ attendee_count: 5, group_id: group.id }),
+    const listings = [
+      testListingWithCount({ attendee_count: 5, group_id: group.id }),
     ];
     const html = adminGroupDetailPage(
       group,
-      events,
+      listings,
       [],
       [],
       TEST_SESSION,
@@ -60,12 +60,12 @@ describe("adminGroupDetailPage", () => {
 
   test("Group Attendees row gets danger-text when at cap", () => {
     const group = testGroup({ max_attendees: 10 });
-    const events = [
-      testEventWithCount({ attendee_count: 10, group_id: group.id }),
+    const listings = [
+      testListingWithCount({ attendee_count: 10, group_id: group.id }),
     ];
     const html = adminGroupDetailPage(
       group,
-      events,
+      listings,
       [],
       [],
       TEST_SESSION,

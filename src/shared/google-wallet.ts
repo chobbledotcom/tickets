@@ -1,8 +1,8 @@
 /**
- * Google Wallet event ticket pass generation
+ * Google Wallet listing ticket pass generation
  *
  * Generates signed JWTs for "Add to Google Wallet" links.
- * The JWT contains both an EventTicketClass and EventTicketObject inline,
+ * The JWT contains both an ListingTicketClass and ListingTicketObject inline,
  * so no pre-creation via the REST API is needed.
  *
  * JWT is signed with RS256 using a Google Cloud service account private key.
@@ -67,40 +67,40 @@ export const isValidGooglePrivateKey = async (
   }
 };
 
-/** Build the EventTicketClass for inline JWT creation */
-export const buildEventTicketClass = (
+/** Build the ListingTicketClass for inline JWT creation */
+export const buildListingTicketClass = (
   data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => ({
-  eventName: {
-    defaultValue: {
-      language: "en-US",
-      value: data.eventName,
-    },
-  },
   id: `${creds.issuerId}.${data.serialNumber}-class`,
   issuerName: data.organizationName,
+  listingName: {
+    defaultValue: {
+      language: "en-US",
+      value: data.listingName,
+    },
+  },
   reviewStatus: "UNDER_REVIEW",
-  ...(data.eventDate
+  ...(data.listingDate
     ? {
         dateTime: {
-          start: data.eventDate,
+          start: data.listingDate,
         },
       }
     : {}),
-  ...(data.eventLocation
+  ...(data.listingLocation
     ? {
         venue: {
           address: {
             defaultValue: {
               language: "en-US",
-              value: data.eventLocation,
+              value: data.listingLocation,
             },
           },
           name: {
             defaultValue: {
               language: "en-US",
-              value: data.eventLocation,
+              value: data.listingLocation,
             },
           },
         },
@@ -108,8 +108,8 @@ export const buildEventTicketClass = (
     : {}),
 });
 
-/** Build the EventTicketObject for inline JWT creation */
-export const buildEventTicketObject = (
+/** Build the ListingTicketObject for inline JWT creation */
+export const buildListingTicketObject = (
   data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => {
@@ -163,8 +163,8 @@ export const buildJwtPayload = (
   iss: creds.serviceAccountEmail,
   origins: [],
   payload: {
-    eventTicketClasses: [buildEventTicketClass(data, creds)],
-    eventTicketObjects: [buildEventTicketObject(data, creds)],
+    listingTicketClasses: [buildListingTicketClass(data, creds)],
+    listingTicketObjects: [buildListingTicketObject(data, creds)],
   },
   typ: "savetowallet",
 });

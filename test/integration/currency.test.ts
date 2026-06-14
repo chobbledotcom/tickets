@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { adminGet, createTestEvent, describeWithEnv } from "#test-utils";
+import { adminGet, createTestListing, describeWithEnv } from "#test-utils";
 
 describeWithEnv("integration: currency from country", { db: true }, () => {
   test("default country GB uses GBP (pound symbol)", async () => {
@@ -37,7 +37,7 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
 
   test("currency is reflected on admin dashboard", async () => {
     await settings.update.country("US");
-    await createTestEvent({ unitPrice: 1000 });
+    await createTestListing({ unitPrice: 1000 });
 
     const { response } = await adminGet("/admin");
     const html = await response.text();

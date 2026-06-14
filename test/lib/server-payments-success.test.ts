@@ -5,8 +5,8 @@ import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   bookAttendee,
-  createTestEvent,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
@@ -26,12 +26,12 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("processes ticket payment success", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Success Multi 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Success Multi 2",
         unitPrice: 1000,
@@ -45,8 +45,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
             email: "multi@example.com",
 
             items: JSON.stringify([
-              { e: event1.id, p: 500, q: 1 },
-              { e: event2.id, p: 2000, q: 2 },
+              { e: listing1.id, p: 500, q: 1 },
+              { e: listing2.id, p: 2000, q: 2 },
             ]),
             name: "Multi Payer",
           },
@@ -61,7 +61,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
-        // With multi-event attendees, one token covers all events
+        // With multi-listing attendees, one token covers all listings
         expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
         const response = await followRedirect(redirectResponse, handleRequest);
@@ -72,10 +72,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           "Click here to view your ticket",
         );
 
-        // Verify attendees created for both events
+        // Verify attendees created for both listings
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
-        const attendees2 = await getAttendeesRaw(event2.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
+        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(2);
@@ -113,7 +113,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
-    test("skips refund for ticket payment when event not found", async () => {
+    test("skips refund for ticket payment when listing not found", async () => {
       await setupStripe();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
@@ -123,7 +123,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
             email: "missing@example.com",
 
             items: JSON.stringify([{ e: 99999, p: 500, q: 1 }]),
-            name: "Missing Event",
+            name: "Missing Listing",
           },
           payment_intent: "pi_multi_notfound",
           payment_status: "paid",
@@ -138,8 +138,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_notfound"),
         );
-        await expectHtmlResponse(response, 404, "Event not found");
-        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        await expectHtmlResponse(response, 404, "Listing not found");
+        // Listing not found should NOT trigger a refund (webhook may be for a different instance)
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockRetrieve.restore();
@@ -147,15 +147,15 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
-    test("refunds ticket payment when event is inactive", async () => {
+    test("refunds ticket payment when listing is inactive", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Multi Inactive Pay",
         unitPrice: 500,
       });
-      await deactivateTestEvent(event.id);
+      await deactivateTestListing(listing.id);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
@@ -163,8 +163,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           metadata: {
             email: "inactive@example.com",
 
-            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
-            name: "Inactive Event",
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+            name: "Inactive Listing",
           },
           payment_intent: "pi_multi_inactive",
           payment_status: "paid",
@@ -198,13 +198,13 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("shows refund failure message when refund fails", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 1,
         unitPrice: 1000,
       });
 
-      // Fill the event
-      await bookAttendee(event, {
+      // Fill the listing
+      await bookAttendee(listing, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -216,7 +216,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           id: "cs_refund_fail",
           metadata: {
             email: "refund@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "Refund Fail",
           },
           payment_intent: "pi_refund_fail",
@@ -245,19 +245,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("ticket payment sold out rolls back and refunds", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi Rollback 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 1,
         name: "Multi Rollback 2",
         unitPrice: 1000,
       });
 
-      // Fill event2
-      await bookAttendee(event2, {
+      // Fill listing2
+      await bookAttendee(listing2, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -271,8 +271,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
             email: "rollback@example.com",
 
             items: JSON.stringify([
-              { e: event1.id, p: 500, q: 1 },
-              { e: event2.id, p: 1000, q: 1 },
+              { e: listing1.id, p: 500, q: 1 },
+              { e: listing2.id, p: 1000, q: 1 },
             ]),
             name: "Rollback User",
           },
@@ -295,9 +295,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         await expectHtmlResponse(response, 409, "sold out", "refunded");
 
-        // Verify rollback: event1 should have no attendees since they were rolled back
+        // Verify rollback: listing1 should have no attendees since they were rolled back
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
         expect(attendees1.length).toBe(0);
       } finally {
         mockRetrieve.restore();
@@ -308,7 +308,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("shows thank_you_url for single-ticket success", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/single-thanks",
         unitPrice: 500,
@@ -320,7 +320,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           id: "cs_single_thankyou",
           metadata: {
             email: "single@example.com",
-            items: singleItem(event.id, 1, 500),
+            items: singleItem(listing.id, 1, 500),
             name: "Single",
           },
           payment_intent: "pi_single_thankyou",
@@ -350,7 +350,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("handles duplicate session replay (already processed)", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/replay-thanks",
         unitPrice: 1000,
@@ -362,7 +362,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           id: "cs_dupe_session",
           metadata: {
             email: "dupe@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "Dupe",
           },
           payment_intent: "pi_dupe",
@@ -390,7 +390,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       } finally {
         mockRetrieve.restore();
@@ -400,7 +400,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("handles single-item cart session replay (shows thank_you_url)", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Cart Single",
         thankYouUrl: "https://example.com/cart-thanks",
@@ -414,7 +414,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           metadata: {
             email: "cartsingle@example.com",
 
-            items: JSON.stringify([{ e: event.id, p: 800, q: 1 }]),
+            items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
             name: "Cart Single Buyer",
           },
           payment_intent: "pi_cart_single",
@@ -434,7 +434,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         // Follow redirect to render success page with tokens
         const tokenResponse = await followRedirect(response1, handleRequest);
         const tokenHtml = await tokenResponse.text();
-        // Single-event cart: token path resolves one unique event → shows thank_you_url
+        // Single-listing cart: token path resolves one unique listing → shows thank_you_url
         expect(tokenHtml).toContain("redirected");
 
         // Replay (no tokens stored): renders directly via items.length === 1 branch
@@ -454,12 +454,12 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("handles ticket duplicate session replay (already processed)", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Replay Multi 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Replay Multi 2",
         unitPrice: 1000,
@@ -473,8 +473,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
             email: "multireplay@example.com",
 
             items: JSON.stringify([
-              { e: event1.id, p: 500, q: 1 },
-              { e: event2.id, p: 1000, q: 1 },
+              { e: listing1.id, p: 500, q: 1 },
+              { e: listing2.id, p: 1000, q: 1 },
             ]),
             name: "Multi Replay",
           },
@@ -538,7 +538,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("renders ticket link from verified tokens", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/verified-thanks",
         unitPrice: 500,
@@ -550,7 +550,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           id: "cs_token_verify",
           metadata: {
             email: "verify@example.com",
-            items: singleItem(event.id, 1, 500),
+            items: singleItem(listing.id, 1, 500),
             name: "Token Verify",
           },
           payment_intent: "pi_token_verify",
@@ -577,7 +577,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(html).toContain('target="_blank"');
         expect(html).toContain("/t/");
 
-        // Should have thank_you_url for single-event purchase
+        // Should have thank_you_url for single-listing purchase
         expect(html).toContain("https://example.com/verified-thanks");
 
         // Token in the link should match the one in the redirect URL
@@ -589,13 +589,13 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("shows email notice on payment success when email configured", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 500,
       });
 
       // Create attendee directly (simulates post-payment state)
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         email: "buyer@example.com",
         name: "Email Test",
         paymentId: "pi_email_notice",

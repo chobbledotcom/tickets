@@ -2,7 +2,7 @@
  * Custom questions and answers table operations
  *
  * Questions and answers are encrypted at rest using symmetric encryption (DB_ENCRYPTION_KEY).
- * Event-question and attendee-answer mappings use integer foreign keys.
+ * Listing-question and attendee-answer mappings use integer foreign keys.
  */
 
 import type { InValue } from "@libsql/client";
@@ -34,9 +34,9 @@ export interface Answer {
   text: string; // encrypted
 }
 
-/** Link between event and question (ordering by sort_order) */
-export interface EventQuestion {
-  event_id: number;
+/** Link between listing and question (ordering by sort_order) */
+export interface ListingQuestion {
+  listing_id: number;
   id: number;
   question_id: number;
   sort_order: number;
@@ -84,21 +84,21 @@ export const answersTable = defineTable<Answer, AnswerInput>({
   },
 });
 
-type EventQuestionInput = {
-  eventId: number;
+type ListingQuestionInput = {
+  listingId: number;
   questionId: number;
   sortOrder: number;
 };
 
-export const eventQuestionsTable = defineTable<
-  EventQuestion,
-  EventQuestionInput
+export const listingQuestionsTable = defineTable<
+  ListingQuestion,
+  ListingQuestionInput
 >({
-  name: "event_questions",
+  name: "listing_questions",
   primaryKey: "id",
   schema: {
-    event_id: col.simple<number>(),
     id: col.generated<number>(),
+    listing_id: col.simple<number>(),
     ...questionIdAndSortOrder,
   },
 });
@@ -200,126 +200,132 @@ export const getAllQuestionsWithAnswers = async (): Promise<
     ),
   );
 
-/** Get questions assigned to an event, ordered by sort_order.
+/** Get questions assigned to an listing, ordered by sort_order.
  * Questions with no answers are excluded (nothing useful to ask). */
-export const getQuestionsForEvent = async (
-  eventId: number,
+export const getQuestionsForListing = async (
+  listingId: number,
 ): Promise<QuestionWithAnswers[]> =>
   withAnswers(
     await groupJoinedRows(
       await queryAll<JoinedRow>(
         `SELECT ${QA_COLS}
-       FROM event_questions eq
+       FROM listing_questions eq
        JOIN questions q ON q.id = eq.question_id
        LEFT JOIN answers a ON a.question_id = q.id
-       WHERE eq.event_id = ?
+       WHERE eq.listing_id = ?
        ORDER BY eq.sort_order, a.sort_order`,
-        [eventId],
+        [listingId],
       ),
     ),
   );
 
-/** Get just the assigned question IDs for an event (no joins/decryption) */
-export const getEventQuestionIds = async (eventId: number): Promise<number[]> =>
+/** Get just the assigned question IDs for an listing (no joins/decryption) */
+export const getListingQuestionIds = async (
+  listingId: number,
+): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      "SELECT question_id FROM event_questions WHERE event_id = ? ORDER BY sort_order",
-      [eventId],
+      "SELECT question_id FROM listing_questions WHERE listing_id = ? ORDER BY sort_order",
+      [listingId],
     ),
   );
 
-/** Get the IDs of the events a question is assigned to */
-export const getQuestionEventIds = async (
+/** Get the IDs of the listings a question is assigned to */
+export const getQuestionListingIds = async (
   questionId: number,
 ): Promise<number[]> =>
-  map((r: { event_id: number }) => r.event_id)(
-    await queryAll<{ event_id: number }>(
-      "SELECT event_id FROM event_questions WHERE question_id = ? ORDER BY event_id",
+  map((r: { listing_id: number }) => r.listing_id)(
+    await queryAll<{ listing_id: number }>(
+      "SELECT listing_id FROM listing_questions WHERE question_id = ? ORDER BY listing_id",
       [questionId],
     ),
   );
 
-/** Set which events a question is assigned to.
- * Adds the question to newly-checked events (appended after each event's
+/** Set which listings a question is assigned to.
+ * Adds the question to newly-checked listings (appended after each listing's
  * existing questions) and removes it from unchecked ones, leaving the
- * ordering of the other questions on each event untouched. */
-export const setQuestionEvents = async (
+ * ordering of the other questions on each listing untouched. */
+export const setQuestionListings = async (
   questionId: number,
-  eventIds: number[],
+  listingIds: number[],
 ): Promise<void> => {
-  const current = new Set(await getQuestionEventIds(questionId));
-  const target = new Set(eventIds);
+  const current = new Set(await getQuestionListingIds(questionId));
+  const target = new Set(listingIds);
   const toRemove = [...current].filter((id) => !target.has(id));
-  const toAdd = eventIds.filter((id) => !current.has(id));
+  const toAdd = listingIds.filter((id) => !current.has(id));
   const statements = [
-    ...toRemove.map((eventId) => ({
-      args: [eventId, questionId],
-      sql: "DELETE FROM event_questions WHERE event_id = ? AND question_id = ?",
+    ...toRemove.map((listingId) => ({
+      args: [listingId, questionId],
+      sql: "DELETE FROM listing_questions WHERE listing_id = ? AND question_id = ?",
     })),
-    ...toAdd.map((eventId) => ({
-      args: [eventId, questionId, eventId],
-      sql: `INSERT INTO event_questions (event_id, question_id, sort_order)
-            VALUES (?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM event_questions WHERE event_id = ?), 0))`,
+    ...toAdd.map((listingId) => ({
+      args: [listingId, questionId, listingId],
+      sql: `INSERT INTO listing_questions (listing_id, question_id, sort_order)
+            VALUES (?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM listing_questions WHERE listing_id = ?), 0))`,
     })),
   ];
   if (statements.length > 0) await executeBatch(statements);
 };
 
-/** Map from question ID to the set of event IDs that use it */
-export type QuestionEventMap = Map<number, number[]>;
+/** Map from question ID to the set of listing IDs that use it */
+export type QuestionListingMap = Map<number, number[]>;
 
-/** Joined row including the comma-separated event IDs from GROUP_CONCAT */
-type JoinedRowWithEvents = JoinedRow & { event_ids: string };
+/** Joined row including the comma-separated listing IDs from GROUP_CONCAT */
+type JoinedRowWithListings = JoinedRow & { listing_ids: string };
 
-/** Get questions for multiple events with event-ID mapping (for conditional display).
+/** Get questions for multiple listings with listing-ID mapping (for conditional display).
  * Uses a single query with a subquery filter to avoid row multiplication. */
-export const getQuestionsWithEventIds = async (
-  eventIds: number[],
+export const getQuestionsWithListingIds = async (
+  listingIds: number[],
 ): Promise<{
   questions: QuestionWithAnswers[];
-  questionEventMap: QuestionEventMap;
+  questionListingMap: QuestionListingMap;
 }> => {
-  if (eventIds.length === 0) {
-    return { questionEventMap: new Map(), questions: [] };
+  if (listingIds.length === 0) {
+    return { questionListingMap: new Map(), questions: [] };
   }
 
-  const ph = inPlaceholders(eventIds);
-  const rows = await queryAll<JoinedRowWithEvents>(
+  const ph = inPlaceholders(listingIds);
+  const rows = await queryAll<JoinedRowWithListings>(
     `SELECT ${QA_COLS},
-            (SELECT GROUP_CONCAT(eq.event_id) FROM event_questions eq
-             WHERE eq.question_id = q.id AND eq.event_id IN (${ph})) AS event_ids
+            (SELECT GROUP_CONCAT(eq.listing_id) FROM listing_questions eq
+             WHERE eq.question_id = q.id AND eq.listing_id IN (${ph})) AS listing_ids
      FROM ${QA_JOIN}
-     WHERE q.id IN (SELECT question_id FROM event_questions WHERE event_id IN (${ph}))
+     WHERE q.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
      ORDER BY a.sort_order`,
-    [...eventIds, ...eventIds],
+    [...listingIds, ...listingIds],
   );
 
-  if (rows.length === 0) return { questionEventMap: new Map(), questions: [] };
+  if (rows.length === 0)
+    return { questionListingMap: new Map(), questions: [] };
 
-  const questionEventMap = reduce(
-    (acc: QuestionEventMap, row: JoinedRowWithEvents) => {
+  const questionListingMap = reduce(
+    (acc: QuestionListingMap, row: JoinedRowWithListings) => {
       if (!acc.has(row.q_id)) {
-        acc.set(row.q_id, map(Number)(row.event_ids.split(",")));
+        acc.set(row.q_id, map(Number)(row.listing_ids.split(",")));
       }
       return acc;
     },
-    new Map() as QuestionEventMap,
+    new Map() as QuestionListingMap,
   )(rows);
 
   const questions = withAnswers(await groupJoinedRows(rows));
-  return { questionEventMap, questions };
+  return { questionListingMap, questions };
 };
 
-/** Set which questions are assigned to an event (replaces existing) */
-export const setEventQuestions = async (
-  eventId: number,
+/** Set which questions are assigned to an listing (replaces existing) */
+export const setListingQuestions = async (
+  listingId: number,
   questionIds: number[],
 ): Promise<void> => {
   const statements = [
-    { args: [eventId], sql: "DELETE FROM event_questions WHERE event_id = ?" },
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_questions WHERE listing_id = ?",
+    },
     ...questionIds.map((qid, i) =>
-      insert("event_questions", {
-        event_id: eventId,
+      insert("listing_questions", {
+        listing_id: listingId,
         question_id: qid,
         sort_order: i,
       }),
@@ -363,15 +369,15 @@ export type ParsedQuestionAnswers =
  * - `{ optional: true }` (admin edit) — unanswered or invalid questions are
  *   skipped, so the result is always `ok: true` with the valid answers found.
  */
-export function parseQuestionAnswers(
-  opts: { optional: true },
-): (
+export function parseQuestionAnswers(opts: {
+  optional: true;
+}): (
   form: URLSearchParams,
   questions: QuestionWithAnswers[],
 ) => { ok: true; answerIds: number[] };
-export function parseQuestionAnswers(
-  opts: { optional: false },
-): (
+export function parseQuestionAnswers(opts: {
+  optional: false;
+}): (
   form: URLSearchParams,
   questions: QuestionWithAnswers[],
 ) => ParsedQuestionAnswers;
@@ -388,9 +394,8 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
         continue;
       }
       if (opts.optional) continue;
-      const lead = answer.status === "missing"
-        ? "Please answer"
-        : "Invalid answer for";
+      const lead =
+        answer.status === "missing" ? "Please answer" : "Invalid answer for";
       return { error: `${lead}: ${q.text}`, ok: false };
     }
     return { answerIds, ok: true };
@@ -402,9 +407,9 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
  * existing answers are deleted, then their new answer set inserted. The
  * `Map<attendeeId, answerIds>` is the single shape every save situation reduces
  * to — one answer set shared across attendees, a by-question selection, or the
- * per-event grouping from `groupEventAnswers` — so callers build the map and
+ * per-listing grouping from `groupListingAnswers` — so callers build the map and
  * this builds the SQL. `INSERT OR IGNORE` tolerates an answer set that repeats
- * an id (e.g. an attendee whose booked events share a question), which the
+ * an id (e.g. an attendee whose booked listings share a question), which the
  * unique `(attendee_id, answer_id)` index would otherwise reject.
  */
 export const saveAttendeeAnswers = async (
@@ -430,18 +435,18 @@ export const saveAttendeeAnswers = async (
 };
 
 /**
- * Reduce per-event answer selections to one answer set per attendee. An
- * attendee booking several events in the same submission accumulates every
- * event's answers; events with no answers contribute nothing. Feeds the map
+ * Reduce per-listing answer selections to one answer set per attendee. An
+ * attendee booking several listings in the same submission accumulates every
+ * listing's answers; listings with no answers contribute nothing. Feeds the map
  * straight into `saveAttendeeAnswers`.
  */
-export const groupEventAnswers = (
-  entries: { attendee: { id: number }; event: { id: number } }[],
-  eventAnswerIds: Record<string, number[]>,
+export const groupListingAnswers = (
+  entries: { attendee: { id: number }; listing: { id: number } }[],
+  listingAnswerIds: Record<string, number[]>,
 ): Map<number, number[]> => {
   const answersByAttendee = new Map<number, number[]>();
-  for (const { attendee, event } of entries) {
-    const answers = eventAnswerIds[String(event.id)];
+  for (const { attendee, listing } of entries) {
+    const answers = listingAnswerIds[String(listing.id)];
     if (!answers || answers.length === 0) continue;
     const existing = answersByAttendee.get(attendee.id) ?? [];
     existing.push(...answers);
@@ -476,7 +481,7 @@ export const getAttendeeAnswersBatch = async (
   )(rows);
 };
 
-/** Questions across a set of events plus each attendee's selected answers —
+/** Questions across a set of listings plus each attendee's selected answers —
  * the shape the attendee table, calendar, groups and edit form all render. */
 export type AttendeeQuestionData = {
   questions: QuestionWithAnswers[];
@@ -484,18 +489,18 @@ export type AttendeeQuestionData = {
 };
 
 /**
- * Load the questions for a set of events together with each attendee's chosen
+ * Load the questions for a set of listings together with each attendee's chosen
  * answers, in parallel. Returns `undefined` when there's nothing to render —
- * no events, no attendees, or no questions assigned — so callers can skip the
+ * no listings, no attendees, or no questions assigned — so callers can skip the
  * answers UI without an extra emptiness check.
  */
 export const loadAttendeeQuestionData = async (
-  eventIds: number[],
+  listingIds: number[],
   attendeeIds: number[],
 ): Promise<AttendeeQuestionData | undefined> => {
-  if (attendeeIds.length === 0 || eventIds.length === 0) return undefined;
+  if (attendeeIds.length === 0 || listingIds.length === 0) return undefined;
   const [{ questions }, attendeeAnswerMap] = await Promise.all([
-    getQuestionsWithEventIds(eventIds),
+    getQuestionsWithListingIds(listingIds),
     getAttendeeAnswersBatch(attendeeIds),
   ]);
   return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
@@ -545,7 +550,7 @@ export const deleteQuestion = async (questionId: number): Promise<void> => {
     { args: [questionId], sql: "DELETE FROM answers WHERE question_id = ?" },
     {
       args: [questionId],
-      sql: "DELETE FROM event_questions WHERE question_id = ?",
+      sql: "DELETE FROM listing_questions WHERE question_id = ?",
     },
     { args: [questionId], sql: "DELETE FROM questions WHERE id = ?" },
   ]);

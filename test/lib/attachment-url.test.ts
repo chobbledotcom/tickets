@@ -31,7 +31,7 @@ describe("signAttachmentUrl", () => {
     expect(exp - nowS).toBe(3600);
   });
 
-  test("generates unique signatures for different event/attendee combos", async () => {
+  test("generates unique signatures for different listing/attendee combos", async () => {
     const url1 = await signAttachmentUrl(1, 2);
     const url2 = await signAttachmentUrl(1, 3);
     const url3 = await signAttachmentUrl(2, 2);
@@ -87,7 +87,7 @@ describe("verifyAttachmentUrl", () => {
     expect(result).toBe(false);
   });
 
-  test("rejects wrong event ID", async () => {
+  test("rejects wrong listing ID", async () => {
     const url = await signAttachmentUrl(5, 10);
     const params = new URL(`http://x${url}`).searchParams;
     const result = await verifyAttachmentUrl(

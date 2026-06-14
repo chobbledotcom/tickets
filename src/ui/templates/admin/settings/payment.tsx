@@ -19,7 +19,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
     id="settings-payment-provider"
   >
     <h2>Payment Provider</h2>
-    <p>Choose which payment provider to use for paid events.</p>
+    <p>Choose which payment provider to use for paid listings.</p>
     <label>
       <input
         checked={!s.paymentProvider}
@@ -197,7 +197,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
               <code>{s.webhookUrl}</code>
             </li>
             <li>
-              Subscribe to the <strong>payment.updated</strong> event
+              Subscribe to the <strong>payment.updated</strong> listing
             </li>
             <li>
               Save the subscription and copy the <strong>Signature Key</strong>

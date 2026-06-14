@@ -8,14 +8,14 @@ import {
   requestAsApiKey,
   requestAsSession,
 } from "#test-utils";
-import { createTestEvent } from "#test-utils/db-helpers.ts";
+import { createTestListing } from "#test-utils/db-helpers.ts";
 
 describeWithEnv("admin API security", { db: true }, () => {
   describe("malformed JSON with API key auth", () => {
-    test("POST /api/admin/events returns 400 for malformed JSON", async () => {
+    test("POST /api/admin/listings returns 400 for malformed JSON", async () => {
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: "{not valid json",
           headers: { "content-type": "application/json" },
           method: "POST",
@@ -24,11 +24,11 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("PUT /api/admin/events/:id returns 400 for malformed JSON", async () => {
-      const event = await createTestEvent();
+    test("PUT /api/admin/listings/:id returns 400 for malformed JSON", async () => {
+      const listing = await createTestListing();
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey(`/api/admin/events/${event.id}`, apiKey, {
+        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
           body: "{not valid json",
           headers: { "content-type": "application/json" },
           method: "PUT",
@@ -37,31 +37,33 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("malformed JSON on POST does not create an event", async () => {
+    test("malformed JSON on POST does not create an listing", async () => {
       const apiKey = await createTestApiKeyToken();
       const before = await (
-        await import("#shared/db/events.ts")
-      ).getAllEvents();
+        await import("#shared/db/listings.ts")
+      ).getAllListings();
       const beforeCount = before.length;
 
       await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: "{not valid json",
           headers: { "content-type": "application/json" },
           method: "POST",
         }),
       );
 
-      const after = await (await import("#shared/db/events.ts")).getAllEvents();
+      const after = await (
+        await import("#shared/db/listings.ts")
+      ).getAllListings();
       expect(after.length).toBe(beforeCount);
     });
 
-    test("malformed JSON on PUT does not mutate the event", async () => {
-      const event = await createTestEvent({ name: "Original Name" });
+    test("malformed JSON on PUT does not mutate the listing", async () => {
+      const listing = await createTestListing({ name: "Original Name" });
       const apiKey = await createTestApiKeyToken();
 
       await handleRequest(
-        requestAsApiKey(`/api/admin/events/${event.id}`, apiKey, {
+        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
           body: "{not valid json",
           headers: { "content-type": "application/json" },
           method: "PUT",
@@ -69,17 +71,17 @@ describeWithEnv("admin API security", { db: true }, () => {
       );
 
       const refreshed = await (
-        await import("#shared/db/events.ts")
-      ).getEventWithCount(event.id);
+        await import("#shared/db/listings.ts")
+      ).getListingWithCount(listing.id);
       expect(refreshed!.name).toBe("Original Name");
     });
   });
 
   describe("malformed JSON with cookie auth", () => {
-    test("POST /api/admin/events returns 400 with valid CSRF token", async () => {
+    test("POST /api/admin/listings returns 400 with valid CSRF token", async () => {
       const session = await getTestSession();
       const response = await handleRequest(
-        requestAsSession("/api/admin/events", session, {
+        requestAsSession("/api/admin/listings", session, {
           body: "{not valid json",
           headers: { "content-type": "application/json" },
           method: "POST",
@@ -88,11 +90,11 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("PUT /api/admin/events/:id returns 400 with valid CSRF token", async () => {
-      const event = await createTestEvent();
+    test("PUT /api/admin/listings/:id returns 400 with valid CSRF token", async () => {
+      const listing = await createTestListing();
       const session = await getTestSession();
       const response = await handleRequest(
-        requestAsSession(`/api/admin/events/${event.id}`, session, {
+        requestAsSession(`/api/admin/listings/${listing.id}`, session, {
           body: "{not valid json",
           headers: { "content-type": "application/json" },
           method: "PUT",
@@ -103,10 +105,10 @@ describeWithEnv("admin API security", { db: true }, () => {
   });
 
   describe("missing or wrong content-type for mutating requests", () => {
-    test("POST /api/admin/events without content-type returns 400", async () => {
+    test("POST /api/admin/listings without content-type returns 400", async () => {
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: JSON.stringify({ max_attendees: 10, name: "Test" }),
           method: "POST",
         }),
@@ -114,11 +116,11 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("PUT /api/admin/events/:id without content-type returns 400", async () => {
-      const event = await createTestEvent();
+    test("PUT /api/admin/listings/:id without content-type returns 400", async () => {
+      const listing = await createTestListing();
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey(`/api/admin/events/${event.id}`, apiKey, {
+        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
           body: JSON.stringify({ name: "Updated" }),
           method: "PUT",
         }),
@@ -126,10 +128,10 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("POST /api/admin/events with text/plain content-type returns 400", async () => {
+    test("POST /api/admin/listings with text/plain content-type returns 400", async () => {
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: JSON.stringify({ max_attendees: 10, name: "Test" }),
           headers: { "content-type": "text/plain" },
           method: "POST",
@@ -139,11 +141,11 @@ describeWithEnv("admin API security", { db: true }, () => {
     });
 
     test("body-bearing DELETE without content-type is rejected", async () => {
-      const event = await createTestEvent();
+      const listing = await createTestListing();
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey(`/api/admin/events/${event.id}`, apiKey, {
-          body: JSON.stringify({ confirm_identifier: event.name }),
+        requestAsApiKey(`/api/admin/listings/${listing.id}`, apiKey, {
+          body: JSON.stringify({ confirm_identifier: listing.name }),
           method: "DELETE",
         }),
       );
@@ -155,14 +157,14 @@ describeWithEnv("admin API security", { db: true }, () => {
       const body = JSON.stringify({ max_attendees: 10, name: "Case Test" });
 
       const lower = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body,
           headers: { "content-type": "application/json" },
           method: "POST",
         }),
       );
       const upper = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body,
           headers: { "content-type": "APPLICATION/JSON" },
           method: "POST",
@@ -176,10 +178,10 @@ describeWithEnv("admin API security", { db: true }, () => {
   });
 
   describe("JSON body shape validation", () => {
-    test("POST /api/admin/events returns 400 for JSON array body", async () => {
+    test("POST /api/admin/listings returns 400 for JSON array body", async () => {
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: "[]",
           headers: { "content-type": "application/json" },
           method: "POST",
@@ -188,10 +190,10 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("POST /api/admin/events returns 400 for JSON null body", async () => {
+    test("POST /api/admin/listings returns 400 for JSON null body", async () => {
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: "null",
           headers: { "content-type": "application/json" },
           method: "POST",
@@ -200,10 +202,10 @@ describeWithEnv("admin API security", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("POST /api/admin/events returns 400 for JSON primitive body", async () => {
+    test("POST /api/admin/listings returns 400 for JSON primitive body", async () => {
       const apiKey = await createTestApiKeyToken();
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey, {
+        requestAsApiKey("/api/admin/listings", apiKey, {
           body: '"just a string"',
           headers: { "content-type": "application/json" },
           method: "POST",

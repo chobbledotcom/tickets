@@ -4,28 +4,24 @@
  * Both `/admin/attendees/new` (create) and `/admin/attendees/:id` (edit)
  * render the same field shape, parse the same line-item editor, and run the
  * same validation rules. The only difference is that edit mode hydrates the
- * form from existing attendee + event_attendees rows.
+ * form from existing attendee + listing_attendees rows.
  *
  * The form is a plain HTTP form. Repeatable line items are indexed by
- * position (line_event_id_N, line_quantity_N, line_date_N, line_key_N) and
+ * position (line_listing_id_N, line_quantity_N, line_date_N, line_key_N) and
  * the server re-renders on add-line / remove-line actions so the operator
  * never needs JavaScript to use the page.
  */
 
 import { filter, map, pipe } from "#fp";
+import { addDays, getAvailableDates } from "#shared/dates.ts";
 import type {
-  DesiredEventLine,
-  EventAttendeeRow,
-  EventBooking,
+  DesiredListingLine,
+  ListingAttendeeRow,
+  ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  addDays,
-  getAvailableDates,
-} from "#shared/dates.ts";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
-import type { Holiday } from "#shared/types.ts";
-import type { EventWithCount } from "#shared/types.ts";
+import type { Holiday, ListingWithCount } from "#shared/types.ts";
 import {
   validateAddress,
   validateEmail,
@@ -37,7 +33,7 @@ import {
 // Field-name constants — single source of truth for template + parser
 // ---------------------------------------------------------------------------
 
-export const LINE_EVENT_ID_PREFIX = "line_event_id_";
+export const LINE_LISTING_ID_PREFIX = "line_listing_id_";
 export const LINE_QUANTITY_PREFIX = "line_quantity_";
 export const LINE_DATE_PREFIX = "line_date_";
 export const LINE_KEY_PREFIX = "line_key_";
@@ -56,21 +52,21 @@ export const ATTENDEE_FORM_ID = "attendee-form";
 // Domain types
 // ---------------------------------------------------------------------------
 
-/** A single line in the editor — one event registration. */
+/** A single line in the editor — one listing registration. */
 export type AttendeeFormLine = {
-  /** Stable key from the existing event_attendees row (`${eventId}|${startAt}`).
+  /** Stable key from the existing listing_attendees row (`${listingId}|${startAt}`).
    * Empty string for newly-added lines. */
   key: string;
-  /** Parsed event id; 0 means the line is blank (no event chosen). */
-  eventId: number;
+  /** Parsed listing id; 0 means the line is blank (no listing chosen). */
+  listingId: number;
   /** Parsed quantity; null when the field was blank/non-numeric. */
   quantity: number | null;
-  /** Raw date string (YYYY-MM-DD) — only meaningful for daily events. */
+  /** Raw date string (YYYY-MM-DD) — only meaningful for daily listings. */
   date: string;
-  /** Resolved event reference (null when eventId is unknown or blank). */
-  event: EventWithCount | null;
+  /** Resolved listing reference (null when listingId is unknown or blank). */
+  listing: ListingWithCount | null;
   /** Existing booking row, when editing an existing line. */
-  existingBooking: EventAttendeeRow | null;
+  existingBooking: ListingAttendeeRow | null;
   /** Line-level validation error (set by validateParsedForm). */
   error: string | null;
 };
@@ -124,23 +120,23 @@ export type DailyDefaults = {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the stable line key matching `event_attendees` identity.
- * The unique index is (event_id, attendee_id, start_at), so for a single
- * attendee (event_id, start_at) uniquely identifies a row.
+ * Build the stable line key matching `listing_attendees` identity.
+ * The unique index is (listing_id, attendee_id, start_at), so for a single
+ * attendee (listing_id, start_at) uniquely identifies a row.
  */
 export const buildLineKey = (
-  eventId: number,
+  listingId: number,
   startAt: string | null,
-): string => `${eventId}|${startAt ?? ""}`;
+): string => `${listingId}|${startAt ?? ""}`;
 
-/** True when the line has no event selected and no existing identity. */
+/** True when the line has no listing selected and no existing identity. */
 export const isBlankLine = (line: AttendeeFormLine): boolean =>
-  line.eventId <= 0 && !line.key;
+  line.listingId <= 0 && !line.key;
 
 /** True when the line should become a booking: non-blank and resolved to a
- * real event. The shared predicate for both mutation adapters. */
+ * real listing. The shared predicate for both mutation adapters. */
 const isFillableLine = (line: AttendeeFormLine): boolean =>
-  !isBlankLine(line) && line.event !== null;
+  !isBlankLine(line) && line.listing !== null;
 
 /**
  * Drop the trailing blank line the template always renders so save
@@ -170,7 +166,8 @@ const parseAction = (form: FormParams): FormAction => {
       raw.slice(REMOVE_LINE_ACTION_PREFIX.length),
       10,
     );
-    if (Number.isInteger(idx) && idx >= 0) return { index: idx, kind: "remove_line" };
+    if (Number.isInteger(idx) && idx >= 0)
+      return { index: idx, kind: "remove_line" };
   }
   // Default and any unrecognized value (including "save") → save.
   return { kind: "save" };
@@ -184,43 +181,44 @@ const parseAction = (form: FormParams): FormAction => {
  * Read the attendee contact fields and every line item from the form.
  *
  * Lines are read positionally: for each N in [0, line_count), read the
- * matching `line_*_N` fields. `eventsById` resolves event references; an
- * unknown event id is recorded as an unresolved line (validation will flag
+ * matching `line_*_N` fields. `listingsById` resolves listing references; an
+ * unknown listing id is recorded as an unresolved line (validation will flag
  * it). `existingByKey` (edit mode) attaches the original booking row to
  * lines that already existed.
  */
 export const parseAttendeeForm = (
   form: FormParams,
-  eventsById: Map<number, EventWithCount>,
-  existingByKey: Map<string, EventAttendeeRow> = new Map(),
+  listingsById: Map<number, ListingWithCount>,
+  existingByKey: Map<string, ListingAttendeeRow> = new Map(),
 ): ParsedAttendeeForm => {
   const lineCountRaw = Number.parseInt(form.getString(LINE_COUNT_FIELD), 10);
-  const lineCount = Number.isInteger(lineCountRaw) && lineCountRaw > 0
-    ? Math.min(lineCountRaw, MAX_FORM_LINES)
-    : 1;
+  const lineCount =
+    Number.isInteger(lineCountRaw) && lineCountRaw > 0
+      ? Math.min(lineCountRaw, MAX_FORM_LINES)
+      : 1;
 
   const lines: AttendeeFormLine[] = [];
   for (let i = 0; i < lineCount; i++) {
-    const eventId = Number.parseInt(
-      form.getString(`${LINE_EVENT_ID_PREFIX}${i}`),
+    const listingId = Number.parseInt(
+      form.getString(`${LINE_LISTING_ID_PREFIX}${i}`),
       10,
     );
     const quantityRaw = form.getString(`${LINE_QUANTITY_PREFIX}${i}`);
-    const quantity = quantityRaw === ""
-      ? null
-      : Number.parseInt(quantityRaw, 10);
+    const quantity =
+      quantityRaw === "" ? null : Number.parseInt(quantityRaw, 10);
     const date = form.getString(`${LINE_DATE_PREFIX}${i}`);
     const key = form.getString(`${LINE_KEY_PREFIX}${i}`);
-    const existingBooking = key ? existingByKey.get(key) ?? null : null;
+    const existingBooking = key ? (existingByKey.get(key) ?? null) : null;
     lines.push({
       date,
       error: null,
-      event: Number.isInteger(eventId) && eventId > 0
-        ? eventsById.get(eventId) ?? null
-        : null,
-      eventId: Number.isInteger(eventId) && eventId > 0 ? eventId : 0,
       existingBooking,
       key,
+      listing:
+        Number.isInteger(listingId) && listingId > 0
+          ? (listingsById.get(listingId) ?? null)
+          : null,
+      listingId: Number.isInteger(listingId) && listingId > 0 ? listingId : 0,
       quantity: Number.isNaN(quantity as number) ? null : quantity,
     });
   }
@@ -246,8 +244,10 @@ const isValidDateString = (value: string): boolean => {
   // Reject rollover typos (e.g. 2026-02-30 → Mar 2) by requiring the parsed
   // date to serialize back to the same string, not just be non-NaN.
   const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === value;
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+  );
 };
 
 /**
@@ -318,7 +318,7 @@ const validateAttendeeBlock = (
  * Validate a single line.
  *
  * Returns the first error encountered (in priority order) or null if the
- * line passes. Blank lines (no event selected, no existing key) are allowed
+ * line passes. Blank lines (no listing selected, no existing key) are allowed
  * — `trimTrailingBlankLines` cleans them up before validation, and any that
  * survive are treated as no-ops so the operator can submit a partially
  * filled form without losing data.
@@ -330,38 +330,38 @@ const validateLine = (
 ): string | null => {
   if (isBlankLine(line)) return null;
 
-  if (!line.event) {
-    return "Event no longer exists or is inactive";
+  if (!line.listing) {
+    return "Listing no longer exists or is inactive";
   }
-  if (!line.event.active) {
-    return `Event '${line.event.name}' is inactive`;
+  if (!line.listing.active) {
+    return `Listing '${line.listing.name}' is inactive`;
   }
 
   const qty = line.quantity;
   if (qty === null || !Number.isInteger(qty) || qty < 1) {
     return "Quantity must be at least 1";
   }
-  if (qty > line.event.max_quantity) {
-    return `Quantity must be at most ${line.event.max_quantity}`;
+  if (qty > line.listing.max_quantity) {
+    return `Quantity must be at most ${line.listing.max_quantity}`;
   }
 
-  const isDaily = line.event.event_type === "daily";
+  const isDaily = line.listing.listing_type === "daily";
   if (isDaily) {
-    if (!line.date) return "Date is required for daily events";
+    if (!line.date) return "Date is required for daily listings";
     if (!isValidDateString(line.date)) {
       return "Date must be a valid YYYY-MM-DD value";
     }
-    const allowed = new Set(getAvailableDates(line.event, holidays));
+    const allowed = new Set(getAvailableDates(line.listing, holidays));
     if (!allowed.has(line.date)) {
-      return "Date is not bookable for this event";
+      return "Date is not bookable for this listing";
     }
   }
 
-  // Duplicate-line check: same event + same date would collide on the
-  // (event_id, attendee_id, start_at) unique index.
-  const dedupeKey = buildLineKey(line.eventId, isDaily ? line.date : null);
+  // Duplicate-line check: same listing + same date would collide on the
+  // (listing_id, attendee_id, start_at) unique index.
+  const dedupeKey = buildLineKey(line.listingId, isDaily ? line.date : null);
   if (seenLineKeys.has(dedupeKey)) {
-    return "Duplicate event line — same event and date already added";
+    return "Duplicate listing line — same listing and date already added";
   }
   seenLineKeys.add(dedupeKey);
   return null;
@@ -371,9 +371,9 @@ const validateLine = (
 // Daily defaults + mixed-timing detection
 // ---------------------------------------------------------------------------
 
-/** Compute the duration (in days) implied by an event_attendees row range. */
+/** Compute the duration (in days) implied by an listing_attendees row range. */
 export const bookingDurationDays = (
-  booking: EventAttendeeRow,
+  booking: ListingAttendeeRow,
 ): number | null => {
   if (!booking.start_at || !booking.end_at) return null;
   const startMs = new Date(booking.start_at).getTime();
@@ -393,16 +393,17 @@ export const bookingDurationDays = (
  * - When existing daily lines disagree, `hasMixedTimings` becomes true so
  *   the template can render the non-blocking alert.
  * - When there are no existing daily lines, `inheritedDate` is null and the
- *   template falls back to tomorrow + the event's duration.
+ *   template falls back to tomorrow + the listing's duration.
  */
 export const resolveDailyDefaults = (
   lines: AttendeeFormLine[],
 ): DailyDefaults => {
   const dailyBookings = pipe(
-    filter((line: AttendeeFormLine) =>
-      Boolean(line.existingBooking) &&
-      line.event?.event_type === "daily" &&
-      line.existingBooking!.start_at !== null
+    filter(
+      (line: AttendeeFormLine) =>
+        Boolean(line.existingBooking) &&
+        line.listing?.listing_type === "daily" &&
+        line.existingBooking!.start_at !== null,
     ),
     map((line: AttendeeFormLine) => ({
       duration: bookingDurationDays(line.existingBooking!) ?? 1,
@@ -446,29 +447,32 @@ export const defaultNewDailyDate = (todayIso: string): string =>
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a parsed, validated form into the multi-event AttendeeInput used
+ * Convert a parsed, validated form into the multi-listing AttendeeInput used
  * by `createAttendeeAtomic`. Non-daily lines pass `date: null`.
  */
 export const toCreateInput = (
   parsed: ParsedAttendeeForm,
 ): {
   address: string;
-  bookings: EventBooking[];
+  bookings: ListingBooking[];
   email: string;
   name: string;
   phone: string;
   special_instructions: string;
 } => {
-  const bookings: EventBooking[] = pipe(
+  const bookings: ListingBooking[] = pipe(
     filter(isFillableLine),
-    map((line: AttendeeFormLine): EventBooking => ({
-      date: line.event!.event_type === "daily" ? line.date : null,
-      durationDays: line.event!.event_type === "daily"
-        ? line.event!.duration_days
-        : undefined,
-      eventId: line.eventId,
-      quantity: line.quantity!,
-    })),
+    map(
+      (line: AttendeeFormLine): ListingBooking => ({
+        date: line.listing!.listing_type === "daily" ? line.date : null,
+        durationDays:
+          line.listing!.listing_type === "daily"
+            ? line.listing!.duration_days
+            : undefined,
+        listingId: line.listingId,
+        quantity: line.quantity!,
+      }),
+    ),
   )(parsed.lines);
 
   return {
@@ -483,26 +487,25 @@ export const toCreateInput = (
 
 /**
  * Compute the desired final-state line set for the atomic update path.
- * Daily events resolve `date`/`durationDays`; non-daily events null them.
- * Duplicate (eventId, date) lines are not de-duplicated here — validation
+ * Daily listings resolve `date`/`durationDays`; non-daily listings null them.
+ * Duplicate (listingId, date) lines are not de-duplicated here — validation
  * already rejects them with a visible error, and the DB layer rejects any
  * that slip past a direct caller; silently dropping a line would hide intent.
  */
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
-): DesiredEventLine[] =>
+): DesiredListingLine[] =>
   pipe(
     filter(isFillableLine),
-    map((line: AttendeeFormLine): DesiredEventLine => {
-      const isDaily = line.event!.event_type === "daily";
+    map((line: AttendeeFormLine): DesiredListingLine => {
+      const isDaily = line.listing!.listing_type === "daily";
       return {
         date: isDaily ? line.date : null,
-        durationDays: isDaily ? line.event!.duration_days : 1,
-        eventId: line.eventId,
+        durationDays: isDaily ? line.listing!.duration_days : 1,
         exists: Boolean(line.key) && Boolean(line.existingBooking),
         key: line.key,
+        listingId: line.listingId,
         quantity: line.quantity!,
       };
     }),
   )(parsed.lines);
-

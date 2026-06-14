@@ -2,20 +2,20 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesByTokens } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { createTestListing, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   test("returns attendees in token order", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
+    const listing = await createTestListing({ maxAttendees: 10 });
 
     const { createTestAttendeeDirect } = await import("#test-utils");
     const { attendee: a1, token: token1 } = await createTestAttendeeDirect(
-      event.id,
+      listing.id,
       "Tok1",
       "tok1@example.com",
     );
     const { attendee: a2, token: token2 } = await createTestAttendeeDirect(
-      event.id,
+      listing.id,
       "Tok2",
       "tok2@example.com",
     );
@@ -33,18 +33,18 @@ describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   });
 
   test("returns empty bookings for orphaned attendee", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
+    const listing = await createTestListing({ maxAttendees: 10 });
     const { createTestAttendeeDirect: createDirect } = await import(
       "#test-utils"
     );
     const { attendee, token } = await createDirect(
-      event.id,
+      listing.id,
       "Orphan",
       "orphan@test.com",
     );
     await getDb().execute({
       args: [attendee.id],
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     });
     const results = await getAttendeesByTokens([token]);
     expect(results[0]).not.toBeNull();

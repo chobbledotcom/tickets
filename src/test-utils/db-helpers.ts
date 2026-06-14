@@ -4,17 +4,17 @@ import { toMajorUnits } from "#shared/currency.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
-import { type EventInput, getEventWithCount } from "#shared/db/events.ts";
 import type { GroupInput } from "#shared/db/groups.ts";
 import type { HolidayInput } from "#shared/db/holidays.ts";
+import { getListingWithCount, type ListingInput } from "#shared/db/listings.ts";
 import type {
   Attendee,
-  Event,
-  EventWithCount,
   Group,
   Holiday,
+  Listing,
+  ListingWithCount,
 } from "#shared/types.ts";
-import { testEventInput } from "#test-utils/factories.ts";
+import { testListingInput } from "#test-utils/factories.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 
 const bool = (v: unknown): string => (v ? "1" : "");
@@ -37,8 +37,8 @@ const splitClosesAt = (
 const pickField = <T>(update: T | undefined, existing: T): T =>
   update !== undefined ? update : existing;
 
-const buildCreateEventForm = (
-  input: Omit<EventInput, "slug" | "slugIndex">,
+const buildCreateListingForm = (
+  input: Omit<ListingInput, "slug" | "slugIndex">,
 ): Record<string, string> => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
@@ -57,11 +57,11 @@ const buildCreateEventForm = (
     date_time: dateParts.time,
     description: input.description ?? "",
     duration_days: optionalNumber(input.durationDays),
-    event_type: input.eventType ?? "",
     fields: input.fields ?? "email",
     group_id: String(input.groupId ?? 0),
     hidden: bool(input.hidden),
     initial_site_months: String(initialSiteMonths),
+    listing_type: input.listingType ?? "",
     location: input.location ?? "",
     max_attendees: String(input.maxAttendees),
     max_price: toMajorUnits(input.maxPrice),
@@ -79,8 +79,8 @@ const buildCreateEventForm = (
 };
 
 const buildUpdateBoolFields = (
-  updates: Partial<EventInput>,
-  existing: EventWithCount,
+  updates: Partial<ListingInput>,
+  existing: ListingWithCount,
 ): Record<string, string> => ({
   assign_built_site: bool(
     pickField(updates.assignBuiltSite, existing.assign_built_site),
@@ -94,8 +94,8 @@ const buildUpdateBoolFields = (
 });
 
 const buildUpdateNumericFields = (
-  updates: Partial<EventInput>,
-  existing: EventWithCount,
+  updates: Partial<ListingInput>,
+  existing: ListingWithCount,
 ): Record<string, string> => {
   const assignsBuiltSite = pickField(
     updates.assignBuiltSite,
@@ -129,15 +129,15 @@ const buildUpdateNumericFields = (
 };
 
 const buildUpdateStringFields = (
-  updates: Partial<EventInput>,
-  existing: EventWithCount,
+  updates: Partial<ListingInput>,
+  existing: ListingWithCount,
 ): Record<string, string> => ({
   bookable_days: formatBookableDaysForForm(
     pickField(updates.bookableDays, existing.bookable_days),
   ),
   description: pickField(updates.description, existing.description),
-  event_type: pickField(updates.eventType, existing.event_type),
   fields: pickField(updates.fields, existing.fields),
+  listing_type: pickField(updates.listingType, existing.listing_type),
   location: pickField(updates.location, existing.location),
   name: pickField(updates.name, existing.name),
   slug: pickField(updates.slug, existing.slug),
@@ -145,9 +145,9 @@ const buildUpdateStringFields = (
   webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
 });
 
-const buildUpdateEventForm = (
-  updates: Partial<EventInput>,
-  existing: EventWithCount,
+const buildUpdateListingForm = (
+  updates: Partial<ListingInput>,
+  existing: ListingWithCount,
 ): Record<string, string> => {
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
   const dateParts = splitClosesAt(updates.date, existing.date);
@@ -216,19 +216,19 @@ async function doAuthenticatedMultipartFormRequest<T>(
   return onSuccess();
 }
 
-export const createTestEvent = (
-  overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
-): Promise<Event> => {
-  const input = testEventInput(overrides);
+export const createTestListing = (
+  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+): Promise<Listing> => {
+  const input = testListingInput(overrides);
   return doAuthenticatedMultipartFormRequest(
-    "/admin/event",
-    buildCreateEventForm(input),
+    "/admin/listing",
+    buildCreateListingForm(input),
     async () => {
-      const { getAllEvents } = await import("#shared/db/events.ts");
-      const events = await getAllEvents();
-      return events[0] as Event;
+      const { getAllListings } = await import("#shared/db/listings.ts");
+      const listings = await getAllListings();
+      return listings[0] as Listing;
     },
-    "create event",
+    "create listing",
   );
 };
 
@@ -245,43 +245,43 @@ const allDays: string[] = [
 export const priceFormValue = (minorUnits: number): string =>
   toMajorUnits(minorUnits);
 
-export const updateTestEvent = async (
-  eventId: number,
-  updates: Partial<EventInput>,
-): Promise<Event> => {
-  const existing = await getEventWithCount(eventId);
+export const updateTestListing = async (
+  listingId: number,
+  updates: Partial<ListingInput>,
+): Promise<Listing> => {
+  const existing = await getListingWithCount(listingId);
   if (!existing) {
-    throw new Error(`Event not found: ${eventId}`);
+    throw new Error(`Listing not found: ${listingId}`);
   }
   return doAuthenticatedMultipartFormRequest(
-    `/admin/event/${eventId}/edit`,
-    buildUpdateEventForm(updates, existing),
-    async () => (await getEventWithCount(eventId)) as EventWithCount,
-    "update event",
+    `/admin/listing/${listingId}/edit`,
+    buildUpdateListingForm(updates, existing),
+    async () => (await getListingWithCount(listingId)) as ListingWithCount,
+    "update listing",
   );
 };
 
-const changeEventStatus =
+const changeListingStatus =
   (action: "deactivate" | "reactivate") =>
-  async (eventId: number): Promise<void> => {
-    const event = await getEventWithCount(eventId);
-    if (!event) {
-      throw new Error(`Event not found: ${eventId}`);
+  async (listingId: number): Promise<void> => {
+    const listing = await getListingWithCount(listingId);
+    if (!listing) {
+      throw new Error(`Listing not found: ${listingId}`);
     }
     return doAuthenticatedFormRequest(
-      `/admin/event/${eventId}/${action}`,
-      { confirm_identifier: event.name },
+      `/admin/listing/${listingId}/${action}`,
+      { confirm_identifier: listing.name },
       async () => {},
-      `${action} event`,
+      `${action} listing`,
     );
   };
 
-export const deactivateTestEvent = changeEventStatus("deactivate");
-export const reactivateTestEvent = changeEventStatus("reactivate");
+export const deactivateTestListing = changeListingStatus("deactivate");
+export const reactivateTestListing = changeListingStatus("reactivate");
 
 export const createTestAttendee = async (
-  eventId: number,
-  eventSlug: string,
+  listingId: number,
+  listingSlug: string,
   name: string,
   email: string,
   quantity = 1,
@@ -293,14 +293,16 @@ export const createTestAttendee = async (
   );
   const { extractCsrfToken } = await import("#test-utils/csrf.ts");
 
-  const pageResponse = await handleRequest(mockRequest(`/ticket/${eventSlug}`));
+  const pageResponse = await handleRequest(
+    mockRequest(`/ticket/${listingSlug}`),
+  );
   const pageHtml = await pageResponse.text();
   const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
 
   const response = await handleRequest(
     mockTicketFormRequest(
-      eventSlug,
-      { email, name, phone, [`quantity_${eventId}`]: String(quantity) },
+      listingSlug,
+      { email, name, phone, [`quantity_${listingId}`]: String(quantity) },
       csrfToken,
     ),
   );
@@ -327,14 +329,14 @@ export const createTestAttendee = async (
 
   response.body?.cancel();
 
-  const afterAttendees = await getAttendeesRaw(eventId);
+  const afterAttendees = await getAttendeesRaw(listingId);
   return afterAttendees[0] as Attendee;
 };
 
 export { getAttendeesRaw };
 
 export const createTestAttendeeDirect = async (
-  eventId: number,
+  listingId: number,
   name: string,
   email: string,
   quantity = 1,
@@ -346,7 +348,7 @@ export const createTestAttendeeDirect = async (
 
   const result = await createAttendeeAtomic({
     address,
-    bookings: [{ eventId, quantity }],
+    bookings: [{ listingId, quantity }],
     email,
     name,
     phone,
@@ -365,9 +367,9 @@ export const createTestAttendeeDirect = async (
 
 /**
  * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`)
- * that preserves the attendee's existing event-registration lines.
+ * that preserves the attendee's existing listing-registration lines.
  *
- * Reads the attendee's current `event_attendees` rows and emits one
+ * Reads the attendee's current `listing_attendees` rows and emits one
  * `line_*_N` block per existing booking with the correct `line_key_N`. Use
  * `overrides.lines` to swap / add / drop lines, and the top-level overrides
  * for PII fields.
@@ -382,7 +384,7 @@ export const buildAttendeeEditForm = async (
     special_instructions?: string;
     returnUrl?: string;
     lines?: Array<{
-      eventId: number;
+      listingId: number;
       quantity?: number;
       date?: string;
       /** Omit to add as a new line; pass the existing key to update. */
@@ -394,25 +396,26 @@ export const buildAttendeeEditForm = async (
 ): Promise<Record<string, string>> => {
   const { loadExistingLines } = await import("#shared/db/attendees.ts");
   const existing = await loadExistingLines(attendeeId);
-  const lines = overrides.lines ??
+  const lines =
+    overrides.lines ??
     existing.map(({ key, booking }) => ({
       date: booking.start_at?.slice(0, 10) ?? "",
-      eventId: booking.event_id,
       key,
+      listingId: booking.listing_id,
       quantity: booking.quantity,
     }));
   const form: Record<string, string> = {
     action: "save",
     address: overrides.address ?? "",
     email: overrides.email ?? "",
+    ["line_count"]: String(lines.length),
     name: overrides.name ?? "",
     phone: overrides.phone ?? "",
     special_instructions: overrides.special_instructions ?? "",
-    [`line_count`]: String(lines.length),
   };
   if (overrides.returnUrl) form["return_url"] = overrides.returnUrl;
   lines.forEach((line, i) => {
-    form[`line_event_id_${i}`] = String(line.eventId);
+    form[`line_listing_id_${i}`] = String(line.listingId);
     form[`line_quantity_${i}`] = String(line.quantity ?? 1);
     form[`line_date_${i}`] = line.date ?? "";
     form[`line_key_${i}`] = line.key ?? "";
@@ -424,27 +427,30 @@ export const buildAttendeeEditForm = async (
 export const createTestAttendeeWithToken = async (
   name: string,
   email: string,
-  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
   quantity = 1,
   phone = "",
-): Promise<{ event: Event; attendee: Attendee; token: string }> => {
-  const event = await createTestEvent({ maxAttendees: 10, ...eventOverrides });
+): Promise<{ listing: Listing; attendee: Attendee; token: string }> => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    ...listingOverrides,
+  });
   const { attendee, token } = await createTestAttendeeDirect(
-    event.id,
+    listing.id,
     name,
     email,
     quantity,
     phone,
   );
-  return { attendee, event, token };
+  return { attendee, listing, token };
 };
 
-export const createDailyTestEvent = (
-  overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+export const createDailyTestListing = (
+  overrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
 ) =>
-  createTestEvent({
+  createTestListing({
     bookableDays: allDays,
-    eventType: "daily",
+    listingType: "daily",
     maxAttendees: 10,
     maximumDaysAfter: 60,
     minimumDaysBefore: 0,
@@ -452,7 +458,7 @@ export const createDailyTestEvent = (
   });
 
 export const createPaidTestAttendee = async (
-  eventId: number,
+  listingId: number,
   name: string,
   email: string,
   paymentId: string,
@@ -461,7 +467,7 @@ export const createPaidTestAttendee = async (
 ): Promise<Attendee> => {
   const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
   const result = await createAttendeeAtomic({
-    bookings: [{ eventId, pricePaid, quantity }],
+    bookings: [{ listingId, pricePaid, quantity }],
     email,
     name,
     paymentId,
@@ -470,12 +476,12 @@ export const createPaidTestAttendee = async (
 };
 
 export const bookAttendee = async (
-  event: Pick<Event, "id">,
+  listing: Pick<Listing, "id">,
   opts: BookAttendeeOpts = {},
 ): Promise<CreateAttendeeResult> => {
   const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-  const booking: import("#shared/db/attendee-types.ts").EventBooking = {
-    eventId: event.id,
+  const booking: import("#shared/db/attendee-types.ts").ListingBooking = {
+    listingId: listing.id,
   };
   if (opts.date !== undefined) booking.date = opts.date;
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
@@ -498,18 +504,18 @@ export const createDailyTestAttendee = async (
   name: string,
   email: string,
   date: string,
-  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
-): Promise<{ event: Event; attendee: Attendee; token: string }> => {
+  listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
+): Promise<{ listing: Listing; attendee: Attendee; token: string }> => {
   const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-  const event = await createDailyTestEvent(eventOverrides);
+  const listing = await createDailyTestListing(listingOverrides);
   const result = await createAttendeeAtomic({
-    bookings: [{ date, eventId: event.id }],
+    bookings: [{ date, listingId: listing.id }],
     email,
     name,
   });
   const { attendees } = result as Extract<typeof result, { success: true }>;
   const attendee = attendees[0]!;
-  return { attendee, event, token: attendee.ticket_token };
+  return { attendee, listing, token: attendee.ticket_token };
 };
 
 export const createTestGroup = async (
@@ -782,9 +788,9 @@ export const createTestInvite = async (
 export const getEmbeddableTicketResponse = async (): Promise<Response> => {
   const { handleRequest } = await import("#routes");
   const { mockRequest } = await import("#test-utils/mocks.ts");
-  const event = await createTestEvent({
+  const listing = await createTestListing({
     maxAttendees: 50,
     thankYouUrl: "https://example.com",
   });
-  return handleRequest(mockRequest(`/ticket/${event.slug}`));
+  return handleRequest(mockRequest(`/ticket/${listing.slug}`));
 };

@@ -2,9 +2,9 @@
  * Bulk actions for groups.
  *
  * Provides a landing page listing available bulk operations for a group's
- * events, and per-action form + handler pairs. The first action is
- * "Duplicate Group": create a new group and clone every event into it,
- * applying a shared find/replace on the event name and a date shift
+ * listings, and per-action form + handler pairs. The first action is
+ * "Duplicate Group": create a new group and clone every listing into it,
+ * applying a shared find/replace on the listing name and a date shift
  * derived from two reference dates.
  */
 
@@ -23,16 +23,16 @@ import {
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { eventsTable } from "#shared/db/events.ts";
 import {
-  getEventsByGroupId,
+  getListingsByGroupId,
   groupsTable,
-  setGroupEventsActive,
+  setGroupListingsActive,
 } from "#shared/db/groups.ts";
-import { buildDuplicateEventInput } from "#shared/events-actions.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { sortEvents } from "#shared/sort-events.ts";
-import type { AdminSession, EventWithCount, Group } from "#shared/types.ts";
+import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import { sortListings } from "#shared/sort-listings.ts";
+import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import {
   adminBulkActionsPage,
   adminDeactivateGroupPage,
@@ -41,11 +41,11 @@ import {
 } from "#templates/admin/bulk-actions.tsx";
 
 /** Render a bulk-actions sub-page for an authenticated group detail view. */
-const groupEventsPage =
+const groupListingsPage =
   (
     render: (
       group: Group,
-      events: EventWithCount[],
+      listings: ListingWithCount[],
       session: AdminSession,
       error?: string,
     ) => string,
@@ -53,23 +53,23 @@ const groupEventsPage =
   (request, { id }) =>
     requireSessionOr(request, (session) =>
       withGroup(id)(async (group) => {
-        const events = sortEvents(await getEventsByGroupId(group.id), []);
+        const listings = sortListings(await getListingsByGroupId(group.id), []);
         const flash = getFlash();
-        return htmlResponse(render(group, events, session, flash.error));
+        return htmlResponse(render(group, listings, session, flash.error));
       }),
     );
 
 /** GET /admin/groups/:id/bulk-actions */
-const handleBulkActionsGet = groupEventsPage(adminBulkActionsPage);
+const handleBulkActionsGet = groupListingsPage(adminBulkActionsPage);
 
 /** GET /admin/groups/:id/bulk-actions/duplicate */
-const handleDuplicateGroupGet = groupEventsPage(adminDuplicateGroupPage);
+const handleDuplicateGroupGet = groupListingsPage(adminDuplicateGroupPage);
 
 /** GET /admin/groups/:id/bulk-actions/deactivate */
-const handleDeactivateGroupGet = groupEventsPage(adminDeactivateGroupPage);
+const handleDeactivateGroupGet = groupListingsPage(adminDeactivateGroupPage);
 
 /** GET /admin/groups/:id/bulk-actions/reactivate */
-const handleReactivateGroupGet = groupEventsPage(adminReactivateGroupPage);
+const handleReactivateGroupGet = groupListingsPage(adminReactivateGroupPage);
 
 /** Factory for group-level bulk toggle handlers (deactivate/reactivate). */
 const groupTogglePost = (opts: { active: boolean; action: string }) =>
@@ -81,13 +81,13 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     mismatchRedirect: (group) =>
       `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
     onConfirm: async ({ context: group }) => {
-      const affected = await setGroupEventsActive(group.id, opts.active);
+      const affected = await setGroupListingsActive(group.id, opts.active);
       await logActivity(
-        `Group '${group.name}' ${opts.action}d (${affected} event(s))`,
+        `Group '${group.name}' ${opts.action}d (${affected} listing(s))`,
       );
       return redirect(
         `/admin/groups/${group.id}`,
-        `Group ${opts.action}d (${affected} event(s))`,
+        `Group ${opts.action}d (${affected} listing(s))`,
         true,
       );
     },
@@ -119,7 +119,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const dateReplace = form.getString("date_replace");
   const dayOffset = computeDayOffset(dateFind, dateReplace);
 
-  const events = await getEventsByGroupId(group.id);
+  const listings = await getListingsByGroupId(group.id);
   const { slug, slugIndex } = await generateUniqueGroupSlug();
   const newGroup = await groupsTable.insert({
     description: group.description,
@@ -131,23 +131,23 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     termsAndConditions: group.terms_and_conditions,
   });
 
-  for (const event of events) {
-    const input = await buildDuplicateEventInput(event, {
-      closesAt: shiftUtcIsoByDays(event.closes_at ?? "", dayOffset),
-      date: shiftUtcIsoByDays(event.date, dayOffset),
+  for (const listing of listings) {
+    const input = await buildDuplicateListingInput(listing, {
+      closesAt: shiftUtcIsoByDays(listing.closes_at ?? "", dayOffset),
+      date: shiftUtcIsoByDays(listing.date, dayOffset),
       groupId: newGroup.id,
-      name: applyNameReplacement(event.name, nameFind, nameReplace),
+      name: applyNameReplacement(listing.name, nameFind, nameReplace),
     });
-    await eventsTable.insert(input);
+    await listingsTable.insert(input);
   }
 
   await logActivity(
-    `Group '${group.name}' duplicated to '${newGroup.name}' with ${events.length} event(s)`,
+    `Group '${group.name}' duplicated to '${newGroup.name}' with ${listings.length} listing(s)`,
   );
 
   return redirect(
     `/admin/groups/${newGroup.id}`,
-    `Duplicated '${group.name}' to '${newGroup.name}' (${events.length} event(s))`,
+    `Duplicated '${group.name}' to '${newGroup.name}' (${listings.length} listing(s))`,
     true,
   );
 });

@@ -20,7 +20,7 @@ import {
   getAssignableBuiltSites,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
-import { getAllEvents } from "#shared/db/events.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getEmailConfig,
@@ -33,7 +33,7 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {
-  event: {
+  listing: {
     id: number;
     name: string;
     assign_built_site: boolean;
@@ -45,24 +45,24 @@ type SiteAssignmentEntry = {
 /** Info about an assigned site for email rendering */
 type SiteAssignment = {
   siteUrl: string;
-  eventName: string;
+  listingName: string;
 };
 
 type AssignmentContext = {
   attendee: SiteAssignmentEntry["attendee"];
-  event: SiteAssignmentEntry["event"];
+  listing: SiteAssignmentEntry["listing"];
   site: BuiltSite;
 };
 
-export type TierEvent = Awaited<ReturnType<typeof getAllEvents>>[number];
-export type RenewalTierEvent = Pick<
-  TierEvent,
+export type TierListing = Awaited<ReturnType<typeof getAllListings>>[number];
+export type RenewalTierListing = Pick<
+  TierListing,
   "active" | "hidden" | "months_per_unit" | "purchase_only"
 >;
 export type CdnPushResult = { ok: true } | { ok: false; error: string };
 type RenewalTokenData = { token: string; index: string };
 type SiteAssignmentConfigEntry = {
-  event: {
+  listing: {
     assign_built_site: boolean;
     id: number;
     initial_site_months: number;
@@ -75,7 +75,7 @@ export type SiteAssignmentConfigValidation =
       ok: false;
       reason: "builder_disabled" | "initial_months" | "missing_tier";
       message: string;
-      eventId?: number;
+      listingId?: number;
     };
 
 /** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
@@ -103,22 +103,22 @@ const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
   });
 };
 
-/** Pick the cheapest qualifying tier event (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
-export const isQualifyingTierEvent = (event: RenewalTierEvent): boolean =>
-  event.purchase_only &&
-  event.hidden &&
-  event.months_per_unit > 0 &&
-  event.active;
+/** Pick the cheapest qualifying tier listing (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
+export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
+  listing.purchase_only &&
+  listing.hidden &&
+  listing.months_per_unit > 0 &&
+  listing.active;
 
-/** All events that qualify as renewal tiers. */
-export const getQualifyingTierEvents = async (): Promise<TierEvent[]> => {
-  const events = await getAllEvents();
-  return events.filter(isQualifyingTierEvent);
+/** All listings that qualify as renewal tiers. */
+export const getQualifyingTierListings = async (): Promise<TierListing[]> => {
+  const listings = await getAllListings();
+  return listings.filter(isQualifyingTierListing);
 };
 
-/** Pick the cheapest qualifying tier event. */
-export const pickTierEvent = async (): Promise<TierEvent | null> => {
-  const qualifying = await getQualifyingTierEvents();
+/** Pick the cheapest qualifying tier listing. */
+export const pickTierListing = async (): Promise<TierListing | null> => {
+  const qualifying = await getQualifyingTierListings();
   if (qualifying.length === 0) return null;
   const sorted = sort(
     (a: (typeof qualifying)[number], b: (typeof qualifying)[number]) =>
@@ -127,11 +127,11 @@ export const pickTierEvent = async (): Promise<TierEvent | null> => {
   return sorted[0]!;
 };
 
-/** Validate selected site-assignment events before taking payment/booking. */
+/** Validate selected site-assignment listings before taking payment/booking. */
 export const validateSiteAssignmentConfig = async (
   entries: SiteAssignmentConfigEntry[],
 ): Promise<SiteAssignmentConfigValidation> => {
-  const needsSite = entries.filter((e) => e.event.assign_built_site);
+  const needsSite = entries.filter((e) => e.listing.assign_built_site);
   if (needsSite.length === 0) return { ok: true };
 
   if (!isBuilderEnabled()) {
@@ -144,11 +144,11 @@ export const validateSiteAssignmentConfig = async (
   }
 
   const invalidInitialMonths = needsSite.find(
-    (e) => e.event.initial_site_months <= 0,
+    (e) => e.listing.initial_site_months <= 0,
   );
   if (invalidInitialMonths) {
     return {
-      eventId: invalidInitialMonths.event.id,
+      listingId: invalidInitialMonths.listing.id,
       message:
         "Site assignment is not configured. Please contact the administrator.",
       ok: false,
@@ -156,7 +156,7 @@ export const validateSiteAssignmentConfig = async (
     };
   }
 
-  if (!(await pickTierEvent())) {
+  if (!(await pickTierListing())) {
     return {
       message:
         "Site assignment is not configured. Please contact the administrator.",
@@ -321,16 +321,16 @@ export const rotateRenewalToken = async (
 /** Assign a site and provision its renewal token. */
 const assignSiteWithRenewal = async ({
   attendee,
-  event,
+  listing,
   site,
 }: AssignmentContext): Promise<SiteAssignment> => {
-  await assignBuiltSite(site.id, attendee.id, event.id);
+  await assignBuiltSite(site.id, attendee.id, listing.id);
   await provisionSiteRenewal(
     site,
-    event.initial_site_months,
+    listing.initial_site_months,
     `Failed to push initial renewal secrets for site ${site.id}`,
   );
-  return { eventName: event.name, siteUrl: site.bunnyUrl };
+  return { listingName: listing.name, siteUrl: site.bunnyUrl };
 };
 
 /** Assign built sites to entries that need them. Returns assigned URLs. */
@@ -338,7 +338,7 @@ const assignSitesForEntries = async (
   entries: SiteAssignmentEntry[],
 ): Promise<SiteAssignment[]> => {
   const needsSite = entries.filter(
-    (e: SiteAssignmentEntry) => e.event.assign_built_site,
+    (e: SiteAssignmentEntry) => e.listing.assign_built_site,
   );
   if (needsSite.length === 0) return [];
 
@@ -362,13 +362,15 @@ const assignSitesForEntries = async (
   const available = await getAssignableBuiltSites();
   let idx = 0;
 
-  for (const { event, attendee } of needsSite) {
+  for (const { listing, attendee } of needsSite) {
     const qty = attendee.quantity;
     for (let i = 0; i < qty; i++) {
       const site = available[idx] ?? (await buildSiteForAssignment());
       if (!site) break;
 
-      assignments.push(await assignSiteWithRenewal({ attendee, event, site }));
+      assignments.push(
+        await assignSiteWithRenewal({ attendee, listing, site }),
+      );
       idx++;
     }
   }
@@ -403,12 +405,12 @@ const sendSiteAssignmentEmail = async (
   const htmlList = assignments
     .map((a) => {
       const url = siteSetupUrl(a.siteUrl);
-      return `<li>${a.eventName}: <a href="${url}">${url}</a></li>`;
+      return `<li>${a.listingName}: <a href="${url}">${url}</a></li>`;
     })
     .join("");
 
   const textList = assignments
-    .map((a) => `- ${a.eventName}: ${siteSetupUrl(a.siteUrl)}`)
+    .map((a) => `- ${a.listingName}: ${siteSetupUrl(a.siteUrl)}`)
     .join("\n");
 
   const replyTo = settings.businessEmail || undefined;

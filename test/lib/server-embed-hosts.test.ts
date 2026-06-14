@@ -46,7 +46,7 @@ async function postEmbedHostsExpectRedirect(
   )(response);
 }
 
-/** Create an embeddable event and return its ticket page CSP header */
+/** Create an embeddable listing and return its ticket page CSP header */
 async function getTicketCsp(setupEmbedHosts?: string): Promise<string> {
   if (setupEmbedHosts !== undefined) {
     await settings.update.embedHosts(setupEmbedHosts);

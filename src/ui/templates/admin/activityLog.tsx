@@ -8,7 +8,7 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
-import type { AdminSession, EventWithCount } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -52,18 +52,18 @@ const activityLogRows = (entries: ActivityLogEntry[]): string =>
     : '<tr><td colspan="2">No activity recorded yet</td></tr>';
 
 /**
- * Admin activity log page for a specific event
+ * Admin activity log page for a specific listing
  */
-export const adminEventActivityLogPage = (
-  event: EventWithCount,
+export const adminListingActivityLogPage = (
+  listing: ListingWithCount,
   entries: ActivityLogEntry[],
   session: AdminSession,
 ): string =>
   String(
-    <Layout title={`Log: ${event.name}`}>
+    <Layout title={`Log: ${listing.name}`}>
       <AdminNav active="/admin/log" session={session} />
       <p>
-        <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
+        <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
         {" | "}
         <a href="/admin/guide#activity-log">Activity log guide</a>
       </p>
@@ -84,7 +84,7 @@ export const adminEventActivityLogPage = (
   );
 
 /**
- * Admin global activity log page (all events)
+ * Admin global activity log page (all listings)
  */
 export const adminGlobalActivityLogPage = (
   entries: ActivityLogEntry[],

@@ -379,7 +379,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           cdnHostname: "",
           customDomain: "",
           dnsEnabled: true,
-          registeredSubdomain: "myevent.example.com",
+          registeredSubdomain: "mylisting.example.com",
           storageBackend: "none",
           subdomainSuffix: ".tickets",
         },
@@ -410,7 +410,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       };
       const session = { adminLevel: "owner" as const };
       const html = adminDebugPage(session, state);
-      expect(html).toContain("myevent.example.com");
+      expect(html).toContain("mylisting.example.com");
       expect(html).toContain(".tickets");
     });
   });

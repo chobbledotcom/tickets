@@ -11,7 +11,7 @@ import {
   adminGet,
   assertAdminHtml,
   awaitTestRequest,
-  createTestEvent,
+  createTestListing,
   createTestManagerSession,
   describeWithEnv,
   mockFormRequest,
@@ -64,8 +64,8 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
   });
 
   test("is NOT injected into non-HTML responses (e.g. CSV export)", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    const { response } = await adminGet(`/admin/event/${event.id}/export`);
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const { response } = await adminGet(`/admin/listing/${listing.id}/export`);
     expect(response.headers.get("content-type")).toContain("text/csv");
     const body = await response.text();
     expect(body).not.toContain(FOOTER_MARKER);

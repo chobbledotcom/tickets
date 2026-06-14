@@ -1,8 +1,8 @@
 /**
- * SQL builders for event capacity checks.
+ * SQL builders for listing capacity checks.
  *
  * The WHERE clause produced by `buildCapacityCondition` is embedded inside
- * atomic INSERT/UPDATE statements on `event_attendees` so that capacity is
+ * atomic INSERT/UPDATE statements on `listing_attendees` so that capacity is
  * enforced in the same statement that mutates the row (no read-modify-write
  * race).
  *
@@ -39,32 +39,32 @@ export const dateToRange = (
 };
 
 /**
- * Whether an `event_attendees` row should count toward its group's cap on
- * the given date. Standard events always count; daily events count only
+ * Whether an `listing_attendees` row should count toward its group's cap on
+ * the given date. Standard listings always count; daily listings count only
  * when their booking overlaps the date. With `date = null` every row
  * counts — useful after upstream date validation, misleading for display.
  *
  * Args order: `[date, endAt, startAt]`.
  */
 export const buildGroupAttendeePredicate = (
-  eventAlias: string,
+  listingAlias: string,
   attendeeAlias: string,
   date: string | null,
 ): SqlFragment => {
   const range = date ? dateToRange(date) : null;
   return {
     args: [date, range?.endAt ?? null, range?.startAt ?? null],
-    sql: `(? IS NULL OR ${eventAlias}.event_type != 'daily' OR (${attendeeAlias}.start_at < ? AND ${attendeeAlias}.end_at > ?))`,
+    sql: `(? IS NULL OR ${listingAlias}.listing_type != 'daily' OR (${attendeeAlias}.start_at < ? AND ${attendeeAlias}.end_at > ?))`,
   };
 };
 
 /**
- * Build a single-day capacity clause (event-cap + group-cap when applicable).
+ * Build a single-day capacity clause (listing-cap + group-cap when applicable).
  * `dayRange` is null for non-daily / date-less bookings; uses `? IS NULL OR …`
  * to elide the time filter in one branch rather than two SQL shapes.
  */
 const buildDayCapacitySql = (
-  eventId: number,
+  listingId: number,
   qty: number,
   dayRange: { startAt: string; endAt: string } | null,
   excludeAttendeeId?: number,
@@ -78,69 +78,70 @@ const buildDayCapacitySql = (
 
   const sql = `(
     SELECT COALESCE(SUM(ea2.quantity), 0)
-    FROM event_attendees ea2
-    WHERE ea2.event_id = ? ${excludeEa2}
+    FROM listing_attendees ea2
+    WHERE ea2.listing_id = ? ${excludeEa2}
     AND (? IS NULL OR (ea2.start_at < ? AND ea2.end_at > ?))
-  ) + ? <= (SELECT max_attendees FROM events WHERE id = ?)
+  ) + ? <= (SELECT max_attendees FROM listings WHERE id = ?)
   AND (
     SELECT CASE
       WHEN ev.group_id = 0 THEN 1
       WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
       WHEN (
         SELECT COALESCE(SUM(ea3.quantity), 0)
-        FROM event_attendees ea3
-        JOIN events e2 ON e2.id = ea3.event_id
+        FROM listing_attendees ea3
+        JOIN listings e2 ON e2.id = ea3.listing_id
         WHERE e2.group_id = ev.group_id ${excludeEa3}
-        AND (? IS NULL OR e2.event_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
+        AND (? IS NULL OR e2.listing_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
       ) + ? <= g.max_attendees THEN 1
       ELSE 0
     END
-    FROM events ev
+    FROM listings ev
     LEFT JOIN groups g ON g.id = ev.group_id
     WHERE ev.id = ?
   ) = 1`;
 
   return {
     args: [
-      eventId,
+      listingId,
       ...excludeArg,
       startAt,
       endAt,
       startAt,
       qty,
-      eventId,
+      listingId,
       ...excludeArg,
       dayDate,
       endAt,
       startAt,
       qty,
-      eventId,
+      listingId,
     ],
     sql,
   };
 };
 
 /**
- * Build the WHERE clause for capacity checking on event_attendees.
+ * Build the WHERE clause for capacity checking on listing_attendees.
  * For multi-day daily bookings, emits one clause per day AND'd together so
  * the atomic SQL guard matches the per-day accuracy of the JS preflight.
  *
  * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates)
  */
 export const buildCapacityCondition = (
-  eventId: number,
+  listingId: number,
   qty: number,
   date: string | null,
   excludeAttendeeId?: number,
   durationDays = 1,
 ): SqlFragment => {
-  if (!date) return buildDayCapacitySql(eventId, qty, null, excludeAttendeeId);
+  if (!date)
+    return buildDayCapacitySql(listingId, qty, null, excludeAttendeeId);
   const duration = normalizeDurationDays(durationDays);
   const clauses: string[] = [];
   const args: InValue[] = [];
   for (let i = 0; i < duration; i++) {
     const daily = buildDayCapacitySql(
-      eventId,
+      listingId,
       qty,
       dateToRange(addDays(date, i), 1),
       excludeAttendeeId,

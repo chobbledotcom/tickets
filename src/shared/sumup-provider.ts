@@ -6,13 +6,16 @@
  * Key differences from Stripe/Square:
  * - Hosted Checkout; our checkout_reference is the session id throughout
  * - Booking metadata is staged locally, encrypted (db/sumup-checkouts.ts)
- * - Webhooks are unsigned (requiresWebhookSignature = false): events are
+ * - Webhooks are unsigned (requiresWebhookSignature = false): listings are
  *   pre-filtered against our staging rows, then the checkout is re-fetched
  *   from SumUp to establish authenticity and payment status
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
-import { getSumupCheckout, hasSumupCheckoutId } from "#shared/db/sumup-checkouts.ts";
+import {
+  getSumupCheckout,
+  hasSumupCheckoutId,
+} from "#shared/db/sumup-checkouts.ts";
 import {
   extractSessionMetadata,
   toCheckoutResult,
@@ -59,7 +62,6 @@ const buildValidatedSession = (
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
-  requiresWebhookSignature: false,
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
     withCheckoutError(async () => {
@@ -74,13 +76,14 @@ export const sumupPaymentProvider: PaymentProvider = {
   refundPayment(paymentReference: string): Promise<boolean> {
     return refundTransaction(paymentReference);
   },
+  requiresWebhookSignature: false,
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
   ): Promise<ValidatedPaymentSession | "skip" | null> {
     if (!webhookEvent.id) return null;
     // Unsigned webhooks: only fetch checkouts we created. Spam or another
-    // integration's events are acknowledged without an API call.
+    // integration's listings are acknowledged without an API call.
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
     const checkout = await retrieveCheckoutById(webhookEvent.id);
     if (!checkout) return null;
@@ -117,10 +120,13 @@ export const sumupPaymentProvider: PaymentProvider = {
     // resolveWebhookSession. We only parse the tiny payload
     // ({ event_type, id }) into the provider-agnostic event shape here.
     try {
-      const parsed = JSON.parse(payload) as { event_type?: string; id?: string };
+      const parsed = JSON.parse(payload) as {
+        event_type?: string;
+        id?: string;
+      };
       const id = parsed.id ?? "";
       return Promise.resolve({
-        event: {
+        listing: {
           data: { object: { id } },
           id,
           type: parsed.event_type ?? "",
