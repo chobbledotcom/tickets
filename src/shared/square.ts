@@ -5,7 +5,7 @@
  * Square flow differs from Stripe:
  * - Checkout uses Payment Links (CreatePaymentLink) instead of sessions
  * - Metadata is stored on the Order object
- * - Webhook listing is payment.updated (check status === "COMPLETED")
+ * - Webhook event is payment.updated (check status === "COMPLETED")
  * - Webhook signature uses HMAC-SHA256 of notification_url + body
  * - Retrieving session data requires fetching the Order by ID
  */

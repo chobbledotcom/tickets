@@ -24,7 +24,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
-import type { AdminSession } from "#shared/types.ts";
+import { type AdminSession, MAX_DURATION_DAYS } from "#shared/types.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#shared/webhook-example.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -102,7 +102,7 @@ export const adminGuidePage = (
       </p>
 
       <Section title="Getting Started">
-        <Q q="How do I create an listing?">
+        <Q q="How do I create a listing?">
           <p>
             From the <strong>Listings</strong> page, click{" "}
             <strong>Add Listing</strong>. Give your listing a name, set the
@@ -116,10 +116,11 @@ export const adminGuidePage = (
 
         <Q q="How do I set up payments?">
           <p>
-            Go to <strong>Settings</strong> and choose Stripe or Square as your
-            payment provider. Paste in your API key and save. For Stripe, the
-            webhook is configured automatically. For Square, you'll need to copy
-            the webhook URL shown and add it in your Square Developer Dashboard.
+            Go to <strong>Settings</strong> and choose Stripe, Square, or SumUp
+            as your payment provider. Paste in your API key and save. For Stripe
+            and SumUp the webhook is configured automatically. For Square,
+            you'll need to copy the webhook URL shown and add it in your Square
+            Developer Dashboard.
           </p>
         </Q>
       </Section>
@@ -214,8 +215,8 @@ export const adminGuidePage = (
 
         <Q q="What are the listing date and location fields for?">
           <p>
-            These are optional fields you can fill in when creating or editing
-            an listing. The date is when the listing takes place (in your
+            These are optional fields you can fill in when creating or editing a
+            listing. The date is when the listing takes place (in your
             configured timezone) and the location is where it's held. Both are
             displayed on the attendee's ticket page so they know when and where
             to go. For daily listings, attendees already pick a date when
@@ -247,7 +248,7 @@ export const adminGuidePage = (
 
         <Q q="What is 'Purchase Only' mode?">
           <p>
-            When you enable <strong>Purchase Only</strong> on an listing, it
+            When you enable <strong>Purchase Only</strong> on a listing, it
             becomes a non-attendance purchase &mdash; ideal for raffles,
             fundraisers, donations, or merchandise. The booking button changes
             from &ldquo;Reserve&rdquo; to &ldquo;Buy now&rdquo;, and after
@@ -307,7 +308,7 @@ export const adminGuidePage = (
 
         <Q q="How do I set a custom redirect after booking?">
           <p>
-            When creating or editing an listing, enter a URL in the "thank you
+            When creating or editing a listing, enter a URL in the "thank you
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default
             confirmation page. The URL must use HTTPS, or you can use a relative
@@ -315,18 +316,18 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add an image to an listing?">
+        <Q q="How do I add an image to a listing?">
           <p>
-            When creating or editing an listing, use the image upload field to
+            When creating or editing a listing, use the image upload field to
             attach a picture. The image is displayed on the booking page and in
-            the public listings listing. Supported formats are JPEG, PNG, GIF,
-            and WebP.
+            the public listings list. Supported formats are JPEG, PNG, GIF, and
+            WebP.
           </p>
         </Q>
 
-        <Q q="How do I add a file attachment to an listing?">
+        <Q q="How do I add a file attachment to a listing?">
           <p>
-            When creating or editing an listing, use the attachment upload field
+            When creating or editing a listing, use the attachment upload field
             to attach a file. This can be any type of file &mdash; PDFs, Word
             documents, spreadsheets, images, audio, video, zip archives, you
             name it. The maximum file size is 25&nbsp;MB.
@@ -352,7 +353,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I duplicate an listing?">
+        <Q q="How do I duplicate a listing?">
           <p>
             Open the listing and click <strong>Duplicate</strong>. This creates
             a new listing pre-filled with the same capacity, price, fields,
@@ -362,18 +363,18 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I deactivate an listing?">
+        <Q q="How do I deactivate a listing?">
           <p>
             Open the listing and click <strong>Deactivate</strong>. Deactivated
             listings no longer accept bookings and are hidden from the public
-            listings listing, but all existing attendee data is kept. Click{" "}
+            listings list, but all existing attendee data is kept. Click{" "}
             <strong>Reactivate</strong> to make the listing bookable again.
           </p>
         </Q>
 
         <Q q="What are non-transferable tickets?">
           <p>
-            When you enable <strong>Non-Transferable</strong> on an listing,
+            When you enable <strong>Non-Transferable</strong> on a listing,
             attendees see a notice on their ticket saying "Non-transferable — ID
             required at entry". At check-in, the QR scanner prompts door staff
             to verify the attendee's ID matches the name on the ticket before
@@ -415,7 +416,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I remove an attendee from an listing?">
+        <Q q="How do I remove an attendee from a listing?">
           <p>
             On the attendee's edit page, find the listing in the{" "}
             <strong>Listing Registrations</strong> table and click{" "}
@@ -499,7 +500,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I add a question to an listing?">
+        <Q q="How do I add a question to a listing?">
           <p>
             Open the listing in the admin area and click{" "}
             <strong>Questions</strong>. Tick the questions you want to appear on
@@ -561,9 +562,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I hide an listing from the public list?">
+        <Q q="Can I hide a listing from the public list?">
           <p>
-            Yes. When editing an listing, tick the{" "}
+            Yes. When editing a listing, tick the{" "}
             <strong>Hidden Listing</strong> checkbox. Hidden listings won&apos;t
             appear on the public Listings page and their ticket pages will be
             marked as <code>noindex, nofollow</code> for search engines. The
@@ -611,9 +612,15 @@ export const adminGuidePage = (
       <Section title="Payments">
         <Q q="Which payment providers are supported?">
           <p>
-            <strong>Stripe</strong> and <strong>Square</strong>. Choose one in
-            Settings and enter your API credentials. You can switch between them
-            at any time.
+            <strong>Stripe</strong>, <strong>Square</strong>, and{" "}
+            <strong>SumUp</strong>. Choose one in Settings and enter your API
+            credentials. You can switch between them at any time.
+          </p>
+          <p>
+            <strong>SumUp</strong> only works with a limited set of currencies
+            (mostly European currencies plus GBP, USD, and BRL). If your site
+            currency isn't supported, the Settings page will refuse the
+            credentials and tell you to pick a different provider or country.
           </p>
         </Q>
 
@@ -621,10 +628,12 @@ export const adminGuidePage = (
           <p>
             <strong>Stripe</strong>. The setup is a fair bit easier &mdash; you
             just paste in your secret key and the webhook is created
-            automatically. With Square you need to create a developer
-            application, find your location ID, and manually configure the
-            webhook yourself. Both work well once set up, but Stripe gets you
-            going faster.
+            automatically. <strong>SumUp</strong> is similarly quick (an API key
+            and merchant code, with the webhook handled for you), but it's
+            limited to certain currencies. With <strong>Square</strong> you need
+            to create a developer application, find your location ID, and
+            manually configure the webhook yourself. All three work well once
+            set up, but Stripe gets you going faster.
           </p>
         </Q>
 
@@ -847,7 +856,7 @@ export const adminGuidePage = (
               on your <a href="/admin/settings">Settings</a> page
             </li>
             <li>
-              Subscribe to the <strong>payment.updated</strong> listing
+              Subscribe to the <strong>payment.updated</strong> event
             </li>
             <li>
               Save the subscription, then copy the{" "}
@@ -861,6 +870,39 @@ export const adminGuidePage = (
           <p>
             The webhook is what tells the system when a payment has been
             completed, so bookings won't be confirmed until this is set up.
+          </p>
+        </Q>
+
+        <Q q="How do I set up SumUp?">
+          <p>
+            SumUp uses its Hosted Checkout, and the webhook is handled
+            automatically &mdash; there's nothing to configure in the SumUp
+            dashboard. You need two values:
+          </p>
+          <ol>
+            <li>
+              <strong>API Key</strong> &mdash; a secret API key from your SumUp
+              account, starting with <code>sk_live_</code> (real payments) or{" "}
+              <code>sk_test_</code> (testing). Create one under{" "}
+              <strong>Developers</strong> &rarr; <strong>API keys</strong> in
+              the SumUp dashboard.
+            </li>
+            <li>
+              <strong>Merchant Code</strong> &mdash; your SumUp merchant code
+              (e.g. <code>MC...</code>), shown in your SumUp dashboard.
+            </li>
+          </ol>
+          <p>
+            Paste both into the SumUp section on the{" "}
+            <a href="/admin/settings">Settings</a> page and save. As with
+            Stripe, the Settings page shows a <strong>Test mode</strong> or{" "}
+            <strong>Live mode</strong> badge based on your key prefix, and a{" "}
+            <strong>Test Connection</strong> button to verify it works.
+          </p>
+          <p>
+            SumUp only supports certain currencies. If your site currency isn't
+            one of them, saving the credentials is blocked with a message asking
+            you to choose a different provider or country.
           </p>
         </Q>
 
@@ -898,8 +940,8 @@ export const adminGuidePage = (
         <Q q="Should I use test or live credentials?">
           <p>
             Start with test credentials to make sure everything is working
-            before accepting real payments. Both Stripe and Square provide
-            separate test environments:
+            before accepting real payments. All three providers offer separate
+            test environments:
           </p>
           <ul>
             <li>
@@ -920,6 +962,12 @@ export const adminGuidePage = (
               </a>
               . Untick Sandbox mode when switching to production.
             </li>
+            <li>
+              <strong>SumUp:</strong> Use an API key starting with{" "}
+              <code>sk_test_</code>. As with Stripe, the Settings page shows a{" "}
+              <strong>Test mode</strong> badge so you know which environment is
+              active. Swap to your <code>sk_live_</code> key to go live.
+            </li>
           </ul>
           <p>
             When you&apos;re ready to go live, replace the test credentials with
@@ -934,7 +982,7 @@ export const adminGuidePage = (
       <Section id="refunds" title="Refunds">
         <Q q="When do automatic refunds happen?">
           <p>
-            Automatic refunds happen in two scenarios. First, when an listing
+            Automatic refunds happen in two scenarios. First, when a listing
             sells out while someone is completing payment. Their place is held
             for 5 minutes during checkout, but if another buyer fills the last
             spot first, the slower payer is automatically refunded and shown a
@@ -954,12 +1002,12 @@ export const adminGuidePage = (
             <strong>Refund</strong>. You'll see a confirmation page showing
             their name, email, quantity, and the amount paid. Type the
             attendee's name to confirm and submit. The refund is issued through
-            your payment provider (Stripe or Square) and is always a full
-            refund.
+            your payment provider (Stripe, Square, or SumUp) and is always a
+            full refund.
           </p>
         </Q>
 
-        <Q q="How do I refund all attendees for an listing?">
+        <Q q="How do I refund all attendees for a listing?">
           <p>
             On the listing page, click <strong>Refund All</strong> in the
             navigation bar. Type the listing name to confirm. Each attendee with
@@ -973,7 +1021,7 @@ export const adminGuidePage = (
           <p>
             No. The system always issues a full refund for the total amount
             paid. If you need to issue a partial refund, do it directly through
-            your payment provider's dashboard (Stripe or Square).
+            your payment provider's dashboard (Stripe, Square, or SumUp).
           </p>
         </Q>
 
@@ -1011,10 +1059,10 @@ export const adminGuidePage = (
         <Q q="What if a refund fails?">
           <p>
             The most common reason is that the payment was already refunded
-            directly through Stripe or Square. You'll see an error message like
-            "Refund failed. The payment may have already been refunded." If your
-            payment provider is no longer configured, refunds will also fail
-            because there's no provider to process them through.
+            directly through Stripe, Square, or SumUp. You'll see an error
+            message like "Refund failed. The payment may have already been
+            refunded." If your payment provider is no longer configured, refunds
+            will also fail because there's no provider to process them through.
           </p>
         </Q>
 
@@ -1045,6 +1093,30 @@ export const adminGuidePage = (
             These are the days of the week your daily listing runs on. If you
             only tick Monday and Wednesday, those are the only days that appear
             in the date picker. Weekends and unticked days are skipped.
+          </p>
+        </Q>
+
+        <Q q="What is the Booking Duration field?">
+          <p>
+            For daily listings, <strong>Booking Duration (days)</strong> sets
+            how many consecutive days a single booking reserves &mdash; useful
+            for multi-night stays or multi-day passes. Leave it at 1 for a
+            normal single-day booking, or set it up to {MAX_DURATION_DAYS} days.
+            The attendee picks a start date and their booking spans that many
+            days from it.
+          </p>
+          <p>
+            Capacity is checked for <strong>every</strong> day the booking
+            covers, so a place is only confirmed if all of those days have room.
+            On the ticket and in the attendee table, the booking shows as a date
+            range rather than a single day. The field only appears on daily
+            listings &mdash; standard (one-off) listings don't use it.
+          </p>
+          <p>
+            If you change the duration on a listing that already has bookings,
+            the system recalculates the date range of every existing booking and
+            warns you before saving, since this can affect how many places each
+            day has left.
           </p>
         </Q>
 
@@ -1085,7 +1157,7 @@ export const adminGuidePage = (
 
         <Q q="How do I use the QR scanner?">
           <p>
-            Open an listing and click <strong>Scanner</strong>. Tap{" "}
+            Open a listing and click <strong>Scanner</strong>. Tap{" "}
             <strong>Start Camera</strong> to begin (grants camera permission on
             first use). Point the camera at an attendee's QR code and check-in
             happens automatically. The scanner works best with the rear camera
@@ -1403,7 +1475,7 @@ export const adminGuidePage = (
         <Q q="What are webhooks for?">
           <p>
             Webhooks send an automatic notification to a URL of your choice
-            whenever someone registers for an listing. You can use them to
+            whenever someone registers for a listing. You can use them to
             connect to other services, e.g. sending a Slack message or updating
             a spreadsheet.
           </p>
@@ -1411,7 +1483,7 @@ export const adminGuidePage = (
 
         <Q q="How do I set up a webhook?">
           <p>
-            Add a webhook URL when creating or editing an listing. Every time
+            Add a webhook URL when creating or editing a listing. Every time
             someone books that listing, a POST request is sent to your URL with
             the attendee's details.
           </p>
@@ -1955,7 +2027,8 @@ export const adminGuidePage = (
               and included in webhook payloads
             </li>
             <li>
-              <strong>Payment provider</strong> &mdash; Stripe, Square, or none
+              <strong>Payment provider</strong> &mdash; Stripe, Square, SumUp,
+              or none
             </li>
             <li>
               <strong>Booking fee</strong> &mdash; percentage-based fee added to
@@ -2165,13 +2238,13 @@ export const adminGuidePage = (
 
         <Q q="How do I connect to Mobilizon?">
           <p>
-            <a href="https://mobilizon.org/">Mobilizon</a> is a federated
-            listing platform. You can use its built-in importer to pull listings
-            from your ICS feed:
+            <a href="https://mobilizon.org/">Mobilizon</a> is a federated events
+            platform. You can use its built-in importer to pull listings from
+            your ICS feed:
           </p>
           <ol>
             <li>
-              On your Mobilizon instance, go to the listing import tool (or use
+              On your Mobilizon instance, go to the event import tool (or use
               the public importer at{" "}
               <a href="https://import.mobilizon.fr/">import.mobilizon.fr</a>)
             </li>
