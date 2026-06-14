@@ -20,42 +20,44 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   >
     <h2>Payment Provider</h2>
     <p>Choose which payment provider to use for paid listings.</p>
-    <label>
-      <input
-        checked={!s.paymentProvider}
-        name="payment_provider"
-        type="radio"
-        value="none"
-      />
-      None (payments disabled)
-    </label>
-    <label>
-      <input
-        checked={s.paymentProvider === "stripe"}
-        name="payment_provider"
-        type="radio"
-        value="stripe"
-      />
-      Stripe
-    </label>
-    <label>
-      <input
-        checked={s.paymentProvider === "square"}
-        name="payment_provider"
-        type="radio"
-        value="square"
-      />
-      Square
-    </label>
-    <label>
-      <input
-        checked={s.paymentProvider === "sumup"}
-        name="payment_provider"
-        type="radio"
-        value="sumup"
-      />
-      SumUp
-    </label>
+    <fieldset class="radio-group">
+      <label>
+        <input
+          checked={!s.paymentProvider}
+          name="payment_provider"
+          type="radio"
+          value="none"
+        />
+        None (payments disabled)
+      </label>
+      <label>
+        <input
+          checked={s.paymentProvider === "stripe"}
+          name="payment_provider"
+          type="radio"
+          value="stripe"
+        />
+        Stripe
+      </label>
+      <label>
+        <input
+          checked={s.paymentProvider === "square"}
+          name="payment_provider"
+          type="radio"
+          value="square"
+        />
+        Square
+      </label>
+      <label>
+        <input
+          checked={s.paymentProvider === "sumup"}
+          name="payment_provider"
+          type="radio"
+          value="sumup"
+        />
+        SumUp
+      </label>
+    </fieldset>
     <button type="submit">Save Payment Provider</button>
   </CsrfForm>
 );
