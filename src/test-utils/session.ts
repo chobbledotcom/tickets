@@ -3,9 +3,9 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createApiKey } from "#shared/db/api-keys.ts";
-import type { EventInput } from "#shared/db/events.ts";
+import type { ListingInput } from "#shared/db/listings.ts";
 import { getSession } from "#shared/db/sessions.ts";
-import type { Event } from "#shared/types.ts";
+import type { Listing } from "#shared/types.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
   getCachedAdminSession,
@@ -226,17 +226,17 @@ export const apiRequest = async (
   return handleRequest(requestAsApiKey(path, apiKey, init));
 };
 
-export const setupEventAndLogin = async (
-  overrides?: Partial<Omit<EventInput, "slug" | "slugIndex">>,
+export const setupListingAndLogin = async (
+  overrides?: Partial<Omit<ListingInput, "slug" | "slugIndex">>,
 ): Promise<{
-  event: Event;
+  listing: Listing;
   cookie: string;
   csrfToken: string;
 }> => {
-  const { createTestEvent } = await import("#test-utils/db-helpers.ts");
-  const event = await createTestEvent(overrides);
+  const { createTestListing } = await import("#test-utils/db-helpers.ts");
+  const listing = await createTestListing(overrides);
   const { cookie, csrfToken } = await getTestSession();
-  return { cookie, csrfToken, event };
+  return { cookie, csrfToken, listing };
 };
 
 export const adminFormPost = async (
@@ -262,37 +262,37 @@ export const adminGet = async (
 };
 
 export const setupAdminTest = async (
-  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
 ): Promise<AdminTestContext> => {
-  const { createTestEvent } = await import("#test-utils/db-helpers.ts");
+  const { createTestListing } = await import("#test-utils/db-helpers.ts");
   const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
-  const event = await createTestEvent({
+  const listing = await createTestListing({
     maxAttendees: 100,
     thankYouUrl: "https://example.com",
-    ...eventOverrides,
+    ...listingOverrides,
   });
   const attendee = await createTestAttendee(
-    event.id,
-    event.slug,
+    listing.id,
+    listing.slug,
     "John Doe",
     "john@example.com",
   );
   const { cookie, csrfToken } = await getTestSession();
-  return { attendee, cookie, csrfToken, event };
+  return { attendee, cookie, csrfToken, listing };
 };
 
 export const adminAttendeeAction =
   (action: string) =>
   (formData: Record<string, string> = {}) =>
   async (
-    eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+    listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
   ): Promise<AdminTestContext & { response: Response }> => {
-    const ctx = await setupAdminTest(eventOverrides);
+    const ctx = await setupAdminTest(listingOverrides);
     const { handleRequest } = await import("#routes");
     const { mockFormRequest } = await import("#test-utils/mocks.ts");
     const response = await handleRequest(
       mockFormRequest(
-        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/${action}`,
+        `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`,
         { csrf_token: ctx.csrfToken, ...formData },
         ctx.cookie,
       ),
@@ -300,12 +300,12 @@ export const adminAttendeeAction =
     return { ...ctx, response };
   };
 
-export const adminEventPage =
+export const adminListingPage =
   (pathFn: (ctx: AdminTestContext) => string) =>
   async (
-    eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+    listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
   ): Promise<AdminTestContext & { response: Response }> => {
-    const ctx = await setupAdminTest(eventOverrides);
+    const ctx = await setupAdminTest(listingOverrides);
     const { awaitTestRequest } = await import("#test-utils/mocks.ts");
     const response = await awaitTestRequest(pathFn(ctx), {
       cookie: ctx.cookie,

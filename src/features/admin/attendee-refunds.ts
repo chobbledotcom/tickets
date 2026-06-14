@@ -5,7 +5,7 @@
 import { chunk, filter } from "#fp";
 import {
   withDecryptedAttendees,
-  withEventAttendeesAuth,
+  withListingAttendeesAuth,
 } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
@@ -18,15 +18,15 @@ import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import { fail, ok } from "#shared/response.ts";
-import type { Attendee, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
 import {
   attendeeGetRoute,
-  type EventRouteParams,
   getReturnUrl,
+  type ListingRouteParams,
   NO_PROVIDER_ERROR,
   verifiedAttendeeForm,
 } from "./attendees-route-helpers.ts";
@@ -43,13 +43,16 @@ const REFUND_BATCH_LIMIT = 30;
 
 /** Render refund error redirect for a single attendee */
 const refundError = (
-  eventId: number,
+  listingId: number,
   attendeeId: number,
   msg: string,
 ): Response =>
-  errorRedirect(`/admin/event/${eventId}/attendee/${attendeeId}/refund`, msg);
+  errorRedirect(
+    `/admin/listing/${listingId}/attendee/${attendeeId}/refund`,
+    msg,
+  );
 
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
+/** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
   (data, session, request) => {
     applyFlash(request);
@@ -77,37 +80,37 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
   },
 );
 
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
+/** Handle POST /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
-  async (data, _form, eventId, attendeeId) => {
+  async (data, _form, listingId, attendeeId) => {
     if (!data.attendee.payment_id) {
-      return refundError(eventId, attendeeId, NO_PAYMENT_ERROR);
+      return refundError(listingId, attendeeId, NO_PAYMENT_ERROR);
     }
     if (data.attendee.refunded) {
-      return refundError(eventId, attendeeId, ALREADY_REFUNDED_ERROR);
+      return refundError(listingId, attendeeId, ALREADY_REFUNDED_ERROR);
     }
 
     const provider = await getActivePaymentProvider();
-    if (!provider) return refundError(eventId, attendeeId, NO_PROVIDER_ERROR);
+    if (!provider) return refundError(listingId, attendeeId, NO_PROVIDER_ERROR);
 
     const refunded = await provider.refundPayment(data.attendee.payment_id);
     if (!refunded) {
       logError({
         code: ErrorCode.PAYMENT_REFUND,
         detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
-        eventId,
+        listingId,
       });
-      return refundError(eventId, attendeeId, REFUND_FAILED_ERROR);
+      return refundError(listingId, attendeeId, REFUND_FAILED_ERROR);
     }
 
-    await markRefunded(data.attendee.id, eventId);
+    await markRefunded(data.attendee.id, listingId);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
-      eventId,
+      listingId,
     );
-    return ok(`/admin/event/${eventId}`, "Refund issued");
+    return ok(`/admin/listing/${listingId}`, "Refund issued");
   },
 );
 
@@ -116,20 +119,20 @@ const getRefundable = filter(
   (a: Attendee) => a.payment_id !== "" && !a.refunded,
 );
 
-/** Handle GET /admin/event/:id/refund-all */
+/** Handle GET /admin/listing/:id/refund-all */
 const handleAdminRefundAllGet = (
   request: Request,
-  { id }: EventRouteParams,
+  { id }: ListingRouteParams,
 ): Promise<Response> =>
-  withEventAttendeesAuth(request, id, (event, attendees, session) => {
+  withListingAttendeesAuth(request, id, (listing, attendees, session) => {
     applyFlash(request);
     const count = getRefundable(attendees).length;
     return count === 0
       ? htmlResponse(
-          adminRefundAllAttendeesPage(event, 0, session, NO_REFUNDABLE_ERROR),
+          adminRefundAllAttendeesPage(listing, 0, session, NO_REFUNDABLE_ERROR),
           400,
         )
-      : htmlResponse(adminRefundAllAttendeesPage(event, count, session));
+      : htmlResponse(adminRefundAllAttendeesPage(listing, count, session));
   });
 
 type RefundResult = "ok" | "failed" | "errored";
@@ -143,18 +146,18 @@ type RefundCounts = {
 const refundOneAttendee = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   attendee: Attendee,
-  eventId: number,
+  listingId: number,
 ): Promise<RefundResult> => {
   try {
     const refunded = await provider.refundPayment(attendee.payment_id);
     if (refunded) {
-      await markRefunded(attendee.id, eventId);
+      await markRefunded(attendee.id, listingId);
       return "ok";
     }
     logError({
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-      eventId,
+      listingId,
     });
     return "failed";
   } catch (err) {
@@ -162,7 +165,7 @@ const refundOneAttendee = async (
     logError({
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
-      eventId,
+      listingId,
     });
     return "errored";
   }
@@ -172,7 +175,7 @@ const refundOneAttendee = async (
 const processRefundBatch = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   batch: Attendee[],
-  eventId: number,
+  listingId: number,
 ): Promise<RefundCounts> => {
   const REFUND_CHUNK_SIZE = 5;
   const counts: RefundCounts = {
@@ -182,7 +185,7 @@ const processRefundBatch = async (
   };
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
-      group.map((attendee) => refundOneAttendee(provider, attendee, eventId)),
+      group.map((attendee) => refundOneAttendee(provider, attendee, listingId)),
     );
     for (const result of results) {
       if (result === "ok") counts.refundedCount++;
@@ -194,7 +197,7 @@ const processRefundBatch = async (
 };
 
 type RefundResponseCtx = {
-  event: EventWithCount;
+  listing: ListingWithCount;
   refundAllUrl: string;
   counts: RefundCounts;
   remaining: number;
@@ -204,7 +207,7 @@ type RefundResponseCtx = {
 const buildRefundProblemResponse = async (
   ctx: RefundResponseCtx,
 ): Promise<Response> => {
-  const { event, refundAllUrl, counts, remaining } = ctx;
+  const { listing, refundAllUrl, counts, remaining } = ctx;
   const { refundedCount, failedCount, errorCount } = counts;
   const problemCount = failedCount + errorCount;
   const errorNote =
@@ -216,8 +219,8 @@ const buildRefundProblemResponse = async (
       ? `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. ${remaining} remaining — submit again to continue.`
       : `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
   await logActivity(
-    `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${event.name}'`,
-    event.id,
+    `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${listing.name}'`,
+    listing.id,
   );
   return fail(refundAllUrl, msg);
 };
@@ -226,14 +229,14 @@ const buildRefundProblemResponse = async (
 const buildRefundAllResponse = async (
   ctx: RefundResponseCtx & { totalRefundable: number },
 ): Promise<Response> => {
-  const { counts, event, refundAllUrl, totalRefundable, remaining } = ctx;
+  const { counts, listing, refundAllUrl, totalRefundable, remaining } = ctx;
   const refundedCount = counts.refundedCount;
   const hasProblems = counts.failedCount + counts.errorCount > 0;
 
   if (hasProblems) {
     return buildRefundProblemResponse({
       counts,
-      event,
+      listing,
       refundAllUrl,
       remaining,
     });
@@ -241,8 +244,8 @@ const buildRefundAllResponse = async (
 
   if (remaining > 0) {
     await logActivity(
-      `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${event.name}'`,
-      event.id,
+      `Bulk refund: ${refundedCount} of ${totalRefundable} refunded for '${listing.name}'`,
+      listing.id,
     );
     return ok(
       refundAllUrl,
@@ -251,22 +254,27 @@ const buildRefundAllResponse = async (
   }
 
   await logActivity(
-    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`,
-    event.id,
+    `Bulk refund: all ${refundedCount} attendee(s) refunded for '${listing.name}'`,
+    listing.id,
   );
-  return ok(`/admin/event/${event.id}`, "All attendees refunded");
+  return ok(`/admin/listing/${listing.id}`, "All attendees refunded");
 };
 
 /** Process bulk refund for all refundable attendees */
 const processRefundAll = async (
-  event: EventWithCount,
+  listing: ListingWithCount,
   attendees: Attendee[],
   _session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
-  const refundAllUrl = `/admin/event/${event.id}/refund-all`;
+  const refundAllUrl = `/admin/listing/${listing.id}/refund-all`;
   const refundable = getRefundable(attendees);
-  const error = verifyOrRedirect(form, event.name, refundAllUrl, "Event name");
+  const error = verifyOrRedirect(
+    form,
+    listing.name,
+    refundAllUrl,
+    "Listing name",
+  );
   if (error) return error;
 
   if (refundable.length === 0) {
@@ -280,33 +288,33 @@ const processRefundAll = async (
 
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
   const remaining = refundable.length - batch.length;
-  const counts = await processRefundBatch(provider, batch, event.id);
+  const counts = await processRefundBatch(provider, batch, listing.id);
   return buildRefundAllResponse({
     counts,
-    event,
+    listing,
     refundAllUrl,
     remaining,
     totalRefundable: refundable.length,
   });
 };
 
-/** Handle POST /admin/event/:id/refund-all */
+/** Handle POST /admin/listing/:id/refund-all */
 const handleAdminRefundAllPost = (
   request: Request,
-  { id }: EventRouteParams,
+  { id }: ListingRouteParams,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withDecryptedAttendees(session, id, (event, attendees) =>
-      processRefundAll(event, attendees, session, form),
+    withDecryptedAttendees(session, id, (listing, attendees) =>
+      processRefundAll(listing, attendees, session, form),
     ),
   );
 
 /** Attendee refund routes */
 export const attendeeRefundRoutes = defineRoutes({
-  "GET /admin/event/:eventId/attendee/:attendeeId/refund":
+  "GET /admin/listing/:id/refund-all": handleAdminRefundAllGet,
+  "GET /admin/listing/:listingId/attendee/:attendeeId/refund":
     handleAdminAttendeeRefundGet,
-  "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
-  "POST /admin/event/:eventId/attendee/:attendeeId/refund":
+  "POST /admin/listing/:id/refund-all": handleAdminRefundAllPost,
+  "POST /admin/listing/:listingId/attendee/:attendeeId/refund":
     handleAttendeeRefund,
-  "POST /admin/event/:id/refund-all": handleAdminRefundAllPost,
 });

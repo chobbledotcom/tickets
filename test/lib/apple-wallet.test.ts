@@ -18,7 +18,7 @@ import {
 import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 import { generateTestCerts } from "#test-utils/crypto.ts";
 
-/** Type for eventTicket field groups in pass.json */
+/** Type for listingTicket field groups in pass.json */
 type TicketFields = {
   primaryFields: Array<Record<string, unknown>>;
   secondaryFields: Array<Record<string, unknown>>;
@@ -31,9 +31,9 @@ const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
   checkinUrl: "https://example.com/checkin/ABC123",
   currencyCode: "GBP",
   description: "Ticket for Summer Concert",
-  eventDate: "2026-06-15T19:00:00Z",
-  eventLocation: "Town Hall",
-  eventName: "Summer Concert",
+  listingDate: "2026-06-15T19:00:00Z",
+  listingLocation: "Town Hall",
+  listingName: "Summer Concert",
   organizationName: "Test Platform",
   pricePaid: 0,
   quantity: 1,
@@ -67,7 +67,7 @@ describe("apple-wallet", () => {
       expect(barcodes[0]!.message).toBe("https://example.com/checkin/ABC123");
       expect(barcodes[0]!.messageEncoding).toBe("iso-8859-1");
 
-      const ticket = pass.eventTicket as TicketFields;
+      const ticket = pass.listingTicket as TicketFields;
       expect(ticket.primaryFields[0]!.value).toBe("Summer Concert");
 
       const dateField = ticket.secondaryFields.find(
@@ -99,15 +99,15 @@ describe("apple-wallet", () => {
       const pass = extractPassJson(
         buildPkpass(
           makePassData({
-            eventDate: "",
-            eventLocation: "",
+            listingDate: "",
+            listingLocation: "",
             pricePaid: 0,
             quantity: 1,
           }),
           creds,
         ),
       );
-      const ticket = pass.eventTicket as TicketFields;
+      const ticket = pass.listingTicket as TicketFields;
 
       expect(
         ticket.secondaryFields.find(
@@ -147,7 +147,7 @@ describe("apple-wallet", () => {
           creds,
         ),
       );
-      const ticket = pass.eventTicket as TicketFields;
+      const ticket = pass.listingTicket as TicketFields;
 
       const qtyField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "qty",
@@ -373,7 +373,7 @@ describe("apple-wallet", () => {
         makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
         creds,
       );
-      const ticket = pass.eventTicket as TicketFields;
+      const ticket = pass.listingTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField!.value).toBe(1000);
       expect(priceField!.currencyCode).toBe("JPY");
@@ -384,7 +384,7 @@ describe("apple-wallet", () => {
         makePassData({ currencyCode: "GBP", pricePaid: 2500 }),
         creds,
       );
-      const ticket = pass.eventTicket as TicketFields;
+      const ticket = pass.listingTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField!.value).toBe(25);
       expect(priceField!.currencyCode).toBe("GBP");

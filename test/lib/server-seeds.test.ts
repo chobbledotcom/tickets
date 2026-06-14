@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
+import { MAX_SEED_LISTINGS } from "#routes/admin/seeds.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getAllEvents } from "#shared/db/events.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import {
@@ -37,11 +37,11 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await assertAdminHtml("/admin/seeds", "Seed Data");
     });
 
-    test("contains form with event count and attendees per event fields", async () => {
+    test("contains form with listing count and attendees per listing fields", async () => {
       await assertAdminHtml(
         "/admin/seeds",
-        "event_count",
-        "attendees_per_event",
+        "listing_count",
+        "attendees_per_listing",
         "Create Seed Data",
       );
     });
@@ -54,8 +54,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("POST /admin/seeds", () => {
     testRequiresAuth("/admin/seeds", {
       body: {
-        attendees_per_event: "0",
-        event_count: "1",
+        attendees_per_listing: "0",
+        listing_count: "1",
       },
       method: "POST",
     });
@@ -65,22 +65,22 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_event: "0", event_count: "1" },
+          { attendees_per_listing: "0", listing_count: "1" },
           managerCookie,
         ),
       );
       expect(response.status).toBe(403);
     });
 
-    test("creates seed events with no attendees", async () => {
+    test("creates seed listings with no attendees", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "0",
+            attendees_per_listing: "0",
             csrf_token: await testCsrfToken(),
-            event_count: "2",
+            listing_count: "2",
           },
           cookie,
         ),
@@ -88,21 +88,21 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/seeds",
-        "Created 2 event(s) with 0 attendee(s) total.",
+        "Created 2 listing(s) with 0 attendee(s) total.",
       )(response);
 
-      const events = await getAllEvents();
-      expect(events.length).toBe(2);
+      const listings = await getAllListings();
+      expect(listings.length).toBe(2);
     });
 
-    test("creates seed events with attendees including paid and free", async () => {
+    test("creates seed listings with attendees including paid and free", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "3",
+            attendees_per_listing: "3",
             csrf_token: await testCsrfToken(),
-            event_count: "2",
+            listing_count: "2",
           },
           await testCookie(),
         ),
@@ -110,20 +110,20 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/seeds",
-        expect.stringContaining("Created 2 event"),
+        expect.stringContaining("Created 2 listing"),
       )(response);
 
-      const events = await getAllEvents();
-      expect(events.length).toBe(2);
+      const listings = await getAllListings();
+      expect(listings.length).toBe(2);
 
-      // Verify both paid and free events are created
-      const paidEvent = events.find((e) => e.unit_price > 0);
-      const freeEvent = events.find((e) => e.unit_price === 0);
-      expect(paidEvent).toBeDefined();
-      expect(freeEvent).toBeDefined();
+      // Verify both paid and free listings are created
+      const paidListing = listings.find((e) => e.unit_price > 0);
+      const freeListing = listings.find((e) => e.unit_price === 0);
+      expect(paidListing).toBeDefined();
+      expect(freeListing).toBeDefined();
 
-      for (const event of events) {
-        const attendees = await getAttendeesRaw(event.id);
+      for (const listing of listings) {
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(3);
 
         // Each attendee has a quantity between 1 and 4
@@ -132,22 +132,22 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
           expect(attendee.quantity).toBeLessThanOrEqual(4);
         }
 
-        // Total quantity does not exceed event max_attendees (no overselling)
+        // Total quantity does not exceed listing max_attendees (no overselling)
         const totalQuantity = attendees.reduce((sum, a) => sum + a.quantity, 0);
-        expect(totalQuantity).toBeLessThanOrEqual(event.max_attendees);
-        // Event max_attendees equals exactly the sum of attendee quantities
-        expect(event.max_attendees).toBe(totalQuantity);
+        expect(totalQuantity).toBeLessThanOrEqual(listing.max_attendees);
+        // Listing max_attendees equals exactly the sum of attendee quantities
+        expect(listing.max_attendees).toBe(totalQuantity);
       }
     });
 
-    test("clamps event count to max", async () => {
+    test("clamps listing count to max", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "0",
+            attendees_per_listing: "0",
             csrf_token: await testCsrfToken(),
-            event_count: "999",
+            listing_count: "999",
           },
           await testCookie(),
         ),
@@ -155,7 +155,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/seeds",
-        expect.stringContaining(`Created ${MAX_SEED_EVENTS} event`),
+        expect.stringContaining(`Created ${MAX_SEED_LISTINGS} listing`),
       )(response);
     });
 
@@ -164,9 +164,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "-10",
+            attendees_per_listing: "-10",
             csrf_token: await testCsrfToken(),
-            event_count: "-5",
+            listing_count: "-5",
           },
           await testCookie(),
         ),
@@ -174,7 +174,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/seeds",
-        expect.stringContaining("Created 1 event"),
+        expect.stringContaining("Created 1 listing"),
       )(response);
     });
 
@@ -182,7 +182,11 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_event: "0", csrf_token: "invalid", event_count: "1" },
+          {
+            attendees_per_listing: "0",
+            csrf_token: "invalid",
+            listing_count: "1",
+          },
           await testCookie(),
         ),
       );
@@ -190,23 +194,23 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(response.status).toBe(403);
     });
 
-    test("created events are active", async () => {
+    test("created listings are active", async () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "0",
+            attendees_per_listing: "0",
             csrf_token: await testCsrfToken(),
-            event_count: "1",
+            listing_count: "1",
           },
           await testCookie(),
         ),
       );
 
-      const events = await getAllEvents();
-      expect(events[0]!.active).toBe(true);
+      const listings = await getAllListings();
+      expect(listings[0]!.active).toBe(true);
       // With 0 attendees, max_attendees is 0 (sum of quantities)
-      expect(events[0]!.max_attendees).toBe(0);
+      expect(listings[0]!.max_attendees).toBe(0);
     });
 
     test("redirects with error when seed creation fails", async () => {
@@ -218,9 +222,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "0",
+            attendees_per_listing: "0",
             csrf_token: await testCsrfToken(),
-            event_count: "1",
+            listing_count: "1",
           },
           await testCookie(),
         ),
@@ -233,14 +237,14 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       )(response);
     });
 
-    test("handles non-numeric event count as 1", async () => {
+    test("handles non-numeric listing count as 1", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "2",
+            attendees_per_listing: "2",
             csrf_token: await testCsrfToken(),
-            event_count: "abc",
+            listing_count: "abc",
           },
           await testCookie(),
         ),
@@ -248,18 +252,18 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/seeds",
-        expect.stringContaining("Created 1 event"),
+        expect.stringContaining("Created 1 listing"),
       )(response);
     });
 
-    test("handles non-numeric attendees per event as 0", async () => {
+    test("handles non-numeric attendees per listing as 0", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_event: "abc",
+            attendees_per_listing: "abc",
             csrf_token: await testCsrfToken(),
-            event_count: "1",
+            listing_count: "1",
           },
           await testCookie(),
         ),
@@ -267,7 +271,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/seeds",
-        expect.stringContaining("Created 1 event"),
+        expect.stringContaining("Created 1 listing"),
       )(response);
     });
 
@@ -294,7 +298,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_event: "0", csrf_token: csrf1, event_count: "2" },
+          { attendees_per_listing: "0", csrf_token: csrf1, listing_count: "2" },
           await testCookie(),
         ),
       );
@@ -311,13 +315,13 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_event: "0", csrf_token: csrf2, event_count: "3" },
+          { attendees_per_listing: "0", csrf_token: csrf2, listing_count: "3" },
           await testCookie(),
         ),
       );
 
-      const events = await getAllEvents();
-      expect(events.length).toBe(5);
+      const listings = await getAllListings();
+      expect(listings.length).toBe(5);
     });
   });
 });

@@ -19,11 +19,11 @@ import { bulkActionsRoutes } from "#routes/admin/bulk-actions.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
-import { eventQrRoutes } from "#routes/admin/event-qr.ts";
-import { eventsRoutes } from "#routes/admin/events.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { listingQrRoutes } from "#routes/admin/listing-qr.ts";
+import { listingsRoutes } from "#routes/admin/listings.ts";
 import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
@@ -47,8 +47,8 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   siteRoutes,
   sessionsRoutes,
   calendarRoutes,
-  eventsRoutes,
-  eventQrRoutes,
+  listingsRoutes,
+  listingQrRoutes,
   attendeesRoutes,
   attendeeRefundRoutes,
   usersRoutes,

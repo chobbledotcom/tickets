@@ -28,7 +28,7 @@ describeWithEnv(
   { env: { BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets" } },
   () => {
     test("appends suffix to subdomain", () => {
-      expect(buildSubdomainRecordName("myevent")).toBe("myevent.tickets");
+      expect(buildSubdomainRecordName("mylisting")).toBe("mylisting.tickets");
     });
   },
 );
@@ -38,7 +38,7 @@ describeWithEnv(
   { env: { BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined } },
   () => {
     test("returns subdomain as-is when no suffix configured", () => {
-      expect(buildSubdomainRecordName("myevent")).toBe("myevent");
+      expect(buildSubdomainRecordName("mylisting")).toBe("mylisting");
     });
   },
 );
@@ -319,10 +319,10 @@ describeWithEnv(
       await withMockBunnyCdnApi(
         mockDnsZone([{ Name: "other.tickets" }]),
         async () => {
-          const result = await checkSubdomainAvailable("myevent");
+          const result = await checkSubdomainAvailable("mylisting");
           expect(result).toEqual({
             available: true,
-            fullDomain: "myevent.tickets.example.com",
+            fullDomain: "mylisting.tickets.example.com",
             ok: true,
           });
         },
@@ -331,12 +331,12 @@ describeWithEnv(
 
     test("returns not available when matching record exists", async () => {
       await withMockBunnyCdnApi(
-        mockDnsZone([{ Name: "myevent.tickets" }]),
+        mockDnsZone([{ Name: "mylisting.tickets" }]),
         async () => {
-          const result = await checkSubdomainAvailable("myevent");
+          const result = await checkSubdomainAvailable("mylisting");
           expect(result).toEqual({
             available: false,
-            fullDomain: "myevent.tickets.example.com",
+            fullDomain: "mylisting.tickets.example.com",
             ok: true,
           });
         },
@@ -350,7 +350,7 @@ describeWithEnv(
             Promise.resolve({ error: "API error", ok: false as const }),
         },
         async () => {
-          const result = await checkSubdomainAvailable("myevent");
+          const result = await checkSubdomainAvailable("mylisting");
           expect(result).toEqual({ error: "API error", ok: false });
         },
       );
@@ -370,10 +370,10 @@ describeWithEnv(
   () => {
     test("uses subdomain as record name when suffix is unset", async () => {
       await withMockBunnyCdnApi(mockDnsZone([]), async () => {
-        const result = await checkSubdomainAvailable("myevent");
+        const result = await checkSubdomainAvailable("mylisting");
         expect(result).toEqual({
           available: true,
-          fullDomain: "myevent.example.com",
+          fullDomain: "mylisting.example.com",
           ok: true,
         });
       });
@@ -438,7 +438,7 @@ describeWithEnv(
       checkSubdomainAvailable: () =>
         Promise.resolve({
           available: true,
-          fullDomain: "myevent.tickets.example.com",
+          fullDomain: "mylisting.tickets.example.com",
           ok: true as const,
         }),
       getCdnHostname: () =>
@@ -455,7 +455,7 @@ describeWithEnv(
             Promise.resolve({ error: "DNS zone error", ok: false as const }),
         },
         async () => {
-          const result = await registerBunnySubdomain("myevent");
+          const result = await registerBunnySubdomain("mylisting");
           expect(result).toEqual({ error: "DNS zone error", ok: false });
         },
       );
@@ -467,14 +467,14 @@ describeWithEnv(
           checkSubdomainAvailable: () =>
             Promise.resolve({
               available: false,
-              fullDomain: "myevent.tickets.example.com",
+              fullDomain: "mylisting.tickets.example.com",
               ok: true as const,
             }),
         },
         async () => {
-          const result = await registerBunnySubdomain("myevent");
+          const result = await registerBunnySubdomain("mylisting");
           expect(result).toEqual({
-            error: 'Subdomain "myevent" is already taken',
+            error: 'Subdomain "mylisting" is already taken',
             ok: false,
           });
         },
@@ -491,9 +491,9 @@ describeWithEnv(
           await withMocks(
             () => stubFetchRecorder(),
             async (recorder) => {
-              const result = await registerBunnySubdomain("myevent");
+              const result = await registerBunnySubdomain("mylisting");
               expect(result).toEqual({
-                fullDomain: "myevent.tickets.example.com",
+                fullDomain: "mylisting.tickets.example.com",
                 ok: true,
               });
               expect(recorder.calls).toHaveLength(1);
@@ -501,7 +501,7 @@ describeWithEnv(
               expect(
                 JSON.parse(recorder.calls[0]!.init!.body as string),
               ).toEqual({
-                Name: "myevent.tickets",
+                Name: "mylisting.tickets",
                 Ttl: 300,
                 Type: 2,
                 Value: "mysite.b-cdn.net",
@@ -520,7 +520,7 @@ describeWithEnv(
             Promise.resolve({ error: "No pull zones", ok: false as const }),
         },
         async () => {
-          const result = await registerBunnySubdomain("myevent");
+          const result = await registerBunnySubdomain("mylisting");
           expect(result).toEqual({ error: "No pull zones", ok: false });
         },
       );
@@ -534,7 +534,7 @@ describeWithEnv(
               Promise.resolve(new Response("DNS error", { status: 500 })),
             ),
           async () => {
-            const result = await registerBunnySubdomain("myevent");
+            const result = await registerBunnySubdomain("mylisting");
             expect(result).toEqual({
               error: "Add DNS CNAME record failed (500): DNS error",
               ok: false,
@@ -568,9 +568,9 @@ describeWithEnv(
                 Promise.resolve(new Response(null, { status: 204 })),
               ),
             async () => {
-              const result = await registerBunnySubdomain("myevent");
+              const result = await registerBunnySubdomain("mylisting");
               expect(result).toEqual({
-                fullDomain: "myevent.tickets.example.com",
+                fullDomain: "mylisting.tickets.example.com",
                 ok: true,
               });
               expect(validateCallCount).toBe(3);
@@ -608,7 +608,7 @@ describeWithEnv(
                 ),
               ),
             async () => {
-              const result = await registerBunnySubdomain("myevent");
+              const result = await registerBunnySubdomain("mylisting");
               expect(result).toEqual({ error: "SSL failed", ok: false });
               expect(validateCallCount).toBe(5);
               expect(deletedRecordId).toBe(999);
@@ -638,7 +638,7 @@ describeWithEnv(
                 Promise.resolve(new Response("not json", { status: 200 })),
               ),
             async () => {
-              const result = await registerBunnySubdomain("myevent");
+              const result = await registerBunnySubdomain("mylisting");
               expect(result.ok).toBe(false);
               expect(deleteWasCalled).toBe(false);
             },
@@ -665,9 +665,9 @@ describeWithEnv(
                 Promise.resolve(new Response(null, { status: 204 })),
               ),
             async () => {
-              const result = await registerBunnySubdomain("myevent");
+              const result = await registerBunnySubdomain("mylisting");
               expect(result).toEqual({
-                fullDomain: "myevent.tickets.example.com",
+                fullDomain: "mylisting.tickets.example.com",
                 ok: true,
               });
               expect(validateCallCount).toBe(1);

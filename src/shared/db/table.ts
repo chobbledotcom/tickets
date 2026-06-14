@@ -380,7 +380,7 @@ export const defineTable = <Row, Input = Row>(config: {
 /**
  * Wrap a table so that insert, update, and deleteById automatically
  * call an invalidation callback (e.g. cache invalidation).
- * Eliminates the repeated spread-and-override pattern in groups/holidays/events.
+ * Eliminates the repeated spread-and-override pattern in groups/holidays/listings.
  */
 export const withCacheInvalidation = <Row, Input>(
   table: Table<Row, Input>,

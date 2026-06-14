@@ -19,7 +19,7 @@ const extractToken = (data) => {
 
 /** POST to scan API */
 const postScan = async (
-  eventId,
+  listingId,
   token,
   csrfToken,
   { force, idVerified } = {},
@@ -28,7 +28,7 @@ const postScan = async (
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
 
-  const res = await fetch(`/admin/event/${eventId}/scan`, {
+  const res = await fetch(`/admin/listing/${listingId}/scan`, {
     body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
@@ -97,7 +97,7 @@ const handleResult = (el, result) => {
 };
 
 /** Main scanner loop */
-const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
+const startScanner = (video, canvas, statusEl, listingId, csrfToken) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
@@ -148,14 +148,14 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
       lastToken = null;
     }, FADE_DELAY_MS);
 
-    postScan(eventId, token, csrfToken)
+    postScan(listingId, token, csrfToken)
       .then(async (result) => {
-        if (result.status === "wrong_event") {
+        if (result.status === "wrong_listing") {
           const ok = await showConfirm(
-            `${result.name} is registered for "${result.eventName}", not this event. Check in anyway?`,
+            `${result.name} is registered for "${result.listingName}", not this listing. Check in anyway?`,
           );
           if (ok) {
-            const forced = await postScan(eventId, token, csrfToken, {
+            const forced = await postScan(listingId, token, csrfToken, {
               force: true,
             });
             handleResult(statusEl, forced);
@@ -165,7 +165,7 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
         } else if (result.status === "verify_id") {
           const ok = await showConfirm(`Does their ID match "${result.name}"?`);
           if (ok) {
-            const verified = await postScan(eventId, token, csrfToken, {
+            const verified = await postScan(listingId, token, csrfToken, {
               idVerified: true,
             });
             handleResult(statusEl, verified);
@@ -234,7 +234,7 @@ const init = () => {
 
   if (!video || !statusEl || !startBtn) return;
 
-  const eventId = video.dataset.eventId;
+  const listingId = video.dataset.listingId;
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   const csrfToken = csrfMeta ? csrfMeta.content : "";
 
@@ -261,7 +261,7 @@ const init = () => {
       startBtn.classList.add("hidden");
       video.classList.remove("hidden");
       showStatus(statusEl, "Scanning...", "success");
-      startScanner(video, canvas, statusEl, eventId, csrfToken);
+      startScanner(video, canvas, statusEl, listingId, csrfToken);
     } catch {
       showStatus(statusEl, "Camera access denied", "error");
     }

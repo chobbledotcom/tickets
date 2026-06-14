@@ -68,7 +68,7 @@ describe("renderQuestions", () => {
     expect(html).not.toContain("<b>size</b>");
   });
 
-  test("adds data-event-ids when questionEventMap is provided", () => {
+  test("adds data-listing-ids when questionListingMap is provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
@@ -81,18 +81,18 @@ describe("renderQuestions", () => {
         text: "Q2",
       },
     ];
-    const eventMap = new Map([
+    const listingMap = new Map([
       [1, [100, 200]],
       [2, [200]],
     ]);
 
-    const html = renderQuestions(questions, eventMap);
+    const html = renderQuestions(questions, listingMap);
 
-    expect(html).toContain('data-event-ids="100 200"');
-    expect(html).toContain('data-event-ids="200"');
+    expect(html).toContain('data-listing-ids="100 200"');
+    expect(html).toContain('data-listing-ids="200"');
   });
 
-  test("omits data-event-ids when no map provided", () => {
+  test("omits data-listing-ids when no map provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
@@ -103,6 +103,6 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions);
 
-    expect(html).not.toContain("data-event-ids");
+    expect(html).not.toContain("data-listing-ids");
   });
 });

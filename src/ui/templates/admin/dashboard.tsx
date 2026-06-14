@@ -9,12 +9,12 @@ import {
   resolveColumnLayout,
 } from "#shared/column-order.ts";
 import {
-  EVENT_DEFAULT_ORDER,
-  EVENT_TABLE_COLUMNS,
-} from "#shared/columns/event-columns.ts";
+  LISTING_DEFAULT_ORDER,
+  LISTING_TABLE_COLUMNS,
+} from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { ActiveEventStats } from "#shared/db/attendees.ts";
+import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -22,19 +22,19 @@ import type {
   AdminSession,
   Attendee,
   AttendeeTableRow,
-  EventWithCount,
+  ListingWithCount,
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Render a single event table row using ordered column keys */
-export const EventRow = ({
+/** Render a single listing table row using ordered column keys */
+export const ListingRow = ({
   e,
   columnKeys,
   filters,
 }: {
-  e: EventWithCount;
+  e: ListingWithCount;
   columnKeys: string[];
   filters: Map<string, string>;
 }): string => {
@@ -42,7 +42,7 @@ export const EventRow = ({
   const cells = renderCells(
     e,
     columnKeys,
-    EVENT_TABLE_COLUMNS,
+    LISTING_TABLE_COLUMNS,
     undefined,
     filters,
     escapeHtml,
@@ -51,7 +51,7 @@ export const EventRow = ({
 };
 
 /** Checkbox item for multi-booking link builder */
-const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
+const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
   String(
     <li>
       <label>
@@ -65,17 +65,17 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
     </li>,
   );
 
-/** Multi-booking link builder section (only rendered when 2+ active events) */
-const multiBookingSection = (activeEvents: EventWithCount[]): string => {
+/** Multi-booking link builder section (only rendered when 2+ active listings) */
+const multiBookingSection = (activeListings: ListingWithCount[]): string => {
   const checkboxes = pipe(
-    map((e: EventWithCount) => MultiBookingCheckbox({ e })),
+    map((e: ListingWithCount) => MultiBookingCheckbox({ e })),
     joinStrings,
-  )(activeEvents);
+  )(activeListings);
 
   return String(
     <details>
       <summary>Multi-booking link</summary>
-      <p>Select events to generate a combined booking link:</p>
+      <p>Select listings to generate a combined booking link:</p>
       <ul class="multi-booking-list">
         <Raw html={checkboxes} />
       </ul>
@@ -85,7 +85,7 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-multi-booking-url
         data-select-on-click
         id="multi-booking-url"
-        placeholder="Select two or more events"
+        placeholder="Select two or more listings"
         readonly
         type="text"
       />
@@ -94,7 +94,7 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-multi-booking-embed-script
         data-select-on-click
         id="multi-booking-embed-script"
-        placeholder="Select two or more events"
+        placeholder="Select two or more listings"
         readonly
         type="text"
       />
@@ -103,7 +103,7 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
         data-multi-booking-embed-iframe
         data-select-on-click
         id="multi-booking-embed-iframe"
-        placeholder="Select two or more events"
+        placeholder="Select two or more listings"
         readonly
         type="text"
       />
@@ -111,11 +111,11 @@ const multiBookingSection = (activeEvents: EventWithCount[]): string => {
   );
 };
 
-/** Active event statistics section */
-export const activeEventStatsSection = (stats: ActiveEventStats): string =>
+/** Active listing statistics section */
+export const activeListingStatsSection = (stats: ActiveListingStats): string =>
   String(
     <details>
-      <summary>Active Event Statistics</summary>
+      <summary>Active Listing Statistics</summary>
       <ul>
         <li>
           <strong>Income:</strong> {formatCurrency(stats.income)}
@@ -133,16 +133,16 @@ export const activeEventStatsSection = (stats: ActiveEventStats): string =>
 /** Build the newest attendees section with a details/summary wrapper */
 const newestAttendeesSection = (
   attendees: Attendee[],
-  events: EventWithCount[],
+  listings: ListingWithCount[],
 ): string => {
-  const eventMap = new Map(events.map((e) => [e.id, e]));
+  const listingMap = new Map(listings.map((e) => [e.id, e]));
   const tableRows = reduce((acc: AttendeeTableRow[], a: Attendee) => {
-    const event = eventMap.get(a.event_id);
-    if (event) {
+    const listing = listingMap.get(a.listing_id);
+    if (listing) {
       acc.push({
         attendee: a,
-        eventId: event.id,
-        eventName: event.name,
+        listingId: listing.id,
+        listingName: listing.name,
       });
     }
     return acc;
@@ -165,7 +165,7 @@ const newestAttendeesSection = (
             rows: tableRows,
             showActions: false,
             showDate: false,
-            showEvent: true,
+            showListing: true,
           })}
         />
       </div>
@@ -173,14 +173,14 @@ const newestAttendeesSection = (
   );
 };
 
-/** Render the event table with dynamic column keys */
-export const renderEventTable = (
+/** Render the listing table with dynamic column keys */
+export const renderListingTable = (
   columnKeys: string[],
   rows: string,
 ): string => {
   const headers = pipe(
     map(
-      (key: string) => `<th>${getHeaderText(EVENT_TABLE_COLUMNS[key]!)}</th>`,
+      (key: string) => `<th>${getHeaderText(LISTING_TABLE_COLUMNS[key]!)}</th>`,
     ),
     joinStrings,
   )(columnKeys);
@@ -191,54 +191,54 @@ export const renderEventTable = (
  * Admin dashboard page
  */
 export const adminDashboardPage = (
-  events: EventWithCount[],
+  listings: ListingWithCount[],
   session: AdminSession,
   imageError?: string,
   newestAttendees: Attendee[] = [],
   successMessage?: string,
-  stats?: ActiveEventStats | null,
-  eventColumnTemplate?: string,
+  stats?: ActiveListingStats | null,
+  listingColumnTemplate?: string,
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
-    eventColumnTemplate ?? "",
-    Object.keys(EVENT_TABLE_COLUMNS),
-    EVENT_DEFAULT_ORDER,
+    listingColumnTemplate ?? "",
+    Object.keys(LISTING_TABLE_COLUMNS),
+    LISTING_DEFAULT_ORDER,
   );
 
-  const eventRows =
-    events.length > 0
+  const listingRows =
+    listings.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ columnKeys, e, filters })),
+          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
           joinStrings,
-        )(events)
-      : `<tr><td colspan="${columnKeys.length}">No events yet</td></tr>`;
+        )(listings)
+      : `<tr><td colspan="${columnKeys.length}">No listings yet</td></tr>`;
 
-  const activeEvents = filter((e: EventWithCount) => e.active)(events);
+  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
 
   return String(
-    <Layout title="Events">
+    <Layout title="Listings">
       <AdminNav active="/admin/" session={session} />
 
       <Flash error={imageError} success={successMessage} />
 
       {!isReadOnly() && (
         <p>
-          <a href="/admin/event/new">Add Events</a>
+          <a href="/admin/listing/new">Add Listings</a>
         </p>
       )}
 
       <div class="table-scroll">
-        <Raw html={renderEventTable(columnKeys, eventRows)} />
+        <Raw html={renderListingTable(columnKeys, listingRows)} />
       </div>
 
-      {stats && <Raw html={activeEventStatsSection(stats)} />}
+      {stats && <Raw html={activeListingStatsSection(stats)} />}
 
-      {activeEvents.length >= 2 && (
-        <Raw html={multiBookingSection(activeEvents)} />
+      {activeListings.length >= 2 && (
+        <Raw html={multiBookingSection(activeListings)} />
       )}
 
       {newestAttendees.length > 0 && (
-        <Raw html={newestAttendeesSection(newestAttendees, events)} />
+        <Raw html={newestAttendeesSection(newestAttendees, listings)} />
       )}
     </Layout>,
   );

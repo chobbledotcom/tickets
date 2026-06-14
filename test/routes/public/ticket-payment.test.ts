@@ -5,10 +5,14 @@ import {
   processFreeReservation,
 } from "#routes/public/ticket-payment.ts";
 import { createAttendeeAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
-import type { ContactInfo, EventWithCount } from "#shared/types.ts";
-import { buildTicketEvent, type TicketEvent } from "#templates/public.tsx";
-import { createTestEvent, createTestGroup, describeWithEnv } from "#test-utils";
+import { getListingWithCount } from "#shared/db/listings.ts";
+import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
+import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
+import {
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+} from "#test-utils";
 
 const contact: ContactInfo = {
   address: "",
@@ -18,21 +22,21 @@ const contact: ContactInfo = {
   special_instructions: "",
 };
 
-/** Fetch an event with its live attendee count and wrap it as a TicketEvent. */
-const ticketEventFor = async (eventId: number): Promise<TicketEvent> => {
-  const event = (await getEventWithCount(eventId)) as EventWithCount;
-  return buildTicketEvent(event, false, undefined);
+/** Fetch an listing with its live attendee count and wrap it as a TicketListing. */
+const ticketListingFor = async (listingId: number): Promise<TicketListing> => {
+  const listing = (await getListingWithCount(listingId)) as ListingWithCount;
+  return buildTicketListing(listing, false, undefined);
 };
 
 describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
   describe("ensureAllBookings", () => {
     test("ok when every booking in the cart succeeded", async () => {
-      const e1 = await createTestEvent({ maxAttendees: 10, name: "ok-a" });
-      const e2 = await createTestEvent({ maxAttendees: 10, name: "ok-b" });
+      const e1 = await createTestListing({ maxAttendees: 10, name: "ok-a" });
+      const e2 = await createTestListing({ maxAttendees: 10, name: "ok-b" });
       const result = await createAttendeeAtomic({
         bookings: [
-          { eventId: e1.id, quantity: 1 },
-          { eventId: e2.id, quantity: 1 },
+          { listingId: e1.id, quantity: 1 },
+          { listingId: e2.id, quantity: 1 },
         ],
         email: contact.email,
         name: contact.name,
@@ -52,20 +56,20 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "rollback",
         slug: "rollback",
       });
-      const e1 = await createTestEvent({
+      const e1 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
         name: "rollback-a",
       });
-      const e2 = await createTestEvent({
+      const e2 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
         name: "rollback-b",
       });
       const result = await createAttendeeAtomic({
         bookings: [
-          { eventId: e1.id, quantity: 2 },
-          { eventId: e2.id, quantity: 2 },
+          { listingId: e1.id, quantity: 2 },
+          { listingId: e2.id, quantity: 2 },
         ],
         email: contact.email,
         name: contact.name,
@@ -99,34 +103,34 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "free-rollback",
         slug: "free-rollback",
       });
-      const e1 = await createTestEvent({
+      const e1 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 10,
         name: "free-a",
       });
-      const e2 = await createTestEvent({
+      const e2 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 10,
         name: "free-b",
       });
-      const ticketEvents = [
-        await ticketEventFor(e1.id),
-        await ticketEventFor(e2.id),
+      const ticketListings = [
+        await ticketListingFor(e1.id),
+        await ticketListingFor(e2.id),
       ];
       const quantities = new Map([
         [e1.id, 2],
         [e2.id, 2],
       ]);
       const result = await processFreeReservation(
-        ticketEvents,
+        ticketListings,
         quantities,
         contact,
         null,
       );
       expect(result.success).toBe(false);
-      // Nothing persists for either event — the partial booking is rolled back.
+      // Nothing persists for either listing — the partial booking is rolled back.
       expect((await getAttendeesRaw(e1.id)).length).toBe(0);
       expect((await getAttendeesRaw(e2.id)).length).toBe(0);
     });
@@ -137,24 +141,24 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "free-ok",
         slug: "free-ok",
       });
-      const e1 = await createTestEvent({
+      const e1 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 10,
         name: "free-ok-a",
       });
-      const e2 = await createTestEvent({
+      const e2 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
         maxQuantity: 10,
         name: "free-ok-b",
       });
-      const ticketEvents = [
-        await ticketEventFor(e1.id),
-        await ticketEventFor(e2.id),
+      const ticketListings = [
+        await ticketListingFor(e1.id),
+        await ticketListingFor(e2.id),
       ];
       const result = await processFreeReservation(
-        ticketEvents,
+        ticketListings,
         new Map([
           [e1.id, 1],
           [e2.id, 2],

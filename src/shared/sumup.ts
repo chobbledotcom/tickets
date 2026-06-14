@@ -6,7 +6,7 @@
  * - Checkout uses SumUp Hosted Checkout (hosted_checkout.enabled = true)
  * - Checkouts carry no arbitrary metadata, so booking metadata is stored
  *   locally (db/sumup-checkouts.ts) keyed by our generated checkout_reference
- * - Webhooks are unsigned: events are pre-filtered against our staging rows,
+ * - Webhooks are unsigned: listings are pre-filtered against our staging rows,
  *   then authenticity comes from re-fetching the checkout
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
@@ -160,7 +160,7 @@ export const sumupApi: {
         amount: Number(toMajorUnits(totalMinor)),
         checkout_reference: reference,
         currency: settings.currency.toUpperCase() as Currency,
-        description: `Tickets (${intent.items.length} event(s))`,
+        description: `Tickets (${intent.items.length} listing(s))`,
         hosted_checkout: { enabled: true },
         merchant_code: merchantCode,
         redirect_url: `${baseUrl}/payment/success?session_id=${reference}`,

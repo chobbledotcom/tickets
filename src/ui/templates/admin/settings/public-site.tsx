@@ -13,7 +13,7 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
     <h2>Show public site?</h2>
     <p>
       When enabled, the homepage will show a public website with navigation for
-      Home, Events, T&amp;Cs and Contact pages.
+      Home, Listings, T&amp;Cs and Contact pages.
     </p>
     <fieldset class="radio-group">
       <label>

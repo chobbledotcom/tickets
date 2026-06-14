@@ -6,31 +6,31 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
 
 describeWithEnv("db > attendees > getNewestAttendeesRaw", { db: true }, () => {
-  test("returns attendees across events ordered by newest first", async () => {
-    const event1 = await createTestEvent({ maxAttendees: 10 });
-    const event2 = await createTestEvent({ maxAttendees: 10 });
+  test("returns attendees across listings ordered by newest first", async () => {
+    const listing1 = await createTestListing({ maxAttendees: 10 });
+    const listing2 = await createTestListing({ maxAttendees: 10 });
 
     await createTestAttendee(
-      event1.id,
-      event1.slug,
+      listing1.id,
+      listing1.slug,
       "First",
       "first@example.com",
     );
     await createTestAttendee(
-      event2.id,
-      event2.slug,
+      listing2.id,
+      listing2.slug,
       "Second",
       "second@example.com",
     );
     await createTestAttendee(
-      event1.id,
-      event1.slug,
+      listing1.id,
+      listing1.slug,
       "Third",
       "third@example.com",
     );
@@ -44,11 +44,11 @@ describeWithEnv("db > attendees > getNewestAttendeesRaw", { db: true }, () => {
   });
 
   test("respects limit", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
+    const listing = await createTestListing({ maxAttendees: 10 });
     for (let i = 0; i < 3; i++) {
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         `Name${i}`,
         `n${i}@example.com`,
       );

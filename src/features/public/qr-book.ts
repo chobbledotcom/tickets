@@ -2,7 +2,7 @@
  * Scan handler for signed booking QR links.
  *
  * Verifies a signed token; on success, either skips straight to Stripe
- * checkout (when the token carries a name + value and the event requires
+ * checkout (when the token carries a name + value and the listing requires
  * no extra fields or questions) or renders the normal booking page
  * with the token's values pre-filled.
  */
@@ -10,15 +10,15 @@
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { getGroupRemainingForEvent } from "#shared/db/attendees/capacity.ts";
-import { getEventWithCountBySlug } from "#shared/db/events.ts";
+import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { eventSupportsDirectCheckout } from "#shared/qr.ts";
+import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
-import type { EventWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import {
-  buildTicketEvent,
+  buildTicketListing,
   type QrPrefill,
   qrBookErrorPage,
   type TicketPrefill,
@@ -29,65 +29,65 @@ import { handleTicket } from "./ticket-submit.ts";
 const errorResponse = (slug: string, status: number): Response =>
   htmlResponse(qrBookErrorPage(slug), status);
 
-/** Build per-event prefill entries from a QR payload */
-const buildEventPrefills = (
-  event: EventWithCount,
+/** Build per-listing prefill entries from a QR payload */
+const buildListingPrefills = (
+  listing: ListingWithCount,
   payload: QrBookPayload,
 ): Map<number, TicketPrefill> => {
   const entry: TicketPrefill = { quantity: payload.q };
-  if (payload.v >= 0 && event.can_pay_more) {
+  if (payload.v >= 0 && listing.can_pay_more) {
     entry.customPriceMinor = payload.v;
   }
-  return new Map([[event.id, entry]]);
+  return new Map([[listing.id, entry]]);
 };
 
 /** Build the QrPrefill context for the ticket page */
 const buildPrefill = (
-  event: EventWithCount,
+  listing: ListingWithCount,
   payload: QrBookPayload,
   token: string,
 ): QrPrefill => ({
   date: payload.d || undefined,
-  events: buildEventPrefills(event, payload),
+  listings: buildListingPrefills(listing, payload),
   name: payload.n || undefined,
   token,
 });
 
 /** Check whether the scan should skip straight to Stripe checkout.
- * Pre-requisites enforced by the caller: event is loaded, and for daily
- * events the payload date has been validated against bookable dates. */
+ * Pre-requisites enforced by the caller: listing is loaded, and for daily
+ * listings the payload date has been validated against bookable dates. */
 const canSkipToCheckout = async (
-  event: EventWithCount,
+  listing: ListingWithCount,
   payload: QrBookPayload,
 ): Promise<boolean> => {
   if (!payload.n || payload.v < 0) return false;
-  return await eventSupportsDirectCheckout(event);
+  return await listingSupportsDirectCheckout(listing);
 };
 
-/** Validate a daily-event booking date against available dates (minus holidays) */
+/** Validate a daily-listing booking date against available dates (minus holidays) */
 const isDailyDateBookable = async (
-  event: EventWithCount,
+  listing: ListingWithCount,
   date: string,
 ): Promise<boolean> => {
   if (!date) return false;
   const holidays = await getActiveHolidays();
-  return getAvailableDates(event, holidays).includes(date);
+  return getAvailableDates(listing, holidays).includes(date);
 };
 
-/** Construct a CheckoutIntent for a single-event direct-to-Stripe booking */
+/** Construct a CheckoutIntent for a single-listing direct-to-Stripe booking */
 const buildCheckoutIntent = (
-  event: EventWithCount,
+  listing: ListingWithCount,
   payload: QrBookPayload,
 ): CheckoutIntent => ({
   address: "",
-  date: event.event_type === "daily" ? payload.d : null,
+  date: listing.listing_type === "daily" ? payload.d : null,
   email: "",
   items: [
     {
-      eventId: event.id,
-      name: event.name,
+      listingId: listing.id,
+      name: listing.name,
       quantity: payload.q,
-      slug: event.slug,
+      slug: listing.slug,
       unitPrice: payload.v,
     },
   ],
@@ -99,45 +99,45 @@ const buildCheckoutIntent = (
 /** Redirect directly to Stripe checkout using the signed values */
 const skipToCheckout = (
   request: Request,
-  event: EventWithCount,
+  listing: ListingWithCount,
   payload: QrBookPayload,
 ): Promise<Response> => {
-  const intent = buildCheckoutIntent(event, payload);
+  const intent = buildCheckoutIntent(listing, payload);
   return runCheckoutFlow(
-    `qr-book event=${event.id}`,
+    `qr-book listing=${listing.id}`,
     request,
     (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
-    () => errorResponse(event.slug, 500),
+    () => errorResponse(listing.slug, 500),
   );
 };
 
-/** Once the token is verified and the event loaded, render or redirect */
+/** Once the token is verified and the listing loaded, render or redirect */
 const dispatchVerified = async (
   request: Request,
   slug: string,
   token: string,
   payload: QrBookPayload,
-  event: EventWithCount,
+  listing: ListingWithCount,
 ): Promise<Response> => {
   if (
-    event.event_type === "daily" &&
-    !(await isDailyDateBookable(event, payload.d))
+    listing.listing_type === "daily" &&
+    !(await isDailyDateBookable(listing, payload.d))
   ) {
     return errorResponse(slug, 400);
   }
-  if (await canSkipToCheckout(event, payload)) {
-    return skipToCheckout(request, event, payload);
+  if (await canSkipToCheckout(listing, payload)) {
+    return skipToCheckout(request, listing, payload);
   }
-  const ticketEvent = buildTicketEvent(
-    event,
-    isRegistrationClosed(event),
-    await getGroupRemainingForEvent(event),
+  const ticketListing = buildTicketListing(
+    listing,
+    isRegistrationClosed(listing),
+    await getGroupRemainingForListing(listing),
   );
-  const prefill = buildPrefill(event, payload, token);
+  const prefill = buildPrefill(listing, payload, token);
   return handleTicket(
     request,
     [slug],
-    [ticketEvent],
+    [ticketListing],
     getTicketContext,
     prefill,
   );
@@ -153,7 +153,7 @@ export const handleQrBookGet = async (
   if (!token) return errorResponse(slug, 400);
   const payload = await verifyQrBookToken(slug, token);
   if (!payload) return errorResponse(slug, 400);
-  const event = await getEventWithCountBySlug(slug);
-  if (!event?.active) return errorResponse(slug, 404);
-  return dispatchVerified(request, slug, token, payload, event);
+  const listing = await getListingWithCountBySlug(slug);
+  if (!listing?.active) return errorResponse(slug, 404);
+  return dispatchVerified(request, slug, token, payload, listing);
 };

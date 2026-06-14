@@ -4,7 +4,7 @@
 
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
-import type { AdminSession, EventWithCount } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -19,19 +19,19 @@ export interface TicketOption {
  * Scanner page - camera feed with auto check-in + manual autocomplete
  */
 export const adminScannerPage = (
-  event: EventWithCount,
+  listing: ListingWithCount,
   session: AdminSession,
   uncheckedIn: TicketOption[] = [],
 ): string =>
   String(
     <Layout
       headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
-      title={`Scanner: ${event.name}`}
+      title={`Scanner: ${listing.name}`}
     >
       <AdminNav active="/admin/" session={session} />
       <h1>Scanner</h1>
       <p>
-        <a href={`/admin/event/${event.id}`}>&larr; {event.name}</a>
+        <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
         {" | "}
         <a href="/admin/guide#checkin">Scanner help</a>
       </p>
@@ -40,7 +40,7 @@ export const adminScannerPage = (
         <div id="scanner-container">
           <video
             class="hidden"
-            data-event-id={String(event.id)}
+            data-listing-id={String(listing.id)}
             id="scanner-video"
             muted
             playsinline
@@ -77,8 +77,8 @@ export const adminScannerPage = (
       <article>
         <h2>Manual Check-in</h2>
         <form
-          action={`/admin/event/${event.id}/scan`}
-          data-event-id={String(event.id)}
+          action={`/admin/listing/${listing.id}/scan`}
+          data-listing-id={String(listing.id)}
           data-manual-checkin
           id="manual-checkin"
           method="POST"

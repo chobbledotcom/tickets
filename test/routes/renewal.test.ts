@@ -8,8 +8,8 @@ import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  createTestEvent,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectHtmlResponse,
   extractCsrfToken,
@@ -42,8 +42,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
   });
 
   describe("GET /renew/", () => {
-    test("renders renewal picker with every qualifying tier event", async () => {
-      const monthly = await createTestEvent({
+    test("renders renewal picker with every qualifying tier listing", async () => {
+      const monthly = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         monthsPerUnit: 1,
@@ -51,7 +51,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const annual = await createTestEvent({
+      const annual = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         monthsPerUnit: 12,
@@ -80,7 +80,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("does not show terms and conditions or agreement checkbox", async () => {
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -97,7 +97,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("marks renewal picker as noindex", async () => {
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -113,7 +113,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("shows the current deadline in the page", async () => {
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -128,7 +128,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("omits the 'current deadline' wording when no deadline is set", async () => {
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -161,7 +161,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("renders error page when no qualifying tier events exist", async () => {
+    test("renders error page when no qualifying tier listings exist", async () => {
       const { token } = await setupRenewalSite();
 
       const response = await handleRequest(
@@ -176,22 +176,22 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).not.toContain("quantity_");
     });
 
-    test("excludes inactive tier events from the picker", async () => {
-      const active = await createTestEvent({
+    test("excludes inactive tier listings from the picker", async () => {
+      const active = await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         name: "Active tier",
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const stale = await createTestEvent({
+      const stale = await createTestListing({
         hidden: true,
         monthsPerUnit: 1,
         name: "Stale tier",
         purchaseOnly: true,
         unitPrice: 700,
       });
-      await deactivateTestEvent(stale.id);
+      await deactivateTestListing(stale.id);
       const { token } = await setupRenewalSite();
 
       const response = await handleRequest(
@@ -206,7 +206,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
   describe("POST /renew/", () => {
     test("creates checkout session for the chosen tier with siteToken in intent", async () => {
       await setupStripe();
-      const tier = await createTestEvent({
+      const tier = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         maxQuantity: 12,
@@ -246,7 +246,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
           .args[0] as import("#shared/payments.ts").CheckoutIntent;
         expect(intent.siteToken).toBe(token);
         expect(intent.items).toHaveLength(1);
-        expect(intent.items[0]!.eventId).toBe(tier.id);
+        expect(intent.items[0]!.listingId).toBe(tier.id);
         expect(intent.items[0]!.quantity).toBe(3);
         expect(intent.items[0]!.unitPrice).toBe(500);
       } finally {
@@ -256,7 +256,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
 
     test("creates a multi-item checkout when more than one tier is selected", async () => {
       await setupStripe();
-      const monthly = await createTestEvent({
+      const monthly = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         maxQuantity: 12,
@@ -264,7 +264,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         purchaseOnly: true,
         unitPrice: 500,
       });
-      const annual = await createTestEvent({
+      const annual = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         maxQuantity: 12,
@@ -305,7 +305,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         const intent = mockCreate.calls[0]!
           .args[0] as import("#shared/payments.ts").CheckoutIntent;
         expect(intent.siteToken).toBe(token);
-        const ids = intent.items.map((i) => i.eventId).sort();
+        const ids = intent.items.map((i) => i.listingId).sort();
         expect(ids).toEqual([monthly.id, annual.id].sort());
       } finally {
         mockCreate.restore();
@@ -313,7 +313,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("free renewal tier still applies the site renewal", async () => {
-      const tier = await createTestEvent({
+      const tier = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         maxQuantity: 12,
@@ -361,7 +361,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("redirects (no checkout) when CSRF token is missing", async () => {
-      const tier = await createTestEvent({
+      const tier = await createTestListing({
         hidden: true,
         maxAttendees: 100,
         monthsPerUnit: 1,

@@ -62,7 +62,7 @@ export const builderForm = defineForm({
       maxlength: 64,
       minlength: 1,
       name: "site_name",
-      placeholder: "My Event Site",
+      placeholder: "My Listing Site",
       required: true,
       type: "text" as const,
     },

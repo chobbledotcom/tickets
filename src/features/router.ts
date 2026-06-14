@@ -69,9 +69,9 @@ const isNumericParam = (name: string): boolean =>
 
 /** Param patterns by type - name ending determines pattern */
 const getParamPattern = (name: string): string => {
-  // Params ending in Id match digits only (e.g., eventId, attendeeId)
+  // Params ending in Id match digits only (e.g., listingId, attendeeId)
   if (isNumericParam(name)) return "(\\d+)";
-  // Slugs match lowercase alphanumeric with hyphens and + (for multi-event URLs)
+  // Slugs match lowercase alphanumeric with hyphens and + (for multi-listing URLs)
   if (name === "slug") return "([a-z0-9]+(?:[-+][a-z0-9]+)*)";
   // Default: match any non-slash characters
   return "([^/]+)";
@@ -83,8 +83,8 @@ const getParamPattern = (name: string): string => {
  * All paths are normalized to strip trailing slashes before matching
  * Examples:
  *   "GET /admin" -> matches /admin
- *   "GET /admin/event/:id" -> extracts id param from /admin/event/123
- *   "GET /ticket/:slug" -> extracts slug param like /ticket/my-event-2024
+ *   "GET /admin/listing/:id" -> extracts id param from /admin/listing/123
+ *   "GET /ticket/:slug" -> extracts slug param like /ticket/my-listing-2024
  */
 const compilePattern = (
   pattern: string,

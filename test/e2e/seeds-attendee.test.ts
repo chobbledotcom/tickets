@@ -4,19 +4,19 @@
  * decrypts the newest attendees' PII blobs) throws "Invalid hybrid encrypted
  * data format" because seeded attendees are inserted without a pii_blob.
  *
- * Flow: setup → login → seed 1 event + 1 attendee →
- *       visit /admin (dashboard) → visit event page → visit attendee edit page
+ * Flow: setup → login → seed 1 listing + 1 attendee →
+ *       visit /admin (dashboard) → visit listing page → visit attendee edit page
  */
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateEventsCache } from "#shared/db/events.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
-import { DEMO_EVENT_NAMES } from "#shared/demo.ts";
+import { DEMO_LISTING_NAMES } from "#shared/demo.ts";
 
 import {
   clearTestEncryptionKey,
@@ -31,7 +31,7 @@ const invalidateAllCaches = (): void => {
   settings.invalidateCache();
   settings.setup.clearCache();
   invalidateUsersCache();
-  invalidateEventsCache();
+  invalidateListingsCache();
   invalidateGroupsCache();
   invalidateHolidaysCache();
   resetSessionCache();
@@ -51,7 +51,7 @@ describe("e2e: seeded attendee views", () => {
     clearTestEncryptionKey();
   });
 
-  test("setup → seed → dashboard → event page → attendee edit page all render", async () => {
+  test("setup → seed → dashboard → listing page → attendee edit page all render", async () => {
     // 1. Complete initial setup
     await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
@@ -77,32 +77,32 @@ describe("e2e: seeded attendee views", () => {
     if (browser.containsText("Migration complete")) {
       await browser.clickLink("Back to dashboard");
     }
-    expect(browser.containsText("Add Event")).toBe(true);
+    expect(browser.containsText("Add Listing")).toBe(true);
 
-    // 3. Seed 2 events with 1 attendee each via /admin/seeds.
-    //    Even-indexed events get a random unit_price, odd-indexed ones are
-    //    free. The free event surfaces an Edit link for the attendee in the
-    //    main table; paid-event attendees without a payment_id land in the
+    // 3. Seed 2 listings with 1 attendee each via /admin/seeds.
+    //    Even-indexed listings get a random unit_price, odd-indexed ones are
+    //    free. The free listing surfaces an Edit link for the attendee in the
+    //    main table; paid-listing attendees without a payment_id land in the
     //    Failed Payments table instead (which has no Edit link).
     await browser.visit("/admin/seeds");
     expect(browser.containsText("Seed Data")).toBe(true);
     await browser.submitForm(
-      { attendees_per_event: "1", event_count: "2" },
+      { attendees_per_listing: "1", listing_count: "2" },
       "Create Seed Data",
     );
     expect(
-      browser.containsText("Created 2 event(s) with 2 attendee(s) total"),
+      browser.containsText("Created 2 listing(s) with 2 attendee(s) total"),
     ).toBe(true);
 
     // 4. Visit the admin dashboard — must not crash decrypting seeded attendees
     await browser.visit("/admin");
-    const freeEventName = DEMO_EVENT_NAMES[1]!;
-    expect(browser.containsText(freeEventName)).toBe(true);
+    const freeListingName = DEMO_LISTING_NAMES[1]!;
+    expect(browser.containsText(freeListingName)).toBe(true);
 
-    // 5. Navigate to the free event's page
-    await browser.clickLink(freeEventName);
-    expect(browser.currentUrl).toMatch(/^\/admin\/event\/\d+$/);
-    expect(browser.containsText(freeEventName)).toBe(true);
+    // 5. Navigate to the free listing's page
+    await browser.clickLink(freeListingName);
+    expect(browser.currentUrl).toMatch(/^\/admin\/listing\/\d+$/);
+    expect(browser.containsText(freeListingName)).toBe(true);
 
     // 6. Navigate to the attendee's edit page via the "Edit" link in the
     //    attendee table. The link href is /admin/attendees/:id.

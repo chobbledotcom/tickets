@@ -9,7 +9,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { backupFilename, backupTimestamp } from "#shared/db/backup.ts";
 import { getDb, setDb } from "#shared/db/client.ts";
-import { getAllEvents } from "#shared/db/events.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -18,6 +18,7 @@ import {
   MIGRATION_LOCK_TTL_MS,
   MigrationInProgressError,
   MissingSettingsTableError,
+  renameEventsToListings,
   resetDatabase,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
@@ -25,7 +26,7 @@ import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import {
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   installUrlHandler,
   invalidateTestDbCache,
@@ -167,7 +168,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
     test("initDb fails without rewriting markers when the schema does not match and no migration is pending", async () => {
       // A SCHEMA change deployed without a named migration: the hash is
       // stale, nothing is pending, and verification finds the mismatch.
-      await getDb().execute("DROP INDEX idx_events_slug_index");
+      await getDb().execute("DROP INDEX idx_listings_slug_index");
       await getDb().execute(
         "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
       );
@@ -190,8 +191,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
     test("initDb can be called multiple times safely", async () => {
       await initDb();
 
-      const events = await getAllEvents();
-      expect(events).toEqual([]);
+      const listings = await getAllListings();
+      expect(listings).toEqual([]);
     });
 
     test("initDb bails early when database is up to date", async () => {
@@ -329,7 +330,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await expect(initDb()).rejects.toThrow("settings table is uninitialized");
 
       expect(await settingsTableExists()).toBe(true);
-      expect(await tableExists("events")).toBe(false);
+      expect(await tableExists("listings")).toBe(false);
       expect(await schemaMarkerKeys()).toEqual([]);
     });
 
@@ -355,7 +356,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb({ allowMissingSettings: true });
 
       expect(await settingsTableExists()).toBe(true);
-      expect(await tableExists("events")).toBe(true);
+      expect(await tableExists("listings")).toBe(true);
       expect(await schemaMarkerKeys()).toEqual([
         "db_schema_hash",
         "latest_db_update",
@@ -389,6 +390,91 @@ describeWithEnv("db > migrations", { db: true }, () => {
            AND name = 'idx_attendees_legacy_created'`,
       );
       expect(after.rows.length).toBe(0);
+    });
+  });
+
+  describe("renameEventsToListings (legacy event → listing upgrade)", () => {
+    const columnNames = async (table: string): Promise<string[]> => {
+      const result = await getDb().execute(
+        `SELECT name FROM pragma_table_info('${table}')`,
+      );
+      return result.rows.map((r) => String(r.name));
+    };
+
+    const tableNames = async (): Promise<Set<string>> => {
+      const result = await getDb().execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      );
+      return new Set(result.rows.map((r) => String(r.name)));
+    };
+
+    // Simulate a legacy database by renaming the fully-formed current tables
+    // back to their historical "event" names (so every column is present, as
+    // it would be in production) and then asserting the migration restores the
+    // "listing" names without losing data.
+    const downgradeToLegacyNames = () =>
+      getDb().batch(
+        [
+          "ALTER TABLE listings RENAME COLUMN listing_type TO event_type",
+          "ALTER TABLE listings RENAME TO events",
+          "ALTER TABLE listing_attendees RENAME COLUMN listing_id TO event_id",
+          "ALTER TABLE listing_attendees RENAME TO event_attendees",
+          "ALTER TABLE listing_questions RENAME COLUMN listing_id TO event_id",
+          "ALTER TABLE listing_questions RENAME TO event_questions",
+          "ALTER TABLE activity_log RENAME COLUMN listing_id TO event_id",
+          "ALTER TABLE built_sites RENAME COLUMN assigned_listing_id TO assigned_event_id",
+        ],
+        "write",
+      );
+
+    test("renames legacy tables and columns while preserving rows", async () => {
+      await createTestListing();
+      await downgradeToLegacyNames();
+
+      await renameEventsToListings();
+
+      const tables = await tableNames();
+      expect(tables.has("listings")).toBe(true);
+      expect(tables.has("events")).toBe(false);
+      expect(tables.has("listing_attendees")).toBe(true);
+      expect(tables.has("listing_questions")).toBe(true);
+
+      expect(await columnNames("listings")).toContain("listing_type");
+      expect(await columnNames("listing_attendees")).toContain("listing_id");
+      expect(await columnNames("listing_questions")).toContain("listing_id");
+      expect(await columnNames("activity_log")).toContain("listing_id");
+      expect(await columnNames("built_sites")).toContain("assigned_listing_id");
+
+      // The seeded row survives the table/column renames intact.
+      const listings = await getAllListings();
+      expect(listings.length).toBe(1);
+    });
+
+    test("skips column renames for tables that do not exist", async () => {
+      await downgradeToLegacyNames();
+      // Drop a table whose column rename would otherwise run: the migration
+      // must treat the absent table as nothing to rename rather than erroring.
+      await getDb().execute("DROP TABLE built_sites");
+
+      await renameEventsToListings();
+
+      const tables = await tableNames();
+      expect(tables.has("listings")).toBe(true);
+      // applySchemaChanges recreates the dropped table with the current schema.
+      expect(await columnNames("built_sites")).toContain("assigned_listing_id");
+    });
+
+    test("is a no-op when listing tables already exist (fresh database)", async () => {
+      // A migrated database has no legacy event tables: every rename is
+      // skipped and the already-current schema is left untouched.
+      const before = await getAllListings();
+      await renameEventsToListings();
+      const after = await getAllListings();
+      expect(after.length).toBe(before.length);
+
+      const tables = await tableNames();
+      expect(tables.has("events")).toBe(false);
+      expect(tables.has("listings")).toBe(true);
     });
   });
 
@@ -728,9 +814,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
   describe("resetDatabase", () => {
     test("drops all tables", async () => {
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 50,
-        name: "Test Event",
+        name: "Test Listing",
         thankYouUrl: "https://example.com",
       });
       await createSession(
@@ -748,7 +834,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "SELECT name FROM sqlite_master WHERE type='table'",
       );
       const tableNames = tablesResult.rows.map((r) => r.name);
-      expect(tableNames).not.toContain("events");
+      expect(tableNames).not.toContain("listings");
       expect(tableNames).not.toContain("attendees");
       expect(tableNames).not.toContain("sessions");
       expect(tableNames).not.toContain("settings");
@@ -763,14 +849,14 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb({ allowMissingSettings: true });
 
       await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 25,
-        name: "New Event",
+        name: "New Listing",
         thankYouUrl: "https://example.com",
       });
 
-      expect(event.id).toBe(1);
-      expect(event.name).toBe("New Event");
+      expect(listing.id).toBe(1);
+      expect(listing.name).toBe("New Listing");
     });
   });
 });
@@ -788,8 +874,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-11_current_schema",
         "2026-06-12_sumup_checkouts",
         "2026-06-13_event_attendees_overlap_index",
+        "2026-06-14_rename_events_to_listings",
       ],
-      schemaHash: "3htq2e",
+      schemaHash: "c2fsfy",
     });
   });
 });

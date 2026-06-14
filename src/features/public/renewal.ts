@@ -1,16 +1,16 @@
 /**
  * Renewal route — handles GET/POST for /renew/?t=<token>
  *
- * Lets a customer pick from the qualifying renewal tier events and pay for
+ * Lets a customer pick from the qualifying renewal tier listings and pay for
  * any quantity of months. Reuses `handleTicket` so the picker UI, validation,
  * CSRF, and Stripe checkout flow stay the same as the regular ticket form.
  */
 
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { eventDateToCalendarDate, formatDateLabel } from "#shared/dates.ts";
+import { formatDateLabel, listingDateToCalendarDate } from "#shared/dates.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
-import { getQualifyingTierEvents } from "#shared/site-assignment.ts";
+import { getQualifyingTierListings } from "#shared/site-assignment.ts";
 import { renewalErrorPage } from "#templates/public/renewal.tsx";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import { applyNoindex } from "./types.ts";
@@ -31,7 +31,7 @@ const handleRenewal = async (request: Request): Promise<Response> => {
   const site = await resolveRenewalSite(token);
   if (!site || !token) return notFoundResponse();
 
-  const tiers = await getQualifyingTierEvents();
+  const tiers = await getQualifyingTierListings();
   if (tiers.length === 0) {
     return applyNoindex(
       htmlResponse(renewalErrorPage({ siteName: site.name })),
@@ -39,7 +39,7 @@ const handleRenewal = async (request: Request): Promise<Response> => {
   }
 
   const deadlineDate = site.readOnlyFrom
-    ? eventDateToCalendarDate(site.readOnlyFrom)
+    ? listingDateToCalendarDate(site.readOnlyFrom)
     : null;
 
   return applyNoindex(

@@ -15,44 +15,44 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
-  type EventAttendeeRow,
+  type ListingAttendeeRow,
   markRefunded,
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
-import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import {
   getAttendeeAnswersBatch,
-  getQuestionsForEvent,
+  getQuestionsForListing,
   type QuestionWithAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
-import type { Attendee, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { adminEditAttendeePage } from "#templates/admin/attendees.tsx";
 import { getReturnUrl, NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
 
-/** Get all events (active + the current event), uniquified */
-const getEventsForSelector = async (
-  currentEventId: number,
-): Promise<EventWithCount[]> => {
-  const allEvents = await getAllEvents();
-  const currentEvent = allEvents.find((e) => e.id === currentEventId);
-  const activeEvents = filter((e: EventWithCount) => e.active)(allEvents);
-  return uniqueBy((e: EventWithCount) => e.id)(
-    compact([currentEvent, ...activeEvents]),
+/** Get all listings (active + the current listing), uniquified */
+const getListingsForSelector = async (
+  currentListingId: number,
+): Promise<ListingWithCount[]> => {
+  const allListings = await getAllListings();
+  const currentListing = allListings.find((e) => e.id === currentListingId);
+  const activeListings = filter((e: ListingWithCount) => e.active)(allListings);
+  return uniqueBy((e: ListingWithCount) => e.id)(
+    compact([currentListing, ...activeListings]),
   );
 };
 
-/** A resolved event link for display in the edit page */
-type EventLinkData = {
-  event: EventWithCount;
-  booking: EventAttendeeRow;
+/** A resolved listing link for display in the edit page */
+type ListingLinkData = {
+  listing: ListingWithCount;
+  booking: ListingAttendeeRow;
   date: string | null;
 };
 
@@ -61,66 +61,66 @@ const loadAttendeeForEdit = async (
   attendeeId: number,
 ): Promise<{
   attendee: Attendee;
-  event: EventWithCount;
-  eventLinks: EventLinkData[];
-  allEvents: EventWithCount[];
+  listing: ListingWithCount;
+  listingLinks: ListingLinkData[];
+  allListings: ListingWithCount[];
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
-  /** Available dates per daily event (for date picker) */
-  availableDatesByEvent: Record<number, string[]>;
+  /** Available dates per daily listing (for date picker) */
+  availableDatesByListing: Record<number, string[]>;
 } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE a.id = ?`,
     [attendeeId],
   );
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
 
-  // Load all event bookings for this attendee
-  const bookingRows = await queryAll<EventAttendeeRow>(
-    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM event_attendees WHERE attendee_id = ?
-     ORDER BY start_at, event_id`,
+  // Load all listing bookings for this attendee
+  const bookingRows = await queryAll<ListingAttendeeRow>(
+    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM listing_attendees WHERE attendee_id = ?
+     ORDER BY start_at, listing_id`,
     [attendeeId],
   );
 
-  // Resolve events for each booking in parallel (event always exists — referential integrity)
-  const eventLinks = await Promise.all(
+  // Resolve listings for each booking in parallel (listing always exists — referential integrity)
+  const listingLinks = await Promise.all(
     map(
-      async (booking: EventAttendeeRow): Promise<EventLinkData> => ({
+      async (booking: ListingAttendeeRow): Promise<ListingLinkData> => ({
         booking,
         date: booking.start_at?.slice(0, 10) ?? null,
-        event: (await getEventWithCount(booking.event_id))!,
+        listing: (await getListingWithCount(booking.listing_id))!,
       }),
     )(bookingRows),
   );
 
-  // Attendees always have at least one event link (enforced by createAttendeeAtomic)
-  const firstEvent = eventLinks[0]!.event;
-  const allEvents = await getEventsForSelector(firstEvent.id);
-  const questions = await getQuestionsForEvent(firstEvent.id);
+  // Attendees always have at least one listing link (enforced by createAttendeeAtomic)
+  const firstListing = listingLinks[0]!.listing;
+  const allListings = await getListingsForSelector(firstListing.id);
+  const questions = await getQuestionsForListing(firstListing.id);
   const answersMap = await getAttendeeAnswersBatch([attendeeId]);
   const holidays = await getActiveHolidays();
   const selectedAnswerIds = answersMap.get(attendeeId) ?? [];
 
-  // Build available dates for each daily event
-  const availableDatesByEvent: Record<number, string[]> = {};
-  for (const evt of allEvents) {
-    if (evt.event_type === "daily") {
-      availableDatesByEvent[evt.id] = getAvailableDates(evt, holidays);
+  // Build available dates for each daily listing
+  const availableDatesByListing: Record<number, string[]> = {};
+  for (const evt of allListings) {
+    if (evt.listing_type === "daily") {
+      availableDatesByListing[evt.id] = getAvailableDates(evt, holidays);
     }
   }
 
   return {
-    allEvents,
+    allListings,
     attendee,
-    availableDatesByEvent,
-    event: firstEvent,
-    eventLinks,
+    availableDatesByListing,
+    listing: firstListing,
+    listingLinks,
     questions,
     selectedAnswerIds,
   };
@@ -186,7 +186,7 @@ async function editAttendeeHandler(
     }
   }
 
-  // Update PII (shared across events)
+  // Update PII (shared across listings)
   await updateAttendeePII(attendeeId, {
     address,
     email,
@@ -202,10 +202,10 @@ async function editAttendeeHandler(
     await saveAttendeeAnswers([attendeeId], answerIds);
   }
 
-  await logActivity(`Attendee '${name}' updated`, data.event.id);
+  await logActivity(`Attendee '${name}' updated`, data.listing.id);
 
   return redirect(
-    `/admin/event/${data.event.id}#attendees`,
+    `/admin/listing/${data.listing.id}#attendees`,
     `Updated ${name}`,
     true,
     { form },
@@ -237,10 +237,10 @@ async function refreshPaymentHandler(
 
   const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);
   if (isRefunded && !data.attendee.refunded) {
-    await markRefunded(attendeeId, data.event.id);
+    await markRefunded(attendeeId, data.listing.id);
     await logActivity(
       `Payment marked as refunded for attendee '${data.attendee.name}'`,
-      data.event.id,
+      data.listing.id,
     );
     return redirect(
       `/admin/attendees/${attendeeId}`,

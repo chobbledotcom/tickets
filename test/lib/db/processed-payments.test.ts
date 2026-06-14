@@ -8,7 +8,7 @@ import {
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
-import { bookAttendee, createTestEvent, describeWithEnv } from "#test-utils";
+import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {
@@ -18,11 +18,11 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("returns existing when session already reserved and finalized", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendeeResult = await bookAttendee(event, {
+      const attendeeResult = await bookAttendee(listing, {
         email: "test@example.com",
         name: "Test",
       });

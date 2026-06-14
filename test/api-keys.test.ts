@@ -22,7 +22,7 @@ import { createSession } from "#shared/db/sessions.ts";
 import {
   assertJson,
   createTestApiKeyFull,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectFlash,
   expectRedirect,
@@ -431,15 +431,15 @@ describeWithEnv("API Keys", { db: true }, () => {
 
   describe("Bearer token authentication", () => {
     test("authenticates /api/admin/* request with Bearer token", async () => {
-      await createTestEvent({ name: "Bearer Test" });
+      await createTestListing({ name: "Bearer Test" });
 
       const { apiKey } = await createTestApiKeyFull("Auth Test");
 
       await assertJson(
-        handleRequest(requestAsApiKey("/api/admin/events", apiKey)),
+        handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
         (body) => {
-          expect(body.events).toBeDefined();
+          expect(body.listings).toBeDefined();
         },
       );
     });
@@ -466,7 +466,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
     test("rejects invalid Bearer token", async () => {
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", "invalid-token"),
+        requestAsApiKey("/api/admin/listings", "invalid-token"),
       );
 
       expect(response.status).toBe(401);
@@ -479,7 +479,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("succeeds even when touchApiKeyLastUsed fails", async () => {
-      await createTestEvent({ name: "Touch Fail Test" });
+      await createTestListing({ name: "Touch Fail Test" });
       const { apiKey } = await createTestApiKeyFull("Resilient Auth");
 
       const apiKeysModule = await import("#shared/db/api-keys.ts");
@@ -491,7 +491,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       try {
         const response = await handleRequest(
-          requestAsApiKey("/api/admin/events", apiKey),
+          requestAsApiKey("/api/admin/listings", apiKey),
         );
         expect(response.status).toBe(200);
       } finally {
@@ -553,57 +553,57 @@ describeWithEnv("API Keys", { db: true }, () => {
   });
 
   describe("admin JSON API", () => {
-    test("GET /api/admin/events returns events via API key", async () => {
-      await createTestEvent({ name: "Test Event" });
+    test("GET /api/admin/listings returns listings via API key", async () => {
+      await createTestListing({ name: "Test Listing" });
 
-      const { apiKey } = await createTestApiKeyFull("Events API");
+      const { apiKey } = await createTestApiKeyFull("Listings API");
 
       const body = await assertJson(
-        handleRequest(requestAsApiKey("/api/admin/events", apiKey)),
+        handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
         (body) => {
-          expect(body.events).toBeDefined();
-          expect(body.events.length).toBeGreaterThan(0);
+          expect(body.listings).toBeDefined();
+          expect(body.listings.length).toBeGreaterThan(0);
           expect(body.admin_level).toBe("owner");
         },
       );
 
       // Verify snake_case keys and no internal fields
-      const event = body.events[0];
-      expect(event.name).toBe("Test Event");
-      expect(event.max_attendees).toBeDefined();
-      expect(event.attendee_count).toBeDefined();
-      expect(event.event_type).toBeDefined();
-      expect(event.slug_index).toBeUndefined();
+      const listing = body.listings[0];
+      expect(listing.name).toBe("Test Listing");
+      expect(listing.max_attendees).toBeDefined();
+      expect(listing.attendee_count).toBeDefined();
+      expect(listing.listing_type).toBeDefined();
+      expect(listing.slug_index).toBeUndefined();
     });
 
-    test("GET /api/admin/events returns events via cookie+CSRF", async () => {
-      await createTestEvent({ name: "Cookie Event" });
+    test("GET /api/admin/listings returns listings via cookie+CSRF", async () => {
+      await createTestListing({ name: "Cookie Listing" });
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
       await assertJson(
         handleRequest(
-          requestAsSession("/api/admin/events", { cookie, csrfToken }),
+          requestAsSession("/api/admin/listings", { cookie, csrfToken }),
         ),
         200,
         (body) => {
-          expect(body.events).toBeDefined();
+          expect(body.listings).toBeDefined();
         },
       );
     });
 
-    test("GET /api/admin/events returns 401 for invalid API key", async () => {
+    test("GET /api/admin/listings returns 401 for invalid API key", async () => {
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", "bad-key"),
+        requestAsApiKey("/api/admin/listings", "bad-key"),
       );
 
       expect(response.status).toBe(401);
     });
 
-    test("GET /api/admin/events returns 401 without auth", async () => {
-      const response = await handleRequest(mockRequest("/api/admin/events"));
+    test("GET /api/admin/listings returns 401 without auth", async () => {
+      const response = await handleRequest(mockRequest("/api/admin/listings"));
 
       expect(response.status).toBe(401);
     });
@@ -627,7 +627,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
 
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", token),
+        requestAsApiKey("/api/admin/listings", token),
       );
 
       expect(response.status).toBe(401);
@@ -643,18 +643,18 @@ describeWithEnv("API Keys", { db: true }, () => {
       });
 
       const response = await handleRequest(
-        requestAsApiKey("/api/admin/events", apiKey),
+        requestAsApiKey("/api/admin/listings", apiKey),
       );
 
       expect(response.status).toBe(401);
     });
 
-    test("GET /api/admin/events returns 401 for cookie without CSRF header", async () => {
-      await createTestEvent({ name: "CSRF Event" });
+    test("GET /api/admin/listings returns 401 for cookie without CSRF header", async () => {
+      await createTestListing({ name: "CSRF Listing" });
       const cookie = await testCookie();
 
       const response = await handleRequest(
-        mockRequest("/api/admin/events", {
+        mockRequest("/api/admin/listings", {
           headers: { cookie },
         }),
       );
@@ -663,7 +663,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("request succeeds when touchApiKeyLastUsed fails (fire-and-forget)", async () => {
-      await createTestEvent({ name: "Touch Test" });
+      await createTestListing({ name: "Touch Test" });
       const { apiKey } = await createTestApiKeyFull("Touch Test Key");
 
       // Make touchApiKeyLastUsed throw via test hook
@@ -672,7 +672,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       try {
         const response = await handleRequest(
-          requestAsApiKey("/api/admin/events", apiKey),
+          requestAsApiKey("/api/admin/listings", apiKey),
         );
         // Request should succeed despite touchApiKeyLastUsed throwing
         expect(response.status).toBe(200);

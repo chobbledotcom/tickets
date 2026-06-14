@@ -12,8 +12,9 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
   >
     <h2>Enable public API?</h2>
     <p>
-      Exposes a JSON API for listing events, checking availability, and creating
-      bookings. See the <a href="/admin/guide#api">API guide</a> for details.
+      Exposes a JSON API for listing listings, checking availability, and
+      creating bookings. See the <a href="/admin/guide#api">API guide</a> for
+      details.
     </p>
     <fieldset class="radio-group">
       <label>

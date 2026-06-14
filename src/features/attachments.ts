@@ -1,5 +1,5 @@
 /**
- * Attachment download route — serves encrypted event attachments from Bunny CDN.
+ * Attachment download route — serves encrypted listing attachments from Bunny CDN.
  * GET /attachment/:id?a=attendeeId&exp=timestamp&sig=hmacSignature
  *
  * URLs are signed with HMAC and time-limited (1 hour) to prevent sharing.
@@ -14,7 +14,7 @@ import {
   getAttendeeRaw,
   incrementAttachmentDownloads,
 } from "#shared/db/attendees.ts";
-import { getEvent } from "#shared/db/events.ts";
+import { getListing } from "#shared/db/listings.ts";
 import {
   downloadImage,
   getBasename,
@@ -119,24 +119,24 @@ const handleAttachmentDownload: TypedRouteHandler<
   const valid = await verifyAttachmentUrl(id, attendeeId, exp, sig);
   if (!valid) return forbiddenResponse();
 
-  // Look up event and verify it has an attachment
-  const event = await getEvent(id);
-  if (!event?.attachment_url) return notFoundResponse();
+  // Look up listing and verify it has an attachment
+  const listing = await getListing(id);
+  if (!listing?.attachment_url) return notFoundResponse();
 
-  // Verify attendee exists and belongs to this event
+  // Verify attendee exists and belongs to this listing
   const attendee = await getAttendeeRaw(attendeeId);
-  if (!attendee || attendee.event_id !== id) return forbiddenResponse();
+  if (!attendee || attendee.listing_id !== id) return forbiddenResponse();
 
   // Download and decrypt from CDN
-  const data = await downloadImage(event.attachment_url);
+  const data = await downloadImage(listing.attachment_url);
   if (!data) return notFoundResponse();
 
   // Increment download counter (fire-and-forget)
   await incrementAttachmentDownloads(attendeeId, id);
 
   // Serve with Content-Disposition for proper download filename
-  const contentType = getMimeType(event.attachment_name);
-  const disposition = buildContentDisposition(event.attachment_name);
+  const contentType = getMimeType(listing.attachment_name);
+  const disposition = buildContentDisposition(listing.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {
       "cache-control": "public, max-age=3600",

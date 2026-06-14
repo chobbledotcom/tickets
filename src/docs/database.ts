@@ -7,13 +7,13 @@
  *
  * ## Entity Tables
  *
- * - **Events** — event CRUD with cached encrypted slugs/names
+ * - **Listings** — listing CRUD with cached encrypted slugs/names
  * - **Attendees** — hybrid RSA+AES encryption for PII
  * - **Users** — password hashing, admin levels, wrapped keys
  * - **Sessions** — token hashing with TTL caching
- * - **Groups** — event grouping with encrypted names
+ * - **Groups** — listing grouping with encrypted names
  * - **Settings** — system configuration (currency, email, payment keys)
- * - **Holidays** — date exclusions for daily events
+ * - **Holidays** — date exclusions for daily listings
  * - **Activity Log** — admin audit trail
  * - **Processed Payments** — idempotency tracking
  * - **Login Attempts** — rate limiting and lockout
@@ -26,9 +26,9 @@ export * from "#shared/db/attendees.ts";
 export * from "#shared/db/client.ts";
 export * from "#shared/db/common-schema.ts";
 export * from "#shared/db/define-id-table.ts";
-export * from "#shared/db/events.ts";
 export * from "#shared/db/groups.ts";
 export * from "#shared/db/holidays.ts";
+export * from "#shared/db/listings.ts";
 export * from "#shared/db/login-attempts.ts";
 export * from "#shared/db/migrations.ts";
 export * from "#shared/db/processed-payments.ts";

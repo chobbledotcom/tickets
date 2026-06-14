@@ -17,7 +17,7 @@ import {
   verifyWebhookSignature,
 } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
+import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
 
 /** Mock implementation function type (accepts unknown args, returns unknown) */
 type MockFn = (...args: unknown[]) => unknown;
@@ -329,10 +329,10 @@ describe("square", () => {
         email: "john@example.com",
         items: [
           {
-            eventId: 1,
-            name: "Test Event",
+            listingId: 1,
+            name: "Test Listing",
             quantity: 1,
-            slug: "test-event",
+            slug: "test-listing",
             unitPrice: 1000,
           },
         ],
@@ -356,10 +356,10 @@ describe("square", () => {
         email: "john@example.com",
         items: [
           {
-            eventId: 1,
+            listingId: 1,
             name: "Test",
             quantity: 1,
-            slug: "test-event",
+            slug: "test-listing",
             unitPrice: 1000,
           },
         ],
@@ -374,7 +374,7 @@ describe("square", () => {
       expect(result).toBeNull();
     });
 
-    test("constructs correct SDK call for single-event checkout", async () => {
+    test("constructs correct SDK call for single-listing checkout", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");
       const { client, checkoutCreate } = createMockClient({
@@ -396,7 +396,7 @@ describe("square", () => {
             email: "jane@example.com",
             items: [
               {
-                eventId: 7,
+                listingId: 7,
                 name: "Concert",
                 quantity: 3,
                 slug: "concert-2025",
@@ -470,18 +470,18 @@ describe("square", () => {
       await withMocks(
         () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
-          const event = testEvent({ unit_price: 1000 });
+          const listing = testListing({ unit_price: 1000 });
           const intent = {
             address: "",
             date: null,
             email: "jane@example.com",
             items: [
               {
-                eventId: event.id,
-                name: event.name,
+                listingId: listing.id,
+                name: listing.name,
                 quantity: 2,
-                slug: event.slug,
-                unitPrice: event.unit_price,
+                slug: listing.slug,
+                unitPrice: listing.unit_price,
               },
             ],
             name: "Jane",
@@ -527,10 +527,10 @@ describe("square", () => {
             email: "john@example.com",
             items: [
               {
-                eventId: 1,
+                listingId: 1,
                 name: "Test",
                 quantity: 1,
-                slug: "test-event",
+                slug: "test-listing",
                 unitPrice: 1000,
               },
             ],
@@ -569,10 +569,10 @@ describe("square", () => {
             email: "john@example.com",
             items: [
               {
-                eventId: 1,
+                listingId: 1,
                 name: "Test",
                 quantity: 1,
-                slug: "test-event",
+                slug: "test-listing",
                 unitPrice: 1000,
               },
             ],
@@ -599,17 +599,17 @@ describe("square", () => {
         email: "john@example.com",
         items: [
           {
-            eventId: 1,
-            name: "Event 1",
+            listingId: 1,
+            name: "Listing 1",
             quantity: 1,
-            slug: "event-1",
+            slug: "listing-1",
             unitPrice: 1000,
           },
           {
-            eventId: 2,
-            name: "Event 2",
+            listingId: 2,
+            name: "Listing 2",
             quantity: 2,
-            slug: "event-2",
+            slug: "listing-2",
             unitPrice: 500,
           },
         ],
@@ -632,10 +632,10 @@ describe("square", () => {
         email: "john@example.com",
         items: [
           {
-            eventId: 1,
-            name: "Event 1",
+            listingId: 1,
+            name: "Listing 1",
             quantity: 1,
-            slug: "event-1",
+            slug: "listing-1",
             unitPrice: 1000,
           },
         ],
@@ -669,10 +669,10 @@ describe("square", () => {
             email: "bob@example.com",
             items: [
               {
-                eventId: 1,
-                name: "Event 1",
+                listingId: 1,
+                name: "Listing 1",
                 quantity: 1,
-                slug: "event-1",
+                slug: "listing-1",
                 unitPrice: 1000,
               },
             ],
@@ -712,14 +712,14 @@ describe("square", () => {
             email: "alice@example.com",
             items: [
               {
-                eventId: 10,
+                listingId: 10,
                 name: "Workshop A",
                 quantity: 2,
                 slug: "workshop-a",
                 unitPrice: 1500,
               },
               {
-                eventId: 20,
+                listingId: 20,
                 name: "Gala Dinner",
                 quantity: 1,
                 slug: "gala-dinner",
@@ -789,10 +789,10 @@ describe("square", () => {
         async () => {
           // Generate enough items to exceed 255-char serialized metadata
           const items = Array.from({ length: 30 }, (_, i) => ({
-            eventId: i + 1,
-            name: `Event ${i + 1}`,
+            listingId: i + 1,
+            name: `Listing ${i + 1}`,
             quantity: 1,
-            slug: `event-${i + 1}`,
+            slug: `listing-${i + 1}`,
             unitPrice: 1000,
           }));
 
@@ -824,10 +824,10 @@ describe("square", () => {
       email: "john@example.com",
       items: [
         {
-          eventId: 1,
-          name: "Test Event",
+          listingId: 1,
+          name: "Test Listing",
           quantity: 1,
-          slug: "test-event",
+          slug: "test-listing",
           unitPrice: 1000,
         },
       ],
@@ -1325,7 +1325,7 @@ describe("square", () => {
     });
 
     test("verifies valid signature successfully", async () => {
-      const event: WebhookEvent = {
+      const listing: WebhookEvent = {
         data: {
           object: {
             id: "pay_123",
@@ -1338,7 +1338,7 @@ describe("square", () => {
       };
 
       const { payload, signature } = await constructTestWebhookEvent(
-        event,
+        listing,
         TEST_SECRET,
         TEST_NOTIFICATION_URL,
       );
@@ -1351,8 +1351,8 @@ describe("square", () => {
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.event.id).toBe("evt_square_123");
-        expect(result.event.type).toBe("payment.updated");
+        expect(result.listing.id).toBe("evt_square_123");
+        expect(result.listing.type).toBe("payment.updated");
       }
     });
   });
@@ -1361,7 +1361,7 @@ describe("square", () => {
     test("creates valid payload and signature pair", async () => {
       const secret = "square_test_construction";
       const notificationUrl = "https://example.com/payment/webhook";
-      const event: WebhookEvent = {
+      const listing: WebhookEvent = {
         data: {
           object: {
             id: "pay_123",
@@ -1373,7 +1373,7 @@ describe("square", () => {
       };
 
       const { payload, signature } = await constructTestWebhookEvent(
-        event,
+        listing,
         secret,
         notificationUrl,
       );
@@ -2003,10 +2003,10 @@ describe("square", () => {
             email: "john@example.com",
             items: [
               {
-                eventId: 1,
+                listingId: 1,
                 name: "Test",
                 quantity: 1,
-                slug: "test-event",
+                slug: "test-listing",
                 unitPrice: 1000,
               },
             ],
@@ -2050,10 +2050,10 @@ describe("square", () => {
             email: "john@example.com",
             items: [
               {
-                eventId: 1,
-                name: "Event 1",
+                listingId: 1,
+                name: "Listing 1",
                 quantity: 1,
-                slug: "event-1",
+                slug: "listing-1",
                 unitPrice: 1000,
               },
             ],

@@ -10,10 +10,10 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import {
   type AttendeeWithBookings,
   decryptAttendees,
-  type EventAttendeeRow,
   getAttendeesByTokens,
+  type ListingAttendeeRow,
 } from "#shared/db/attendees.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   clearTokenAttempts,
@@ -22,21 +22,21 @@ import {
 } from "#shared/db/token-attempts.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
-import type { Attendee, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 
-/** Attendee paired with its event */
+/** Attendee paired with its listing */
 export type TokenEntry = {
   attendee: Attendee;
-  event: EventWithCount;
+  listing: ListingWithCount;
 };
 
 /** Shared wallet pass data common to both Apple and Google Wallet */
 export type WalletPassData = {
   serialNumber: string;
   organizationName: string;
-  eventName: string;
-  eventDate: string;
-  eventLocation: string;
+  listingName: string;
+  listingDate: string;
+  listingLocation: string;
   attendeeDate: string | null;
   quantity: number;
   pricePaid: number;
@@ -52,15 +52,15 @@ export const buildWalletPassData = (
   entry: TokenEntry,
   token: string,
 ): WalletPassData => {
-  const { event, attendee } = entry;
+  const { listing, attendee } = entry;
   const domain = getEffectiveDomain();
   return {
     attendeeDate: attendee.date,
     checkinUrl: buildCheckinUrl(token),
     currencyCode: settings.currency,
-    eventDate: event.date,
-    eventLocation: event.location,
-    eventName: event.name,
+    listingDate: listing.date,
+    listingLocation: listing.location,
+    listingName: listing.name,
     organizationName: domain,
     pricePaid: Number(attendee.price_paid),
     quantity: attendee.quantity,
@@ -74,7 +74,7 @@ export type SingleTokenResult =
   | { ok: false; response: Response };
 
 /** Look up a single token and build wallet pass data, returning 404 on failure.
- * For multi-event attendees, returns the first event's pass data. */
+ * For multi-listing attendees, returns the first listing's pass data. */
 export const lookupSingleTokenPassData = async (
   tokens: string[],
 ): Promise<SingleTokenResult> => {
@@ -118,10 +118,10 @@ export const extractTokenSegment = (
 export const parseTokens = (tokensStr: string): string[] =>
   unique(tokensStr.split("+").filter((s) => s.length > 0));
 
-/** Build an Attendee object from base attendee data + one booking's per-event data */
+/** Build an Attendee object from base attendee data + one booking's per-listing data */
 const buildAttendeeView = (
   base: AttendeeWithBookings,
-  booking: EventAttendeeRow,
+  booking: ListingAttendeeRow,
 ): Attendee => ({
   address: "",
   attachment_downloads: booking.attachment_downloads,
@@ -129,8 +129,8 @@ const buildAttendeeView = (
   created: base.created,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   email: "",
-  event_id: booking.event_id,
   id: base.id,
+  listing_id: booking.listing_id,
   name: "",
   payment_id: "",
   phone: "",
@@ -146,20 +146,20 @@ const buildAttendeeView = (
 /**
  * Resolve attendees with bookings to token entries.
  * Expands each attendee × booking into a separate TokenEntry.
- * Events are batch-fetched via cache (getEventWithCount).
+ * Listings are batch-fetched via cache (getListingWithCount).
  */
 export const resolveEntries = async (
   attendeesWithBookings: AttendeeWithBookings[],
 ): Promise<TokenEntry[]> => {
-  // Collect all event IDs and batch-fetch (getEventWithCount is cached)
-  const allEventIds = unique(
-    attendeesWithBookings.flatMap((a) => a.bookings.map((b) => b.event_id)),
+  // Collect all listing IDs and batch-fetch (getListingWithCount is cached)
+  const allListingIds = unique(
+    attendeesWithBookings.flatMap((a) => a.bookings.map((b) => b.listing_id)),
   );
-  const events = new Map<number, EventWithCount>();
+  const listings = new Map<number, ListingWithCount>();
   await Promise.all(
-    allEventIds.map(async (id) => {
-      const event = await getEventWithCount(id);
-      if (event) events.set(id, event);
+    allListingIds.map(async (id) => {
+      const listing = await getListingWithCount(id);
+      if (listing) listings.set(id, listing);
     }),
   );
 
@@ -167,11 +167,11 @@ export const resolveEntries = async (
   const entries: TokenEntry[] = [];
   for (const awb of attendeesWithBookings) {
     for (const booking of awb.bookings) {
-      const event = events.get(booking.event_id);
-      if (event) {
+      const listing = listings.get(booking.listing_id);
+      if (listing) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
-          event,
+          listing,
         });
       }
     }

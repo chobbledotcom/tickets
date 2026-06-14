@@ -1,6 +1,6 @@
 # Chobble Tickets
 
-Chobble Tickets is a reservation system that runs on Bunny Edge Scripting (or any Deno environment) with libsql, which encrypts all PII at rest and handles free and paid events with Stripe or Square.
+Chobble Tickets is a reservation system that runs on Bunny Edge Scripting (or any Deno environment) with libsql, which encrypts all PII at rest and handles free and paid listings with Stripe or Square.
 
 It is developed by [Chobble CIC](https://chobble.com) - a community interest company, which means the assets are locked to the community and can't be sold off.
 
@@ -35,23 +35,23 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 
 ## Features
 
-### Events
+### Listings
 
-- Standard events (fixed capacity) and daily events (per-date capacity with calendar picker)
-- Event groups for organising related events together
-- Optional event date and location fields, displayed on the ticket page
+- Standard listings (fixed capacity) and daily listings (per-date capacity with calendar picker)
+- Listing groups for organising related listings together
+- Optional listing date and location fields, displayed on the ticket page
 - Configurable contact fields: email, phone, postal address (any combination)
 - Special instructions field for attendee notes
 - Terms and conditions - set globally in settings, attendees must agree before booking
 - Capacity limits, max tickets per purchase, registration deadlines
-- Multi-event booking - combine events in one URL (`/ticket/event1+event2`), one form, one checkout
-- Multi-booking link builder on the dashboard for generating combined-event URLs
-- Event QR code SVG (`/ticket/:slug/qr`) for posters and printed materials
+- Multi-listing booking - combine listings in one URL (`/ticket/listing1+listing2`), one form, one checkout
+- Multi-booking link builder on the dashboard for generating combined-listing URLs
+- Listing QR code SVG (`/ticket/:slug/qr`) for posters and printed materials
 - Embeddable via iframe with configurable CSP frame-ancestors
 - Custom thank-you URL or default confirmation page
-- Non-transferable tickets - per-event toggle requiring ID verification at check-in
-- Event image and file attachment uploads (encrypted, stored on Bunny CDN)
-- Manual attendee creation from the admin event page (walk-ins, comps)
+- Non-transferable tickets - per-listing toggle requiring ID verification at check-in
+- Listing image and file attachment uploads (encrypted, stored on Bunny CDN)
+- Manual attendee creation from the admin listing page (walk-ins, comps)
 
 ### Payments
 
@@ -60,33 +60,33 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 - Checkout sessions with metadata, webhook-driven attendee creation
 - Configurable booking fee added to each transaction
 - "Pay what you want" pricing with optional minimum and maximum
-- Automatic refund if capacity exceeded after payment or event price changes during checkout
+- Automatic refund if capacity exceeded after payment or listing price changes during checkout
 - Admin-issued full refunds for individual attendees or all attendees in bulk
 
 ### Check-in
 
 - Each ticket gets a unique URL (`/t/:token`) with a QR code
 - Staff scan QR to reach check-in page, toggle check-in/out
-- Built-in QR scanner - open from an event page, uses device camera, check-in-only (no accidental check-outs)
-- ID verification prompt for non-transferable events before completing check-in
-- Cross-event detection: scanner warns if a ticket belongs to a different event
-- Multi-ticket view for multi-event bookings (`/t/token1+token2`)
+- Built-in QR scanner - open from a listing page, uses device camera, check-in-only (no accidental check-outs)
+- ID verification prompt for non-transferable listings before completing check-in
+- Cross-listing detection: scanner warns if a ticket belongs to a different listing
+- Multi-ticket view for multi-listing bookings (`/t/token1+token2`)
 
 ### Apple Wallet
 
-- Generates `.pkpass` files for Apple Wallet with event details and barcode
+- Generates `.pkpass` files for Apple Wallet with listing details and barcode
 - Web service API for automatic pass updates (follows the Apple Wallet spec)
 - Configurable via admin settings or environment variables
 
 ### Admin
 
-- Event CRUD, duplicate, deactivate/reactivate, delete (requires typing event name)
-- Calendar view for daily events with per-date attendee counts
-- Attendee list with date filtering (daily events), check-in status filtering
-- Attendee editing - update name, contact details, quantity, or reassign to a different event
+- Listing CRUD, duplicate, deactivate/reactivate, delete (requires typing listing name)
+- Calendar view for daily listings with per-date attendee counts
+- Attendee list with date filtering (daily listings), check-in status filtering
+- Attendee editing - update name, contact details, quantity, or reassign to a different listing
 - CSV export (respects active filters)
-- Per-event and global activity log (creation, updates, check-ins, exports, refunds, deletions)
-- Holiday/blackout date management for daily events
+- Per-listing and global activity log (creation, updates, check-ins, exports, refunds, deletions)
+- Holiday/blackout date management for daily listings
 - Multi-user: owners invite managers via time-limited links (7-day expiry)
 - Session management: view active sessions, kill all others
 - Settings: payment provider config, email templates, custom domain, embed host restrictions, terms and conditions, password change
@@ -96,8 +96,8 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 
 ### Feeds
 
-- ICS calendar feed (`/feeds/events.ics`) for calendar apps
-- RSS feed (`/feeds/events.rss`) for feed readers
+- ICS calendar feed (`/feeds/listings.ics`) for calendar apps
+- RSS feed (`/feeds/listings.rss`) for feed readers
 
 ### Email Notifications
 
@@ -109,15 +109,15 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 
 ### Public JSON API
 
-- RESTful API for event listing and booking (`/api/events`, `/api/events/:slug`, `/api/events/:slug/availability`, `/api/events/:slug/book`)
+- RESTful API for listing and booking (`/api/listings`, `/api/listings/:slug`, `/api/listings/:slug/availability`, `/api/listings/:slug/book`)
 - No API key required - it serves the same data as the public booking pages
 - CORS-enabled for cross-origin requests
 
 ### Webhooks
 
-- Outbound POST on every registration (free or paid) to per-event and/or global webhook URLs
+- Outbound POST on every registration (free or paid) to per-listing and/or global webhook URLs
 - Payload: name, email, phone, address, amount, currency, payment ID, ticket URL, per-ticket details
-- Multi-event bookings send one consolidated webhook
+- Multi-listing bookings send one consolidated webhook
 
 <details>
 <summary>Example webhook payload</summary>
@@ -130,8 +130,8 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
   "business_email": "hello@example.com",
   "currency": "GBP",
   "email": "alice@example.com",
-  "event_type": "registration.completed",
   "name": "Alice Smith",
+  "notification_type": "registration.completed",
   "payment_id": "pi_3abc123def456",
   "phone": "+44 7700 900000",
   "price_paid": 3000,
@@ -140,8 +140,8 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
   "tickets": [
     {
       "date": "2025-08-20",
-      "event_name": "Summer Workshop",
-      "event_slug": "summer-workshop",
+      "listing_name": "Summer Workshop",
+      "listing_slug": "summer-workshop",
       "quantity": 2,
       "ticket_token": "A1B2C3D4E5",
       "unit_price": 1500
@@ -151,7 +151,7 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 }
 ```
 
-Prices are in the smallest currency unit (e.g. pence, cents). For multi-event bookings the `tickets` array contains one entry per event and the `ticket_url` combines tokens with `+` - one webhook, not several.
+Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing bookings the `tickets` array contains one entry per listing and the `ticket_url` combines tokens with `+` - one webhook, not several.
 
 </details>
 

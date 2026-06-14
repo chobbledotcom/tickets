@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import {
@@ -11,7 +11,7 @@ import {
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectHtmlResponse,
   getAttendeesRaw,
@@ -25,7 +25,7 @@ const fetchTicketBody = async (tokenPath: string): Promise<string> => {
 
 describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   test("displays ticket for a single valid token", async () => {
-    const { event, token } = await createTestAttendeeWithToken(
+    const { listing, token } = await createTestAttendeeWithToken(
       "Alice",
       "alice@test.com",
     );
@@ -34,25 +34,19 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(response.status).toBe(200);
 
     const body = await response.text();
-    expect(body).toContain(event.name);
+    expect(body).toContain(listing.name);
     expect(body).toContain("Your Tickets");
   });
 
   test("displays tickets for multiple valid tokens", async () => {
-    const { event: eventA, token: tokenA } = await createTestAttendeeWithToken(
-      "Bob",
-      "bob@test.com",
-    );
-    const { event: eventB, token: tokenB } = await createTestAttendeeWithToken(
-      "Bob",
-      "bob@test.com",
-      {},
-      2,
-    );
+    const { listing: listingA, token: tokenA } =
+      await createTestAttendeeWithToken("Bob", "bob@test.com");
+    const { listing: listingB, token: tokenB } =
+      await createTestAttendeeWithToken("Bob", "bob@test.com", {}, 2);
 
     const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
-    expect(body).toContain(eventA.name);
-    expect(body).toContain(eventB.name);
+    expect(body).toContain(listingA.name);
+    expect(body).toContain(listingB.name);
   });
 
   test("returns 404 for invalid token", async () => {
@@ -90,18 +84,18 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("deduplicates repeated tokens in URL", async () => {
-    const { event, token } = await createTestAttendeeWithToken(
+    const { listing, token } = await createTestAttendeeWithToken(
       "Eve",
       "eve@test.com",
     );
 
     const body = await fetchTicketBody(`${token}+${token}`);
-    expect(body).toContain(event.name);
+    expect(body).toContain(listing.name);
     expect(body).toContain("1 Ticket");
   });
 
   test("skips invalid tokens among valid ones", async () => {
-    const { event, token } = await createTestAttendeeWithToken(
+    const { listing, token } = await createTestAttendeeWithToken(
       "Dave",
       "dave@test.com",
     );
@@ -110,7 +104,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(response.status).toBe(200);
 
     const body = await response.text();
-    expect(body).toContain(event.name);
+    expect(body).toContain(listing.name);
   });
 
   test("returns null for non-GET methods", async () => {
@@ -123,10 +117,20 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("attendee has a unique ticket_token_index after creation", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(event.id, event.slug, "Frank", "frank@test.com");
-    await createTestAttendee(event.id, event.slug, "Grace", "grace@test.com");
-    const attendees = await getAttendeesRaw(event.id);
+    const listing = await createTestListing({ maxAttendees: 10 });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Frank",
+      "frank@test.com",
+    );
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Grace",
+      "grace@test.com",
+    );
+    const attendees = await getAttendeesRaw(listing.id);
 
     expect(attendees[0]!.ticket_token_index).not.toBe("");
     expect(attendees[1]!.ticket_token_index).not.toBe("");
@@ -163,7 +167,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("displays booked date for daily event tickets", async () => {
+  test("displays booked date for daily listing tickets", async () => {
     const date = "2026-02-15";
     const { token } = await createDailyTestAttendee(
       "Zara",
@@ -179,14 +183,11 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).toContain("Booking Date");
   });
 
-  test("shows date for daily event and shows standard event without date on same ticket page", async () => {
+  test("shows date for daily listing and shows standard listing without date on same ticket page", async () => {
     const date = "2026-02-15";
-    const { event: dailyEvent, token: tokenA } = await createDailyTestAttendee(
-      "Mixed",
-      "mixed@test.com",
-      date,
-    );
-    const { event: standardEvent, token: tokenB } =
+    const { listing: dailyListing, token: tokenA } =
+      await createDailyTestAttendee("Mixed", "mixed@test.com", date);
+    const { listing: standardListing, token: tokenB } =
       await createTestAttendeeWithToken("Mixed", "mixed@test.com");
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
@@ -195,12 +196,12 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     const body = await response.text();
     expect(body).toContain(formatDateLabel(date));
     expect(body).toContain("Booking Date");
-    expect(body).toContain(dailyEvent.name);
-    expect(body).toContain(standardEvent.name);
+    expect(body).toContain(dailyListing.name);
+    expect(body).toContain(standardListing.name);
     expect(body).toContain("2 Tickets");
   });
 
-  test("does not show booking date for standard event tickets", async () => {
+  test("does not show booking date for standard listing tickets", async () => {
     const { token } = await createTestAttendeeWithToken(
       "Alice",
       "alice@test.com",
@@ -210,7 +211,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).not.toContain("Booking Date");
   });
 
-  test("shows event date and location when event has them", async () => {
+  test("shows listing date and location when listing has them", async () => {
     const { token } = await createTestAttendeeWithToken(
       "Alice",
       "alice@test.com",
@@ -230,7 +231,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     );
   });
 
-  test("does not show event date or location when both are empty", async () => {
+  test("does not show listing date or location when both are empty", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
@@ -240,19 +241,19 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).not.toContain("ticket-card-location");
   });
 
-  test("shows event description when present", async () => {
+  test("shows listing description when present", async () => {
     const { token } = await createTestAttendeeWithToken(
       "Alice",
       "alice@test.com",
       {
-        description: "A wonderful event",
+        description: "A wonderful listing",
       },
     );
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
     expect(body).toContain("ticket-card-description");
-    expect(body).toContain("A wonderful event");
+    expect(body).toContain("A wonderful listing");
   });
 
   test("does not show description when empty", async () => {
@@ -263,9 +264,12 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   });
 
   test("shows price for paid tickets", async () => {
-    const event = await createTestEvent({ maxAttendees: 10, unitPrice: 1500 });
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      unitPrice: 1500,
+    });
     const attendee = await createPaidTestAttendee(
-      event.id,
+      listing.id,
       "Alice",
       "alice@test.com",
       "pi_test",
@@ -297,7 +301,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).toContain(token);
   });
 
-  test("shows non-transferable notice for non-transferable event", async () => {
+  test("shows non-transferable notice for non-transferable listing", async () => {
     const { token } = await createTestAttendeeWithToken(
       "Alice Smith",
       "alice@test.com",
@@ -312,7 +316,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).toContain("ID required at entry");
   });
 
-  test("does not show non-transferable notice for transferable event", async () => {
+  test("does not show non-transferable notice for transferable listing", async () => {
     const { token } = await createTestAttendeeWithToken(
       "Bob Jones",
       "bob@test.com",
@@ -325,13 +329,13 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(body).not.toContain("Non-transferable");
   });
 
-  test("shows attachment download link when event has attachment", async () => {
-    const { event, token } = await createTestAttendeeWithToken(
+  test("shows attachment download link when listing has attachment", async () => {
+    const { listing, token } = await createTestAttendeeWithToken(
       "Alice Smith",
       "alice@test.com",
     );
-    await eventsTable.update(event.id, {
-      attachmentName: "Event Guide.pdf",
+    await listingsTable.update(listing.id, {
+      attachmentName: "Listing Guide.pdf",
       attachmentUrl: "abc-guide.pdf",
     });
 
@@ -339,11 +343,11 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("attachment-link");
-    expect(body).toContain("Download: Event Guide.pdf");
+    expect(body).toContain("Download: Listing Guide.pdf");
     expect(body).toContain("/attachment/");
   });
 
-  test("does not show attachment link when event has no attachment", async () => {
+  test("does not show attachment link when listing has no attachment", async () => {
     const { token } = await createTestAttendeeWithToken(
       "Bob Jones",
       "bob@test.com",

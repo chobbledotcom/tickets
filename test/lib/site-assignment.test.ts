@@ -17,11 +17,11 @@ import { nowIso } from "#shared/now.ts";
 import {
   assignAndNotifyBuiltSites,
   parseReadOnlyFromMs,
-  pickTierEvent,
+  pickTierListing,
   validateSiteAssignmentConfig,
 } from "#shared/site-assignment.ts";
 import {
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   makeTestEntry,
   setTestEnv,
@@ -55,8 +55,8 @@ const stubEdgeSecretSuccess = () =>
 /** Build an entry with assign_built_site for testing */
 const siteEntry = (
   overrides: {
-    eventId?: number;
-    eventName?: string;
+    listingId?: number;
+    listingName?: string;
     assignBuiltSite?: boolean;
     initialSiteMonths?: number;
     attendeeId?: number;
@@ -68,8 +68,10 @@ const siteEntry = (
     {
       assign_built_site: overrides.assignBuiltSite ?? true,
       initial_site_months: overrides.initialSiteMonths ?? 3,
-      ...(overrides.eventId !== undefined && { id: overrides.eventId }),
-      ...(overrides.eventName !== undefined && { name: overrides.eventName }),
+      ...(overrides.listingId !== undefined && { id: overrides.listingId }),
+      ...(overrides.listingName !== undefined && {
+        name: overrides.listingName,
+      }),
     },
     {
       ...(overrides.attendeeId !== undefined && { id: overrides.attendeeId }),
@@ -101,7 +103,7 @@ describeWithEnv(
         fromAddress: "test@example.com",
         provider: "resend",
       });
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         maxAttendees: 1000,
         monthsPerUnit: 1,
@@ -130,7 +132,7 @@ describeWithEnv(
         expect(fetchStub.calls.length).toBe(1);
       });
 
-      test("skips events without assign_built_site", async () => {
+      test("skips listings without assign_built_site", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
 
         await assignAndNotifyBuiltSites([
@@ -143,20 +145,20 @@ describeWithEnv(
         expect(fetchStub.calls.length).toBe(0);
       });
 
-      test("assigns sites independently per event", async () => {
+      test("assigns sites independently per listing", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await insertBuiltSite("Site B", "b.test.net", "", "", true);
 
         await assignAndNotifyBuiltSites([
-          siteEntry({ attendeeId: 10, eventId: 1, eventName: "Event 1" }),
-          siteEntry({ attendeeId: 10, eventId: 2, eventName: "Event 2" }),
+          siteEntry({ attendeeId: 10, listingId: 1, listingName: "Listing 1" }),
+          siteEntry({ attendeeId: 10, listingId: 2, listingName: "Listing 2" }),
         ]);
 
         const sites = await getAllBuiltSites();
         const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
         expect(assigned).toHaveLength(2);
-        expect(assigned[0]!.assignedEventId).toBe(1);
-        expect(assigned[1]!.assignedEventId).toBe(2);
+        expect(assigned[0]!.assignedListingId).toBe(1);
+        expect(assigned[1]!.assignedListingId).toBe(2);
       });
 
       test("does not assign when no sites available and buildSite fails", async () => {
@@ -235,8 +237,8 @@ describeWithEnv(
         await insertBuiltSite("Site B", "b.test.net", "", "", true);
 
         await assignAndNotifyBuiltSites([
-          siteEntry({ eventId: 1, eventName: "Event 1" }),
-          siteEntry({ eventId: 2, eventName: "Event 2" }),
+          siteEntry({ listingId: 1, listingName: "Listing 1" }),
+          siteEntry({ listingId: 2, listingName: "Listing 2" }),
         ]);
 
         expect(fetchStub.calls.length).toBe(1);
@@ -323,8 +325,8 @@ describeWithEnv(
     });
 
     describe("renewal at site assignment", () => {
-      const createTierEvent = (unitPrice = 500, monthsPerUnit = 1) =>
-        createTestEvent({
+      const createTierListing = (unitPrice = 500, monthsPerUnit = 1) =>
+        createTestListing({
           hidden: true,
           maxAttendees: 1000,
           monthsPerUnit,
@@ -333,7 +335,7 @@ describeWithEnv(
         });
 
       test("generates renewal token and pushes READ_ONLY_FROM + RENEWAL_URL on assignment", async () => {
-        await createTierEvent();
+        await createTierListing();
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
 
         await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 3 })]);
@@ -377,18 +379,18 @@ describeWithEnv(
         expect(secretStub.calls.length).toBe(0);
       });
 
-      test("skips assignment and logs CONFIG_MISSING when no qualifying tier events exist", async () => {
-        const { getAllEvents } = await import("#shared/db/events.ts");
-        const events = await getAllEvents();
-        const { deactivateTestEvent } = await import("#test-utils");
-        for (const ev of events) {
+      test("skips assignment and logs CONFIG_MISSING when no qualifying tier listings exist", async () => {
+        const { getAllListings } = await import("#shared/db/listings.ts");
+        const listings = await getAllListings();
+        const { deactivateTestListing } = await import("#test-utils");
+        for (const ev of listings) {
           if (
             ev.months_per_unit > 0 &&
             ev.purchase_only &&
             ev.hidden &&
             ev.active
           ) {
-            await deactivateTestEvent(ev.id);
+            await deactivateTestListing(ev.id);
           }
         }
 
@@ -405,18 +407,18 @@ describeWithEnv(
         }
       });
 
-      test("picks the cheapest qualifying tier event", async () => {
-        const cheap = await createTierEvent(300);
-        const _expensive = await createTierEvent(900);
+      test("picks the cheapest qualifying tier listing", async () => {
+        const cheap = await createTierListing(300);
+        const _expensive = await createTierListing(900);
 
-        const result = await pickTierEvent();
+        const result = await pickTierListing();
         expect(result).not.toBeNull();
         expect(result!.id).toBe(cheap.id);
       });
 
-      test("with two qualifying tier events, assignment still succeeds (tier is picked at renew time)", async () => {
-        await createTierEvent(300);
-        await createTierEvent(900);
+      test("with two qualifying tier listings, assignment still succeeds (tier is picked at renew time)", async () => {
+        await createTierListing(300);
+        await createTierListing(900);
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2002");
 
@@ -429,7 +431,7 @@ describeWithEnv(
       });
 
       test("with quantity=3, three independent tokens and secret pushes are created", async () => {
-        await createTierEvent();
+        await createTierListing();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2003");
         await insertBuiltSite("Site B", "b.test.net", "", "", true, "2004");
@@ -463,7 +465,7 @@ describeWithEnv(
       });
 
       test("Bunny push failure on one site of three leaves that site's readOnlyFrom empty, others persist", async () => {
-        await createTierEvent();
+        await createTierListing();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "1001");
         await insertBuiltSite("Site B", "b.test.net", "", "", true, "1002");
@@ -515,7 +517,7 @@ describeWithEnv(
       });
 
       test("RENEWAL_URL push failure leaves renewal state unprovisioned", async () => {
-        await createTierEvent();
+        await createTierListing();
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true, "2001");
 
@@ -552,7 +554,7 @@ describeWithEnv(
     });
 
     describe("validateSiteAssignmentConfig", () => {
-      test("passes when no selected event needs a site", async () => {
+      test("passes when no selected listing needs a site", async () => {
         const result = await validateSiteAssignmentConfig([
           siteEntry({ assignBuiltSite: false }),
         ]);
@@ -560,17 +562,17 @@ describeWithEnv(
       });
 
       test("rejects missing renewal tier before checkout", async () => {
-        const { getAllEvents } = await import("#shared/db/events.ts");
-        const events = await getAllEvents();
-        const { deactivateTestEvent } = await import("#test-utils");
-        for (const ev of events) {
+        const { getAllListings } = await import("#shared/db/listings.ts");
+        const listings = await getAllListings();
+        const { deactivateTestListing } = await import("#test-utils");
+        for (const ev of listings) {
           if (
             ev.months_per_unit > 0 &&
             ev.purchase_only &&
             ev.hidden &&
             ev.active
           ) {
-            await deactivateTestEvent(ev.id);
+            await deactivateTestListing(ev.id);
           }
         }
 

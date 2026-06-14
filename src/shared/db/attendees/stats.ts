@@ -1,36 +1,36 @@
 /**
- * Aggregated statistics for attendees across events.
+ * Aggregated statistics for attendees across listings.
  */
 
 import { filter, map, reduce } from "#fp";
-import type { ActiveEventStats } from "#shared/db/attendee-types.ts";
+import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
 import { inPlaceholders, queryOne } from "#shared/db/client.ts";
-import type { EventWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
 /**
- * Get aggregated statistics for active events.
- * Filters active events from the provided list, computes attendees
- * (sum of quantities) from cached EventWithCount data, and queries
+ * Get aggregated statistics for active listings.
+ * Filters active listings from the provided list, computes attendees
+ * (sum of quantities) from cached ListingWithCount data, and queries
  * ticket count and income (sum of price_paid) via a single aggregate.
  */
-export const getActiveEventStats = async (
-  events: EventWithCount[],
-): Promise<ActiveEventStats> => {
-  const active = filter((e: EventWithCount) => e.active)(events);
+export const getActiveListingStats = async (
+  listings: ListingWithCount[],
+): Promise<ActiveListingStats> => {
+  const active = filter((e: ListingWithCount) => e.active)(listings);
   if (active.length === 0) {
     return { attendees: 0, income: 0, tickets: 0 };
   }
-  const activeIds = map((e: EventWithCount) => e.id)(active);
+  const activeIds = map((e: ListingWithCount) => e.id)(active);
   const attendees = reduce(
-    (sum: number, e: EventWithCount) => sum + e.attendee_count,
+    (sum: number, e: ListingWithCount) => sum + e.attendee_count,
     0,
   )(active);
 
   const row = (await queryOne<{ tickets: number; income: number }>(
     `SELECT COUNT(*) AS tickets,
             COALESCE(SUM(ea.price_paid), 0) AS income
-       FROM event_attendees ea
-      WHERE ea.event_id IN (${inPlaceholders(activeIds)})`,
+       FROM listing_attendees ea
+      WHERE ea.listing_id IN (${inPlaceholders(activeIds)})`,
     activeIds,
   ))!;
   return {

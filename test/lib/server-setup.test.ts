@@ -128,7 +128,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         );
 
         expect(await settingsTableExists()).toBe(true);
-        expect(await tableExists("events")).toBe(false);
+        expect(await tableExists("listings")).toBe(false);
         expect(await schemaMarkerKeys()).toEqual([]);
       });
 
@@ -230,7 +230,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
         await expectHtmlResponse(response, 200, "Initial Setup");
         expect(await settingsTableExists()).toBe(true);
-        expect(await tableExists("events")).toBe(true);
+        expect(await tableExists("listings")).toBe(true);
         expect(await schemaMarkerKeys()).toEqual([
           "db_schema_hash",
           "latest_db_update",

@@ -5,9 +5,9 @@
 import { joinStrings, map, pipe, reduce } from "#fp";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
-  EVENT_DEFAULT_ORDER,
-  EVENT_TABLE_COLUMNS,
-} from "#shared/columns/event-columns.ts";
+  LISTING_DEFAULT_ORDER,
+  LISTING_TABLE_COLUMNS,
+} from "#shared/columns/listing-columns.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -23,11 +23,11 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AdminSession,
   type Attendee,
-  type EventWithCount,
   type Group,
-  isPaidEvent,
+  isPaidListing,
+  type ListingWithCount,
 } from "#shared/types.ts";
-import { EventRow, renderEventTable } from "#templates/admin/dashboard.tsx";
+import { ListingRow, renderListingTable } from "#templates/admin/dashboard.tsx";
 import {
   buildSharedDetailRows,
   renderDetailRows,
@@ -169,36 +169,36 @@ export const adminGroupDeletePage = (
           <strong>{group.name}</strong> ({group.slug})?
         </p>
         <p>
-          Events in this group will not be deleted -- they will be moved out of
-          the group.
+          Listings in this group will not be deleted -- they will be moved out
+          of the group.
         </p>
         <p>Type the group name "{group.name}" to confirm:</p>
       </ConfirmForm>
     </Layout>,
   );
 
-/** Build AttendeeTableRows from attendees with event lookup */
+/** Build AttendeeTableRows from attendees with listing lookup */
 const buildAttendeeRows = (
   attendees: Attendee[],
-  events: EventWithCount[],
+  listings: ListingWithCount[],
 ): AttendeeTableRow[] => {
-  const eventMap = new Map(
-    map((e: EventWithCount) => [e.id, e] as const)(events),
+  const listingMap = new Map(
+    map((e: ListingWithCount) => [e.id, e] as const)(listings),
   );
   return pipe(
     map((a: Attendee): AttendeeTableRow => {
-      const event = eventMap.get(a.event_id)!;
+      const listing = listingMap.get(a.listing_id)!;
       return {
         attendee: a,
-        eventId: event.id,
-        eventName: event.name,
+        listingId: listing.id,
+        listingName: listing.name,
       };
     }),
   )(attendees);
 };
 
 const totalAttendeeCount = reduce(
-  (sum: number, e: EventWithCount) => sum + e.attendee_count,
+  (sum: number, e: ListingWithCount) => sum + e.attendee_count,
   0,
 );
 
@@ -232,19 +232,19 @@ const GroupAttendeesRow = ({
         <span class={overCap || nearCap ? "danger-text" : ""}>
           {attendeeCount} / {group.max_attendees} &mdash; {remaining} remain
         </span>{" "}
-        <small>across all events in the group</small>
+        <small>across all listings in the group</small>
       </td>
     </tr>
   );
 };
 
 /**
- * Admin group detail page - shows group info, events in group, and add-events form
+ * Admin group detail page - shows group info, listings in group, and add-listings form
  */
 export const adminGroupDetailPage = (
   group: Group,
-  events: EventWithCount[],
-  ungroupedEvents: EventWithCount[],
+  listings: ListingWithCount[],
+  ungroupedListings: ListingWithCount[],
   attendees: Attendee[],
   session: AdminSession,
   allowedDomain: string,
@@ -253,28 +253,28 @@ export const adminGroupDetailPage = (
   questionData?: TableQuestionData,
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
-    settings.eventColumnOrder,
-    Object.keys(EVENT_TABLE_COLUMNS),
-    EVENT_DEFAULT_ORDER,
+    settings.listingColumnOrder,
+    Object.keys(LISTING_TABLE_COLUMNS),
+    LISTING_DEFAULT_ORDER,
   );
-  const eventRows =
-    events.length > 0
+  const listingRows =
+    listings.length > 0
       ? pipe(
-          map((e: EventWithCount) => EventRow({ columnKeys, e, filters })),
+          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
           joinStrings,
-        )(events)
-      : `<tr><td colspan="${columnKeys.length}">No events in this group</td></tr>`;
+        )(listings)
+      : `<tr><td colspan="${columnKeys.length}">No listings in this group</td></tr>`;
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
-  const hasPaidEvent = events.some(isPaidEvent);
-  const totalCount = totalAttendeeCount(events);
-  const tableRows = buildAttendeeRows(attendees, events);
+  const hasPaidListing = listings.some(isPaidListing);
+  const totalCount = totalAttendeeCount(listings);
+  const tableRows = buildAttendeeRows(attendees, listings);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
-    hasPaidEvent,
+    hasPaidListing,
     maxCapacity: 0,
     questionData,
     skipAttendees: true,
@@ -308,7 +308,7 @@ export const adminGroupDetailPage = (
 
       <article>
         <div class="table-scroll">
-          <table class="event-details-table">
+          <table class="listing-details-table">
             <tbody>
               <tr>
                 <th colspan="2">{group.name}</th>
@@ -356,7 +356,7 @@ export const adminGroupDetailPage = (
               {group.hidden && (
                 <tr>
                   <th>Hidden</th>
-                  <td>Yes &mdash; not shown in public events list</td>
+                  <td>Yes &mdash; not shown in public listings list</td>
                 </tr>
               )}
               <GroupAttendeesRow attendeeCount={totalCount} group={group} />
@@ -366,9 +366,9 @@ export const adminGroupDetailPage = (
         </div>
       </article>
 
-      <h2>Events</h2>
+      <h2>Listings</h2>
       <div class="table-scroll">
-        <Raw html={renderEventTable(columnKeys, eventRows)} />
+        <Raw html={renderListingTable(columnKeys, listingRows)} />
       </div>
 
       <article>
@@ -381,26 +381,30 @@ export const adminGroupDetailPage = (
               questionData,
               returnUrl: `/admin/groups/${group.id}#attendees`,
               rows: tableRows,
-              showDate: events.some((e) => e.event_type === "daily"),
-              showEvent: true,
+              showDate: listings.some((e) => e.listing_type === "daily"),
+              showListing: true,
             })}
           />
         </div>
       </article>
 
-      {!isReadOnly() && ungroupedEvents.length > 0 && (
+      {!isReadOnly() && ungroupedListings.length > 0 && (
         <>
-          <h2>Add Events to Group</h2>
-          <CsrfForm action={`/admin/groups/${group.id}/add-events`}>
+          <h2>Add Listings to Group</h2>
+          <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
             <fieldset class="checkbox-group">
-              {ungroupedEvents.map((e) => (
+              {ungroupedListings.map((e) => (
                 <label>
-                  <input name="event_ids" type="checkbox" value={String(e.id)} />
+                  <input
+                    name="listing_ids"
+                    type="checkbox"
+                    value={String(e.id)}
+                  />
                   {` ${e.name}`}
                 </label>
               ))}
             </fieldset>
-            <button type="submit">Add Selected Events</button>
+            <button type="submit">Add Selected Listings</button>
           </CsrfForm>
         </>
       )}

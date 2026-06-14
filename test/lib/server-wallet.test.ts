@@ -101,7 +101,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("returns 404 for orphaned attendee with no event links", async () => {
+  test("returns 404 for orphaned attendee with no listing links", async () => {
     await configureAppleWallet();
     const { token, attendee } = await createTestAttendeeWithToken(
       "Orphan",
@@ -110,7 +110,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     const { getDb } = await import("#shared/db/client.ts");
     await getDb().execute({
       args: [attendee.id],
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     });
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(404);
@@ -195,9 +195,9 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     expect(files.signature).toBeDefined();
   });
 
-  test("pass.json contains correct event data", async () => {
+  test("pass.json contains correct listing data", async () => {
     await configureAppleWallet();
-    const { event, token } = await createTestAttendeeWithToken(
+    const { listing, token } = await createTestAttendeeWithToken(
       "Alice",
       "alice@test.com",
       {
@@ -211,7 +211,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
     expect(passJson.teamIdentifier).toBe("TESTTEAM01");
     expect(passJson.serialNumber).toBe(token);
-    expect(passJson.eventTicket.primaryFields[0].value).toBe(event.name);
+    expect(passJson.listingTicket.primaryFields[0].value).toBe(listing.name);
   });
 
   test("pass.json includes webServiceURL and authenticationToken for auto-updates", async () => {

@@ -11,7 +11,7 @@ export const initManualCheckin = (): void => {
   ) as HTMLInputElement;
   const listbox = document.getElementById("ticket-options")!;
   const statusEl = document.getElementById("manual-checkin-status")!;
-  const eventId = form.dataset.eventId!;
+  const listingId = form.dataset.listingId!;
   const csrfInput = form.querySelector<HTMLInputElement>(
     'input[name="csrf_token"]',
   )!;
@@ -190,7 +190,7 @@ export const initManualCheckin = (): void => {
     submitBtn.disabled = true;
 
     const postScan = async (body: Record<string, unknown>) => {
-      const r = await fetch(`/admin/event/${eventId}/scan`, {
+      const r = await fetch(`/admin/listing/${listingId}/scan`, {
         body: JSON.stringify(body),
         headers: {
           "content-type": "application/json",
@@ -204,7 +204,7 @@ export const initManualCheckin = (): void => {
     try {
       let result = await postScan({ token });
 
-      // Non-transferable event: re-submit with id_verified since the
+      // Non-transferable listing: re-submit with id_verified since the
       // admin already identified the attendee via the autocomplete list.
       let idVerified = false;
       if (result.status === "verify_id") {

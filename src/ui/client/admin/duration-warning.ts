@@ -1,14 +1,14 @@
 /// <reference lib="dom" />
-/** Event edit form: warn + gate save when booking duration changes, since
- * saving rewrites end_at on every existing booking for the event. */
+/** Listing edit form: warn + gate save when booking duration changes, since
+ * saving rewrites end_at on every existing booking for the listing. */
 export const initDurationWarning = (): void => {
-  const form = document.getElementById("event-edit-form");
+  const form = document.getElementById("listing-edit-form");
   const warn = document.getElementById("duration-warning");
   const confirm = document.getElementById(
     "duration-warning-confirm",
   ) as HTMLInputElement | null;
   const submit = document.getElementById(
-    "event-edit-submit",
+    "listing-edit-submit",
   ) as HTMLButtonElement | null;
   const input = form?.querySelector<HTMLInputElement>('[name="duration_days"]');
   const original = warn?.dataset.durationOriginal;

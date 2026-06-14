@@ -2,46 +2,46 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   createAttendeeAtomic,
-  recomputeEventBookingRanges,
+  recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  createDailyTestEvent,
-  createTestEvent,
+  createDailyTestListing,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 
-const getRow = async (eventId: number) => {
+const getRow = async (listingId: number) => {
   const res = await getDb().execute({
-    args: [eventId],
-    sql: "SELECT start_at, end_at FROM event_attendees WHERE event_id = ?",
+    args: [listingId],
+    sql: "SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ?",
   });
   return res.rows[0]!;
 };
 
 describeWithEnv(
-  "db > attendees > recomputeEventBookingRanges",
+  "db > attendees > recomputeListingBookingRanges",
   { db: true },
   () => {
     test("updates existing end_at to start_at + N days with ISO .000Z suffix", async () => {
       // Stored format must match fresh toISOString() output — locks lexical
       // comparisons to a single shape and keeps raw-row dumps tidy.
-      const event = await createDailyTestEvent({
+      const listing = await createDailyTestListing({
         maxAttendees: 5,
         maximumDaysAfter: 30,
       });
       await createAttendeeAtomic({
-        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 1 }],
+        bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
         email: "fmt@example.com",
         name: "Fmt",
       });
-      await recomputeEventBookingRanges(event.id, 3);
-      const row = await getRow(event.id);
+      await recomputeListingBookingRanges(listing.id, 3);
+      const row = await getRow(listing.id);
       expect(String(row.end_at)).toBe("2026-05-04T00:00:00.000Z");
     });
 
     test("clamps durationDays < 1 to 1", async () => {
-      const event = await createDailyTestEvent({
+      const listing = await createDailyTestListing({
         durationDays: 2,
         maxAttendees: 5,
         maximumDaysAfter: 30,
@@ -51,15 +51,15 @@ describeWithEnv(
           {
             date: "2026-05-01",
             durationDays: 2,
-            eventId: event.id,
+            listingId: listing.id,
             quantity: 1,
           },
         ],
         email: "c@example.com",
         name: "Clamp",
       });
-      await recomputeEventBookingRanges(event.id, 0);
-      const row = await getRow(event.id);
+      await recomputeListingBookingRanges(listing.id, 0);
+      const row = await getRow(listing.id);
       const diffDays =
         (new Date(String(row.end_at)).getTime() -
           new Date(String(row.start_at)).getTime()) /
@@ -68,23 +68,23 @@ describeWithEnv(
     });
 
     test("leaves non-daily (NULL start_at) rows alone", async () => {
-      const daily = await createDailyTestEvent({
+      const daily = await createDailyTestListing({
         maxAttendees: 5,
         maximumDaysAfter: 30,
       });
-      const standard = await createTestEvent({
-        eventType: "standard",
+      const standard = await createTestListing({
+        listingType: "standard",
         maxAttendees: 5,
       });
       await createAttendeeAtomic({
         bookings: [
-          { eventId: standard.id, quantity: 1 },
-          { date: "2026-05-01", eventId: daily.id, quantity: 1 },
+          { listingId: standard.id, quantity: 1 },
+          { date: "2026-05-01", listingId: daily.id, quantity: 1 },
         ],
         email: "mix@example.com",
         name: "Mixed",
       });
-      await recomputeEventBookingRanges(standard.id, 7);
+      await recomputeListingBookingRanges(standard.id, 7);
       const row = await getRow(standard.id);
       expect(row.start_at).toBeNull();
       expect(row.end_at).toBeNull();

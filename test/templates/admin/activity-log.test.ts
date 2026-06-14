@@ -3,10 +3,10 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
-  adminEventActivityLogPage,
   adminGlobalActivityLogPage,
+  adminListingActivityLogPage,
 } from "#templates/admin/activityLog.tsx";
-import { setupTestEncryptionKey, testEventWithCount } from "#test-utils";
+import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
@@ -15,32 +15,32 @@ beforeAll(async () => {
   await signCsrfToken();
 });
 
-describe("adminEventActivityLogPage", () => {
+describe("adminListingActivityLogPage", () => {
   test("renders activity log entries", () => {
-    const event = testEventWithCount();
+    const listing = testListingWithCount();
     const entries = [
       {
         created: "2024-01-15T10:30:00Z",
-        event_id: 1,
         id: 1,
+        listing_id: 1,
         message: "Ticket reserved",
       },
       {
         created: "2024-01-15T11:00:00Z",
-        event_id: 1,
         id: 2,
+        listing_id: 1,
         message: "Payment received",
       },
     ];
-    const html = adminEventActivityLogPage(event, entries, TEST_SESSION);
+    const html = adminListingActivityLogPage(listing, entries, TEST_SESSION);
     expect(html).toContain("Ticket reserved");
     expect(html).toContain("Payment received");
     expect(html).toContain("Log");
   });
 
   test("renders empty state when no entries", () => {
-    const event = testEventWithCount();
-    const html = adminEventActivityLogPage(event, [], TEST_SESSION);
+    const listing = testListingWithCount();
+    const html = adminListingActivityLogPage(listing, [], TEST_SESSION);
     expect(html).toContain("No activity recorded yet");
   });
 });
@@ -50,8 +50,8 @@ describe("adminGlobalActivityLogPage", () => {
     const entries = [
       {
         created: "2024-01-15T10:30:00Z",
-        event_id: null,
         id: 1,
+        listing_id: null,
         message: "System started",
       },
     ];
@@ -69,8 +69,8 @@ describe("adminGlobalActivityLogPage", () => {
     const entries = [
       {
         created: "2024-01-15T10:30:00Z",
-        event_id: null,
         id: 1,
+        listing_id: null,
         message: "Action",
       },
     ];
@@ -82,8 +82,8 @@ describe("adminGlobalActivityLogPage", () => {
     const entries = [
       {
         created: "2024-01-15T10:30:00Z",
-        event_id: null,
         id: 1,
+        listing_id: null,
         message: "Action",
       },
     ];
@@ -95,8 +95,8 @@ describe("adminGlobalActivityLogPage", () => {
     const entries = [
       {
         created: "2024-01-15T10:30:00Z",
-        event_id: null,
         id: 1,
+        listing_id: null,
         message: formatErrorMessage({
           code: ErrorCode.SQUARE_SIGNATURE,
           detail: "mismatch",
@@ -114,8 +114,8 @@ describe("adminGlobalActivityLogPage", () => {
     const entries = [
       {
         created: "2024-01-15T10:30:00Z",
-        event_id: null,
         id: 1,
+        listing_id: null,
         message: "Payment received",
       },
     ];

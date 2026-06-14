@@ -51,7 +51,7 @@ export const buildPkpassForToken = async (
   const domain = getEffectiveDomain();
   const passData = {
     ...result.passData,
-    description: `Ticket for ${result.passData.eventName}`,
+    description: `Ticket for ${result.passData.listingName}`,
     webServiceURL: `https://${domain}`,
   };
   const pkpass = buildPkpass(passData, config);

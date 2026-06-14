@@ -7,7 +7,7 @@ import {
   answersTable,
   getAttendeeAnswersBatch,
   questionsTable,
-  setEventQuestions,
+  setListingQuestions,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -21,8 +21,8 @@ import { sumupApi } from "#shared/sumup.ts";
 import {
   assertJson,
   bookAttendee,
-  createTestEvent,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectHtmlResponse,
   followRedirect,
@@ -64,9 +64,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await expectHtmlResponse(response, 400, "Missing signature");
     });
 
-    /** Configure SumUp and stage a real checkout for the given event:
+    /** Configure SumUp and stage a real checkout for the given listing:
      * production buildItemsMetadata output, encrypted store, id mapping. */
-    const stageSumupCheckout = async (event: {
+    const stageSumupCheckout = async (listing: {
       id: number;
       name: string;
       slug: string;
@@ -82,10 +82,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         email: "alice@example.com",
         items: [
           {
-            eventId: event.id,
-            name: event.name,
+            listingId: listing.id,
+            name: listing.name,
             quantity: 1,
-            slug: event.slug,
+            slug: listing.slug,
             unitPrice: 1000,
           },
         ],
@@ -98,15 +98,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       return reference;
     };
 
-    /** Unsigned SumUp webhook event for the staged checkout. */
+    /** Unsigned SumUp webhook listing for the staged checkout. */
     const sumupWebhookEvent = {
       event_type: "CHECKOUT_STATUS_CHANGED",
       id: "co_e2e",
     };
 
     test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
-      const event = await createTestEvent({ unitPrice: 1000 });
-      const reference = await stageSumupCheckout(event);
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const reference = await stageSumupCheckout(listing);
       const restore = stub(sumupApi, "retrieveCheckoutById", () =>
         Promise.resolve({
           amountMinor: 1000,
@@ -133,8 +133,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     });
 
     test("acknowledges unknown SumUp checkout ids without fetching from the API", async () => {
-      const event = await createTestEvent({ unitPrice: 1000 });
-      await stageSumupCheckout(event);
+      const listing = await createTestListing({ unitPrice: 1000 });
+      await stageSumupCheckout(listing);
       const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
         Promise.resolve(null),
       );
@@ -154,8 +154,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     });
 
     test("shows the cancel page when a SumUp payment fails", async () => {
-      const event = await createTestEvent({ unitPrice: 1000 });
-      const reference = await stageSumupCheckout(event);
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const reference = await stageSumupCheckout(listing);
       const restore = stub(sumupApi, "retrieveCheckoutById", () =>
         Promise.resolve({
           amountMinor: 1000,
@@ -227,7 +227,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("acknowledges non-checkout events", async () => {
+    test("acknowledges non-checkout listings", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import(
@@ -238,7 +238,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: { object: {} },
               id: "evt_test",
               type: "payment_intent.created",
@@ -273,7 +273,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 0,
@@ -308,7 +308,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("acknowledges unpaid checkout without processing", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -321,14 +321,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_test",
                   metadata: webhookMeta({
                     email: "john@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "John",
                   }),
                   payment_intent: "pi_test",
@@ -361,7 +361,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("processes valid single-ticket webhook and creates attendee", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -374,14 +374,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_webhook_test",
                   metadata: webhookMeta({
                     email: "webhook@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Webhook User",
                   }),
                   payment_intent: "pi_webhook_test",
@@ -409,7 +409,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify attendee was created with encrypted PII blob
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.pii_blob).not.toBe("");
 
@@ -427,12 +427,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("processes valid multi-ticket webhook and creates attendees", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Webhook Multi 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Webhook Multi 2",
         unitPrice: 1000,
@@ -446,7 +446,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 2000,
@@ -454,8 +454,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "multi@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 1000, q: 2 },
-                      { e: event2.id, p: 1000, q: 1 },
+                      { e: listing1.id, p: 1000, q: 2 },
+                      { e: listing2.id, p: 1000, q: 1 },
                     ]),
                     name: "Multi User",
                     phone: "123456",
@@ -483,10 +483,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        // Verify attendees were created for both events
+        // Verify attendees were created for both listings
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
-        const attendees2 = await getAttendeesRaw(event2.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
+        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);
         expect(attendees1[0]?.quantity).toBe(2);
         expect(attendees2.length).toBe(1);
@@ -499,7 +499,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("corrupt booking item in metadata throws (missing p)", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "No Price Multi",
         unitPrice: 500,
@@ -513,7 +513,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             id: "cs_no_price",
             metadata: webhookMeta({
               email: "noprice@example.com",
-              items: JSON.stringify([{ e: event1.id, q: 1 }]),
+              items: JSON.stringify([{ e: listing1.id, q: 1 }]),
               name: "No Price User",
             }),
             payment_intent: "pi_no_price",
@@ -548,7 +548,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 0,
@@ -579,16 +579,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook handles sold-out event and returns error in JSON", async () => {
+    test("webhook handles sold-out listing and returns error in JSON", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 1,
         unitPrice: 1000,
       });
 
-      // Fill the event
-      await bookAttendee(event, {
+      // Fill the listing
+      await bookAttendee(listing, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -602,14 +602,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_soldout",
                   metadata: webhookMeta({
                     email: "late@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Late Buyer",
                   }),
                   payment_intent: "pi_soldout",
@@ -650,7 +650,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook returns 409 when session is being processed concurrently", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -668,7 +668,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             id: "cs_webhook_concurrent",
             metadata: webhookMeta({
               email: "concurrent@example.com",
-              items: singleItem(event.id, 1, 1000),
+              items: singleItem(listing.id, 1, 1000),
               name: "Concurrent Webhook",
             }),
             payment_intent: "pi_webhook_concurrent",
@@ -743,7 +743,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("extractIntent preserves quantity 0 from metadata", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -754,7 +754,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_qty_zero",
           metadata: {
             email: "john@example.com",
-            items: singleItem(event.id, 0, 0),
+            items: singleItem(listing.id, 0, 0),
             name: "John",
           },
           payment_intent: "pi_qty_zero",
@@ -774,7 +774,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify attendee was created with quantity 0, not silently converted to 1
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(0);
       } finally {
@@ -785,7 +785,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("payment success redirect threads siteToken through to the renewal push", async () => {
       await setupStripe();
 
-      const tier = await createTestEvent({
+      const tier = await createTestListing({
         hidden: true,
         maxAttendees: 50,
         monthsPerUnit: 1,
@@ -856,7 +856,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("payment success rejects renewal metadata from an unrecognized origin", async () => {
       await setupStripe();
 
-      const tier = await createTestEvent({
+      const tier = await createTestListing({
         hidden: true,
         maxAttendees: 50,
         monthsPerUnit: 1,
@@ -897,7 +897,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("payment success applies multi-tier renewal months cumulatively", async () => {
       await setupStripe();
 
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         maxAttendees: 50,
         monthsPerUnit: 1,
@@ -905,7 +905,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         purchaseOnly: true,
         unitPrice: 1000,
       });
-      await createTestEvent({
+      await createTestListing({
         hidden: true,
         maxAttendees: 50,
         monthsPerUnit: 12,
@@ -915,17 +915,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       const { addMonthsIso } = await import("#shared/dates.ts");
-      const { getAllEvents } = await import("#shared/db/events.ts");
+      const { getAllListings } = await import("#shared/db/listings.ts");
       const { insertBuiltSite, getAllBuiltSites } = await import(
         "#shared/db/built-sites.ts"
       );
       const { provisionTestBuiltSite } = await import("#test-utils");
       const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
-      const events = await getAllEvents();
-      const monthly = events.find(
+      const listings = await getAllListings();
+      const monthly = listings.find(
         (e) => e.name === "Monthly multi-tier renewal",
       )!;
-      const annual = events.find(
+      const annual = listings.find(
         (e) => e.name === "Annual multi-tier renewal",
       )!;
 
@@ -994,7 +994,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("payment success reads orderId param for Square redirect", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -1005,7 +1005,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_square_order",
           metadata: {
             email: "square@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "Square User",
           },
           payment_intent: "pi_square_order",
@@ -1031,18 +1031,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("tryRefund returns false when paymentReference is empty", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
-      await deactivateTestEvent(event.id);
+      await deactivateTestListing(listing.id);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           id: "cs_null_ref",
           metadata: {
             email: "john@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "John",
           },
           payment_intent: null, // No payment reference
@@ -1071,7 +1071,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook extracts payment_intent as paymentReference", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -1084,14 +1084,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_pi_extract",
                   metadata: webhookMeta({
                     email: "pi@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "PI User",
                   }),
                   payment_intent: "pi_extracted_ref",
@@ -1118,7 +1118,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify attendee was created with encrypted PII blob
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.pii_blob).not.toBe("");
       } finally {
@@ -1137,7 +1137,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 0,
@@ -1179,7 +1179,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 0,
@@ -1219,7 +1219,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket being processed returns 409", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Multi Concurrent",
         unitPrice: 500,
@@ -1236,7 +1236,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_multi_concurrent",
           metadata: {
             email: "concurrent@example.com",
-            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
             name: "Concurrent",
           },
           payment_intent: "pi_multi_concurrent",
@@ -1259,7 +1259,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket being processed returns 409", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -1275,7 +1275,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_single_concurrent",
           metadata: {
             email: "concurrent@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "Concurrent",
           },
           payment_intent: "pi_single_concurrent",
@@ -1298,7 +1298,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket pricePaid calculation uses unit_price * quantity", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Multi Price Calc",
         unitPrice: 500,
@@ -1310,7 +1310,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_multi_price",
           metadata: {
             email: "price@example.com",
-            items: JSON.stringify([{ e: event.id, p: 1500, q: 3 }]),
+            items: JSON.stringify([{ e: listing.id, p: 1500, q: 3 }]),
             name: "Price Test",
           },
           payment_intent: "pi_multi_price",
@@ -1329,7 +1329,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
         expect(
@@ -1343,7 +1343,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket pricePaid calculation uses unit_price * quantity", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
         unitPrice: 1000,
@@ -1355,7 +1355,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_single_price",
           metadata: {
             email: "price@example.com",
-            items: singleItem(event.id, 2, 2000),
+            items: singleItem(listing.id, 2, 2000),
             name: "Price Single",
           },
           payment_intent: "pi_single_price",
@@ -1374,7 +1374,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(
           (attendees[0] as unknown as Record<string, unknown>).price_paid,
@@ -1436,7 +1436,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket failure error message for encryption_error", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Multi Enc Err",
         unitPrice: 500,
@@ -1448,7 +1448,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_multi_enc_err",
           metadata: {
             email: "enc@example.com",
-            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
             name: "Enc Error",
           },
           payment_intent: "pi_multi_enc_err",
@@ -1536,13 +1536,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("returns success for already-processed multi-ticket session", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Multi Already Done",
         unitPrice: 500,
       });
-      // Create attendee directly (not via public form which redirects to Stripe for paid events)
-      const result = await bookAttendee(event, {
+      // Create attendee directly (not via public form which redirects to Stripe for paid listings)
+      const result = await bookAttendee(listing, {
         email: "already@example.com",
         name: "Already Done",
         paymentId: "pi_already_done",
@@ -1568,14 +1568,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_multi_already_done",
                   metadata: webhookMeta({
                     email: "already@example.com",
-                    items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
                     name: "Already Done",
                   }),
                   payment_intent: "pi_already_done",
@@ -1604,20 +1604,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook handles multi-ticket with inactive event and rollback", async () => {
+    test("webhook handles multi-ticket with inactive listing and rollback", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH Active",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH Inactive",
         unitPrice: 500,
       });
-      await deactivateTestEvent(event2.id);
+      await deactivateTestListing(listing2.id);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -1627,7 +1627,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
@@ -1635,8 +1635,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "inactive@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 500, q: 1 },
-                      { e: event2.id, p: 500, q: 1 },
+                      { e: listing1.id, p: 500, q: 1 },
+                      { e: listing2.id, p: 500, q: 1 },
                     ]),
                     name: "Multi Inactive",
                   }),
@@ -1670,7 +1670,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
         expect(attendees1.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -1678,20 +1678,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook handles multi-ticket sold out in second event", async () => {
+    test("webhook handles multi-ticket sold out in second listing", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH Avail",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 1,
         name: "Multi WH Full",
         unitPrice: 500,
       });
-      await bookAttendee(event2, {
+      await bookAttendee(listing2, {
         email: "first@example.com",
         name: "First",
         paymentId: "pi_first",
@@ -1706,7 +1706,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
@@ -1714,8 +1714,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "soldout@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 500, q: 1 },
-                      { e: event2.id, p: 500, q: 1 },
+                      { e: listing1.id, p: 500, q: 1 },
+                      { e: listing2.id, p: 500, q: 1 },
                     ]),
                     name: "Sold Out Multi",
                   }),
@@ -1749,7 +1749,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
         expect(attendees1.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -1757,7 +1757,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook handles non-checkout event type by acknowledging", async () => {
+    test("webhook handles non-checkout listing type by acknowledging", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import(
@@ -1768,7 +1768,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   id: "pi_test",
@@ -1803,15 +1803,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       resetStripeClient();
     });
 
-    test("multi-ticket webhook creates attendees for multiple events", async () => {
+    test("multi-ticket webhook creates attendees for multiple listings", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH OK 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH OK 2",
         unitPrice: 300,
@@ -1825,7 +1825,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1100,
@@ -1833,8 +1833,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "multi@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 500, q: 1 },
-                      { e: event2.id, p: 600, q: 2 },
+                      { e: listing1.id, p: 500, q: 1 },
+                      { e: listing2.id, p: 600, q: 2 },
                     ]),
                     name: "Multi Buyer",
                   }),
@@ -1867,7 +1867,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket webhook saves custom question answers", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Answer WH",
         unitPrice: 500,
@@ -1877,7 +1877,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const {
         questionsTable,
         answersTable,
-        setEventQuestions,
+        setListingQuestions,
         getAttendeeAnswersBatch,
       } = await import("#shared/db/questions.ts");
       const q = await questionsTable.insert({ text: "Size?" });
@@ -1886,7 +1886,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         sortOrder: 0,
         text: "Large",
       });
-      await setEventQuestions(event1.id, [q.id]);
+      await setListingQuestions(listing1.id, [q.id]);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -1896,17 +1896,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_answer",
                   metadata: webhookMeta({
                     answer_ids: JSON.stringify({
-                      [String(event1.id)]: [a.id],
+                      [String(listing1.id)]: [a.id],
                     }),
                     email: "answer@example.com",
-                    items: JSON.stringify([{ e: event1.id, p: 500, q: 1 }]),
+                    items: JSON.stringify([{ e: listing1.id, p: 500, q: 1 }]),
                     name: "Answer Buyer",
                   }),
                   payment_intent: "pi_answer",
@@ -1928,7 +1928,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify answers were saved for the created attendee
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event1.id);
+        const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(1);
         const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
         const attendeeAnswers = answerMap.get(attendees[0]!.id) ?? [];
@@ -1938,7 +1938,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket webhook handles event not found without refund", async () => {
+    test("multi-ticket webhook handles listing not found without refund", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import(
@@ -1949,7 +1949,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
@@ -1979,10 +1979,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Event not found");
+            expect(json.error).toContain("Listing not found");
           },
         );
-        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        // Listing not found should NOT trigger a refund (webhook may be for a different instance)
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -1993,19 +1993,19 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket webhook handles capacity exceeded with rollback", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH Cap 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 1,
         name: "Multi WH Cap 2",
         unitPrice: 300,
       });
 
-      // Fill event2 to capacity
-      await bookAttendee(event2, {
+      // Fill listing2 to capacity
+      await bookAttendee(listing2, {
         email: "existing@example.com",
         name: "Existing",
         quantity: 1,
@@ -2019,7 +2019,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 800,
@@ -2027,8 +2027,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "cap@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 500, q: 1 },
-                      { e: event2.id, p: 300, q: 1 },
+                      { e: listing1.id, p: 500, q: 1 },
+                      { e: listing2.id, p: 300, q: 1 },
                     ]),
                     name: "Multi Cap",
                   }),
@@ -2067,16 +2067,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook with already-processed session where event was deleted", async () => {
+    test("webhook with already-processed session where listing was deleted", async () => {
       await setupStripe();
 
-      // Create a real event and attendee to satisfy FK constraints for finalization
-      const event = await createTestEvent({
+      // Create a real listing and attendee to satisfy FK constraints for finalization
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Del Evt",
         unitPrice: 500,
       });
-      const attResult = await bookAttendee(event, {
+      const attResult = await bookAttendee(listing, {
         email: "whdel@example.com",
         name: "WH Del",
         paymentId: "pi_del",
@@ -2089,33 +2089,33 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         reserveSession: reserveSessionFn,
         finalizeSession: finalizeSessionFn,
       } = await import("#shared/db/processed-payments.ts");
-      await reserveSessionFn("cs_del_event_wh");
-      await finalizeSessionFn("cs_del_event_wh", attResult.attendees[0]!.id);
+      await reserveSessionFn("cs_del_listing_wh");
+      await finalizeSessionFn("cs_del_listing_wh", attResult.attendees[0]!.id);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
-      // Use a non-existent event_id in metadata to trigger "Event not found" in alreadyProcessedResult
+      // Use a non-existent listing_id in metadata to trigger "Listing not found" in alreadyProcessedResult
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
-                  id: "cs_del_event_wh",
+                  id: "cs_del_listing_wh",
                   metadata: webhookMeta({
                     email: "deleted@example.com",
                     items: singleItem(99999, 1, 1000),
-                    name: "Deleted Event",
+                    name: "Deleted Listing",
                   }),
-                  payment_intent: "pi_del_event_wh",
+                  payment_intent: "pi_del_listing_wh",
                   payment_status: "paid",
                 },
               },
-              id: "evt_del_event_wh",
+              id: "evt_del_listing_wh",
               type: "checkout.session.completed",
             },
             valid: true,
@@ -2129,7 +2129,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Event not found");
+            expect(json.error).toContain("Listing not found");
           },
         );
       } finally {
@@ -2140,12 +2140,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook refund returns false when payment reference is null", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Noref",
         unitPrice: 500,
       });
-      await deactivateTestEvent(event.id);
+      await deactivateTestListing(listing.id);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -2155,14 +2155,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_noref",
                   metadata: webhookMeta({
                     email: "noref@example.com",
-                    items: singleItem(event.id, 1, 500),
+                    items: singleItem(listing.id, 1, 500),
                     name: "No Ref",
                   }),
                   payment_status: "paid",
@@ -2209,10 +2209,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
-                  id: "cs_no_event_id",
+                  id: "cs_no_listing_id",
                   status: "COMPLETED",
                 },
               },
@@ -2229,13 +2229,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         () =>
           Promise.resolve({
             amountTotal: 0,
-            id: "cs_no_event_id",
+            id: "cs_no_listing_id",
             metadata: webhookMeta({
-              email: "noeventid@example.com",
-              name: "No EventId",
+              email: "nolistingid@example.com",
+              name: "No ListingId",
               // items missing — invalid session data
             }),
-            paymentReference: "pi_no_event_id",
+            paymentReference: "pi_no_listing_id",
             paymentStatus: "paid" as const,
           }),
       );
@@ -2254,12 +2254,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("tryRefund logs error when no payment provider is configured", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Tryrefund Noprov",
         unitPrice: 500,
       });
-      await deactivateTestEvent(event.id);
+      await deactivateTestListing(listing.id);
 
       // Mock paymentsApi.getConfiguredProvider to return "stripe" on first call
       // (for webhook handler's initial check) then null on second call (for tryRefund).
@@ -2285,14 +2285,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_tryrefund_noprov",
                   metadata: webhookMeta({
                     email: "noprov@example.com",
-                    items: singleItem(event.id, 1, 500),
+                    items: singleItem(listing.id, 1, 500),
                     name: "No Provider",
                   }),
                   payment_intent: "pi_tryrefund_noprov",
@@ -2322,15 +2322,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket webhook skips refund when second event not found", async () => {
+    test("multi-ticket webhook skips refund when second listing not found", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "WH Multi Rollback 1",
         unitPrice: 500,
       });
-      // event2 does not exist (id 99999) — validation fails before any attendees are created
+      // listing2 does not exist (id 99999) — validation fails before any attendees are created
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -2340,7 +2340,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
@@ -2348,7 +2348,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "rollback@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 500, q: 1 },
+                      { e: listing1.id, p: 500, q: 1 },
                       { e: 99999, p: 0, q: 1 },
                     ]),
                     name: "Rollback Test",
@@ -2373,16 +2373,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Event not found");
+            expect(json.error).toContain("Listing not found");
           },
         );
 
-        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        // Listing not found should NOT trigger a refund (webhook may be for a different instance)
         expect(mockRefund.calls.length).toBe(0);
 
         // No attendees created (validation fails before creation pass)
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event1.id);
+        const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -2390,10 +2390,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket pricePaid records zero when event has no unit_price", async () => {
+    test("multi-ticket pricePaid records zero when listing has no unit_price", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Multi Free",
       });
@@ -2404,7 +2404,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_multi_free",
           metadata: {
             email: "freemulti@example.com",
-            items: JSON.stringify([{ e: event.id, p: 0, q: 2 }]),
+            items: JSON.stringify([{ e: listing.id, p: 0, q: 2 }]),
             name: "Free Multi",
           },
           payment_intent: "pi_multi_free",
@@ -2423,7 +2423,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
         expect(
@@ -2434,10 +2434,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("single-ticket pricePaid records zero when event has no unit_price", async () => {
+    test("single-ticket pricePaid records zero when listing has no unit_price", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Single Free",
       });
@@ -2448,7 +2448,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_single_free",
           metadata: {
             email: "freesingle@example.com",
-            items: singleItem(event.id, 2, 0),
+            items: singleItem(listing.id, 2, 0),
             name: "Free Single",
           },
           payment_intent: "pi_single_free",
@@ -2467,7 +2467,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
         expect(
@@ -2478,11 +2478,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook with checkout event type but no extractable session acknowledges without processing", async () => {
+    test("webhook with checkout listing type but no extractable session acknowledges without processing", async () => {
       await setupStripe();
 
-      // Event type matches checkoutCompletedEventType but data lacks metadata
-      // so extractSessionFromEvent returns null (covers lines 498-500)
+      // Listing type matches checkoutCompletedEventType but data lacks metadata
+      // so extractSessionFromListing returns null (covers lines 498-500)
       // and data object has no id/order_id so sessionId is null (covers lines 597-602)
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -2492,7 +2492,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   // No id, no order_id, no proper metadata
@@ -2533,7 +2533,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: { object: {} },
               id: "evt_skip",
               type: "checkout.session.completed",
@@ -2575,7 +2575,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: { object: {} },
               id: "evt_null",
               type: "checkout.session.completed",
@@ -2609,7 +2609,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket with no attendees created returns refund error", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Multi No Att",
         unitPrice: 500,
@@ -2631,7 +2631,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_multi_no_att",
           metadata: {
             email: "noatt@example.com",
-            items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
             name: "No Att",
           },
           payment_intent: "pi_multi_no_att",
@@ -2659,10 +2659,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("single-ticket capacity exceeded uses metadata event_id for refund", async () => {
+    test("single-ticket capacity exceeded uses metadata listing_id for refund", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "WH Single Cap",
         unitPrice: 500,
@@ -2682,7 +2682,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_single_cap",
           metadata: {
             email: "cap@example.com",
-            items: singleItem(event.id, 1, 500),
+            items: singleItem(listing.id, 1, 500),
             name: "Cap User",
           },
           payment_intent: "pi_single_cap",
@@ -2713,7 +2713,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook treats invalid payment_status as unpaid", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -2726,14 +2726,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_bad_status",
                   metadata: webhookMeta({
                     email: "badstatus@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Bad Status",
                   }),
                   payment_intent: "pi_bad_status",
@@ -2765,10 +2765,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook extracts amount_total as number from event data", async () => {
+    test("webhook extracts amount_total as number from listing data", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 2500,
       });
@@ -2781,14 +2781,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 2500,
                   id: "cs_amount_total",
                   metadata: webhookMeta({
                     email: "amount@example.com",
-                    items: singleItem(event.id, 1, 2500),
+                    items: singleItem(listing.id, 1, 2500),
                     name: "Amount User",
                   }),
                   payment_intent: "pi_amount_total",
@@ -2814,7 +2814,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(
           (attendees[0] as unknown as Record<string, unknown>).price_paid,
@@ -2827,7 +2827,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket refunds and rejects when price changed since checkout", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -2842,14 +2842,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1200,
                   id: "cs_mismatch",
                   metadata: webhookMeta({
                     email: "mismatch@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Mismatch User",
                   }),
                   payment_intent: "pi_mismatch",
@@ -2884,7 +2884,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify no attendee was created
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
@@ -2898,12 +2898,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket refunds and rejects when prices changed since checkout", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi Mismatch 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Multi Mismatch 2",
         unitPrice: 300,
@@ -2919,7 +2919,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
@@ -2927,8 +2927,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "multimismatch@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 400, q: 1 },
-                      { e: event2.id, p: 600, q: 2 },
+                      { e: listing1.id, p: 400, q: 1 },
+                      { e: listing2.id, p: 600, q: 2 },
                     ]),
                     name: "Multi Mismatch",
                   }),
@@ -2964,8 +2964,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify no attendees were created
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
-        const attendees2 = await getAttendeesRaw(event2.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
+        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(0);
         expect(attendees2.length).toBe(0);
 
@@ -2980,7 +2980,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket redirect refunds and shows error when price changed since checkout", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -2993,7 +2993,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_redirect_mismatch",
           metadata: {
             email: "redirect@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "Redirect Mismatch",
           },
           payment_intent: "pi_redirect_mismatch",
@@ -3017,7 +3017,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify no attendee was created
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
@@ -3031,7 +3031,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook single-ticket defaults email to empty when metadata email is not a string", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -3044,14 +3044,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_wh_no_email_single",
                   metadata: webhookMeta({
                     email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "No Email Single",
                   }),
                   payment_intent: "pi_wh_no_email_single",
@@ -3077,7 +3077,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       } finally {
         mockVerify.restore();
@@ -3087,7 +3087,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook multi-ticket defaults email to empty when metadata email is not a string", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -3100,14 +3100,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_wh_no_email_multi",
                   metadata: webhookMeta({
                     email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
                     name: "No Email Multi",
                   }),
                   payment_intent: "pi_wh_no_email_multi",
@@ -3133,7 +3133,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       } finally {
         mockVerify.restore();
@@ -3146,11 +3146,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       resetStripeClient();
     });
 
-    test("refunds and shows error when event registration has closed (single ticket)", async () => {
+    test("refunds and shows error when listing registration has closed (single ticket)", async () => {
       await setupStripe();
 
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         closesAt: pastDate,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -3161,7 +3161,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           id: "cs_closed",
           metadata: {
             email: "john@example.com",
-            items: singleItem(event.id, 1, 1000),
+            items: singleItem(listing.id, 1, 1000),
             name: "John",
           },
           payment_intent: "pi_closed",
@@ -3193,11 +3193,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook refunds when event registration has closed (single ticket)", async () => {
+    test("webhook refunds when listing registration has closed (single ticket)", async () => {
       await setupStripe();
 
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         closesAt: pastDate,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -3211,14 +3211,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_closed_wh",
                   metadata: webhookMeta({
                     email: "jane@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Jane",
                   }),
                   payment_intent: "pi_closed_wh",
@@ -3254,16 +3254,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook refunds when multi-ticket event registration has closed", async () => {
+    test("webhook refunds when multi-ticket listing registration has closed", async () => {
       await setupStripe();
 
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
-      // event2 is closed
-      const event2 = await createTestEvent({
+      // listing2 is closed
+      const listing2 = await createTestListing({
         closesAt: pastDate,
         maxAttendees: 50,
         unitPrice: 500,
@@ -3277,7 +3277,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1500,
@@ -3285,8 +3285,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "jane@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 1000, q: 1 },
-                      { e: event2.id, p: 500, q: 1 },
+                      { e: listing1.id, p: 1000, q: 1 },
+                      { e: listing2.id, p: 500, q: 1 },
                     ]),
                     name: "Jane",
                   }),
@@ -3319,9 +3319,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        // Verify event1 attendee was rolled back
+        // Verify listing1 attendee was rolled back
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
         expect(attendees1.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -3329,10 +3329,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket webhook passes date to daily events only", async () => {
+    test("multi-ticket webhook passes date to daily listings only", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -3342,14 +3342,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        eventType: "daily",
+        listingType: "daily",
         maxAttendees: 50,
         maximumDaysAfter: 14,
         minimumDaysBefore: 0,
         name: "Multi WH Daily",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Multi WH Standard",
         unitPrice: 300,
@@ -3363,7 +3363,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 800,
@@ -3372,8 +3372,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                     date: "2026-02-10",
                     email: "multidaily@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 500, q: 1 },
-                      { e: event2.id, p: 300, q: 1 },
+                      { e: listing1.id, p: 500, q: 1 },
+                      { e: listing2.id, p: 300, q: 1 },
                     ]),
                     name: "Multi Daily Buyer",
                   }),
@@ -3399,14 +3399,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
 
-        // Verify daily event attendee has the date set
+        // Verify daily listing attendee has the date set
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
         expect(attendees1.length).toBe(1);
         expect(attendees1[0]?.date).toBe("2026-02-10");
 
-        // Verify standard event attendee has null date
-        const attendees2 = await getAttendeesRaw(event2.id);
+        // Verify standard listing attendee has null date
+        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.date).toBeNull();
       } finally {
@@ -3431,7 +3431,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 30,
@@ -3485,7 +3485,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
@@ -3538,12 +3538,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   id: "cs_fallback_foreign",
                   status: "COMPLETED",
-                  // No proper metadata -> extractSessionFromEvent returns null
+                  // No proper metadata -> extractSessionFromListing returns null
                 },
               },
               id: "evt_fallback_foreign",
@@ -3600,11 +3600,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("tryRefund logs success message when refund succeeds", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
-      await deactivateTestEvent(event.id);
+      await deactivateTestListing(listing.id);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -3614,14 +3614,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_refund_log",
                   metadata: webhookMeta({
                     email: "refundlog@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Refund Log",
                   }),
                   payment_intent: "pi_refund_log",
@@ -3661,16 +3661,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         expect(refundLog).toBeDefined();
 
-        // Verify refund was logged to activity log tagged to event
-        const { getEventActivityLog } = await import(
+        // Verify refund was logged to activity log tagged to listing
+        const { getListingActivityLog } = await import(
           "#shared/db/activityLog.ts"
         );
-        const entries = await getEventActivityLog(event.id);
+        const entries = await getListingActivityLog(listing.id);
         const refundEntry = entries.find((e) =>
           e.message.includes("Automatic refund"),
         );
         expect(refundEntry).toBeDefined();
-        expect(refundEntry!.event_id).toBe(event.id);
+        expect(refundEntry!.listing_id).toBe(listing.id);
         expect(refundEntry!.message).toContain(
           "no longer accepting registrations",
         );
@@ -3685,7 +3685,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("automatic refund logs to activity log for price mismatch", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -3698,14 +3698,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_refund_activity",
                   metadata: webhookMeta({
                     email: "activity@example.com",
-                    items: singleItem(event.id, 1, 1000),
+                    items: singleItem(listing.id, 1, 1000),
                     name: "Activity Log User",
                   }),
                   payment_intent: "pi_refund_activity",
@@ -3731,15 +3731,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         expect(response.status).toBe(200);
 
-        const { getEventActivityLog } = await import(
+        const { getListingActivityLog } = await import(
           "#shared/db/activityLog.ts"
         );
-        const entries = await getEventActivityLog(event.id);
+        const entries = await getListingActivityLog(listing.id);
         const refundEntry = entries.find((e) =>
           e.message.includes("Automatic refund"),
         );
         expect(refundEntry).toBeDefined();
-        expect(refundEntry!.event_id).toBe(event.id);
+        expect(refundEntry!.listing_id).toBe(listing.id);
         expect(refundEntry!.message).toContain("price");
       } finally {
         mockVerify.restore();
@@ -3750,7 +3750,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket can_pay_more accepts amount above minimum price", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -3764,14 +3764,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 2500,
                   id: "cs_pay_more",
                   metadata: webhookMeta({
                     email: "generous@example.com",
-                    items: singleItem(event.id, 1, 2500),
+                    items: singleItem(listing.id, 1, 2500),
                     name: "Generous User",
                   }),
                   payment_intent: "pi_pay_more",
@@ -3798,7 +3798,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify attendee was created with the actual amount paid (2500), not the minimum (1000)
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(
           (attendees[0] as unknown as Record<string, unknown>).price_paid,
@@ -3811,19 +3811,19 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket can_pay_more uses per-item prices from metadata", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         name: "Multi Pay More 1",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Multi Pay More 2",
         unitPrice: 1000,
       });
 
-      // Event1 base 500, user entered 2000; Event2 base 1000, stays 1000
+      // Listing1 base 500, user entered 2000; Listing2 base 1000, stays 1000
       // Total: 2000 + 1000 = 3000
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -3833,7 +3833,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 3000,
@@ -3841,8 +3841,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "generous@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 2000, q: 1 },
-                      { e: event2.id, p: 1000, q: 1 },
+                      { e: listing1.id, p: 2000, q: 1 },
+                      { e: listing2.id, p: 1000, q: 1 },
                     ]),
                     name: "Multi Generous",
                   }),
@@ -3870,8 +3870,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify both attendees were created with correct per-item prices
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
-        const attendees2 = await getAttendeesRaw(event2.id);
+        const attendees1 = await getAttendeesRaw(listing1.id);
+        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);
         expect(
           (attendees1[0] as unknown as Record<string, unknown>).price_paid,
@@ -3885,21 +3885,21 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket rejects amount above event price when can_pay_more is disabled", async () => {
+    test("multi-ticket rejects amount above listing price when can_pay_more is disabled", async () => {
       await setupStripe();
 
-      const event1 = await createTestEvent({
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "No Pay More",
         unitPrice: 500,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Normal Price",
         unitPrice: 1000,
       });
 
-      // Same metadata shape as the pay-more test, but event1 has can_pay_more=false
+      // Same metadata shape as the pay-more test, but listing1 has can_pay_more=false
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
@@ -3908,7 +3908,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 3000,
@@ -3916,8 +3916,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   metadata: webhookMeta({
                     email: "over@example.com",
                     items: JSON.stringify([
-                      { e: event1.id, p: 2000, q: 1 },
-                      { e: event2.id, p: 1000, q: 1 },
+                      { e: listing1.id, p: 2000, q: 1 },
+                      { e: listing2.id, p: 1000, q: 1 },
                     ]),
                     name: "Over Payer",
                   }),
@@ -3958,7 +3958,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket can_pay_more rejects amount below minimum price", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -3972,14 +3972,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_pay_less",
                   metadata: webhookMeta({
                     email: "cheap@example.com",
-                    items: singleItem(event.id, 1, 500),
+                    items: singleItem(listing.id, 1, 500),
                     name: "Cheap User",
                   }),
                   payment_intent: "pi_pay_less",
@@ -4019,7 +4019,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("single-ticket can_pay_more rejects amount above maximum price", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -4033,14 +4033,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 20000,
                   id: "cs_pay_too_much",
                   metadata: webhookMeta({
                     email: "overpay@example.com",
-                    items: singleItem(event.id, 1, 20000),
+                    items: singleItem(listing.id, 1, 20000),
                     name: "Overpay User",
                   }),
                   payment_intent: "pi_pay_too_much",
@@ -4080,7 +4080,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("corrupt booking item in metadata throws (non-integer p)", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -4093,14 +4093,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_bad_p",
                   metadata: webhookMeta({
                     email: "bad@example.com",
-                    items: JSON.stringify([{ e: event.id, p: 10.5, q: 1 }]),
+                    items: JSON.stringify([{ e: listing.id, p: 10.5, q: 1 }]),
                     name: "Bad Metadata",
                   }),
                   payment_intent: "pi_bad_p",
@@ -4130,7 +4130,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("corrupt booking item in metadata throws (non-object item)", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -4143,14 +4143,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1000,
                   id: "cs_bad_item",
                   metadata: webhookMeta({
                     email: "bad@example.com",
-                    items: JSON.stringify([42, { e: event.id, p: 1000, q: 1 }]),
+                    items: JSON.stringify([
+                      42,
+                      { e: listing.id, p: 1000, q: 1 },
+                    ]),
                     name: "Bad Item",
                   }),
                   payment_intent: "pi_bad_item",
@@ -4177,10 +4180,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket rejects when per-item p does not match unit_price * q for non-pay-more event", async () => {
+    test("multi-ticket rejects when per-item p does not match unit_price * q for non-pay-more listing", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -4188,20 +4191,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
-      // p=500 but event costs 1000*1=1000, and event is not can_pay_more
+      // p=500 but listing costs 1000*1=1000, and listing is not can_pay_more
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 500,
                   id: "cs_item_mismatch",
                   metadata: webhookMeta({
                     email: "mismatch@example.com",
-                    items: JSON.stringify([{ e: event.id, p: 500, q: 1 }]),
+                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
                     name: "Mismatch User",
                   }),
                   payment_intent: "pi_item_mismatch",
@@ -4241,7 +4244,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("multi-ticket rejects when sum(p) does not equal amountTotal", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -4256,14 +4259,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 1500,
                   id: "cs_total_mismatch",
                   metadata: webhookMeta({
                     email: "total@example.com",
-                    items: JSON.stringify([{ e: event.id, p: 2000, q: 1 }]),
+                    items: JSON.stringify([{ e: listing.id, p: 2000, q: 1 }]),
                     name: "Total Mismatch",
                   }),
                   payment_intent: "pi_total_mismatch",
@@ -4306,7 +4309,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // unitPrice=1000, maxPrice=10000 (default), quantity=2
       // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
       // amount_total=20000 is exactly at the boundary → should be accepted
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -4320,14 +4323,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 20000,
                   id: "cs_qty2_at_max",
                   metadata: webhookMeta({
                     email: "boundary@example.com",
-                    items: singleItem(event.id, 2, 20000),
+                    items: singleItem(listing.id, 2, 20000),
                     name: "Boundary User",
                   }),
                   payment_intent: "pi_qty2_at_max",
@@ -4354,7 +4357,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify one attendee record was created (quantity=2 is stored on the record)
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]!.quantity).toBe(2);
       } finally {
@@ -4368,7 +4371,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       // unitPrice=1000, maxPrice=10000 (default), quantity=2
       // maxWithFee = 10000 * 2 = 20000 (no booking fee in tests)
       // amount_total=20001 exceeds the boundary → should be refunded
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 50,
         unitPrice: 1000,
@@ -4382,14 +4385,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         "verifyWebhookSignature",
         () =>
           Promise.resolve({
-            event: {
+            listing: {
               data: {
                 object: {
                   amount_total: 20001,
                   id: "cs_qty2_over_max",
                   metadata: webhookMeta({
                     email: "overpay-qty2@example.com",
-                    items: singleItem(event.id, 2, 20001),
+                    items: singleItem(listing.id, 2, 20001),
                     name: "Overpay Qty2 User",
                   }),
                   payment_intent: "pi_qty2_over_max",
@@ -4435,18 +4438,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("saves custom question answers for paid multi-ticket checkout", async () => {
       await setupStripe();
 
-      // Event with questions (paid) and event without questions (free)
-      const event1 = await createTestEvent({
+      // Listing with questions (paid) and listing without questions (free)
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         name: "Multi Q Paid",
         unitPrice: 1000,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         name: "Multi No Q Free",
       });
 
-      // Add a custom question only to event1
+      // Add a custom question only to listing1
       const q = await questionsTable.insert({ text: "Dietary needs?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -4458,10 +4461,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         sortOrder: 1,
         text: "Vegetarian",
       });
-      await setEventQuestions(event1.id, [q.id]);
+      await setListingQuestions(listing1.id, [q.id]);
 
       // Submit multi-ticket form with a question answer selected.
-      // One event is paid, so this triggers the payment flow.
+      // One listing is paid, so this triggers the payment flow.
       // Stub checkout creation to avoid flaky stripe-mock HTTP calls under
       // high concurrency — this test verifies webhook processing, not checkout.
       const { stripePaymentProvider } = await import(
@@ -4480,13 +4483,13 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
         "#test-utils"
       );
-      const slug = `${event1.slug}+${event2.slug}`;
+      const slug = `${listing1.slug}+${listing2.slug}`;
       try {
         const checkoutResponse = await submitMultiTicketForm(slug, {
           email: "qbuyer@example.com",
           name: "Q Buyer",
-          [`quantity_${event1.id}`]: "1",
-          [`quantity_${event2.id}`]: "1",
+          [`quantity_${listing1.id}`]: "1",
+          [`quantity_${listing2.id}`]: "1",
           [`question_${q.id}`]: String(a1.id),
         });
         expectCheckoutRedirect(checkoutResponse);
@@ -4503,12 +4506,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             id: "cs_multi_q",
             metadata: webhookMeta({
               answer_ids: JSON.stringify({
-                [String(event1.id)]: [a1.id],
+                [String(listing1.id)]: [a1.id],
               }),
               email: "qbuyer@example.com",
               items: JSON.stringify([
-                { e: event1.id, p: 1000, q: 1 },
-                { e: event2.id, p: 0, q: 1 },
+                { e: listing1.id, p: 1000, q: 1 },
+                { e: listing2.id, p: 0, q: 1 },
               ]),
               name: "Q Buyer",
             }),
@@ -4534,12 +4537,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
         // Verify attendees were created
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const att1 = await getAttendeesRaw(event1.id);
-        const att2 = await getAttendeesRaw(event2.id);
+        const att1 = await getAttendeesRaw(listing1.id);
+        const att2 = await getAttendeesRaw(listing2.id);
         expect(att1.length).toBe(1);
         expect(att2.length).toBe(1);
 
-        // With multi-event attendees, one attendee is linked to both events.
+        // With multi-listing attendees, one attendee is linked to both listings.
         // Answers are stored on the shared attendee ID.
         const attendeeId = att1[0]!.id;
         expect(attendeeId).toBe(att2[0]!.id); // same attendee
@@ -4553,7 +4556,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("saves custom question answers for paid single-ticket checkout", async () => {
       await setupStripe();
 
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 50,
         name: "Single Q Paid",
         unitPrice: 1000,
@@ -4565,7 +4568,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         sortOrder: 1,
         text: "Vegan",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(listing.id, [q.id]);
 
       const mockVerify = await stubWebhookVerify({
         data: {
@@ -4574,10 +4577,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             id: "cs_single_q",
             metadata: webhookMeta({
               answer_ids: JSON.stringify({
-                [String(event.id)]: [a1.id],
+                [String(listing.id)]: [a1.id],
               }),
               email: "qsingle@example.com",
-              items: singleItem(event.id, 1, 1000),
+              items: singleItem(listing.id, 1, 1000),
               name: "Q Single Buyer",
             }),
             payment_intent: "pi_single_q",
@@ -4601,7 +4604,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
 
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(event.id);
+        const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
 
         // Verify custom question answers were saved

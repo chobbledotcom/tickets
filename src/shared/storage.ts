@@ -1,5 +1,5 @@
 /**
- * Bunny CDN storage integration for event images and attachments.
+ * Bunny CDN storage integration for listing images and attachments.
  * Uses @bunny.net/storage-sdk to upload/delete files.
  * Only enabled when STORAGE_ZONE_NAME and STORAGE_ZONE_KEY env vars are set.
  * Files are encrypted with DB_ENCRYPTION_KEY before upload.
@@ -159,42 +159,42 @@ export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
 /** Try to delete a file from storage, logging errors on failure */
 export const tryDeleteFile = async (
   filename: string,
-  eventId: number | undefined,
+  listingId: number | undefined,
   detail: string,
 ): Promise<void> => {
   try {
     await deleteFile(filename);
   } catch {
-    logError({ code: ErrorCode.STORAGE_DELETE, detail, eventId });
+    logError({ code: ErrorCode.STORAGE_DELETE, detail, listingId });
   }
 };
 
-/** Event shape that owns storage files */
-type EventWithStorage = {
+/** Listing shape that owns storage files */
+type ListingWithStorage = {
   id: number;
   image_url: string;
   attachment_url: string;
 };
 
-/** Delete the image and attachment files for a single event */
-export const deleteEventStorageFiles = async (
-  event: EventWithStorage,
+/** Delete the image and attachment files for a single listing */
+export const deleteListingStorageFiles = async (
+  listing: ListingWithStorage,
   reason: string,
 ): Promise<void> => {
-  if (event.image_url) {
-    await tryDeleteFile(event.image_url, event.id, reason);
+  if (listing.image_url) {
+    await tryDeleteFile(listing.image_url, listing.id, reason);
   }
-  if (event.attachment_url) {
-    await tryDeleteFile(event.attachment_url, event.id, reason);
+  if (listing.attachment_url) {
+    await tryDeleteFile(listing.attachment_url, listing.id, reason);
   }
 };
 
-/** Delete all storage files (images and attachments) for a list of events */
-export const deleteAllEventStorageFiles = async (
-  events: ReadonlyArray<EventWithStorage>,
+/** Delete all storage files (images and attachments) for a list of listings */
+export const deleteAllListingStorageFiles = async (
+  listings: ReadonlyArray<ListingWithStorage>,
 ): Promise<void> => {
-  for (const event of events) {
-    await deleteEventStorageFiles(event, "database reset");
+  for (const listing of listings) {
+    await deleteListingStorageFiles(listing, "database reset");
   }
 };
 
