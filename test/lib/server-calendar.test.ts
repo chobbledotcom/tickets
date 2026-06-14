@@ -336,7 +336,7 @@ describeWithEnv(
 
       test("the cal parameter sets the displayed month", async () => {
         const html = await fetchCalendarHtml("/admin/calendar?cal=2027-03");
-        expect(html).toContain("<strong>March 2027</strong>");
+        expect(html).toMatch(/<option selected[^>]*>March 2027<\/option>/);
       });
 
       test("invalid cal parameter is ignored", async () => {
@@ -344,7 +344,7 @@ describeWithEnv(
         const html = await fetchCalendarHtml(
           "/admin/calendar?date=2027-05-15&cal=bogus",
         );
-        expect(html).toContain("<strong>May 2027</strong>");
+        expect(html).toMatch(/<option selected[^>]*>May 2027<\/option>/);
       });
 
       test("a booked date is a clickable day link in the grid", async () => {
@@ -361,7 +361,7 @@ describeWithEnv(
           `/admin/calendar?date=${date}&cal=2030-01`,
         );
         expect(html).toContain("User A");
-        expect(html).toContain("<strong>January 2030</strong>");
+        expect(html).toMatch(/<option selected[^>]*>January 2030<\/option>/);
       });
     });
 

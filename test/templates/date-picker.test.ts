@@ -27,19 +27,55 @@ const date = (overrides: Partial<DatePickerDate>): DatePickerDate => ({
   ...overrides,
 });
 
+/** Option labels of the day dropdown only (excludes the month picker). */
+const daySelectOptions = (html: string): (string | undefined)[] => {
+  const inner = html.match(
+    /<select aria-label="Select a date"[^>]*>([\s\S]*?)<\/select>/,
+  )![1]!;
+  return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
+};
+
 describe("DatePicker month resolution", () => {
   test("defaults the displayed month to today's month", () => {
-    expect(render()).toContain("<strong>March 2026</strong>");
+    expect(render()).toMatch(/<option selected[^>]*>March 2026<\/option>/);
   });
 
   test("derives the displayed month from the selected date", () => {
     const html = render({ selected: "2026-07-15" });
-    expect(html).toContain("<strong>July 2026</strong>");
+    expect(html).toMatch(/<option selected[^>]*>July 2026<\/option>/);
   });
 
   test("an explicit view month overrides the selected date's month", () => {
     const html = render({ selected: "2026-07-15", viewMonth: "2026-09" });
-    expect(html).toContain("<strong>September 2026</strong>");
+    expect(html).toMatch(/<option selected[^>]*>September 2026<\/option>/);
+  });
+});
+
+describe("DatePicker month select", () => {
+  const monthSelect = (html: string): string =>
+    html.match(
+      /<select[^>]*calendar-month-select[^>]*>([\s\S]*?)<\/select>/,
+    )![1]!;
+
+  test("the month label is a nav-select that reads as plain text", () => {
+    const html = render();
+    expect(html).toContain('class="calendar-month-select"');
+    expect(monthSelect(html)).toBeDefined();
+    expect(html).toContain("data-nav-select");
+  });
+
+  test("lists every month from five years before to five years after", () => {
+    const labels = [
+      ...monthSelect(render()).matchAll(/>([^<]+)<\/option>/g),
+    ].map((m) => m[1]);
+    expect(labels[0]).toBe("January 2021");
+    expect(labels[labels.length - 1]).toBe("December 2031");
+    expect(labels).toHaveLength(11 * 12);
+  });
+
+  test("each month option navigates via monthHref", () => {
+    // April 2026 option carries the monthHref value (the arrows use href=).
+    expect(render()).toContain('value="/m/2026-04"');
   });
 });
 
@@ -164,10 +200,7 @@ describe("DatePicker dropdown", () => {
         date({ label: "Future", value: "2026-03-20" }),
       ],
     });
-    const options = [...html.matchAll(/<option[^>]*>([^<]+)</g)].map(
-      (m) => m[1],
-    );
-    expect(options).toEqual(["Past", "Select a date", "Future"]);
+    expect(daySelectOptions(html)).toEqual(["Past", "Select a date", "Future"]);
   });
 
   test("appends the clear option when every date is in the past", () => {
@@ -177,9 +210,10 @@ describe("DatePicker dropdown", () => {
         date({ label: "Past B", value: "2026-03-02" }),
       ],
     });
-    const options = [...html.matchAll(/<option[^>]*>([^<]+)</g)].map(
-      (m) => m[1],
-    );
-    expect(options).toEqual(["Past A", "Past B", "Select a date"]);
+    expect(daySelectOptions(html)).toEqual([
+      "Past A",
+      "Past B",
+      "Select a date",
+    ]);
   });
 });

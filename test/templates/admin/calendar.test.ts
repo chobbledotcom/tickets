@@ -277,7 +277,9 @@ describe("adminCalendarPage", () => {
       dates,
       "2026-03-10",
     );
-    const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
+    const selectMatch = html.match(
+      /<select aria-label="Select a date"[^>]*>([\s\S]*?)<\/select>/,
+    )!;
     const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map(
       (m) => m[1],
     );
@@ -311,7 +313,9 @@ describe("adminCalendarPage", () => {
       dates,
       "2026-03-10",
     );
-    const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
+    const selectMatch = html.match(
+      /<select aria-label="Select a date"[^>]*>([\s\S]*?)<\/select>/,
+    )!;
     const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map(
       (m) => m[1],
     );
@@ -343,7 +347,9 @@ describe("adminCalendarPage", () => {
       dates,
       "2026-03-10",
     );
-    const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
+    const selectMatch = html.match(
+      /<select aria-label="Select a date"[^>]*>([\s\S]*?)<\/select>/,
+    )!;
     const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map(
       (m) => m[1],
     );
@@ -372,7 +378,7 @@ describe("adminCalendarPage", () => {
     expect(html).toContain('class="calendar"');
     expect(html).toContain("calendar-grid");
     expect(html.indexOf('class="calendar"')).toBeLessThan(
-      html.indexOf("<select"),
+      html.indexOf('aria-label="Select a date"'),
     );
   });
 
@@ -403,7 +409,7 @@ describe("adminCalendarPage", () => {
       [],
       "2026-01-10",
     );
-    expect(html).toContain("<strong>March 2026</strong>");
+    expect(html).toMatch(/<option selected[^>]*>March 2026<\/option>/);
   });
 
   test("calendar respects the view month parameter", () => {
@@ -416,7 +422,7 @@ describe("adminCalendarPage", () => {
       "2026-03-10",
       "2026-08",
     );
-    expect(html).toContain("<strong>August 2026</strong>");
+    expect(html).toMatch(/<option selected[^>]*>August 2026<\/option>/);
   });
 
   test("month navigation links preserve the selected date", () => {

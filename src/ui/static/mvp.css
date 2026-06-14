@@ -1701,6 +1701,29 @@ button.secondary:hover {
   text-decoration: none;
 }
 
+/* The month label is a <select> styled to read as plain text */
+.calendar-month-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: bold;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.calendar-month-select:hover {
+  text-decoration: underline;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

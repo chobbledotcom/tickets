@@ -253,6 +253,21 @@ export const formatMonthLabel = (month: string): string => {
 };
 
 /**
+ * List every YYYY-MM month within `yearsEitherSide` years of the given month's
+ * year, in ascending order. e.g. monthsAround("2026-03", 5) runs from
+ * "2021-01" to "2031-12". Used to populate the calendar's month picker.
+ */
+export const monthsAround = (
+  month: string,
+  yearsEitherSide: number,
+): string[] => {
+  const year = new Date(`${month}-01T00:00:00Z`).getUTCFullYear();
+  const start = `${year - yearsEitherSide}-01`;
+  const count = (yearsEitherSide * 2 + 1) * 12;
+  return Array.from({ length: count }, (_, i) => shiftMonth(start, i));
+};
+
+/**
  * Build the calendar grid for a YYYY-MM month as a flat list of YYYY-MM-DD
  * strings. The grid is whole Monday→Sunday weeks spanning the month plus one
  * extra full week on each side, so adjacent-month context is always visible.

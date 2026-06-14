@@ -15,6 +15,7 @@ import {
   formatMonthLabel,
   getAvailableDates,
   getNextBookableDate,
+  monthsAround,
   normalizeDatetime,
   shiftMonth,
 } from "#shared/dates.ts";
@@ -124,6 +125,26 @@ describeWithEnv("dates", { db: true }, () => {
 
     test("formats December", () => {
       expect(formatMonthLabel("2026-12")).toBe("December 2026");
+    });
+  });
+
+  describe("monthsAround", () => {
+    test("spans the requested years either side of the month's year", () => {
+      const months = monthsAround("2026-03", 5);
+      expect(months[0]).toBe("2021-01");
+      expect(months[months.length - 1]).toBe("2031-12");
+    });
+
+    test("returns twelve months for every year in range", () => {
+      expect(monthsAround("2026-03", 5)).toHaveLength(11 * 12);
+    });
+
+    test("centres on the year, ignoring the month part", () => {
+      expect(monthsAround("2026-12", 1)).toEqual(monthsAround("2026-01", 1));
+    });
+
+    test("includes the centre month itself", () => {
+      expect(monthsAround("2026-03", 5)).toContain("2026-03");
     });
   });
 

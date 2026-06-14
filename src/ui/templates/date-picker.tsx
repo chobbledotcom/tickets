@@ -13,6 +13,7 @@ import { compact, map, reduce } from "#fp";
 import {
   calendarGridDates,
   formatMonthLabel,
+  monthsAround,
   shiftMonth,
 } from "#shared/dates.ts";
 import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -151,7 +152,19 @@ export const DatePicker = ({
           >
             ←
           </a>
-          <strong>{formatMonthLabel(month)}</strong>
+          <select
+            aria-label="Jump to month"
+            class="calendar-month-select"
+            data-nav-select
+          >
+            {map(
+              (ym: string): SafeHtml => (
+                <option selected={ym === month} value={monthHref(ym)}>
+                  {formatMonthLabel(ym)}
+                </option>
+              ),
+            )(monthsAround(month, 5))}
+          </select>
           <a aria-label="Next month" href={monthHref(shiftMonth(month, 1))}>
             →
           </a>
