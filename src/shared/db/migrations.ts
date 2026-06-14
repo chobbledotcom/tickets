@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "reorder event_attendees overlap index to (event_id, end_at, start_at)";
+  "add a global sort_order column to questions for unified ordering";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -372,6 +372,7 @@ const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["text", "TEXT NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
       ],
     },
   ],
@@ -855,6 +856,21 @@ const MIGRATIONS: Migration[] = [
     id: "2026-06-13_event_attendees_overlap_index",
     up: syncIndexes,
     verify: verifyOverlapIndex,
+  },
+  {
+    description:
+      "Add a single global sort_order per question (replacing per-event ordering); backfill existing questions from their row id to preserve creation order",
+    id: "2026-06-14_question_sort_order",
+    up: async () => {
+      await applySchemaChanges();
+      // One-time backfill: existing rows all default to 0, so seed each from
+      // its id (distinct, creation-ordered). New questions are assigned a
+      // non-zero sort_order on creation, so this never re-touches them.
+      await getDb().execute(
+        "UPDATE questions SET sort_order = id WHERE sort_order = 0",
+      );
+    },
+    verify: verifyCurrentAppSchema,
   },
 ];
 

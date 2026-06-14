@@ -34,7 +34,9 @@ export interface Answer {
   text: string; // encrypted
 }
 
-/** Link between event and question (ordering by sort_order) */
+/** Link between event and question. Membership only — display order comes
+ * from the question's own `sort_order`, not from this row. The `sort_order`
+ * column is retained but unused (legacy per-event ordering). */
 export interface EventQuestion {
   event_id: number;
   id: number;
@@ -196,11 +198,11 @@ export const getAllQuestionsWithAnswers = async (): Promise<
 > =>
   groupJoinedRows(
     await queryAll<JoinedRow>(
-      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY q.id, a.sort_order`,
+      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY q.sort_order, q.id, a.sort_order`,
     ),
   );
 
-/** Get questions assigned to an event, ordered by sort_order.
+/** Get questions assigned to an event, in the global question order.
  * Questions with no answers are excluded (nothing useful to ask). */
 export const getQuestionsForEvent = async (
   eventId: number,
@@ -213,17 +215,21 @@ export const getQuestionsForEvent = async (
        JOIN questions q ON q.id = eq.question_id
        LEFT JOIN answers a ON a.question_id = q.id
        WHERE eq.event_id = ?
-       ORDER BY eq.sort_order, a.sort_order`,
+       ORDER BY q.sort_order, q.id, a.sort_order`,
         [eventId],
       ),
     ),
   );
 
-/** Get just the assigned question IDs for an event (no joins/decryption) */
+/** Get the assigned question IDs for an event, in the global question order. */
 export const getEventQuestionIds = async (eventId: number): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      "SELECT question_id FROM event_questions WHERE event_id = ? ORDER BY sort_order",
+      `SELECT eq.question_id
+       FROM event_questions eq
+       JOIN questions q ON q.id = eq.question_id
+       WHERE eq.event_id = ?
+       ORDER BY q.sort_order, q.id`,
       [eventId],
     ),
   );
@@ -239,10 +245,9 @@ export const getQuestionEventIds = async (
     ),
   );
 
-/** Set which events a question is assigned to.
- * Adds the question to newly-checked events (appended after each event's
- * existing questions) and removes it from unchecked ones, leaving the
- * ordering of the other questions on each event untouched. */
+/** Set which events a question is assigned to: add it to newly-checked events
+ * and remove it from unchecked ones. Membership only — display order is the
+ * question's global `sort_order`, so no per-event ordering is written. */
 export const setQuestionEvents = async (
   questionId: number,
   eventIds: number[],
@@ -257,9 +262,8 @@ export const setQuestionEvents = async (
       sql: "DELETE FROM event_questions WHERE event_id = ? AND question_id = ?",
     })),
     ...toAdd.map((eventId) => ({
-      args: [eventId, questionId, eventId],
-      sql: `INSERT INTO event_questions (event_id, question_id, sort_order)
-            VALUES (?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM event_questions WHERE event_id = ?), 0))`,
+      args: [eventId, questionId],
+      sql: "INSERT INTO event_questions (event_id, question_id) VALUES (?, ?)",
     })),
   ];
   if (statements.length > 0) await executeBatch(statements);
@@ -317,11 +321,10 @@ export const setEventQuestions = async (
 ): Promise<void> => {
   const statements = [
     { args: [eventId], sql: "DELETE FROM event_questions WHERE event_id = ?" },
-    ...questionIds.map((qid, i) =>
+    ...questionIds.map((qid) =>
       insert("event_questions", {
         event_id: eventId,
         question_id: qid,
-        sort_order: i,
       }),
     ),
   ];
@@ -624,4 +627,47 @@ export const getNextAnswerSortOrder = async (
     [questionId],
   );
   return row!.next_order;
+};
+
+/** Swap the global sort_order of two questions, reading their current values
+ * so callers only need the ids. A no-op visually when both share a value
+ * (e.g. legacy rows still at 0 before the id backfill). Callers pass two
+ * existing question ids (the move handler takes them from the rendered list). */
+export const swapQuestionOrder = async (
+  questionId1: number,
+  questionId2: number,
+): Promise<void> => {
+  const rows = await queryAll<{ id: number; sort_order: number }>(
+    "SELECT id, sort_order FROM questions WHERE id IN (?, ?)",
+    [questionId1, questionId2],
+  );
+  const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
+  await executeBatch([
+    {
+      args: [orderById.get(questionId2)!, questionId1],
+      sql: "UPDATE questions SET sort_order = ? WHERE id = ?",
+    },
+    {
+      args: [orderById.get(questionId1)!, questionId2],
+      sql: "UPDATE questions SET sort_order = ? WHERE id = ?",
+    },
+  ]);
+};
+
+/** Assign a freshly-created question the next global sort_order (max + 1).
+ * Always >= 1 so new questions never collide with the one-time id-backfill of
+ * legacy rows, which only seeds rows still at sort_order 0. */
+export const assignNextQuestionSortOrder = async (
+  questionId: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      args: [questionId, questionId],
+      sql: `UPDATE questions
+            SET sort_order = COALESCE(
+              (SELECT MAX(sort_order) FROM questions WHERE id != ?), 0
+            ) + 1
+            WHERE id = ?`,
+    },
+  ]);
 };
