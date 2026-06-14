@@ -4,7 +4,7 @@ import {
   AUDIENCES,
   audienceById,
   type BulkEmailDraft,
-  buildBulkMessages,
+  buildBulkPayload,
   buildMailtoLink,
   DEFAULT_AUDIENCE_ID,
   dedupeEmails,
@@ -204,36 +204,43 @@ describe("mailto and unsubscribe footers", () => {
   });
 });
 
-describeWithEnv("buildBulkMessages", { encryptionKey: true }, () => {
+describeWithEnv("buildBulkPayload", { encryptionKey: true }, () => {
   test("transactional sends reach everyone with no footer", async () => {
-    const messages = await buildBulkMessages({
+    const payload = await buildBulkPayload({
       bodyHtml: "<p>Hi</p>",
       bodyText: "Hi",
       marketing: false,
       recipients: ["a@example.com", "b@example.com"],
+      subject: "News",
       unsubscribed: new Set(),
     });
-    expect(messages).toEqual([
-      { html: "<p>Hi</p>", text: "Hi", to: "a@example.com" },
-      { html: "<p>Hi</p>", text: "Hi", to: "b@example.com" },
+    expect(payload.html).toBe("<p>Hi</p>");
+    expect(payload.subject).toBe("News");
+    expect(payload.recipients).toEqual([
+      { to: "a@example.com" },
+      { to: "b@example.com" },
     ]);
   });
 
-  test("marketing sends skip unsubscribed and append a per-recipient footer", async () => {
+  test("marketing sends skip unsubscribed and carry per-recipient unsubscribe URLs", async () => {
     const skipHash = await hashEmail("skip@example.com");
-    const messages = await buildBulkMessages({
+    const payload = await buildBulkPayload({
       bodyHtml: "<p>Hi</p>",
       bodyText: "Hi",
       marketing: true,
       recipients: ["keep@example.com", "skip@example.com"],
+      subject: "Promo",
       unsubscribed: new Set([skipHash]),
     });
 
-    expect(messages).toHaveLength(1);
-    expect(messages[0]!.to).toBe("keep@example.com");
-    expect(messages[0]!.html.startsWith("<p>Hi</p>")).toBe(true);
-    expect(messages[0]!.html).toContain("/unsubscribe?email=");
-    expect(messages[0]!.text).toContain("/unsubscribe?email=");
+    // The shared template carries the placeholder, not a baked-in URL.
+    expect(payload.html.startsWith("<p>Hi</p>")).toBe(true);
+    expect(payload.html).toContain("%%bulk_unsubscribe_url%%");
+    expect(payload.recipients).toHaveLength(1);
+    expect(payload.recipients[0]!.to).toBe("keep@example.com");
+    expect(payload.recipients[0]!.unsubscribeUrl).toContain(
+      "/unsubscribe?email=",
+    );
   });
 });
 

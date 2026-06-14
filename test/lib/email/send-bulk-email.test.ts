@@ -2,10 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import {
-  BULK_EMAIL_PROVIDERS,
-  type BulkEmailMessage,
+  BULK_UNSUBSCRIBE_PLACEHOLDER,
+  type BulkEmailPayload,
   type EmailConfig,
-  isBulkEmailProvider,
   sendBulkEmails,
 } from "#shared/email.ts";
 import { useFetchStub } from "#test-utils";
@@ -16,35 +15,21 @@ const config: EmailConfig = {
   provider: "resend",
 };
 
-const messages = (n: number): BulkEmailMessage[] =>
-  Array.from({ length: n }, (_, i) => ({
-    html: `<p>${i}</p>`,
-    text: `${i}`,
+/** Transactional payload (no unsubscribe placeholder) for n recipients. */
+const payload = (n: number): BulkEmailPayload => ({
+  html: "<p>Hi</p>",
+  recipients: Array.from({ length: n }, (_, i) => ({
     to: `user${i}@example.com`,
-  }));
-
-describe("isBulkEmailProvider", () => {
-  test("accepts batch-capable providers", () => {
-    expect(isBulkEmailProvider("resend")).toBe(true);
-    expect(isBulkEmailProvider("postmark")).toBe(true);
-  });
-
-  test("rejects providers without a batch API", () => {
-    expect(isBulkEmailProvider("sendgrid")).toBe(false);
-    expect(isBulkEmailProvider("mailgun-us")).toBe(false);
-    expect(isBulkEmailProvider("nope")).toBe(false);
-  });
-
-  test("BULK_EMAIL_PROVIDERS lists exactly the batch providers", () => {
-    expect([...BULK_EMAIL_PROVIDERS].sort()).toEqual(["postmark", "resend"]);
-  });
+  })),
+  subject: "Hello",
+  text: "Hi",
 });
 
 describe("sendBulkEmails", () => {
   const fetch = useFetchStub();
 
-  test("Resend posts one batch request with all messages", async () => {
-    const result = await sendBulkEmails(config, "resend", "Hello", messages(3));
+  test("Resend posts one batch request with all recipients", async () => {
+    const result = await sendBulkEmails(config, payload(3));
 
     expect(result).toEqual({ attempted: 3, batches: 1, failed: 0 });
     expect(fetch.callCount()).toBe(1);
@@ -55,15 +40,27 @@ describe("sendBulkEmails", () => {
     expect(body).toHaveLength(3);
     expect(body[0]).toEqual({
       from: "tickets@example.com",
-      html: "<p>0</p>",
+      html: "<p>Hi</p>",
       subject: "Hello",
-      text: "0",
+      text: "Hi",
       to: ["user0@example.com"],
     });
   });
 
-  test("Resend chunks messages beyond the 100-per-batch limit", async () => {
-    const result = await sendBulkEmails(config, "resend", "Hi", messages(101));
+  test("Resend substitutes each recipient's unsubscribe URL", async () => {
+    await sendBulkEmails(config, {
+      html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+      recipients: [{ to: "a@example.com", unsubscribeUrl: "https://x/u/a" }],
+      subject: "Promo",
+      text: `Hi ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+    });
+    const body = fetch.getFetchJsonBody();
+    expect(body[0].html).toBe("<p>Hi</p>https://x/u/a");
+    expect(body[0].text).toBe("Hi https://x/u/a");
+  });
+
+  test("Resend chunks recipients beyond the 100-per-batch limit", async () => {
+    const result = await sendBulkEmails(config, payload(101));
 
     expect(result).toEqual({ attempted: 101, batches: 2, failed: 0 });
     expect(fetch.callCount()).toBe(2);
@@ -74,9 +71,7 @@ describe("sendBulkEmails", () => {
   test("Postmark posts to the batch endpoint with Postmark field names", async () => {
     const result = await sendBulkEmails(
       { ...config, provider: "postmark" },
-      "postmark",
-      "Subject",
-      messages(2),
+      payload(2),
     );
 
     expect(result).toEqual({ attempted: 2, batches: 1, failed: 0 });
@@ -86,10 +81,97 @@ describe("sendBulkEmails", () => {
     const body = fetch.getFetchJsonBody();
     expect(body[0]).toEqual({
       From: "tickets@example.com",
-      HtmlBody: "<p>0</p>",
-      Subject: "Subject",
-      TextBody: "0",
+      HtmlBody: "<p>Hi</p>",
+      Subject: "Hello",
+      TextBody: "Hi",
       To: "user0@example.com",
+    });
+  });
+
+  test("SendGrid posts one request with a personalization per recipient", async () => {
+    await sendBulkEmails(
+      { ...config, provider: "sendgrid" },
+      {
+        html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+        recipients: [
+          { to: "a@example.com", unsubscribeUrl: "https://x/u/a" },
+          { to: "b@example.com", unsubscribeUrl: "https://x/u/b" },
+        ],
+        subject: "Promo",
+        text: "Hi",
+      },
+    );
+
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe("https://api.sendgrid.com/v3/mail/send");
+    const body = fetch.getFetchJsonBody();
+    expect(body.content).toContainEqual({
+      type: "text/html",
+      value: "<p>Hi</p>-unsub-",
+    });
+    expect(body.personalizations).toEqual([
+      {
+        substitutions: { "-unsub-": "https://x/u/a" },
+        to: [{ email: "a@example.com" }],
+      },
+      {
+        substitutions: { "-unsub-": "https://x/u/b" },
+        to: [{ email: "b@example.com" }],
+      },
+    ]);
+  });
+
+  test("SendGrid omits substitutions for a transactional send", async () => {
+    await sendBulkEmails({ ...config, provider: "sendgrid" }, payload(1));
+    const body = fetch.getFetchJsonBody();
+    expect(body.personalizations).toEqual([
+      { to: [{ email: "user0@example.com" }] },
+    ]);
+  });
+
+  test("Mailgun posts one message with recipient-variables", async () => {
+    const result = await sendBulkEmails(
+      {
+        ...config,
+        fromAddress: "tickets@mg.example.com",
+        provider: "mailgun-us",
+      },
+      {
+        html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+        recipients: [
+          { to: "a@example.com", unsubscribeUrl: "https://x/u/a" },
+          { to: "b@example.com", unsubscribeUrl: "https://x/u/b" },
+        ],
+        subject: "Promo",
+        text: "Hi",
+      },
+    );
+
+    expect(result).toEqual({ attempted: 2, batches: 1, failed: 0 });
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe("https://api.mailgun.net/v3/mg.example.com/messages");
+    expect(fetch.getFetchHeaders().Authorization).toBe(
+      `Basic ${btoa("api:re_key")}`,
+    );
+    const form = fetch.getFetchFormBody();
+    expect(form.getAll("to")).toEqual(["a@example.com", "b@example.com"]);
+    expect(form.get("html")).toBe("<p>Hi</p>%recipient.unsub%");
+    expect(JSON.parse(form.get("recipient-variables") as string)).toEqual({
+      "a@example.com": { unsub: "https://x/u/a" },
+      "b@example.com": { unsub: "https://x/u/b" },
+    });
+  });
+
+  test("Mailgun (EU) uses the EU host and empty vars for transactional sends", async () => {
+    await sendBulkEmails(
+      { ...config, fromAddress: "t@mg.example.com", provider: "mailgun-eu" },
+      payload(1),
+    );
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe("https://api.eu.mailgun.net/v3/mg.example.com/messages");
+    const form = fetch.getFetchFormBody();
+    expect(JSON.parse(form.get("recipient-variables") as string)).toEqual({
+      "user0@example.com": {},
     });
   });
 
@@ -99,7 +181,7 @@ describe("sendBulkEmails", () => {
     );
     const errorSpy = spy(console, "error");
     try {
-      const result = await sendBulkEmails(config, "resend", "Hi", messages(3));
+      const result = await sendBulkEmails(config, payload(3));
       expect(result).toEqual({ attempted: 3, batches: 1, failed: 3 });
       const logged = errorSpy.calls.some((c) =>
         String(c.args[0]).includes("E_EMAIL_SEND"),
@@ -110,8 +192,8 @@ describe("sendBulkEmails", () => {
     }
   });
 
-  test("sending no messages makes no requests", async () => {
-    const result = await sendBulkEmails(config, "resend", "Hi", []);
+  test("sending no recipients makes no requests", async () => {
+    const result = await sendBulkEmails(config, payload(0));
     expect(result).toEqual({ attempted: 0, batches: 0, failed: 0 });
     expect(fetch.callCount()).toBe(0);
   });

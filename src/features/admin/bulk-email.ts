@@ -25,7 +25,7 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   audienceById,
   type BulkEmailTarget,
-  buildBulkMessages,
+  buildBulkPayload,
   buildMailtoLink,
   DEFAULT_AUDIENCE_ID,
   isAudienceId,
@@ -43,7 +43,6 @@ import {
   EMAIL_PROVIDER_LABELS,
   type EmailConfig,
   getEmailConfig,
-  isBulkEmailProvider,
   sendBulkEmails,
 } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -66,24 +65,14 @@ type BulkAvailability = {
 
 const getBulkAvailability = (): BulkAvailability => {
   const config = getEmailConfig();
-  if (!config) {
-    return {
-      canBulkSend: false,
-      config: null,
-      disabledReason:
-        "You haven't configured your own email provider, so the system won't send bulk email for you — sending marketing from a shared address risks the whole platform's deliverability. Add your provider under Settings → Advanced → Email Notifications.",
-    };
-  }
-  if (!isBulkEmailProvider(config.provider)) {
-    return {
-      canBulkSend: false,
-      config,
-      disabledReason: `Your email provider (${
-        EMAIL_PROVIDER_LABELS[config.provider]
-      }) doesn't support batch sending, which bulk email needs. Switch to Resend or Postmark to send through the system.`,
-    };
-  }
-  return { canBulkSend: true, config, disabledReason: "" };
+  return config
+    ? { canBulkSend: true, config, disabledReason: "" }
+    : {
+        canBulkSend: false,
+        config: null,
+        disabledReason:
+          "You haven't configured your own email provider, so the system won't send bulk email for you — sending marketing from a shared address risks the whole platform's deliverability. Add your provider under Settings → Advanced → Email Notifications.",
+      };
 };
 
 /** Resolve a listing id string to a target + name, or null if absent/invalid/gone. */
@@ -272,10 +261,10 @@ const handleSendPost = (request: Request): Promise<Response> =>
       return errorRedirect(COMPOSE_PATH, "There's no email to send.");
     }
     const config = getEmailConfig();
-    if (!config || !isBulkEmailProvider(config.provider)) {
+    if (!config) {
       return errorRedirect(
         PREVIEW_PATH,
-        "Bulk sending needs your own batch-capable email provider (Resend or Postmark).",
+        "Configure your own email provider before sending bulk email.",
       );
     }
     const recipients = await recipientsFor(session, draft.target);
@@ -285,25 +274,21 @@ const handleSendPost = (request: Request): Promise<Response> =>
     const unsubscribed = draft.marketing
       ? await getUnsubscribedHashSet()
       : new Set<string>();
-    const messages = await buildBulkMessages({
+    const payload = await buildBulkPayload({
       bodyHtml: renderMarkdown(draft.body),
       bodyText: draft.body,
       marketing: draft.marketing,
       recipients,
+      subject: draft.subject,
       unsubscribed,
     });
-    if (messages.length === 0) {
+    if (payload.recipients.length === 0) {
       return errorRedirect(
         PREVIEW_PATH,
         "Everyone in this audience has unsubscribed.",
       );
     }
-    const result = await sendBulkEmails(
-      config,
-      config.provider,
-      draft.subject,
-      messages,
-    );
+    const result = await sendBulkEmails(config, payload);
     await settings.update.bulkEmailDraft("");
     await logActivity(
       `Sent bulk email "${draft.subject}" to ${result.attempted} recipient(s)`,

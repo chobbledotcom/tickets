@@ -55,7 +55,7 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
           <p>
             You're <strong>unsubscribed</strong> from our marketing emails and
             won't receive them. You may still get essential messages about
-            events you've booked.
+            listings you've booked.
           </p>
           <p>Changed your mind?</p>
           <ToggleForm

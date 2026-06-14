@@ -30,14 +30,6 @@ const useResend = () =>
     email_provider: "resend",
   });
 
-/** Configure a provider that exists but has no batch API. */
-const useSendgrid = () =>
-  settings.setForTest({
-    email_api_key: "sg_key",
-    email_from_address: "tickets@example.com",
-    email_provider: "sendgrid",
-  });
-
 const seedSingleAttendeeListing = async () => {
   const listing = await createTestListing({ maxAttendees: 50, name: "Solo" });
   await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
@@ -114,14 +106,6 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         cookie: await testCookie(),
       }).then((r) => r.text());
       expect(html).toContain('<option selected value="upcoming">');
-    });
-
-    test("explains when the provider has no batch API", async () => {
-      useSendgrid();
-      const html = await awaitTestRequest("/admin/emails", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
-      expect(html).toContain("doesn't support batch sending");
     });
 
     test("prefills a saved draft and counts a single recipient", async () => {
@@ -316,7 +300,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       )(response);
     });
 
-    test("rejects the post without a bulk-capable provider", async () => {
+    test("rejects the post when no provider is configured", async () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
@@ -326,7 +310,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/emails/send", {});
       expectRedirectWithFlash(
         "/admin/emails/preview",
-        "Bulk sending needs your own batch-capable email provider (Resend or Postmark).",
+        "Configure your own email provider before sending bulk email.",
         false,
       )(response);
       expect(fetch.callCount()).toBe(0);

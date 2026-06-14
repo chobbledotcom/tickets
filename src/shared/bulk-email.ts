@@ -17,6 +17,11 @@ import {
 } from "#shared/db/attendees/queries.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { hashEmail } from "#shared/db/unsubscribes.ts";
+import {
+  BULK_UNSUBSCRIBE_PLACEHOLDER,
+  type BulkEmailPayload,
+  type BulkRecipient,
+} from "#shared/email.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -251,39 +256,42 @@ export const marketingFooterHtml = (url: string): string =>
 export const marketingFooterText = (url: string): string =>
   `\n\n---\n${FOOTER_INTRO}\nUnsubscribe or manage your preferences: ${url}`;
 
-/** A single ready-to-send message (recipient + final, per-recipient bodies). */
-export type BulkRecipientMessage = { to: string; html: string; text: string };
-
 /**
- * Turn a recipient list into ready-to-send messages.
+ * Build a bulk send payload from a recipient list.
  *
- * For marketing sends, unsubscribed addresses are dropped and a per-recipient
- * unsubscribe footer (carrying that address's hash) is appended. Transactional
- * sends go to everyone with no footer.
+ * For marketing sends, unsubscribed addresses are dropped and each remaining
+ * recipient gets an unsubscribe URL (carrying that address's hash); the shared
+ * template's footer holds BULK_UNSUBSCRIBE_PLACEHOLDER, which the email layer
+ * fills in per recipient. Transactional sends go to everyone with no footer.
  */
-export const buildBulkMessages = async (params: {
+export const buildBulkPayload = async (params: {
+  subject: string;
   recipients: string[];
   bodyHtml: string;
   bodyText: string;
   marketing: boolean;
   unsubscribed: Set<string>;
-}): Promise<BulkRecipientMessage[]> => {
-  const messages: BulkRecipientMessage[] = [];
+}): Promise<BulkEmailPayload> => {
+  if (!params.marketing) {
+    return {
+      html: params.bodyHtml,
+      recipients: params.recipients.map((to) => ({ to })),
+      subject: params.subject,
+      text: params.bodyText,
+    };
+  }
+  const recipients: BulkRecipient[] = [];
   for (const to of params.recipients) {
-    if (!params.marketing) {
-      messages.push({ html: params.bodyHtml, text: params.bodyText, to });
-      continue;
-    }
     const hash = await hashEmail(to);
     if (params.unsubscribed.has(hash)) continue;
-    const url = unsubscribeUrl(hash);
-    messages.push({
-      html: params.bodyHtml + marketingFooterHtml(url),
-      text: params.bodyText + marketingFooterText(url),
-      to,
-    });
+    recipients.push({ to, unsubscribeUrl: unsubscribeUrl(hash) });
   }
-  return messages;
+  return {
+    html: params.bodyHtml + marketingFooterHtml(BULK_UNSUBSCRIBE_PLACEHOLDER),
+    recipients,
+    subject: params.subject,
+    text: params.bodyText + marketingFooterText(BULK_UNSUBSCRIBE_PLACEHOLDER),
+  };
 };
 
 // ── mailto fallback ─────────────────────────────────────────────────

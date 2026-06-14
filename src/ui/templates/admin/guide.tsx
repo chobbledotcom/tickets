@@ -1752,10 +1752,9 @@ export const adminGuidePage = (
             &mdash; but you can still use the BCC email-app option (see below).
           </p>
           <p>
-            Bulk sending also needs a provider with a <em>batch</em> API, so
-            it's currently limited to <strong>Resend</strong> and{" "}
-            <strong>Postmark</strong>. Other providers can still be used for
-            per-booking confirmation emails.
+            Bulk email goes out through your provider's batch API, so all
+            supported providers (Resend, Postmark, SendGrid, and Mailgun) can
+            send it.
           </p>
         </Q>
 
