@@ -1,4 +1,5 @@
 import { getEffectiveDomain } from "#shared/config.ts";
+import type { Flash } from "#shared/flash-context.ts";
 import { SESSION_MAX_AGE_S } from "#shared/limits.ts";
 
 export const isSecureMode = (): boolean => getEffectiveDomain() !== "localhost";
@@ -64,9 +65,7 @@ export const clearFlashCookie = (id: string): string =>
   )}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
 /** Parse a flash cookie value into type, message, and optional result */
-export const parseFlashValue = (
-  value: string,
-): { success?: string; error?: string; info?: string; result?: string } => {
+export const parseFlashValue = (value: string): Flash => {
   const decoded = decodeURIComponent(value);
   const obj = JSON.parse(decoded);
   return {
