@@ -151,23 +151,17 @@ describe("e2e: ticket editing flow", () => {
       },
       "Save Attendee",
     );
-    // Redirects to edit page with flash message
+    // 4. Save returns to the same edit form, with the flash shown inside it.
     expect(browser.containsText("Updated Alice Johnson")).toBe(true);
-
-    // 4. Verify edited details appear on the event page
     expect(browser.containsText("Alice Johnson")).toBe(true);
     expect(browser.containsText("Alice Smith")).toBe(false);
 
-    // 5. Navigate back to Alice's edit page to verify all fields were saved
-    //    and booking properties are intact
-    await visitFirstAttendeeEditPage(browser);
-    expect(browser.containsText("Alice Johnson")).toBe(true);
-    // Verify saved contact fields appear in the form
+    // 5. The edit form shows the saved fields and the preserved booking.
     expect(browser.currentHtml).toContain("alice.johnson@example.com");
     expect(browser.currentHtml).toContain("+449876543210");
     expect(browser.currentHtml).toContain("42 Oak Street");
     expect(browser.currentHtml).toContain("Needs wheelchair access");
-    // Verify booking preserved: quantity still 2 and still checked in
+    // Booking preserved: quantity still 2 and still checked in
     expect(browser.currentHtml).toContain('value="2"');
     expect(browser.currentHtml).toContain("Checked in");
 
@@ -205,16 +199,10 @@ describe("e2e: ticket editing flow", () => {
     );
     expect(browser.containsText("Updated Robert Jones")).toBe(true);
 
-    // 8. Verify Bob's edit was saved and his booking is intact
+    // 8. Save returns to Bob's edit form; his renamed details and intact
+    //    booking are shown there directly.
     expect(browser.containsText("Robert Jones")).toBe(true);
     expect(browser.containsText("Bob Jones")).toBe(false);
-
-    // Navigate to Bob's edit page to verify fields and booking
-    const bobEditLinks = browser.links.filter((l) =>
-      l.href.includes("/admin/attendees/"),
-    );
-    // Bob (Robert Jones) should be the second attendee link
-    await browser.visit(bobEditLinks[1]!.href);
     expect(browser.currentHtml).toContain("robert@example.com");
     expect(browser.currentHtml).toContain("+441111222333");
     expect(browser.currentHtml).toContain("7 Pine Avenue");
@@ -327,11 +315,10 @@ describe("e2e: ticket editing flow", () => {
       },
       "Save Attendee",
     );
-    // Flash confirms the save (the return_url bounces back to the event page).
+    // Save returns to the same edit form, with the flash shown inside it.
     expect(browser.containsText("Updated Alice Smith")).toBe(true);
 
-    // Verify both events are now registered by re-opening the edit page.
-    await visitFirstAttendeeEditPage(browser);
+    // Both events are now registered — visible in the form's line editor.
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
@@ -376,8 +363,7 @@ describe("e2e: ticket editing flow", () => {
     );
     expect(browser.containsText("Updated Bob Jones")).toBe(true);
 
-    // Verify both events are registered by re-opening the edit page.
-    await visitFirstAttendeeEditPage(browser);
+    // Both events are registered — visible in the form's line editor.
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
