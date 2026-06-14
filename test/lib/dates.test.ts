@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   addDays,
   addMonthsIso,
+  calendarGridDates,
   DAY_NAMES,
   daysAgo,
   eventDateToCalendarDate,
@@ -11,9 +12,12 @@ import {
   formatDateRangeLabelCompactEn,
   formatDatetimeLabel,
   formatDatetimeShort,
+  formatMonthLabel,
   getAvailableDates,
   getNextBookableDate,
+  monthsAround,
   normalizeDatetime,
+  shiftMonth,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -85,6 +89,100 @@ describeWithEnv("dates", { db: true }, () => {
       expect(addMonthsIso("2026-01-15T14:30:45.123Z", 2)).toBe(
         "2026-03-15T14:30:45.123Z",
       );
+    });
+  });
+
+  describe("shiftMonth", () => {
+    test("advances to the next month", () => {
+      expect(shiftMonth("2026-07", 1)).toBe("2026-08");
+    });
+
+    test("steps back to the previous month", () => {
+      expect(shiftMonth("2026-07", -1)).toBe("2026-06");
+    });
+
+    test("crosses the year boundary forward", () => {
+      expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    });
+
+    test("crosses the year boundary backward", () => {
+      expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    });
+
+    test("shifts by several months at once", () => {
+      expect(shiftMonth("2026-07", 6)).toBe("2027-01");
+    });
+  });
+
+  describe("formatMonthLabel", () => {
+    test("formats a mid-year month", () => {
+      expect(formatMonthLabel("2026-07")).toBe("July 2026");
+    });
+
+    test("formats January", () => {
+      expect(formatMonthLabel("2026-01")).toBe("January 2026");
+    });
+
+    test("formats December", () => {
+      expect(formatMonthLabel("2026-12")).toBe("December 2026");
+    });
+  });
+
+  describe("monthsAround", () => {
+    test("spans the requested years either side of the month's year", () => {
+      const months = monthsAround("2026-03", 5);
+      expect(months[0]).toBe("2021-01");
+      expect(months[months.length - 1]).toBe("2031-12");
+    });
+
+    test("returns twelve months for every year in range", () => {
+      expect(monthsAround("2026-03", 5)).toHaveLength(11 * 12);
+    });
+
+    test("centres on the year, ignoring the month part", () => {
+      expect(monthsAround("2026-12", 1)).toEqual(monthsAround("2026-01", 1));
+    });
+
+    test("includes the centre month itself", () => {
+      expect(monthsAround("2026-03", 5)).toContain("2026-03");
+    });
+  });
+
+  describe("calendarGridDates", () => {
+    test("starts on the Monday a full week before the month's first week", () => {
+      // 1 March 2026 is a Sunday; its Monday is 23 Feb, minus one week = 16 Feb.
+      expect(calendarGridDates("2026-03")[0]).toBe("2026-02-16");
+    });
+
+    test("ends on the Sunday a full week after the month's last week", () => {
+      const grid = calendarGridDates("2026-03");
+      expect(grid[grid.length - 1]).toBe("2026-04-12");
+    });
+
+    test("always spans whole weeks", () => {
+      expect(calendarGridDates("2026-03").length % 7).toBe(0);
+      expect(calendarGridDates("2026-07").length % 7).toBe(0);
+      expect(calendarGridDates("2024-02").length % 7).toBe(0);
+    });
+
+    test("begins on a Monday and ends on a Sunday", () => {
+      const grid = calendarGridDates("2026-07");
+      expect(DAY_NAMES[new Date(`${grid[0]}T00:00:00Z`).getUTCDay()]).toBe(
+        "Monday",
+      );
+      expect(
+        DAY_NAMES[new Date(`${grid[grid.length - 1]}T00:00:00Z`).getUTCDay()],
+      ).toBe("Sunday");
+    });
+
+    test("includes every day of the target month", () => {
+      const grid = calendarGridDates("2026-07");
+      expect(grid).toContain("2026-07-01");
+      expect(grid).toContain("2026-07-31");
+    });
+
+    test("includes the leap day in a leap February", () => {
+      expect(calendarGridDates("2024-02")).toContain("2024-02-29");
     });
   });
 

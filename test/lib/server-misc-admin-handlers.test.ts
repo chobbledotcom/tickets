@@ -565,6 +565,27 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(getDateFilter(mockRequest("/test?date="))).toBeNull();
     });
 
+    test("getMonthFilter returns valid month", async () => {
+      const { getMonthFilter } = await import("#routes/admin/actions.ts");
+
+      expect(getMonthFilter(mockRequest("/test?cal=2026-07"))).toBe("2026-07");
+    });
+
+    test("getMonthFilter returns null for invalid format", async () => {
+      const { getMonthFilter } = await import("#routes/admin/actions.ts");
+
+      expect(getMonthFilter(mockRequest("/test?cal=2026-7"))).toBeNull();
+      expect(getMonthFilter(mockRequest("/test?cal=2026-07-01"))).toBeNull();
+      expect(getMonthFilter(mockRequest("/test?cal=not-a-month"))).toBeNull();
+    });
+
+    test("getMonthFilter returns null when absent", async () => {
+      const { getMonthFilter } = await import("#routes/admin/actions.ts");
+
+      expect(getMonthFilter(mockRequest("/test"))).toBeNull();
+      expect(getMonthFilter(mockRequest("/test?cal="))).toBeNull();
+    });
+
     test("csvResponse returns proper CSV response", async () => {
       const { csvResponse } = await import("#routes/admin/actions.ts");
 

@@ -37,6 +37,13 @@ export const getDateFilter = (request: Request): string | null => {
   return date;
 };
 
+/** Extract and validate ?cal= month parameter (YYYY-MM). Returns null if absent or invalid. */
+export const getMonthFilter = (request: Request): string | null => {
+  const month = new URL(request.url).searchParams.get("cal");
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
+  return month;
+};
+
 /** Build a CSV file download response */
 export const csvResponse = (csv: string, filename: string): Response =>
   new Response(encodeBody(csv), {
