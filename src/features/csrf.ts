@@ -93,7 +93,7 @@ export const withCsrfForm = async (
  */
 export const applyFlash = (
   request: Request,
-): { success?: string; error?: string; result?: string } => {
+): { success?: string; error?: string; info?: string; result?: string } => {
   const flash = getFlash();
   const formId = getSearchParam(request, "form");
   if (flash.success) setFormSuccess(formId, flash.success);

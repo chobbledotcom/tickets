@@ -27,14 +27,27 @@ const FLASH_COOKIE_PREFIX = "flash_";
 /** Build the cookie name for a keyed flash message */
 const flashCookieName = (id: string): string => `${FLASH_COOKIE_PREFIX}${id}`;
 
-/** Build a flash cookie containing a success or error message, keyed by ID */
+/** Visual level of a flash message: a positive result, a failure, or a
+ * neutral acknowledgement. */
+export type FlashLevel = "success" | "error" | "info";
+
+/** Single-char cookie tag for each flash level. */
+const FLASH_TYPE_CHAR: Record<FlashLevel, string> = {
+  error: "e",
+  info: "i",
+  success: "s",
+};
+
+/** Build a flash cookie containing a success, error, or info message, keyed by
+ * ID. `level` defaults to success/error from `succeeded`; pass it to override. */
 export const buildFlashCookie = (
   id: string,
   message: string,
   succeeded: boolean,
   result?: string,
+  level: FlashLevel = succeeded ? "success" : "error",
 ): string => {
-  const type = succeeded ? "s" : "e";
+  const type = FLASH_TYPE_CHAR[level];
   const payload = JSON.stringify(
     result ? { m: message, r: result, t: type } : { m: message, t: type },
   );
@@ -53,11 +66,12 @@ export const clearFlashCookie = (id: string): string =>
 /** Parse a flash cookie value into type, message, and optional result */
 export const parseFlashValue = (
   value: string,
-): { success?: string; error?: string; result?: string } => {
+): { success?: string; error?: string; info?: string; result?: string } => {
   const decoded = decodeURIComponent(value);
   const obj = JSON.parse(decoded);
   return {
     error: obj.t === "e" ? obj.m : undefined,
+    info: obj.t === "i" ? obj.m : undefined,
     result: obj.r,
     success: obj.t === "s" ? obj.m : undefined,
   };

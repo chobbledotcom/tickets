@@ -7,7 +7,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Flash message shape — fields are only present when a message exists */
-export type Flash = { success?: string; error?: string; result?: string };
+export type Flash = {
+  success?: string;
+  error?: string;
+  info?: string;
+  result?: string;
+};
 
 const flashStore = new AsyncLocalStorage<Flash>();
 
@@ -21,6 +26,7 @@ export const setFlashContext = (flash: Flash): void => {
   if (store) {
     store.success = flash.success;
     store.error = flash.error;
+    store.info = flash.info;
     store.result = flash.result;
   }
 };
@@ -30,6 +36,7 @@ export const getFlash = (): Flash => {
   const store = flashStore.getStore();
   return {
     error: store?.error,
+    info: store?.info,
     result: store?.result,
     success: store?.success,
   };
@@ -38,5 +45,9 @@ export const getFlash = (): Flash => {
 /** Whether the current request has a flash message */
 export const hasFlash = (): boolean => {
   const store = flashStore.getStore();
-  return store?.success !== undefined || store?.error !== undefined;
+  return (
+    store?.success !== undefined ||
+    store?.error !== undefined ||
+    store?.info !== undefined
+  );
 };
