@@ -38,8 +38,7 @@ const withFetched = (
   body: (calls: () => unknown[][]) => Promise<void>,
 ) =>
   withMocks(
-    () =>
-      stub(sumupApi, "retrieveCheckoutById", () => Promise.resolve(value)),
+    () => stub(sumupApi, "retrieveCheckoutById", () => Promise.resolve(value)),
     (mock) => body(() => mock.calls.map((c) => c.args)),
   );
 

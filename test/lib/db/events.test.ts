@@ -26,12 +26,12 @@ import {
   writeClosesAt,
   writeEventDate,
 } from "#shared/db/events.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
   bookAttendee,
   createTestAttendee,

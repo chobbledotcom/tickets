@@ -121,7 +121,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/sumup/test", () => {
-    testRequiresAuth("/admin/settings/sumup/test", { body: {}, method: "POST" });
+    testRequiresAuth("/admin/settings/sumup/test", {
+      body: {},
+      method: "POST",
+    });
 
     test("returns the connection test result as JSON", async () => {
       await withMocks(

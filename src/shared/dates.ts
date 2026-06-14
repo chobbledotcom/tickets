@@ -11,7 +11,11 @@ import {
   localToUtc,
   todayInTz,
 } from "#shared/timezone.ts";
-import { type Event, type Holiday, normalizeDurationDays } from "#shared/types.ts";
+import {
+  type Event,
+  type Holiday,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 
 /** Day name lookup from Date.getUTCDay() index (Sunday=0) */
 export const DAY_NAMES = [

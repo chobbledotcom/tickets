@@ -15,8 +15,8 @@
  * decimal places (the shared currency helpers).
  */
 
-import { SumUp } from "@sumup/sdk";
 import type { CheckoutSuccess, Currency } from "@sumup/sdk";
+import { SumUp } from "@sumup/sdk";
 import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
@@ -168,7 +168,10 @@ export const sumupApi: {
       });
       const url = checkout.hosted_checkout_url;
       if (!checkout.id || !url) {
-        logDebug("SumUp", "Checkout response missing id or hosted_checkout_url");
+        logDebug(
+          "SumUp",
+          "Checkout response missing id or hosted_checkout_url",
+        );
         return null;
       }
       // Record the SumUp id so webhooks for this checkout pass the pre-filter
@@ -257,8 +260,7 @@ export const createCheckout = (i: CheckoutIntent, b: string) =>
   sumupApi.createCheckout(i, b);
 export const retrieveCheckoutById = (id: string) =>
   sumupApi.retrieveCheckoutById(id);
-export const refundTransaction = (id: string) =>
-  sumupApi.refundTransaction(id);
+export const refundTransaction = (id: string) => sumupApi.refundTransaction(id);
 export const getTransactionStatus = (id: string) =>
   sumupApi.getTransactionStatus(id);
 export const testSumupConnection = () => sumupApi.testSumupConnection();

@@ -17,8 +17,8 @@ import {
 } from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
-  cachedClientFactory,
   type CredentialCheck,
+  cachedClientFactory,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,

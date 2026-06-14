@@ -1,7 +1,7 @@
-import type { SumUp } from "@sumup/sdk";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import type { SumUp } from "@sumup/sdk";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
@@ -178,9 +178,7 @@ describe("sumup", () => {
         expect(String(sentBody.redirect_url)).toContain(
           `session_id=${result!.reference}`,
         );
-        expect(sentBody.return_url).toBe(
-          "https://example.com/payment/webhook",
-        );
+        expect(sentBody.return_url).toBe("https://example.com/payment/webhook");
         // Metadata + SumUp id persisted under the generated reference
         const stored = await getSumupCheckout(result!.reference);
         expect(stored!.metadata.name).toBe("Alice");

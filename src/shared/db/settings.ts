@@ -944,11 +944,6 @@ const settingsBase = {
         CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
       ),
     },
-    // --- SumUp writes ---
-    sumup: {
-      apiKey: encryptedUpdate(CONFIG_KEYS.SUMUP_API_KEY),
-      merchantCode: plaintextUpdate(CONFIG_KEYS.SUMUP_MERCHANT_CODE),
-    },
     // --- Stripe writes ---
     stripe: {
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
@@ -967,6 +962,11 @@ const settingsBase = {
         data.stripe_webhook_secret = config.secret;
         data.stripe_webhook_endpoint_id = config.endpointId;
       },
+    },
+    // --- SumUp writes ---
+    sumup: {
+      apiKey: encryptedUpdate(CONFIG_KEYS.SUMUP_API_KEY),
+      merchantCode: plaintextUpdate(CONFIG_KEYS.SUMUP_MERCHANT_CODE),
     },
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
       v: SuperuserChoice,

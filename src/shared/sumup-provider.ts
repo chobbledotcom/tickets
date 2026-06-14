@@ -12,7 +12,10 @@
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
-import { getSumupCheckout, hasSumupCheckoutId } from "#shared/db/sumup-checkouts.ts";
+import {
+  getSumupCheckout,
+  hasSumupCheckoutId,
+} from "#shared/db/sumup-checkouts.ts";
 import {
   extractSessionMetadata,
   toCheckoutResult,
@@ -59,7 +62,6 @@ const buildValidatedSession = (
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
-  requiresWebhookSignature: false,
 
   createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
     withCheckoutError(async () => {
@@ -74,6 +76,7 @@ export const sumupPaymentProvider: PaymentProvider = {
   refundPayment(paymentReference: string): Promise<boolean> {
     return refundTransaction(paymentReference);
   },
+  requiresWebhookSignature: false,
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
@@ -117,7 +120,10 @@ export const sumupPaymentProvider: PaymentProvider = {
     // resolveWebhookSession. We only parse the tiny payload
     // ({ event_type, id }) into the provider-agnostic event shape here.
     try {
-      const parsed = JSON.parse(payload) as { event_type?: string; id?: string };
+      const parsed = JSON.parse(payload) as {
+        event_type?: string;
+        id?: string;
+      };
       const id = parsed.id ?? "";
       return Promise.resolve({
         event: {

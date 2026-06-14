@@ -37,7 +37,6 @@ import {
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "payment.updated",
-  requiresWebhookSignature: true,
 
   createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
     return withCheckoutError(async () => {
@@ -55,6 +54,7 @@ export const squarePaymentProvider: PaymentProvider = {
   refundPayment(paymentReference: string): Promise<boolean> {
     return refundPayment(paymentReference);
   },
+  requiresWebhookSignature: true,
 
   async resolveWebhookSession(
     event: WebhookEvent,

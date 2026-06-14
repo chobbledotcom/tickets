@@ -177,7 +177,9 @@ describe("adminQuestionPage", () => {
       TEST_EVENTS,
       new Set([1]),
     );
-    expect(html).toContain('checked name="event_ids" type="checkbox" value="1"');
+    expect(html).toContain(
+      'checked name="event_ids" type="checkbox" value="1"',
+    );
     expect(html).not.toContain(
       'checked name="event_ids" type="checkbox" value="2"',
     );

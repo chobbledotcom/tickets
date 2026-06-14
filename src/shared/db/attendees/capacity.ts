@@ -267,8 +267,8 @@ const getGroupSpanLoad = async (
     row.event_type === "daily";
   return {
     base: pipe(
-      filter((row: IntervalRow & { event_type: EventType }) =>
-        !isDailyRow(row)
+      filter(
+        (row: IntervalRow & { event_type: EventType }) => !isDailyRow(row),
       ),
       sumQuantity,
     )(groupRows),
@@ -436,7 +436,8 @@ export const checkBatchAvailabilityImpl = async (
     const days = demandedDays(bucket);
     if (days) {
       const remaining = await getGroupRemainingPerDay(groupId, days);
-      const overCap = remaining &&
+      const overCap =
+        remaining &&
         [...bucket.perDay].some(
           ([day, qty]) => qty + bucket.total > remaining.get(day)!,
         );
@@ -451,4 +452,3 @@ export const checkBatchAvailabilityImpl = async (
   }
   return true;
 };
-

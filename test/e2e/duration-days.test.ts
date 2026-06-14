@@ -10,9 +10,8 @@
 
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getEventActivityLog } from "#shared/db/activityLog.ts";
-import { settings } from "#shared/db/settings.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
+import { getEventActivityLog } from "#shared/db/activityLog.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
@@ -23,6 +22,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { settings } from "#shared/db/settings.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
@@ -609,9 +609,9 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         args: [sibling.id],
         sql: "UPDATE events SET event_type = 'standard' WHERE id = ?",
       });
-      expect(
-        await checkGroupCapAfterDurationChange(daily.id, group.id),
-      ).toBe("2026-10-01");
+      expect(await checkGroupCapAfterDurationChange(daily.id, group.id)).toBe(
+        "2026-10-01",
+      );
     });
 
     test("checkGroupCapAfterDurationChange returns null when the event has no bookings", async () => {
@@ -641,9 +641,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       await bookAttendee(event, { date: "2026-10-01", quantity: 5 });
       // Simulate a legacy attendee with NULL start_at (pre-daily migration).
       const { getDb } = await import("#shared/db/client.ts");
-      const { createAttendeeAtomic } = await import(
-        "#shared/db/attendees.ts"
-      );
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
       const legacy = await createAttendeeAtomic({
         bookings: [{ eventId: event.id, quantity: 5 }],
         email: "legacy@example.com",
@@ -889,9 +887,10 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         `/admin/event/${event.id}/edit`,
         dailyEditForm(event, 2),
       );
-      expectRedirectWithFlash(`/admin/event/${event.id}`, "Event updated")(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
 
       const after = await rawEventRange(event.id);
       expect(after!.end_at).toBe(before!.end_at);
@@ -917,9 +916,10 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           thank_you_url: "https://example.com",
         },
       );
-      expectRedirectWithFlash(`/admin/event/${event.id}`, "Event updated")(
-        response,
-      );
+      expectRedirectWithFlash(
+        `/admin/event/${event.id}`,
+        "Event updated",
+      )(response);
 
       // The value persists (inert until the event becomes daily)…
       expect((await getEvent(event.id))?.duration_days).toBe(7);
