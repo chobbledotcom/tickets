@@ -3,15 +3,15 @@
  * and HTTP handlers for unified CRUD operations.
  *
  * Usage:
- *   const eventsResource = defineResource({
- *     table: eventsTable,
- *     fields: eventFields,
- *     toInput: extractEventInput,
+ *   const listingsResource = defineResource({
+ *     table: listingsTable,
+ *     fields: listingFields,
+ *     toInput: extractListingInput,
  *     nameField: 'name', // For delete verification
  *   });
  *
  *   // Create from form data
- *   const result = await eventsResource.create(form);
+ *   const result = await listingsResource.create(form);
  *   if (!result.ok) return errorResponse(result.error);
  *   return redirect('/admin/');
  */

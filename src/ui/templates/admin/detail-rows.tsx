@@ -1,5 +1,5 @@
 /**
- * Shared detail table rows for admin pages (event, group, calendar)
+ * Shared detail table rows for admin pages (listing, group, calendar)
  */
 
 import { joinStrings, map, reduce } from "#fp";
@@ -7,7 +7,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { Attendee } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
-/** A key/value row for the event-details-table */
+/** A key/value row for the listing-details-table */
 export type DetailRow = {
   key: string;
   value: string;
@@ -142,12 +142,12 @@ export const buildAnswerSummaryRows = (
 // Shared detail rows builder
 // ---------------------------------------------------------------------------
 
-/** Input for building the shared detail rows shown on group, event, and calendar pages */
+/** Input for building the shared detail rows shown on group, listing, and calendar pages */
 export type SharedDetailInput = {
   attendees: Attendee[];
   attendeeCount: number;
   maxCapacity: number;
-  hasPaidEvent: boolean;
+  hasPaidListing: boolean;
   questionData?: TableQuestionData;
   labelSuffix?: string;
   /** Skip the attendees row (when the caller renders its own complex version) */
@@ -189,7 +189,7 @@ export const buildSharedDetailRows = ({
   attendees,
   attendeeCount,
   maxCapacity,
-  hasPaidEvent,
+  hasPaidListing,
   questionData,
   labelSuffix = "",
   skipAttendees = false,
@@ -198,6 +198,6 @@ export const buildSharedDetailRows = ({
     ? []
     : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
   ...buildCheckedInRows(getCheckedInStats(attendees), labelSuffix),
-  ...(hasPaidEvent ? [buildRevenueRow(attendees)] : []),
+  ...(hasPaidListing ? [buildRevenueRow(attendees)] : []),
   ...buildAnswerSummaryRows(questionData),
 ];

@@ -123,7 +123,7 @@ export const createWithClient =
 export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
   map(
     (i: CheckoutIntent["items"][number]): BookingItem => ({
-      e: i.eventId,
+      e: i.listingId,
       p: i.unitPrice * i.quantity,
       q: i.quantity,
     }),
@@ -149,20 +149,20 @@ const optionalFields = (
   ...(intent.date ? { date: intent.date } : {}),
 });
 
-/** Serialize per-event answer IDs for metadata (only if non-empty) */
-const eventAnswerIdsField = (
-  eventAnswerIds?: Record<string, number[]>,
+/** Serialize per-listing answer IDs for metadata (only if non-empty) */
+const listingAnswerIdsField = (
+  listingAnswerIds?: Record<string, number[]>,
 ): Record<string, string> =>
-  eventAnswerIds && Object.keys(eventAnswerIds).length > 0
-    ? { answer_ids: JSON.stringify(eventAnswerIds) }
+  listingAnswerIds && Object.keys(listingAnswerIds).length > 0
+    ? { answer_ids: JSON.stringify(listingAnswerIds) }
     : {};
 
-/** Convert single-event answerIds to the per-event format used in metadata */
-export const singleEventAnswerIds = (
-  eventId: number,
+/** Convert single-listing answerIds to the per-listing format used in metadata */
+export const singleListingAnswerIds = (
+  listingId: number,
   answerIds?: number[],
 ): Record<string, number[]> | undefined =>
-  answerIds?.length ? { [String(eventId)]: answerIds } : undefined;
+  answerIds?.length ? { [String(listingId)]: answerIds } : undefined;
 
 /**
  * Build checkout metadata from a CheckoutIntent (converts items to compact form).
@@ -189,7 +189,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "phone"
       | "address"
       | "special_instructions"
-      | "eventAnswerIds"
+      | "listingAnswerIds"
       | "siteTokenIndex"
     >
   >;
@@ -205,7 +205,7 @@ export const buildMetadata = (
   items: JSON.stringify(intent.items),
   name: intent.name,
   ...optionalFields(intent),
-  ...eventAnswerIdsField(intent.eventAnswerIds),
+  ...listingAnswerIdsField(intent.listingAnswerIds),
   ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
 });
 
@@ -250,7 +250,7 @@ export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
  * Enforce metadata value length limits for a payment provider.
  *
  * Only items and answer_ids can realistically exceed provider limits —
- * they grow with the number of events/options selected. All other fields
+ * they grow with the number of listings/options selected. All other fields
  * (name, email, address, etc.) are already constrained by form validation
  * to lengths well below the smallest provider limit (255).
  */
@@ -261,7 +261,7 @@ export const enforceMetadataLimits = (
   const items = metadata.items;
   if (items && items.length > maxValueLength) {
     throw new PaymentUserError(
-      "Too many events selected for a single checkout. Please book in smaller batches.",
+      "Too many listings selected for a single checkout. Please book in smaller batches.",
     );
   }
 

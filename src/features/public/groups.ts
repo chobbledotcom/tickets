@@ -5,29 +5,29 @@
 import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
-  getActiveEventsByGroupId,
+  getActiveListingsByGroupId,
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { sortEvents } from "#shared/sort-events.ts";
-import type { EventWithCount, Group } from "#shared/types.ts";
+import { sortListings } from "#shared/sort-listings.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import type { AsyncHandler } from "./types.ts";
 
-/** Load group by slug and its active events, return 404 if empty */
-const withActiveGroupEventsBySlug = async (
+/** Load group by slug and its active listings, return 404 if empty */
+const withActiveGroupListingsBySlug = async (
   slug: string,
-  handler: AsyncHandler<[Group, EventWithCount[]]>,
+  handler: AsyncHandler<[Group, ListingWithCount[]]>,
 ): Promise<Response> => {
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);
   if (!group) return notFoundResponse();
 
-  const [events, holidays] = await Promise.all([
-    getActiveEventsByGroupId(group.id),
+  const [listings, holidays] = await Promise.all([
+    getActiveListingsByGroupId(group.id),
     getActiveHolidays(),
   ]);
-  const sorted = sortEvents(events, holidays);
+  const sorted = sortListings(listings, holidays);
   return sorted.length === 0 ? notFoundResponse() : handler(group, sorted);
 };
 
@@ -36,6 +36,6 @@ export const handleGroupTicketBySlug = (
   request: Request,
   slug: string,
 ): Promise<Response> =>
-  withActiveGroupEventsBySlug(slug, (group, events) =>
-    renderTicketFlow(request, [slug], { group })(events),
+  withActiveGroupListingsBySlug(slug, (group, listings) =>
+    renderTicketFlow(request, [slug], { group })(listings),
   );

@@ -15,7 +15,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
-import { renderEventImage } from "#templates/public.tsx";
+import { renderListingImage } from "#templates/public.tsx";
 
 /** Alias export used by ticket templates */
 export type { TokenEntry as TicketEntry };
@@ -50,27 +50,27 @@ const renderTicketCard = (
   googleWalletEnabled: boolean,
 ): string => {
   const { entry, token, attachmentUrl } = card;
-  const { event, attendee } = entry;
-  const imageHtml = renderEventImage(event, "ticket-card-image");
-  const eventDateHtml = event.date
+  const { listing, attendee } = entry;
+  const imageHtml = renderListingImage(listing, "ticket-card-image");
+  const listingDateHtml = listing.date
     ? `<div class="ticket-card-date">${escapeHtml(
-        formatDatetimeLabel(event.date),
+        formatDatetimeLabel(listing.date),
       )}</div>`
     : "";
 
-  const locationHtml = event.location
-    ? `<div class="ticket-card-location">${escapeHtml(event.location)}</div>`
+  const locationHtml = listing.location
+    ? `<div class="ticket-card-location">${escapeHtml(listing.location)}</div>`
     : "";
 
-  const descriptionHtml = event.description
+  const descriptionHtml = listing.description
     ? `<div class="ticket-card-description">${renderMarkdown(
-        event.description,
+        listing.description,
       )}</div>`
     : "";
 
   const bookingDurationDays =
-    event.event_type === "daily"
-      ? normalizeDurationDays(event.duration_days)
+    listing.listing_type === "daily"
+      ? normalizeDurationDays(listing.duration_days)
       : 1;
   const bookingDateLabel = attendee.date
     ? bookingDurationDays > 1
@@ -93,11 +93,11 @@ const renderTicketCard = (
       : "";
 
   const nonTransferableHtml =
-    event.non_transferable && !event.purchase_only
+    listing.non_transferable && !listing.purchase_only
       ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
       : "";
 
-  const walletLinks = event.purchase_only
+  const walletLinks = listing.purchase_only
     ? ""
     : [
         appleWalletEnabled ? renderAppleWalletLink(token) : "",
@@ -113,15 +113,15 @@ const renderTicketCard = (
     ? `<a href="${escapeHtml(
         attachmentUrl,
       )}" class="attachment-link">Download: ${escapeHtml(
-        event.attachment_name,
+        listing.attachment_name,
       )}</a>`
     : "";
 
   return `
     <div class="ticket-card">
       ${imageHtml}
-      <div class="ticket-card-name">${escapeHtml(event.name)}</div>
-      ${eventDateHtml}
+      <div class="ticket-card-name">${escapeHtml(listing.name)}</div>
+      ${listingDateHtml}
       ${locationHtml}
       ${descriptionHtml}
       ${nonTransferableHtml}
@@ -130,7 +130,7 @@ const renderTicketCard = (
       ${priceHtml}
       ${attachmentHtml}
       ${
-        event.purchase_only
+        listing.purchase_only
           ? ""
           : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
               token,
@@ -158,7 +158,7 @@ export const ticketViewPage = (
     (c: string[]) => c.join(""),
   )(cards);
 
-  const allPurchaseOnly = cards.every((c) => c.entry.event.purchase_only);
+  const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
   const heading = allPurchaseOnly ? "Your Purchase" : ticketCount(cards.length);
   const title = allPurchaseOnly ? "Your Purchase" : "Your Tickets";
 

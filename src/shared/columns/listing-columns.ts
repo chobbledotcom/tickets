@@ -1,80 +1,80 @@
 /**
- * Event table column definitions.
+ * Listing table column definitions.
  *
- * Maps column keys to their rendering logic for the admin dashboard event table.
- * This is the single source of truth for available event columns, their headers,
+ * Maps column keys to their rendering logic for the admin dashboard listing table.
+ * This is the single source of truth for available listing columns, their headers,
  * cell rendering, and guide documentation.
  */
 
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
-import type { EventWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
-import { renderEventImage } from "#templates/public.tsx";
+import { renderListingImage } from "#templates/public.tsx";
 
-type EventCol = ColumnDef<EventWithCount>;
+type ListingCol = ColumnDef<ListingWithCount>;
 
-const name: EventCol = {
+const name: ListingCol = {
   cell: (e) =>
-    `${renderEventImage(e, "event-thumbnail")}<a href="/admin/event/${e.id}">${escapeHtml(
+    `${renderListingImage(e, "listing-thumbnail")}<a href="/admin/listing/${e.id}">${escapeHtml(
       e.name,
     )}</a>`,
-  description: "Event name with thumbnail image and link to event detail",
-  headerText: "Event Name",
+  description: "Listing name with thumbnail image and link to listing detail",
+  headerText: "Listing Name",
   isHtml: true,
   label: "Name",
 };
 
-const description: EventCol = {
+const description: ListingCol = {
   cell: (e) => e.description,
   className: "cell-description",
-  description: "Event description text",
+  description: "Listing description text",
   label: "Description",
 };
 
-const status: EventCol = {
+const status: ListingCol = {
   cell: (e) => (e.active ? "Active" : "Inactive"),
-  description: "Whether the event is Active or Inactive",
+  description: "Whether the listing is Active or Inactive",
   label: "Status",
 };
 
-const attendees: EventCol = {
+const attendees: ListingCol = {
   cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
   description: "Current attendee count vs maximum capacity",
   label: "Attendees",
 };
 
-const created: EventCol = {
+const created: ListingCol = {
   cell: (e) => new Date(e.created).toLocaleDateString(),
-  description: "Date the event was created",
+  description: "Date the listing was created",
   label: "Created",
   rawValue: (e) => e.created,
 };
 
-const date: EventCol = {
+const date: ListingCol = {
   cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
-  description: "Scheduled event date",
+  description: "Scheduled listing date",
   label: "Date",
   rawValue: (e) => e.date || "",
 };
 
-const location: EventCol = {
+const location: ListingCol = {
   cell: (e) => e.location,
-  description: "Event location",
+  description: "Listing location",
   label: "Location",
 };
 
-const price: EventCol = {
+const price: ListingCol = {
   cell: (e) => (e.unit_price > 0 ? String(e.unit_price) : "Free"),
   description: "Ticket unit price (in minor currency units)",
   label: "Price",
   rawValue: (e) => e.unit_price,
 };
 
-const renewal: EventCol = {
+const renewal: ListingCol = {
   cell: (e) =>
     e.months_per_unit > 0 ? `Renewal (${e.months_per_unit}mo)` : "",
   description:
-    "Whether this event is a renewal tier and its duration in months",
+    "Whether this listing is a renewal tier and its duration in months",
   label: "Renewal",
   rawValue: (e) => e.months_per_unit,
 };
@@ -83,8 +83,8 @@ const renewal: EventCol = {
 // Exports
 // ---------------------------------------------------------------------------
 
-/** All available event table columns */
-export const EVENT_TABLE_COLUMNS: ColumnGenerators<EventWithCount> = {
+/** All available listing table columns */
+export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
   attendees,
   created,
   date,
@@ -96,8 +96,8 @@ export const EVENT_TABLE_COLUMNS: ColumnGenerators<EventWithCount> = {
   status,
 };
 
-/** Default column order for the event table */
-export const EVENT_DEFAULT_ORDER = [
+/** Default column order for the listing table */
+export const LISTING_DEFAULT_ORDER = [
   "name",
   "description",
   "status",

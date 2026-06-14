@@ -1,36 +1,36 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { EVENT_TABLE_COLUMNS } from "#shared/columns/event-columns.ts";
+import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import {
   setupTestEncryptionKey,
   testAttendee,
-  testEventWithCount,
+  testListingWithCount,
 } from "#test-utils";
 
 setupTestEncryptionKey();
 
-describe("EVENT_TABLE_COLUMNS cell renderers", () => {
+describe("LISTING_TABLE_COLUMNS cell renderers", () => {
   const u = undefined as unknown;
 
   test("date cell formats date for display", () => {
-    const col = EVENT_TABLE_COLUMNS.date!;
+    const col = LISTING_TABLE_COLUMNS.date!;
     expect(
-      col.cell(testEventWithCount({ date: "2026-04-10T19:00:00Z" }), u),
+      col.cell(testListingWithCount({ date: "2026-04-10T19:00:00Z" }), u),
     ).toContain("2026");
   });
 
   test("date cell renders empty for missing date", () => {
-    const col = EVENT_TABLE_COLUMNS.date!;
-    expect(col.cell(testEventWithCount({ date: "" }), u)).toBe("");
+    const col = LISTING_TABLE_COLUMNS.date!;
+    expect(col.cell(testListingWithCount({ date: "" }), u)).toBe("");
   });
 
   test("date rawValue returns date for Liquid filters", () => {
     expect(
-      EVENT_TABLE_COLUMNS.date!.rawValue!(
-        testEventWithCount({ date: "2026-04-10" }),
+      LISTING_TABLE_COLUMNS.date!.rawValue!(
+        testListingWithCount({ date: "2026-04-10" }),
         u,
       ),
     ).toBe("2026-04-10");
@@ -38,14 +38,17 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("date rawValue returns empty for missing date", () => {
     expect(
-      EVENT_TABLE_COLUMNS.date!.rawValue!(testEventWithCount({ date: "" }), u),
+      LISTING_TABLE_COLUMNS.date!.rawValue!(
+        testListingWithCount({ date: "" }),
+        u,
+      ),
     ).toBe("");
   });
 
   test("price cell renders numeric string for non-zero price", () => {
     expect(
-      EVENT_TABLE_COLUMNS.price!.cell(
-        testEventWithCount({ unit_price: 2500 }),
+      LISTING_TABLE_COLUMNS.price!.cell(
+        testListingWithCount({ unit_price: 2500 }),
         u,
       ),
     ).toBe("2500");
@@ -53,17 +56,23 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("price cell renders Free for zero price", () => {
     expect(
-      EVENT_TABLE_COLUMNS.price!.cell(testEventWithCount({ unit_price: 0 }), u),
+      LISTING_TABLE_COLUMNS.price!.cell(
+        testListingWithCount({ unit_price: 0 }),
+        u,
+      ),
     ).toBe("Free");
   });
 
   test("status cell shows Active or Inactive", () => {
     expect(
-      EVENT_TABLE_COLUMNS.status!.cell(testEventWithCount({ active: true }), u),
+      LISTING_TABLE_COLUMNS.status!.cell(
+        testListingWithCount({ active: true }),
+        u,
+      ),
     ).toBe("Active");
     expect(
-      EVENT_TABLE_COLUMNS.status!.cell(
-        testEventWithCount({ active: false }),
+      LISTING_TABLE_COLUMNS.status!.cell(
+        testListingWithCount({ active: false }),
         u,
       ),
     ).toBe("Inactive");
@@ -71,8 +80,8 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("attendees cell shows count vs capacity", () => {
     expect(
-      EVENT_TABLE_COLUMNS.attendees!.cell(
-        testEventWithCount({ attendee_count: 5, max_attendees: 20 }),
+      LISTING_TABLE_COLUMNS.attendees!.cell(
+        testListingWithCount({ attendee_count: 5, max_attendees: 20 }),
         u,
       ),
     ).toBe("5 / 20");
@@ -80,8 +89,8 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("renewal cell renders label with months when months_per_unit > 0", () => {
     expect(
-      EVENT_TABLE_COLUMNS.renewal!.cell(
-        testEventWithCount({ months_per_unit: 3 }),
+      LISTING_TABLE_COLUMNS.renewal!.cell(
+        testListingWithCount({ months_per_unit: 3 }),
         u,
       ),
     ).toBe("Renewal (3mo)");
@@ -89,8 +98,8 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("renewal cell renders empty when months_per_unit is 0", () => {
     expect(
-      EVENT_TABLE_COLUMNS.renewal!.cell(
-        testEventWithCount({ months_per_unit: 0 }),
+      LISTING_TABLE_COLUMNS.renewal!.cell(
+        testListingWithCount({ months_per_unit: 0 }),
         u,
       ),
     ).toBe("");
@@ -98,8 +107,8 @@ describe("EVENT_TABLE_COLUMNS cell renderers", () => {
 
   test("renewal rawValue returns months_per_unit", () => {
     expect(
-      EVENT_TABLE_COLUMNS.renewal!.rawValue!(
-        testEventWithCount({ months_per_unit: 6 }),
+      LISTING_TABLE_COLUMNS.renewal!.rawValue!(
+        testListingWithCount({ months_per_unit: 6 }),
         u,
       ),
     ).toBe(6);
@@ -119,17 +128,17 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     overrides: Partial<AttendeeTableRow> = {},
   ): AttendeeTableRow => ({
     attendee: testAttendee(),
-    eventId: 1,
-    eventName: "Test Event",
+    listingId: 1,
+    listingName: "Test Listing",
     ...overrides,
   });
 
-  test("event cell renders link to admin event page", () => {
-    const html = ATTENDEE_TABLE_COLUMNS.event!.cell(
-      makeRow({ eventId: 42, eventName: "Gala" }),
+  test("listing cell renders link to admin listing page", () => {
+    const html = ATTENDEE_TABLE_COLUMNS.listing!.cell(
+      makeRow({ listingId: 42, listingName: "Gala" }),
       opts,
     );
-    expect(html).toContain("/admin/event/42");
+    expect(html).toContain("/admin/listing/42");
     expect(html).toContain("Gala");
   });
 

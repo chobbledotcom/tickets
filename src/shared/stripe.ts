@@ -257,18 +257,18 @@ export const stripeApi: {
   ) => Promise<WebhookSetupResult>;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 } = {
-  /** Create checkout session for one or more events */
+  /** Create checkout session for one or more listings */
   createCheckoutSession: async (
     intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutResult> => {
     logDebug(
       "Stripe",
-      `Creating checkout session for ${intent.items.length} event(s)`,
+      `Creating checkout session for ${intent.items.length} listing(s)`,
     );
     const currency = settings.currency.toLowerCase();
 
-    // Build line items for each event
+    // Build line items for each listing
     const lineItems: StripeCheckoutLineItem[] = intent.items.map((item) => ({
       price_data: {
         currency,
@@ -503,7 +503,7 @@ export type StripeConnectionTestResult = {
  *
  * @param payload - Raw request body as string
  * @param signature - Stripe-Signature header value
- * @param toleranceSeconds - Max age of event in seconds (default: 300)
+ * @param toleranceSeconds - Max age of listing in seconds (default: 300)
  */
 export const verifyWebhookSignature = async (
   payload: string,
@@ -552,10 +552,10 @@ export const verifyWebhookSignature = async (
     return { error: "Signature verification failed", valid: false };
   }
 
-  // Parse and return the event
+  // Parse and return the listing
   try {
-    const event = JSON.parse(payload) as StripeWebhookEvent;
-    return { event, valid: true };
+    const listing = JSON.parse(payload) as StripeWebhookEvent;
+    return { listing, valid: true };
   } catch (err) {
     logError({
       code: ErrorCode.STRIPE_SIGNATURE,
@@ -570,10 +570,10 @@ export const verifyWebhookSignature = async (
  * Generates a valid signature for the given payload.
  */
 export const constructTestWebhookEvent = async (
-  event: StripeWebhookEvent,
+  listing: StripeWebhookEvent,
   secret: string,
 ): Promise<{ payload: string; signature: string }> => {
-  const payload = JSON.stringify(event);
+  const payload = JSON.stringify(listing);
   const timestamp = Math.floor(nowMs() / 1000);
   const signedPayload = `${timestamp}.${payload}`;
   const sig = await computeSignature(signedPayload, secret);

@@ -11,9 +11,9 @@ import {
   createAttendeeAtomic,
   hasAvailableSpots,
 } from "#shared/db/attendees.ts";
-import { singleEventAnswerIds } from "#shared/payment-helpers.ts";
+import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
-import type { Attendee, ContactInfo, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
 /** Booking result — callers map this to their response format */
@@ -28,14 +28,14 @@ export type BookingResult =
     };
 
 /**
- * Process a single-event booking.
+ * Process a single-listing booking.
  *
  * Determines whether payment is needed, then either:
  * - Creates a checkout session (paid) or
  * - Atomically creates an attendee (free)
  */
 export const processBooking = async (
-  event: EventWithCount,
+  listing: ListingWithCount,
   contact: ContactInfo,
   quantity: number,
   date: string | null,
@@ -45,36 +45,36 @@ export const processBooking = async (
 ): Promise<BookingResult> => {
   const paymentsEnabled = isPaymentsEnabled();
   const needsPayment =
-    (paymentsEnabled && event.unit_price > 0) ||
+    (paymentsEnabled && listing.unit_price > 0) ||
     (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
 
   if (needsPayment) {
     const available = await hasAvailableSpots(
-      event.id,
+      listing.id,
       quantity,
       date,
-      event.duration_days,
+      listing.duration_days,
     );
     if (!available) return { type: "sold_out" };
 
     // Provider is guaranteed to exist when isPaymentsEnabled() is true
     const provider = (await getActivePaymentProvider())!;
 
-    const unitPrice = customUnitPrice ?? event.unit_price;
+    const unitPrice = customUnitPrice ?? listing.unit_price;
     const result = await provider.createCheckoutSession(
       {
         ...contact,
         date,
-        eventAnswerIds: singleEventAnswerIds(event.id, answerIds),
         items: [
           {
-            eventId: event.id,
-            name: event.name,
+            listingId: listing.id,
+            name: listing.name,
             quantity,
-            slug: event.slug,
+            slug: listing.slug,
             unitPrice,
           },
         ],
+        listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
       },
       baseUrl,
     );
@@ -86,14 +86,14 @@ export const processBooking = async (
     return { checkoutUrl: result.checkoutUrl, type: "checkout" };
   }
 
-  // Free event — create attendee atomically
+  // Free listing — create attendee atomically
   const result = await createAttendeeAtomic({
     ...contact,
     bookings: [
       {
         date,
-        durationDays: event.duration_days,
-        eventId: event.id,
+        durationDays: listing.duration_days,
+        listingId: listing.id,
         quantity,
       },
     ],
@@ -103,6 +103,6 @@ export const processBooking = async (
     return { reason: result.reason, type: "creation_failed" };
   }
 
-  await logAndNotifyRegistration([{ attendee: result.attendees[0]!, event }]);
+  await logAndNotifyRegistration([{ attendee: result.attendees[0]!, listing }]);
   return { attendee: result.attendees[0]!, type: "success" };
 };

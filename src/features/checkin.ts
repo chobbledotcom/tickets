@@ -116,7 +116,7 @@ const handleCheckinPost = (
         (attendee) => !attendee.checked_in,
       );
       await Promise.all(
-        map((a: Attendee) => updateCheckedIn(a.id, a.event_id, checkedIn))(
+        map((a: Attendee) => updateCheckedIn(a.id, a.listing_id, checkedIn))(
           eligible,
         ),
       );

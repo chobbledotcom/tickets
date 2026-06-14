@@ -14,21 +14,21 @@ import {
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
 import {
-  EVENT_DEFAULT_ORDER,
-  EVENT_TABLE_COLUMNS,
-} from "#shared/columns/event-columns.ts";
+  LISTING_DEFAULT_ORDER,
+  LISTING_TABLE_COLUMNS,
+} from "#shared/columns/listing-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
-import { setupTestEncryptionKey, testEventWithCount } from "#test-utils";
+import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
 
 setupTestEncryptionKey();
 
-const VALID_EVENT_KEYS = Object.keys(EVENT_TABLE_COLUMNS);
+const VALID_LISTING_KEYS = Object.keys(LISTING_TABLE_COLUMNS);
 const VALID_ATTENDEE_KEYS = Object.keys(ATTENDEE_TABLE_COLUMNS);
 
 describe("validateColumnTemplate", () => {
   test("returns null for valid template", () => {
     expect(
-      validateColumnTemplate("{{name}}, {{status}}", VALID_EVENT_KEYS),
+      validateColumnTemplate("{{name}}, {{status}}", VALID_LISTING_KEYS),
     ).toBeNull();
   });
 
@@ -36,7 +36,7 @@ describe("validateColumnTemplate", () => {
     expect(
       validateColumnTemplate(
         "{{ name }},{{description}},  {{ status  }}",
-        VALID_EVENT_KEYS,
+        VALID_LISTING_KEYS,
       ),
     ).toBeNull();
   });
@@ -44,14 +44,14 @@ describe("validateColumnTemplate", () => {
   test("rejects unknown column (typo)", () => {
     const error = validateColumnTemplate(
       "{{name}}, {{descritpion}}",
-      VALID_EVENT_KEYS,
+      VALID_LISTING_KEYS,
     );
     expect(error).toContain("descritpion");
     expect(error).toContain("Available columns");
   });
 
   test("rejects empty template", () => {
-    const error = validateColumnTemplate("", VALID_EVENT_KEYS);
+    const error = validateColumnTemplate("", VALID_LISTING_KEYS);
     expect(error).toContain("at least one column");
   });
 
@@ -59,7 +59,7 @@ describe("validateColumnTemplate", () => {
     expect(
       validateColumnTemplate(
         '{{name}}, {{created | date: "%B"}}',
-        VALID_EVENT_KEYS,
+        VALID_LISTING_KEYS,
       ),
     ).toBeNull();
   });
@@ -68,7 +68,7 @@ describe("validateColumnTemplate", () => {
     expect(
       validateColumnTemplate(
         "{{name}}, {{price | currency}}",
-        VALID_EVENT_KEYS,
+        VALID_LISTING_KEYS,
       ),
     ).toBeNull();
   });
@@ -78,18 +78,18 @@ describe("resolveColumnLayout", () => {
   test("returns default order when template is empty", () => {
     const { columnKeys, filters } = resolveColumnLayout(
       "",
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
-    expect(columnKeys).toEqual([...EVENT_DEFAULT_ORDER]);
+    expect(columnKeys).toEqual([...LISTING_DEFAULT_ORDER]);
     expect(filters.size).toBe(0);
   });
 
   test("returns columns in template order", () => {
     const { columnKeys } = resolveColumnLayout(
       "{{status}}, {{name}}",
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     expect(columnKeys).toEqual(["status", "name"]);
   });
@@ -97,8 +97,8 @@ describe("resolveColumnLayout", () => {
   test("deduplicates repeated columns", () => {
     const { columnKeys } = resolveColumnLayout(
       "{{name}}, {{name}}, {{status}}",
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     expect(columnKeys).toEqual(["name", "status"]);
   });
@@ -106,17 +106,17 @@ describe("resolveColumnLayout", () => {
   test("falls back to default for invalid template", () => {
     const { columnKeys } = resolveColumnLayout(
       "{{bogus}}",
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
-    expect(columnKeys).toEqual([...EVENT_DEFAULT_ORDER]);
+    expect(columnKeys).toEqual([...LISTING_DEFAULT_ORDER]);
   });
 
   test("extracts filter expression for filtered column", () => {
     const { filters } = resolveColumnLayout(
       '{{name}}, {{created | date: "%B %d"}}',
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     expect(filters.get("created")).toBe('created | date: "%B %d"');
   });
@@ -124,8 +124,8 @@ describe("resolveColumnLayout", () => {
   test("does not create filter entry for unfiltered column", () => {
     const { filters } = resolveColumnLayout(
       '{{name}}, {{created | date: "%B %d"}}',
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     expect(filters.has("name")).toBe(false);
   });
@@ -182,21 +182,21 @@ describe("renderFilteredValue", () => {
 });
 
 describe("renderCells", () => {
-  test("renders event columns end-to-end through the full pipeline", () => {
-    const event = testEventWithCount({
+  test("renders listing columns end-to-end through the full pipeline", () => {
+    const listing = testListingWithCount({
       date: "2026-06-15",
       name: "Jazz Night",
       unit_price: 0,
     });
     const { columnKeys, filters } = resolveColumnLayout(
       "{{name}}, {{price}}, {{date}}",
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     const html = renderCells(
-      event,
+      listing,
       columnKeys,
-      EVENT_TABLE_COLUMNS,
+      LISTING_TABLE_COLUMNS,
       undefined as unknown,
       filters,
       escapeHtml,
@@ -207,20 +207,20 @@ describe("renderCells", () => {
   });
 
   test("applies Liquid filters when template uses them", () => {
-    const event = testEventWithCount({
+    const listing = testListingWithCount({
       created: "2026-01-10T09:00:00Z",
       date: "2026-03-15",
       unit_price: 2500,
     });
     const { columnKeys, filters } = resolveColumnLayout(
       '{{date | date: "%d/%m/%Y"}}, {{created | date: "%B %Y"}}, {{price | currency}}',
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     const html = renderCells(
-      event,
+      listing,
       columnKeys,
-      EVENT_TABLE_COLUMNS,
+      LISTING_TABLE_COLUMNS,
       undefined as unknown,
       filters,
       escapeHtml,
@@ -231,18 +231,18 @@ describe("renderCells", () => {
   });
 
   test("escapes HTML in plain text cells to prevent XSS", () => {
-    const event = testEventWithCount({
+    const listing = testListingWithCount({
       location: '<script>alert("xss")</script>',
     });
     const { columnKeys, filters } = resolveColumnLayout(
       "{{location}}",
-      VALID_EVENT_KEYS,
-      EVENT_DEFAULT_ORDER,
+      VALID_LISTING_KEYS,
+      LISTING_DEFAULT_ORDER,
     );
     const html = renderCells(
-      event,
+      listing,
       columnKeys,
-      EVENT_TABLE_COLUMNS,
+      LISTING_TABLE_COLUMNS,
       undefined as unknown,
       filters,
       escapeHtml,
@@ -274,10 +274,10 @@ describe("renderCells", () => {
 
 describe("getHeaderText", () => {
   test("returns headerText when set", () => {
-    expect(getHeaderText(EVENT_TABLE_COLUMNS.name!)).toBe("Event Name");
+    expect(getHeaderText(LISTING_TABLE_COLUMNS.name!)).toBe("Listing Name");
   });
 
   test("falls back to label when headerText is not set", () => {
-    expect(getHeaderText(EVENT_TABLE_COLUMNS.location!)).toBe("Location");
+    expect(getHeaderText(LISTING_TABLE_COLUMNS.location!)).toBe("Location");
   });
 });

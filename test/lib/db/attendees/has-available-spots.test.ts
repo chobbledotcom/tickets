@@ -3,99 +3,114 @@ import { it as test } from "@std/testing/bdd";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
 import {
   bookAttendee,
-  createDailyTestEvent,
+  createDailyTestListing,
   createTestAttendee,
-  createTestEvent,
   createTestGroup,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 
 describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
-  test("returns false for non-existent event", async () => {
+  test("returns false for non-existent listing", async () => {
     const result = await hasAvailableSpots(999);
     expect(result).toBe(false);
   });
 
   test("returns true when spots available", async () => {
-    const event = await createTestEvent({ maxAttendees: 2 });
-    expect(await hasAvailableSpots(event.id)).toBe(true);
+    const listing = await createTestListing({ maxAttendees: 2 });
+    expect(await hasAvailableSpots(listing.id)).toBe(true);
   });
 
   test("returns true when some spots taken", async () => {
-    const event = await createTestEvent({ maxAttendees: 2 });
-    await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-    expect(await hasAvailableSpots(event.id)).toBe(true);
+    const listing = await createTestListing({ maxAttendees: 2 });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "John",
+      "john@example.com",
+    );
+    expect(await hasAvailableSpots(listing.id)).toBe(true);
   });
 
-  test("returns false when event is full", async () => {
-    const event = await createTestEvent({ maxAttendees: 2 });
-    await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-    await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
-    expect(await hasAvailableSpots(event.id)).toBe(false);
+  test("returns false when listing is full", async () => {
+    const listing = await createTestListing({ maxAttendees: 2 });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "John",
+      "john@example.com",
+    );
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Jane",
+      "jane@example.com",
+    );
+    expect(await hasAvailableSpots(listing.id)).toBe(false);
   });
 
-  test("checks per-date capacity for daily events", async () => {
-    const event = await createDailyTestEvent({ maxAttendees: 1 });
-    await bookAttendee(event, { date: "2026-02-10" });
-    expect(await hasAvailableSpots(event.id, 1, "2026-02-10")).toBe(false);
-    expect(await hasAvailableSpots(event.id, 1, "2026-02-11")).toBe(true);
+  test("checks per-date capacity for daily listings", async () => {
+    const listing = await createDailyTestListing({ maxAttendees: 1 });
+    await bookAttendee(listing, { date: "2026-02-10" });
+    expect(await hasAvailableSpots(listing.id, 1, "2026-02-10")).toBe(false);
+    expect(await hasAvailableSpots(listing.id, 1, "2026-02-11")).toBe(true);
   });
 
-  test("multi-day range: every day must have room (event cap)", async () => {
-    const event = await createDailyTestEvent({
+  test("multi-day range: every day must have room (listing cap)", async () => {
+    const listing = await createDailyTestListing({
       durationDays: 3,
       maxAttendees: 2,
     });
-    await bookAttendee(event, {
+    await bookAttendee(listing, {
       date: "2026-05-03",
       durationDays: 1,
       quantity: 2,
     });
-    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 3)).toBe(false);
-    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 1)).toBe(true);
+    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 3)).toBe(false);
+    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 1)).toBe(true);
   });
 
   test("multi-day range: every day must have room (group cap)", async () => {
     const group = await createTestGroup({ maxAttendees: 2 });
-    const event = await createDailyTestEvent({
+    const listing = await createDailyTestListing({
       durationDays: 2,
       groupId: group.id,
       maxAttendees: 100,
     });
-    const sibling = await createDailyTestEvent({
+    const sibling = await createDailyTestListing({
       groupId: group.id,
       maxAttendees: 100,
     });
     await bookAttendee(sibling, { date: "2026-05-02", quantity: 2 });
-    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 2)).toBe(false);
+    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 2)).toBe(false);
   });
 
   test("multi-day range: an uncapped group never limits availability", async () => {
     const group = await createTestGroup({ maxAttendees: 0 });
-    const event = await createDailyTestEvent({
+    const listing = await createDailyTestListing({
       durationDays: 3,
       groupId: group.id,
       maxAttendees: 5,
     });
-    const sibling = await createDailyTestEvent({
+    const sibling = await createDailyTestListing({
       groupId: group.id,
       maxAttendees: 100,
     });
     await bookAttendee(sibling, { date: "2026-05-02", quantity: 50 });
-    expect(await hasAvailableSpots(event.id, 1, "2026-05-01", 3)).toBe(true);
+    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 3)).toBe(true);
   });
 
   test("multi-day range: non-daily group rows count against every day", async () => {
-    // Groups normally hold one event type, but an event can be flipped
+    // Groups normally hold one listing type, but an listing can be flipped
     // after booking — its rows must then count on every day of the range
-    // (the `event_type != 'daily'` arm of the group predicate).
+    // (the `listing_type != 'daily'` arm of the group predicate).
     const group = await createTestGroup({ maxAttendees: 5 });
-    const event = await createDailyTestEvent({
+    const listing = await createDailyTestListing({
       durationDays: 2,
       groupId: group.id,
       maxAttendees: 100,
     });
-    const sibling = await createDailyTestEvent({
+    const sibling = await createDailyTestListing({
       groupId: group.id,
       maxAttendees: 100,
     });
@@ -103,11 +118,11 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
     const { getDb } = await import("#shared/db/client.ts");
     await getDb().execute({
       args: [sibling.id],
-      sql: "UPDATE events SET event_type = 'standard' WHERE id = ?",
+      sql: "UPDATE listings SET listing_type = 'standard' WHERE id = ?",
     });
     // Sibling's 3 now count on every day — a 2-day booking far from
     // 2026-09-01 still only has 5 - 3 = 2 group spots per day.
-    expect(await hasAvailableSpots(event.id, 3, "2026-11-01", 2)).toBe(false);
-    expect(await hasAvailableSpots(event.id, 2, "2026-11-01", 2)).toBe(true);
+    expect(await hasAvailableSpots(listing.id, 3, "2026-11-01", 2)).toBe(false);
+    expect(await hasAvailableSpots(listing.id, 2, "2026-11-01", 2)).toBe(true);
   });
 });

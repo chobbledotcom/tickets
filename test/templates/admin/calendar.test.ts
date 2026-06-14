@@ -22,10 +22,10 @@ const calendarAttendee = (
   ...testAttendee(),
   date: "2026-03-15",
   durationDays: 1,
-  eventDate: "",
-  eventId: 1,
-  eventLocation: "",
-  eventName: "Daily Event",
+  listingDate: "",
+  listingId: 1,
+  listingLocation: "",
+  listingName: "Daily Listing",
   ...overrides,
 });
 
@@ -143,7 +143,7 @@ describe("adminCalendarPage", () => {
     expect(html).toContain("Sunday 15 March 2026");
   });
 
-  test("renders attendee rows with event name and link", () => {
+  test("renders attendee rows with listing name and link", () => {
     const attendees = [calendarAttendee()];
     const html = adminCalendarPage(
       attendees,
@@ -153,12 +153,12 @@ describe("adminCalendarPage", () => {
       [],
       "2026-03-10",
     );
-    expect(html).toContain("Daily Event");
-    expect(html).toContain('href="/admin/event/1"');
+    expect(html).toContain("Daily Listing");
+    expect(html).toContain('href="/admin/listing/1"');
     expect(html).toContain("John Doe");
   });
 
-  test("renders Event column header", () => {
+  test("renders Listing column header", () => {
     const html = adminCalendarPage(
       [],
       "localhost",
@@ -167,7 +167,7 @@ describe("adminCalendarPage", () => {
       [],
       "2026-03-10",
     );
-    expect(html).toContain("<th>Event</th>");
+    expect(html).toContain("<th>Listing</th>");
   });
 
   test("shows CSV export link when date has attendees", () => {
@@ -441,19 +441,19 @@ describe("adminCalendarPage", () => {
 });
 
 describe("generateCalendarCsv", () => {
-  test("generates CSV header for empty attendees (no Event Date/Location columns)", () => {
+  test("generates CSV header for empty attendees (no Listing Date/Location columns)", () => {
     const csv = generateCalendarCsv([]);
     expect(csv).toBe(
-      "Event,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+      "Listing,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
     );
   });
 
-  test("omits Event Date and Event Location columns when all empty", () => {
+  test("omits Listing Date and Listing Location columns when all empty", () => {
     const attendees = [calendarAttendee()];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Event,Date,Name");
-    expect(lines[1]).toMatch(/^Daily Event,2026-03-15,/);
+    expect(lines[0]).toContain("Listing,Date,Name");
+    expect(lines[1]).toMatch(/^Daily Listing,2026-03-15,/);
   });
 
   test("shows an inclusive date range for multi-day bookings", () => {
@@ -461,24 +461,24 @@ describe("generateCalendarCsv", () => {
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
     // 3-day booking starting 2026-03-15 occupies the 15th through the 17th.
-    expect(lines[1]).toMatch(/^Daily Event,2026-03-15 to 2026-03-17,/);
+    expect(lines[1]).toMatch(/^Daily Listing,2026-03-15 to 2026-03-17,/);
   });
 
-  test("includes Event Date column when some attendees have event dates", () => {
+  test("includes Listing Date column when some attendees have listing dates", () => {
     const attendees = [
-      calendarAttendee({ eventDate: "2026-06-15T14:00:00.000Z" }),
+      calendarAttendee({ listingDate: "2026-06-15T14:00:00.000Z" }),
     ];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Event,Event Date,Date,Name");
+    expect(lines[0]).toContain("Listing,Listing Date,Date,Name");
     expect(lines[1]).toContain("2026-06-15T14:00:00.000Z");
   });
 
-  test("includes Event Location column when some attendees have event locations", () => {
-    const attendees = [calendarAttendee({ eventLocation: "Village Hall" })];
+  test("includes Listing Location column when some attendees have listing locations", () => {
+    const attendees = [calendarAttendee({ listingLocation: "Village Hall" })];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("Event,Event Location,Date,Name");
+    expect(lines[0]).toContain("Listing,Listing Location,Date,Name");
     expect(lines[1]).toContain("Village Hall");
   });
 
@@ -489,10 +489,10 @@ describe("generateCalendarCsv", () => {
     expect(lines[1]).toContain("2026-03-20");
   });
 
-  test("escapes event names with commas", () => {
-    const attendees = [calendarAttendee({ eventName: "Event, Special" })];
+  test("escapes listing names with commas", () => {
+    const attendees = [calendarAttendee({ listingName: "Listing, Special" })];
     const csv = generateCalendarCsv(attendees);
-    expect(csv).toContain('"Event, Special"');
+    expect(csv).toContain('"Listing, Special"');
   });
 
   test("includes standard attendee columns", () => {
@@ -519,23 +519,23 @@ describe("generateCalendarCsv", () => {
     const attendees = [
       calendarAttendee(),
       calendarAttendee({
-        eventName: "Other Event",
         id: 2,
+        listingName: "Other Listing",
         name: "Jane Smith",
       }),
     ];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
     expect(lines).toHaveLength(3);
-    expect(lines[1]).toContain("Daily Event");
-    expect(lines[2]).toContain("Other Event");
+    expect(lines[1]).toContain("Daily Listing");
+    expect(lines[2]).toContain("Other Listing");
   });
 
   test("handles null date in calendar row", () => {
     const attendees = [calendarAttendee({ date: null })];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toMatch(/^Daily Event,,/);
+    expect(lines[1]).toMatch(/^Daily Listing,,/);
   });
 });
 

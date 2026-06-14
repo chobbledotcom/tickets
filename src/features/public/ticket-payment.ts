@@ -18,9 +18,9 @@ import {
   createAttendeeAtomic,
   deleteAttendee,
 } from "#shared/db/attendees.ts";
-import { getEventsBySlugsBatch } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getQuestionsWithEventIds } from "#shared/db/questions.ts";
+import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
+import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -35,12 +35,12 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
-import type { TicketEvent } from "#templates/public.tsx";
-import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
-import { eventsWithQuantity, formatAtomicError } from "./ticket-form.ts";
+import type { TicketListing } from "#templates/public.tsx";
+import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
+import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import type {
   AsyncHandler,
-  EventQty,
+  ListingQty,
   TicketCtx,
   TicketSharedContext,
 } from "./types.ts";
@@ -121,52 +121,52 @@ export const runCheckoutFlow = (
   );
 };
 
-/** Check if all selected events have available spots (single efficient query) */
+/** Check if all selected listings have available spots (single efficient query) */
 export const checkAvailability = (
-  events: TicketEvent[],
+  listings: TicketListing[],
   quantities: Map<number, number>,
   date?: string | null,
 ): Promise<boolean> =>
   checkBatchAvailability(
-    buildBookings(eventsWithQuantity(events, quantities), date ?? null),
+    buildBookings(listingsWithQuantity(listings, quantities), date ?? null),
     date,
   );
 
 /**
  * Shared booking-date fields (date + durationDays). Keeps the payment and
- * webhook flows aligned: both read duration from the event at insert time.
+ * webhook flows aligned: both read duration from the listing at insert time.
  */
 export const bookingDateFields = (
-  event: Pick<TicketEvent["event"], "event_type" | "duration_days">,
+  listing: Pick<TicketListing["listing"], "listing_type" | "duration_days">,
   date: string | null,
 ): { date: string | null; durationDays: number } => ({
-  date: event.event_type === "daily" ? date : null,
+  date: listing.listing_type === "daily" ? date : null,
   durationDays:
-    event.event_type === "daily"
-      ? normalizeDurationDays(event.duration_days)
+    listing.listing_type === "daily"
+      ? normalizeDurationDays(listing.duration_days)
       : 1,
 });
 
-/** Build registration items from events and quantities */
+/** Build registration items from listings and quantities */
 export const buildRegistrationItems = (
-  events: TicketEvent[],
+  listings: TicketListing[],
   quantities: Map<number, number>,
   customPrices: Map<number, number>,
 ): CheckoutItem[] => {
-  const selected = events.filter(({ event }) => {
-    const qty = quantities.get(event.id);
+  const selected = listings.filter(({ listing }) => {
+    const qty = quantities.get(listing.id);
     return qty !== undefined && qty > 0;
   });
-  return selected.map(({ event }) => ({
-    eventId: event.id,
-    name: event.name,
-    quantity: quantities.get(event.id)!,
-    slug: event.slug,
-    unitPrice: customPrices.get(event.id) ?? event.unit_price,
+  return selected.map(({ listing }) => ({
+    listingId: listing.id,
+    name: listing.name,
+    quantity: quantities.get(listing.id)!,
+    slug: listing.slug,
+    unitPrice: customPrices.get(listing.id) ?? listing.unit_price,
   }));
 };
 
-/** Check if any selected event requires payment */
+/** Check if any selected listing requires payment */
 export const anyRequiresPayment = (items: CheckoutItem[]): boolean => {
   const paymentsEnabled = isPaymentsEnabled();
   if (!paymentsEnabled) return false;
@@ -188,24 +188,24 @@ export const handlePaymentFlow = (
   );
 
 /** Handle free ticket registration */
-/** Build booking objects from selected events */
+/** Build booking objects from selected listings */
 const buildBookings = (
-  selected: EventQty[],
+  selected: ListingQty[],
   date: string | null,
 ): {
-  eventId: number;
+  listingId: number;
   quantity: number;
   date: string | null;
   durationDays: number;
 }[] =>
-  selected.map(({ event, qty }) => ({
-    eventId: event.id,
+  selected.map(({ listing, qty }) => ({
+    listingId: listing.id,
     quantity: qty,
-    ...bookingDateFields(event, date),
+    ...bookingDateFields(listing, date),
   }));
 
 /**
- * Check if a multi-booking result is incomplete (some events failed capacity).
+ * Check if a multi-booking result is incomplete (some listings failed capacity).
  * If so, rolls back any partially-created attendee. Returns the failure reason.
  */
 export const ensureAllBookings = async (
@@ -227,7 +227,7 @@ export const ensureAllBookings = async (
 };
 
 export const processFreeReservation = async (
-  events: TicketEvent[],
+  listings: TicketListing[],
   quantities: Map<number, number>,
   contact: ContactInfo,
   date: string | null,
@@ -236,14 +236,14 @@ export const processFreeReservation = async (
   | { success: true; token: string; entries: EmailEntry[] }
   | { success: false; error: string }
 > => {
-  const selected = eventsWithQuantity(events, quantities);
+  const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date);
   const result = await createAttendeeAtomic({ ...contact, bookings });
 
   const check = await ensureAllBookings(result, bookings.length);
   if (!check.ok) {
     return {
-      error: formatAtomicError(check.reason, selected[0]!.event.name),
+      error: formatAtomicError(check.reason, selected[0]!.listing.name),
       success: false,
     };
   }
@@ -253,10 +253,10 @@ export const processFreeReservation = async (
     { success: true }
   >;
 
-  // Build entries: pair each attendee result with its event
+  // Build entries: pair each attendee result with its listing
   const entries: EmailEntry[] = attendees.map((attendee, i) => ({
     attendee,
-    event: selected[i]!.event,
+    listing: selected[i]!.listing,
   }));
 
   // Hash before passing on so the renewal lookup uses the same blind index
@@ -270,26 +270,30 @@ export const processFreeReservation = async (
   };
 };
 
-/** Load and validate active events, return 404 if none */
-export const withActiveEvents = async (
+/** Load and validate active listings, return 404 if none */
+export const withActiveListings = async (
   slugs: string[],
-  handler: AsyncHandler<[TicketEvent[]]>,
+  handler: AsyncHandler<[TicketListing[]]>,
 ): Promise<Response> => {
-  const events = await getEventsBySlugsBatch(slugs);
-  const active = compact(events).filter((e) => e.active);
-  const activeEvents = await buildTicketEventsWithGroupCapacity(active);
-  return activeEvents.length === 0 ? notFoundResponse() : handler(activeEvents);
+  const listings = await getListingsBySlugsBatch(slugs);
+  const active = compact(listings).filter((e) => e.active);
+  const activeListings = await buildTicketListingsWithGroupCapacity(active);
+  return activeListings.length === 0
+    ? notFoundResponse()
+    : handler(activeListings);
 };
 
-/** Compute shared available dates across all daily events (intersection) */
+/** Compute shared available dates across all daily listings (intersection) */
 export const computeSharedDates = async (
-  events: TicketEvent[],
+  listings: TicketListing[],
 ): Promise<string[]> => {
-  const dailyEvents = events.filter((e) => e.event.event_type === "daily");
-  if (dailyEvents.length === 0) return [];
+  const dailyListings = listings.filter(
+    (e) => e.listing.listing_type === "daily",
+  );
+  if (dailyListings.length === 0) return [];
   const holidays = await getActiveHolidays();
-  const dateSets = dailyEvents.map(
-    (e) => new Set(getAvailableDates(e.event, holidays)),
+  const dateSets = dailyListings.map(
+    (e) => new Set(getAvailableDates(e.listing, holidays)),
   );
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
@@ -297,14 +301,14 @@ export const computeSharedDates = async (
 /** Fetch shared context for ticket pages: dates, terms, questions.
  * When a group is provided, its terms override global terms and its name/description are included. */
 export const getTicketContext = async (
-  activeEvents: TicketEvent[],
+  activeListings: TicketListing[],
   group?: Group,
 ): Promise<TicketSharedContext> => {
-  const eventIds = activeEvents.map((e) => e.event.id);
+  const listingIds = activeListings.map((e) => e.listing.id);
   const [dates, globalTerms, questionsResult] = await Promise.all([
-    computeSharedDates(activeEvents),
+    computeSharedDates(activeListings),
     Promise.resolve(settings.terms),
-    getQuestionsWithEventIds(eventIds),
+    getQuestionsWithListingIds(listingIds),
   ]);
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""

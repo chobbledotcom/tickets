@@ -21,8 +21,8 @@ export const adminSeedsPage = (
       <CsrfForm action="/admin/seeds">
         <h1>Seed Data</h1>
         <p>
-          Create sample events and attendees from demo data. Useful for testing
-          and development.
+          Create sample listings and attendees from demo data. Useful for
+          testing and development.
         </p>
         <Flash error={error} success={success} />
         <Raw html={seedsForm.render()} />

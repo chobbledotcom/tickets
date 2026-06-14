@@ -2,21 +2,21 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  adminEventPage,
+  adminListingPage,
   buildAnswerSummaryRows,
-} from "#templates/admin/events.tsx";
+} from "#templates/admin/listings.tsx";
 import {
   adminAnswerDeletePage,
-  adminEventQuestionsPage,
+  adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
-import { setupTestEncryptionKey, testEventWithCount } from "#test-utils";
+import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
 
-const TEST_EVENTS = [
-  testEventWithCount({ id: 1, name: "Spring Gig" }),
-  testEventWithCount({ id: 2, name: "Summer Gig" }),
+const TEST_LISTINGS = [
+  testListingWithCount({ id: 1, name: "Spring Gig" }),
+  testListingWithCount({ id: 2, name: "Summer Gig" }),
 ];
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -146,42 +146,42 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("/answers/11/move-down");
   });
 
-  test("renders empty state when no events exist", () => {
+  test("renders empty state when no listings exist", () => {
     const html = adminQuestionPage(question, TEST_SESSION);
-    expect(html).toContain("Assign to Events");
-    expect(html).toContain("No events yet");
+    expect(html).toContain("Assign to Listings");
+    expect(html).toContain("No listings yet");
   });
 
-  test("renders an event checkbox for each event", () => {
+  test("renders an listing checkbox for each listing", () => {
     const html = adminQuestionPage(
       question,
       TEST_SESSION,
       undefined,
       undefined,
-      TEST_EVENTS,
+      TEST_LISTINGS,
     );
-    expect(html).toContain('action="/admin/questions/1/events"');
-    expect(html).toContain('name="event_ids"');
+    expect(html).toContain('action="/admin/questions/1/listings"');
+    expect(html).toContain('name="listing_ids"');
     expect(html).toContain('value="1"');
     expect(html).toContain('value="2"');
     expect(html).toContain("Spring Gig");
     expect(html).toContain("Summer Gig");
   });
 
-  test("checks events the question is assigned to", () => {
+  test("checks listings the question is assigned to", () => {
     const html = adminQuestionPage(
       question,
       TEST_SESSION,
       undefined,
       undefined,
-      TEST_EVENTS,
+      TEST_LISTINGS,
       new Set([1]),
     );
     expect(html).toContain(
-      'checked name="event_ids" type="checkbox" value="1"',
+      'checked name="listing_ids" type="checkbox" value="1"',
     );
     expect(html).not.toContain(
-      'checked name="event_ids" type="checkbox" value="2"',
+      'checked name="listing_ids" type="checkbox" value="2"',
     );
   });
 });
@@ -252,17 +252,22 @@ describe("adminAnswerDeletePage", () => {
   });
 });
 
-describe("adminEventQuestionsPage", () => {
+describe("adminListingQuestionsPage", () => {
   test("shows empty state when no questions exist", () => {
-    const event = testEventWithCount({ id: 1, name: "My Event" });
-    const html = adminEventQuestionsPage(event, [], new Set(), TEST_SESSION);
+    const listing = testListingWithCount({ id: 1, name: "My Listing" });
+    const html = adminListingQuestionsPage(
+      listing,
+      [],
+      new Set(),
+      TEST_SESSION,
+    );
     expect(html).toContain("No questions created yet");
     expect(html).toContain('href="/admin/questions"');
     expect(html).toContain("Create questions");
   });
 
   test("shows singular option count for question with one answer", () => {
-    const event = testEventWithCount({ id: 1, name: "My Event" });
+    const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
       {
         answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Yes" }],
@@ -270,8 +275,8 @@ describe("adminEventQuestionsPage", () => {
         text: "Yes or no?",
       },
     ];
-    const html = adminEventQuestionsPage(
-      event,
+    const html = adminListingQuestionsPage(
+      listing,
       questions,
       new Set(),
       TEST_SESSION,
@@ -281,7 +286,7 @@ describe("adminEventQuestionsPage", () => {
   });
 
   test("shows Manage Questions link below form", () => {
-    const event = testEventWithCount({ id: 1, name: "My Event" });
+    const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
       {
         answers: [
@@ -292,8 +297,8 @@ describe("adminEventQuestionsPage", () => {
         text: "Q?",
       },
     ];
-    const html = adminEventQuestionsPage(
-      event,
+    const html = adminListingQuestionsPage(
+      listing,
       questions,
       new Set(),
       TEST_SESSION,
@@ -303,7 +308,7 @@ describe("adminEventQuestionsPage", () => {
   });
 
   test("lists option names in parentheses", () => {
-    const event = testEventWithCount({ id: 1, name: "My Event" });
+    const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
       {
         answers: [
@@ -315,8 +320,8 @@ describe("adminEventQuestionsPage", () => {
         text: "Size?",
       },
     ];
-    const html = adminEventQuestionsPage(
-      event,
+    const html = adminListingQuestionsPage(
+      listing,
       questions,
       new Set(),
       TEST_SESSION,
@@ -374,12 +379,12 @@ describe("buildAnswerSummaryRows", () => {
   });
 });
 
-describe("adminEventPage with questionData", () => {
+describe("adminListingPage with questionData", () => {
   test("renders answer summary rows in details table", () => {
-    const html = adminEventPage({
+    const html = adminListingPage({
       allowedDomain: "example.com",
       attendees: [],
-      event: testEventWithCount({ id: 1, name: "E" }),
+      listing: testListingWithCount({ id: 1, name: "E" }),
       questionData: {
         attendeeAnswerMap: new Map(),
         questions: [

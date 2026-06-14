@@ -21,7 +21,7 @@ import {
   createAuthedHandler,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
+import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import {
   type Answer,
   answersTable,
@@ -29,14 +29,14 @@ import {
   deleteQuestion,
   getAllQuestionsWithAnswers,
   getAnswerCountsForQuestion,
-  getEventQuestionIds,
+  getListingQuestionIds,
   getNextAnswerSortOrder,
-  getQuestionEventIds,
+  getQuestionListingIds,
   getQuestionWithAnswers,
   type QuestionWithAnswers,
   questionsTable,
-  setEventQuestions,
-  setQuestionEvents,
+  setListingQuestions,
+  setQuestionListings,
   swapAnswerOrder,
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -44,7 +44,7 @@ import { defineForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import {
   adminAnswerDeletePage,
-  adminEventQuestionsPage,
+  adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
@@ -109,10 +109,10 @@ const handleQuestionGet = ownerGetById(
   getQuestionWithAnswers,
   async (q, session) => {
     const flash = getFlash();
-    const [answerCounts, allEvents, assignedEventIds] = await Promise.all([
+    const [answerCounts, allListings, assignedListingIds] = await Promise.all([
       getAnswerCountsForQuestion(q.id),
-      getAllEvents(),
-      getQuestionEventIds(q.id),
+      getAllListings(),
+      getQuestionListingIds(q.id),
     ]);
     return htmlResponse(
       adminQuestionPage(
@@ -120,8 +120,8 @@ const handleQuestionGet = ownerGetById(
         session,
         flash.error,
         answerCounts,
-        allEvents,
-        new Set(assignedEventIds),
+        allListings,
+        new Set(assignedListingIds),
       ),
     );
   },
@@ -150,18 +150,18 @@ const handleQuestionEdit = createAuthedFormRoute<
   },
 });
 
-/** Handle POST /admin/questions/:id/events (assign question to events) */
-const handleQuestionEvents = ownerFormById(async (id, _session, form) => {
+/** Handle POST /admin/questions/:id/listings (assign question to listings) */
+const handleQuestionListings = ownerFormById(async (id, _session, form) => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return notFoundResponse();
-  const eventIds = form.getNumberArray("event_ids");
-  await setQuestionEvents(id, eventIds);
+  const listingIds = form.getNumberArray("listing_ids");
+  await setQuestionListings(id, listingIds);
   await logActivity(
-    `Question '${question.text}' assigned to ${eventIds.length} event${
-      eventIds.length !== 1 ? "s" : ""
+    `Question '${question.text}' assigned to ${listingIds.length} listing${
+      listingIds.length !== 1 ? "s" : ""
     }`,
   );
-  return redirect(`/admin/questions/${id}`, "Events updated", true);
+  return redirect(`/admin/questions/${id}`, "Listings updated", true);
 });
 
 /** Handle POST /admin/questions/:id/answers (add answer) */
@@ -281,17 +281,17 @@ const handleMoveAnswerUp = moveAnswerHandler(-1);
 /** Handle POST /admin/questions/:id/answers/:answerId/move-down */
 const handleMoveAnswerDown = moveAnswerHandler(1);
 
-/** Handle GET /admin/event/:id/questions */
-const handleEventQuestionsGet = ownerGetById(
-  getEventWithCount,
-  async (event, session) => {
+/** Handle GET /admin/listing/:id/questions */
+const handleListingQuestionsGet = ownerGetById(
+  getListingWithCount,
+  async (listing, session) => {
     const [allQuestions, assignedIds] = await Promise.all([
       getAllQuestionsWithAnswers(),
-      getEventQuestionIds(event.id),
+      getListingQuestionIds(listing.id),
     ]);
     return htmlResponse(
-      adminEventQuestionsPage(
-        event,
+      adminListingQuestionsPage(
+        listing,
         allQuestions,
         new Set(assignedIds),
         session,
@@ -300,30 +300,30 @@ const handleEventQuestionsGet = ownerGetById(
   },
 );
 
-/** Handle POST /admin/event/:id/questions */
-const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
-  const event = await getEventWithCount(id);
-  if (!event) return notFoundResponse();
+/** Handle POST /admin/listing/:id/questions */
+const handleListingQuestionsPost = ownerFormById(async (id, _session, form) => {
+  const listing = await getListingWithCount(id);
+  if (!listing) return notFoundResponse();
   const questionIds = form.getNumberArray("question_ids");
-  await setEventQuestions(id, questionIds);
+  await setListingQuestions(id, questionIds);
   await logActivity(
-    `Questions updated for '${event.name}' (${questionIds.length} question${
+    `Questions updated for '${listing.name}' (${questionIds.length} question${
       questionIds.length !== 1 ? "s" : ""
     })`,
-    event,
+    listing,
   );
-  return redirect(`/admin/event/${id}`, "Questions updated", true);
+  return redirect(`/admin/listing/${id}`, "Questions updated", true);
 });
 
 /** Questions routes */
 export const questionsRoutes = {
   ...questionDelete.routes,
   ...defineRoutes({
-    "GET /admin/event/:id/questions": handleEventQuestionsGet,
+    "GET /admin/listing/:id/questions": handleListingQuestionsGet,
     "GET /admin/questions": handleQuestionsGet,
     "GET /admin/questions/:id": handleQuestionGet,
     "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
-    "POST /admin/event/:id/questions": handleEventQuestionsPost,
+    "POST /admin/listing/:id/questions": handleListingQuestionsPost,
     "POST /admin/questions": handleQuestionsPost,
     "POST /admin/questions/:id/answers": handleAddAnswer,
     "POST /admin/questions/:id/answers/:answerId/delete":
@@ -332,6 +332,6 @@ export const questionsRoutes = {
       handleMoveAnswerDown,
     "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
     "POST /admin/questions/:id/edit": handleQuestionEdit,
-    "POST /admin/questions/:id/events": handleQuestionEvents,
+    "POST /admin/questions/:id/listings": handleQuestionListings,
   }),
 };

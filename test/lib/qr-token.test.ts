@@ -3,7 +3,7 @@
  *
  * These tests guard the two invariants the whole feature relies on:
  *  1. A token signed for one slug cannot be verified against another (domain
- *     separation — prevents one event's QR working on another).
+ *     separation — prevents one listing's QR working on another).
  *  2. Any tampering with payload or signature fails verification; expired
  *     tokens are rejected.
  */
@@ -58,7 +58,7 @@ describe("qr-token", () => {
 
   describe("signQrBookToken", () => {
     test("produces a token with the qr1. prefix and two dot-separated parts", async () => {
-      const token = await signQrBookToken("my-event", buildQrBookPayload({}));
+      const token = await signQrBookToken("my-listing", buildQrBookPayload({}));
       expect(token.startsWith("qr1.")).toBe(true);
       const rest = token.slice(4);
       expect(rest.split(".").length).toBe(2);
@@ -87,32 +87,32 @@ describe("qr-token", () => {
         quantity: 2,
         value: 2500,
       });
-      const token = await signQrBookToken("event-slug", original);
-      const result = await verifyQrBookToken("event-slug", token);
+      const token = await signQrBookToken("listing-slug", original);
+      const result = await verifyQrBookToken("listing-slug", token);
       expect(result).toEqual(original);
     });
 
     test("rejects a token used for a different slug (domain separation)", async () => {
       const token = await signQrBookToken(
-        "event-a",
+        "listing-a",
         buildQrBookPayload({ name: "Ada" }),
       );
-      const result = await verifyQrBookToken("event-b", token);
+      const result = await verifyQrBookToken("listing-b", token);
       expect(result).toBe(null);
     });
 
     test("rejects a token with tampered signature", async () => {
       const token = await signQrBookToken(
-        "event",
+        "listing",
         buildQrBookPayload({ value: 500 }),
       );
       const tampered = `${token.slice(0, -4)}XXXX`;
-      expect(await verifyQrBookToken("event", tampered)).toBe(null);
+      expect(await verifyQrBookToken("listing", tampered)).toBe(null);
     });
 
     test("rejects a token with tampered payload", async () => {
       const token = await signQrBookToken(
-        "event",
+        "listing",
         buildQrBookPayload({ value: 500 }),
       );
       const rest = token.slice(4);
@@ -120,46 +120,46 @@ describe("qr-token", () => {
       const hmac = rest.slice(dotIdx);
       // Replace the payload with a different one (same length to look similar)
       const otherPayload = buildQrBookPayload({ value: 999999 });
-      const otherToken = await signQrBookToken("event", otherPayload);
+      const otherToken = await signQrBookToken("listing", otherPayload);
       const otherEncoded = otherToken.slice(4).split(".")[0]!;
       const forged = `qr1.${otherEncoded}${hmac}`;
-      expect(await verifyQrBookToken("event", forged)).toBe(null);
+      expect(await verifyQrBookToken("listing", forged)).toBe(null);
     });
 
     test("rejects a token whose payload cannot be base64-decoded", async () => {
-      expect(await verifyQrBookToken("event", "qr1.!!!not-base64!!!.sig")).toBe(
-        null,
-      );
+      expect(
+        await verifyQrBookToken("listing", "qr1.!!!not-base64!!!.sig"),
+      ).toBe(null);
     });
 
     test("rejects a token without the qr1. prefix", async () => {
-      const token = await signQrBookToken("event", buildQrBookPayload({}));
+      const token = await signQrBookToken("listing", buildQrBookPayload({}));
       const stripped = token.slice(4);
-      expect(await verifyQrBookToken("event", stripped)).toBe(null);
+      expect(await verifyQrBookToken("listing", stripped)).toBe(null);
     });
 
     test("rejects an empty string", async () => {
-      expect(await verifyQrBookToken("event", "")).toBe(null);
+      expect(await verifyQrBookToken("listing", "")).toBe(null);
     });
 
     test("rejects a token missing the dot separator", async () => {
-      expect(await verifyQrBookToken("event", "qr1.nodot")).toBe(null);
+      expect(await verifyQrBookToken("listing", "qr1.nodot")).toBe(null);
     });
 
     test("rejects a token with empty signature", async () => {
-      expect(await verifyQrBookToken("event", "qr1.payload.")).toBe(null);
+      expect(await verifyQrBookToken("listing", "qr1.payload.")).toBe(null);
     });
 
     test("rejects an expired token", async () => {
       const time = new FakeTime(1_700_000_000_000);
       try {
         const token = await signQrBookToken(
-          "event",
+          "listing",
           buildQrBookPayload({ name: "Ada", value: 100 }),
         );
         // Advance past the max-age window
         time.tick((QR_TOKEN_MAX_AGE_S + 10) * 1000);
-        expect(await verifyQrBookToken("event", token)).toBe(null);
+        expect(await verifyQrBookToken("listing", token)).toBe(null);
       } finally {
         time.restore();
       }
@@ -169,12 +169,12 @@ describe("qr-token", () => {
       const time = new FakeTime(1_700_000_000_000);
       try {
         const token = await signQrBookToken(
-          "event",
+          "listing",
           buildQrBookPayload({ name: "Ada", value: 100 }),
         );
         // Advance by just under the max-age window
         time.tick((QR_TOKEN_MAX_AGE_S - 10) * 1000);
-        const result = await verifyQrBookToken("event", token);
+        const result = await verifyQrBookToken("listing", token);
         expect(result?.n).toBe("Ada");
       } finally {
         time.restore();
@@ -187,8 +187,8 @@ describe("qr-token", () => {
         maxAgeSeconds: QR_TOKEN_MAX_AGE_S * 100,
         name: "Ada",
       });
-      const token = await signQrBookToken("event", payload);
-      expect(await verifyQrBookToken("event", token)).toBe(null);
+      const token = await signQrBookToken("listing", payload);
+      expect(await verifyQrBookToken("listing", token)).toBe(null);
     });
 
     test("rejects a token whose signed payload fails shape validation", async () => {
@@ -199,10 +199,10 @@ describe("qr-token", () => {
       const bogus = base64ToBase64Url(
         toBase64(encoder.encode(JSON.stringify({ not: "a payload" }))),
       );
-      const message = `qr-book:event:${bogus}`;
+      const message = `qr-book:listing:${bogus}`;
       const hmac = base64ToBase64Url(await hmacHash(message));
       const token = `qr1.${bogus}.${hmac}`;
-      expect(await verifyQrBookToken("event", token)).toBe(null);
+      expect(await verifyQrBookToken("listing", token)).toBe(null);
     });
 
     test("rejects a token whose payload is signed but not valid base64", async () => {
@@ -210,9 +210,9 @@ describe("qr-token", () => {
       // whether it's valid base64, so we can get past the signature check
       // with a payload that fails decoding. Guards the catch branch.
       const encoded = "not-valid-base64-@@@";
-      const message = `qr-book:event:${encoded}`;
+      const message = `qr-book:listing:${encoded}`;
       const hmac = base64ToBase64Url(await hmacHash(message));
-      expect(await verifyQrBookToken("event", `qr1.${encoded}.${hmac}`)).toBe(
+      expect(await verifyQrBookToken("listing", `qr1.${encoded}.${hmac}`)).toBe(
         null,
       );
     });

@@ -5,7 +5,7 @@ import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
+import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
 
 describe("square-provider", () => {
   beforeEach(async () => {
@@ -230,18 +230,21 @@ describe("square-provider", () => {
 
   describe("createCheckoutSession", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
-      const event = testEvent({ fields: "email" as const, unit_price: 1000 });
+      const listing = testListing({
+        fields: "email" as const,
+        unit_price: 1000,
+      });
       const intent = {
         address: "",
         date: null,
         email: "john@example.com",
         items: [
           {
-            eventId: event.id,
-            name: event.name,
+            listingId: listing.id,
+            name: listing.name,
             quantity: 1,
-            slug: event.slug,
-            unitPrice: event.unit_price,
+            slug: listing.slug,
+            unitPrice: listing.unit_price,
           },
         ],
         name: "John",
@@ -268,18 +271,21 @@ describe("square-provider", () => {
     });
 
     test("returns null when createPaymentLink throws a generic error", async () => {
-      const event = testEvent({ fields: "email" as const, unit_price: 1000 });
+      const listing = testListing({
+        fields: "email" as const,
+        unit_price: 1000,
+      });
       const intent = {
         address: "",
         date: null,
         email: "john@example.com",
         items: [
           {
-            eventId: event.id,
-            name: event.name,
+            listingId: listing.id,
+            name: listing.name,
             quantity: 1,
-            slug: event.slug,
-            unitPrice: event.unit_price,
+            slug: listing.slug,
+            unitPrice: listing.unit_price,
           },
         ],
         name: "John",
@@ -310,7 +316,7 @@ describe("square-provider", () => {
         email: "bad",
         items: [
           {
-            eventId: 1,
+            listingId: 1,
             name: "Evt",
             quantity: 1,
             slug: "evt",
@@ -473,7 +479,7 @@ describe("square-provider", () => {
       );
     });
 
-    test("handles flat event object without payment wrapper", async () => {
+    test("handles flat listing object without payment wrapper", async () => {
       await withMocks(
         () => stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
         async (mockOrder) => {

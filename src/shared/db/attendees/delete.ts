@@ -1,11 +1,11 @@
 /**
- * Deletion and event-link unlinking for attendees.
+ * Deletion and listing-link unlinking for attendees.
  */
 
 import { executeBatch, getDb, queryOne } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 
-/** Delete an attendee and all dependent data (payments, answers, event links) */
+/** Delete an attendee and all dependent data (payments, answers, listing links) */
 const purgeAttendee = (attendeeId: number): Promise<void> =>
   executeBatch([
     {
@@ -18,44 +18,44 @@ const purgeAttendee = (attendeeId: number): Promise<void> =>
     },
     {
       args: [attendeeId],
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     },
     { args: [attendeeId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
 
 /**
- * Delete an attendee and all its event links, payments, and answers.
+ * Delete an attendee and all its listing links, payments, and answers.
  */
 export const deleteAttendee = async (attendeeId: number): Promise<void> => {
   await purgeAttendee(attendeeId);
-  invalidateEventsCache();
+  invalidateListingsCache();
 };
 
 /**
- * Remove a single event link for an attendee.
- * If the attendee has no remaining event links, deletes the attendee entirely.
+ * Remove a single listing link for an attendee.
+ * If the attendee has no remaining listing links, deletes the attendee entirely.
  * Returns whether the attendee was fully deleted.
  */
-export const unlinkAttendeeFromEvent = async (
+export const unlinkAttendeeFromListing = async (
   attendeeId: number,
-  eventId: number,
+  listingId: number,
 ): Promise<{ attendeeDeleted: boolean }> => {
   await getDb().execute({
-    args: [attendeeId, eventId],
-    sql: "DELETE FROM event_attendees WHERE attendee_id = ? AND event_id = ?",
+    args: [attendeeId, listingId],
+    sql: "DELETE FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
   });
 
   const remaining = await queryOne<{ count: number }>(
-    "SELECT COUNT(*) as count FROM event_attendees WHERE attendee_id = ?",
+    "SELECT COUNT(*) as count FROM listing_attendees WHERE attendee_id = ?",
     [attendeeId],
   );
 
   if (remaining && remaining.count === 0) {
     await purgeAttendee(attendeeId);
-    invalidateEventsCache();
+    invalidateListingsCache();
     return { attendeeDeleted: true };
   }
 
-  invalidateEventsCache();
+  invalidateListingsCache();
   return { attendeeDeleted: false };
 };

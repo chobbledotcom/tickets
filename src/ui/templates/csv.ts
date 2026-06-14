@@ -9,18 +9,18 @@ import { addDays } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import type { Attendee } from "#shared/types.ts";
 
-/** Attendee with associated event info for calendar CSV */
+/** Attendee with associated listing info for calendar CSV */
 export type CalendarAttendee = Attendee & {
   durationDays: number;
-  eventName: string;
-  eventDate: string;
-  eventLocation: string;
+  listingName: string;
+  listingDate: string;
+  listingLocation: string;
 };
 
-/** Event-level fields to include in CSV export */
-export type CsvEventInfo = {
-  eventDate: string;
-  eventLocation: string;
+/** Listing-level fields to include in CSV export */
+export type CsvListingInfo = {
+  listingDate: string;
+  listingLocation: string;
 };
 
 /**
@@ -57,17 +57,17 @@ const attendeeCols = (a: Attendee, domain: string): string[] => [
   escapeCsvValue(`https://${domain}/t/${a.ticket_token}`),
 ];
 
-/** Conditionally include Event Date and/or Event Location header columns */
-const eventInfoHeaders = (
+/** Conditionally include Listing Date and/or Listing Location header columns */
+const listingInfoHeaders = (
   showDate: boolean,
   showLocation: boolean,
 ): string[] => [
-  ...(showDate ? ["Event Date"] : []),
-  ...(showLocation ? ["Event Location"] : []),
+  ...(showDate ? ["Listing Date"] : []),
+  ...(showLocation ? ["Listing Location"] : []),
 ];
 
-/** Conditionally include Event Date and/or Event Location row values */
-const eventInfoCols = (
+/** Conditionally include Listing Date and/or Listing Location row values */
+const listingInfoCols = (
   showDate: boolean,
   showLocation: boolean,
   date: string,
@@ -121,20 +121,20 @@ const csvDateRange = (date: string | null, durationDays: number): string => {
 
 /**
  * Generate CSV content from attendees.
- * Always includes both Email and Phone columns regardless of event settings.
- * When includeDate is true, adds a Date column for daily events.
- * When eventInfo is provided, adds Event Date and Event Location columns.
+ * Always includes both Email and Phone columns regardless of listing settings.
+ * When includeDate is true, adds a Date column for daily listings.
+ * When listingInfo is provided, adds Listing Date and Listing Location columns.
  * When questionData is provided, adds columns for each custom question.
  */
 export const generateAttendeesCsv = (
   attendees: Attendee[],
   includeDate = false,
-  eventInfo?: CsvEventInfo,
+  listingInfo?: CsvListingInfo,
   questionData?: CsvQuestionData,
   durationDays = 1,
 ): string => {
-  const showEventDate = !!eventInfo?.eventDate;
-  const showEventLocation = !!eventInfo?.eventLocation;
+  const showListingDate = !!listingInfo?.listingDate;
+  const showListingLocation = !!listingInfo?.listingLocation;
   const questions = questionData?.questions ?? [];
   const attendeeAnswerMap = questionData?.attendeeAnswerMap ?? new Map();
 
@@ -149,7 +149,7 @@ export const generateAttendeesCsv = (
   const questionHeaders = questions.map((q) => escapeCsvValue(q.text));
   const headerParts = [
     ...(includeDate ? ["Date"] : []),
-    ...eventInfoHeaders(showEventDate, showEventLocation),
+    ...listingInfoHeaders(showListingDate, showListingLocation),
     "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
     ...questionHeaders,
   ];
@@ -159,11 +159,11 @@ export const generateAttendeesCsv = (
       ...(includeDate
         ? [escapeCsvValue(csvDateRange(a.date, durationDays))]
         : []),
-      ...eventInfoCols(
-        showEventDate,
-        showEventLocation,
-        eventInfo?.eventDate ?? "",
-        eventInfo?.eventLocation ?? "",
+      ...listingInfoCols(
+        showListingDate,
+        showListingLocation,
+        listingInfo?.listingDate ?? "",
+        listingInfo?.listingLocation ?? "",
       ),
       ...attendeeCols(a, domain),
       ...answerCols(a.id, questions, attendeeAnswerMap, answerTextMap),
@@ -173,26 +173,26 @@ export const generateAttendeesCsv = (
 };
 
 /**
- * Generate CSV content for calendar view (attendees across multiple daily events).
- * Conditionally includes Event Date and Event Location columns based on data.
+ * Generate CSV content for calendar view (attendees across multiple daily listings).
+ * Conditionally includes Listing Date and Listing Location columns based on data.
  */
 export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
-  const showEventDate = attendees.some((a) => a.eventDate !== "");
-  const showEventLocation = attendees.some((a) => a.eventLocation !== "");
+  const showListingDate = attendees.some((a) => a.listingDate !== "");
+  const showListingLocation = attendees.some((a) => a.listingLocation !== "");
   const headerParts = [
-    "Event",
-    ...eventInfoHeaders(showEventDate, showEventLocation),
+    "Listing",
+    ...listingInfoHeaders(showListingDate, showListingLocation),
     "Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
   ];
   return buildCsv(
     headerParts.join(","),
     (a: CalendarAttendee, domain) => [
-      escapeCsvValue(a.eventName),
-      ...eventInfoCols(
-        showEventDate,
-        showEventLocation,
-        a.eventDate,
-        a.eventLocation,
+      escapeCsvValue(a.listingName),
+      ...listingInfoCols(
+        showListingDate,
+        showListingLocation,
+        a.listingDate,
+        a.listingLocation,
       ),
       escapeCsvValue(csvDateRange(a.date, a.durationDays)),
       ...attendeeCols(a, domain),

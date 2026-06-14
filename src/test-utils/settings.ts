@@ -41,13 +41,13 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   await s.update.paymentProvider("stripe");
 };
 
-export const stubWebhookVerify = async (eventData: {
+export const stubWebhookVerify = async (listingData: {
   id: string;
   type: string;
   data: { object: Record<string, unknown> };
 }) => {
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
   return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({ event: eventData, valid: true as const }),
+    Promise.resolve({ listing: listingData, valid: true as const }),
   );
 };

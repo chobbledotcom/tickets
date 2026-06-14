@@ -1,7 +1,7 @@
 /**
  * SVG ticket generator
- * Composes a QR code SVG with event and booking data into a standalone SVG ticket
- * suitable for email attachment. Contains no PII — only event details and booking metadata.
+ * Composes a QR code SVG with listing and booking data into a standalone SVG ticket
+ * suitable for email attachment. Contains no PII — only listing details and booking metadata.
  */
 
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
@@ -13,9 +13,9 @@ import { escapeHtml } from "#templates/layout.tsx";
 /** Non-PII ticket data for SVG rendering (extends shared wallet fields with display-formatted values) */
 export type SvgTicketData = Pick<
   WalletPassData,
-  | "eventName"
-  | "eventDate"
-  | "eventLocation"
+  | "listingName"
+  | "listingDate"
+  | "listingLocation"
   | "attendeeDate"
   | "quantity"
   | "checkinUrl"
@@ -44,16 +44,16 @@ export const extractViewBox = (
   return { height: parts[3] ?? QR_SIZE, width: parts[2] ?? QR_SIZE };
 };
 
-/** Build info lines from ticket data (non-PII event and booking details) */
+/** Build info lines from ticket data (non-PII listing and booking details) */
 export const buildInfoLines = (data: SvgTicketData): string[] => {
   const lines: string[] = [];
 
-  if (data.eventDate) {
-    lines.push(formatDatetimeLabel(data.eventDate));
+  if (data.listingDate) {
+    lines.push(formatDatetimeLabel(data.listingDate));
   }
 
-  if (data.eventLocation) {
-    lines.push(data.eventLocation);
+  if (data.listingLocation) {
+    lines.push(data.listingLocation);
   }
 
   if (data.attendeeDate) {
@@ -71,7 +71,7 @@ export const buildInfoLines = (data: SvgTicketData): string[] => {
 };
 
 /**
- * Generate a standalone SVG ticket with QR code and event/booking details.
+ * Generate a standalone SVG ticket with QR code and listing/booking details.
  * Returns a complete SVG document string.
  */
 export const generateSvgTicket = async (
@@ -79,7 +79,7 @@ export const generateSvgTicket = async (
 ): Promise<string> => {
   const infoLines = buildInfoLines(data);
   const infoHeight = infoLines.length * LINE_HEIGHT;
-  const escapedName = escapeHtml(data.eventName);
+  const escapedName = escapeHtml(data.listingName);
   const linesSvg = infoLines
     .map(
       (line, i) =>

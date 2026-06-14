@@ -24,8 +24,8 @@ const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
 ): Promise<TicketCard> => {
-  const attachmentUrl = entry.event.attachment_url
-    ? await signAttachmentUrl(entry.event.id, entry.attendee.id)
+  const attachmentUrl = entry.listing.attachment_url
+    ? await signAttachmentUrl(entry.listing.id, entry.attendee.id)
     : undefined;
   return {
     attachmentUrl,
@@ -43,7 +43,7 @@ const handleTicketView = async (
   if (!result.ok) return result.response;
 
   const entries = await resolveEntries(result.attendees);
-  // With multi-event, one token maps to multiple entries.
+  // With multi-listing, one token maps to multiple entries.
   // Use the first URL token for all cards (it's the same attendee).
   const token = tokens[0]!;
   const cards = await Promise.all(

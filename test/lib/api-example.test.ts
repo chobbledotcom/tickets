@@ -1,56 +1,56 @@
 /**
  * Tests that the API example in the documentation matches the real
- * toPublicEvent() output. If the shape changes, this test fails and
+ * toPublicListing() output. If the shape changes, this test fails and
  * forces an update to src/shared/api-example.ts (and thus the admin guide).
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toPublicEvent } from "#routes/api/index.ts";
+import { toPublicListing } from "#routes/api/index.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,
   API_BOOK_PAID_EXAMPLE_JSON,
   API_BOOK_REQUEST_JSON,
-  API_EXAMPLE_EVENT,
-  API_EXAMPLE_PUBLIC_EVENT,
+  API_EXAMPLE_LISTING,
+  API_EXAMPLE_PUBLIC_LISTING,
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
 
 describe("API example", () => {
-  test("toPublicEvent output matches the documented example", () => {
-    const result = toPublicEvent(
-      API_EXAMPLE_EVENT,
+  test("toPublicListing output matches the documented example", () => {
+    const result = toPublicListing(
+      API_EXAMPLE_LISTING,
       false,
       undefined,
       undefined,
     );
-    expect(result).toEqual(API_EXAMPLE_PUBLIC_EVENT);
+    expect(result).toEqual(API_EXAMPLE_PUBLIC_LISTING);
   });
 
-  test("example has all PublicEvent keys", () => {
-    const result = toPublicEvent(
-      API_EXAMPLE_EVENT,
+  test("example has all PublicListing keys", () => {
+    const result = toPublicListing(
+      API_EXAMPLE_LISTING,
       false,
       undefined,
       undefined,
     );
     const resultKeys = Object.keys(result).sort();
-    const exampleKeys = Object.keys(API_EXAMPLE_PUBLIC_EVENT).sort();
+    const exampleKeys = Object.keys(API_EXAMPLE_PUBLIC_LISTING).sort();
     expect(exampleKeys).toEqual(resultKeys);
   });
 
-  test("list example JSON is valid and contains the event", () => {
+  test("list example JSON is valid and contains the listing", () => {
     const parsed = JSON.parse(API_LIST_EXAMPLE_JSON);
-    expect(parsed.events).toHaveLength(1);
-    expect(parsed.events[0].name).toBe(API_EXAMPLE_EVENT.name);
+    expect(parsed.listings).toHaveLength(1);
+    expect(parsed.listings[0].name).toBe(API_EXAMPLE_LISTING.name);
   });
 
-  test("single event example JSON includes availableDates", () => {
+  test("single listing example JSON includes availableDates", () => {
     const parsed = JSON.parse(API_SINGLE_EXAMPLE_JSON);
-    expect(parsed.event.name).toBe(API_EXAMPLE_EVENT.name);
-    expect(Array.isArray(parsed.event.availableDates)).toBe(true);
+    expect(parsed.listing.name).toBe(API_EXAMPLE_LISTING.name);
+    expect(Array.isArray(parsed.listing.availableDates)).toBe(true);
   });
 
   test("availability example JSON is valid", () => {

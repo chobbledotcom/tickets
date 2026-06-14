@@ -27,7 +27,7 @@ export const ResetDatabaseForm = ({
     <article>
       <aside>
         <p>
-          <strong>Warning:</strong> This will permanently delete all events,
+          <strong>Warning:</strong> This will permanently delete all listings,
           attendees, settings, and other data. This action cannot be undone.
         </p>
       </aside>

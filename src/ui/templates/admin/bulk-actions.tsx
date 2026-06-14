@@ -3,7 +3,7 @@
  *
  * Renders the bulk-actions landing page (a list of available operations)
  * and each per-action form page. The duplicate-group form embeds a JSON
- * payload of the source group's events plus the timezone; the client-side
+ * payload of the source group's listings plus the timezone; the client-side
  * admin bundle uses the shared `#shared/bulk-replace.ts` helpers to recompute
  * the preview as the user types.
  */
@@ -12,12 +12,12 @@ import {
   buildDuplicatePreview,
   type DuplicatePreviewRow,
   formatIsoForPreview,
-  type PreviewableEvent,
+  type PreviewableListing,
 } from "#shared/bulk-replace.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, EventWithCount, Group } from "#shared/types.ts";
+import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -37,11 +37,11 @@ const safeJson = (value: unknown): string =>
 /** Admin bulk-actions landing page: lists available operations for a group. */
 export const adminBulkActionsPage = (
   group: Group,
-  events: EventWithCount[],
+  listings: ListingWithCount[],
   session: AdminSession,
 ): string => {
-  const hasActive = events.some((e) => e.active);
-  const allDeactivated = events.length > 0 && !hasActive;
+  const hasActive = listings.some((e) => e.active);
+  const allDeactivated = listings.length > 0 && !hasActive;
   return String(
     <Layout title={`Bulk Actions: ${group.name}`}>
       <AdminNav active="/admin/groups" session={session} />
@@ -50,8 +50,8 @@ export const adminBulkActionsPage = (
       </p>
       <h1>Bulk Actions</h1>
       <p>
-        Apply an operation across all {events.length} event
-        {events.length === 1 ? "" : "s"} in <strong>{group.name}</strong>.
+        Apply an operation across all {listings.length} listing
+        {listings.length === 1 ? "" : "s"} in <strong>{group.name}</strong>.
       </p>
 
       <ul>
@@ -59,8 +59,8 @@ export const adminBulkActionsPage = (
           <a href={`/admin/groups/${group.id}/bulk-actions/duplicate`}>
             Duplicate Group
           </a>
-          {" — "}Create a new group with a copy of each event, optionally
-          replacing a substring in event names and shifting event dates by a
+          {" — "}Create a new group with a copy of each listing, optionally
+          replacing a substring in listing names and shifting listing dates by a
           fixed number of days.
         </li>
         {hasActive && (
@@ -68,7 +68,7 @@ export const adminBulkActionsPage = (
             <a href={`/admin/groups/${group.id}/bulk-actions/deactivate`}>
               Deactivate Group
             </a>
-            {" — "}Deactivate every active event in this group.
+            {" — "}Deactivate every active listing in this group.
           </li>
         )}
         {allDeactivated && (
@@ -76,7 +76,7 @@ export const adminBulkActionsPage = (
             <a href={`/admin/groups/${group.id}/bulk-actions/reactivate`}>
               Reactivate Group
             </a>
-            {" — "}Reactivate every event in this group.
+            {" — "}Reactivate every listing in this group.
           </li>
         )}
       </ul>
@@ -84,7 +84,7 @@ export const adminBulkActionsPage = (
   );
 };
 
-/** Preview row component: one table row per source event. */
+/** Preview row component: one table row per source listing. */
 const PreviewRow = ({
   row,
   tz,
@@ -92,7 +92,7 @@ const PreviewRow = ({
   row: DuplicatePreviewRow;
   tz: string;
 }): JSX.Element => (
-  <tr data-event-id={String(row.id)}>
+  <tr data-listing-id={String(row.id)}>
     <td data-preview-original-name>{row.originalName}</td>
     <td data-preview-new-name>{row.newName}</td>
     <td data-preview-original-date>
@@ -108,7 +108,7 @@ const PreviewRow = ({
  */
 export const adminDuplicateGroupPage = (
   group: Group,
-  events: EventWithCount[],
+  listings: ListingWithCount[],
   session: AdminSession,
   error?: string,
   values: DuplicateGroupFormValues = {
@@ -121,13 +121,13 @@ export const adminDuplicateGroupPage = (
 ): string => {
   const tz = settings.timezone;
   const initialRows = buildDuplicatePreview(
-    events.map(
-      (e): PreviewableEvent => ({ date: e.date, id: e.id, name: e.name }),
+    listings.map(
+      (e): PreviewableListing => ({ date: e.date, id: e.id, name: e.name }),
     ),
     values,
   );
-  const eventsJson = safeJson(
-    events.map((e) => ({ date: e.date, id: e.id, name: e.name })),
+  const listingsJson = safeJson(
+    listings.map((e) => ({ date: e.date, id: e.id, name: e.name })),
   );
 
   return String(
@@ -140,8 +140,8 @@ export const adminDuplicateGroupPage = (
       </p>
       <h1>Duplicate Group</h1>
       <p>
-        Creating a new group based on <strong>{group.name}</strong>. Each event
-        in the group will be duplicated into the new group with the same
+        Creating a new group based on <strong>{group.name}</strong>. Each
+        listing in the group will be duplicated into the new group with the same
         settings. Use the fields below to apply a name replacement and/or a date
         shift across all duplicates.
       </p>
@@ -165,7 +165,7 @@ export const adminDuplicateGroupPage = (
           />
         </label>
         <label>
-          Find in event names
+          Find in listing names
           <input
             data-duplicate-field="name_find"
             name="name_find"
@@ -185,9 +185,9 @@ export const adminDuplicateGroupPage = (
         </label>
         <p>
           <small>
-            Enter a reference date that appears in the current events and the
-            date you want it to become. All event dates (and closing times) will
-            be shifted by the same number of days.
+            Enter a reference date that appears in the current listings and the
+            date you want it to become. All listing dates (and closing times)
+            will be shifted by the same number of days.
           </small>
         </p>
         <label>
@@ -210,9 +210,9 @@ export const adminDuplicateGroupPage = (
         </label>
 
         <h2>Preview</h2>
-        {events.length === 0 ? (
+        {listings.length === 0 ? (
           <p>
-            <em>This group has no events — the new group will be empty.</em>
+            <em>This group has no listings — the new group will be empty.</em>
           </p>
         ) : (
           <div class="table-scroll">
@@ -234,8 +234,8 @@ export const adminDuplicateGroupPage = (
           </div>
         )}
 
-        <script id="duplicate-preview-events" type="application/json">
-          <Raw html={eventsJson} />
+        <script id="duplicate-preview-listings" type="application/json">
+          <Raw html={listingsJson} />
         </script>
 
         <button type="submit">Duplicate Group</button>
@@ -247,11 +247,11 @@ export const adminDuplicateGroupPage = (
 /** Admin deactivate-group confirmation page */
 export const adminDeactivateGroupPage = (
   group: Group,
-  events: EventWithCount[],
+  listings: ListingWithCount[],
   session: AdminSession,
   error?: string,
 ): string => {
-  const activeCount = events.filter((e) => e.active).length;
+  const activeCount = listings.filter((e) => e.active).length;
   return String(
     <Layout title={`Deactivate Group: ${group.name}`}>
       <AdminNav active="/admin/groups" session={session} />
@@ -270,8 +270,8 @@ export const adminDeactivateGroupPage = (
       >
         <p>
           <strong>Warning:</strong> Deactivating this group will deactivate{" "}
-          {activeCount} active event{activeCount === 1 ? "" : "s"} in{" "}
-          <strong>{group.name}</strong>. For each deactivated event:
+          {activeCount} active listing{activeCount === 1 ? "" : "s"} in{" "}
+          <strong>{group.name}</strong>. For each deactivated listing:
         </p>
         <ul>
           <li>The public ticket page will return a 404 error</li>
@@ -291,11 +291,11 @@ export const adminDeactivateGroupPage = (
 /** Admin reactivate-group confirmation page */
 export const adminReactivateGroupPage = (
   group: Group,
-  events: EventWithCount[],
+  listings: ListingWithCount[],
   session: AdminSession,
   error?: string,
 ): string => {
-  const inactiveCount = events.filter((e) => !e.active).length;
+  const inactiveCount = listings.filter((e) => !e.active).length;
   return String(
     <Layout title={`Reactivate Group: ${group.name}`}>
       <AdminNav active="/admin/groups" session={session} />
@@ -314,7 +314,7 @@ export const adminReactivateGroupPage = (
         name={group.name}
       >
         <p>
-          Reactivating this group will reactivate {inactiveCount} event
+          Reactivating this group will reactivate {inactiveCount} listing
           {inactiveCount === 1 ? "" : "s"} in <strong>{group.name}</strong>.
         </p>
         <p>

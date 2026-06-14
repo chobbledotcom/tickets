@@ -14,7 +14,7 @@ describeWithEnv("test-utils/assertions", { db: true }, () => {
     method: "POST",
   });
 
-  testRequiresAuth("/admin/event", {
+  testRequiresAuth("/admin/listing", {
     body: { max_attendees: "10", name: "test" },
     multipart: true,
   });

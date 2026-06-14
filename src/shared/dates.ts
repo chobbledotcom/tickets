@@ -1,5 +1,5 @@
 /**
- * Date computation for daily events
+ * Date computation for daily listings
  */
 
 import { fromAbsolute } from "@internationalized/date";
@@ -12,8 +12,8 @@ import {
   todayInTz,
 } from "#shared/timezone.ts";
 import {
-  type Event,
   type Holiday,
+  type Listing,
   normalizeDurationDays,
 } from "#shared/types.ts";
 
@@ -121,16 +121,18 @@ const dateRange = (start: string, end: string): string[] => {
   return dates;
 };
 
-/** Compute bookable date range for a daily event */
+/** Compute bookable date range for a daily listing */
 const bookableRange = (
-  event: Event,
+  listing: Listing,
 ): { bookableDays: string[]; start: string; end: string } => {
   const todayStr = todayInTz(settings.timezone);
-  const start = addDays(todayStr, event.minimum_days_before);
+  const start = addDays(todayStr, listing.minimum_days_before);
   const maxDays =
-    event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
+    listing.maximum_days_after === 0
+      ? MAX_FUTURE_DAYS
+      : listing.maximum_days_after;
   const end = addDays(todayStr, maxDays);
-  return { bookableDays: event.bookable_days, end, start };
+  return { bookableDays: listing.bookable_days, end, start };
 };
 
 /** Check if a date is bookable (matches allowed day and not a holiday) */
@@ -162,35 +164,35 @@ const isRangeBookable = (
 };
 
 /**
- * Compute available booking dates for a daily event.
+ * Compute available booking dates for a daily listing.
  * Filters by bookable days of the week and excludes holidays.
- * For events with `duration_days > 1`, excludes start dates whose full range
+ * For listings with `duration_days > 1`, excludes start dates whose full range
  * would hit a non-bookable day or extend past the booking window.
  * Returns sorted array of YYYY-MM-DD strings.
  */
 export const getAvailableDates = (
-  event: Event,
+  listing: Listing,
   holidays: Holiday[],
 ): string[] => {
-  const range = bookableRange(event);
-  const duration = normalizeDurationDays(event.duration_days);
+  const range = bookableRange(listing);
+  const duration = normalizeDurationDays(listing.duration_days);
   return filter((d: string) =>
     isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
   )(dateRange(range.start, range.end));
 };
 
 /**
- * Get the next available booking date for a daily event.
+ * Get the next available booking date for a daily listing.
  * More efficient than getAvailableDates()[0] — stops at first match.
  * Returns null if no bookable dates are available.
  */
 export const getNextBookableDate = (
-  event: Event,
+  listing: Listing,
   holidays: Holiday[],
 ): string | null => {
-  const range = bookableRange(event);
+  const range = bookableRange(listing);
   if (range.bookableDays.length === 0) return null;
-  const duration = normalizeDurationDays(event.duration_days);
+  const duration = normalizeDurationDays(listing.duration_days);
 
   let current = range.start;
   while (current <= range.end) {
@@ -351,26 +353,26 @@ export const formatDatetimeShort = (iso: string): string =>
   formatDatetimeShortInTz(iso, settings.timezone);
 
 /**
- * Compute how many days ago an event started, relative to today in the configured timezone.
- * Returns null if the event date is today or in the future, or if the date is empty/invalid.
- * For past events, returns a positive integer (1 = yesterday).
+ * Compute how many days ago an listing started, relative to today in the configured timezone.
+ * Returns null if the listing date is today or in the future, or if the date is empty/invalid.
+ * For past listings, returns a positive integer (1 = yesterday).
  */
 export const daysAgo = (utcIso: string): number | null => {
   if (!utcIso) return null;
-  const calDate = eventDateToCalendarDate(utcIso)!;
+  const calDate = listingDateToCalendarDate(utcIso)!;
   const todayStr = todayInTz(settings.timezone);
   if (calDate >= todayStr) return null;
-  const eventMs = new Date(`${calDate}T00:00:00Z`).getTime();
+  const listingMs = new Date(`${calDate}T00:00:00Z`).getTime();
   const todayMs = new Date(`${todayStr}T00:00:00Z`).getTime();
-  return Math.round((todayMs - eventMs) / (1000 * 60 * 60 * 24));
+  return Math.round((todayMs - listingMs) / (1000 * 60 * 60 * 24));
 };
 
 /**
  * Convert a UTC ISO datetime to a YYYY-MM-DD calendar date in the given timezone.
  * Returns null if the input is empty or invalid.
- * Used by the calendar view to map standard event dates to calendar days.
+ * Used by the calendar view to map standard listing dates to calendar days.
  */
-export const eventDateToCalendarDate = (utcIso: string): string | null => {
+export const listingDateToCalendarDate = (utcIso: string): string | null => {
   const tz = settings.timezone;
   if (!utcIso) return null;
   try {

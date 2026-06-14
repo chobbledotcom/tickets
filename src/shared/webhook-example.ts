@@ -12,7 +12,7 @@
 import type { WebhookPayload } from "#shared/webhook.ts";
 
 /** Example inputs used by both the fixture and the test */
-export const EXAMPLE_EVENT = {
+export const EXAMPLE_LISTING = {
   name: "Summer Workshop",
   slug: "summer-workshop",
   unit_price: 1500,
@@ -41,8 +41,8 @@ export const WEBHOOK_EXAMPLE_PAYLOAD: WebhookPayload = {
   business_email: EXAMPLE_BUSINESS_EMAIL,
   currency: EXAMPLE_CURRENCY,
   email: EXAMPLE_ATTENDEE.email,
-  event_type: "registration.completed",
   name: EXAMPLE_ATTENDEE.name,
+  notification_type: "registration.completed",
   payment_id: EXAMPLE_ATTENDEE.payment_id,
   phone: EXAMPLE_ATTENDEE.phone,
   price_paid: Number.parseInt(EXAMPLE_ATTENDEE.price_paid, 10),
@@ -51,11 +51,11 @@ export const WEBHOOK_EXAMPLE_PAYLOAD: WebhookPayload = {
   tickets: [
     {
       date: EXAMPLE_ATTENDEE.date,
-      event_name: EXAMPLE_EVENT.name,
-      event_slug: EXAMPLE_EVENT.slug,
+      listing_name: EXAMPLE_LISTING.name,
+      listing_slug: EXAMPLE_LISTING.slug,
       quantity: EXAMPLE_ATTENDEE.quantity,
       ticket_token: EXAMPLE_ATTENDEE.ticket_token,
-      unit_price: EXAMPLE_EVENT.unit_price,
+      unit_price: EXAMPLE_LISTING.unit_price,
     },
   ],
   timestamp: "2025-08-20T14:30:00.000Z",

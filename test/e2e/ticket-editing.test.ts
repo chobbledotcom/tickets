@@ -1,20 +1,20 @@
 /**
  * End-to-end ticket editing flow test.
  *
- * Simulates an admin managing attendees across multiple events using TestBrowser,
+ * Simulates an admin managing attendees across multiple listings using TestBrowser,
  * which navigates purely by following links (by text) and submitting forms
  * (by button text) — just like a human would.
  *
- * Flow: setup → login → create two events → add two attendees to event 1 →
- *       move each attendee to event 2 via admin tools (add link + remove link) →
- *       verify event 1 is empty and event 2 has both attendees
+ * Flow: setup → login → create two listings → add two attendees to listing 1 →
+ *       move each attendee to listing 2 via admin tools (add link + remove link) →
+ *       verify listing 1 is empty and listing 2 has both attendees
  */
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateEventsCache } from "#shared/db/events.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
@@ -32,21 +32,21 @@ const invalidateAllCaches = (): void => {
   settings.invalidateCache();
   settings.setup.clearCache();
   invalidateUsersCache();
-  invalidateEventsCache();
+  invalidateListingsCache();
   invalidateGroupsCache();
   invalidateHolidaysCache();
   resetSessionCache();
 };
 
 /**
- * Extract the event ID for a named event from a select option in the current page HTML.
- * Used to find the event_id value needed to submit the "Add to Event" form.
+ * Extract the listing ID for a named listing from a select option in the current page HTML.
+ * Used to find the listing_id value needed to submit the "Add to Listing" form.
  */
-const extractEventIdFromSelect = (
+const extractListingIdFromSelect = (
   html: string,
-  eventName: string,
+  listingName: string,
 ): string | null => {
-  const escaped = eventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escaped = listingName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = html.match(
     new RegExp(
       `<option[^>]*\\bvalue="(\\d+)"[^>]*>\\s*${escaped}\\s*<\\/option>`,
@@ -56,8 +56,8 @@ const extractEventIdFromSelect = (
 };
 
 /**
- * Navigate to the attendee edit page from the current event detail page.
- * The event page has both an "Edit event" link and "Edit attendee" links.
+ * Navigate to the attendee edit page from the current listing detail page.
+ * The listing page has both an "Edit listing" link and "Edit attendee" links.
  * This finds the first /admin/attendees/ link to reach the attendee edit page.
  */
 const visitFirstAttendeeEditPage = async (
@@ -83,7 +83,7 @@ describe("e2e: ticket editing flow", () => {
   });
 
   test("edit attendee contact info preserves bookings", async () => {
-    // 1. Setup: create admin, log in, create event with two attendees
+    // 1. Setup: create admin, log in, create listing with two attendees
     await browser.visit("/setup/");
     await browser.submitForm(
       {
@@ -106,11 +106,11 @@ describe("e2e: ticket editing flow", () => {
       await browser.clickLink("Back to dashboard");
     }
 
-    // Create event
-    await browser.clickLink("Add Event");
+    // Create listing
+    await browser.clickLink("Add Listing");
     await browser.submitForm(
       { max_attendees: "50", max_quantity: "5", name: "Art Class" },
-      "Create Event",
+      "Create Listing",
     );
 
     // Add Alice with quantity 2
@@ -128,7 +128,7 @@ describe("e2e: ticket editing flow", () => {
     );
     expect(browser.containsText("Added Bob Jones")).toBe(true);
 
-    // 2. Check Alice in — the "Check in" button on the event page
+    // 2. Check Alice in — the "Check in" button on the listing page
     //    Alice appears first alphabetically, so her Check in button comes first.
     await browser.submitForm({}, "Check in");
     expect(browser.containsText("Checked Alice Smith in")).toBe(true);
@@ -138,7 +138,7 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Alice Smith")).toBe(true);
 
     // Verify her current booking details on the edit page:
-    // The Event Registrations table shows quantity and checked-in badge
+    // The Listing Registrations table shows quantity and checked-in badge
     expect(browser.currentHtml).toContain("Checked in");
 
     await browser.submitForm(
@@ -151,10 +151,10 @@ describe("e2e: ticket editing flow", () => {
       },
       "Save Contact Info",
     );
-    // Redirects to event page with flash message
+    // Redirects to listing page with flash message
     expect(browser.containsText("Updated Alice Johnson")).toBe(true);
 
-    // 4. Verify edited details appear on the event page
+    // 4. Verify edited details appear on the listing page
     expect(browser.containsText("Alice Johnson")).toBe(true);
     expect(browser.containsText("Alice Smith")).toBe(false);
 
@@ -171,7 +171,7 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.currentHtml).toContain('value="2"');
     expect(browser.currentHtml).toContain("Checked in");
 
-    // 6. Go back to the event page and navigate to Bob's edit page.
+    // 6. Go back to the listing page and navigate to Bob's edit page.
     //    Alice (now Alice Johnson) appears first alphabetically, Bob second.
     await browser.visit("/admin/");
     await browser.clickLink("Art Class");
@@ -231,7 +231,7 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.currentHtml).toContain('value="1"');
     expect(browser.currentHtml).not.toContain("Checked in");
 
-    // 9. Final verification: go back to event page and confirm both
+    // 9. Final verification: go back to listing page and confirm both
     //    attendees have their updated names and original booking properties
     await browser.visit("/admin/");
     await browser.clickLink("Art Class");
@@ -241,7 +241,7 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Bob Jones")).toBe(false);
   });
 
-  test("create events → add attendees → move attendees between events", async () => {
+  test("create listings → add attendees → move attendees between listings", async () => {
     // 1. Visit setup directly — initial DB creation is only allowed there.
     await browser.visit("/setup/");
     expect(browser.currentHtml).toContain("Initial Setup");
@@ -271,21 +271,21 @@ describe("e2e: ticket editing flow", () => {
     if (browser.containsText("Migration complete")) {
       await browser.clickLink("Back to dashboard");
     }
-    expect(browser.containsText("Add Event")).toBe(true);
+    expect(browser.containsText("Add Listing")).toBe(true);
 
-    // 4. Create Event 1: "Morning Workshop"
-    await browser.clickLink("Add Event");
+    // 4. Create Listing 1: "Morning Workshop"
+    await browser.clickLink("Add Listing");
     await browser.submitForm(
       { max_attendees: "50", max_quantity: "5", name: "Morning Workshop" },
-      "Create Event",
+      "Create Listing",
     );
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
-    // 5. Create Event 2: "Evening Seminar"
-    await browser.clickLink("Add Event");
+    // 5. Create Listing 2: "Evening Seminar"
+    await browser.clickLink("Add Listing");
     await browser.submitForm(
       { max_attendees: "50", max_quantity: "5", name: "Evening Seminar" },
-      "Create Event",
+      "Create Listing",
     );
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
@@ -303,38 +303,38 @@ describe("e2e: ticket editing flow", () => {
 
     // 7. Navigate to Alice's edit page.
     //    She is the only attendee in Morning Workshop, so the first attendee edit link is hers.
-    //    (The event page also has its own "Edit" link which comes first in the DOM — we
+    //    (The listing page also has its own "Edit" link which comes first in the DOM — we
     //    find the /admin/attendees/ link instead to avoid ambiguity.)
     await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Alice Smith")).toBe(true);
 
-    // The Event Registrations table shows Morning Workshop as a registered event link.
-    // (Note: the "Add to Event" select also lists event names, so we check for the
-    //  admin/event link in the registration table to confirm the actual registration.)
-    expect(browser.currentHtml).toContain("/admin/event/");
+    // The Listing Registrations table shows Morning Workshop as a registered listing link.
+    // (Note: the "Add to Listing" select also lists listing names, so we check for the
+    //  admin/listing link in the registration table to confirm the actual registration.)
+    expect(browser.currentHtml).toContain("/admin/listing/");
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
-    // 8. Extract the Evening Seminar event ID from the "Add to Event" select options
-    const eveningSeminarId = extractEventIdFromSelect(
+    // 8. Extract the Evening Seminar listing ID from the "Add to Listing" select options
+    const eveningSeminarId = extractListingIdFromSelect(
       browser.currentHtml,
       "Evening Seminar",
     );
     expect(eveningSeminarId).toBeTruthy();
 
-    // 9. Add Alice to Evening Seminar via the "Add to Event" form
+    // 9. Add Alice to Evening Seminar via the "Add to Listing" form
     await browser.submitForm(
-      { event_id: eveningSeminarId!, quantity: "1" },
-      "Add to Event",
+      { listing_id: eveningSeminarId!, quantity: "1" },
+      "Add to Listing",
     );
     // Flash confirms Alice was added to Evening Seminar
     expect(browser.containsText("Added to Evening Seminar")).toBe(true);
-    // Both events now appear in the Event Registrations table as links
+    // Both listings now appear in the Listing Registrations table as links
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
     // 10. Remove Alice from Morning Workshop.
-    //     Event links are ordered by event_id ascending, so Morning Workshop
-    //     (lower ID) appears first in the Event Registrations table.
+    //     Listing links are ordered by listing_id ascending, so Morning Workshop
+    //     (lower ID) appears first in the Listing Registrations table.
     //     The first "Remove" form targets Morning Workshop.
     await browser.submitForm({}, "Remove");
     expect(
@@ -362,10 +362,10 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Bob Jones")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
-    // 13. Add Bob to Evening Seminar using the same event ID extracted earlier
+    // 13. Add Bob to Evening Seminar using the same listing ID extracted earlier
     await browser.submitForm(
-      { event_id: eveningSeminarId!, quantity: "1" },
-      "Add to Event",
+      { listing_id: eveningSeminarId!, quantity: "1" },
+      "Add to Listing",
     );
     expect(browser.containsText("Added to Evening Seminar")).toBe(true);
     expect(browser.containsText("Morning Workshop")).toBe(true);

@@ -138,7 +138,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
         "/admin/settings/email-templates/confirmation",
         {
           html: "<b>{{ attendee.name }}</b>",
-          subject: "Custom: {{ event_names }}",
+          subject: "Custom: {{ listing_names }}",
           text: "Hi {{ attendee.name }}",
         },
       );
@@ -146,7 +146,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
       expect(response.status).toBe(302);
       await expectTemplatesMatch("confirmation", {
         html: "<b>{{ attendee.name }}</b>",
-        subject: "Custom: {{ event_names }}",
+        subject: "Custom: {{ listing_names }}",
         text: "Hi {{ attendee.name }}",
       });
     });
@@ -154,7 +154,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     test("stores templates encrypted at rest", async () => {
       await postTemplateForm("/admin/settings/email-templates/confirmation", {
         html: "<b>{{ attendee.name }}</b>",
-        subject: "Custom: {{ event_names }}",
+        subject: "Custom: {{ listing_names }}",
         text: "Hi {{ attendee.name }}",
       });
       await settings.loadAll();
@@ -165,7 +165,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
       );
       expect(rawSubject).not.toBeNull();
       expect(rawSubject!.startsWith("enc:1:")).toBe(true);
-      expect(rawSubject).not.toContain("event_names");
+      expect(rawSubject).not.toContain("listing_names");
 
       const rawHtml = settings.getCachedRaw(
         CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
@@ -180,7 +180,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
       // But getEmailTemplateSet should return decrypted values
       await expectTemplatesMatch("confirmation", {
         html: "<b>{{ attendee.name }}</b>",
-        subject: "Custom: {{ event_names }}",
+        subject: "Custom: {{ listing_names }}",
         text: "Hi {{ attendee.name }}",
       });
     });

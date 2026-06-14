@@ -16,12 +16,12 @@ import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
   decryptAttendees,
-  type EventAttendeeRow,
   getAttendeesByTokens,
+  type ListingAttendeeRow,
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
-import { getQuestionsWithEventIds } from "#shared/db/questions.ts";
+import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   applyAttendeeMerge,
@@ -50,7 +50,7 @@ const loadMergeTarget = async (
   const raw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
-     LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE a.id = ?`,
     [attendeeId],
   );
@@ -69,7 +69,7 @@ const loadMergeSource = async (
   address: string;
   special_instructions: string;
   ticket_token: string;
-  bookings: EventAttendeeRow[];
+  bookings: ListingAttendeeRow[];
 } | null> => {
   const pk = await requirePrivateKey(session);
   const results = await getAttendeesByTokens([token]);
@@ -102,24 +102,24 @@ const mergeAttendeePage =
     );
   };
 
-/** Load all event_attendees rows for an attendee */
+/** Load all listing_attendees rows for an attendee */
 const loadAttendeeBookings = (
   attendeeId: number,
-): Promise<EventAttendeeRow[]> =>
-  queryAll<EventAttendeeRow>(
-    `SELECT event_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM event_attendees WHERE attendee_id = ? ORDER BY start_at, event_id`,
+): Promise<ListingAttendeeRow[]> =>
+  queryAll<ListingAttendeeRow>(
+    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+     FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
     [attendeeId],
   );
 
-/** Collect unique event IDs from two sets of bookings */
-const collectEventIds = (
-  targetBookings: EventAttendeeRow[],
-  sourceBookings: EventAttendeeRow[],
+/** Collect unique listing IDs from two sets of bookings */
+const collectListingIds = (
+  targetBookings: ListingAttendeeRow[],
+  sourceBookings: ListingAttendeeRow[],
 ): number[] => {
   const ids = new Set<number>();
-  for (const b of targetBookings) ids.add(b.event_id);
-  for (const b of sourceBookings) ids.add(b.event_id);
+  for (const b of targetBookings) ids.add(b.listing_id);
+  for (const b of sourceBookings) ids.add(b.listing_id);
   return [...ids];
 };
 
@@ -150,8 +150,8 @@ const buildMergeDiffFor = async (
   attendeeId: number,
 ): Promise<AttendeeMergeDiff> => {
   const targetBookings = await loadAttendeeBookings(attendeeId);
-  const allEventIds = collectEventIds(targetBookings, source.bookings);
-  const { questions } = await getQuestionsWithEventIds(allEventIds);
+  const allListingIds = collectListingIds(targetBookings, source.bookings);
+  const { questions } = await getQuestionsWithListingIds(allListingIds);
 
   return buildAttendeeMergeDiff(
     {
@@ -311,7 +311,7 @@ const applyMergeDecisions = async (
   const { summary } = result;
   await logActivity(
     buildMergeLogParts(summary, source.name, mergedPiiName).join(". "),
-    target.event_id,
+    target.listing_id,
   );
 
   return redirect(
@@ -371,7 +371,7 @@ const parseBookingDecisions = (
   const bookings: Record<string, MergeBookingChoice> = {};
   for (const item of diff.bookingItems) {
     if (item.conflictClass !== "moveable") {
-      const key = bookingKey(item.eventId, item.startAt);
+      const key = bookingKey(item.listingId, item.startAt);
       const val = form.getString(`booking_${key}`);
       bookings[key] = toBookingChoice(val);
     }

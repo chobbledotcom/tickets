@@ -2,10 +2,10 @@
  * Tests for the QR-book scan handler and its price-override plumbing.
  *
  * Covers three behaviours:
- *  - Error paths (missing/invalid/expired token, unknown event)
- *  - Pre-fill rendering when the event still needs user input
+ *  - Error paths (missing/invalid/expired token, unknown listing)
+ *  - Pre-fill rendering when the listing still needs user input
  *  - Skip-to-Stripe when all required data is carried in the signed token
- *  - Price override on POST for fixed-price events
+ *  - Price override on POST for fixed-price listings
  */
 
 import { expect } from "@std/expect";
@@ -15,7 +15,7 @@ import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import {
@@ -27,8 +27,8 @@ import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   awaitTestRequest,
-  createDailyTestEvent,
-  createTestEvent,
+  createDailyTestListing,
+  createTestListing,
   describeWithEnv,
   getAttendeesRaw,
   hasInputWithValue,
@@ -67,27 +67,27 @@ const stubStripe = (checkoutUrl = "https://stripe.example/checkout") => {
 describeWithEnv("qr-book scan handler", { db: true }, () => {
   describe("error paths", () => {
     test("missing ?t= token renders the error page", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}/qr-book`),
+        mockRequest(`/ticket/${listing.slug}/qr-book`),
       );
       expect(response.status).toBe(400);
       const body = await response.text();
       expect(body).toContain("expired or invalid");
-      expect(body).toContain(`/ticket/${event.slug}`);
+      expect(body).toContain(`/ticket/${listing.slug}`);
     });
 
     test("invalid signature renders the error page", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const response = await awaitTestRequest(
-        qrBookPath(event.slug, "qr1.not-a-real-token.signature"),
+        qrBookPath(listing.slug, "qr1.not-a-real-token.signature"),
       );
       expect(response.status).toBe(400);
       const body = await response.text();
       expect(body).toContain("expired or invalid");
     });
 
-    test("unknown event slug renders the error page", async () => {
+    test("unknown listing slug renders the error page", async () => {
       const token = await signQrBookToken(
         "unknown-slug",
         buildQrBookPayload({ name: "Ada" }),
@@ -99,73 +99,81 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
     });
 
     test("expired token renders the error page", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, unitPrice: 500 });
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
       const time = new FakeTime(1_700_000_000_000);
       try {
         const token = await signQrBookToken(
-          event.slug,
+          listing.slug,
           buildQrBookPayload({ name: "Ada", value: 500 }),
         );
         time.tick((QR_TOKEN_MAX_AGE_S + 30) * 1000);
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(400);
       } finally {
         time.restore();
       }
     });
 
-    test("deactivated event is treated like unknown (404)", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, unitPrice: 500 });
-      await eventsTable.update(event.id, { active: false });
+    test("deactivated listing is treated like unknown (404)", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      await listingsTable.update(listing.id, { active: false });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expect(response.status).toBe(404);
     });
 
-    test("daily event with an un-bookable date is rejected", async () => {
-      const event = await createDailyTestEvent({ unitPrice: 500 });
+    test("daily listing with an un-bookable date is rejected", async () => {
+      const listing = await createDailyTestListing({ unitPrice: 500 });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ date: "1999-01-01", name: "Ada", value: 500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expect(response.status).toBe(400);
     });
 
-    test("daily event with no date in the token is rejected", async () => {
-      const event = await createDailyTestEvent({ unitPrice: 500 });
+    test("daily listing with no date in the token is rejected", async () => {
+      const listing = await createDailyTestListing({ unitPrice: 500 });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expect(response.status).toBe(400);
     });
   });
 
   describe("pre-fill rendering", () => {
-    test("pre-fills the name input when the event still needs other fields", async () => {
-      const event = await createTestEvent({
+    test("pre-fills the name input when the listing still needs other fields", async () => {
+      const listing = await createTestListing({
         fields: "email",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada Lovelace", value: 500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).toContain('value="Ada Lovelace"');
       expect(body).toContain('name="qr_token"');
     });
 
-    test("pre-fills custom_price input for can_pay_more events", async () => {
-      const event = await createTestEvent({
+    test("pre-fills custom_price input for can_pay_more listings", async () => {
+      const listing = await createTestListing({
         canPayMore: true,
         fields: "email",
         maxAttendees: 10,
@@ -173,43 +181,43 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 2500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       const body = await response.text();
-      expect(hasInputWithValue(body, `custom_price_${event.id}`, "25.00")).toBe(
-        true,
-      );
+      expect(
+        hasInputWithValue(body, `custom_price_${listing.id}`, "25.00"),
+      ).toBe(true);
     });
 
-    test("pre-fills quantity for the event row", async () => {
-      const event = await createTestEvent({
+    test("pre-fills quantity for the listing row", async () => {
+      const listing = await createTestListing({
         fields: "email",
         maxAttendees: 10,
         maxQuantity: 5,
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", quantity: 3, value: 500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       const body = await response.text();
       expect(body).toMatch(/<option value="3"\s+selected>/);
     });
 
     test("pre-fills the daily date selector", async () => {
-      const event = await createDailyTestEvent({
+      const listing = await createDailyTestListing({
         fields: "email",
         unitPrice: 500,
       });
       const tomorrow = addDays(todayInTz(settings.timezone), 1);
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ date: tomorrow, name: "Ada", value: 500 }),
       );
-      const response = await awaitTestRequest(qrBookPath(event.slug, token));
+      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       const body = await response.text();
       expect(body).toMatch(new RegExp(`value="${tomorrow}"\\s+selected`));
     });
@@ -217,18 +225,20 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
 
   describe("skip-to-Stripe", () => {
     test("redirects straight to Stripe when name + value are both set and no extra fields are required", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 1000 }),
       );
       const stripe = stubStripe();
       try {
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toContain("stripe.example");
         expect(stripe.checkoutStub.calls.length).toBe(1);
@@ -242,13 +252,13 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
     });
 
     test("renders the error page when the provider cannot create a session", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 1000 }),
       );
       const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
@@ -260,7 +270,9 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         () => Promise.resolve(null),
       );
       try {
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(500);
         const body = await response.text();
         expect(body).toContain("expired or invalid");
@@ -270,19 +282,21 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       }
     });
 
-    test("falls through to the form when the event requires email", async () => {
-      const event = await createTestEvent({
+    test("falls through to the form when the listing requires email", async () => {
+      const listing = await createTestListing({
         fields: "email",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 1000 }),
       );
       const stripe = stubStripe();
       try {
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(200);
         expect(stripe.checkoutStub.calls.length).toBe(0);
       } finally {
@@ -291,18 +305,20 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
     });
 
     test("falls through when name is missing even though value is set", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ value: 1000 }),
       );
       const stripe = stubStripe();
       try {
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(200);
         expect(stripe.checkoutStub.calls.length).toBe(0);
       } finally {
@@ -310,20 +326,22 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       }
     });
 
-    test("daily event with a bookable date skips straight to Stripe with the date set", async () => {
-      const event = await createDailyTestEvent({
+    test("daily listing with a bookable date skips straight to Stripe with the date set", async () => {
+      const listing = await createDailyTestListing({
         fields: "",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const tomorrow = addDays(todayInTz(settings.timezone), 1);
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ date: tomorrow, name: "Ada", value: 1000 }),
       );
       const stripe = stubStripe();
       try {
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(302);
         const intent = stripe.checkoutStub.calls[0]!.args[0];
         expect(intent.date).toBe(tomorrow);
@@ -333,19 +351,21 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
     });
 
     test("skips straight to Stripe even when global terms are configured", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "",
         maxAttendees: 10,
         unitPrice: 500,
       });
       await settings.update.terms("# Test terms");
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 1000 }),
       );
       const stripe = stubStripe();
       try {
-        const response = await awaitTestRequest(qrBookPath(event.slug, token));
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toContain("stripe.example");
         expect(stripe.checkoutStub.calls.length).toBe(1);
@@ -357,22 +377,22 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
   });
 
   describe("POST price override", () => {
-    test("fixed-price event: signed qr_token overrides unit_price for the booking", async () => {
+    test("fixed-price listing: signed qr_token overrides unit_price for the booking", async () => {
       await setupStripe();
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "email",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const overridePrice = toMinorUnits(12.5);
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: overridePrice }),
       );
       const stripe = stubStripe();
       try {
-        const response = await submitTicketForm(event.slug, {
-          [`quantity_${event.id}`]: "1",
+        const response = await submitTicketForm(listing.slug, {
+          [`quantity_${listing.id}`]: "1",
           email: "ada@example.com",
           name: "Ada",
           qr_token: token,
@@ -389,15 +409,15 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
 
     test("tampered qr_token is ignored; original unit_price is used", async () => {
       await setupStripe();
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "email",
         maxAttendees: 10,
         unitPrice: 500,
       });
       const stripe = stubStripe();
       try {
-        const response = await submitTicketForm(event.slug, {
-          [`quantity_${event.id}`]: "1",
+        const response = await submitTicketForm(listing.slug, {
+          [`quantity_${listing.id}`]: "1",
           email: "ada@example.com",
           name: "Ada",
           qr_token: "qr1.forged.signature",
@@ -410,9 +430,9 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       }
     });
 
-    test("can_pay_more event: user's custom_price wins over the qr_token value", async () => {
+    test("can_pay_more listing: user's custom_price wins over the qr_token value", async () => {
       await setupStripe();
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         canPayMore: true,
         fields: "email",
         maxAttendees: 10,
@@ -420,14 +440,14 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         unitPrice: 500,
       });
       const token = await signQrBookToken(
-        event.slug,
+        listing.slug,
         buildQrBookPayload({ name: "Ada", value: 1000 }),
       );
       const stripe = stubStripe();
       try {
-        const response = await submitTicketForm(event.slug, {
-          [`custom_price_${event.id}`]: "50.00",
-          [`quantity_${event.id}`]: "1",
+        const response = await submitTicketForm(listing.slug, {
+          [`custom_price_${listing.id}`]: "50.00",
+          [`quantity_${listing.id}`]: "1",
           email: "ada@example.com",
           name: "Ada",
           qr_token: token,
@@ -441,18 +461,18 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
     });
 
     test("free booking path still works without a qr_token (no regression)", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         fields: "email",
         maxAttendees: 10,
         unitPrice: 0,
       });
-      const response = await submitTicketForm(event.slug, {
-        [`quantity_${event.id}`]: "1",
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
         email: "ada@example.com",
         name: "Ada",
       });
       expect(response.status).toBe(302);
-      const attendees = await getAttendeesRaw(event.id);
+      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
     });
   });

@@ -1,7 +1,7 @@
 /**
  * Public JSON API routes
  *
- * Exposes event listing, details, availability, and booking
+ * Exposes listing listing, details, availability, and booking
  * with the same data and validation as the web UI.
  */
 
@@ -14,15 +14,18 @@ import { getBaseUrl } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import {
-  getGroupRemainingByEventId,
-  getGroupRemainingForEvent,
+  getGroupRemainingByListingId,
+  getGroupRemainingForListing,
 } from "#shared/db/attendees/capacity.ts";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
-import { getAllEvents, getEventWithCountBySlug } from "#shared/db/events.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import {
+  getAllListings,
+  getListingWithCountBySlug,
+} from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { sortEvents } from "#shared/sort-events.ts";
-import { type EventWithCount, isPaidEvent } from "#shared/types.ts";
+import { sortListings } from "#shared/sort-listings.ts";
+import { isPaidListing, type ListingWithCount } from "#shared/types.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================
@@ -50,10 +53,10 @@ const handleOptions = (): Response =>
   new Response(null, { headers: CORS_HEADERS, status: 204 });
 
 // =============================================================================
-// Public event shape
+// Public listing shape
 // =============================================================================
 
-export type PublicEvent = {
+export type PublicListing = {
   name: string;
   slug: string;
   description: string;
@@ -66,7 +69,7 @@ export type PublicEvent = {
   nonTransferable: boolean;
   purchaseOnly: boolean;
   fields: string;
-  eventType: string;
+  listingType: string;
   isSoldOut: boolean;
   isClosed: boolean;
   maxPurchasable: number;
@@ -75,38 +78,38 @@ export type PublicEvent = {
 
 /** `groupRemaining`, when defined, clamps the displayed sold-out state to
  * the group's combined cap. */
-export const toPublicEvent = (
-  event: EventWithCount,
+export const toPublicListing = (
+  listing: ListingWithCount,
   closed: boolean,
   availableDates: string[] | undefined,
   groupRemaining: number | undefined,
-): PublicEvent => {
-  const eventRemaining = event.max_attendees - event.attendee_count;
+): PublicListing => {
+  const listingRemaining = listing.max_attendees - listing.attendee_count;
   const spotsRemaining =
     groupRemaining === undefined
-      ? eventRemaining
-      : Math.min(eventRemaining, groupRemaining);
+      ? listingRemaining
+      : Math.min(listingRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable =
-    isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
+    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
 
-  const result: PublicEvent = {
-    canPayMore: event.can_pay_more,
-    date: event.date || null,
-    description: event.description,
-    eventType: event.event_type,
-    fields: event.fields,
-    imageUrl: event.image_url || null,
+  const result: PublicListing = {
+    canPayMore: listing.can_pay_more,
+    date: listing.date || null,
+    description: listing.description,
+    fields: listing.fields,
+    imageUrl: listing.image_url || null,
     isClosed: closed,
     isSoldOut,
-    location: event.location || null,
-    maxPrice: event.max_price,
+    listingType: listing.listing_type,
+    location: listing.location || null,
+    maxPrice: listing.max_price,
     maxPurchasable,
-    name: event.name,
-    nonTransferable: event.non_transferable,
-    purchaseOnly: event.purchase_only,
-    slug: event.slug,
-    unitPrice: event.unit_price,
+    name: listing.name,
+    nonTransferable: listing.non_transferable,
+    purchaseOnly: listing.purchase_only,
+    slug: listing.slug,
+    unitPrice: listing.unit_price,
   };
 
   if (availableDates) {
@@ -120,14 +123,14 @@ export const toPublicEvent = (
 // Helpers
 // =============================================================================
 
-const EVENT_NOT_FOUND = { error: "Event not found" } as const;
+const LISTING_NOT_FOUND = { error: "Listing not found" } as const;
 
-/** Look up an active event by slug, returning a 404 response if missing/inactive */
-const findActiveEvent = async (
+/** Look up an active listing by slug, returning a 404 response if missing/inactive */
+const findActiveListing = async (
   slug: string,
-): Promise<EventWithCount | Response> => {
-  const event = await getEventWithCountBySlug(slug);
-  return event?.active ? event : apiResponse(EVENT_NOT_FOUND, 404);
+): Promise<ListingWithCount | Response> => {
+  const listing = await getListingWithCountBySlug(slug);
+  return listing?.active ? listing : apiResponse(LISTING_NOT_FOUND, 404);
 };
 
 /** Parse a JSON request body, returning a 400 API response on failure */
@@ -141,11 +144,13 @@ const parseApiJsonBody = async (
   }
 };
 
-/** Wrap a handler that needs an active event — handles slug lookup + 404 */
-const withActiveEvent =
-  (handler: (request: Request, event: EventWithCount) => Promise<Response>) =>
+/** Wrap a handler that needs an active listing — handles slug lookup + 404 */
+const withActiveListing =
+  (
+    handler: (request: Request, listing: ListingWithCount) => Promise<Response>,
+  ) =>
   async (request: Request, { slug }: { slug: string }): Promise<Response> => {
-    const result = await findActiveEvent(slug);
+    const result = await findActiveListing(slug);
     return result instanceof Response ? result : handler(request, result);
   };
 
@@ -153,55 +158,55 @@ const withActiveEvent =
 // Handlers
 // =============================================================================
 
-/** GET /api/events — list active, non-hidden events */
-const handleListEvents = async (): Promise<Response> => {
-  const allEvents = await getAllEvents();
+/** GET /api/listings — list active, non-hidden listings */
+const handleListListings = async (): Promise<Response> => {
+  const allListings = await getAllListings();
   const holidays = await getActiveHolidays();
-  const visibleEvents = pipe(
-    filter((e: EventWithCount) => e.active && !e.hidden),
-    (active: EventWithCount[]) => sortEvents(active, holidays),
-  )(allEvents);
-  const groupRemaining = await getGroupRemainingByEventId(visibleEvents);
-  const events = visibleEvents.map((e) =>
-    toPublicEvent(
+  const visibleListings = pipe(
+    filter((e: ListingWithCount) => e.active && !e.hidden),
+    (active: ListingWithCount[]) => sortListings(active, holidays),
+  )(allListings);
+  const groupRemaining = await getGroupRemainingByListingId(visibleListings);
+  const listings = visibleListings.map((e) =>
+    toPublicListing(
       e,
       isRegistrationClosed(e),
       undefined,
       groupRemaining.get(e.id),
     ),
   );
-  return apiResponse({ events });
+  return apiResponse({ listings });
 };
 
-/** GET /api/events/:slug — single event detail */
-const handleGetEvent = withActiveEvent(async (_request, event) => {
-  const closed = isRegistrationClosed(event);
+/** GET /api/listings/:slug — single listing detail */
+const handleGetListing = withActiveListing(async (_request, listing) => {
+  const closed = isRegistrationClosed(listing);
   let availableDates: string[] | undefined;
-  if (event.event_type === "daily") {
-    availableDates = getAvailableDates(event, await getActiveHolidays());
+  if (listing.listing_type === "daily") {
+    availableDates = getAvailableDates(listing, await getActiveHolidays());
   }
   return apiResponse({
-    event: toPublicEvent(
-      event,
+    listing: toPublicListing(
+      listing,
       closed,
       availableDates,
-      await getGroupRemainingForEvent(event),
+      await getGroupRemainingForListing(listing),
     ),
   });
 });
 
-/** GET /api/events/:slug/availability — check if spots are available */
-const handleCheckAvailability = withActiveEvent(async (request, event) => {
+/** GET /api/listings/:slug/availability — check if spots are available */
+const handleCheckAvailability = withActiveListing(async (request, listing) => {
   const url = new URL(request.url);
   const parsed = Number.parseInt(url.searchParams.get("quantity") || "1", 10);
   const quantity = Math.max(1, Number.isNaN(parsed) ? 1 : parsed);
   const date = url.searchParams.get("date") || undefined;
   return apiResponse({
     available: await hasAvailableSpots(
-      event.id,
+      listing.id,
       quantity,
       date,
-      event.duration_days,
+      listing.duration_days,
     ),
   });
 });
@@ -238,9 +243,9 @@ const bookingResultToResponse = (
   }
 };
 
-/** POST /api/events/:slug/book — create a booking */
-const handleBook = withActiveEvent(async (request, event) => {
-  if (isRegistrationClosed(event)) {
+/** POST /api/listings/:slug/book — create a booking */
+const handleBook = withActiveListing(async (request, listing) => {
+  if (isRegistrationClosed(listing)) {
     return apiResponse({ error: "Registration is closed" }, 400);
   }
 
@@ -250,10 +255,10 @@ const handleBook = withActiveEvent(async (request, event) => {
   const form = toFormParams(body);
 
   // Validate fields using the same form validation as the web
-  const paid = isPaidEvent(event);
+  const paid = isPaidListing(listing);
   const valResult = tryValidateTicketFields(
     form,
-    event.fields,
+    listing.fields,
     (msg) => apiResponse({ error: msg }, 400),
     paid,
   );
@@ -265,28 +270,28 @@ const handleBook = withActiveEvent(async (request, event) => {
   const quantity =
     Number.isNaN(rawQuantity) || rawQuantity < 1
       ? 1
-      : Math.min(rawQuantity, event.max_quantity);
+      : Math.min(rawQuantity, listing.max_quantity);
 
-  // Validate date for daily events
+  // Validate date for daily listings
   let date: string | null = null;
-  if (event.event_type === "daily") {
+  if (listing.listing_type === "daily") {
     const submittedDate = String(body.date ?? "");
     const holidays = await getActiveHolidays();
-    const availableDates = getAvailableDates(event, holidays);
+    const availableDates = getAvailableDates(listing, holidays);
     if (!submittedDate || !availableDates.includes(submittedDate)) {
       return apiResponse({ error: "Please select a valid date" }, 400);
     }
     date = submittedDate;
   }
 
-  // Parse custom price for pay-more events
+  // Parse custom price for pay-more listings
   let customUnitPrice: number | undefined;
-  if (event.can_pay_more) {
+  if (listing.can_pay_more) {
     const priceResult = parseCustomPrice(
       form,
       "customPrice",
-      event.unit_price,
-      event.max_price,
+      listing.unit_price,
+      listing.max_price,
     );
     if (!priceResult.ok) {
       return apiResponse({ error: priceResult.error }, 400);
@@ -297,7 +302,7 @@ const handleBook = withActiveEvent(async (request, event) => {
   const contact = extractContact(values);
   return bookingResultToResponse(
     await processBooking(
-      event,
+      listing,
       contact,
       quantity,
       date,
@@ -312,14 +317,14 @@ const handleBook = withActiveEvent(async (request, event) => {
 // =============================================================================
 
 export const apiRoutes = defineRoutes({
-  "GET /api/events": handleListEvents,
-  "GET /api/events/:slug": handleGetEvent,
-  "GET /api/events/:slug/availability": handleCheckAvailability,
-  "OPTIONS /api/events": handleOptions,
-  "OPTIONS /api/events/:slug": handleOptions,
-  "OPTIONS /api/events/:slug/availability": handleOptions,
-  "OPTIONS /api/events/:slug/book": handleOptions,
-  "POST /api/events/:slug/book": handleBook,
+  "GET /api/listings": handleListListings,
+  "GET /api/listings/:slug": handleGetListing,
+  "GET /api/listings/:slug/availability": handleCheckAvailability,
+  "OPTIONS /api/listings": handleOptions,
+  "OPTIONS /api/listings/:slug": handleOptions,
+  "OPTIONS /api/listings/:slug/availability": handleOptions,
+  "OPTIONS /api/listings/:slug/book": handleOptions,
+  "POST /api/listings/:slug/book": handleBook,
 });
 
 export const routeApi = createRouter(apiRoutes);

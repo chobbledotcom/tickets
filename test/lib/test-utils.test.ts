@@ -7,13 +7,13 @@ import {
   createTestAttendee,
   createTestDb,
   createTestDbWithSetup,
-  createTestEvent,
   createTestInvite,
-  deactivateTestEvent,
+  createTestListing,
+  deactivateTestListing,
   errorResponse,
   expectRedirectWithFlash,
   expectStatus,
-  generateTestEventName,
+  generateTestListingName,
   getAdminLoginCsrfToken,
   getCsrfTokenFromCookie,
   getJoinCsrfToken,
@@ -26,7 +26,7 @@ import {
   mockRequest,
   mockWebhookRequest,
   randomString,
-  rawEventRange,
+  rawListingRange,
   requireJoinCsrfToken,
   resetDb,
   resetTestSession,
@@ -36,7 +36,7 @@ import {
   submitTicketForm,
   testRequest,
   testWithSetting,
-  updateTestEvent,
+  updateTestListing,
   useSetting,
   wait,
   withSetting,
@@ -63,7 +63,7 @@ describe("test-utils", () => {
       const { getDb, insert } = await import("#shared/db/client.ts");
       // Insert data into the first DB
       await getDb().execute(
-        insert("events", {
+        insert("listings", {
           created: "2024-01-01",
           fields: "email",
           max_attendees: 10,
@@ -75,7 +75,7 @@ describe("test-utils", () => {
       // After reset, we need to set up again to get a working db
       await createTestDb();
       // Data from previous test should be gone
-      const result = await getDb().execute("SELECT * FROM events");
+      const result = await getDb().execute("SELECT * FROM listings");
       expect(result.rows.length).toBe(0);
     });
   });
@@ -168,26 +168,26 @@ describe("test-utils", () => {
     });
 
     test("combines token with form data", async () => {
-      const request = testRequest("/admin/event/new", "mytoken", {
-        data: { name: "Test Event" },
+      const request = testRequest("/admin/listing/new", "mytoken", {
+        data: { name: "Test Listing" },
       });
       expect(request.method).toBe("POST");
       expect(request.headers.get("cookie")).toBe(
         `${getSessionCookieName()}=mytoken`,
       );
       const body = await request.text();
-      expect(body).toContain("name=Test+Event");
+      expect(body).toContain("name=Test+Listing");
     });
 
     test("allows custom method override", () => {
-      const request = testRequest("/admin/event/1", "token", {
+      const request = testRequest("/admin/listing/1", "token", {
         method: "DELETE",
       });
       expect(request.method).toBe("DELETE");
     });
 
     test("allows custom method with form data", async () => {
-      const request = testRequest("/admin/event/1", null, {
+      const request = testRequest("/admin/listing/1", null, {
         data: { name: "Updated" },
         method: "PUT",
       });
@@ -224,18 +224,18 @@ describe("test-utils", () => {
     });
   });
 
-  describe("generateTestEventName", () => {
+  describe("generateTestListingName", () => {
     test("generates incrementing names", () => {
       resetTestSlugCounter();
-      expect(generateTestEventName()).toBe("Test Event 1");
-      expect(generateTestEventName()).toBe("Test Event 2");
-      expect(generateTestEventName()).toBe("Test Event 3");
+      expect(generateTestListingName()).toBe("Test Listing 1");
+      expect(generateTestListingName()).toBe("Test Listing 2");
+      expect(generateTestListingName()).toBe("Test Listing 3");
     });
 
     test("resetTestSlugCounter resets counter to 0", () => {
-      generateTestEventName(); // Trigger lazy init if needed
+      generateTestListingName(); // Trigger lazy init if needed
       resetTestSlugCounter();
-      expect(generateTestEventName()).toBe("Test Event 1");
+      expect(generateTestListingName()).toBe("Test Listing 1");
     });
   });
 
@@ -386,8 +386,8 @@ describe("test-utils", () => {
   describe("submitTicketForm", () => {
     test("submits a ticket form with CSRF token handling", async () => {
       await createTestDbWithSetup();
-      const event = await createTestEvent();
-      const response = await submitTicketForm(event.slug, {
+      const listing = await createTestListing();
+      const response = await submitTicketForm(listing.slug, {
         email: "test@example.com",
         name: "Test User",
       });
@@ -514,40 +514,40 @@ describe("test-utils", () => {
     });
   });
 
-  describe("createTestEvent", () => {
+  describe("createTestListing", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
-    test("creates an event with thankYouUrl override", async () => {
-      const event = await createTestEvent({
+    test("creates an listing with thankYouUrl override", async () => {
+      const listing = await createTestListing({
         thankYouUrl: "https://custom.example.com/done",
       });
-      expect(event.thank_you_url).toBe("https://custom.example.com/done");
-      expect(event.slug).toBeTruthy();
+      expect(listing.thank_you_url).toBe("https://custom.example.com/done");
+      expect(listing.slug).toBeTruthy();
     });
 
-    test("creates an event with default settings", async () => {
-      const event = await createTestEvent();
-      expect(event.id).toBeGreaterThan(0);
-      expect(event.max_attendees).toBe(100);
-      expect(event.active).toBe(true);
+    test("creates an listing with default settings", async () => {
+      const listing = await createTestListing();
+      expect(listing.id).toBeGreaterThan(0);
+      expect(listing.max_attendees).toBe(100);
+      expect(listing.active).toBe(true);
     });
 
-    test("creates an event with maxPrice", async () => {
-      const event = await createTestEvent({ maxPrice: 5000 });
-      expect(event.max_price).toBe(5000);
+    test("creates an listing with maxPrice", async () => {
+      const listing = await createTestListing({ maxPrice: 5000 });
+      expect(listing.max_price).toBe(5000);
     });
   });
 
-  describe("updateTestEvent", () => {
+  describe("updateTestListing", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
-    test("updates event fields via the REST API", async () => {
-      const event = await createTestEvent();
-      const updated = await updateTestEvent(event.id, {
+    test("updates listing fields via the REST API", async () => {
+      const listing = await createTestListing();
+      const updated = await updateTestListing(listing.id, {
         maxAttendees: 200,
         thankYouUrl: "https://thanks.example.com",
         unitPrice: 1500,
@@ -559,17 +559,17 @@ describe("test-utils", () => {
       expect(updated.thank_you_url).toBe("https://thanks.example.com");
     });
 
-    test("throws when event does not exist", async () => {
+    test("throws when listing does not exist", async () => {
       await expect(
-        updateTestEvent(99999, { maxAttendees: 50 }),
-      ).rejects.toThrow("Event not found: 99999");
+        updateTestListing(99999, { maxAttendees: 50 }),
+      ).rejects.toThrow("Listing not found: 99999");
     });
 
     test("preserves existing values when updates are partial", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         thankYouUrl: "https://original.example.com",
       });
-      const updated = await updateTestEvent(event.id, {
+      const updated = await updateTestListing(listing.id, {
         maxAttendees: 50,
       });
       expect(updated.max_attendees).toBe(50);
@@ -577,11 +577,11 @@ describe("test-utils", () => {
     });
 
     test("clears fields when set to zero/empty", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         unitPrice: 1000,
         webhookUrl: "https://hook.example.com",
       });
-      const updated = await updateTestEvent(event.id, {
+      const updated = await updateTestListing(listing.id, {
         unitPrice: 0,
         webhookUrl: "",
       });
@@ -590,35 +590,35 @@ describe("test-utils", () => {
     });
 
     test("updates max_price when explicitly set", async () => {
-      const event = await createTestEvent();
-      const updated = await updateTestEvent(event.id, { maxPrice: 7500 });
+      const listing = await createTestListing();
+      const updated = await updateTestListing(listing.id, { maxPrice: 7500 });
       expect(updated.max_price).toBe(7500);
     });
 
     test("preserves existing max_price when not specified in update", async () => {
-      const event = await createTestEvent({ maxPrice: 3000 });
-      const updated = await updateTestEvent(event.id, { maxAttendees: 50 });
+      const listing = await createTestListing({ maxPrice: 3000 });
+      const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
       expect(updated.max_price).toBe(3000);
     });
   });
 
-  describe("deactivateTestEvent", () => {
+  describe("deactivateTestListing", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
-    test("throws when event does not exist", async () => {
-      await expect(deactivateTestEvent(99999)).rejects.toThrow(
-        "Event not found: 99999",
+    test("throws when listing does not exist", async () => {
+      await expect(deactivateTestListing(99999)).rejects.toThrow(
+        "Listing not found: 99999",
       );
     });
 
-    test("deactivates an existing event", async () => {
-      const event = await createTestEvent();
-      expect(event.active).toBe(true);
-      await deactivateTestEvent(event.id);
-      const { getEventWithCount } = await import("#shared/db/events.ts");
-      const updated = await getEventWithCount(event.id);
+    test("deactivates an existing listing", async () => {
+      const listing = await createTestListing();
+      expect(listing.active).toBe(true);
+      await deactivateTestListing(listing.id);
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const updated = await getListingWithCount(listing.id);
       expect(updated!.active).toBe(false);
     });
   });
@@ -629,23 +629,26 @@ describe("test-utils", () => {
     });
 
     test("creates an attendee via the public ticket form", async () => {
-      const event = await createTestEvent();
+      const listing = await createTestListing();
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Jane Doe",
         "jane@example.com",
       );
       expect(attendee.id).toBeGreaterThan(0);
-      expect(attendee.event_id).toBe(event.id);
+      expect(attendee.listing_id).toBe(listing.id);
       expect(attendee.quantity).toBe(1);
     });
 
     test("creates an attendee with custom quantity", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, maxQuantity: 5 });
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Bob Smith",
         "bob@example.com",
         3,
@@ -661,58 +664,58 @@ describe("test-utils", () => {
 
     test("creates an attendee directly and returns plaintext token", async () => {
       const { createTestAttendeeDirect } = await import("#test-utils");
-      const event = await createTestEvent();
+      const listing = await createTestListing();
       const { attendee, token } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Test User",
         "test@example.com",
       );
       expect(attendee.id).toBeGreaterThan(0);
-      expect(attendee.event_id).toBe(event.id);
+      expect(attendee.listing_id).toBe(listing.id);
       expect(token).toBeTruthy();
       expect(typeof token).toBe("string");
     });
 
     test("throws error when capacity is exceeded", async () => {
       const { createTestAttendeeDirect } = await import("#test-utils");
-      const event = await createTestEvent({ maxAttendees: 1 });
+      const listing = await createTestListing({ maxAttendees: 1 });
 
-      // Fill the event
-      await createTestAttendeeDirect(event.id, "First", "first@example.com");
+      // Fill the listing
+      await createTestAttendeeDirect(listing.id, "First", "first@example.com");
 
       // Second attendee should fail
       await expect(
-        createTestAttendeeDirect(event.id, "Second", "second@example.com"),
+        createTestAttendeeDirect(listing.id, "Second", "second@example.com"),
       ).rejects.toThrow("Failed to create attendee");
     });
   });
 
-  describe("rawEventRange", () => {
+  describe("rawListingRange", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
     test("returns start_at/end_at/quantity for the first booking", async () => {
-      const { createDailyTestEvent } = await import("#test-utils");
+      const { createDailyTestListing } = await import("#test-utils");
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-      const event = await createDailyTestEvent({ maxAttendees: 10 });
+      const listing = await createDailyTestListing({ maxAttendees: 10 });
       const result = await createAttendeeAtomic({
-        bookings: [{ date: "2026-05-01", eventId: event.id, quantity: 3 }],
+        bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 3 }],
         email: "alice@test.com",
         name: "Alice",
       });
       if (!result.success) throw new Error("create failed");
 
-      const range = await rawEventRange(event.id);
+      const range = await rawListingRange(listing.id);
       expect(range).not.toBeNull();
       expect(range!.start_at).toBe("2026-05-01T00:00:00Z");
       expect(range!.end_at).toBe("2026-05-02T00:00:00.000Z");
       expect(range!.quantity).toBe(3);
     });
 
-    test("returns null when no bookings exist for the event", async () => {
-      const event = await createTestEvent();
-      expect(await rawEventRange(event.id)).toBeNull();
+    test("returns null when no bookings exist for the listing", async () => {
+      const listing = await createTestListing();
+      expect(await rawListingRange(listing.id)).toBeNull();
     });
   });
 
@@ -765,31 +768,31 @@ describe("test-utils", () => {
       // Clear testSession and cachedAdminSession, but leave db working
       resetTestSession();
       invalidateTestDbCache();
-      // createTestEvent uses getTestSession internally
+      // createTestListing uses getTestSession internally
       // With cachedAdminSession null, it falls through to loginAsAdmin
-      const event = await createTestEvent();
-      expect(event.id).toBeGreaterThan(0);
+      const listing = await createTestListing();
+      expect(listing.id).toBeGreaterThan(0);
     });
   });
 
-  describe("authenticatedFormRequest and createTestEvent error paths", () => {
+  describe("authenticatedFormRequest and createTestListing error paths", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
-    test("createTestEvent throws on validation failure when name is empty", async () => {
+    test("createTestListing throws on validation failure when name is empty", async () => {
       // Empty name triggers validation failure, returning 400 instead of 302
-      await expect(createTestEvent({ name: "" })).rejects.toThrow(
-        "Failed to create event: 400",
+      await expect(createTestListing({ name: "" })).rejects.toThrow(
+        "Failed to create listing: 400",
       );
     });
 
     test("authenticatedFormRequest throws on non-302 response via update", async () => {
       // Update with empty name triggers validation failure.
       // The update handler returns a 200 error page (not 302) on validation failure.
-      const event = await createTestEvent();
-      await expect(updateTestEvent(event.id, { name: "" })).rejects.toThrow(
-        "Failed to update event",
+      const listing = await createTestListing();
+      await expect(updateTestListing(listing.id, { name: "" })).rejects.toThrow(
+        "Failed to update listing",
       );
     });
   });
@@ -800,35 +803,35 @@ describe("test-utils", () => {
     });
 
     test("preserves existing unitPrice when update does not specify unitPrice", async () => {
-      // Create event with a unit price
-      const event = await createTestEvent({ unitPrice: 2500 });
-      expect(event.unit_price).toBe(2500);
+      // Create listing with a unit price
+      const listing = await createTestListing({ unitPrice: 2500 });
+      expect(listing.unit_price).toBe(2500);
       // Update without specifying unitPrice -> formatPrice(undefined, 2500)
       // This covers the branch: existing != null ? String(existing) : ""
-      const updated = await updateTestEvent(event.id, { maxAttendees: 50 });
+      const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
       expect(updated.unit_price).toBe(2500);
       expect(updated.max_attendees).toBe(50);
     });
 
     test("preserves existing closesAt when update does not specify closesAt", async () => {
-      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
-      expect(event.closes_at).toBe("2099-06-15T14:30:00.000Z");
-      const updated = await updateTestEvent(event.id, { maxAttendees: 50 });
+      const listing = await createTestListing({ closesAt: "2099-06-15T14:30" });
+      expect(listing.closes_at).toBe("2099-06-15T14:30:00.000Z");
+      const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
       expect(updated.closes_at).toBe("2099-06-15T14:30:00.000Z");
       expect(updated.max_attendees).toBe(50);
     });
   });
 
-  describe("createTestEvent with null thankYouUrl", () => {
+  describe("createTestListing with null thankYouUrl", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
-    test("creates event without thankYouUrl using ?? empty string fallback", async () => {
-      const event = await createTestEvent({ thankYouUrl: undefined });
-      expect(event.id).toBeGreaterThan(0);
+    test("creates listing without thankYouUrl using ?? empty string fallback", async () => {
+      const listing = await createTestListing({ thankYouUrl: undefined });
+      expect(listing.id).toBeGreaterThan(0);
       // thankYouUrl: undefined triggers the default empty string
-      expect(event.thank_you_url).toBe("");
+      expect(listing.thank_you_url).toBe("");
     });
   });
 
@@ -837,31 +840,36 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
     });
 
-    test("throws when event is deactivated", async () => {
-      const event = await createTestEvent();
-      await deactivateTestEvent(event.id);
+    test("throws when listing is deactivated", async () => {
+      const listing = await createTestListing();
+      await deactivateTestListing(listing.id);
       await expect(
-        createTestAttendee(event.id, event.slug, "Test", "test@example.com"),
+        createTestAttendee(
+          listing.id,
+          listing.slug,
+          "Test",
+          "test@example.com",
+        ),
       ).rejects.toThrow("Failed to create attendee");
     });
 
-    test("throws when form submission returns error status (event at capacity)", async () => {
-      const event = await createTestEvent({
+    test("throws when form submission returns error status (listing at capacity)", async () => {
+      const listing = await createTestListing({
         maxAttendees: 1,
         maxQuantity: 1,
       });
-      // Fill the event
+      // Fill the listing
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "First",
         "first@example.com",
       );
-      // Second attendee should fail because event is full
+      // Second attendee should fail because listing is full
       await expect(
         createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "Second",
           "second@example.com",
         ),
@@ -869,15 +877,15 @@ describe("test-utils", () => {
     });
   });
 
-  describe("updateTestEvent event not found after update", () => {
+  describe("updateTestListing listing not found after update", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
     });
 
-    test("throws when event does not exist", async () => {
+    test("throws when listing does not exist", async () => {
       await expect(
-        updateTestEvent(99999, { maxAttendees: 50 }),
-      ).rejects.toThrow("Event not found: 99999");
+        updateTestListing(99999, { maxAttendees: 50 }),
+      ).rejects.toThrow("Listing not found: 99999");
     });
   });
 

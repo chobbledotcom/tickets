@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   adminFormPost,
   assertFormRedirect,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectFlash,
   installUrlHandler,
@@ -44,9 +44,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // but the table is then dropped. This test verifies no error is thrown.
     });
 
-    test("deletes storage files for all events during admin reset", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await eventsTable.update(event.id, {
+    test("deletes storage files for all listings during admin reset", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "admin-reset-attachment.pdf",
         imageUrl: "admin-reset-image.jpg",

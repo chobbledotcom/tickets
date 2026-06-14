@@ -3,14 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   getAllGroups,
-  getEventsByGroupId,
+  getListingsByGroupId,
   groupsTable,
 } from "#shared/db/groups.ts";
 import {
   apiRequest,
   assertJson,
-  createTestEvent,
   createTestGroup,
+  createTestListing,
   describeWithEnv,
   mockRequest,
   requestAsSession,
@@ -383,24 +383,24 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       expect(all.find((g) => g.id === group.id)).toBeUndefined();
     });
 
-    test("resets events to ungrouped on delete", async () => {
-      const group = await createTestGroup({ name: "Event Group" });
-      const event = await createTestEvent({
+    test("resets listings to ungrouped on delete", async () => {
+      const group = await createTestGroup({ name: "Listing Group" });
+      const listing = await createTestListing({
         groupId: group.id,
-        name: "Grouped Event",
+        name: "Grouped Listing",
       });
 
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { confirm_identifier: "Event Group" },
+          body: { confirm_identifier: "Listing Group" },
           method: "DELETE",
         }),
         200,
       );
 
-      // Event should now be ungrouped (group_id = 0)
-      const events = await getEventsByGroupId(0);
-      const found = events.find((e) => e.id === event.id);
+      // Listing should now be ungrouped (group_id = 0)
+      const listings = await getListingsByGroupId(0);
+      const found = listings.find((e) => e.id === listing.id);
       expect(found).toBeDefined();
     });
 

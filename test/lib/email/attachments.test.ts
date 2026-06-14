@@ -12,13 +12,13 @@ describeWithEnv("buildSvgTicketData", { db: true }, () => {
       ),
       "GBP",
     );
-    expect(data.eventName).toBe("Concert");
+    expect(data.listingName).toBe("Concert");
     expect(data.quantity).toBe(2);
     expect(data.pricePaid).toBe("1500");
     expect(data.checkinUrl).toContain("/checkin/tok123");
   });
 
-  test("includes attendee date for daily events", () => {
+  test("includes attendee date for daily listings", () => {
     const data = buildSvgTicketData(
       makeEntry({}, { date: "2026-06-15" }),
       "GBP",
@@ -26,16 +26,16 @@ describeWithEnv("buildSvgTicketData", { db: true }, () => {
     expect(data.attendeeDate).toBe("2026-06-15");
   });
 
-  test("includes event date and location from event", () => {
+  test("includes listing date and location from listing", () => {
     const data = buildSvgTicketData(
       makeEntry({ date: "2026-07-01T19:00:00Z", location: "Town Hall" }),
       "GBP",
     );
-    expect(data.eventDate).toBe("2026-07-01T19:00:00Z");
-    expect(data.eventLocation).toBe("Town Hall");
+    expect(data.listingDate).toBe("2026-07-01T19:00:00Z");
+    expect(data.listingLocation).toBe("Town Hall");
   });
 
-  test("sets purchaseOnly from event flag", () => {
+  test("sets purchaseOnly from listing flag", () => {
     const data = buildSvgTicketData(makeEntry({ purchase_only: true }), "GBP");
     expect(data.purchaseOnly).toBe(true);
   });

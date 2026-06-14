@@ -6,7 +6,7 @@
  * Key differences from Stripe/Square:
  * - Hosted Checkout; our checkout_reference is the session id throughout
  * - Booking metadata is staged locally, encrypted (db/sumup-checkouts.ts)
- * - Webhooks are unsigned (requiresWebhookSignature = false): events are
+ * - Webhooks are unsigned (requiresWebhookSignature = false): listings are
  *   pre-filtered against our staging rows, then the checkout is re-fetched
  *   from SumUp to establish authenticity and payment status
  * - No webhook endpoint to set up (return_url is set per checkout)
@@ -83,7 +83,7 @@ export const sumupPaymentProvider: PaymentProvider = {
   ): Promise<ValidatedPaymentSession | "skip" | null> {
     if (!webhookEvent.id) return null;
     // Unsigned webhooks: only fetch checkouts we created. Spam or another
-    // integration's events are acknowledged without an API call.
+    // integration's listings are acknowledged without an API call.
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
     const checkout = await retrieveCheckoutById(webhookEvent.id);
     if (!checkout) return null;
@@ -126,7 +126,7 @@ export const sumupPaymentProvider: PaymentProvider = {
       };
       const id = parsed.id ?? "";
       return Promise.resolve({
-        event: {
+        listing: {
           data: { object: { id } },
           id,
           type: parsed.event_type ?? "",

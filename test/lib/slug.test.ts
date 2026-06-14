@@ -61,25 +61,25 @@ describe("slug", () => {
     });
 
     test("replaces spaces with hyphens", () => {
-      expect(normalizeSlug("my event name")).toBe("my-event-name");
+      expect(normalizeSlug("my listing name")).toBe("my-listing-name");
     });
 
     test("replaces multiple spaces with single hyphen", () => {
-      expect(normalizeSlug("my   event")).toBe("my-event");
+      expect(normalizeSlug("my   listing")).toBe("my-listing");
     });
 
     test("handles combined transformations", () => {
-      expect(normalizeSlug("  My Event Name  ")).toBe("my-event-name");
+      expect(normalizeSlug("  My Listing Name  ")).toBe("my-listing-name");
     });
   });
 
   describe("validateSlug", () => {
     test("returns null for valid slug", () => {
-      expect(validateSlug("my-event-123")).toBeNull();
+      expect(validateSlug("my-listing-123")).toBeNull();
     });
 
     test("returns null for slug with only letters", () => {
-      expect(validateSlug("myevent")).toBeNull();
+      expect(validateSlug("mylisting")).toBeNull();
     });
 
     test("returns null for slug with only numbers", () => {
@@ -87,7 +87,7 @@ describe("slug", () => {
     });
 
     test("returns null for slug with hyphens", () => {
-      expect(validateSlug("my-event")).toBeNull();
+      expect(validateSlug("my-listing")).toBeNull();
     });
 
     test("returns error for empty slug", () => {
@@ -95,19 +95,19 @@ describe("slug", () => {
     });
 
     test("returns error for slug with uppercase letters", () => {
-      expect(validateSlug("My-Event")).toBe(
+      expect(validateSlug("My-Listing")).toBe(
         "Slug may only contain lowercase letters, numbers, and hyphens",
       );
     });
 
     test("returns error for slug with spaces", () => {
-      expect(validateSlug("my event")).toBe(
+      expect(validateSlug("my listing")).toBe(
         "Slug may only contain lowercase letters, numbers, and hyphens",
       );
     });
 
     test("returns error for slug with special characters", () => {
-      expect(validateSlug("my_event!")).toBe(
+      expect(validateSlug("my_listing!")).toBe(
         "Slug may only contain lowercase letters, numbers, and hyphens",
       );
     });

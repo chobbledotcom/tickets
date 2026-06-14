@@ -15,10 +15,10 @@ import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
-import type { WebhookAttendee, WebhookEvent } from "#shared/webhook.ts";
+import type { WebhookAttendee, WebhookListing } from "#shared/webhook.ts";
 
-/** Event data needed for registration pipeline (extends webhook event with display + assignment fields) */
-export type EmailEvent = WebhookEvent & {
+/** Listing data needed for registration pipeline (extends webhook listing with display + assignment fields) */
+export type EmailListing = WebhookListing & {
   active: boolean;
   date: string;
   hidden: boolean;
@@ -26,13 +26,13 @@ export type EmailEvent = WebhookEvent & {
   purchase_only: boolean;
   assign_built_site: boolean;
   initial_site_months: number;
-  event_type: "standard" | "daily";
+  listing_type: "standard" | "daily";
   duration_days: number;
 };
 
-/** Attendee + event pair for email rendering */
+/** Attendee + listing pair for email rendering */
 export type EmailEntry = {
-  event: EmailEvent;
+  listing: EmailListing;
   attendee: WebhookAttendee;
 };
 
@@ -289,11 +289,11 @@ export const buildSvgTicketData = (
   attendeeDate: entry.attendee.date,
   checkinUrl: buildCheckinUrl(entry.attendee.ticket_token),
   currency,
-  eventDate: entry.event.date,
-  eventLocation: entry.event.location,
-  eventName: entry.event.name,
+  listingDate: entry.listing.date,
+  listingLocation: entry.listing.location,
+  listingName: entry.listing.name,
   pricePaid: entry.attendee.price_paid,
-  purchaseOnly: entry.event.purchase_only,
+  purchaseOnly: entry.listing.purchase_only,
   quantity: entry.attendee.quantity,
 });
 
@@ -317,7 +317,7 @@ export const buildTicketAttachments = async (
 
 /**
  * Send registration confirmation + admin notification emails.
- * Entries is an array because one registration can cover multiple events.
+ * Entries is an array because one registration can cover multiple listings.
  * Silently skips if email is not configured.
  * Attaches one SVG ticket per entry to the confirmation email.
  */

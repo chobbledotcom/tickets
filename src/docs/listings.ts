@@ -1,7 +1,7 @@
 /**
- * Event management: fields, sorting, and availability.
+ * Listing management: fields, sorting, and availability.
  *
- * Events come in two types:
+ * Listings come in two types:
  * - **Standard** — fixed capacity with optional date
  * - **Daily** — date-based booking with holiday exclusions
  *
@@ -9,5 +9,5 @@
  */
 
 export * from "#shared/dates.ts";
-export * from "#shared/event-fields.ts";
-export * from "#shared/sort-events.ts";
+export * from "#shared/listing-fields.ts";
+export * from "#shared/sort-listings.ts";

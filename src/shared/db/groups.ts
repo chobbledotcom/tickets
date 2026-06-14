@@ -12,11 +12,16 @@ import {
   idAndEncryptedSlugSchema,
   registerCache,
 } from "#shared/db/common-schema.ts";
-import { eventsTable, invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache, listingsTable } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { col, withCacheInvalidation } from "#shared/db/table.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import type { Event, EventType, EventWithCount, Group } from "#shared/types.ts";
+import type {
+  Group,
+  Listing,
+  ListingType,
+  ListingWithCount,
+} from "#shared/types.ts";
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
@@ -82,7 +87,7 @@ export const getGroupBySlugIndex = async (
 
 /**
  * Check if a group slug is already in use.
- * Checks both events and groups for cross-table uniqueness.
+ * Checks both listings and groups for cross-table uniqueness.
  */
 export const isGroupSlugTaken = async (
   slug: string,
@@ -90,11 +95,11 @@ export const isGroupSlugTaken = async (
 ): Promise<boolean> => {
   const slugIndex = await computeGroupSlugIndex(slug);
 
-  const eventHit = await getDb().execute({
+  const listingHit = await getDb().execute({
     args: [slugIndex],
-    sql: "SELECT 1 FROM events WHERE slug_index = ? LIMIT 1",
+    sql: "SELECT 1 FROM listings WHERE slug_index = ? LIMIT 1",
   });
-  if (eventHit.rows.length > 0) return true;
+  if (listingHit.rows.length > 0) return true;
 
   const sql = excludeGroupId
     ? "SELECT 1 FROM groups WHERE slug_index = ? AND id != ? LIMIT 1"
@@ -104,126 +109,126 @@ export const isGroupSlugTaken = async (
   return groupHit.rows.length > 0;
 };
 
-/** Decrypt event fields while preserving attendee_count */
-const decryptEventWithCount = async (
-  row: EventWithCount,
-): Promise<EventWithCount> => {
-  const evt = await eventsTable.fromDb(row as Event);
+/** Decrypt listing fields while preserving attendee_count */
+const decryptListingWithCount = async (
+  row: ListingWithCount,
+): Promise<ListingWithCount> => {
+  const evt = await listingsTable.fromDb(row as Listing);
   return {
     ...evt,
     attendee_count: row.attendee_count,
   };
 };
 
-/** Query events in a group with attendee counts, optionally filtering to active only */
-const queryGroupEvents = async (
+/** Query listings in a group with attendee counts, optionally filtering to active only */
+const queryGroupListings = async (
   groupId: number,
   activeOnly: boolean,
-): Promise<EventWithCount[]> => {
+): Promise<ListingWithCount[]> => {
   const where = activeOnly
     ? "e.active = 1 AND e.group_id = ?"
     : "e.group_id = ?";
-  const rows = await queryAll<EventWithCount>(
+  const rows = await queryAll<ListingWithCount>(
     `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-     FROM events e
-     LEFT JOIN event_attendees ea ON e.id = ea.event_id
+     FROM listings e
+     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
      WHERE ${where}
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
     [groupId],
   );
 
-  return mapParallel(decryptEventWithCount)(rows);
+  return mapParallel(decryptListingWithCount)(rows);
 };
 
 /**
- * Get active events in a group with attendee counts.
+ * Get active listings in a group with attendee counts.
  */
-export const getActiveEventsByGroupId = (
+export const getActiveListingsByGroupId = (
   groupId: number,
-): Promise<EventWithCount[]> => queryGroupEvents(groupId, true);
+): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
 
 /**
- * Get all events in a group with attendee counts (including inactive).
+ * Get all listings in a group with attendee counts (including inactive).
  */
-export const getEventsByGroupId = (
+export const getListingsByGroupId = (
   groupId: number,
-): Promise<EventWithCount[]> => queryGroupEvents(groupId, false);
+): Promise<ListingWithCount[]> => queryGroupListings(groupId, false);
 
 /**
- * Validate that an event type is compatible with a group's existing events.
+ * Validate that an listing type is compatible with a group's existing listings.
  * Returns an error message if mismatched, null if OK.
- * Pass excludeEventId to skip a specific event (for edit-self case).
+ * Pass excludeListingId to skip a specific listing (for edit-self case).
  */
-export const validateGroupEventType = async (
+export const validateGroupListingType = async (
   groupId: number,
-  eventType: EventType,
-  excludeEventId?: number,
+  listingType: ListingType,
+  excludeListingId?: number,
 ): Promise<string | null> => {
-  const siblings = await getEventsByGroupId(groupId);
+  const siblings = await getListingsByGroupId(groupId);
   const other = siblings.find(
-    (e) => e.id !== excludeEventId && e.event_type !== eventType,
+    (e) => e.id !== excludeListingId && e.listing_type !== listingType,
   );
   return other
-    ? `This group already contains ${other.event_type} events — all events in a group must be the same type`
+    ? `This group already contains ${other.listing_type} listings — all listings in a group must be the same type`
     : null;
 };
 
 /**
- * Get ungrouped events (group_id = 0) with attendee counts.
+ * Get ungrouped listings (group_id = 0) with attendee counts.
  */
-export const getUngroupedEvents = async (): Promise<EventWithCount[]> => {
-  const rows = await queryAll<EventWithCount>(
+export const getUngroupedListings = async (): Promise<ListingWithCount[]> => {
+  const rows = await queryAll<ListingWithCount>(
     `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-     FROM events e
-     LEFT JOIN event_attendees ea ON e.id = ea.event_id
+     FROM listings e
+     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
      WHERE e.group_id = 0
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
   );
 
-  return mapParallel(decryptEventWithCount)(rows);
+  return mapParallel(decryptListingWithCount)(rows);
 };
 
 /**
- * Assign events to a group by updating their group_id.
+ * Assign listings to a group by updating their group_id.
  */
-export const assignEventsToGroup = async (
-  eventIds: number[],
+export const assignListingsToGroup = async (
+  listingIds: number[],
   groupId: number,
 ): Promise<void> => {
-  for (const eventId of eventIds) {
+  for (const listingId of listingIds) {
     await getDb().execute({
-      args: [groupId, eventId],
-      sql: "UPDATE events SET group_id = ? WHERE id = ?",
+      args: [groupId, listingId],
+      sql: "UPDATE listings SET group_id = ? WHERE id = ?",
     });
   }
-  if (eventIds.length > 0) invalidateEventsCache();
+  if (listingIds.length > 0) invalidateListingsCache();
 };
 
 /**
- * Reset group assignment on all events in a group.
+ * Reset group assignment on all listings in a group.
  */
-export const resetGroupEvents = async (groupId: number): Promise<void> => {
+export const resetGroupListings = async (groupId: number): Promise<void> => {
   await getDb().execute({
     args: [groupId],
-    sql: "UPDATE events SET group_id = 0 WHERE group_id = ?",
+    sql: "UPDATE listings SET group_id = 0 WHERE group_id = ?",
   });
-  invalidateEventsCache();
+  invalidateListingsCache();
 };
 
 /**
- * Set the `active` flag on every event in a group.
- * Returns the number of events affected.
+ * Set the `active` flag on every listing in a group.
+ * Returns the number of listings affected.
  */
-export const setGroupEventsActive = async (
+export const setGroupListingsActive = async (
   groupId: number,
   active: boolean,
 ): Promise<number> => {
   const result = await getDb().execute({
     args: [active ? 1 : 0, groupId],
-    sql: "UPDATE events SET active = ? WHERE group_id = ?",
+    sql: "UPDATE listings SET active = ? WHERE group_id = ?",
   });
-  invalidateEventsCache();
+  invalidateListingsCache();
   return result.rowsAffected;
 };

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { eventsTable } from "#shared/db/events.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { listingsTable } from "#shared/db/listings.ts";
+import { createTestListing, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > table utilities", { db: true }, () => {
   test("toCamelCase converts snake_case to camelCase", async () => {
@@ -103,7 +103,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     type TestRow = { id: number; name: string };
     type TestInput = { name: string };
     const testTable = defineTable<TestRow, TestInput>({
-      name: "events",
+      name: "listings",
       primaryKey: "id",
       schema: {
         id: col.generated<number>(),
@@ -111,14 +111,14 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       },
     });
 
-    await createTestEvent({
+    await createTestListing({
       maxAttendees: 10,
-      name: "Event One",
+      name: "Listing One",
       thankYouUrl: "https://example.com",
     });
-    await createTestEvent({
+    await createTestListing({
       maxAttendees: 20,
-      name: "Event Two",
+      name: "Listing Two",
       thankYouUrl: "https://example.com",
     });
 
@@ -129,7 +129,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   test("defineTable.update with no changes returns existing row", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
 
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
@@ -137,7 +137,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     type TestRow = { id: number; name: string };
     type TestInput = { name?: string };
     const testTable = defineTable<TestRow, TestInput>({
-      name: "events",
+      name: "listings",
       primaryKey: "id",
       schema: {
         id: col.generated<number>(),
@@ -145,9 +145,9 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       },
     });
 
-    const result = await testTable.update(event.id, {});
+    const result = await testTable.update(listing.id, {});
     expect(result).not.toBeNull();
-    expect(result?.id).toBe(event.id);
+    expect(result?.id).toBe(listing.id);
   });
 
   test("defineTable with write transform transforms values on insert", async () => {
@@ -175,7 +175,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       active?: number;
     };
     const testTable = defineTable<TestRow, TestInput>({
-      name: "events",
+      name: "listings",
       primaryKey: "id",
       schema: {
         active: col.withDefault(() => 1),
@@ -196,14 +196,14 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
     const row = await testTable.insert({
       maxAttendees: 10,
-      slug: "test-event",
+      slug: "test-listing",
       slugIndex: "test-index",
       thankYouUrl: "http://test.com",
     });
-    expect(row.slug).toBe("test-event");
+    expect(row.slug).toBe("test-listing");
 
     const fromDb = await testTable.findById(row.id);
-    expect(fromDb?.slug).toBe("test-event");
+    expect(fromDb?.slug).toBe("test-listing");
   });
 
   test("insert with non-generated primary key uses empty initial row", async () => {
@@ -248,12 +248,12 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("rowToInput maps snake_case row columns to camelCase input keys", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 42,
       name: "Row To Input",
       thankYouUrl: "https://example.com",
     });
-    const input = eventsTable.rowToInput(event);
+    const input = listingsTable.rowToInput(listing);
     expect(input.name).toBe("Row To Input");
     expect(input.maxAttendees).toBe(42);
     expect(input.thankYouUrl).toBe("https://example.com");
@@ -262,12 +262,12 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("rowToInput excludes columns named in the exclude list", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 10,
       name: "Excluded",
       thankYouUrl: "https://example.com",
     });
-    const input = eventsTable.rowToInput(event, ["created"]);
+    const input = listingsTable.rowToInput(listing, ["created"]);
     expect("created" in input).toBe(false);
     expect(input.name).toBe("Excluded");
   });
@@ -277,7 +277,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     type Row = { id: number; max_attendees: number; thank_you_url: string };
     type Input = { maxAttendees: number; thankYouUrl?: string };
     const table = defineTable<Row, Input>({
-      name: "events",
+      name: "listings",
       primaryKey: "id",
       schema: {
         id: col.generated<number>(),
@@ -295,13 +295,13 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("getProvidedColumns uses inputKeyMap fallback for single-word keys", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 10,
       name: "Fallback Test",
       thankYouUrl: "https://example.com",
     });
 
-    const updated = await eventsTable.update(event.id, {
+    const updated = await listingsTable.update(listing.id, {
       maxAttendees: 10,
       name: "Updated Name",
       slug: "updated-slug",
