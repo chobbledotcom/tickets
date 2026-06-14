@@ -140,7 +140,7 @@ const allLinesFit = async (
  *   attendees row. The caller encrypts so this function stays IO focused.
  * - `desired` — the desired final-state line set.
  */
-export const updateAttendeeAtomic = async (
+export const applyAttendeeAtomicEdit = async (
   attendeeId: number,
   encryptedPiiBlob: string,
   desired: AtomicDesiredLine[],
@@ -244,16 +244,6 @@ export const updateAttendeeAtomic = async (
   invalidateEventsCache();
   return { success: true };
 };
-
-/** Convenience entry point — kept as a separate export so route handlers
- * can mock the atomic update during tests without reaching into the
- * internal implementation. */
-export const applyAttendeeAtomicEdit = (
-  attendeeId: number,
-  encryptedPiiBlob: string,
-  desired: AtomicDesiredLine[],
-): Promise<UpdateAttendeeAtomicResult> =>
-  updateAttendeeAtomic(attendeeId, encryptedPiiBlob, desired);
 
 /** Re-export so route handlers can build the input type without importing
  * the DB layer's internal module path. */

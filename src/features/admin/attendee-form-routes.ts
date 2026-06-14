@@ -16,7 +16,7 @@
  *   6. Redirect with a success/failure flash.
  */
 
-import { compact, filter, map, pipe, unique, uniqueBy } from "#fp";
+import { filter, map, pipe, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   applyAttendeeAtomicEdit,
@@ -25,6 +25,8 @@ import {
   createAttendeeAtomic,
   encryptPiiBlob,
   ensureAllBookings,
+  type EventAttendeeRow,
+  type ExistingLine,
   getAttendee,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
@@ -93,12 +95,12 @@ const getEventsForSelector = async (
       filter((id: number) => id > 0),
     )(parsed.lines),
   );
+  // Active and selected-inactive are disjoint (one is active, the other not),
+  // so concatenating them needs no de-duplication.
   const selectedInactive = filter(
     (e: EventWithCount) => selectedIds.has(e.id) && !e.active,
   )(allEvents);
-  return uniqueBy((e: EventWithCount) => e.id)(
-    compact([...selectedInactive, ...active]),
-  );
+  return [...selectedInactive, ...active];
 };
 
 /** Index events by id for line resolution. */
@@ -110,14 +112,14 @@ const eventsByIdMap = (
 const buildAvailableDates = (
   events: EventWithCount[],
   holidays: Holiday[],
-): Promise<Record<number, string[]>> => {
+): Record<number, string[]> => {
   const result: Record<number, string[]> = {};
   for (const event of events) {
     if (event.event_type === "daily") {
       result[event.id] = getAvailableDates(event, holidays);
     }
   }
-  return Promise.resolve(result);
+  return result;
 };
 
 /** A fresh, empty event line. The daily date defaults to the attendee's
@@ -152,7 +154,7 @@ const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
 /** Build the edit-mode form shell from a loaded attendee + its bookings. */
 const buildEditFormFromAttendee = (
   attendee: Attendee,
-  existing: { key: string; booking: import("#shared/db/attendee-types.ts").EventAttendeeRow }[],
+  existing: ExistingLine[],
   eventsById: Map<number, EventWithCount>,
 ): ParsedAttendeeForm => {
   const lines: AttendeeFormLine[] = existing.map(({ key, booking }) => {
@@ -201,7 +203,7 @@ const buildTemplateData = async (
 ): Promise<AttendeeFormTemplateData> => {
   const allEvents = await getEventsForSelector(parsed);
   const holidays = await getActiveHolidays();
-  const availableDatesByEvent = await buildAvailableDates(allEvents, holidays);
+  const availableDatesByEvent = buildAvailableDates(allEvents, holidays);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
   return {
     allEvents,
@@ -221,17 +223,16 @@ const buildTemplateData = async (
 };
 
 /** Load custom questions + currently-selected answers across ALL of the
- * attendee's events (edit mode only). Rendering and saving every event's
- * questions — not just the first — is what keeps the save from wiping answers
- * tied to the attendee's other events: answers are stored per attendee, so the
- * submitted set must cover every question the attendee can have answered. */
-const loadAttendeeQuestions = async (
+ * attendee's booked events (edit mode only). Rendering and saving every
+ * event's questions — not just the first — is what keeps the save from wiping
+ * answers tied to the attendee's other events: answers are stored per
+ * attendee, so the submitted set must cover every question it can have
+ * answered. */
+const loadQuestionsForExisting = async (
   attendeeId: number,
-  eventIds: number[],
-): Promise<{
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-}> => {
+  existing: ExistingLine[],
+): Promise<{ questions: QuestionWithAnswers[]; selectedAnswerIds: number[] }> => {
+  const eventIds = unique(existing.map((e) => e.booking.event_id));
   if (eventIds.length === 0) return { questions: [], selectedAnswerIds: [] };
   const [{ questions }, answersMap] = await Promise.all([
     getQuestionsWithEventIds(eventIds),
@@ -243,34 +244,25 @@ const loadAttendeeQuestions = async (
   };
 };
 
-/** Read return_url from request query params. */
-const readReturnUrl = (request: Request): string =>
-  getSearchParam(request, "return_url");
+/** Render the attendee form page as an HTML response. */
+const renderForm = (
+  session: AuthSession,
+  data: AttendeeFormTemplateData,
+): Response => htmlResponse(attendeeFormPage(data, session));
 
-/** Apply the flash cookie and render the attendee form page. */
+/** Apply the flash cookie and render the attendee form page (GET handlers). */
 const renderAttendeeFormPage = (
   request: Request,
   data: AttendeeFormTemplateData,
   session: AuthSession,
 ): Response => {
   const flash = applyFlash(request);
-  return htmlResponse(
-    attendeeFormPage(
-      { ...data, flashError: flash.error, flashSuccess: flash.success },
-      session,
-    ),
-  );
+  return renderForm(session, {
+    ...data,
+    flashError: flash.error,
+    flashSuccess: flash.success,
+  });
 };
-
-/** Load custom questions for an attendee across every event it is booked on. */
-const loadQuestionsForExisting = (
-  attendeeId: number,
-  existing: { booking: { event_id: number } }[],
-): Promise<{ questions: QuestionWithAnswers[]; selectedAnswerIds: number[] }> =>
-  loadAttendeeQuestions(
-    attendeeId,
-    unique(existing.map((e) => e.booking.event_id)),
-  );
 
 // ---------------------------------------------------------------------------
 // GET /admin/attendees/new  (and GET /admin/attendees/:id)
@@ -282,7 +274,7 @@ export const handleAttendeeNewGet: TypedRouteHandler<"GET /admin/attendees/new">
     requireSessionOr(request, async (session) => {
       const parsed = buildEmptyCreateForm();
       const data = await buildTemplateData("create", parsed, null, {
-        returnUrl: readReturnUrl(request),
+        returnUrl: getSearchParam(request, "return_url"),
       });
       return renderAttendeeFormPage(request, data, session);
     });
@@ -306,7 +298,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<"GET /admin/attendees/:att
       );
       const data = await buildTemplateData("edit", parsed, loaded.attendee, {
         questions,
-        returnUrl: readReturnUrl(request),
+        returnUrl: getSearchParam(request, "return_url"),
         selectedAnswerIds,
       });
       return renderAttendeeFormPage(request, data, session);
@@ -316,16 +308,51 @@ export const handleAttendeeEditGet: TypedRouteHandler<"GET /admin/attendees/:att
 const loadAttendeeForEdit = async (
   session: AuthSession,
   attendeeId: number,
-): Promise<{
-  attendee: Attendee;
-  existing: { key: string; booking: import("#shared/db/attendee-types.ts").EventAttendeeRow }[];
-} | null> => {
+): Promise<{ attendee: Attendee; existing: ExistingLine[] } | null> => {
   const pk = await requirePrivateKey(session);
   // PII-only load; the per-event lines come from loadExistingLines, so no join.
   const attendee = await getAttendee(attendeeId, pk);
   if (!attendee) return null;
   const existing = await loadExistingLines(attendeeId);
   return { attendee, existing };
+};
+
+/** Everything the submit handler needs about an attendee being edited. */
+type EditContext = {
+  attendee: Attendee | null;
+  existingByKey: Map<string, EventAttendeeRow>;
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
+};
+
+/** Create mode has no attendee, lines, or questions to preload. */
+const EMPTY_EDIT_CONTEXT: EditContext = {
+  attendee: null,
+  existingByKey: new Map(),
+  questions: [],
+  selectedAnswerIds: [],
+};
+
+/** Edit mode: load the attendee, its existing lines (indexed by key), and its
+ * question/answer context. Returns null when the attendee does not exist. */
+const loadEditContext = async (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<EditContext | null> => {
+  const loaded = await loadAttendeeForEdit(session, attendeeId);
+  if (!loaded) return null;
+  const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
+    attendeeId,
+    loaded.existing,
+  );
+  return {
+    attendee: loaded.attendee,
+    existingByKey: new Map(
+      loaded.existing.map(({ key, booking }) => [key, booking]),
+    ),
+    questions,
+    selectedAnswerIds,
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -394,37 +421,26 @@ const handleSubmitInner = async (
 ): Promise<Response> => {
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
-  // Load attendee (edit mode) + build events index for line resolution.
-  let attendee: Attendee | null = null;
-  const existingByKey = new Map<string, import("#shared/db/attendee-types.ts").EventAttendeeRow>();
-  let questions: QuestionWithAnswers[] = [];
-  let selectedAnswerIds: number[] = [];
-  if (mode === "edit" && attendeeId !== null) {
-    const loaded = await loadAttendeeForEdit(session, attendeeId);
-    if (!loaded) return notFoundResponse();
-    attendee = loaded.attendee;
-    for (const { key, booking } of loaded.existing) {
-      existingByKey.set(key, booking);
-    }
-    const ctx = await loadQuestionsForExisting(attendeeId, loaded.existing);
-    questions = ctx.questions;
-    selectedAnswerIds = ctx.selectedAnswerIds;
-  }
+  // Load attendee + existing lines + question context (edit mode only).
+  const edit = mode === "edit" && attendeeId !== null
+    ? await loadEditContext(session, attendeeId)
+    : EMPTY_EDIT_CONTEXT;
+  if (edit === null) return notFoundResponse();
+  const { attendee, existingByKey, questions, selectedAnswerIds } = edit;
 
   const allEvents = await getAllEvents();
   const eventsById = eventsByIdMap(allEvents);
   const parsed = parseAttendeeForm(form, eventsById, existingByKey);
+  const renderOpts = { questions, returnUrl: parsed.returnUrl, selectedAnswerIds };
 
   // Step 1: line-action re-render (no save).
   const todayIso = todayInTz(settings.timezone);
   const lineAction = applyLineAction(parsed, todayIso);
   if (lineAction.kind === "rerender") {
-    const data = await buildTemplateData(mode, lineAction.parsed, attendee, {
-      questions,
-      returnUrl: parsed.returnUrl,
-      selectedAnswerIds,
-    });
-    return htmlResponse(attendeeFormPage(data, session));
+    return renderForm(
+      session,
+      await buildTemplateData(mode, lineAction.parsed, attendee, renderOpts),
+    );
   }
 
   // Step 2: trim trailing blank lines so save validation doesn't fail on
@@ -441,16 +457,11 @@ const handleSubmitInner = async (
     mode,
     result.values,
     attendee,
-    { questions, returnUrl: parsed.returnUrl, selectedAnswerIds },
+    renderOpts,
   );
   if (!result.valid) {
     const attendeeError = result.attendeeError?.message ?? null;
-    return htmlResponse(
-      attendeeFormPage(
-        { ...dataForRerender, attendeeError },
-        session,
-      ),
-    );
+    return renderForm(session, { ...dataForRerender, attendeeError });
   }
 
   // Step 4: apply atomic create or edit. On a recoverable failure (capacity,
@@ -466,12 +477,10 @@ const handleSubmitInner = async (
       parseQuestionAnswers(form, questions),
     );
   if (outcome.ok) return outcome.response;
-  return htmlResponse(
-    attendeeFormPage(
-      { ...dataForRerender, flashError: outcome.flashError },
-      session,
-    ),
-  );
+  return renderForm(session, {
+    ...dataForRerender,
+    flashError: outcome.flashError,
+  });
 };
 
 /** Outcome of an atomic create/edit attempt. A recoverable failure carries
@@ -480,6 +489,9 @@ const handleSubmitInner = async (
 type SaveOutcome =
   | { ok: true; response: Response }
   | { ok: false; flashError: string };
+
+/** Shown when a submission has no usable event lines. */
+const NO_LINES_ERROR = "Add at least one event line before saving";
 
 /** Read submitted question answers from the form, filtered to valid options. */
 const parseQuestionAnswers = (
@@ -503,7 +515,7 @@ const applyCreate = async (
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
-    return { flashError: "Add at least one event line before saving", ok: false };
+    return { flashError: NO_LINES_ERROR, ok: false };
   }
   const createResult = await createAttendeeAtomic(input);
   const check = await ensureAllBookings(createResult, input.bookings.length);
@@ -559,7 +571,7 @@ const applyEdit = async (
   );
   if (!editResult.success) {
     if (editResult.reason === "no_lines") {
-      return { flashError: "Add at least one event line before saving", ok: false };
+      return { flashError: NO_LINES_ERROR, ok: false };
     }
     return {
       flashError:
