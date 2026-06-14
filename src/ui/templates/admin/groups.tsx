@@ -392,13 +392,14 @@ export const adminGroupDetailPage = (
         <>
           <h2>Add Events to Group</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-events`}>
-            {ungroupedEvents.map((e) => (
-              <label>
-                <input name="event_ids" type="checkbox" value={String(e.id)} />
-                {` ${e.name}`}
-              </label>
-            ))}
-            <br />
+            <fieldset class="checkbox-group">
+              {ungroupedEvents.map((e) => (
+                <label>
+                  <input name="event_ids" type="checkbox" value={String(e.id)} />
+                  {` ${e.name}`}
+                </label>
+              ))}
+            </fieldset>
             <button type="submit">Add Selected Events</button>
           </CsrfForm>
         </>

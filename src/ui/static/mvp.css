@@ -1089,17 +1089,18 @@ fieldset {
   gap: var(--space-s);
 }
 
-.checkbox-group {
+.checkbox-group,
+.radio-group {
   border: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-m);
 }
 
-.checkbox-group label {
+.checkbox-group label,
+.radio-group label {
   display: inline-block;
   font-weight: normal;
+  max-width: none;
+  margin: 0 var(--space-m) var(--space-m) 0;
 }
 
 label.terms-agree {

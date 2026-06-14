@@ -135,17 +135,19 @@ export const adminQuestionPage = (
           action={`/admin/questions/${question.id}/events`}
           id="question-events"
         >
-          {map((e: EventWithCount) => (
-            <label>
-              <input
-                checked={assignedEventIds.has(e.id) || undefined}
-                name="event_ids"
-                type="checkbox"
-                value={String(e.id)}
-              />
-              {` ${e.name}`}
-            </label>
-          ))(allEvents)}
+          <fieldset class="checkbox-group">
+            {map((e: EventWithCount) => (
+              <label>
+                <input
+                  checked={assignedEventIds.has(e.id) || undefined}
+                  name="event_ids"
+                  type="checkbox"
+                  value={String(e.id)}
+                />
+                {` ${e.name}`}
+              </label>
+            ))(allEvents)}
+          </fieldset>
           <button type="submit">Save Events</button>
         </CsrfForm>
       )}
@@ -241,25 +243,27 @@ export const adminEventQuestionsPage = (
         </p>
       ) : (
         <CsrfForm action={`/admin/event/${event.id}/questions`}>
-          {map((q: QuestionWithAnswers) => (
-            <label>
-              <input
-                checked={assignedIds.has(q.id) || undefined}
-                name="question_ids"
-                type="checkbox"
-                value={String(q.id)}
-              />
-              {` ${q.text}`}
-              <small>
-                {" "}
-                ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
-                {q.answers.length > 0 && (
-                  <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
-                )}
-                )
-              </small>
-            </label>
-          ))(allQuestions)}
+          <fieldset class="checkbox-group">
+            {map((q: QuestionWithAnswers) => (
+              <label>
+                <input
+                  checked={assignedIds.has(q.id) || undefined}
+                  name="question_ids"
+                  type="checkbox"
+                  value={String(q.id)}
+                />
+                {` ${q.text}`}
+                <small>
+                  {" "}
+                  ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
+                  {q.answers.length > 0 && (
+                    <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
+                  )}
+                  )
+                </small>
+              </label>
+            ))(allQuestions)}
+          </fieldset>
           <button type="submit">Save</button>
         </CsrfForm>
       )}

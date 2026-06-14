@@ -15,24 +15,26 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
       When enabled, the homepage will show a public website with navigation for
       Home, Events, T&amp;Cs and Contact pages.
     </p>
-    <label>
-      <input
-        checked={s.showPublicSite === true}
-        name="show_public_site"
-        type="radio"
-        value="true"
-      />
-      Yes
-    </label>
-    <label>
-      <input
-        checked={s.showPublicSite !== true}
-        name="show_public_site"
-        type="radio"
-        value="false"
-      />
-      No
-    </label>
+    <fieldset class="radio-group">
+      <label>
+        <input
+          checked={s.showPublicSite === true}
+          name="show_public_site"
+          type="radio"
+          value="true"
+        />
+        Yes
+      </label>
+      <label>
+        <input
+          checked={s.showPublicSite !== true}
+          name="show_public_site"
+          type="radio"
+          value="false"
+        />
+        No
+      </label>
+    </fieldset>
     <button type="submit">Save</button>
   </CsrfForm>
 );
