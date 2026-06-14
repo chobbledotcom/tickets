@@ -11,6 +11,7 @@
  * for a different spam-protection provider to be added in future.
  */
 
+import { parseEmail, type ValidEmail } from "#shared/business-email.ts";
 import { getBotpoisonPublicKey, getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -27,11 +28,11 @@ export const isContactFormActive = (): boolean =>
  * Botpoison is not configured, in which case no widget is shown. */
 export const contactFormPublicKey = (): string => getBotpoisonPublicKey();
 
-/** Lowercased host (everything after the last `@`) of an email address. The
- * submitter, business, and from addresses all reach here already validated to
- * contain a host with a dot, so there is no empty-host case to handle. */
-const emailHost = (email: string): string =>
-  email.slice(email.lastIndexOf("@") + 1).toLowerCase();
+/** Host (everything after the last `@`) of a validated email address. The
+ * ValidEmail type guarantees a normalized address with a host, so there is no
+ * empty-host case to handle — and the compiler forbids passing a raw string. */
+const emailHost = (email: ValidEmail): string =>
+  email.slice(email.lastIndexOf("@") + 1);
 
 /** Bold warning prepended when the submitter claimed an address on the owner's
  * own business email host. */
@@ -91,17 +92,25 @@ export const sendContactMessage = async (
     return false;
   }
 
-  const businessEmail = settings.businessEmail;
+  // Parse every address through the same validator before any host comparison.
+  // The branded ValidEmail values let emailHost rely on a host being present;
+  // anything malformed (including the env-sourced from address) is rejected
+  // here rather than silently mishandled downstream.
+  const businessEmail = parseEmail(settings.businessEmail);
   if (!businessEmail) return false;
+  const fromAddress = parseEmail(config.fromAddress);
+  if (!fromAddress) return false;
+  const senderEmail = parseEmail(email);
+  if (!senderEmail) return false;
 
   // Anti-spoof: when the submitter claims an address on a host we trust (the
   // owner's business email host, or the site's own sending host), a Reply-To
   // of that address makes the message look self-sent and receiving mailboxes
   // munge the visible sender (e.g. noreply@invalid.invalid). Fall back to the
   // normal from address and flag it in the body instead.
-  const senderHost = emailHost(email);
+  const senderHost = emailHost(senderEmail);
   const spoofsBusiness = senderHost === emailHost(businessEmail);
-  const spoofsFrom = senderHost === emailHost(config.fromAddress);
+  const spoofsFrom = senderHost === emailHost(fromAddress);
   const warning = spoofsBusiness
     ? SPOOF_BUSINESS_WARNING
     : spoofsFrom
@@ -111,7 +120,7 @@ export const sendContactMessage = async (
   const { subject, text, html } = buildMessageBody(email, message, warning);
   const status = await sendEmail(config, {
     html,
-    replyTo: spoofed ? config.fromAddress : email,
+    replyTo: spoofed ? fromAddress : senderEmail,
     subject,
     text,
     to: businessEmail,

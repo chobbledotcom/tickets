@@ -203,6 +203,25 @@ describe("sendContactMessage", () => {
     expect(String(captured.body.text)).toContain("spoof the host");
   });
 
+  test("returns false and sends nothing when the from address is malformed", async () => {
+    settings.setForTest({
+      business_email: "owner@example.com",
+      email_api_key: "re_test_key",
+      email_from_address: "garbage",
+      email_provider: "resend",
+    });
+    stubFetch(() => Promise.reject(new Error("should not be called")));
+    expect(await sendContactMessage("visitor@external.test", "Hi")).toBe(false);
+    expect(fetchStub?.calls.length).toBe(0);
+  });
+
+  test("returns false and sends nothing when the submitter address is malformed", async () => {
+    configureEmail();
+    stubFetch(() => Promise.reject(new Error("should not be called")));
+    expect(await sendContactMessage("not-an-email", "Hi")).toBe(false);
+    expect(fetchStub?.calls.length).toBe(0);
+  });
+
   test("returns false when the email provider responds with an error", async () => {
     configureEmail();
     stubFetch(() => Promise.resolve(new Response("nope", { status: 422 })));
