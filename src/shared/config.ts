@@ -115,3 +115,25 @@ export const getBunnyDnsSubdomainSuffix = (): string =>
  * Get the Bunny Edge Script ID from environment
  */
 export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");
+
+/**
+ * Get the Botpoison public key from environment (safe to expose to browsers).
+ * Returns empty string when unset.
+ */
+export const getBotpoisonPublicKey = (): string =>
+  getEnv("BOTPOISON_PUBLIC_KEY") ?? "";
+
+/**
+ * Get the Botpoison secret key from environment (server-side verification only).
+ * Returns empty string when unset.
+ */
+export const getBotpoisonSecretKey = (): string =>
+  getEnv("BOTPOISON_SECRET_KEY") ?? "";
+
+/**
+ * Check if Botpoison spam protection is configured.
+ * Requires both BOTPOISON_PUBLIC_KEY and BOTPOISON_SECRET_KEY to be set.
+ * This gates the public contact form feature.
+ */
+export const isBotpoisonEnabled = (): boolean =>
+  !!getBotpoisonPublicKey() && !!getBotpoisonSecretKey();

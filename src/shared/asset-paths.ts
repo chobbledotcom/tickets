@@ -22,5 +22,8 @@ export const IFRAME_RESIZER_CHILD_JS_PATH = "/iframe-resizer-child.js";
 /** Embed loader JS path, cache-busted at build time */
 export const EMBED_JS_PATH = "/embed.js";
 
+/** Contact form (Botpoison) JS path, cache-busted at build time */
+export const CONTACT_JS_PATH = "/contact.js";
+
 /** Icon sprite path, cache-busted at build time */
 export const ICONS_PATH = "/icons.svg";

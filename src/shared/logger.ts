@@ -92,6 +92,9 @@ const ERROR_DEFS = {
   AUTH_INVALID_SESSION: ["E_AUTH_INVALID_SESSION", "Invalid session"],
   AUTH_RATE_LIMITED: ["E_AUTH_RATE_LIMITED", "Rate limited"],
 
+  // Botpoison spam-protection errors
+  BOTPOISON_VERIFY: ["E_BOTPOISON_VERIFY", "Botpoison verification failed"],
+
   // Capacity/availability errors
   CAPACITY_EXCEEDED: ["E_CAPACITY_EXCEEDED", "Capacity exceeded"],
 

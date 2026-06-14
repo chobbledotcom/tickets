@@ -5,6 +5,7 @@
 import { handleHealthCheck } from "#routes/api/health.ts";
 import {
   handleAdminJs,
+  handleContactJs,
   handleEmbedJs,
   handleFavicon,
   handleIcons,
@@ -19,6 +20,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 /** Static routes definition */
 const staticRoutes = defineRoutes({
   "GET /admin.js": () => handleAdminJs(),
+  "GET /contact.js": () => handleContactJs(),
   "GET /embed.js": () => handleEmbedJs(),
   "GET /favicon.ico": () => handleFavicon(),
   "GET /health": () => handleHealthCheck(),

@@ -55,12 +55,54 @@ export const adminSiteHomePage = (
     </Layout>,
   );
 
+/** State of the optional public contact form feature */
+interface ContactFormState {
+  /** Whether the host has configured Botpoison (gates the whole section) */
+  available: boolean;
+  /** Whether the owner has enabled the form */
+  enabled: boolean;
+  /** Whether a business email is set (required for delivery) */
+  hasBusinessEmail: boolean;
+}
+
+/** Toggle for the public contact form — only shown when Botpoison is configured */
+const ContactFormToggle = ({
+  enabled,
+  hasBusinessEmail,
+}: Omit<ContactFormState, "available">): JSX.Element => (
+  <CsrfForm action="/admin/site/contact/form">
+    <h2>Contact Form</h2>
+    <p>
+      Add a spam-protected contact form to the public contact page. Visitors
+      enter their email address and a message, which is sent to your business
+      email.
+    </p>
+    {!hasBusinessEmail && (
+      <p class="error" role="alert">
+        Set a business email on the Settings page to receive contact form
+        messages.
+      </p>
+    )}
+    <label>
+      <input
+        checked={enabled}
+        name="contact_form_enabled"
+        type="checkbox"
+        value="true"
+      />{" "}
+      Enable contact form
+    </label>
+    <SubmitButton icon="save">Save</SubmitButton>
+  </CsrfForm>
+);
+
 /**
  * Contact page editor
  */
 export const adminSiteContactPage = (
   session: AdminSession,
   contactPageText: string,
+  contactForm: ContactFormState,
   error?: string,
   success?: string,
 ): string =>
@@ -81,5 +123,12 @@ export const adminSiteContactPage = (
         />
         <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
+
+      {contactForm.available && (
+        <ContactFormToggle
+          enabled={contactForm.enabled}
+          hasBusinessEmail={contactForm.hasBusinessEmail}
+        />
+      )}
     </Layout>,
   );

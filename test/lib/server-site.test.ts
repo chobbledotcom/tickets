@@ -13,6 +13,7 @@ import {
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
+  hasCheckedInput,
   mockFormRequest,
   testCookie,
   testRequiresAuth,
@@ -169,6 +170,15 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       );
     });
 
+    test("hides the contact form toggle when Botpoison is not configured", async () => {
+      const response = await awaitTestRequest("/admin/site/contact", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).not.toContain("contact_form_enabled");
+      expect(html).not.toContain("Enable contact form");
+    });
+
     test("displays existing contact text", async () => {
       await settings.update.contactPageText("Call us!");
       const response = await awaitTestRequest("/admin/site/contact", {
@@ -300,3 +310,106 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "server (admin site contact form)",
+  {
+    db: true,
+    env: {
+      BOTPOISON_PUBLIC_KEY: "pk_test_public",
+      BOTPOISON_SECRET_KEY: "sk_test_secret",
+    },
+  },
+  () => {
+    describe("GET /admin/site/contact with Botpoison configured", () => {
+      test("shows the contact form toggle", async () => {
+        const response = await awaitTestRequest("/admin/site/contact", {
+          cookie: await testCookie(),
+        });
+        await expectHtmlResponse(
+          response,
+          200,
+          "Contact Form",
+          "contact_form_enabled",
+          "Enable contact form",
+        );
+      });
+
+      test("warns when no business email is set", async () => {
+        const response = await awaitTestRequest("/admin/site/contact", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain("Set a business email");
+      });
+
+      test("hides the business-email warning once one is set", async () => {
+        await settings.update.businessEmail("owner@example.com");
+        const response = await awaitTestRequest("/admin/site/contact", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).not.toContain("Set a business email");
+      });
+
+      test("reflects the enabled state in the checkbox", async () => {
+        await settings.update.contactFormEnabled(true);
+        const response = await awaitTestRequest("/admin/site/contact", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(hasCheckedInput(html, "contact_form_enabled", "true")).toBe(
+          true,
+        );
+      });
+
+      test("leaves the checkbox unchecked when disabled", async () => {
+        const response = await awaitTestRequest("/admin/site/contact", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(hasCheckedInput(html, "contact_form_enabled", "true")).toBe(
+          false,
+        );
+      });
+    });
+
+    describe("POST /admin/site/contact/form", () => {
+      testRequiresAuth("/admin/site/contact/form", {
+        body: { contact_form_enabled: "true" },
+        method: "POST",
+      });
+
+      test("rejects invalid CSRF token", async () => {
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/site/contact/form",
+            { contact_form_enabled: "true", csrf_token: "invalid" },
+            await testCookie(),
+          ),
+        );
+        expect(response.status).toBe(403);
+      });
+
+      test("enables the contact form", async () => {
+        const { response } = await adminFormPost("/admin/site/contact/form", {
+          contact_form_enabled: "true",
+        });
+        expectRedirect(response, "/admin/site/contact");
+        expectFlash(response, "Contact form enabled");
+        expect(settings.contactFormEnabled).toBe(true);
+      });
+
+      test("disables the contact form when the box is unchecked", async () => {
+        await settings.update.contactFormEnabled(true);
+        const { response } = await adminFormPost(
+          "/admin/site/contact/form",
+          {},
+        );
+        expectRedirect(response, "/admin/site/contact");
+        expectFlash(response, "Contact form disabled");
+        expect(settings.contactFormEnabled).toBe(false);
+      });
+    });
+  },
+);

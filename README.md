@@ -107,6 +107,12 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 - Built-in template filters: `currency` (formats amounts) and `pluralize`
 - Configured in admin settings - optional, the system works without it
 
+### Contact form
+
+- Optional spam-protected contact form on the public contact page
+- Enabled per-site from **Site → Contact** once `BOTPOISON_PUBLIC_KEY`/`BOTPOISON_SECRET_KEY` are set and a business email is configured
+- Submissions are CSRF-protected and verified with [Botpoison](https://botpoison.com) proof-of-work before the message is emailed to the business address (reply-to set to the sender)
+
 ### Public JSON API
 
 - RESTful API for listing and booking (`/api/listings`, `/api/listings/:slug`, `/api/listings/:slug/availability`, `/api/listings/:slug/book`)
@@ -250,9 +256,11 @@ deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:co
 
 Optional:
 
-| Variable              | Description                                                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
+| Variable                | Description                                                                                                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ADMIN_EMAIL_ADDRESS`   | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
+| `BOTPOISON_PUBLIC_KEY`  | [Botpoison](https://botpoison.com) public key. Shown in the browser; enables the public contact form (with `BOTPOISON_SECRET_KEY`).                                                                                                          |
+| `BOTPOISON_SECRET_KEY`  | Botpoison secret key. Used server-side to verify contact form submissions before they are emailed to the business address.                                                                                                                   |
 
 Optional:
 
