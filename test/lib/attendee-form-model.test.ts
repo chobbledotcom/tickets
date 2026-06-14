@@ -12,6 +12,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import type { Holiday } from "#shared/types.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { MAX_FORM_LINES } from "#shared/limits.ts";
 import { testEventWithCount } from "#test-utils";
 import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
 
@@ -166,6 +167,16 @@ describe("parseAttendeeForm", () => {
     expect(parseAttendeeForm(form, new Map()).lines).toHaveLength(1);
   });
 
+  test("clamps an abusive line_count to MAX_FORM_LINES", () => {
+    const form = makeForm({
+      line_count: String(MAX_FORM_LINES + 50),
+      name: "X",
+    });
+    expect(parseAttendeeForm(form, new Map()).lines).toHaveLength(
+      MAX_FORM_LINES,
+    );
+  });
+
   test("attaches existing booking rows by key", () => {
     const booking = bookingRow({ event_id: 5, quantity: 3 });
     const form = makeForm({
@@ -307,6 +318,93 @@ describe("validateParsedForm", () => {
     );
     const trimmed = { ...parsed, lines: trimTrailingBlankLines(parsed.lines) };
     const result = validateParsedForm(trimmed, []);
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects a malformed email even though it is optional", () => {
+    const event = testEventWithCount({ id: 1, active: true, max_quantity: 5 });
+    const parsed = parseAttendeeForm(
+      makeForm({
+        email: "not-an-email",
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([[1, event]]),
+    );
+    const result = validateParsedForm(parsed, []);
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.attendeeError?.field).toBe("email");
+  });
+
+  test("rejects a malformed phone even though it is optional", () => {
+    const event = testEventWithCount({ id: 1, active: true, max_quantity: 5 });
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+        phone: "not a phone",
+      }),
+      new Map([[1, event]]),
+    );
+    const result = validateParsedForm(parsed, []);
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.attendeeError?.field).toBe("phone");
+  });
+
+  test("rejects an address that exceeds the length cap", () => {
+    const event = testEventWithCount({ id: 1, active: true, max_quantity: 5 });
+    const parsed = parseAttendeeForm(
+      makeForm({
+        address: "x".repeat(251),
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([[1, event]]),
+    );
+    const result = validateParsedForm(parsed, []);
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.attendeeError?.field).toBe("address");
+  });
+
+  test("rejects special instructions that exceed the length cap", () => {
+    const event = testEventWithCount({ id: 1, active: true, max_quantity: 5 });
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+        special_instructions: "x".repeat(251),
+      }),
+      new Map([[1, event]]),
+    );
+    const result = validateParsedForm(parsed, []);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.attendeeError?.field).toBe("special_instructions");
+    }
+  });
+
+  test("accepts well-formed optional email and phone", () => {
+    const event = testEventWithCount({ id: 1, active: true, max_quantity: 5 });
+    const parsed = parseAttendeeForm(
+      makeForm({
+        email: "jane@example.com",
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+        phone: "+1 (555) 123-4567",
+      }),
+      new Map([[1, event]]),
+    );
+    const result = validateParsedForm(parsed, []);
     expect(result.valid).toBe(true);
   });
 
