@@ -982,17 +982,35 @@ export const adminGuidePage = (
       <Section id="refunds" title="Refunds">
         <Q q="When do automatic refunds happen?">
           <p>
-            Automatic refunds happen in two scenarios. First, when a listing
-            sells out while someone is completing payment. Their place is held
-            for 5 minutes during checkout, but if another buyer fills the last
-            spot first, the slower payer is automatically refunded and shown a
-            message explaining the listing is full. Second, if an admin changes
-            the listing price while someone is mid-checkout. The system detects
-            that the amount charged no longer matches the current price and
-            refunds the payment automatically. In multi-listing bookings, if any
-            single listing fails (e.g. one of the combined listings is full or
-            its price changed), the entire payment is refunded &mdash; not just
-            the portion for the affected listing.
+            A place is only ever counted once payment completes &mdash; nothing
+            is held during checkout (see{" "}
+            <em>Why don't we hold places during checkout?</em> above). Because
+            of that, a completed payment can occasionally find that the booking
+            is no longer possible, and in those cases the payment is refunded
+            automatically. This happens when, by the time the payment is
+            confirmed:
+          </p>
+          <ul>
+            <li>
+              the listing has <strong>sold out</strong> &mdash; another buyer
+              took the last spot first, so the slower payer is refunded and
+              shown a message explaining the listing is full;
+            </li>
+            <li>
+              the <strong>price has changed</strong> &mdash; an admin edited the
+              listing price mid-checkout, so the amount charged no longer
+              matches the current price;
+            </li>
+            <li>
+              the listing has been <strong>closed or deactivated</strong> while
+              the buyer was paying.
+            </li>
+          </ul>
+          <p>
+            In multi-listing bookings it's all-or-nothing: if any single listing
+            fails (e.g. one of the combined listings is full or its price
+            changed), the entire payment is refunded &mdash; not just the
+            portion for the affected listing.
           </p>
         </Q>
 
