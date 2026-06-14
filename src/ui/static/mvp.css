@@ -693,6 +693,13 @@ textarea[readonly] {
   background-color: var(--color-bg-secondary);
 }
 
+/* Recipient address list: wrap long emails so they never overflow a
+   narrow (mobile) screen. */
+.recipient-emails {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .char-counter {
   display: block;
   text-align: right;

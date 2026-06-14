@@ -226,6 +226,24 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expect(html).toContain("via Resend");
       expect(html).toContain('action="/admin/emails/send"');
       expect(html).toContain("Transactional / service email");
+      expect(html).toContain('class="recipient-emails"');
+      expect(html).toContain("alice@example.com, bob@example.com");
+    });
+
+    test("omits the address list when there are no recipients", async () => {
+      useResend();
+      settings.setForTest({
+        bulk_email_draft: serializeDraft({
+          body: "Body",
+          marketing: false,
+          subject: "Subject",
+          target: { kind: "listing", listingId: 987654 },
+        }),
+      });
+      const html = await awaitTestRequest("/admin/emails/preview", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).not.toContain('class="recipient-emails"');
     });
 
     test("disables sending and explains marketing when not sendable", async () => {
