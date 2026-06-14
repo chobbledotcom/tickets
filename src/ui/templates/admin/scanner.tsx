@@ -6,7 +6,7 @@ import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { GuideLink } from "#templates/components/actions.tsx";
+import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Ticket option for the manual check-in autocomplete */
@@ -129,7 +129,7 @@ export const adminScannerPage = (
             </div>
           </div>
           <div class="hidden" id="manual-checkin-status"></div>
-          <button type="submit">Check In</button>
+          <SubmitButton icon="check">Check In</SubmitButton>
         </form>
       </article>
     </Layout>,

@@ -7,6 +7,7 @@ import { seedsForm } from "#routes/admin/seeds.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Seed data admin page */
@@ -26,7 +27,7 @@ export const adminSeedsPage = (
         </p>
         <Flash error={error} success={success} />
         <Raw html={seedsForm.render()} />
-        <button type="submit">Create Seed Data</button>
+        <SubmitButton icon="plus">Create Seed Data</SubmitButton>
       </CsrfForm>
 
       <p>

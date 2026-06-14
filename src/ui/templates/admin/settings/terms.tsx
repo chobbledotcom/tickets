@@ -6,6 +6,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 
 export const TermsForm = (s: SettingsPageState): JSX.Element => (
@@ -27,6 +28,6 @@ export const TermsForm = (s: SettingsPageState): JSX.Element => (
         {s.termsAndConditions}
       </textarea>
     </label>
-    <button type="submit">Save Terms</button>
+    <SubmitButton icon="save">Save Terms</SubmitButton>
   </CsrfForm>
 );

@@ -5,6 +5,7 @@
 import { isDemoMode } from "#shared/demo.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { loginFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -17,7 +18,7 @@ export const adminLoginPage = (error?: string): string =>
       <Flash error={error} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(loginFields)} />
-        <button type="submit">Login</button>
+        <SubmitButton icon="log-in">Login</SubmitButton>
       </CsrfForm>
       {isDemoMode() && (
         <p>

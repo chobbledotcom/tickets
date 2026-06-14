@@ -10,7 +10,10 @@
 import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
 
-/** Icon ids available in the sprite (src/ui/static/icons.svg) */
+/**
+ * Icon ids available in the sprite (src/ui/static/icons.svg).
+ * Names match their source icons in Lucide (https://lucide.dev).
+ */
 export type IconName =
   | "plus"
   | "book-open"
@@ -18,7 +21,13 @@ export type IconName =
   | "arrow-right"
   | "credit-card"
   | "hammer"
-  | "rotate-ccw";
+  | "rotate-ccw"
+  | "save"
+  | "check"
+  | "search"
+  | "trash-2"
+  | "log-in"
+  | "log-out";
 
 /** Visual variants for a button-styled link */
 export type BtnVariant = "primary" | "outline" | "secondary";
@@ -49,6 +58,29 @@ export const ActionButton = ({
     {icon ? <Icon name={icon} /> : null}
     <span>{children}</span>
   </a>
+);
+
+/**
+ * A form submit button with a leading icon. Mirrors {@link ActionButton} for
+ * the primary action of a form (e.g. "Save", "Create Listing"). Pass `class`
+ * to layer on the existing button modifiers (`secondary`, `danger`, …) and an
+ * optional `id` for buttons targeted by client scripts.
+ */
+export const SubmitButton = ({
+  icon,
+  class: className,
+  id,
+  children,
+}: {
+  icon: IconName;
+  class?: string;
+  id?: string;
+  children?: Child;
+}): SafeHtml => (
+  <button class={className} id={id} type="submit">
+    <Icon name={icon} />
+    <span>{children}</span>
+  </button>
 );
 
 /**

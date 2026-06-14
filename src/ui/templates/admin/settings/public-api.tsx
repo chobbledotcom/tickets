@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <CsrfForm
@@ -36,6 +37,6 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
         No
       </label>
     </fieldset>
-    <button type="submit">Save</button>
+    <SubmitButton icon="save">Save</SubmitButton>
   </CsrfForm>
 );

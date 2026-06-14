@@ -7,6 +7,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
+import { Icon } from "#templates/components/actions.tsx";
 
 const escapeHtml = (str: string): string =>
   str
@@ -643,7 +644,8 @@ export const ConfirmForm = ({
       />
     </label>
     <button class={danger ? "danger" : undefined} type="submit">
-      {buttonText}
+      <Icon name={danger ? "trash-2" : "check"} />
+      <span>{buttonText}</span>
     </button>
   </CsrfForm>
 );

@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm
@@ -35,6 +36,6 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
         No
       </label>
     </fieldset>
-    <button type="submit">Save</button>
+    <SubmitButton icon="save">Save</SubmitButton>
   </CsrfForm>
 );

@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 
 export const AdminEmailTemplateForm = (
@@ -61,6 +62,6 @@ export const AdminEmailTemplateForm = (
       <small>Edit default template</small>
     </a>
     <br />
-    <button type="submit">Save Admin Notification Template</button>
+    <SubmitButton icon="save">Save Admin Notification Template</SubmitButton>
   </CsrfForm>
 );

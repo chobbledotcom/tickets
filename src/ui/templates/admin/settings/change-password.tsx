@@ -4,6 +4,7 @@
 
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { changePasswordFields } from "#templates/fields.ts";
 
 export const ChangePasswordForm = (): JSX.Element => (
@@ -11,6 +12,6 @@ export const ChangePasswordForm = (): JSX.Element => (
     <h2>Change Password</h2>
     <p>Changing your password will log you out of all sessions.</p>
     <Raw html={renderFields(changePasswordFields)} />
-    <button type="submit">Change Password</button>
+    <SubmitButton icon="save">Change Password</SubmitButton>
   </CsrfForm>
 );

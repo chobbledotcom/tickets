@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const ThemeForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/theme" id="settings-theme">
@@ -29,6 +30,6 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
         Dark
       </label>
     </fieldset>
-    <button type="submit">Save Theme</button>
+    <SubmitButton icon="save">Save Theme</SubmitButton>
   </CsrfForm>
 );

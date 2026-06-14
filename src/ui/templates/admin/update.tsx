@@ -6,6 +6,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type UpdatePageState = {
@@ -37,7 +38,7 @@ const CurrentVersion = ({ state }: { state: UpdatePageState }): JSX.Element => (
 /** Check for updates form */
 const CheckForUpdates = (): JSX.Element => (
   <CsrfForm action="/admin/update/check" id="update-check">
-    <button type="submit">Check for Updates</button>
+    <SubmitButton icon="rotate-ccw">Check for Updates</SubmitButton>
   </CsrfForm>
 );
 
@@ -57,7 +58,7 @@ const UpdateAvailable = ({
     </div>
     {state.bunnyConfigured ? (
       <CsrfForm action="/admin/update" class="no-bg" id="update-deploy">
-        <button type="submit">Update Now</button>
+        <SubmitButton icon="rotate-ccw">Update Now</SubmitButton>
       </CsrfForm>
     ) : (
       <p>

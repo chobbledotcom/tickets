@@ -1,5 +1,6 @@
 import { CsrfForm } from "#shared/forms.tsx";
 import type { SuperuserState } from "#shared/superuser.ts";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const SuperuserForm = (s: {
   superuser: SuperuserState;
@@ -60,7 +61,7 @@ export const SuperuserForm = (s: {
             </span>
           </label>
 
-          <button type="submit">Save</button>
+          <SubmitButton icon="save">Save</SubmitButton>
         </>
       )}
     </CsrfForm>
