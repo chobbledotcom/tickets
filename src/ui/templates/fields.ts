@@ -220,10 +220,10 @@ const isPrivateIPv6 = (ipv6: string): boolean => {
   if (mapped) return isPrivateIPv4(...mapped);
   // fe80::/10 — link-local (first 10 bits: 1111111010 → first group 0xfe80..0xfebf)
   // fc00::/7  — unique local (first 7 bits: 1111110  → first group 0xfc00..0xfdff)
-  const firstGroup = ipv6.split(":")[0]!;
-  if (firstGroup.length < 3) return false;
-  const n = Number.parseInt(firstGroup, 16);
-  if (!Number.isFinite(n)) return false;
+  // A short or empty first group (e.g. "1" of 1::, or "" of ::2) parses to a
+  // value below 0xfc00 — or to NaN, whose range comparisons are all false — so
+  // non-private addresses fall through to false with no explicit guard needed.
+  const n = Number.parseInt(ipv6.split(":")[0]!, 16);
   return (n >= 0xfe80 && n <= 0xfebf) || (n >= 0xfc00 && n <= 0xfdff);
 };
 

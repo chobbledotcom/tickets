@@ -58,10 +58,9 @@ const computeBookingDateLabel = (
   listing: TokenEntry["listing"],
 ): string => {
   if (!attendeeDate) return "";
-  const durationDays =
-    listing.listing_type === "daily"
-      ? normalizeDurationDays(listing.duration_days)
-      : 1;
+  // A booking date only ever exists for daily listings, so the listing's
+  // duration drives whether the label is a single day or a compact range.
+  const durationDays = normalizeDurationDays(listing.duration_days);
   return durationDays > 1
     ? formatDateRangeLabelCompactEn(
         attendeeDate,

@@ -9,6 +9,7 @@
  * listings) but is not required for the form to function.
  */
 
+import { compact } from "#fp";
 import {
   ACTION_FIELD,
   ADD_LINE_ACTION,
@@ -72,6 +73,23 @@ export type AttendeeFormTemplateData = {
   emailStats?: EmailStats | null;
 };
 
+/** Status badges for an existing booking — "Checked in" and/or "Refunded",
+ * space-separated. Renders nothing when the booking is absent or has neither
+ * status, so a plain booking never leaves a stray node behind. */
+const bookingStatusBadges = (
+  booking: AttendeeFormLine["existingBooking"],
+): JSX.Element | null => {
+  const badges = compact([
+    booking?.checked_in ? <span class="badge">Checked in</span> : null,
+    booking?.refunded ? <span class="badge danger">Refunded</span> : null,
+  ]);
+  return badges.length > 0 ? (
+    <div class="muted small">
+      <Raw html={badges.join(" ")} />
+    </div>
+  ) : null;
+};
+
 /** One row of the line-item editor — one listing registration. */
 const LineRow = ({
   line,
@@ -105,20 +123,7 @@ const LineRow = ({
             </option>
           ))}
         </select>
-        {(line.existingBooking?.checked_in ||
-          line.existingBooking?.refunded) && (
-          <div class="muted small">
-            {line.existingBooking?.checked_in ? (
-              <span class="badge">Checked in</span>
-            ) : null}
-            {line.existingBooking?.checked_in && line.existingBooking?.refunded
-              ? " "
-              : null}
-            {line.existingBooking?.refunded ? (
-              <span class="badge danger">Refunded</span>
-            ) : null}
-          </div>
-        )}
+        {bookingStatusBadges(line.existingBooking)}
       </td>
       <td>
         <input
