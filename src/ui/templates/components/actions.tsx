@@ -19,6 +19,7 @@ export type IconName =
   | "book-open"
   | "user-plus"
   | "arrow-right"
+  | "arrow-left"
   | "credit-card"
   | "hammer"
   | "rotate-ccw"

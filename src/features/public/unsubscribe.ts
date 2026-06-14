@@ -7,7 +7,7 @@
  */
 
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   isHashUnsubscribed,
@@ -31,6 +31,7 @@ export const handleUnsubscribeGet = async (
     unsubscribePage({
       error: flash.error,
       hash,
+      info: flash.info,
       success: flash.success,
       unsubscribed,
     }),
@@ -60,10 +61,9 @@ export const handleUnsubscribePost = (request: Request): Promise<Response> =>
         );
       }
       await unsubscribeHash(hash);
-      return redirect(
+      return infoRedirect(
         pagePath(hash),
         "You've unsubscribed from our marketing emails.",
-        true,
       );
     },
   );

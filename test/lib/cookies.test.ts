@@ -153,6 +153,7 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "Listing created", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      info: undefined,
       result: undefined,
       success: "Listing created",
     });
@@ -162,6 +163,17 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "Something went wrong", t: "e" });
     expect(parseFlashValue(encoded)).toEqual({
       error: "Something went wrong",
+      info: undefined,
+      result: undefined,
+      success: undefined,
+    });
+  });
+
+  test("parses info flash value", () => {
+    const encoded = JSON.stringify({ m: "You've unsubscribed", t: "i" });
+    expect(parseFlashValue(encoded)).toEqual({
+      error: undefined,
+      info: "You've unsubscribed",
       result: undefined,
       success: undefined,
     });
@@ -173,6 +185,7 @@ describe("parseFlashValue", () => {
     );
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      info: undefined,
       result: undefined,
       success: "Hello world",
     });
@@ -182,6 +195,7 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "Created", r: "abc123", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      info: undefined,
       result: "abc123",
       success: "Created",
     });

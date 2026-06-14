@@ -25,13 +25,21 @@ const payload = (n: number): BulkEmailPayload => ({
   text: "Hi",
 });
 
+/** The stub fetch returns an empty 200, so each batch records this response. */
+const okBatch = { body: "", ok: true, status: 200 };
+
 describe("sendBulkEmails", () => {
   const fetch = useFetchStub();
 
   test("Resend posts one batch request with all recipients", async () => {
     const result = await sendBulkEmails(config, payload(3));
 
-    expect(result).toEqual({ attempted: 3, batches: 1, failed: 0 });
+    expect(result).toEqual({
+      attempted: 3,
+      batches: 1,
+      failed: 0,
+      responses: [okBatch],
+    });
     expect(fetch.callCount()).toBe(1);
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.resend.com/emails/batch");
@@ -62,7 +70,12 @@ describe("sendBulkEmails", () => {
   test("Resend chunks recipients beyond the 100-per-batch limit", async () => {
     const result = await sendBulkEmails(config, payload(101));
 
-    expect(result).toEqual({ attempted: 101, batches: 2, failed: 0 });
+    expect(result).toEqual({
+      attempted: 101,
+      batches: 2,
+      failed: 0,
+      responses: [okBatch, okBatch],
+    });
     expect(fetch.callCount()).toBe(2);
     expect(fetch.getFetchJsonBody(0)).toHaveLength(100);
     expect(fetch.getFetchJsonBody(1)).toHaveLength(1);
@@ -74,7 +87,12 @@ describe("sendBulkEmails", () => {
       payload(2),
     );
 
-    expect(result).toEqual({ attempted: 2, batches: 1, failed: 0 });
+    expect(result).toEqual({
+      attempted: 2,
+      batches: 1,
+      failed: 0,
+      responses: [okBatch],
+    });
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.postmarkapp.com/email/batch");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe("re_key");
@@ -147,7 +165,12 @@ describe("sendBulkEmails", () => {
       },
     );
 
-    expect(result).toEqual({ attempted: 2, batches: 1, failed: 0 });
+    expect(result).toEqual({
+      attempted: 2,
+      batches: 1,
+      failed: 0,
+      responses: [okBatch],
+    });
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.mailgun.net/v3/mg.example.com/messages");
     expect(fetch.getFetchHeaders().Authorization).toBe(
@@ -182,7 +205,12 @@ describe("sendBulkEmails", () => {
     const errorSpy = spy(console, "error");
     try {
       const result = await sendBulkEmails(config, payload(3));
-      expect(result).toEqual({ attempted: 3, batches: 1, failed: 3 });
+      expect(result).toEqual({
+        attempted: 3,
+        batches: 1,
+        failed: 3,
+        responses: [{ body: "nope", ok: false, status: 500 }],
+      });
       const logged = errorSpy.calls.some((c) =>
         String(c.args[0]).includes("E_EMAIL_SEND"),
       );
@@ -194,7 +222,12 @@ describe("sendBulkEmails", () => {
 
   test("sending no recipients makes no requests", async () => {
     const result = await sendBulkEmails(config, payload(0));
-    expect(result).toEqual({ attempted: 0, batches: 0, failed: 0 });
+    expect(result).toEqual({
+      attempted: 0,
+      batches: 0,
+      failed: 0,
+      responses: [],
+    });
     expect(fetch.callCount()).toBe(0);
   });
 });

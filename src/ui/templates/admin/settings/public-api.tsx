@@ -17,7 +17,7 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
       creating bookings. See the <a href="/admin/guide#api">API guide</a> for
       details.
     </p>
-    <fieldset class="radio-group">
+    <fieldset class="radios">
       <label>
         <input
           checked={s.showPublicApi === true}

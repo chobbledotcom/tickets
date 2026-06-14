@@ -8,7 +8,7 @@ import {
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
-import { getFlash } from "#shared/flash-context.ts";
+import { type Flash, getFlash } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   setFormError,
@@ -91,9 +91,7 @@ export const withCsrfForm = async (
  * per-request success/error stores so CsrfForm can display them.
  * Returns the flash object for callers that need additional logic.
  */
-export const applyFlash = (
-  request: Request,
-): { success?: string; error?: string; result?: string } => {
+export const applyFlash = (request: Request): Flash => {
   const flash = getFlash();
   const formId = getSearchParam(request, "form");
   if (flash.success) setFormSuccess(formId, flash.success);
