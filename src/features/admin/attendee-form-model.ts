@@ -41,6 +41,10 @@ export const SAVE_ACTION = "save";
 export const ADD_LINE_ACTION = "add_line";
 export const REMOVE_LINE_ACTION_PREFIX = "remove_line_";
 
+/** DOM id of the add/edit form, also used as the post-save scroll anchor
+ * (`#attendee-form`) so the operator lands on the form after a save. */
+export const ATTENDEE_FORM_ID = "attendee-form";
+
 // ---------------------------------------------------------------------------
 // Domain types
 // ---------------------------------------------------------------------------

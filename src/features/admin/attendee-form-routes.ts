@@ -61,6 +61,7 @@ import { getSearchParam } from "#routes/url.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, EventWithCount, Holiday } from "#shared/types.ts";
 import {
+  ATTENDEE_FORM_ID,
   defaultNewDailyDate,
   type AttendeeFormLine,
   type DailyDefaults,
@@ -250,7 +251,8 @@ const renderForm = (
   data: AttendeeFormTemplateData,
 ): Response => htmlResponse(attendeeFormPage(data, session));
 
-/** Apply the flash cookie and render the attendee form page (GET handlers). */
+/** Render a GET of the form, surfacing any post-save flash (cookie) inside the
+ * form so the operator lands on it after the redirect. */
 const renderAttendeeFormPage = (
   request: Request,
   data: AttendeeFormTemplateData,
@@ -477,6 +479,8 @@ const handleSubmitInner = async (
       parseQuestionAnswers(form, questions),
     );
   if (outcome.ok) return outcome.response;
+  // In-place re-render (no redirect): show the failure inside the form, the
+  // same place a saved success lands, while preserving the entered data.
   return renderForm(session, {
     ...dataForRerender,
     flashError: outcome.flashError,
@@ -492,6 +496,22 @@ type SaveOutcome =
 
 /** Shown when a submission has no usable event lines. */
 const NO_LINES_ERROR = "Add at least one event line before saving";
+
+/** The edit page for an attendee, carrying the return_url through so the
+ * "Back without saving" link still works after a save. */
+const attendeePath = (id: number, returnUrl: string): string =>
+  returnUrl
+    ? `/admin/attendees/${id}?return_url=${encodeURIComponent(returnUrl)}`
+    : `/admin/attendees/${id}`;
+
+/** Redirect back to the saved attendee's own form, scrolling to it via the
+ * `#attendee-form` anchor; the flash cookie then shows the success inside it. */
+const savedRedirect = (
+  id: number,
+  returnUrl: string,
+  message: string,
+): Response =>
+  redirect(`${attendeePath(id, returnUrl)}#${ATTENDEE_FORM_ID}`, message, true);
 
 /** Read submitted question answers from the form, filtered to valid options. */
 const parseQuestionAnswers = (
@@ -535,8 +555,11 @@ const applyCreate = async (
   const firstEventId = parsed.lines.find((line) => line.eventId > 0)!.eventId;
   await logActivity(`Attendee '${parsed.name}' added manually`, firstEventId);
 
-  const target = parsed.returnUrl || `/admin/attendees/${attendees[0]!.id}`;
-  return { ok: true, response: redirect(target, `Added ${parsed.name}`, true) };
+  const newId = attendees[0]!.id;
+  return {
+    ok: true,
+    response: savedRedirect(newId, parsed.returnUrl, `Added ${parsed.name}`),
+  };
 };
 
 /** Run the atomic edit flow. */
@@ -587,8 +610,10 @@ const applyEdit = async (
 
   const firstEventId = desired[0]?.eventId;
   await logActivity(`Attendee '${parsed.name}' updated`, firstEventId);
-  const target = parsed.returnUrl || `/admin/attendees/${attendeeId}`;
-  return { ok: true, response: redirect(target, `Updated ${parsed.name}`, true) };
+  return {
+    ok: true,
+    response: savedRedirect(attendeeId, parsed.returnUrl, `Updated ${parsed.name}`),
+  };
 };
 
 // ---------------------------------------------------------------------------

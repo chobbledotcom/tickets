@@ -12,6 +12,7 @@
 import {
   ACTION_FIELD,
   ADD_LINE_ACTION,
+  ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   type DailyDefaults,
   type ParsedAttendeeForm,
@@ -48,7 +49,8 @@ export type AttendeeFormTemplateData = {
   dailyDefaults: DailyDefaults;
   /** Attendee-level error (e.g. "Name is required"). */
   attendeeError: string | null;
-  /** Generic page-level error/success flash (e.g. capacity lost to race). */
+  /** Save outcome shown inside the form (success after a save, or a recoverable
+   * failure like capacity lost to a race). */
   flashError?: string;
   flashSuccess?: string;
   /** Custom questions for the first existing event (edit mode only). */
@@ -326,7 +328,6 @@ export const attendeeFormPage = (
   return String(
     <Layout title={pageTitle(data)}>
       <AdminNav active="/admin/" session={session} />
-      <Flash error={data.flashError} success={data.flashSuccess} />
 
       <h2>{pageTitle(data)}</h2>
 
@@ -340,7 +341,8 @@ export const attendeeFormPage = (
 
       <Raw html={renderMixedTimingAlert(data)} />
 
-      <CsrfForm action={formAction} id="attendee-form">
+      <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
+        <Flash error={data.flashError} success={data.flashSuccess} />
         {data.returnUrl && (
           <input name="return_url" type="hidden" value={data.returnUrl} />
         )}
@@ -411,7 +413,6 @@ export const attendeeFormPage = (
 
         <h3>Event Registrations</h3>
         <Raw html={renderLineEditor(data)} />
-
         <p>
           <button
             formnovalidate
@@ -421,14 +422,22 @@ export const attendeeFormPage = (
           >
             Add Event Line
           </button>
-          <button class="primary" type="submit" name={ACTION_FIELD} value={SAVE_ACTION}>
+        </p>
+
+        <hr />
+
+        <p class="form-actions">
+          <button
+            class="primary"
+            type="submit"
+            name={ACTION_FIELD}
+            value={SAVE_ACTION}
+          >
             {isEdit ? "Save Attendee" : "Create Attendee"}
           </button>
-          {data.returnUrl ? (
-            <a class="button" href={data.returnUrl}>Cancel</a>
-          ) : (
-            <a class="button" href="/admin/">Back</a>
-          )}
+          <a class="button" href={data.returnUrl || "/admin/"}>
+            Back without saving
+          </a>
         </p>
       </CsrfForm>
 

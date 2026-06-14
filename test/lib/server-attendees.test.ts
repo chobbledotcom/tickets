@@ -1270,7 +1270,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/attendees/${attendee.id}`,
+        `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Doe",
       )(response);
 
@@ -1288,7 +1288,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(html).toContain("Wheelchair access");
     });
 
-    test("appends success message to return_url after edit", async () => {
+    test("returns to the edit form after edit, preserving return_url", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -1307,11 +1307,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         form,
       );
+      // Save returns to the same form (anchored), carrying return_url through
+      // so the "Back without saving" link still points where the user came from.
       expectRedirect(
         response,
-        "/admin/calendar",
-        "date=2026-03-15",
-        "#attendees",
+        `/admin/attendees/${attendee.id}`,
+        `return_url=${encodeURIComponent(returnUrl)}`,
+        "#attendee-form",
       );
       expectFlash(response, expect.stringContaining("John Doe"));
     });
@@ -1337,7 +1339,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/attendees/${attendee.id}`,
+        `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1529,7 +1531,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/attendees/${attendee.id}`,
+        `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
