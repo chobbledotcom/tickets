@@ -154,10 +154,7 @@ const handleQuestionEdit = createAuthedFormRoute<
 const handleQuestionEvents = ownerFormById(async (id, _session, form) => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return notFoundResponse();
-  const eventIds = form
-    .getAll("event_ids")
-    .map((v) => Number.parseInt(v, 10))
-    .filter((n) => !Number.isNaN(n));
+  const eventIds = form.getNumberArray("event_ids");
   await setQuestionEvents(id, eventIds);
   await logActivity(
     `Question '${question.text}' assigned to ${eventIds.length} event${
@@ -307,10 +304,7 @@ const handleEventQuestionsGet = ownerGetById(
 const handleEventQuestionsPost = ownerFormById(async (id, _session, form) => {
   const event = await getEventWithCount(id);
   if (!event) return notFoundResponse();
-  const questionIds = form
-    .getAll("question_ids")
-    .map((v) => Number.parseInt(v, 10))
-    .filter((n) => !Number.isNaN(n));
+  const questionIds = form.getNumberArray("question_ids");
   await setEventQuestions(id, questionIds);
   await logActivity(
     `Questions updated for '${event.name}' (${questionIds.length} question${
