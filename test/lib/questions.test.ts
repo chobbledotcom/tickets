@@ -10,12 +10,14 @@ import {
   getAttendeeAnswersBatch,
   getEventQuestionIds,
   getNextAnswerSortOrder,
+  getQuestionEventIds,
   getQuestionsForEvent,
   getQuestionsWithEventIds,
   getQuestionWithAnswers,
   questionsTable,
   saveAttendeeAnswers,
   setEventQuestions,
+  setQuestionEvents,
   swapAnswerOrder,
 } from "#shared/db/questions.ts";
 import { createTestEvent, describeWithEnv } from "#test-utils";
@@ -203,6 +205,92 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("returns empty array for event with no questions", async () => {
       const event = await createTestEvent();
       expect(await getEventQuestionIds(event.id)).toEqual([]);
+    });
+  });
+
+  describe("getQuestionEventIds", () => {
+    test("returns the events a question is assigned to", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      const event1 = await createTestEvent();
+      const event2 = await createTestEvent({ name: "Event 2" });
+      await setEventQuestions(event1.id, [q.id]);
+      await setEventQuestions(event2.id, [q.id]);
+
+      const ids = await getQuestionEventIds(q.id);
+      expect(ids.sort()).toEqual([event1.id, event2.id].sort());
+    });
+
+    test("returns empty array when assigned to no events", async () => {
+      const q = await questionsTable.insert({ text: "Lonely Q" });
+      expect(await getQuestionEventIds(q.id)).toEqual([]);
+    });
+  });
+
+  describe("setQuestionEvents", () => {
+    test("assigns a question to the selected events", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      const event1 = await createTestEvent();
+      const event2 = await createTestEvent({ name: "Event 2" });
+
+      await setQuestionEvents(q.id, [event1.id, event2.id]);
+
+      expect((await getQuestionEventIds(q.id)).sort()).toEqual(
+        [event1.id, event2.id].sort(),
+      );
+    });
+
+    test("removes the question from unchecked events", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      const event1 = await createTestEvent();
+      const event2 = await createTestEvent({ name: "Event 2" });
+      await setQuestionEvents(q.id, [event1.id, event2.id]);
+
+      await setQuestionEvents(q.id, [event1.id]);
+
+      expect(await getQuestionEventIds(q.id)).toEqual([event1.id]);
+    });
+
+    test("appends after an event's existing questions without reordering", async () => {
+      const existing = await questionsTable.insert({ text: "Existing" });
+      const added = await questionsTable.insert({ text: "Added" });
+      await answersTable.insert({
+        questionId: existing.id,
+        sortOrder: 0,
+        text: "A",
+      });
+      await answersTable.insert({
+        questionId: added.id,
+        sortOrder: 0,
+        text: "B",
+      });
+
+      const event = await createTestEvent();
+      await setEventQuestions(event.id, [existing.id]);
+
+      await setQuestionEvents(added.id, [event.id]);
+
+      const ids = await getEventQuestionIds(event.id);
+      expect(ids).toEqual([existing.id, added.id]);
+    });
+
+    test("does nothing when the assignment is unchanged", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      const event = await createTestEvent();
+      await setQuestionEvents(q.id, [event.id]);
+
+      await setQuestionEvents(q.id, [event.id]);
+
+      expect(await getQuestionEventIds(q.id)).toEqual([event.id]);
+    });
+
+    test("clears all events when given an empty list", async () => {
+      const q = await questionsTable.insert({ text: "Q" });
+      const event = await createTestEvent();
+      await setQuestionEvents(q.id, [event.id]);
+
+      await setQuestionEvents(q.id, []);
+
+      expect(await getQuestionEventIds(q.id)).toEqual([]);
     });
   });
 

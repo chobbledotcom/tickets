@@ -21,7 +21,7 @@ import {
   createAuthedHandler,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
 import {
   type Answer,
   answersTable,
@@ -31,10 +31,12 @@ import {
   getAnswerCountsForQuestion,
   getEventQuestionIds,
   getNextAnswerSortOrder,
+  getQuestionEventIds,
   getQuestionWithAnswers,
   type QuestionWithAnswers,
   questionsTable,
   setEventQuestions,
+  setQuestionEvents,
   swapAnswerOrder,
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -92,9 +94,13 @@ const handleQuestionsPost = createAuthedFormRoute({
   form: questionTextForm,
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { text } }) => {
-    await questionsTable.insert({ text });
+    const question = await questionsTable.insert({ text });
     await logActivity(`Question '${text}' created`);
-    return redirect("/admin/questions", "Question created", true);
+    return redirect(
+      `/admin/questions/${question.id}`,
+      "Question created",
+      true,
+    );
   },
 });
 
@@ -103,9 +109,20 @@ const handleQuestionGet = ownerGetById(
   getQuestionWithAnswers,
   async (q, session) => {
     const flash = getFlash();
-    const answerCounts = await getAnswerCountsForQuestion(q.id);
+    const [answerCounts, allEvents, assignedEventIds] = await Promise.all([
+      getAnswerCountsForQuestion(q.id),
+      getAllEvents(),
+      getQuestionEventIds(q.id),
+    ]);
     return htmlResponse(
-      adminQuestionPage(q, session, flash.error, answerCounts),
+      adminQuestionPage(
+        q,
+        session,
+        flash.error,
+        answerCounts,
+        allEvents,
+        new Set(assignedEventIds),
+      ),
     );
   },
 );
@@ -131,6 +148,23 @@ const handleQuestionEdit = createAuthedFormRoute<
     await logActivity(`Question '${text}' updated`);
     return redirect(`/admin/questions/${params.id}`, "Question updated", true);
   },
+});
+
+/** Handle POST /admin/questions/:id/events (assign question to events) */
+const handleQuestionEvents = ownerFormById(async (id, _session, form) => {
+  const question = await getQuestionWithAnswers(id);
+  if (!question) return notFoundResponse();
+  const eventIds = form
+    .getAll("event_ids")
+    .map((v) => Number.parseInt(v, 10))
+    .filter((n) => !Number.isNaN(n));
+  await setQuestionEvents(id, eventIds);
+  await logActivity(
+    `Question '${question.text}' assigned to ${eventIds.length} event${
+      eventIds.length !== 1 ? "s" : ""
+    }`,
+  );
+  return redirect(`/admin/questions/${id}`, "Events updated", true);
 });
 
 /** Handle POST /admin/questions/:id/answers (add answer) */
@@ -298,6 +332,7 @@ export const questionsRoutes = {
     "POST /admin/event/:id/questions": handleEventQuestionsPost,
     "POST /admin/questions": handleQuestionsPost,
     "POST /admin/questions/:id/answers": handleAddAnswer,
+    "POST /admin/questions/:id/events": handleQuestionEvents,
     "POST /admin/questions/:id/answers/:answerId/delete":
       handleDeleteAnswerPost,
     "POST /admin/questions/:id/answers/:answerId/move-down":

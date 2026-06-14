@@ -14,6 +14,11 @@ import {
 } from "#templates/admin/questions.tsx";
 import { setupTestEncryptionKey, testEventWithCount } from "#test-utils";
 
+const TEST_EVENTS = [
+  testEventWithCount({ id: 1, name: "Spring Gig" }),
+  testEventWithCount({ id: 2, name: "Summer Gig" }),
+];
+
 const TEST_SESSION = { adminLevel: "owner" as const };
 
 beforeAll(async () => {
@@ -139,6 +144,43 @@ describe("adminQuestionPage", () => {
     const html = adminQuestionPage(q, TEST_SESSION);
     expect(html).toContain("/answers/11/move-up");
     expect(html).toContain("/answers/11/move-down");
+  });
+
+  test("renders empty state when no events exist", () => {
+    const html = adminQuestionPage(question, TEST_SESSION);
+    expect(html).toContain("Assign to Events");
+    expect(html).toContain("No events yet");
+  });
+
+  test("renders an event checkbox for each event", () => {
+    const html = adminQuestionPage(
+      question,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      TEST_EVENTS,
+    );
+    expect(html).toContain('action="/admin/questions/1/events"');
+    expect(html).toContain('name="event_ids"');
+    expect(html).toContain('value="1"');
+    expect(html).toContain('value="2"');
+    expect(html).toContain("Spring Gig");
+    expect(html).toContain("Summer Gig");
+  });
+
+  test("checks events the question is assigned to", () => {
+    const html = adminQuestionPage(
+      question,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      TEST_EVENTS,
+      new Set([1]),
+    );
+    expect(html).toContain('checked name="event_ids" type="checkbox" value="1"');
+    expect(html).not.toContain(
+      'checked name="event_ids" type="checkbox" value="2"',
+    );
   });
 });
 

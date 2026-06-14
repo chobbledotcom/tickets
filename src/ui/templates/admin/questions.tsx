@@ -58,6 +58,8 @@ export const adminQuestionPage = (
   session: AdminSession,
   error?: string,
   answerCounts?: Map<number, number>,
+  allEvents: EventWithCount[] = [],
+  assignedEventIds: Set<number> = new Set(),
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
@@ -121,6 +123,31 @@ export const adminQuestionPage = (
             </li>
           ))}
         </ul>
+      )}
+
+      <h2>Assign to Events</h2>
+      {allEvents.length === 0 ? (
+        <p>
+          <em>No events yet.</em>
+        </p>
+      ) : (
+        <CsrfForm
+          action={`/admin/questions/${question.id}/events`}
+          id="question-events"
+        >
+          {map((e: EventWithCount) => (
+            <label>
+              <input
+                checked={assignedEventIds.has(e.id) || undefined}
+                name="event_ids"
+                type="checkbox"
+                value={String(e.id)}
+              />
+              {` ${e.name}`}
+            </label>
+          ))(allEvents)}
+          <button type="submit">Save Events</button>
+        </CsrfForm>
       )}
 
       <p>
