@@ -39,6 +39,8 @@ export interface Field {
   id?: string;
   inputmode?: string;
   label: string;
+  /** Marks a textarea as markdown-authored, enabling the in-editor preview link. */
+  markdown?: boolean;
   max?: number;
   maxlength?: number;
   min?: number;
@@ -177,6 +179,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     return (
       <textarea
         autocomplete={field.autocomplete}
+        data-markdown-preview={field.markdown || undefined}
         id={field.id}
         maxlength={field.maxlength}
         name={field.name}

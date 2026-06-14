@@ -121,7 +121,12 @@ export const bulkEmailComposePage = (
 
         <label>
           Message (Markdown)
-          <textarea maxlength={MAX_TEXTAREA_LENGTH} name="body" required>
+          <textarea
+            data-markdown-preview
+            maxlength={MAX_TEXTAREA_LENGTH}
+            name="body"
+            required
+          >
             {draft?.body ?? ""}
           </textarea>
         </label>
