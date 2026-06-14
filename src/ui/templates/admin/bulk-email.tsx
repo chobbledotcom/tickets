@@ -156,6 +156,8 @@ export type BulkEmailPreviewState = {
   /** Provider display name, e.g. "Resend" (only when canBulkSend). */
   providerLabel: string;
   mailtoLink: string;
+  /** One-line contact-frequency insight for the recipients ("" to omit). */
+  contactSummary: string;
 };
 
 /** Plain-language explanation of marketing vs transactional. */
@@ -210,6 +212,11 @@ export const bulkEmailPreviewPage = (
         {state.audienceDescription && (
           <p>
             <small>{state.audienceDescription}</small>
+          </p>
+        )}
+        {state.contactSummary && (
+          <p>
+            <small>{state.contactSummary}</small>
           </p>
         )}
         <p>

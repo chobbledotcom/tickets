@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add unsubscribed_emails table for marketing email opt-outs";
+  "add email_preferences table for marketing opt-outs and contact history";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -456,15 +456,18 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // Marketing email opt-outs. Stores only the HMAC of each unsubscribed email
-    // (same blind-index approach as ticket_token_index / username_index), so a
-    // DB dump alone never reveals which addresses opted out — mapping a hash
-    // back to an address needs DB_ENCRYPTION_KEY. Presence of a row == opted
-    // out; resubscribing deletes the row.
-    "unsubscribed_emails",
+    // Per-email marketing preferences + contact history, keyed by the HMAC of
+    // the address (same blind-index approach as ticket_token_index, so a DB
+    // dump never reveals which address a row belongs to). `unsubscribed` is
+    // plaintext so the public, key-less /unsubscribe page can toggle it;
+    // `stats_blob` is a hybrid-encrypted {c,t,s} (contact count, last contact,
+    // last subject) only the admin private key can read.
+    "email_preferences",
     {
       columns: [
         ["email_hash", "TEXT PRIMARY KEY"],
+        ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
+        ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
         ["created", "TEXT NOT NULL"],
       ],
     },
@@ -928,8 +931,9 @@ const MIGRATIONS: Migration[] = [
     verify: verifyCurrentAppSchema,
   },
   {
-    description: "Add unsubscribed_emails table for marketing email opt-outs",
-    id: "2026-06-14_unsubscribed_emails",
+    description:
+      "Add email_preferences table for marketing opt-outs and contact history",
+    id: "2026-06-14_email_preferences",
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();

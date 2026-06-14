@@ -15,8 +15,8 @@ import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobsForListings,
 } from "#shared/db/attendees/queries.ts";
+import { hashEmail } from "#shared/db/email-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
-import { hashEmail } from "#shared/db/unsubscribes.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkEmailPayload,
@@ -292,6 +292,24 @@ export const buildBulkPayload = async (params: {
     subject: params.subject,
     text: params.bodyText + marketingFooterText(BULK_UNSUBSCRIBE_PLACEHOLDER),
   };
+};
+
+// ── Contact-frequency insight ───────────────────────────────────────
+
+/**
+ * One-line summary of how often a set of recipients has been contacted, from
+ * their per-email contact counts. Empty when there are no recipients.
+ */
+export const contactFrequencySummary = (counts: number[]): string => {
+  if (counts.length === 0) return "";
+  const total = counts.reduce((sum, n) => sum + n, 0);
+  if (total === 0) return "These attendees have never been contacted.";
+  const average = total / counts.length;
+  return Number.isInteger(average)
+    ? `These attendees have been contacted ${average} times each.`
+    : `These attendees have been contacted an average of ${average.toFixed(
+        1,
+      )} times each.`;
 };
 
 // ── mailto fallback ─────────────────────────────────────────────────

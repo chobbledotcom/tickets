@@ -1802,6 +1802,22 @@ export const adminGuidePage = (
             blocked. It's best for small, genuinely transactional messages.
           </p>
         </Q>
+
+        <Q q="Can I see how often I've contacted someone?">
+          <p>
+            Yes. Each attendee's page shows an <strong>Email History</strong>{" "}
+            &mdash; how many bulk emails they've received, when they were last
+            contacted, and the last subject &mdash; so you can avoid
+            over-emailing. When you preview a bulk email, a line summarises how
+            often that audience has been contacted on average, so you get a
+            sense of the group before you send.
+          </p>
+          <p>
+            Counts cover bulk emails only (not per-booking confirmations) and
+            are tracked against a one-way hash of the address, so the history
+            follows the person even across separate bookings.
+          </p>
+        </Q>
       </Section>
 
       <Section id="host-subdomain" title="Host Subdomain">

@@ -6,6 +6,7 @@ import {
   type BulkEmailDraft,
   buildBulkPayload,
   buildMailtoLink,
+  contactFrequencySummary,
   DEFAULT_AUDIENCE_ID,
   dedupeEmails,
   isAudienceId,
@@ -24,7 +25,7 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { hashEmail } from "#shared/db/unsubscribes.ts";
+import { hashEmail } from "#shared/db/email-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
 import {
@@ -169,6 +170,30 @@ describe("bulk-email draft validation and serialization", () => {
         }),
       ),
     ).toBe(null);
+  });
+});
+
+describe("contactFrequencySummary", () => {
+  test("is empty with no recipients", () => {
+    expect(contactFrequencySummary([])).toBe("");
+  });
+
+  test("reports never-contacted when all counts are zero", () => {
+    expect(contactFrequencySummary([0, 0, 0])).toBe(
+      "These attendees have never been contacted.",
+    );
+  });
+
+  test("reports a whole number when the average is an integer", () => {
+    expect(contactFrequencySummary([2, 2, 2])).toBe(
+      "These attendees have been contacted 2 times each.",
+    );
+  });
+
+  test("reports a one-decimal average otherwise", () => {
+    expect(contactFrequencySummary([1, 2])).toBe(
+      "These attendees have been contacted an average of 1.5 times each.",
+    );
   });
 });
 

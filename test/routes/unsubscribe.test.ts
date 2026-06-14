@@ -2,12 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   hashEmail,
   isHashUnsubscribed,
   unsubscribeHash,
-} from "#shared/db/unsubscribes.ts";
+} from "#shared/db/email-preferences.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   describeWithEnv,
   expectHtmlResponse,

@@ -13,7 +13,7 @@ import {
   isHashUnsubscribed,
   resubscribeHash,
   unsubscribeHash,
-} from "#shared/db/unsubscribes.ts";
+} from "#shared/db/email-preferences.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
 const pagePath = (hash: string): string =>

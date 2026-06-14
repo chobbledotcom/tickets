@@ -27,6 +27,7 @@ import {
   type BulkEmailTarget,
   buildBulkPayload,
   buildMailtoLink,
+  contactFrequencySummary,
   DEFAULT_AUDIENCE_ID,
   isAudienceId,
   parseDraft,
@@ -36,9 +37,14 @@ import {
   validateDraftInput,
 } from "#shared/bulk-email.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  getContactCounts,
+  getUnsubscribedHashSet,
+  hashEmail,
+  recordContacts,
+} from "#shared/db/email-preferences.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getUnsubscribedHashSet, hashEmail } from "#shared/db/unsubscribes.ts";
 import {
   EMAIL_PROVIDER_LABELS,
   type EmailConfig,
@@ -119,21 +125,24 @@ const parseFormTarget = async (
   return audienceTargetFrom(form.getString("audience"));
 };
 
-/** Resolve recipient emails for a target using the owner's private key. */
-const recipientsFor = async (
-  session: AuthSession,
-  target: BulkEmailTarget,
-): Promise<string[]> =>
-  resolveRecipientEmails(target, await requirePrivateKey(session));
-
-/** Recipients for a target plus the owner's bulk-send availability. */
+/** Recipients + the private key used + the owner's bulk-send availability. */
 const loadSendContext = async (
   session: AuthSession,
   target: BulkEmailTarget,
-): Promise<{ recipients: string[] } & BulkAvailability> => ({
-  recipients: await recipientsFor(session, target),
-  ...getBulkAvailability(),
-});
+): Promise<
+  { privateKey: CryptoKey; recipients: string[] } & BulkAvailability
+> => {
+  const privateKey = await requirePrivateKey(session);
+  return {
+    privateKey,
+    recipients: await resolveRecipientEmails(target, privateKey),
+    ...getBulkAvailability(),
+  };
+};
+
+/** Hash a list of recipient emails (parallel). */
+const hashAll = (emails: string[]): Promise<string[]> =>
+  Promise.all(emails.map((e) => hashEmail(e)));
 
 /** Wrap an owner-only page builder: gate on owner, apply flash, then build. */
 const ownerEmailPage =
@@ -227,7 +236,7 @@ const handlePreviewPost = (request: Request): Promise<Response> =>
 const handlePreviewGet = ownerEmailPage(async (_request, session) => {
   const draft = parseDraft(settings.bulkEmailDraft);
   if (!draft) return redirectResponse(COMPOSE_PATH);
-  const { recipients, canBulkSend, disabledReason, config } =
+  const { recipients, privateKey, canBulkSend, disabledReason, config } =
     await loadSendContext(session, draft.target);
   const { sendable, skipped } = await partitionRecipients(
     recipients,
@@ -236,10 +245,12 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
   const { targetLabel, audienceDescription } = await describeTarget(
     draft.target,
   );
+  const counts = await getContactCounts(await hashAll(sendable), privateKey);
   return htmlResponse(
     bulkEmailPreviewPage(session, {
       audienceDescription,
       canBulkSend,
+      contactSummary: contactFrequencySummary(counts),
       disabledReason,
       draft,
       mailtoLink: buildMailtoLink(sendable, draft.subject, draft.body),
@@ -260,14 +271,16 @@ const handleSendPost = (request: Request): Promise<Response> =>
     if (!draft) {
       return errorRedirect(COMPOSE_PATH, "There's no email to send.");
     }
-    const config = getEmailConfig();
+    const { privateKey, recipients, config } = await loadSendContext(
+      session,
+      draft.target,
+    );
     if (!config) {
       return errorRedirect(
         PREVIEW_PATH,
         "Configure your own email provider before sending bulk email.",
       );
     }
-    const recipients = await recipientsFor(session, draft.target);
     if (recipients.length === 0) {
       return errorRedirect(PREVIEW_PATH, "There are no recipients to send to.");
     }
@@ -289,6 +302,11 @@ const handleSendPost = (request: Request): Promise<Response> =>
       );
     }
     const result = await sendBulkEmails(config, payload);
+    await recordContacts(
+      await hashAll(payload.recipients.map((r) => r.to)),
+      draft.subject,
+      privateKey,
+    );
     await settings.update.bulkEmailDraft("");
     await logActivity(
       `Sent bulk email "${draft.subject}" to ${result.attempted} recipient(s)`,

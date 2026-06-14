@@ -2,8 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { serializeDraft } from "#shared/bulk-email.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import {
+  getEmailStats,
+  hashEmail,
+  unsubscribeHash,
+} from "#shared/db/email-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
-import { hashEmail, unsubscribeHash } from "#shared/db/unsubscribes.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -13,6 +17,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
+  getTestPrivateKey,
   testCookie,
   testRequiresAuth,
   useFetchStub,
@@ -436,6 +441,84 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       await awaitTestRequest("/admin/emails/preview", {
         cookie: await testCookie(),
       }).then((r) => expectHtmlResponse(r, 200, "Stored subject"));
+    });
+  });
+
+  describe("contact history", () => {
+    useFetchStub(); // stub network so sends don't hit a real provider
+
+    const previewListing = async (listing: { id: number }) => {
+      await adminFormPost("/admin/emails/preview", {
+        body: "Hello",
+        listing_id: String(listing.id),
+        subject: "Update",
+      });
+      return awaitTestRequest("/admin/emails/preview", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+    };
+
+    test("preview reports never-contacted recipients", async () => {
+      useResend();
+      const listing = await seedListingWithAttendees();
+      const html = await previewListing(listing);
+      expect(html).toContain("These attendees have never been contacted.");
+    });
+
+    test("a send records a contact, surfaced on the next preview", async () => {
+      useResend();
+      const listing = await seedListingWithAttendees();
+      await adminFormPost("/admin/emails/preview", {
+        body: "Hello",
+        listing_id: String(listing.id),
+        subject: "First",
+      });
+      await adminFormPost("/admin/emails/send", {});
+
+      // Each recipient now has one contact.
+      const stats = await getEmailStats(
+        await hashEmail("alice@example.com"),
+        await getTestPrivateKey(),
+      );
+      expect(stats.contactCount).toBe(1);
+      expect(stats.lastSubject).toBe("First");
+
+      const html = await previewListing(listing);
+      expect(html).toContain(
+        "These attendees have been contacted 1 times each.",
+      );
+    });
+
+    test("the attendee page shows email history", async () => {
+      useResend();
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Alice",
+        "alice@example.com",
+      );
+
+      const before = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(before).toContain("Email History");
+      expect(before).toContain("Never contacted by bulk email.");
+
+      await adminFormPost("/admin/emails/preview", {
+        body: "Hello",
+        listing_id: String(listing.id),
+        subject: "Newsletter",
+      });
+      await adminFormPost("/admin/emails/send", {});
+
+      const after = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(after).toContain("Total messages:");
+      expect(after).toContain("Newsletter");
     });
   });
 });
