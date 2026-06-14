@@ -327,6 +327,42 @@ describeWithEnv(
         // The date should appear as a disabled option (no bookings)
         expect(html).toContain("<option disabled>Monday 15 June 2026</option>");
       });
+
+      test("renders the calendar grid", async () => {
+        const html = await fetchCalendarHtml();
+        expect(html).toContain('class="calendar"');
+        expect(html).toContain("calendar-grid");
+      });
+
+      test("the cal parameter sets the displayed month", async () => {
+        const html = await fetchCalendarHtml("/admin/calendar?cal=2027-03");
+        expect(html).toMatch(/<option selected[^>]*>March 2027<\/option>/);
+      });
+
+      test("invalid cal parameter is ignored", async () => {
+        // cal=bogus is rejected, so the month falls back to the selected date.
+        const html = await fetchCalendarHtml(
+          "/admin/calendar?date=2027-05-15&cal=bogus",
+        );
+        expect(html).toMatch(/<option selected[^>]*>May 2027<\/option>/);
+      });
+
+      test("a booked date is a clickable day link in the grid", async () => {
+        const { date } = await setupDailyBooking();
+        const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
+        expect(html).toContain(`href="/admin/calendar?date=${date}#attendees"`);
+      });
+
+      test("paging months keeps the selected date's attendees", async () => {
+        const { date } = await setupDailyBooking();
+        // Page to a far-away month while a date is selected; the selection
+        // (and its attendees) must survive the month change.
+        const html = await fetchCalendarHtml(
+          `/admin/calendar?date=${date}&cal=2030-01`,
+        );
+        expect(html).toContain("User A");
+        expect(html).toMatch(/<option selected[^>]*>January 2030<\/option>/);
+      });
     });
 
     describe("GET /admin/calendar/export", () => {

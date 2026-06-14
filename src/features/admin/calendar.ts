@@ -6,6 +6,7 @@ import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import {
   csvResponse,
   getDateFilter,
+  getMonthFilter,
   loadQuestionData,
 } from "#routes/admin/actions.ts";
 import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
@@ -37,9 +38,9 @@ import {
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,
-  type CalendarDateOption,
 } from "#templates/admin/calendar.tsx";
 import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
+import type { DatePickerDate } from "#templates/date-picker.tsx";
 
 /** Build a map of YYYY-MM-DD → listing IDs for standard listings that have a date */
 const buildStandardListingDateMap = (
@@ -67,7 +68,7 @@ const compileDateOptions = (
     start_date: string;
     end_date: string;
   }[],
-): CalendarDateOption[] => {
+): DatePickerDate[] => {
   const availableDates = pipe(
     flatMap((listing: ListingWithCount) =>
       getAvailableDates(listing, holidays),
@@ -96,8 +97,8 @@ const compileDateOptions = (
   );
 
   return map((d: string) => ({
-    hasBookings: attendeeDateSet.has(d) || standardDatesWithBookings.has(d),
     label: formatDateLabel(d),
+    selectable: attendeeDateSet.has(d) || standardDatesWithBookings.has(d),
     value: d,
   }))(allDates);
 };
@@ -235,6 +236,7 @@ const handleAdminCalendarGet = (request: Request) =>
         dateFilter,
         availableDates,
         todayInTz(settings.timezone),
+        getMonthFilter(request),
         settings.phonePrefix,
         questionData,
         hasPaidListing,
