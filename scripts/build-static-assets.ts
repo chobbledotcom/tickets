@@ -87,6 +87,16 @@ const iframeResizerResolvePlugin: Plugin = {
   },
 };
 
+/** Resolve @botpoison/browser using Deno's import resolution */
+const botpoisonResolvePlugin: Plugin = {
+  name: "botpoison-resolve",
+  setup(build) {
+    build.onResolve({ filter: /^@botpoison\/browser$/ }, () => ({
+      path: fromFileUrl(import.meta.resolve("@botpoison/browser")),
+    }));
+  },
+};
+
 export const buildStaticAssets = async (
   options: { stop?: boolean } = {},
 ): Promise<void> => {
@@ -117,6 +127,16 @@ export const buildStaticAssets = async (
     minify: true,
     outfile: "./src/ui/static/embed.js",
     platform: "browser",
+  });
+
+  await buildBundle("Contact", {
+    bundle: true,
+    entryPoints: ["./src/ui/client/contact.ts"],
+    format: "iife",
+    minify: true,
+    outfile: "./src/ui/static/contact.js",
+    platform: "browser",
+    plugins: [botpoisonResolvePlugin],
   });
 
   await buildBundle("iframe-resizer-parent", {

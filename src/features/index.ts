@@ -267,8 +267,17 @@ const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
   { pick: (p) => p.handleHome, prefix: "" },
   { pick: (p) => p.handlePublicListings, prefix: "listings" },
   { pick: (p) => p.handlePublicTerms, prefix: "terms" },
-  { pick: (p) => p.handlePublicContact, prefix: "contact" },
 ];
+
+/** Contact page handles both GET (page + form) and POST (form submission),
+ * so it needs the request object — unlike the other read-only public pages. */
+const contactPrefixHandler: RouterFn = async (request, reqPath, method) => {
+  if (reqPath !== "/contact") return null;
+  const pages = await loadPublicPages();
+  if (method === "GET") return pages.handlePublicContact(request);
+  if (method === "POST") return pages.handlePublicContactSubmit(request);
+  return null;
+};
 
 const publicPageHandlers = reduce(
   (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
@@ -304,6 +313,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   },
   attachment: lazyRoute(loadAttachmentRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
+  contact: contactPrefixHandler,
   demo: lazyRoute(loadDemoResetRoutes),
   // Legacy redirect: the public listings page used to live at /events.
   // Only active when the public site is enabled (otherwise /listings itself

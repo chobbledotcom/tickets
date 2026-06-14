@@ -4,7 +4,11 @@
 
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/response.ts";
-import { getEffectiveDomain, getEmbedHosts } from "#shared/config.ts";
+import {
+  getEffectiveDomain,
+  getEmbedHosts,
+  isBotpoisonEnabled,
+} from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
@@ -32,16 +36,23 @@ export type PaymentCspConfig = {
  * Payment-specific directives are included only when a provider is configured.
  * Both Stripe and Square use server-side redirect flows (not embedded SDKs),
  * so only form-action needs provider-specific domains.
+ * When Botpoison is enabled, connect-src allows the contact form's browser
+ * widget to reach the Botpoison challenge API.
  */
 export const buildCspHeader = (
   embeddable: boolean,
   payment?: PaymentCspConfig,
+  botpoisonEnabled = false,
 ): string => {
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
   ];
+
+  if (botpoisonEnabled) {
+    directives.push("connect-src 'self' https://api.botpoison.com");
+  }
 
   if (payment?.provider === "square") {
     const sq = payment.sandbox
@@ -212,7 +223,7 @@ export const applySecurityHeaders = async (
   const sandbox = provider === "square" ? settings.square.sandbox : undefined;
   response.headers.set(
     "content-security-policy",
-    buildCspHeader(embeddable, { provider, sandbox }),
+    buildCspHeader(embeddable, { provider, sandbox }, isBotpoisonEnabled()),
   );
 
   // Override x-robots-tag for hidden listings (signal header set by route handlers)

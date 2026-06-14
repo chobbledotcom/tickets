@@ -37,6 +37,7 @@ export const handleMvpCss = staticHandler("mvp.css", CSS);
 export const handleAdminJs = staticHandler("admin.js", JS);
 export const handleScannerJs = staticHandler("scanner.js", JS);
 export const handleEmbedJs = staticHandler("embed.js", JS);
+export const handleContactJs = staticHandler("contact.js", JS);
 export const handleIframeResizerParentJs = staticHandler(
   "iframe-resizer-parent.js",
   JS,
