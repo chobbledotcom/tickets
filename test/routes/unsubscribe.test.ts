@@ -93,14 +93,37 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       expect(await isHashUnsubscribed(hash)).toBe(false);
     });
 
-    test("confirms with a flash message after unsubscribing", async () => {
+    test("confirms unsubscribing with an info flash", async () => {
       const hash = await hashEmail("confirm@example.com");
       const response = await postUnsubscribe({
         action: "unsubscribe",
         email: hash,
       });
       const followed = await followRedirectWithFlash(response, handleRequest);
-      await expectHtmlResponse(followed, 200, "You've unsubscribed");
+      const html = await expectHtmlResponse(
+        followed,
+        200,
+        "You've unsubscribed",
+      );
+      expect(html).toContain('class="info"');
+      expect(html).not.toContain('class="success"');
+    });
+
+    test("confirms resubscribing with a success flash", async () => {
+      const hash = await hashEmail("welcomeback@example.com");
+      await unsubscribeHash(hash);
+      const response = await postUnsubscribe({
+        action: "resubscribe",
+        email: hash,
+      });
+      const followed = await followRedirectWithFlash(response, handleRequest);
+      const html = await expectHtmlResponse(
+        followed,
+        200,
+        "You've resubscribed",
+      );
+      expect(html).toContain('class="success"');
+      expect(html).not.toContain('class="info"');
     });
 
     test("redirects with an error when the hash is missing", async () => {

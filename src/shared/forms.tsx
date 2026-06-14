@@ -124,7 +124,7 @@ const renderCheckboxGroup = (
   options: readonly { value: string; label: string }[],
   selectedValues: Set<string>,
 ): string =>
-  `<fieldset class="checkbox-group">${options
+  `<fieldset class="checkboxes">${options
     .map(
       (opt) =>
         `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
@@ -466,14 +466,21 @@ export const defineForm = <
 export const Flash = ({
   error,
   success,
+  info,
 }: {
   error?: string;
   success?: string;
+  info?: string;
 }): JSX.Element => (
   <>
     {success ? (
       <div class="success" role="alert">
         {success}
+      </div>
+    ) : null}
+    {info ? (
+      <div class="info" role="alert">
+        {info}
       </div>
     ) : null}
     {error ? (

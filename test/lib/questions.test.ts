@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   answersTable,
+  assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
   getAllQuestionsWithAnswers,
@@ -19,6 +20,7 @@ import {
   setListingQuestions,
   setQuestionListings,
   swapAnswerOrder,
+  swapQuestionOrder,
 } from "#shared/db/questions.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
@@ -65,7 +67,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await setListingQuestions(listing.id, [q.id]);
 
       const attendee = await createAttendee(listing.id);
-      await saveAttendeeAnswers([attendee.id], [a.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));
 
       await deleteQuestion(q.id);
 
@@ -134,13 +136,41 @@ describeWithEnv("custom questions", { db: true }, () => {
       });
 
       const listing = await createTestListing();
+      // Assign in reverse; the listing ignores assignment order and uses the
+      // global question order (here creation/id order, since both are at the
+      // default sort_order 0).
       await setListingQuestions(listing.id, [q2.id, q1.id]);
 
       const questions = await getQuestionsForListing(listing.id);
       expect(questions).toHaveLength(2);
-      // Order should match the order provided
-      expect(questions[0]!.text).toBe("Q2");
-      expect(questions[1]!.text).toBe("Q1");
+      expect(questions[0]!.text).toBe("Q1");
+      expect(questions[1]!.text).toBe("Q2");
+    });
+
+    test("orders listing questions by the global sort_order, not assignment order", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      await assignNextQuestionSortOrder(q1.id);
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await assignNextQuestionSortOrder(q2.id);
+      await answersTable.insert({
+        questionId: q1.id,
+        sortOrder: 0,
+        text: "A1",
+      });
+      await answersTable.insert({
+        questionId: q2.id,
+        sortOrder: 0,
+        text: "A2",
+      });
+
+      // Put q2 ahead of q1 globally.
+      await swapQuestionOrder(q1.id, q2.id);
+
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [q1.id, q2.id]);
+
+      const questions = await getQuestionsForListing(listing.id);
+      expect(questions.map((q) => q.text)).toEqual(["Q2", "Q1"]);
     });
 
     test("replaces listing questions on re-assignment", async () => {
@@ -198,8 +228,9 @@ describeWithEnv("custom questions", { db: true }, () => {
       const listing = await createTestListing();
       await setListingQuestions(listing.id, [q2.id, q1.id]);
 
+      // Returned in the global question order, not the assignment order.
       const ids = await getListingQuestionIds(listing.id);
-      expect(ids).toEqual([q2.id, q1.id]);
+      expect(ids).toEqual([q1.id, q2.id]);
     });
 
     test("returns empty array for listing with no questions", async () => {
@@ -250,7 +281,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(await getQuestionListingIds(q.id)).toEqual([listing1.id]);
     });
 
-    test("appends after an listing's existing questions without reordering", async () => {
+    test("lists a listing's assigned questions in the global question order", async () => {
       const existing = await questionsTable.insert({ text: "Existing" });
       const added = await questionsTable.insert({ text: "Added" });
       await answersTable.insert({
@@ -393,7 +424,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const listing = await createTestListing();
       const attendee = await createAttendee(listing.id);
 
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const batch = await getAttendeeAnswersBatch([attendee.id]);
       expect(batch.get(attendee.id)).toEqual([a1.id]);
@@ -416,8 +447,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const att1 = await createAttendee(listing.id, "Alice");
       const att2 = await createAttendee(listing.id, "Bob");
 
-      await saveAttendeeAnswers([att1.id], [a1.id]);
-      await saveAttendeeAnswers([att2.id], [a2.id]);
+      await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
+      await saveAttendeeAnswers(new Map([[att2.id, [a2.id]]]));
 
       const batch = await getAttendeeAnswersBatch([att1.id, att2.id]);
       expect(batch.get(att1.id)).toEqual([a1.id]);
@@ -429,14 +460,14 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(batch.size).toBe(0);
     });
 
-    test("saveAttendeeAnswers does nothing for empty attendeeIds", async () => {
-      await saveAttendeeAnswers([], [1]);
-      // No error thrown, no rows inserted
+    test("saveAttendeeAnswers does nothing for an empty map", async () => {
+      await saveAttendeeAnswers(new Map());
+      // No error thrown, no batch executed
     });
 
-    test("saveAttendeeAnswers does nothing for empty answerIds", async () => {
-      await saveAttendeeAnswers([1], []);
-      // No error thrown, no rows inserted
+    test("saveAttendeeAnswers skips inserts for an answerless attendee", async () => {
+      await saveAttendeeAnswers(new Map([[1, []]]));
+      // No error thrown, no rows inserted (delete-only path)
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
@@ -454,12 +485,12 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const listing = await createTestListing();
       const att = await createAttendee(listing.id);
-      await saveAttendeeAnswers([att.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
       const before = await getAttendeeAnswersBatch([att.id]);
       expect(before.get(att.id)).toEqual([a1.id]);
 
-      await saveAttendeeAnswers([att.id], [a2.id]);
+      await saveAttendeeAnswers(new Map([[att.id, [a2.id]]]));
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toEqual([a2.id]);
@@ -475,9 +506,9 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const listing = await createTestListing();
       const att = await createAttendee(listing.id);
-      await saveAttendeeAnswers([att.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
-      await saveAttendeeAnswers([att.id], []);
+      await saveAttendeeAnswers(new Map([[att.id, []]]));
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toBeUndefined();
@@ -562,8 +593,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       });
       const att1 = await createAttendee(listing.id, "Alice");
       const att2 = await createAttendee(listing.id, "Bob");
-      await saveAttendeeAnswers([att1.id], [a1.id]);
-      await saveAttendeeAnswers([att2.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
+      await saveAttendeeAnswers(new Map([[att2.id, [a1.id]]]));
       const counts = await getAnswerCountsForQuestion(q.id);
       expect(counts.get(a1.id)).toBe(2);
       expect(counts.get(a2.id)).toBe(0);
@@ -588,6 +619,37 @@ describeWithEnv("custom questions", { db: true }, () => {
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");
       expect(updated!.answers[1]!.text).toBe("First");
+    });
+  });
+
+  describe("question ordering", () => {
+    test("assignNextQuestionSortOrder gives sequential non-zero orders", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A" });
+      await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "B" });
+
+      await assignNextQuestionSortOrder(q1.id);
+      await assignNextQuestionSortOrder(q2.id);
+
+      // Both are >= 1 (never 0, so they survive the legacy id-backfill) and q1
+      // precedes q2 in the global list.
+      const all = await getAllQuestionsWithAnswers();
+      expect(all.map((q) => q.text)).toEqual(["Q1", "Q2"]);
+    });
+
+    test("swapQuestionOrder reorders the global question list", async () => {
+      const q1 = await questionsTable.insert({ text: "Q1" });
+      await assignNextQuestionSortOrder(q1.id);
+      const q2 = await questionsTable.insert({ text: "Q2" });
+      await assignNextQuestionSortOrder(q2.id);
+      await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A" });
+      await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "B" });
+
+      await swapQuestionOrder(q1.id, q2.id);
+
+      const all = await getAllQuestionsWithAnswers();
+      expect(all.map((q) => q.text)).toEqual(["Q2", "Q1"]);
     });
   });
 });

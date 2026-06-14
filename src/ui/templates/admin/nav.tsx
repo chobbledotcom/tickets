@@ -74,6 +74,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
       <ul>
         {navLink("/admin/", "Listings", active)}
         {navLink("/admin/calendar", "Calendar", active)}
+        {navLink("/admin/attendees", "Attendees", active)}
         {session.adminLevel === "owner" &&
           navLink("/admin/users", "Users", active)}
         {session.adminLevel === "owner" &&

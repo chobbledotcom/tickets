@@ -16,6 +16,7 @@ export type UnsubscribeState = {
   unsubscribed: boolean;
   success?: string;
   error?: string;
+  info?: string;
 };
 
 /** The toggle form — carries the hash and the action, never the address. */
@@ -28,7 +29,7 @@ const ToggleForm = ({
   action: "unsubscribe" | "resubscribe";
   label: string;
 }): JSX.Element => (
-  <CsrfForm action="/unsubscribe" id="unsubscribe">
+  <CsrfForm action="/unsubscribe" class="inline" id="unsubscribe">
     <input name="email" type="hidden" value={hash} />
     <input name="action" type="hidden" value={action} />
     <button type="submit">{label}</button>
@@ -42,7 +43,7 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
   return String(
     <Layout title={title}>
       <h1>Email preferences</h1>
-      <Flash error={state.error} success={state.success} />
+      <Flash error={state.error} info={state.info} success={state.success} />
       {!state.hash ? (
         <div class="prose">
           <p>

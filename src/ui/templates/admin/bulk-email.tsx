@@ -15,9 +15,13 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const NAV_ACTIVE = "/admin/emails";
+
+/** Deep link to the Email Notifications form on the advanced settings page. */
+const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
 
 export type BulkEmailComposeState = {
   target: BulkEmailTarget;
@@ -76,12 +80,14 @@ export const bulkEmailComposePage = (
       <AdminNav active={NAV_ACTIVE} session={session} />
       <Flash />
 
-      <h1>Send a bulk email</h1>
-      <p>
-        Email your attendees about an upcoming listing or other news. Choose who
-        receives it, write your message in Markdown, then preview before
-        sending.
-      </p>
+      <div class="prose">
+        <h1>Send a bulk email</h1>
+        <p>
+          Email your attendees about an upcoming listing or other news. Choose
+          who receives it, write your message in Markdown, then preview before
+          sending.
+        </p>
+      </div>
 
       {!state.canBulkSend && (
         <div class="prose">
@@ -89,6 +95,11 @@ export const bulkEmailComposePage = (
             <strong>Heads up:</strong> {state.disabledReason} You can still
             compose and preview, then use the BCC email-app option on the
             preview page.
+          </p>
+          <p class="small">
+            <a href={EMAIL_SETTINGS_LINK}>
+              Set up your email provider in advanced settings
+            </a>
           </p>
         </div>
       )}
@@ -115,24 +126,26 @@ export const bulkEmailComposePage = (
           </textarea>
         </label>
 
-        <label>
-          <input
-            checked={draft?.marketing ?? false}
-            name="marketing"
-            type="checkbox"
-            value="1"
-          />{" "}
-          This is a marketing email (adds an unsubscribe footer and skips
-          unsubscribed people)
-        </label>
+        <fieldset class="checkboxes">
+          <label>
+            <input
+              checked={draft?.marketing ?? false}
+              name="marketing"
+              type="checkbox"
+              value="1"
+            />{" "}
+            This is a marketing email (adds an unsubscribe footer and skips
+            unsubscribed people)
+          </label>
+        </fieldset>
 
         <div class="prose">
           <p>
             This selection currently reaches{" "}
             <strong>{state.recipientCount}</strong> recipient
-            {state.recipientCount === 1 ? "" : "s"} — everyone who gave an email
-            address, de-duplicated. Preview to confirm the exact list for your
-            final selection.
+            {state.recipientCount === 1 ? "" : "s"}. That's everyone who gave an
+            email address, de-duplicated. Preview to confirm the exact list for
+            your final selection.
           </p>
         </div>
 
@@ -173,9 +186,9 @@ const TypeExplainer = ({ marketing }: { marketing: boolean }): JSX.Element =>
   ) : (
     <p>
       <strong>Transactional / service email.</strong> Treated as essential
-      information about a listing someone booked — no unsubscribe footer is
-      added and unsubscribed people are still included. Only use this for
-      genuine listing info, never promotions.
+      information about a listing someone booked. No unsubscribe footer is added
+      and unsubscribed people are still included. Only use this for genuine
+      listing info, never promotions.
     </p>
   );
 
@@ -197,75 +210,95 @@ export const bulkEmailPreviewPage = (
       <AdminNav active={NAV_ACTIVE} session={session} />
       <Flash />
 
-      <h1>Preview bulk email</h1>
+      <div class="prose">
+        <h1>Preview bulk email</h1>
+      </div>
       <p>
-        <a href={`/admin/emails${targetQuery(draft.target)}`}>← Edit message</a>
+        <ActionButton
+          href={`/admin/emails${targetQuery(draft.target)}`}
+          icon="arrow-left"
+          variant="secondary"
+        >
+          Edit message
+        </ActionButton>
       </p>
 
       <div class="prose">
         <p>
-          <strong>To:</strong> {state.targetLabel} — {recipients}
+          <strong>To:</strong> {state.targetLabel} ({recipients}
           {state.skippedCount > 0
-            ? ` (${state.skippedCount} unsubscribed will be skipped)`
+            ? `, ${state.skippedCount} unsubscribed will be skipped`
             : ""}
+          )
         </p>
         {state.audienceDescription && (
-          <p>
-            <small>{state.audienceDescription}</small>
-          </p>
+          <p class="small">{state.audienceDescription}</p>
         )}
-        {state.contactSummary && (
-          <p>
-            <small>{state.contactSummary}</small>
-          </p>
-        )}
+        {state.contactSummary && <p class="small">{state.contactSummary}</p>}
         <p>
           <strong>Subject:</strong> {draft.subject}
         </p>
         <TypeExplainer marketing={draft.marketing} />
       </div>
 
-      <h2>Message preview</h2>
-      <article class="prose">
+      <div class="prose">
+        <h2>Message preview</h2>
+      </div>
+      <article class="prose email-preview">
         <Raw html={renderMarkdown(draft.body)} />
       </article>
       {draft.marketing && (
-        <p>
-          <small>
+        <div class="prose">
+          <p class="small">
             A personalized unsubscribe footer is appended to each marketing
             email.
-          </small>
-        </p>
+          </p>
+        </div>
       )}
 
-      <h2>Send through your email provider</h2>
+      <div class="prose">
+        <h2>Send through your email provider</h2>
+      </div>
       {state.canBulkSend ? (
-        <CsrfForm action="/admin/emails/send" id="bulk-email-send">
+        <CsrfForm
+          action="/admin/emails/send"
+          class="inline"
+          id="bulk-email-send"
+        >
           <button type="submit">
             Send to {recipients} via {state.providerLabel}
           </button>
         </CsrfForm>
       ) : (
         <>
-          <p>
-            <strong>Sending is disabled.</strong> {state.disabledReason}
-          </p>
+          <div class="prose">
+            <p>
+              <strong>Sending is disabled.</strong> {state.disabledReason}
+            </p>
+            <p class="small">
+              <a href={EMAIL_SETTINGS_LINK}>
+                Set up your email provider in advanced settings
+              </a>
+            </p>
+          </div>
           <button disabled type="button">
             Send to {recipients}
           </button>
         </>
       )}
 
-      <h2>Or send from your own email app</h2>
-      <p>
-        This opens your email app with everyone in BCC. It needs no provider
-        setup, but sending lots of mail this way — especially marketing — is a
-        quick way to get your account rate-limited or blocked. Best for small,
-        genuinely transactional messages.
-      </p>
-      <p>
-        <a href={state.mailtoLink}>Open a BCC draft to {recipients}</a>
-      </p>
+      <div class="prose">
+        <h2>Or send from your own email app</h2>
+        <p>
+          This opens your email app with everyone in BCC. It needs no provider
+          setup, but sending lots of mail this way, especially marketing, is a
+          quick way to get your account rate-limited or blocked. It's best for
+          small, genuinely transactional messages.
+        </p>
+        <p>
+          <a href={state.mailtoLink}>Open a BCC draft to {recipients}</a>
+        </p>
+      </div>
     </Layout>,
   );
 };

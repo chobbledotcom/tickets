@@ -33,6 +33,7 @@ import {
   parseDraft,
   resolveRecipientEmails,
   serializeDraft,
+  summarizeProviderResponse,
   targetQuery,
   validateDraftInput,
 } from "#shared/bulk-email.ts";
@@ -77,7 +78,7 @@ const getBulkAvailability = (): BulkAvailability => {
         canBulkSend: false,
         config: null,
         disabledReason:
-          "You haven't configured your own email provider, so the system won't send bulk email for you — sending marketing from a shared address risks the whole platform's deliverability. Add your provider under Settings → Advanced → Email Notifications.",
+          "You haven't configured your own email provider, so the system won't send bulk email for you. Sending marketing from a shared address risks the whole platform's deliverability.",
       };
 };
 
@@ -308,14 +309,19 @@ const handleSendPost = (request: Request): Promise<Response> =>
       privateKey,
     );
     await settings.update.bulkEmailDraft("");
+    const providerSummary = summarizeProviderResponse(result.responses);
+    const recipientLabel = `${result.attempted} recipient${
+      result.attempted === 1 ? "" : "s"
+    }`;
     await logActivity(
-      `Sent bulk email "${draft.subject}" to ${result.attempted} recipient(s)`,
+      `Sent bulk email "${draft.subject}" to ${recipientLabel}. ${providerSummary}`,
+      draft.target.kind === "listing" ? draft.target.listingId : null,
     );
     return ok(
       COMPOSE_PATH,
-      `Sent to ${result.attempted} recipient${
-        result.attempted === 1 ? "" : "s"
-      }.`,
+      `Sent to ${recipientLabel} via ${
+        EMAIL_PROVIDER_LABELS[config.provider]
+      }. ${providerSummary}`,
     );
   });
 

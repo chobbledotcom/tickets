@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { serializeDraft } from "#shared/bulk-email.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import {
+  getAllActivityLog,
+  getListingActivityLog,
+} from "#shared/db/activityLog.ts";
 import {
   getEmailStats,
   hashEmail,
@@ -129,7 +132,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       ).then((r) => r.text());
       expect(html).toContain('value="Saved subject"');
       expect(html).toContain("checked");
-      expect(html).toContain("recipient — everyone");
+      expect(html).toContain("recipient. That's everyone");
       expect(html).not.toContain("recipients");
     });
 
@@ -334,12 +337,59 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
       expectRedirectWithFlash(
         "/admin/emails",
-        "Sent to 2 recipients.",
+        "Sent to 2 recipients via Resend. The email provider responded with HTTP 200.",
       )(response);
       expect(fetch.callCount()).toBe(1);
       expect(settings.bulkEmailDraft).toBe("");
       const log = await getAllActivityLog(10);
       expect(log.some((e) => e.message.includes("Sent bulk email"))).toBe(true);
+    });
+
+    test("relays the provider's reply in the flash and the listing log", async () => {
+      useResend();
+      const listing = await seedListingWithAttendees();
+      await adminFormPost("/admin/emails/preview", {
+        body: "Hello",
+        listing_id: String(listing.id),
+        subject: "Update",
+      });
+      // The provider acknowledges the batch with queued message IDs.
+      fetch.restubFetch(() =>
+        Promise.resolve(
+          new Response('{"data":[{"id":"msg_1"}]}', { status: 200 }),
+        ),
+      );
+
+      const { response } = await adminFormPost("/admin/emails/send", {});
+
+      expectRedirectWithFlash(
+        "/admin/emails",
+        'Sent to 2 recipients via Resend. The email provider responded with HTTP 200: {"data":[{"id":"msg_1"}]}.',
+      )(response);
+      // The reply is stored against this listing's log, not just the global one.
+      const listingLog = await getListingActivityLog(listing.id);
+      expect(
+        listingLog.some((e) => e.message.includes('{"data":[{"id":"msg_1"}]}')),
+      ).toBe(true);
+    });
+
+    test("logs an audience send against no specific listing", async () => {
+      useResend();
+      await seedListingWithAttendees();
+      await adminFormPost("/admin/emails/preview", {
+        audience: "active",
+        body: "Newsletter",
+        subject: "Monthly",
+      });
+
+      const { response } = await adminFormPost("/admin/emails/send", {});
+
+      expectRedirect(response, "/admin/emails");
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) =>
+        e.message.includes('Sent bulk email "Monthly"'),
+      );
+      expect(entry?.listing_id).toBe(null);
     });
 
     test("errors when the audience has no recipients", async () => {
@@ -399,13 +449,14 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
   });
 
-  describe("listing page Email Attendees link", () => {
+  describe("listing page Email link", () => {
     test("owners see the link on the listing page", async () => {
       const listing = await seedListingWithAttendees();
       const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie: await testCookie(),
       }).then((r) => r.text());
       expect(html).toContain(`/admin/emails?listing=${listing.id}`);
+      expect(html).toContain(">Email</a>");
     });
 
     test("managers do not see the link", async () => {
@@ -462,7 +513,9 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       useResend();
       const listing = await seedListingWithAttendees();
       const html = await previewListing(listing);
-      expect(html).toContain("These attendees have never been contacted.");
+      expect(html).toContain(
+        "These attendees have never been contacted through this page.",
+      );
     });
 
     test("a send records a contact, surfaced on the next preview", async () => {
@@ -485,7 +538,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
       const html = await previewListing(listing);
       expect(html).toContain(
-        "These attendees have been contacted 1 times each.",
+        "These attendees have been contacted through this page 1 times each.",
       );
     });
 

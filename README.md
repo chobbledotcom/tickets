@@ -239,8 +239,7 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 deno task start          # Run server
 deno task test           # Run tests
 deno task test:coverage  # Tests with coverage report
-deno task lint           # Lint
-deno task fmt            # Format
+deno task lint           # Format + lint with Biome — fixes in place
 deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)

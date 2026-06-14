@@ -22,7 +22,11 @@ import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
-import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
+import type {
+  Answer,
+  AttendeeQuestionData,
+  QuestionWithAnswers,
+} from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { Attendee, AttendeeTableRow } from "#shared/types.ts";
@@ -31,11 +35,10 @@ import { escapeHtml } from "#templates/layout.tsx";
 export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
 export type { AttendeeTableRow } from "#shared/types.ts";
 
-/** Question data for displaying answers in the attendee table */
-export type TableQuestionData = {
-  questions: QuestionWithAnswers[];
-  attendeeAnswerMap: Map<number, number[]>;
-};
+/** Question data for displaying answers in the attendee table.
+ * Canonical shape lives in the questions module; aliased here so existing
+ * importers keep their `TableQuestionData` reference. */
+export type TableQuestionData = AttendeeQuestionData;
 
 /** Options passed to attendee column cell renderers */
 export type AttendeeColumnOpts = {

@@ -512,6 +512,8 @@ describe("code quality", () => {
       "shared/db/migrations.ts:MIGRATION_LOCK_TTL_MS",
       // Backup freshness window used in production (same-file) but test pattern doesn't detect same-file usage
       "shared/db/backup.ts:BACKUP_FRESHNESS_WINDOW_MS",
+      // Attendees page size used in production (same-file) but test pattern doesn't detect same-file usage
+      "shared/db/attendees/queries.ts:ATTENDEES_PAGE_SIZE",
       // Test helper for creating signed webhook payloads
       "shared/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests

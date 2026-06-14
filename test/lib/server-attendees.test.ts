@@ -16,6 +16,7 @@ import {
   assertAdminHtml,
   awaitTestRequest,
   bookAttendee,
+  buildAttendeeEditForm,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
@@ -1052,13 +1053,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Listing Registrations",
-        "Add to Listing",
-        "Save Contact Info",
+        "Add Listing Line",
+        "Save Attendee",
       );
       // Listing link table shows the listing
       expect(html).toContain("Edit Page Listing");
-      // Add-to-listing section has listing selector
-      expect(html).toContain("add_listing_id");
+      // Line editor has listing selector
+      expect(html).toContain("line_event_id_");
     });
 
     test("edit page shows checked-in badge for checked-in attendee", async () => {
@@ -1106,7 +1107,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Daily Dates Listing",
-        "available-dates-data",
+        "attendee-form-data",
       );
       expect(html).toContain("2026-");
     });
@@ -1140,7 +1141,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       body: {
         address: "",
         email: "jane@example.com",
-        listing_id: "1",
+        line_count: "1",
+        line_event_id_0: "1",
+        line_key_0: "",
+        line_quantity_0: "1",
         name: "Jane Doe",
         phone: "",
         special_instructions: "",
@@ -1161,7 +1165,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/attendees/999", {
         address: "",
         email: "jane@example.com",
-        listing_id: "1",
+        line_count: "1",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
         name: "Jane Doe",
         phone: "",
         special_instructions: "",
@@ -1184,7 +1190,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             address: "",
             csrf_token: "invalid-token",
             email: "jane@example.com",
-            listing_id: String(listing.id),
+            line_count: "1",
+            line_event_id_0: String(listing.id),
+            line_quantity_0: "1",
             name: "Jane Doe",
             phone: "",
             special_instructions: "",
@@ -1203,19 +1211,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, { name: "" });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          listing_id: String(listing.id),
-          name: "",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Name is required"), false);
+      // Validation failure re-renders the form (200) with the error inline.
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
     });
 
     test("preserves return_url on edit validation error", async () => {
@@ -1228,20 +1232,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const returnUrl = "/admin/calendar#attendees";
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        name: "",
+        returnUrl,
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          listing_id: String(listing.id),
-          name: "",
-          phone: "",
-          return_url: returnUrl,
-          special_instructions: "",
-        },
+        form,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Name is required"), false);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
+      expect(html).toContain(returnUrl);
     });
 
     test("rejects whitespace-only name", async () => {
@@ -1252,19 +1254,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, { name: "   " });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          listing_id: String(listing.id),
-          name: "   ",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Name is required"), false);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
     });
 
     test("updates attendee with new data", async () => {
@@ -1275,21 +1272,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, {
+        address: "456 Oak Ave",
+        email: "jane@example.com",
+        name: "Jane Doe",
+        phone: "555-9999",
+        special_instructions: "Wheelchair access",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "456 Oak Ave",
-          email: "jane@example.com",
-          listing_id: String(listing.id),
-          name: "Jane Doe",
-          phone: "555-9999",
-          quantity: "1",
-          special_instructions: "Wheelchair access",
-        },
+        form,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/listing/${listing.id}#attendees`,
+        `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Doe",
       )(response);
 
@@ -1307,7 +1303,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(html).toContain("Wheelchair access");
     });
 
-    test("appends success message to return_url after edit", async () => {
+    test("returns to the edit form after edit, preserving return_url", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         listing.id,
@@ -1317,24 +1313,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        name: "John Doe",
+        returnUrl,
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          listing_id: String(listing.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          return_url: returnUrl,
-          special_instructions: "",
-        },
+        form,
       );
+      // Save returns to the same form (anchored), carrying return_url through
+      // so the "Back without saving" link still points where the user came from.
       expectRedirect(
         response,
-        "/admin/calendar",
-        "date=2026-03-15",
-        "#attendees",
+        `/admin/attendees/${attendee.id}`,
+        `return_url=${encodeURIComponent(returnUrl)}`,
+        "#attendee-form",
       );
       expectFlash(response, expect.stringContaining("John Doe"));
     });
@@ -1350,19 +1344,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "jane@example.com",
+        name: "Jane Smith",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          name: "Jane Smith",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/listing/${listing.id}#attendees`,
+        `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1378,15 +1370,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
         3,
       );
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "jane@example.com",
+        name: "Jane Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -1456,7 +1446,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         200,
         "Listing 1",
         "Listing 2",
-        "Add to Listing",
+        "Add Listing Line",
       );
     });
 
@@ -1521,16 +1511,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "",
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "",
-          listing_id: String(listing.id),
-          name: "John Doe",
-          phone: "",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
     });
@@ -1548,20 +1535,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        address: "456 Oak Ave",
+        email: "jane@example.com",
+        name: "Jane Smith",
+        phone: "555-9999",
+        special_instructions: "Special access needed",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "456 Oak Ave",
-          email: "jane@example.com",
-          listing_id: String(listing.id),
-          name: "Jane Smith",
-          phone: "555-9999",
-          special_instructions: "Special access needed",
-        },
+        form,
       );
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
-        `/admin/listing/${listing.id}#attendees`,
+        `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Smith",
       )(response);
     });
@@ -1581,7 +1568,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
+      await expectHtmlResponse(response, 200, 'name="line_quantity_');
     });
   });
 
@@ -1932,6 +1919,26 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("returns 404 when attendee has no bookings", async () => {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const db = getDbFn();
+      await db.execute({
+        args: [attendee.id],
+        sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/refresh-payment`,
+      );
+      expect(response.status).toBe(404);
+    });
+
     test("returns error when no payment provider configured", async () => {
       const listing = await createTestListing({
         maxAttendees: 100,
@@ -2084,16 +2091,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("pre-selects existing answer on edit page", async () => {
-      const { attendee, a1 } = await setupQuestionAndAttendee();
+      const { attendee, a1, q } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).toContain(`value="${a1.id}" checked`);
+      // The radio for the previously-saved answer is pre-checked.
+      expect(html).toContain(
+        `<input checked name="question_${q.id}" type="radio" value="${a1.id}">`,
+      );
     });
 
     test("does not show questions when listing has none", async () => {
@@ -2113,19 +2123,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("saves selected answer on edit", async () => {
-      const { listing, attendee, q, a2 } = await setupQuestionAndAttendee();
+      const { attendee, q, a2 } = await setupQuestionAndAttendee();
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        extra: { [`question_${q.id}`]: String(a2.id) },
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          listing_id: String(listing.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-          [`question_${q.id}`]: String(a2.id),
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2137,24 +2143,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates answer from one option to another", async () => {
-      const { listing, attendee, q, a1, a2 } = await setupQuestionAndAttendee();
+      const { attendee, q, a1, a2 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        extra: { [`question_${q.id}`]: String(a2.id) },
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          listing_id: String(listing.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-          [`question_${q.id}`]: String(a2.id),
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2163,23 +2165,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("clears answers when no question field submitted", async () => {
-      const { listing, attendee, a1 } = await setupQuestionAndAttendee();
+      const { attendee, a1 } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          listing_id: String(listing.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2189,20 +2187,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("ignores invalid answer ID for question", async () => {
-      const { listing, attendee, q } = await setupQuestionAndAttendee();
+      const { attendee, q } = await setupQuestionAndAttendee();
 
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "john@example.com",
+        extra: { [`question_${q.id}`]: "99999" },
+        name: "John Doe",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          address: "",
-          email: "john@example.com",
-          listing_id: String(listing.id),
-          name: "John Doe",
-          phone: "",
-          quantity: "1",
-          special_instructions: "",
-          [`question_${q.id}`]: "99999",
-        },
+        form,
       );
       expect(response.status).toBe(302);
 
@@ -2212,414 +2206,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const answers = await getAttendeeAnswersBatch([attendee.id]);
       const attendeeAnswers = answers.get(attendee.id) ?? [];
       expect(attendeeAnswers.length).toBe(0);
-    });
-  });
-
-  describe("listing link management", () => {
-    test("POST /admin/attendees/:id/link adds listing link", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "Link User",
-        "link@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { listing_id: String(listing2.id), quantity: "2" },
-      );
-      expect(response.status).toBe(302);
-
-      // Verify attendee is linked to both listings
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const att1 = await getAttendeesRaw(listing1.id);
-      const att2 = await getAttendeesRaw(listing2.id);
-      expect(att1.length).toBe(1);
-      expect(att2.length).toBe(1);
-      expect(att2[0]!.quantity).toBe(2);
-    });
-
-    test("POST /admin/attendees/:id/link rejects missing listing_id", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "No Listing",
-        "nolisting@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { listing_id: "0", quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Listing is required"),
-        false,
-      );
-    });
-
-    test("POST /admin/attendees/:id/link rejects when capacity exceeded", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({ maxAttendees: 1 });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "Cap",
-        "cap@test.com",
-      );
-      // Fill listing2
-      await createTestAttendee(
-        listing2.id,
-        listing2.slug,
-        "Filler",
-        "filler@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { listing_id: String(listing2.id), quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Not enough spots"), false);
-    });
-
-    test("POST /admin/attendees/:id/link rejects non-existent listing", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Bad",
-        "bad@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { listing_id: "99999", quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Listing not found"),
-        false,
-      );
-    });
-
-    test("POST /admin/attendees/:id/link rejects missing listing_id", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Missing Listing",
-        "missing-listing@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Listing is required"),
-        false,
-      );
-    });
-
-    test("POST /admin/attendees/:id/unlink/:listingId removes listing link", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({ maxAttendees: 50 });
-      const { createAttendeeAtomic: create } = await import(
-        "#shared/db/attendees.ts"
-      );
-      const result = await create({
-        bookings: [{ listingId: listing1.id }, { listingId: listing2.id }],
-        email: "unlink@test.com",
-        name: "Unlink",
-      });
-      if (!result.success) throw new Error("Failed to create");
-      const attendeeId = result.attendees[0]!.id;
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}/unlink/${listing1.id}`,
-      );
-      expect(response.status).toBe(302);
-
-      // Attendee still linked to listing2
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
-      expect((await getAttendeesRaw(listing2.id)).length).toBe(1);
-    });
-
-    test("POST /admin/attendees/:id/unlink/:listingId blocks removing last listing", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "LastLink",
-        "lastlink@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/unlink/${listing.id}`,
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("delete the attendee instead"),
-        false,
-      );
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId updates quantity", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 10,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Qty",
-        "qty@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
-        { quantity: "5" },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(listing.id);
-      expect(raw[0]!.quantity).toBe(5);
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId rejects over-capacity", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 3,
-        maxQuantity: 10,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Over",
-        "over@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
-        { quantity: "5" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Not enough spots"), false);
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId rejects non-existent listing", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Missing",
-        "missing@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/listing/99999`,
-        { quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Listing not found"),
-        false,
-      );
-    });
-
-    test("POST /admin/attendees/:id/link defaults missing quantity to 1", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "Default Qty",
-        "dq@test.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { listing_id: String(listing2.id) },
-      );
-      expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(listing2.id);
-      expect(raw[0]!.quantity).toBe(1);
-    });
-
-    test("POST /admin/attendees/:id/link handles daily listing without date", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({
-        listingType: "daily",
-        maxAttendees: 50,
-      });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "No Date",
-        "nodate@test.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { date: "", listing_id: String(listing2.id) },
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("POST /admin/attendees/:id/link handles daily listing with empty date string", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({
-        listingType: "daily",
-        maxAttendees: 50,
-      });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "Empty Date",
-        "emptydate@test.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { date: "", listing_id: String(listing2.id), quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(listing2.id);
-      expect(raw[0]!.date).toBeNull();
-    });
-
-    test("POST /admin/attendees/:id/link handles daily listing with date", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({
-        listingType: "daily",
-        maxAttendees: 50,
-      });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "Daily Link",
-        "dl@test.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/link`,
-        { date: "2026-04-07", listing_id: String(listing2.id) },
-      );
-      expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(listing2.id);
-      expect(raw[0]!.date).toBe("2026-04-07");
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId defaults missing quantity to 1", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Upd Qty",
-        "uq@test.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId handles standard listing (no date)", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Std Upd",
-        "su@test.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
-        { date: "", quantity: "2" },
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId handles daily listing without date", async () => {
-      const listing = await createTestListing({
-        listingType: "daily",
-        maxAttendees: 50,
-      });
-      const result = await bookAttendee(listing, {
-        date: "2026-04-07",
-        email: "dnd@test.com",
-        name: "Daily NoDate",
-      });
-      if (!result.success) throw new Error("Failed");
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${result.attendees[0]!.id}/listing/${listing.id}`,
-        { date: "", quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId handles daily listing date", async () => {
-      const listing = await createTestListing({
-        listingType: "daily",
-        maxAttendees: 50,
-      });
-      const result = await bookAttendee(listing, {
-        date: "2026-04-07",
-        email: "du@test.com",
-        name: "Daily Upd",
-      });
-      if (!result.success) throw new Error("Failed");
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${result.attendees[0]!.id}/listing/${listing.id}`,
-        { date: "2026-04-08", quantity: "1" },
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("POST /admin/attendees/:id/listing/:listingId treats invalid quantity as 1", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 10,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Qty",
-        "qty@test.com",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
-        { quantity: "abc" },
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(listing.id);
-      expect(raw[0]!.quantity).toBe(1);
     });
   });
 
@@ -3210,11 +2796,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers: save } = await import(
         "#shared/db/questions.ts"
       );
-      await save([target.id], [a1.id]);
+      await save(new Map([[target.id, [a1.id]]]));
       // Need source attendee ID
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([sourceData!.id], [a2.id]);
+      await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const response = await awaitTestRequest(
         `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(
@@ -3265,8 +2851,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([target.id], [a1.id]); // Small
-      await save([sourceData!.id], [a2.id]); // Large
+      await save(new Map([[target.id, [a1.id]]])); // Small
+      await save(new Map([[sourceData!.id, [a2.id]]])); // Large
 
       // Get merge version from preview page
       const previewPage = await awaitTestRequest(
@@ -3403,8 +2989,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([target.id], [a1.id]);
-      await save([sourceData!.id], [a2.id]);
+      await save(new Map([[target.id, [a1.id]]]));
+      await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
@@ -3457,8 +3043,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([target.id], [a1.id]);
-      await save([sourceData!.id], [a2.id]);
+      await save(new Map([[target.id, [a1.id]]]));
+      await save(new Map([[sourceData!.id, [a2.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
@@ -3507,7 +3093,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         await import("#shared/db/questions.ts");
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save([sourceData!.id], [a1.id]);
+      await save(new Map([[sourceData!.id, [a1.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
@@ -3553,7 +3139,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Only target has an answer — no conflict
       const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
         await import("#shared/db/questions.ts");
-      await save([target.id], [a1.id]);
+      await save(new Map([[target.id, [a1.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 

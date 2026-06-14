@@ -205,6 +205,13 @@ article > * {
   margin-bottom: 0;
 }
 
+/* Outlines a rendered email body so it reads as a preview, not page content. */
+.email-preview {
+  border: 1px dashed var(--color-text-secondary);
+  border-radius: var(--border-radius);
+  padding: var(--space-m);
+}
+
 hr {
   background-color: var(--color-bg-secondary);
   border: none;
@@ -421,6 +428,15 @@ pre samp {
 small,
 .muted {
   color: var(--color-text-secondary);
+}
+
+/* Small print as a paragraph modifier: shrinks the text and tightens the
+ * spacing so a note doesn't carry a full paragraph's worth of margin. */
+.small {
+  color: var(--color-text-secondary);
+  font-size: 0.85em;
+  line-height: 1.4;
+  margin: var(--space-s) 0;
 }
 
 sup {
@@ -928,6 +944,13 @@ article {
   padding: var(--space-m);
 }
 
+.info {
+  background: #eef4ff;
+  border-left: 4px solid #0066cc;
+  color: #0055aa;
+  padding: var(--space-m);
+}
+
 [data-theme="dark"] .error {
   background: #3c2020;
   color: #ff5555;
@@ -935,6 +958,10 @@ article {
 [data-theme="dark"] .success {
   background: #203c20;
   color: #50fa7b;
+}
+[data-theme="dark"] .info {
+  background: #1f2a3c;
+  color: #8ab4ff;
 }
 
 /* Danger elements */
@@ -1120,14 +1147,14 @@ fieldset {
   gap: var(--space-s);
 }
 
-.checkbox-group,
-.radio-group {
+.checkboxes,
+.radios {
   border: 0;
   padding: 0;
 }
 
-.checkbox-group label,
-.radio-group label {
+.checkboxes label,
+.radios label {
   display: inline-block;
   font-weight: normal;
   max-width: none;
@@ -1718,9 +1745,22 @@ button.secondary:hover,
 }
 
 /* Link-based date picker calendar */
-.calendar {
+.date-picker {
   max-width: 22rem;
   margin-bottom: var(--space-m);
+  padding: var(--space-s);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+.date-picker > select {
+  display: block;
+  width: 100%;
+}
+
+.calendar {
+  max-width: 22rem;
+  margin-bottom: var(--space-s);
 }
 
 .calendar-nav {
@@ -1812,3 +1852,29 @@ a.cal-day-selected:hover {
 }
 
 /* Guide page */
+
+/* Attendees browser filter/sort form */
+.attendees-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.attendees-filter label {
+  margin: 0;
+}
+
+.attendees-filter button {
+  margin: 0;
+}
+
+/* Previous/next pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+}

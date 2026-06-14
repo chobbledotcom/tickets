@@ -31,19 +31,24 @@ export type {
   ListingAttendeeRow,
   ListingBooking,
   UpdateAttendeePIIInput,
-  UpdateListingLinkInput,
-  UpdateListingLinkResult,
 } from "#shared/db/attendee-types.ts";
+export {
+  type AtomicDesiredLine,
+  type ExistingLine,
+  lineKeyFromBooking,
+  loadExistingLines,
+  type UpdateAttendeeAtomicResult,
+} from "#shared/db/attendees/atomic-update.ts";
 export {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
 } from "#shared/db/attendees/capacity.ts";
-export { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
 export {
-  deleteAttendee,
-  unlinkAttendeeFromListing,
-} from "#shared/db/attendees/delete.ts";
+  buildAttendeeInsert,
+  ensureAllBookings,
+} from "#shared/db/attendees/create.ts";
+export { deleteAttendee } from "#shared/db/attendees/delete.ts";
 export {
   buildPiiBlob,
   contactFields,
@@ -56,36 +61,48 @@ export {
   PII_BLOB_VERSION,
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
+export type {
+  AttendeeSort,
+  AttendeesPage,
+} from "#shared/db/attendees/queries.ts";
 export {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
+  ATTENDEES_PAGE_SIZE,
   getAllAttendeePiiBlobs,
   getAttendee,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByTokens,
+  getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
 export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
-
 export {
-  addListingLink,
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   markRefunded,
   recomputeListingBookingRanges,
   updateAttendeePII,
   updateCheckedIn,
-  updateListingLink,
 } from "#shared/db/attendees/update.ts";
+
+import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/db/attendees/atomic-update.ts";
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
+  applyAttendeeAtomicEdit: applyAttendeeAtomicEditImpl,
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,
   hasAvailableSpots: checkListingAvailability,
 };
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+export const applyAttendeeAtomicEdit = (
+  ...args: Parameters<typeof attendeesApi.applyAttendeeAtomicEdit>
+): ReturnType<typeof attendeesApi.applyAttendeeAtomicEdit> =>
+  attendeesApi.applyAttendeeAtomicEdit(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const hasAvailableSpots = (

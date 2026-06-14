@@ -58,6 +58,63 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
     [limit],
   );
 
+/** Sort order for the admin attendees browser */
+export type AttendeeSort = "newest" | "oldest";
+
+/**
+ * Attendee rows per page in the admin attendees browser. Fixed here so the
+ * page size is never derived from the request — callers choose only the page.
+ */
+export const ATTENDEES_PAGE_SIZE = 100;
+
+/** One page of attendee rows, plus whether a further page exists */
+export type AttendeesPage = {
+  rows: Attendee[];
+  hasNext: boolean;
+};
+
+/**
+ * Get one page of attendee+booking rows for the admin attendees browser.
+ *
+ * Returns one row per (attendee, listing) booking, ordered by registration
+ * date — newest or oldest first — with id as a stable tiebreaker so paging is
+ * deterministic. When `listingId` is given, only that listing's bookings are
+ * returned; otherwise every booking across all listings is included.
+ *
+ * The page size is fixed; callers pass a zero-based `page`. One extra row is
+ * read to report `hasNext` without a separate count query, then trimmed off.
+ * PII stays encrypted — decrypt with decryptAttendees before display.
+ */
+export const getAttendeesPage = async ({
+  listingId,
+  sort,
+  page,
+}: {
+  listingId: number | null;
+  sort: AttendeeSort;
+  page: number;
+}): Promise<AttendeesPage> => {
+  // `dir` is derived from the AttendeeSort enum and the WHERE clause is fixed
+  // text, so neither is user-controlled — only the bound args are.
+  const dir = sort === "oldest" ? "ASC" : "DESC";
+  const where = listingId === null ? "" : "WHERE ea.listing_id = ?";
+  const limit = ATTENDEES_PAGE_SIZE + 1;
+  const offset = page * ATTENDEES_PAGE_SIZE;
+  const args =
+    listingId === null ? [limit, offset] : [listingId, limit, offset];
+  const rows = await queryAll<Attendee>(
+    `SELECT ${ATTENDEE_JOIN_SELECT}
+     FROM attendees a
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     ${where}
+     ORDER BY a.created ${dir}, a.id ${dir}
+     LIMIT ? OFFSET ?`,
+    args,
+  );
+  const hasNext = rows.length > ATTENDEES_PAGE_SIZE;
+  return { hasNext, rows: hasNext ? rows.slice(0, ATTENDEES_PAGE_SIZE) : rows };
+};
+
 /**
  * Get every attendee's encrypted PII blob (one row per attendee).
  * Used to resolve bulk-email recipient lists, where only the email inside each

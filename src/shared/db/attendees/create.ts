@@ -9,7 +9,9 @@ import type {
   CreateAttendeeResult,
   EncryptedAttendeeData,
 } from "#shared/db/attendee-types.ts";
+import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import {
   contactFields,
   encryptAttendeeFields,
@@ -21,6 +23,35 @@ import {
 } from "#shared/db/email-preferences.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import type { Attendee } from "#shared/types.ts";
+
+/**
+ * Enforce all-or-nothing semantics on a (greedy) create result.
+ *
+ * `createAttendeeAtomic` fulfils bookings greedily: it returns success as
+ * long as at least one booking was created. Callers that need every
+ * requested line to succeed pass the expected count here; if the result is
+ * short, the partially-created attendee is rolled back and a failure reason
+ * is returned. Shared by the public checkout flow, the webhook flow, and the
+ * admin manual-add form so the "no half-saved attendee" rule lives in one
+ * place.
+ */
+export const ensureAllBookings = async (
+  result: CreateAttendeeResult,
+  expectedCount: number,
+): Promise<
+  { ok: true } | { ok: false; reason: "capacity_exceeded" | "encryption_error" }
+> => {
+  if (result.success && result.attendees.length >= expectedCount) {
+    return { ok: true };
+  }
+  if (result.success && result.attendees.length > 0) {
+    await deleteAttendee(result.attendees[0]!.id);
+  }
+  return {
+    ok: false,
+    reason: result.success ? "capacity_exceeded" : result.reason,
+  };
+};
 
 /** Build an INSERT statement for the attendees table from encrypted fields. */
 export const buildAttendeeInsert = (enc: EncryptedAttendeeData) =>
@@ -80,13 +111,8 @@ export const createAttendeeAtomicImpl = async (
   // listing_attendees unique index is on (listing_id, attendee_id, start_at),
   // so two rows with the same tuple would violate it — silently dropping
   // one insert and delivering a half-fulfilled booking.
-  const seenKeys = new Set<string>();
-  for (const b of bookings) {
-    const key = `${b.listingId}|${b.date ?? ""}`;
-    if (seenKeys.has(key)) {
-      return { reason: "capacity_exceeded", success: false };
-    }
-    seenKeys.add(key);
+  if (hasDuplicateBookingSlot(bookings)) {
+    return { reason: "capacity_exceeded", success: false };
   }
 
   const contactInfo = { address, email, name, phone, special_instructions };
