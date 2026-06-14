@@ -23,8 +23,15 @@ import {
   addDays,
   getAvailableDates,
 } from "#shared/dates.ts";
+import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { Holiday } from "#shared/types.ts";
 import type { EventWithCount } from "#shared/types.ts";
+import {
+  validateAddress,
+  validateEmail,
+  validatePhone,
+  validateSpecialInstructions,
+} from "#templates/fields.ts";
 
 // ---------------------------------------------------------------------------
 // Field-name constants — single source of truth for template + parser
@@ -189,7 +196,7 @@ export const parseAttendeeForm = (
 ): ParsedAttendeeForm => {
   const lineCountRaw = Number.parseInt(form.getString(LINE_COUNT_FIELD), 10);
   const lineCount = Number.isInteger(lineCountRaw) && lineCountRaw > 0
-    ? lineCountRaw
+    ? Math.min(lineCountRaw, MAX_FORM_LINES)
     : 1;
 
   const lines: AttendeeFormLine[] = [];
@@ -280,6 +287,29 @@ const validateAttendeeBlock = (
 ): AttendeeFieldError | null => {
   if (!parsed.name.trim()) {
     return { field: "name", message: "Name is required" };
+  }
+  // Email and phone are optional on this form, but a provided value must be
+  // well-formed. The browser enforces this via type=email / pattern, so only a
+  // no-JS or hand-crafted POST reaches the server with a malformed value —
+  // validating here keeps bad contact data out of the encrypted PII blob.
+  // Reuse the same validators the public ticket form uses so both paths agree.
+  if (parsed.email) {
+    const emailError = validateEmail(parsed.email);
+    if (emailError) return { field: "email", message: emailError };
+  }
+  if (parsed.phone) {
+    const phoneError = validatePhone(parsed.phone);
+    if (phoneError) return { field: "phone", message: phoneError };
+  }
+  // Length caps backstop the HTML maxlength and keep these fields within the
+  // size the payment-metadata path elsewhere relies on.
+  const addressError = validateAddress(parsed.address);
+  if (addressError) return { field: "address", message: addressError };
+  const instructionsError = validateSpecialInstructions(
+    parsed.special_instructions,
+  );
+  if (instructionsError) {
+    return { field: "special_instructions", message: instructionsError };
   }
   return null;
 };

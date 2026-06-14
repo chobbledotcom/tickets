@@ -635,6 +635,28 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain("Valid Name");
     });
 
+    test("create rejects a malformed email and saves nothing", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "not-an-email",
+        line_count: "1",
+        line_event_id_0: String(event.id),
+        line_quantity_0: "1",
+        name: "Valid Name",
+      });
+      // Re-renders in place (200) with the field error; the browser's
+      // type=email guard is bypassed by a no-JS / crafted POST, so the server
+      // is the only thing standing between bad data and the PII blob.
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Please enter a valid email address");
+      expect(html).toContain("Valid Name");
+      expect((await getAttendeesRaw(event.id)).length).toBe(0);
+    });
+
     test("edit remove_line drops the line from the form without deleting until save", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
