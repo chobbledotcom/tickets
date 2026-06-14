@@ -125,9 +125,9 @@ const renderListingListing = (info: TicketListing): string => {
     ? "<p><strong>Sold Out</strong></p>"
     : isClosed || isReadOnly()
       ? "<p><strong>Registration Closed</strong></p>"
-      : `<p><a href="/ticket/${escapeHtml(
+      : `<p><a class="btn" href="/ticket/${escapeHtml(
           listing.slug,
-        )}"><strong>${bookLabel}</strong></a></p>`;
+        )}">${bookLabel}</a></p>`;
 
   return `<div class="prose"><h2>${escapeHtml(
     listing.name,
@@ -141,9 +141,9 @@ const renderGroupListing = (group: Group): string => {
     : "";
   const linkHtml = isReadOnly()
     ? "<p><strong>Registration Closed</strong></p>"
-    : `<p><a href="/ticket/${escapeHtml(
+    : `<p><a class="btn" href="/ticket/${escapeHtml(
         group.slug,
-      )}"><strong>Book now</strong></a></p>`;
+      )}">Book now</a></p>`;
 
   return `<div class="prose"><h2>${escapeHtml(
     group.name,

@@ -5,6 +5,7 @@
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/apple-wallet" id="settings-apple-wallet">
@@ -69,6 +70,6 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
         {s.appleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>
     </label>
-    <button type="submit">Save Apple Wallet Settings</button>
+    <SubmitButton icon="save">Save Apple Wallet Settings</SubmitButton>
   </CsrfForm>
 );

@@ -6,6 +6,11 @@ import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
+import {
+  ActionButton,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -46,8 +51,10 @@ export const adminUsersPage = (
     <Layout title="Users">
       <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
-      <p>
-        <a href="/admin/guide#user-classes">User roles and permissions</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#user-classes">
+          User roles and permissions
+        </GuideLink>
       </p>
       <Flash error={opts.error} success={opts.success} />
 
@@ -61,8 +68,10 @@ export const adminUsersPage = (
         </div>
       )}
 
-      <p>
-        <a href="/admin/user/new">Invite User</a>
+      <p class="actions">
+        <ActionButton href="/admin/user/new" icon="user-plus">
+          Invite User
+        </ActionButton>
       </p>
 
       <div class="table-scroll">
@@ -88,7 +97,7 @@ export const adminUsersPage = (
                       action={`/admin/users/${user.id}/activate`}
                       class="inline"
                     >
-                      <button type="submit">Activate</button>
+                      <SubmitButton icon="check">Activate</SubmitButton>
                     </CsrfForm>
                   )}
                 </td>
@@ -153,7 +162,7 @@ export const adminUserNewPage = (
         <h1>Invite User</h1>
         <Flash error={error} />
         <Raw html={renderFields(inviteUserFields)} />
-        <button type="submit">Create Invite</button>
+        <SubmitButton icon="user-plus">Create Invite</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

@@ -14,6 +14,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
@@ -198,7 +199,7 @@ export const adminListingQrPage = ({
             />
           </label>
           {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
-          <button type="submit">Generate QR code</button>
+          <SubmitButton icon="plus">Generate QR code</SubmitButton>
         </CsrfForm>
         {result && (
           <QrResultPanel

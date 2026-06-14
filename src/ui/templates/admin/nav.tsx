@@ -14,6 +14,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 /** Render read-only or warning banner with optional renewal URL */
 const renderReadOnlyBanner = (
@@ -90,7 +91,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
         {navLink("/admin/guide", "Guide", active)}
         <li>
           <CsrfForm action="/admin/logout" class="inline">
-            <button type="submit">Logout</button>
+            <SubmitButton icon="log-out">Logout</SubmitButton>
           </CsrfForm>
         </li>
       </ul>

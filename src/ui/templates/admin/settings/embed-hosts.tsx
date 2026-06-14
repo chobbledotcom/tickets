@@ -4,6 +4,7 @@
 
 import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
@@ -28,6 +29,6 @@ export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
         the booking page are always allowed.
       </small>
     </p>
-    <button type="submit">Save Embed Hosts</button>
+    <SubmitButton icon="save">Save Embed Hosts</SubmitButton>
   </CsrfForm>
 );

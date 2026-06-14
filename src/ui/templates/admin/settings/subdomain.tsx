@@ -6,6 +6,7 @@ import type { SafeHtml } from "#jsx/jsx-runtime";
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 
 const SubdomainIntroProse = (): SafeHtml => (
   <div class="prose">
@@ -49,12 +50,12 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
           (cannot be undone)
         </label>
         <footer>
-          <button type="submit">Register Subdomain</button>
+          <SubmitButton icon="plus">Register Subdomain</SubmitButton>
           <a
-            class="secondary"
+            class="btn secondary"
             href="/admin/settings-advanced#settings-host-subdomain"
           >
-            <strong>Cancel</strong>
+            Cancel
           </a>
         </footer>
       </>
@@ -75,9 +76,9 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
       </label>
       <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
-      <button type="submit">
+      <SubmitButton icon="search">
         Check Availability &amp; Preview Complete Domain
-      </button>
+      </SubmitButton>
     </>
   );
 };

@@ -32,6 +32,7 @@ const TEXT = "text/plain; charset=utf-8";
 
 export const handleRobotsTxt = staticHandler("robots.txt", TEXT);
 export const handleFavicon = staticHandler("favicon.svg", SVG);
+export const handleIcons = staticHandler("icons.svg", SVG);
 export const handleMvpCss = staticHandler("mvp.css", CSS);
 export const handleAdminJs = staticHandler("admin.js", JS);
 export const handleScannerJs = staticHandler("scanner.js", JS);

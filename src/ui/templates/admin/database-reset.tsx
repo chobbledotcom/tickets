@@ -4,6 +4,7 @@
  */
 
 import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
@@ -44,9 +45,9 @@ export const ResetDatabaseForm = ({
       required
       type="text"
     />
-    <button class="danger" type="submit">
+    <SubmitButton class="danger" icon="trash-2">
       Reset Database
-    </button>
+    </SubmitButton>
   </CsrfForm>
 );
 

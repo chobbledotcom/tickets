@@ -6,6 +6,7 @@ import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   squareAccessTokenFields,
   squareWebhookFields,
@@ -58,7 +59,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
         SumUp
       </label>
     </fieldset>
-    <button type="submit">Save Payment Provider</button>
+    <SubmitButton icon="save">Save Payment Provider</SubmitButton>
   </CsrfForm>
 );
 
@@ -115,7 +116,7 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
         )}
       />
       <footer>
-        <button type="submit">Update Stripe Key</button>
+        <SubmitButton icon="save">Update Stripe Key</SubmitButton>
         {s.stripeKeyConfigured && (
           <button class="secondary" id="stripe-test-btn" type="button">
             Test Connection
@@ -155,7 +156,7 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
         Sandbox mode (use Square's test environment)
       </label>
       <footer>
-        <button type="submit">Update Square Credentials</button>
+        <SubmitButton icon="save">Update Square Credentials</SubmitButton>
         {s.squareTokenConfigured && (
           <button class="secondary" id="square-test-btn" type="button">
             Test Connection
@@ -221,7 +222,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
             : {},
         )}
       />
-      <button type="submit">Update Webhook Key</button>
+      <SubmitButton icon="save">Update Webhook Key</SubmitButton>
     </CsrfForm>
   ) : null;
 
@@ -249,7 +250,7 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
         )}
       />
       <footer>
-        <button type="submit">Update SumUp Credentials</button>
+        <SubmitButton icon="save">Update SumUp Credentials</SubmitButton>
         {s.sumupKeyConfigured && (
           <button class="secondary" id="sumup-test-btn" type="button">
             Test Connection
@@ -280,6 +281,6 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
           value={s.bookingFee}
         />
       </label>
-      <button type="submit">Save Booking Fee</button>
+      <SubmitButton icon="save">Save Booking Fee</SubmitButton>
     </CsrfForm>
   ) : null;

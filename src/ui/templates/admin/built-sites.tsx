@@ -16,6 +16,11 @@ import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import {
+  ActionButton,
+  Icon,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -86,9 +91,13 @@ export const adminBuiltSitesPage = (
     <Layout title="Built Sites">
       <AdminNav active="/admin/built-sites" session={session} />
       <Flash success={successMessage} />
-      <p>
-        <a href="/admin/built-sites/new">Add Built Site</a>{" "}
-        <a href="/admin/builder">Build New Site</a>
+      <p class="actions">
+        <ActionButton href="/admin/built-sites/new" icon="plus">
+          Add Built Site
+        </ActionButton>
+        <ActionButton href="/admin/builder" icon="hammer" variant="secondary">
+          Build New Site
+        </ActionButton>
       </p>
       {sites.length === 0 ? (
         <p>No built sites recorded.</p>
@@ -169,7 +178,7 @@ export const adminBuiltSiteNewPage = (
         <h1>Add Built Site</h1>
         <Flash error={error} />
         <Raw html={renderFields(builtSiteFields)} />
-        <button type="submit">Create Built Site</button>
+        <SubmitButton icon="plus">Create Built Site</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -230,24 +239,25 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
           onclick="return confirm('The old URL will stop working. Continue?')"
           type="submit"
         >
-          Rotate token
+          <Icon name="rotate-ccw" />
+          <span>Rotate token</span>
         </button>
       </RenewalActionForm>
 
       <RenewalActionForm action="bump-deadline" siteId={site.id}>
         <label for="bump_months">Bump deadline by months</label>
         <MonthsInput id="bump_months" />
-        <button type="submit">Bump</button>
+        <SubmitButton icon="save">Bump</SubmitButton>
       </RenewalActionForm>
 
       <RenewalActionForm action="override-deadline" siteId={site.id}>
         <label for="override_date">Override deadline</label>
         <input id="override_date" name="date" type="date" />
-        <button type="submit">Override</button>
+        <SubmitButton icon="save">Override</SubmitButton>
       </RenewalActionForm>
 
       <RenewalActionForm action="re-sync-deadline" siteId={site.id}>
-        <button type="submit">Re-sync deadline</button>
+        <SubmitButton icon="rotate-ccw">Re-sync deadline</SubmitButton>
       </RenewalActionForm>
     </div>
   );
@@ -264,19 +274,19 @@ const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
     <RenewalActionForm action="provision-renewal" siteId={site.id}>
       <label for="provision_months">Initial months</label>
       <MonthsInput id="provision_months" />
-      <button type="submit">Provision</button>
+      <SubmitButton icon="hammer">Provision</SubmitButton>
     </RenewalActionForm>
 
     <h3>Bump deadline</h3>
     <RenewalActionForm action="bump-deadline" siteId={site.id}>
       <MonthsInput />
-      <button type="submit">Bump</button>
+      <SubmitButton icon="save">Bump</SubmitButton>
     </RenewalActionForm>
 
     <h3>Override deadline</h3>
     <RenewalActionForm action="override-deadline" siteId={site.id}>
       <input name="date" type="date" />
-      <button type="submit">Override</button>
+      <SubmitButton icon="save">Override</SubmitButton>
     </RenewalActionForm>
   </div>
 );
@@ -301,7 +311,7 @@ export const adminBuiltSiteEditPage = (
         <Raw
           html={renderFields(builtSiteFields, builtSiteToFieldValues(site))}
         />
-        <button type="submit">Save Changes</button>
+        <SubmitButton icon="save">Save Changes</SubmitButton>
       </CsrfForm>
 
       <h2>Renewal</h2>

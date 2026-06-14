@@ -5,6 +5,7 @@
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -98,10 +99,10 @@ export const setupCompletePage = (): string =>
       <div class="success" role="alert">
         <p>Your ticket reservation system has been configured successfully.</p>
       </div>
-      <p>
-        <a href="/admin/">
-          <b>Go to Admin Dashboard</b>
-        </a>
+      <p class="actions">
+        <ActionButton href="/admin/" icon="arrow-right">
+          Go to Admin Dashboard
+        </ActionButton>
       </p>
     </Layout>,
   );

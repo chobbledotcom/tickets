@@ -7,6 +7,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type BuiltSiteDisplay = {
@@ -37,7 +38,7 @@ const BuilderForm = (): JSX.Element => (
           purchased
         </small>
       </fieldset>
-      <button type="submit">Build Site</button>
+      <SubmitButton icon="hammer">Build Site</SubmitButton>
     </CsrfForm>
   </section>
 );

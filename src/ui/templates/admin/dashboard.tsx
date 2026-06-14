@@ -26,6 +26,7 @@ import type {
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Render a single listing table row using ordered column keys */
@@ -222,10 +223,13 @@ export const adminDashboardPage = (
       <Flash error={imageError} success={successMessage} />
 
       {!isReadOnly() && (
-        <p>
-          <a href="/admin/listing/new">Add Listings</a>
-          {" • "}
-          <a href="/admin/attendees/new">Add Attendee</a>
+        <p class="actions">
+          <ActionButton href="/admin/listing/new" icon="plus">
+            Add Listing
+          </ActionButton>
+          <ActionButton href="/admin/attendee/new" icon="plus">
+            Add Attendee
+          </ActionButton>
         </p>
       )}
 

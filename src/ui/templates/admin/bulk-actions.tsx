@@ -19,6 +19,7 @@ import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Form field values for the duplicate-group action */
@@ -238,7 +239,7 @@ export const adminDuplicateGroupPage = (
           <Raw html={listingsJson} />
         </script>
 
-        <button type="submit">Duplicate Group</button>
+        <SubmitButton icon="plus">Duplicate Group</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

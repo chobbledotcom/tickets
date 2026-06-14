@@ -9,6 +9,7 @@ import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** List all questions */
@@ -22,14 +23,14 @@ export const adminQuestionsPage = (
       <AdminNav active="/admin/questions" session={session} />
 
       <h1>Custom Questions</h1>
-      <p>
-        <a href="/admin/guide#questions">Questions guide</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
       <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">
         <Raw html={questionTextForm.render()} />
-        <button type="submit">Add Question</button>
+        <SubmitButton icon="plus">Add Question</SubmitButton>
       </CsrfForm>
 
       {questions.length === 0 ? (
@@ -91,7 +92,7 @@ export const adminQuestionPage = (
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <Raw html={questionTextForm.render({ text: question.text })} />
-        <button type="submit">Update</button>
+        <SubmitButton icon="save">Update</SubmitButton>
       </CsrfForm>
 
       <h2>Answer Options</h2>
@@ -100,7 +101,7 @@ export const adminQuestionPage = (
         id="add-answer"
       >
         <Raw html={answerTextForm.render()} />
-        <button type="submit">Add Answer</button>
+        <SubmitButton icon="plus">Add Answer</SubmitButton>
       </CsrfForm>
 
       {question.answers.length === 0 ? (
@@ -169,7 +170,7 @@ export const adminQuestionPage = (
               </label>
             ))(allListings)}
           </fieldset>
-          <button type="submit">Save Listings</button>
+          <SubmitButton icon="save">Save Listings</SubmitButton>
         </CsrfForm>
       )}
 
@@ -285,7 +286,7 @@ export const adminListingQuestionsPage = (
               </label>
             ))(allQuestions)}
           </fieldset>
-          <button type="submit">Save</button>
+          <SubmitButton icon="save">Save</SubmitButton>
         </CsrfForm>
       )}
       <p>
