@@ -2,7 +2,7 @@
  * Response builder utilities for route handlers
  */
 
-import { buildFlashCookie } from "#shared/cookies.ts";
+import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
 import { getRequestId } from "#shared/logger.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
@@ -112,6 +112,8 @@ type RedirectOpts = {
   cookie?: string;
   form?: URLSearchParams;
   result?: string;
+  /** Override the flash level; defaults to success/error from `succeeded`. */
+  level?: FlashLevel;
 };
 
 /**
@@ -136,7 +138,13 @@ export const redirect = (
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  const flash = buildFlashCookie(flashId, message, succeeded, opts?.result);
+  const flash = buildFlashCookie(
+    flashId,
+    message,
+    succeeded,
+    opts?.result,
+    opts?.level,
+  );
   const response = redirectResponse(u.pathname + u.search + u.hash, flash);
   if (opts?.cookie) withCookie(response, opts.cookie);
   return response;
@@ -151,6 +159,13 @@ export const errorRedirect = (
   message: string,
   formId?: string,
 ): Response => redirect(url, message, false, formId ? { formId } : undefined);
+
+/**
+ * Redirect with a neutral informational message (PRG pattern), e.g. confirming
+ * an opt-out. Rendered in the info style rather than success or error.
+ */
+export const infoRedirect = (url: string, message: string): Response =>
+  redirect(url, message, true, { level: "info" });
 
 /**
  * Create JSON response

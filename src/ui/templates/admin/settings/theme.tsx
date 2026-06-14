@@ -10,7 +10,7 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/theme" id="settings-theme">
     <h2>Site Theme</h2>
     <p>Choose between light and dark themes for the site interface.</p>
-    <fieldset class="radio-group">
+    <fieldset class="radios">
       <label>
         <input
           checked={s.theme === "light"}

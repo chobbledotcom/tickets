@@ -157,7 +157,7 @@ export const adminQuestionPage = (
           action={`/admin/questions/${question.id}/listings`}
           id="question-listings"
         >
-          <fieldset class="checkbox-group">
+          <fieldset class="checkboxes">
             {map((e: ListingWithCount) => (
               <label>
                 <input
@@ -265,7 +265,7 @@ export const adminListingQuestionsPage = (
         </p>
       ) : (
         <CsrfForm action={`/admin/listing/${listing.id}/questions`}>
-          <fieldset class="checkbox-group">
+          <fieldset class="checkboxes">
             {map((q: QuestionWithAnswers) => (
               <label>
                 <input

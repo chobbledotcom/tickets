@@ -519,18 +519,30 @@ const BULK_PROVIDERS = {
   },
 } as const satisfies Record<EmailProvider, BulkProviderSpec>;
 
-/** Outcome of a bulk send: recipients attempted, batches sent, and recipients in failed batches. */
+/** What the provider returned for one batch: HTTP status, ok flag, and the raw
+ * response body. Providers reply with queued message IDs (or rejection
+ * reasons), so the body is kept to surface back to the sender and the log. */
+export type BulkBatchResponse = {
+  status: number;
+  ok: boolean;
+  body: string;
+};
+
+/** Outcome of a bulk send: recipients attempted, batches sent, recipients in
+ * failed batches, and the raw per-batch provider responses. */
 export type BulkSendResult = {
   attempted: number;
   batches: number;
   failed: number;
+  responses: BulkBatchResponse[];
 };
 
 /**
  * Send a bulk email via the configured provider. Every supported provider has a
  * batch endpoint, so this works for any `EmailConfig`. Chunks recipients to the
  * provider's batch limit and POSTs each chunk; logs (never throws) on a non-OK
- * batch, whose recipients then count as failed.
+ * batch, whose recipients then count as failed. Each batch's provider response
+ * is captured so the caller can relay it to the sender.
  */
 export const sendBulkEmails = async (
   config: EmailConfig,
@@ -539,11 +551,13 @@ export const sendBulkEmails = async (
   const spec = BULK_PROVIDERS[config.provider];
   const { recipients, ...template } = payload;
   const batches = chunk(spec.maxBatchSize)(recipients);
+  const responses: BulkBatchResponse[] = [];
   let failed = 0;
   for (const batch of batches) {
-    const { ok, status } = await sendRequest(
+    const { ok, status, text } = await sendRequest(
       spec.build(config, template, batch),
     );
+    responses.push({ body: text, ok, status });
     if (!ok) {
       failed += batch.length;
       logError({
@@ -552,7 +566,12 @@ export const sendBulkEmails = async (
       });
     }
   }
-  return { attempted: recipients.length, batches: batches.length, failed };
+  return {
+    attempted: recipients.length,
+    batches: batches.length,
+    failed,
+    responses,
+  };
 };
 
 /** Send a test email to the business email address. Returns HTTP status or undefined on non-HTTP errors. */
