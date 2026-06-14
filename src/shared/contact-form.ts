@@ -27,10 +27,11 @@ export const isContactFormActive = (): boolean =>
  * Botpoison is not configured, in which case no widget is shown. */
 export const contactFormPublicKey = (): string => getBotpoisonPublicKey();
 
-/** Lowercased host (the part after the `@`) of an email address, or "" when
- * the address has no host part. */
+/** Lowercased host (everything after the last `@`) of an email address. The
+ * submitter, business, and from addresses all reach here already validated to
+ * contain a host with a dot, so there is no empty-host case to handle. */
 const emailHost = (email: string): string =>
-  email.split("@")[1]?.trim().toLowerCase() ?? "";
+  email.slice(email.lastIndexOf("@") + 1).toLowerCase();
 
 /** Bold warning prepended when the submitter claimed an address on the owner's
  * own business email host. */
@@ -99,10 +100,8 @@ export const sendContactMessage = async (
   // munge the visible sender (e.g. noreply@invalid.invalid). Fall back to the
   // normal from address and flag it in the body instead.
   const senderHost = emailHost(email);
-  const spoofsBusiness =
-    senderHost !== "" && senderHost === emailHost(businessEmail);
-  const spoofsFrom =
-    senderHost !== "" && senderHost === emailHost(config.fromAddress);
+  const spoofsBusiness = senderHost === emailHost(businessEmail);
+  const spoofsFrom = senderHost === emailHost(config.fromAddress);
   const warning = spoofsBusiness
     ? SPOOF_BUSINESS_WARNING
     : spoofsFrom
