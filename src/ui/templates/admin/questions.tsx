@@ -9,6 +9,7 @@ import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { GuideLink } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** List all questions */
@@ -22,8 +23,8 @@ export const adminQuestionsPage = (
       <AdminNav active="/admin/questions" session={session} />
 
       <h1>Custom Questions</h1>
-      <p>
-        <a href="/admin/guide#questions">Questions guide</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
       <Flash error={error} />
 

@@ -38,6 +38,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -54,8 +55,10 @@ export const adminGroupsPage = (
       <AdminNav active="/admin/groups" session={session} />
       <Flash success={successMessage} />
       {!isReadOnly() && (
-        <p>
-          <a href="/admin/groups/new">Add Group</a>
+        <p class="actions">
+          <ActionButton href="/admin/groups/new" icon="plus">
+            Add Group
+          </ActionButton>
         </p>
       )}
       {groups.length === 0 ? (

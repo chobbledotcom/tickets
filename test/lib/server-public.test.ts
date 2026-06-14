@@ -574,6 +574,32 @@ describeWithEnv("server (public routes)", { db: true }, () => {
     });
   });
 
+  describe("GET /icons.svg", () => {
+    test("returns SVG icon sprite", async () => {
+      const response = await handleRequest(mockRequest("/icons.svg"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/svg+xml");
+      const svg = await response.text();
+      expect(svg).toContain("<svg");
+      expect(svg).toContain('id="plus"');
+    });
+
+    test("returns 404 for non-GET requests to /icons.svg", async () => {
+      const response = await awaitTestRequest("/icons.svg", {
+        data: {},
+        method: "POST",
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/icons.svg"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
+  });
+
   describe("GET /mvp.css", () => {
     test("returns CSS stylesheet", async () => {
       const response = await handleRequest(mockRequest("/mvp.css"));

@@ -16,6 +16,7 @@ import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { builtSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -86,9 +87,13 @@ export const adminBuiltSitesPage = (
     <Layout title="Built Sites">
       <AdminNav active="/admin/built-sites" session={session} />
       <Flash success={successMessage} />
-      <p>
-        <a href="/admin/built-sites/new">Add Built Site</a>{" "}
-        <a href="/admin/builder">Build New Site</a>
+      <p class="actions">
+        <ActionButton href="/admin/built-sites/new" icon="plus">
+          Add Built Site
+        </ActionButton>
+        <ActionButton href="/admin/builder" icon="hammer" variant="secondary">
+          Build New Site
+        </ActionButton>
       </p>
       {sites.length === 0 ? (
         <p>No built sites recorded.</p>

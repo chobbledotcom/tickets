@@ -452,51 +452,81 @@ a:active {
 
 a b,
 a em,
-a i,
-a strong,
+/*
+ * Buttons. <button>, <input type="submit"> and .btn (use on an <a>) are a
+ * single, unified control: identical base styling, inline-flex so they all
+ * support icons, and modifiers (.outline, .secondary, .danger) layered on top.
+ */
 button,
-input[type="submit"] {
+input[type="submit"],
+.btn {
+  align-items: center;
   border-radius: var(--border-radius);
-  display: inline-block;
+  display: inline-flex;
   font-size: medium;
   font-weight: bold;
+  gap: 0.4em;
+  justify-content: center;
   line-height: var(--line-height);
   padding: 0.2rem var(--space-m);
+  text-decoration: none;
   width: fit-content;
 }
 
 button,
-input[type="submit"] {
+input[type="submit"],
+.btn {
   font-family: var(--font-family);
 }
 
 button:hover,
-input[type="submit"]:hover {
+input[type="submit"]:hover,
+.btn:hover {
   cursor: pointer;
   filter: brightness(var(--hover-brightness));
 }
 
 button:active,
-input[type="submit"]:active {
+input[type="submit"]:active,
+.btn:active {
   filter: brightness(var(--active-brightness));
 }
 
-a b,
-a strong,
 button,
-input[type="submit"] {
+input[type="submit"],
+.btn {
   background-color: var(--color-link);
   border: 2px solid var(--color-link);
   color: var(--color-bg);
 }
 
-a em,
-a i {
-  border: 2px solid var(--color-link);
-  border-radius: var(--border-radius);
+.btn.outline {
+  background-color: transparent;
   color: var(--color-link);
-  display: inline-block;
-  padding: 0.2rem var(--space-m);
+}
+
+/* Inline SVG icons from the sprite, sized to the current text */
+.icon {
+  flex: none;
+  height: 1em;
+  vertical-align: -0.125em;
+  width: 1em;
+}
+
+/* Consistent help/guide links: muted, icon + label */
+.guide-link {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  gap: 0.3em;
+}
+
+/* Horizontal toolbar for page-level actions + guide links */
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
 }
 
 article aside a {
@@ -926,7 +956,8 @@ a.danger {
 }
 
 button.danger:hover,
-input[type="submit"].danger:hover {
+input[type="submit"].danger:hover,
+.btn.danger:hover {
   background-color: var(--color-danger-hover);
   border-color: var(--color-danger-hover);
 }
@@ -1193,19 +1224,23 @@ form:not(:has(input[name="can_pay_more"]:checked))
 }
 
 /* Secondary button */
-button.secondary {
+button.secondary,
+.btn.secondary {
   --color-secondary: #6c757d;
   --color-secondary-hover: #565e64;
   background-color: var(--color-secondary);
   border-color: var(--color-secondary);
+  color: var(--color-bg);
 }
 
-button.secondary:hover {
+button.secondary:hover,
+.btn.secondary:hover {
   background-color: var(--color-secondary-hover);
   border-color: var(--color-secondary-hover);
 }
 
-[data-theme="dark"] button.secondary {
+[data-theme="dark"] button.secondary,
+[data-theme="dark"] .btn.secondary {
   --color-secondary: #6272a4;
   --color-secondary-hover: #7a8abf;
 }

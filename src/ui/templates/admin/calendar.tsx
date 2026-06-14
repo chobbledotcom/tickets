@@ -16,6 +16,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
+import { GuideLink } from "#templates/components/actions.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -76,8 +77,8 @@ export const adminCalendarPage = (
     <Layout title="Calendar">
       <AdminNav active="/admin/calendar" session={session} />
 
-      <p>
-        <a href="/admin/guide#calendar">Calendar guide</a>
+      <p class="actions">
+        <GuideLink href="/admin/guide#calendar">Calendar guide</GuideLink>
       </p>
 
       <article>
