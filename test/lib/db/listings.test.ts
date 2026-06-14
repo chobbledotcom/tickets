@@ -33,7 +33,6 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
-  bookAttendee,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -390,59 +389,6 @@ describeWithEnv("db > listings", { db: true }, () => {
 
       const after = await getListing(listing.id);
       expect(after).toBeNull();
-    });
-  });
-
-  describe("unlinkAttendeeFromListing", () => {
-    test("removes link and preserves attendee", async () => {
-      const { unlinkAttendeeFromListing } = await import(
-        "#shared/db/attendees.ts"
-      );
-      const listing1 = await createTestListing({ maxAttendees: 50 });
-      const listing2 = await createTestListing({ maxAttendees: 50 });
-      const result = await createAttendeeAtomic({
-        bookings: [{ listingId: listing1.id }, { listingId: listing2.id }],
-        email: "unlink@example.com",
-        name: "Unlink",
-      });
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-
-      const { attendeeDeleted } = await unlinkAttendeeFromListing(
-        result.attendees[0]!.id,
-        listing1.id,
-      );
-
-      expect(attendeeDeleted).toBe(false);
-      const raw = await getAttendeesRaw(listing2.id);
-      expect(raw.length).toBe(1);
-      const raw1 = await getAttendeesRaw(listing1.id);
-      expect(raw1.length).toBe(0);
-    });
-
-    test("deletes orphaned attendee", async () => {
-      const { unlinkAttendeeFromListing } = await import(
-        "#shared/db/attendees.ts"
-      );
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const result = await bookAttendee(listing, {
-        email: "orphan@example.com",
-        name: "Orphan",
-      });
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-
-      const { attendeeDeleted } = await unlinkAttendeeFromListing(
-        result.attendees[0]!.id,
-        listing.id,
-      );
-
-      expect(attendeeDeleted).toBe(true);
-      const { getDb } = await import("#shared/db/client.ts");
-      const rows = await getDb().execute(
-        "SELECT COUNT(*) as count FROM attendees",
-      );
-      expect(rows.rows[0]!.count).toBe(0);
     });
   });
 

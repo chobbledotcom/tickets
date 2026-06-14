@@ -16,6 +16,7 @@ import {
   getEffectiveDomain,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
+  isPaymentsEnabled,
 } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
@@ -57,6 +58,52 @@ const validateAppleWalletCerts = (
   };
 };
 
+/** Resolve a wallet (apple or google) "source" label from its flags. */
+const resolveWalletSource = (
+  hasDbConfig: boolean,
+  envConfigured: boolean,
+): string => {
+  if (hasDbConfig) return "Database";
+  if (envConfigured) return "Environment variables";
+  return "";
+};
+
+/** Resolve the effective Apple Wallet pass-type id (db config takes priority). */
+const resolveWalletPassTypeId = (
+  appleWallet: typeof settings.appleWallet,
+): string => {
+  if (appleWallet.hasDbConfig) return appleWallet.passTypeId;
+  if (appleWallet.hostConfig) return appleWallet.hostConfig.passTypeId;
+  return "";
+};
+
+/** Resolve the effective Google Wallet issuer id (db config takes priority). */
+const resolveGoogleWalletIssuerId = (
+  googleWallet: typeof settings.googleWallet,
+): string => {
+  if (googleWallet.hasDbConfig) return googleWallet.issuerId;
+  if (googleWallet.hostConfig) return googleWallet.hostConfig.issuerId;
+  return "";
+};
+
+/** Validate the Google private key, returning a status string for the UI. */
+const validateGooglePrivateKey = async (
+  config: typeof settings.googleWallet.config,
+): Promise<string> => {
+  if (!config) return "Not set";
+  return (await isValidGooglePrivateKey(config.serviceAccountKey))
+    ? "Valid"
+    : "Invalid key";
+};
+
+/** Whether the configured payment provider has its webhook config set. */
+const webhookConfiguredFor = (provider: string | null): boolean => {
+  if (provider === "stripe") return settings.stripe.webhookEndpointId !== "";
+  if (provider === "square") return settings.square.webhookSignatureKey !== "";
+  if (provider === "sumup") return settings.sumup.hasKey;
+  return false;
+};
+
 /** Gather debug state concurrently */
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
@@ -66,70 +113,18 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
   const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
-
   const paymentProvider = settings.paymentProvider;
-  const keyConfigured =
-    paymentProvider === "stripe"
-      ? settings.stripe.hasKey
-      : paymentProvider === "square"
-        ? settings.square.hasToken
-        : paymentProvider === "sumup"
-          ? settings.sumup.hasKey
-          : false;
-
-  const webhookConfigured =
-    paymentProvider === "stripe"
-      ? settings.stripe.webhookEndpointId !== ""
-      : paymentProvider === "square"
-        ? settings.square.webhookSignatureKey !== ""
-        : paymentProvider === "sumup"
-          ? settings.sumup.hasKey
-          : false;
-
-  const resolveWalletPassTypeId = (): string => {
-    if (settings.appleWallet.hasDbConfig) {
-      return settings.appleWallet.passTypeId;
-    }
-    if (appleWalletEnvConfigured) {
-      return settings.appleWallet.hostConfig!.passTypeId;
-    }
-    return "";
-  };
-  const resolveWalletSource = (): string => {
-    if (settings.appleWallet.hasDbConfig) return "Database";
-    if (appleWalletEnvConfigured) return "Environment variables";
-    return "";
-  };
-
-  const resolveGoogleWalletIssuerId = (): string => {
-    if (settings.googleWallet.hasDbConfig) {
-      return settings.googleWallet.issuerId;
-    }
-    if (googleWalletEnvConfigured) {
-      return settings.googleWallet.hostConfig!.issuerId;
-    }
-    return "";
-  };
-  const resolveGoogleWalletSource = (): string => {
-    if (settings.googleWallet.hasDbConfig) return "Database";
-    if (googleWalletEnvConfigured) return "Environment variables";
-    return "";
-  };
-
-  const googleWalletConfig = settings.googleWallet.config;
-  const googleWalletPrivateKeyValid = googleWalletConfig
-    ? (await isValidGooglePrivateKey(googleWalletConfig.serviceAccountKey))
-      ? "Valid"
-      : "Invalid key"
-    : "Not set";
 
   return {
     appleWallet: {
       certValidation: validateAppleWalletCerts(settings.appleWallet.config),
       dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
-      passTypeId: resolveWalletPassTypeId(),
-      source: resolveWalletSource(),
+      passTypeId: resolveWalletPassTypeId(settings.appleWallet),
+      source: resolveWalletSource(
+        settings.appleWallet.hasDbConfig,
+        appleWalletEnvConfigured,
+      ),
     },
     build: {
       commit: BUILD_COMMIT,
@@ -157,18 +152,23 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     googleWallet: {
       dbConfigured: settings.googleWallet.hasDbConfig,
       envConfigured: googleWalletEnvConfigured,
-      issuerId: resolveGoogleWalletIssuerId(),
-      privateKeyValid: googleWalletPrivateKeyValid,
-      source: resolveGoogleWalletSource(),
+      issuerId: resolveGoogleWalletIssuerId(settings.googleWallet),
+      privateKeyValid: await validateGooglePrivateKey(
+        settings.googleWallet.config,
+      ),
+      source: resolveWalletSource(
+        settings.googleWallet.hasDbConfig,
+        googleWalletEnvConfigured,
+      ),
     },
     limits: LIMIT_ENTRIES,
     ntfy: {
       configured: !!getEnv("NTFY_URL"),
     },
     payment: {
-      keyConfigured,
+      keyConfigured: isPaymentsEnabled(),
       provider: paymentProvider ?? "",
-      webhookConfigured,
+      webhookConfigured: webhookConfiguredFor(paymentProvider),
     },
     prune: {
       logins: formatLastPruned(settings.lastPrunedLogins),

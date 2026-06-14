@@ -3,7 +3,7 @@
  */
 
 import { map } from "#fp";
-import { loadQuestionData, requirePrivateKey } from "#routes/admin/actions.ts";
+import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
@@ -26,6 +26,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
+import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -188,7 +189,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       }
       const allowedDomain = getEffectiveDomain();
       const successMessage = getFlash().success;
-      const questionData = await loadQuestionData(
+      const questionData = await loadAttendeeQuestionData(
         listingIds,
         attendees.map((a) => a.id),
       );

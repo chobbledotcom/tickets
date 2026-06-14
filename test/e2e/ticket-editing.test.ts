@@ -40,7 +40,7 @@ const invalidateAllCaches = (): void => {
 
 /**
  * Extract the listing ID for a named listing from a select option in the current page HTML.
- * Used to find the listing_id value needed to submit the "Add to Listing" form.
+ * Used to find the listing id value needed to fill a line's <select> in the unified edit form.
  */
 const extractListingIdFromSelect = (
   html: string,
@@ -149,25 +149,19 @@ describe("e2e: ticket editing flow", () => {
         phone: "+449876543210",
         special_instructions: "Needs wheelchair access",
       },
-      "Save Contact Info",
+      "Save Attendee",
     );
-    // Redirects to listing page with flash message
+    // 4. Save returns to the same edit form, with the flash shown inside it.
     expect(browser.containsText("Updated Alice Johnson")).toBe(true);
-
-    // 4. Verify edited details appear on the listing page
     expect(browser.containsText("Alice Johnson")).toBe(true);
     expect(browser.containsText("Alice Smith")).toBe(false);
 
-    // 5. Navigate back to Alice's edit page to verify all fields were saved
-    //    and booking properties are intact
-    await visitFirstAttendeeEditPage(browser);
-    expect(browser.containsText("Alice Johnson")).toBe(true);
-    // Verify saved contact fields appear in the form
+    // 5. The edit form shows the saved fields and the preserved booking.
     expect(browser.currentHtml).toContain("alice.johnson@example.com");
     expect(browser.currentHtml).toContain("+449876543210");
     expect(browser.currentHtml).toContain("42 Oak Street");
     expect(browser.currentHtml).toContain("Needs wheelchair access");
-    // Verify booking preserved: quantity still 2 and still checked in
+    // Booking preserved: quantity still 2 and still checked in
     expect(browser.currentHtml).toContain('value="2"');
     expect(browser.currentHtml).toContain("Checked in");
 
@@ -204,25 +198,14 @@ describe("e2e: ticket editing flow", () => {
         phone: "+441111222333",
         special_instructions: "Vegetarian meals",
       },
-      "Save Contact Info",
+      "Save Attendee",
     );
     expect(browser.containsText("Updated Robert Jones")).toBe(true);
 
-    // 8. Verify Bob's edit was saved and his booking is intact
+    // 8. Save returns to Bob's edit form; his renamed details and intact
+    //    booking are shown there directly, so we assert on the current page.
     expect(browser.containsText("Robert Jones")).toBe(true);
     expect(browser.containsText("Bob Jones")).toBe(false);
-
-    // Navigate to Bob's edit page to verify fields and booking. Dedupe by
-    // attendee id since each row links from both the name and the Edit action.
-    const bobAttendeeIds = [
-      ...new Set(
-        browser.links
-          .map((l) => l.href.match(/\/admin\/attendees\/(\d+)/)?.[1])
-          .filter((id): id is string => !!id),
-      ),
-    ];
-    // Bob (Robert Jones) should be the second attendee
-    await browser.visit(`/admin/attendees/${bobAttendeeIds[1]}`);
     expect(browser.currentHtml).toContain("robert@example.com");
     expect(browser.currentHtml).toContain("+441111222333");
     expect(browser.currentHtml).toContain("7 Pine Avenue");
@@ -308,38 +291,50 @@ describe("e2e: ticket editing flow", () => {
     await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Alice Smith")).toBe(true);
 
-    // The Listing Registrations table shows Morning Workshop as a registered listing link.
-    // (Note: the "Add to Listing" select also lists listing names, so we check for the
-    //  admin/listing link in the registration table to confirm the actual registration.)
-    expect(browser.currentHtml).toContain("/admin/listing/");
+    // The Listing Registrations line editor shows Alice's existing booking as a
+    // <select> with Morning Workshop pre-selected (the new form edits the listing
+    // via a dropdown rather than linking out to the listing page).
+    expect(browser.currentHtml).toMatch(
+      /<option selected\b[^>]*>Morning Workshop<\/option>/,
+    );
     expect(browser.containsText("Morning Workshop")).toBe(true);
 
-    // 8. Extract the Evening Seminar listing ID from the "Add to Listing" select options
+    // 8. Extract the Evening Seminar listing ID from the line select options.
+    //    The unified edit form renders an <option> per active listing inside
+    //    each line's <select>; the option value is the numeric listing id.
     const eveningSeminarId = extractListingIdFromSelect(
       browser.currentHtml,
       "Evening Seminar",
     );
     expect(eveningSeminarId).toBeTruthy();
 
-    // 9. Add Alice to Evening Seminar via the "Add to Listing" form
+    // 9. Add Alice to Evening Seminar via the unified form. The form
+    //    already has one existing line (Morning Workshop) plus a trailing
+    //    blank line at index 1. Fill in the blank slot's listing id and
+    //    quantity, then submit "Save Attendee".
     await browser.submitForm(
-      { listing_id: eveningSeminarId!, quantity: "1" },
-      "Add to Listing",
+      {
+        line_event_id_1: eveningSeminarId!,
+        line_quantity_1: "1",
+        name: "Alice Smith",
+      },
+      "Save Attendee",
     );
-    // Flash confirms Alice was added to Evening Seminar
-    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
-    // Both listings now appear in the Listing Registrations table as links
+    // Save returns to the same edit form, with the flash shown inside it.
+    expect(browser.containsText("Updated Alice Smith")).toBe(true);
+
+    // Both listings are now registered — visible in the form's line editor.
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 10. Remove Alice from Morning Workshop.
-    //     Listing links are ordered by listing_id ascending, so Morning Workshop
-    //     (lower ID) appears first in the Listing Registrations table.
-    //     The first "Remove" form targets Morning Workshop.
+    // 10. Remove Alice from Morning Workshop. The first "Remove" button
+    //     targets the first existing line (Morning Workshop, lower listing id).
+    //     Removal is now a pure form-state edit — it drops the line and
+    //     re-renders; the deletion is committed when the whole attendee is
+    //     saved, so no other in-progress edits are lost to a mid-edit write.
     await browser.submitForm({}, "Remove");
-    expect(
-      browser.containsText("Attendee unlinked from 'Morning Workshop'"),
-    ).toBe(true);
+    await browser.submitForm({ name: "Alice Smith" }, "Save Attendee");
+    expect(browser.containsText("Updated Alice Smith")).toBe(true);
 
     // 11. Navigate back to Morning Workshop and confirm Alice is no longer there.
     //     Then add Bob as the second attendee.
@@ -364,18 +359,24 @@ describe("e2e: ticket editing flow", () => {
 
     // 13. Add Bob to Evening Seminar using the same listing ID extracted earlier
     await browser.submitForm(
-      { listing_id: eveningSeminarId!, quantity: "1" },
-      "Add to Listing",
+      {
+        line_event_id_1: eveningSeminarId!,
+        line_quantity_1: "1",
+        name: "Bob Jones",
+      },
+      "Save Attendee",
     );
-    expect(browser.containsText("Added to Evening Seminar")).toBe(true);
+    expect(browser.containsText("Updated Bob Jones")).toBe(true);
+
+    // Both events are registered — visible in the form's line editor.
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 14. Remove Bob from Morning Workshop (first "Remove" form = Morning Workshop)
+    // 14. Remove Bob from Morning Workshop (first "Remove" button = Morning
+    //     Workshop), then save to commit the removal.
     await browser.submitForm({}, "Remove");
-    expect(
-      browser.containsText("Attendee unlinked from 'Morning Workshop'"),
-    ).toBe(true);
+    await browser.submitForm({ name: "Bob Jones" }, "Save Attendee");
+    expect(browser.containsText("Updated Bob Jones")).toBe(true);
 
     // 15. Verify Morning Workshop is now empty — neither Alice nor Bob appear
     await browser.visit("/admin/");

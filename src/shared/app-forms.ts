@@ -112,11 +112,9 @@ export const createAuthedFormRoute = <
 >(
   config: FormRouteConfig<TValues, TParams, TContext>,
 ) =>
-  /* jscpd:ignore-start */
   createAuthedHandler<TParams, TContext>({
-    auth: config.auth,
+    ...config,
     handle: ({ context, form, params, session }) => {
-      /* jscpd:ignore-end */
       config.preprocessForm?.(form, context);
       const validator =
         typeof config.form === "function" ? config.form(context) : config.form;
@@ -137,7 +135,6 @@ export const createAuthedFormRoute = <
             session,
           });
     },
-    loadContext: config.loadContext,
   });
 
 // ── createFormRoute: public CSRF-only (no auth) ───────────────────────

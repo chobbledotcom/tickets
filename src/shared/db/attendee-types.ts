@@ -104,15 +104,22 @@ export type UpdateAttendeePIIInput = {
   ticket_token: string;
 };
 
-/** Input for updating a single listing link */
-export type UpdateListingLinkInput = {
+/**
+ * A desired final-state listing line for the atomic attendee edit path.
+ * One per listing registration the operator wants the attendee to end up with.
+ * Shared by the admin form model (which builds it) and the DB edit helper
+ * (which applies it) so the shape is defined once.
+ */
+export type DesiredListingLine = {
+  /** Stable identity of the existing row (`${listingId}|${startAt}`). Empty
+   * string for newly-added lines. */
+  key: string;
+  listingId: number;
   quantity: number;
+  /** YYYY-MM-DD for daily listings, null otherwise. */
   date: string | null;
-  /** Duration in days (defaults to 1). Only meaningful when date is set. */
-  durationDays?: number;
+  /** Duration (days) — only meaningful for daily listings. Defaults to 1. */
+  durationDays: number;
+  /** True when the line carries an existing listing_attendees identity. */
+  exists: boolean;
 };
-
-/** Result of updating an listing link */
-export type UpdateListingLinkResult =
-  | { success: true }
-  | { success: false; reason: "capacity_exceeded" };

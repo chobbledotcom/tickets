@@ -54,6 +54,19 @@ export const MAX_BACKUPS = readLimit("MAX_BACKUPS", 30);
 /** Maximum textarea content length in characters (default: 10240 = 10KB) */
 export const MAX_TEXTAREA_LENGTH = readLimit("MAX_TEXTAREA_LENGTH", 10_240);
 
+/**
+ * Maximum number of line items one attendee-form submission may declare
+ * (default: 1000).
+ *
+ * The attendee add/edit form reads its repeated event-registration rows from
+ * an operator-controlled `line_count`, looping once per declared line. Without
+ * a ceiling a hand-crafted POST with `line_count=1e9` would spin the edge
+ * worker allocating millions of blank line objects — a cheap denial of
+ * service. The cap sits far above any realistic number of registrations on a
+ * single attendee, so it never truncates a legitimate form.
+ */
+export const MAX_FORM_LINES = readLimit("MAX_FORM_LINES", 1000);
+
 // ---------------------------------------------------------------------------
 // Timing limits
 // ---------------------------------------------------------------------------
@@ -242,6 +255,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "MAX_TEXTAREA_LENGTH",
     label: "Max textarea length",
     unit: "chars",
+  },
+  {
+    current: MAX_FORM_LINES,
+    defaultValue: 1000,
+    envKey: "MAX_FORM_LINES",
+    label: "Max attendee-form line items",
+    unit: "lines",
   },
   {
     current: MAX_IMAGE_SIZE,

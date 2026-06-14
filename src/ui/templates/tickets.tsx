@@ -43,6 +43,50 @@ const renderGoogleWalletLink = (token: string): string =>
     token,
   )}" class="wallet-link">Google Wallet</a>`;
 
+/** Render `render(value)` when `value` is truthy, else "". Replaces the
+ * `value ? `<div>${render(value)}`</div>` : ""` pattern that dominates the
+ * ticket-card template and was the main complexity driver. */
+const optionalHtml = <T,>(
+  value: T | null | undefined | "" | 0 | false,
+  render: (v: T) => string,
+): string => (value ? render(value) : "");
+
+/** Compute the "Booking Date" label for the attendee, expanding multi-day
+ * daily bookings into a compact date range. "" when the attendee has no date. */
+const computeBookingDateLabel = (
+  attendeeDate: string | null,
+  listing: TokenEntry["listing"],
+): string => {
+  if (!attendeeDate) return "";
+  // A booking date only ever exists for daily listings, so the listing's
+  // duration drives whether the label is a single day or a compact range.
+  const durationDays = normalizeDurationDays(listing.duration_days);
+  return durationDays > 1
+    ? formatDateRangeLabelCompactEn(
+        attendeeDate,
+        addDays(attendeeDate, durationDays - 1),
+      )
+    : formatDateLabel(attendeeDate);
+};
+
+/** Render the "Add to: …" wallet links section, or "" when purchase-only or no
+ * wallet provider is enabled. */
+const renderWalletSection = (
+  token: string,
+  purchaseOnly: boolean,
+  appleWalletEnabled: boolean,
+  googleWalletEnabled: boolean,
+): string => {
+  if (purchaseOnly) return "";
+  const links = [
+    appleWalletEnabled ? renderAppleWalletLink(token) : "",
+    googleWalletEnabled ? renderGoogleWalletLink(token) : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  return links ? `<div class="ticket-card-wallet">Add to: ${links}</div>` : "";
+};
+
 /** Render a single ticket card */
 const renderTicketCard = (
   card: TicketCard,
@@ -52,70 +96,53 @@ const renderTicketCard = (
   const { entry, token, attachmentUrl } = card;
   const { listing, attendee } = entry;
   const imageHtml = renderListingImage(listing, "ticket-card-image");
-  const listingDateHtml = listing.date
-    ? `<div class="ticket-card-date">${escapeHtml(
-        formatDatetimeLabel(listing.date),
-      )}</div>`
-    : "";
+  const listingDateHtml = optionalHtml(
+    listing.date,
+    (d) =>
+      `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(d))}</div>`,
+  );
+  const locationHtml = optionalHtml(
+    listing.location,
+    (l) => `<div class="ticket-card-location">${escapeHtml(l)}</div>`,
+  );
+  const descriptionHtml = optionalHtml(
+    listing.description,
+    (d) => `<div class="ticket-card-description">${renderMarkdown(d)}</div>`,
+  );
 
-  const locationHtml = listing.location
-    ? `<div class="ticket-card-location">${escapeHtml(listing.location)}</div>`
-    : "";
-
-  const descriptionHtml = listing.description
-    ? `<div class="ticket-card-description">${renderMarkdown(
-        listing.description,
-      )}</div>`
-    : "";
-
-  const bookingDurationDays =
-    listing.listing_type === "daily"
-      ? normalizeDurationDays(listing.duration_days)
-      : 1;
-  const bookingDateLabel = attendee.date
-    ? bookingDurationDays > 1
-      ? formatDateRangeLabelCompactEn(
-          attendee.date,
-          addDays(attendee.date, bookingDurationDays - 1),
-        )
-      : formatDateLabel(attendee.date)
-    : "";
-  const attendeeDateHtml = bookingDateLabel
-    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(bookingDateLabel)}</div>`
-    : "";
+  const bookingDateLabel = computeBookingDateLabel(attendee.date, listing);
+  const attendeeDateHtml = optionalHtml(
+    bookingDateLabel,
+    (label) =>
+      `<div class="ticket-card-date">Booking Date: ${escapeHtml(label)}</div>`,
+  );
 
   const pricePaid = Number(attendee.price_paid);
-  const priceHtml =
-    pricePaid > 0
-      ? `<div class="ticket-card-price">Price: ${escapeHtml(
-          formatCurrency(pricePaid),
-        )}</div>`
-      : "";
+  const priceHtml = optionalHtml(
+    pricePaid,
+    (p) =>
+      `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(p))}</div>`,
+  );
 
   const nonTransferableHtml =
     listing.non_transferable && !listing.purchase_only
       ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
       : "";
 
-  const walletLinks = listing.purchase_only
-    ? ""
-    : [
-        appleWalletEnabled ? renderAppleWalletLink(token) : "",
-        googleWalletEnabled ? renderGoogleWalletLink(token) : "",
-      ]
-        .filter(Boolean)
-        .join(" / ");
-  const walletHtml = walletLinks
-    ? `<div class="ticket-card-wallet">Add to: ${walletLinks}</div>`
-    : "";
+  const walletHtml = renderWalletSection(
+    token,
+    listing.purchase_only,
+    appleWalletEnabled,
+    googleWalletEnabled,
+  );
 
-  const attachmentHtml = attachmentUrl
-    ? `<a href="${escapeHtml(
-        attachmentUrl,
-      )}" class="attachment-link">Download: ${escapeHtml(
+  const attachmentHtml = optionalHtml(
+    attachmentUrl,
+    (url) =>
+      `<a href="${escapeHtml(url)}" class="attachment-link">Download: ${escapeHtml(
         listing.attachment_name,
-      )}</a>`
-    : "";
+      )}</a>`,
+  );
 
   return `
     <div class="ticket-card">

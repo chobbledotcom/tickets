@@ -21,7 +21,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   >
     <h2>Payment Provider</h2>
     <p>Choose which payment provider to use for paid listings.</p>
-    <fieldset class="radio-group">
+    <fieldset class="radios">
       <label>
         <input
           checked={!s.paymentProvider}

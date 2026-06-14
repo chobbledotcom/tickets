@@ -604,20 +604,26 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(body).toBe("name,email\nJohn,john@test.com");
     });
 
-    test("loadQuestionData returns undefined for empty attendeeIds", async () => {
-      const { loadQuestionData } = await import("#routes/admin/actions.ts");
+    test("loadAttendeeQuestionData returns undefined for empty attendeeIds", async () => {
+      const { loadAttendeeQuestionData } = await import(
+        "#shared/db/questions.ts"
+      );
 
-      expect(await loadQuestionData([1, 2], [])).toBeUndefined();
+      expect(await loadAttendeeQuestionData([1, 2], [])).toBeUndefined();
     });
 
-    test("loadQuestionData returns undefined for empty listingIds", async () => {
-      const { loadQuestionData } = await import("#routes/admin/actions.ts");
+    test("loadAttendeeQuestionData returns undefined for empty listingIds", async () => {
+      const { loadAttendeeQuestionData } = await import(
+        "#shared/db/questions.ts"
+      );
 
-      expect(await loadQuestionData([], [1, 2])).toBeUndefined();
+      expect(await loadAttendeeQuestionData([], [1, 2])).toBeUndefined();
     });
 
-    test("loadQuestionData returns undefined when no questions exist", async () => {
-      const { loadQuestionData } = await import("#routes/admin/actions.ts");
+    test("loadAttendeeQuestionData returns undefined when no questions exist", async () => {
+      const { loadAttendeeQuestionData } = await import(
+        "#shared/db/questions.ts"
+      );
       const { createTestAttendeeDirect } = await import("#test-utils");
 
       const listing = await createTestListing({ maxAttendees: 10 });
@@ -627,12 +633,17 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         "test@test.com",
       );
 
-      const result = await loadQuestionData([listing.id], [attendee.id]);
+      const result = await loadAttendeeQuestionData(
+        [listing.id],
+        [attendee.id],
+      );
       expect(result).toBeUndefined();
     });
 
-    test("loadQuestionData returns question data when questions exist", async () => {
-      const { loadQuestionData } = await import("#routes/admin/actions.ts");
+    test("loadAttendeeQuestionData returns question data when questions exist", async () => {
+      const { loadAttendeeQuestionData } = await import(
+        "#shared/db/questions.ts"
+      );
       const { createTestAttendeeDirect } = await import("#test-utils");
       const { answersTable, listingQuestionsTable, questionsTable } =
         await import("#shared/db/questions.ts");
@@ -655,7 +666,10 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         "has-question@test.com",
       );
 
-      const result = await loadQuestionData([listing.id], [attendee.id]);
+      const result = await loadAttendeeQuestionData(
+        [listing.id],
+        [attendee.id],
+      );
       expect(result).toBeDefined();
       expect(result!.questions.length).toBe(1);
       expect(result!.questions[0]!.id).toBe(question.id);

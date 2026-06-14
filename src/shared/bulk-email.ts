@@ -8,7 +8,7 @@
  * be added in one place without touching the routes or templates.
  */
 
-import { filter, map, pipe, sort, uniqueBy } from "#fp";
+import { filter, map, pipe, sort, unique, uniqueBy } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
@@ -19,6 +19,7 @@ import { hashEmail } from "#shared/db/email-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
+  type BulkBatchResponse,
   type BulkEmailPayload,
   type BulkRecipient,
 } from "#shared/email.ts";
@@ -303,13 +304,47 @@ export const buildBulkPayload = async (params: {
 export const contactFrequencySummary = (counts: number[]): string => {
   if (counts.length === 0) return "";
   const total = counts.reduce((sum, n) => sum + n, 0);
-  if (total === 0) return "These attendees have never been contacted.";
+  if (total === 0) {
+    return "These attendees have never been contacted through this page.";
+  }
   const average = total / counts.length;
   return Number.isInteger(average)
-    ? `These attendees have been contacted ${average} times each.`
-    : `These attendees have been contacted an average of ${average.toFixed(
+    ? `These attendees have been contacted through this page ${average} times each.`
+    : `These attendees have been contacted through this page an average of ${average.toFixed(
         1,
       )} times each.`;
+};
+
+// ── Provider reply ──────────────────────────────────────────────────
+
+/** Cap on how much of a provider's reply we echo back, so a verbose body can't
+ * blow a flash cookie or flood the activity log. */
+const MAX_PROVIDER_REPLY_LENGTH = 300;
+
+/**
+ * One-line, human-readable summary of what the email provider said in reply to
+ * a bulk send. Providers acknowledge a batch with queued message IDs or, on
+ * failure, a reason — both worth surfacing to the sender and storing in the
+ * log. Distinct per-batch replies are de-duplicated and the result is
+ * length-capped.
+ */
+export const summarizeProviderResponse = (
+  responses: readonly BulkBatchResponse[],
+): string => {
+  if (responses.length === 0) return "The email provider sent no response.";
+  const parts = pipe(
+    map((r: BulkBatchResponse) => {
+      const body = r.body.trim();
+      return body ? `HTTP ${r.status}: ${body}` : `HTTP ${r.status}`;
+    }),
+    unique,
+  )(responses as BulkBatchResponse[]);
+  const joined = parts.join("; ");
+  const trimmed =
+    joined.length > MAX_PROVIDER_REPLY_LENGTH
+      ? `${joined.slice(0, MAX_PROVIDER_REPLY_LENGTH)}...`
+      : joined;
+  return `The email provider responded with ${trimmed}.`;
 };
 
 // ── mailto fallback ─────────────────────────────────────────────────

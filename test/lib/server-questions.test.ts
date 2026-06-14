@@ -905,4 +905,59 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(body).toContain("(0)");
     });
   });
+
+  describe("POST /admin/questions/:id/move-up and move-down", () => {
+    testRequiresAuth("/admin/questions/1/move-up", {
+      body: {},
+      method: "POST",
+    });
+
+    /** Read the current global question order as a list of texts. */
+    const questionOrder = async (): Promise<string[]> => {
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      return (await getAllQuestionsWithAnswers()).map((q) => q.text);
+    };
+
+    test("move-down then move-up reorders the global list", async () => {
+      const firstId = await createQuestion("First");
+      await createQuestion("Second");
+      expect(await questionOrder()).toEqual(["First", "Second"]);
+
+      const down = await adminFormPost(
+        `/admin/questions/${firstId}/move-down`,
+        {},
+      );
+      expectRedirectWithFlash(
+        "/admin/questions",
+        "Question moved",
+      )(down.response);
+      expect(await questionOrder()).toEqual(["Second", "First"]);
+
+      const up = await adminFormPost(`/admin/questions/${firstId}/move-up`, {});
+      expect(up.response.status).toBe(302);
+      expect(await questionOrder()).toEqual(["First", "Second"]);
+    });
+
+    test("moving the last question down is a no-op", async () => {
+      await createQuestion("Alpha");
+      const lastId = await createQuestion("Beta");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${lastId}/move-down`,
+        {},
+      );
+      expect(response.status).toBe(302);
+      expect(await questionOrder()).toEqual(["Alpha", "Beta"]);
+    });
+
+    test("returns 404 for a non-existent question", async () => {
+      const { response } = await adminFormPost(
+        "/admin/questions/999/move-up",
+        {},
+      );
+      expectStatus(404)(response);
+    });
+  });
 });

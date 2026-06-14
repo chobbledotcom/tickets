@@ -286,6 +286,11 @@ const ListingActionNav = ({
             <a href={`/admin/listing/${listing.id}/qr`}>Booking QR</a>
           </li>
         )}
+        {isOwner && (
+          <li>
+            <a href={`/admin/emails?listing=${listing.id}`}>Email</a>
+          </li>
+        )}
         <li>
           <a
             href={`/admin/listing/${listing.id}/export${
@@ -295,11 +300,6 @@ const ListingActionNav = ({
             Export CSV
           </a>
         </li>
-        {isOwner && (
-          <li>
-            <a href={`/admin/emails?listing=${listing.id}`}>Email Attendees</a>
-          </li>
-        )}
         {hasPaidListing && (
           <li>
             <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>

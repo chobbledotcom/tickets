@@ -34,7 +34,9 @@ export interface Answer {
   text: string; // encrypted
 }
 
-/** Link between listing and question (ordering by sort_order) */
+/** Link between listing and question. Membership only — display order comes
+ * from the question's own `sort_order`, not from this row. The `sort_order`
+ * column is retained but unused (legacy per-listing ordering). */
 export interface ListingQuestion {
   listing_id: number;
   id: number;
@@ -196,11 +198,11 @@ export const getAllQuestionsWithAnswers = async (): Promise<
 > =>
   groupJoinedRows(
     await queryAll<JoinedRow>(
-      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY q.id, a.sort_order`,
+      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY q.sort_order, q.id, a.sort_order`,
     ),
   );
 
-/** Get questions assigned to an listing, ordered by sort_order.
+/** Get questions assigned to a listing, in the global question order.
  * Questions with no answers are excluded (nothing useful to ask). */
 export const getQuestionsForListing = async (
   listingId: number,
@@ -213,19 +215,23 @@ export const getQuestionsForListing = async (
        JOIN questions q ON q.id = eq.question_id
        LEFT JOIN answers a ON a.question_id = q.id
        WHERE eq.listing_id = ?
-       ORDER BY eq.sort_order, a.sort_order`,
+       ORDER BY q.sort_order, q.id, a.sort_order`,
         [listingId],
       ),
     ),
   );
 
-/** Get just the assigned question IDs for an listing (no joins/decryption) */
+/** Get the assigned question IDs for a listing, in the global question order. */
 export const getListingQuestionIds = async (
   listingId: number,
 ): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      "SELECT question_id FROM listing_questions WHERE listing_id = ? ORDER BY sort_order",
+      `SELECT eq.question_id
+       FROM listing_questions eq
+       JOIN questions q ON q.id = eq.question_id
+       WHERE eq.listing_id = ?
+       ORDER BY q.sort_order, q.id`,
       [listingId],
     ),
   );
@@ -241,10 +247,9 @@ export const getQuestionListingIds = async (
     ),
   );
 
-/** Set which listings a question is assigned to.
- * Adds the question to newly-checked listings (appended after each listing's
- * existing questions) and removes it from unchecked ones, leaving the
- * ordering of the other questions on each listing untouched. */
+/** Set which listings a question is assigned to: add it to newly-checked
+ * listings and remove it from unchecked ones. Membership only — display order
+ * is the question's global `sort_order`, so no per-listing ordering is written. */
 export const setQuestionListings = async (
   questionId: number,
   listingIds: number[],
@@ -259,9 +264,8 @@ export const setQuestionListings = async (
       sql: "DELETE FROM listing_questions WHERE listing_id = ? AND question_id = ?",
     })),
     ...toAdd.map((listingId) => ({
-      args: [listingId, questionId, listingId],
-      sql: `INSERT INTO listing_questions (listing_id, question_id, sort_order)
-            VALUES (?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM listing_questions WHERE listing_id = ?), 0))`,
+      args: [listingId, questionId],
+      sql: "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, ?)",
     })),
   ];
   if (statements.length > 0) await executeBatch(statements);
@@ -323,78 +327,135 @@ export const setListingQuestions = async (
       args: [listingId],
       sql: "DELETE FROM listing_questions WHERE listing_id = ?",
     },
-    ...questionIds.map((qid, i) =>
+    ...questionIds.map((qid) =>
       insert("listing_questions", {
         listing_id: listingId,
         question_id: qid,
-        sort_order: i,
       }),
     ),
   ];
   await executeBatch(statements);
 };
 
-const answerInsert = (attendeeId: number, answerId: number) =>
-  insert("attendee_answers", {
-    answer_id: answerId,
-    attendee_id: attendeeId,
-  });
-
-/** Replace all answers for one or more attendees in a single atomic batch.
- * Deletes existing answers first, then inserts the new ones. */
-export const saveAttendeeAnswers = async (
-  attendeeIds: number[],
-  answerIds: number[],
-): Promise<void> => {
-  if (attendeeIds.length === 0) return;
-  const deletes = attendeeIds.map((attendeeId) => ({
-    args: [attendeeId],
-    sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-  }));
-  const inserts =
-    answerIds.length === 0
-      ? []
-      : attendeeIds.flatMap((attendeeId) =>
-          answerIds.map((answerId) => answerInsert(attendeeId, answerId)),
-        );
-  await executeBatch([...deletes, ...inserts]);
+/** Read and validate one question's submitted answer from form data.
+ * `"missing"` = no value; `"invalid"` = the value isn't one of the question's
+ * options; otherwise the matched answer id. Shared by the public (required)
+ * and admin (optional) answer parsers so the lookup/validation lives once. */
+export const readQuestionAnswer = (
+  form: URLSearchParams,
+  question: QuestionWithAnswers,
+):
+  | { status: "missing" }
+  | { status: "invalid" }
+  | { status: "ok"; answerId: number } => {
+  const raw = form.get(`question_${question.id}`);
+  if (!raw) return { status: "missing" };
+  const answerId = Number.parseInt(raw, 10);
+  if (!question.answers.some((a) => a.id === answerId)) {
+    return { status: "invalid" };
+  }
+  return { answerId, status: "ok" };
 };
 
-/**
- * Save per-listing question answers for a batch of attendee/listing pairs.
- * Collects all deletes and inserts into a single executeBatch call.
- */
-export const saveListingAnswers = async (
-  entries: { attendee: { id: number }; listing: { id: number } }[],
-  listingAnswerIds: Record<string, number[]>,
-): Promise<void> => {
-  // Collect all answer IDs per attendee (one attendee may span multiple listings)
-  const answersByAttendee = new Map<number, number[]>();
-  for (const { attendee, listing } of entries) {
-    const answers = listingAnswerIds[String(listing.id)];
-    if (answers && answers.length > 0) {
-      const existing = answersByAttendee.get(attendee.id) ?? [];
-      existing.push(...answers);
-      answersByAttendee.set(attendee.id, existing);
-    }
-  }
+/** Outcome of parsing a form's submitted answers. */
+export type ParsedQuestionAnswers =
+  | { ok: true; answerIds: number[] }
+  | { ok: false; error: string };
 
+/**
+ * Curried answer parser shared by the public and admin flows. The loop and
+ * per-answer lookup/validation live here once (over `readQuestionAnswer`);
+ * the `optional` flag is the only policy difference between the two callers:
+ *
+ * - `{ optional: false }` (public booking) — every question must be answered
+ *   with a valid option; the first missing/invalid one returns `ok: false`.
+ * - `{ optional: true }` (admin edit) — unanswered or invalid questions are
+ *   skipped, so the result is always `ok: true` with the valid answers found.
+ */
+export function parseQuestionAnswers(opts: {
+  optional: true;
+}): (
+  form: URLSearchParams,
+  questions: QuestionWithAnswers[],
+) => { ok: true; answerIds: number[] };
+export function parseQuestionAnswers(opts: {
+  optional: false;
+}): (
+  form: URLSearchParams,
+  questions: QuestionWithAnswers[],
+) => ParsedQuestionAnswers;
+export function parseQuestionAnswers(opts: { optional: boolean }) {
+  return (
+    form: URLSearchParams,
+    questions: QuestionWithAnswers[],
+  ): ParsedQuestionAnswers => {
+    const answerIds: number[] = [];
+    for (const q of questions) {
+      const answer = readQuestionAnswer(form, q);
+      if (answer.status === "ok") {
+        answerIds.push(answer.answerId);
+        continue;
+      }
+      if (opts.optional) continue;
+      const lead =
+        answer.status === "missing" ? "Please answer" : "Invalid answer for";
+      return { error: `${lead}: ${q.text}`, ok: false };
+    }
+    return { answerIds, ok: true };
+  };
+}
+
+/**
+ * Replace every listed attendee's answers in one atomic batch: each attendee's
+ * existing answers are deleted, then their new answer set inserted. The
+ * `Map<attendeeId, answerIds>` is the single shape every save situation reduces
+ * to — one answer set shared across attendees, a by-question selection, or the
+ * per-listing grouping from `groupListingAnswers` — so callers build the map and
+ * this builds the SQL. `INSERT OR IGNORE` tolerates an answer set that repeats
+ * an id (e.g. an attendee whose booked events share a question), which the
+ * unique `(attendee_id, answer_id)` index would otherwise reject.
+ */
+export const saveAttendeeAnswers = async (
+  answersByAttendee: Map<number, number[]>,
+): Promise<void> => {
   const statements: { sql: string; args: InValue[] }[] = [];
-  for (const [attendeeId, answers] of answersByAttendee) {
+  for (const [attendeeId, answerIds] of answersByAttendee) {
     statements.push({
       args: [attendeeId],
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
-    const placeholders = answers.map(() => "(?, ?)").join(", ");
-    const args = answers.flatMap((id) => [attendeeId, id]);
-    statements.push({
-      args,
-      sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
-    });
+    if (answerIds.length > 0) {
+      const placeholders = answerIds.map(() => "(?, ?)").join(", ");
+      statements.push({
+        args: answerIds.flatMap((id) => [attendeeId, id]),
+        sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
+      });
+    }
   }
   if (statements.length > 0) {
     await executeBatch(statements);
   }
+};
+
+/**
+ * Reduce per-listing answer selections to one answer set per attendee. An
+ * attendee booking several listings in the same submission accumulates every
+ * listing's answers; listings with no answers contribute nothing. Feeds the map
+ * straight into `saveAttendeeAnswers`.
+ */
+export const groupListingAnswers = (
+  entries: { attendee: { id: number }; listing: { id: number } }[],
+  listingAnswerIds: Record<string, number[]>,
+): Map<number, number[]> => {
+  const answersByAttendee = new Map<number, number[]>();
+  for (const { attendee, listing } of entries) {
+    const answers = listingAnswerIds[String(listing.id)];
+    if (!answers || answers.length === 0) continue;
+    const existing = answersByAttendee.get(attendee.id) ?? [];
+    existing.push(...answers);
+    answersByAttendee.set(attendee.id, existing);
+  }
+  return answersByAttendee;
 };
 
 /** Get answers for multiple attendees in a single query */
@@ -421,6 +482,31 @@ export const getAttendeeAnswersBatch = async (
     },
     new Map(),
   )(rows);
+};
+
+/** Questions across a set of listings plus each attendee's selected answers —
+ * the shape the attendee table, calendar, groups and edit form all render. */
+export type AttendeeQuestionData = {
+  questions: QuestionWithAnswers[];
+  attendeeAnswerMap: Map<number, number[]>;
+};
+
+/**
+ * Load the questions for a set of listings together with each attendee's chosen
+ * answers, in parallel. Returns `undefined` when there's nothing to render —
+ * no listings, no attendees, or no questions assigned — so callers can skip the
+ * answers UI without an extra emptiness check.
+ */
+export const loadAttendeeQuestionData = async (
+  listingIds: number[],
+  attendeeIds: number[],
+): Promise<AttendeeQuestionData | undefined> => {
+  if (attendeeIds.length === 0 || listingIds.length === 0) return undefined;
+  const [{ questions }, attendeeAnswerMap] = await Promise.all([
+    getQuestionsWithListingIds(listingIds),
+    getAttendeeAnswersBatch(attendeeIds),
+  ]);
+  return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 };
 
 /** Get attendee answers mapped by question ID.
@@ -454,24 +540,6 @@ export const getAttendeeAnswersByQuestion = async (
     });
   }
   return result;
-};
-
-/** Save attendee answers by question ID mapping.
- * Replaces all answers for the given attendee. */
-export const saveAttendeeAnswersByQuestion = async (
-  attendeeId: number,
-  questionToAnswer: Map<number, number>,
-): Promise<void> => {
-  const statements: { sql: string; args: InValue[] }[] = [
-    {
-      args: [attendeeId],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-    },
-    ...Array.from(questionToAnswer.values()).map((answerId) =>
-      answerInsert(attendeeId, answerId),
-    ),
-  ];
-  await executeBatch(statements);
 };
 
 /** Delete a question and all related data in a single batch.
@@ -564,4 +632,47 @@ export const getNextAnswerSortOrder = async (
     [questionId],
   );
   return row!.next_order;
+};
+
+/** Swap the global sort_order of two questions, reading their current values
+ * so callers only need the ids. A no-op visually when both share a value
+ * (e.g. legacy rows still at 0 before the id backfill). Callers pass two
+ * existing question ids (the move handler takes them from the rendered list). */
+export const swapQuestionOrder = async (
+  questionId1: number,
+  questionId2: number,
+): Promise<void> => {
+  const rows = await queryAll<{ id: number; sort_order: number }>(
+    "SELECT id, sort_order FROM questions WHERE id IN (?, ?)",
+    [questionId1, questionId2],
+  );
+  const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
+  await executeBatch([
+    {
+      args: [orderById.get(questionId2)!, questionId1],
+      sql: "UPDATE questions SET sort_order = ? WHERE id = ?",
+    },
+    {
+      args: [orderById.get(questionId1)!, questionId2],
+      sql: "UPDATE questions SET sort_order = ? WHERE id = ?",
+    },
+  ]);
+};
+
+/** Assign a freshly-created question the next global sort_order (max + 1).
+ * Always >= 1 so new questions never collide with the one-time id-backfill of
+ * legacy rows, which only seeds rows still at sort_order 0. */
+export const assignNextQuestionSortOrder = async (
+  questionId: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      args: [questionId, questionId],
+      sql: `UPDATE questions
+            SET sort_order = COALESCE(
+              (SELECT MAX(sort_order) FROM questions WHERE id != ?), 0
+            ) + 1
+            WHERE id = ?`,
+    },
+  ]);
 };

@@ -395,7 +395,7 @@ export const adminGroupDetailPage = (
         <>
           <h2>Add Listings to Group</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
-            <fieldset class="checkbox-group">
+            <fieldset class="checkboxes">
               {ungroupedListings.map((e) => (
                 <label>
                   <input

@@ -173,6 +173,24 @@ describeWithEnv(
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
+    test("GET /admin/attendees/new redirects to /read-only", async () => {
+      const res = await handleRequest(mockRequest("/admin/attendees/new"));
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/read-only");
+    });
+
+    test("POST /admin/attendees/new redirects to /read-only", async () => {
+      const res = await handleRequest(
+        mockRequest("/admin/attendees/new", {
+          body: "name=test",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
+        }),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/read-only");
+    });
+
     test("GET / is not blocked by read-only guard", async () => {
       const res = await handleRequest(mockRequest("/"));
       // May redirect to /admin/login if public site is disabled, but not to /read-only

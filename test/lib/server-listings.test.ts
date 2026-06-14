@@ -710,7 +710,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         text: "Large",
       });
       await setListingQuestions(listing.id, [q.id]);
-      await saveAttendeeAnswers([attendee.id], [a1.id]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const response = await awaitTestRequest(
         `/admin/listing/${listing.id}/export`,

@@ -2,20 +2,9 @@
  * Update operations for attendees and their per-listing bookings.
  */
 
-import { filter, map, pipe, reduce, sort, unique } from "#fp";
-import type {
-  ListingBooking,
-  UpdateAttendeePIIInput,
-  UpdateListingLinkInput,
-  UpdateListingLinkResult,
-} from "#shared/db/attendee-types.ts";
-import {
-  buildCapacityCheckedInsert,
-  checkCapacityResult,
-  dateToStartEnd,
-} from "#shared/db/attendees/capacity.ts";
+import { filter, map, pipe, reduce, unique } from "#fp";
+import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -181,9 +170,14 @@ export const checkGroupCapAfterDurationChange = async (
   // Walk candidate days (interval starts) in ascending order, tracking the
   // max end of this listing's ranges that start at or before the candidate —
   // the candidate is inside this listing's booked days iff that end is later.
-  const sortedRanges = sort((a: DayInterval, b: DayInterval) =>
-    a.start < b.start ? -1 : 1,
-  )(listingRanges);
+  // The comparator is a single-line, branchless `localeCompare` on purpose:
+  // a multi-line arrow body or a `? :` here is mis-attributed by deno's
+  // coverage when the function is exercised across `--parallel` workers,
+  // producing a phantom uncovered branch. Date strings sort lexically, so
+  // localeCompare gives the same ascending order with no branch to mis-merge.
+  const sortedRanges = [...listingRanges].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  );
   const startDays = unique(
     map((interval: DayInterval) => interval.start)(intervals),
   ).sort();
@@ -203,49 +197,3 @@ export const checkGroupCapAfterDurationChange = async (
   }
   return null;
 };
-
-/**
- * Update a single listing link's quantity and date with atomic capacity check.
- *
- * The per-day SQL WHERE clause enforces capacity atomically. High-traffic
- * paths (public booking) should preflight with checkListingAvailability or
- * checkBatchAvailability to fail fast before hitting the DB — admin paths
- * may rely on the SQL guard alone.
- */
-export const updateListingLink = async (
-  attendeeId: number,
-  listingId: number,
-  input: UpdateListingLinkInput,
-): Promise<UpdateListingLinkResult> => {
-  const { quantity: qty, date, durationDays = 1 } = input;
-  const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const condition = buildCapacityCondition(
-    listingId,
-    qty,
-    date,
-    attendeeId,
-    durationDays,
-  );
-
-  const result = await getDb().execute({
-    args: [qty, startAt, endAt, attendeeId, listingId, ...condition.args],
-    sql: `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
-          WHERE attendee_id = ? AND listing_id = ? AND ${condition.sql}`,
-  });
-
-  return checkCapacityResult(result);
-};
-
-/**
- * Add a new listing link for an existing attendee with atomic capacity check.
- *
- * The per-day SQL WHERE clause enforces capacity atomically. See
- * updateListingLink for preflight guidance.
- */
-export const addListingLink = async (
-  attendeeId: number,
-  booking: ListingBooking,
-): Promise<UpdateListingLinkResult> =>
-  checkCapacityResult(
-    await getDb().execute(buildCapacityCheckedInsert(booking, "?", attendeeId)),
-  );

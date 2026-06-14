@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { processFreeReservation } from "#routes/public/ticket-payment.ts";
 import {
+  createAttendeeAtomic,
   ensureAllBookings,
-  processFreeReservation,
-} from "#routes/public/ticket-payment.ts";
-import { createAttendeeAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
+  getAttendeesRaw,
+} from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { buildTicketListing, type TicketListing } from "#templates/public.tsx";

@@ -7,7 +7,11 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { saveListingAnswers } from "#shared/db/questions.ts";
+import {
+  groupListingAnswers,
+  parseQuestionAnswers,
+  saveAttendeeAnswers,
+} from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
@@ -29,7 +33,6 @@ import {
   listingsWithQuantity,
   parseCustomPrice,
   parseQuantities,
-  parseQuestionAnswers,
   ticketFormErrorResponse,
   ticketResponse,
   validateSubmittedDate,
@@ -212,7 +215,9 @@ const handleFreePath = async (params: PathParams): Promise<Response> => {
       ctx.questionListingMap,
       info.selectedListingIds,
     );
-    await saveListingAnswers(result.entries, listingAnswerMap);
+    await saveAttendeeAnswers(
+      groupListingAnswers(result.entries, listingAnswerMap),
+    );
   }
 
   if (ctx.listings.length === 1) {
@@ -256,7 +261,10 @@ const processSubmission = async (
     const listingIds = ctx.questionListingMap.get(q.id);
     return !listingIds || listingIds.some((eid) => selectedListingIds.has(eid));
   });
-  const answersResult = parseQuestionAnswers(form, activeQuestions);
+  const answersResult = parseQuestionAnswers({ optional: false })(
+    form,
+    activeQuestions,
+  );
   if (!answersResult.ok) {
     return ticketFormErrorResponse(ctx)(answersResult.error);
   }
