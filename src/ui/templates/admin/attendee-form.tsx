@@ -101,7 +101,8 @@ const LineRow = ({
             </option>
           ))}
         </select>
-        {(line.existingBooking?.checked_in || line.existingBooking?.refunded) && (
+        {(line.existingBooking?.checked_in ||
+          line.existingBooking?.refunded) && (
           <div class="muted small">
             {line.existingBooking?.checked_in ? (
               <span class="badge">Checked in</span>

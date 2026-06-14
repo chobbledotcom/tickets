@@ -80,7 +80,8 @@ export const renderTicketPage = (ctx: TicketCtx, error?: string) =>
 
 /** Ticket response builder */
 export const ticketResponse =
-  (ctx: TicketCtx) => (error?: string, status = 200) =>
+  (ctx: TicketCtx) =>
+  (error?: string, status = 200) =>
     htmlResponse(renderTicketPage(ctx, error), status);
 
 /** Ticket form error redirect (after CSRF passed) */
