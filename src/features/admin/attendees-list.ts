@@ -25,9 +25,6 @@ import type {
 } from "#shared/types.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 
-/** Number of attendee rows shown per page */
-export const ATTENDEES_PAGE_SIZE = 100;
-
 /** Parse the ?sort= param, defaulting to newest-first */
 const parseSort = (request: Request): AttendeeSort =>
   getSearchParam(request, "sort") === "oldest" ? "oldest" : "newest";
@@ -70,8 +67,7 @@ const buildRows = (
  * Handle GET /admin/attendees
  *
  * Renders one page of attendee bookings — newest first by default — with a
- * listing filter and sort order. Fetches PAGE_SIZE+1 rows so we can tell
- * whether a further page exists without a separate count query.
+ * listing filter and sort order. The fixed page size lives in the query.
  */
 export const handleAttendeesListGet: TypedRouteHandler<
   "GET /admin/attendees"
@@ -83,16 +79,8 @@ export const handleAttendeesListGet: TypedRouteHandler<
     const page = parsePage(request);
 
     const privateKey = await requirePrivateKey(session);
-    const rawRows = await getAttendeesPage({
-      limit: ATTENDEES_PAGE_SIZE + 1,
-      listingId,
-      offset: page * ATTENDEES_PAGE_SIZE,
-      sort,
-    });
-
-    const hasNext = rawRows.length > ATTENDEES_PAGE_SIZE;
-    const pageRows = hasNext ? rawRows.slice(0, ATTENDEES_PAGE_SIZE) : rawRows;
-    const decrypted = await decryptAttendees(pageRows, privateKey);
+    const { rows, hasNext } = await getAttendeesPage({ listingId, page, sort });
+    const decrypted = await decryptAttendees(rows, privateKey);
 
     return htmlResponse(
       adminAttendeesListPage({

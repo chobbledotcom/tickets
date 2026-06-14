@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ATTENDEES_PAGE_SIZE } from "#routes/admin/attendees-list.ts";
+import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees.ts";
 import {
   adminGet,
   assertAdminHtml,
