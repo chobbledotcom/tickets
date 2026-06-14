@@ -59,7 +59,9 @@ export {
 export {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
+  getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeePiiBlobsForEvents,
   getAttendeeRaw,
   getAttendeesByTokens,
   getAttendeesRaw,

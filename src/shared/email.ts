@@ -3,7 +3,7 @@
  * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid, Mailgun)
  */
 
-import { lazyRef, map } from "#fp";
+import { chunk, lazyRef, map } from "#fp";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -11,7 +11,7 @@ import {
   renderEmailContent,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
-import { fetchText } from "#shared/fetch.ts";
+import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
@@ -242,6 +242,18 @@ export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   sendgrid: "SendGrid",
 };
 
+/** POST a JSON body with provider headers, eagerly reading the response. */
+const postJson = (
+  url: string,
+  headers: Headers,
+  body: unknown,
+): Promise<FetchResult> =>
+  fetchText(url, {
+    body: JSON.stringify(body),
+    headers: { ...headers, "Content-Type": "application/json" },
+    method: "POST",
+  });
+
 /** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
 export const sendEmail = async (
   config: EmailConfig,
@@ -257,14 +269,10 @@ export const sendEmail = async (
   }
   try {
     const [url, headers, body] = buildRequest(config, msg);
-    const isFormData = body instanceof FormData;
-    const { ok, status } = await fetchText(url, {
-      body: isFormData ? body : JSON.stringify(body),
-      headers: isFormData
-        ? headers
-        : { ...headers, "Content-Type": "application/json" },
-      method: "POST",
-    });
+    const { ok, status } =
+      body instanceof FormData
+        ? await fetchText(url, { body, headers, method: "POST" })
+        : await postJson(url, headers, body);
     if (!ok) {
       logError({
         code: ErrorCode.EMAIL_SEND,
@@ -362,6 +370,113 @@ export const sendRegistrationEmails = async (
   }
 
   await Promise.allSettled(promises);
+};
+
+// ---------------------------------------------------------------------------
+// Bulk sending
+//
+// Bulk email only supports providers with a true batch endpoint — one HTTP
+// request carries many independent messages. Sending one request per recipient
+// would blow the edge runtime's per-invocation sub-request budget, so providers
+// without a batch API are intentionally unsupported for bulk (the admin UI
+// falls back to a mailto: link). New batch providers can be added to the
+// registry below; the rest of the system keys off it.
+// ---------------------------------------------------------------------------
+
+/** A single message in a bulk send: recipient plus its (already personalized) bodies. */
+export type BulkEmailMessage = { to: string; html: string; text: string };
+
+/** Builds the HTTP request for one batch of bulk messages. */
+type BulkBatchBuilder = (
+  config: EmailConfig,
+  subject: string,
+  batch: BulkEmailMessage[],
+) => [url: string, headers: Headers, body: unknown];
+
+type BulkProviderSpec = {
+  /** Maximum messages the provider accepts in a single batch request. */
+  maxBatchSize: number;
+  build: BulkBatchBuilder;
+};
+
+const BULK_PROVIDERS = {
+  postmark: {
+    build: (config, subject, batch) => [
+      "https://api.postmarkapp.com/email/batch",
+      { Accept: "application/json", "X-Postmark-Server-Token": config.apiKey },
+      batch.map((m) => ({
+        From: config.fromAddress,
+        HtmlBody: m.html,
+        Subject: subject,
+        TextBody: m.text,
+        To: m.to,
+      })),
+    ],
+    maxBatchSize: 500,
+  },
+  resend: {
+    build: (config, subject, batch) => [
+      "https://api.resend.com/emails/batch",
+      bearerAuth(config.apiKey),
+      batch.map((m) => ({
+        from: config.fromAddress,
+        html: m.html,
+        subject,
+        text: m.text,
+        to: [m.to],
+      })),
+    ],
+    maxBatchSize: 100,
+  },
+} as const satisfies Record<string, BulkProviderSpec>;
+
+/** Providers that support bulk sending, derived from the registry. */
+export type BulkEmailProvider = keyof typeof BULK_PROVIDERS;
+
+/** Set of bulk-capable provider names (subset of EmailProvider). */
+export const BULK_EMAIL_PROVIDERS: ReadonlySet<EmailProvider> = new Set(
+  Object.keys(BULK_PROVIDERS) as EmailProvider[],
+);
+
+/** Type guard: does this provider support bulk sending? */
+export const isBulkEmailProvider = (
+  value: string,
+): value is BulkEmailProvider => Object.hasOwn(BULK_PROVIDERS, value);
+
+/** Outcome of a bulk send: how many messages were attempted, in how many batches, and how many landed in failed batches. */
+export type BulkSendResult = {
+  attempted: number;
+  batches: number;
+  failed: number;
+};
+
+/**
+ * Send a batch of personalized messages via a bulk-capable provider.
+ * Chunks to the provider's batch limit and POSTs each chunk. Logs (never
+ * throws) on a non-OK batch response; the whole batch's recipients count as
+ * failed. Callers must pass a provider for which `isBulkEmailProvider` is true.
+ */
+export const sendBulkEmails = async (
+  config: EmailConfig,
+  provider: BulkEmailProvider,
+  subject: string,
+  messages: BulkEmailMessage[],
+): Promise<BulkSendResult> => {
+  const spec = BULK_PROVIDERS[provider];
+  const batches = chunk(spec.maxBatchSize)(messages);
+  let failed = 0;
+  for (const batch of batches) {
+    const [url, headers, body] = spec.build(config, subject, batch);
+    const { ok, status } = await postJson(url, headers, body);
+    if (!ok) {
+      failed += batch.length;
+      logError({
+        code: ErrorCode.EMAIL_SEND,
+        detail: `bulk status=${status} provider=${provider} count=${batch.length}`,
+      });
+    }
+  }
+  return { attempted: messages.length, batches: batches.length, failed };
 };
 
 /** Send a test email to the business email address. Returns HTTP status or undefined on non-HTTP errors. */

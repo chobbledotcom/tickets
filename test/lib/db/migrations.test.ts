@@ -788,8 +788,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-11_current_schema",
         "2026-06-12_sumup_checkouts",
         "2026-06-13_event_attendees_overlap_index",
+        "2026-06-14_unsubscribed_emails",
       ],
-      schemaHash: "3htq2e",
+      schemaHash: "15dtgqu",
     });
   });
 });

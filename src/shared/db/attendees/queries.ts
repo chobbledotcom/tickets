@@ -59,6 +59,38 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
   );
 
 /**
+ * Get every attendee's encrypted PII blob (one row per attendee).
+ * Used to resolve bulk-email recipient lists, where only the email inside each
+ * blob is needed. De-duplication of addresses happens after decryption.
+ */
+export const getAllAttendeePiiBlobs = async (): Promise<string[]> => {
+  const rows = await queryAll<{ pii_blob: string }>(
+    "SELECT pii_blob FROM attendees",
+  );
+  return rows.map((r) => r.pii_blob);
+};
+
+/**
+ * Get the encrypted PII blobs for attendees booked onto any of the given events
+ * (one row per attendee, even if booked onto several of them). Returns an empty
+ * array when no event IDs are supplied.
+ */
+export const getAttendeePiiBlobsForEvents = async (
+  eventIds: number[],
+): Promise<string[]> => {
+  if (eventIds.length === 0) return [];
+  const rows = await queryAll<{ pii_blob: string }>(
+    `SELECT pii_blob FROM attendees
+     WHERE id IN (
+       SELECT DISTINCT attendee_id FROM event_attendees
+       WHERE event_id IN (${inPlaceholders(eventIds)})
+     )`,
+    eventIds,
+  );
+  return rows.map((r) => r.pii_blob);
+};
+
+/**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, event_id, quantity are plaintext)

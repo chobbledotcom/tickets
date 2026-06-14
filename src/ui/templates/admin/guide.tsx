@@ -1699,6 +1699,108 @@ export const adminGuidePage = (
         </Q>
       </Section>
 
+      <Section id="bulk-email" title="Bulk Email">
+        <Q q="How do I email a group of attendees?">
+          <p>
+            Open <strong>Emails</strong> in the top navigation (owners only), or
+            click <strong>Email Attendees</strong> on an event page to message
+            that event's attendees. Choose who receives it, write your message
+            in Markdown, tick <strong>marketing</strong> if it's promotional,
+            then click <strong>Preview</strong>. The preview shows the rendered
+            email, the exact recipient count, and what kind of message it is
+            before you send.
+          </p>
+        </Q>
+
+        <Q q="Who can I send to?">
+          <p>
+            From an event page, the recipients are that event's attendees. From
+            the <strong>Emails</strong> page you pick an audience:
+          </p>
+          <ul>
+            <li>
+              <strong>Active event attendees</strong> &mdash; everyone booked
+              onto a currently-active event (the default).
+            </li>
+            <li>
+              <strong>Upcoming event attendees</strong> &mdash; everyone booked
+              onto an active event that hasn't happened yet.
+            </li>
+            <li>
+              <strong>All attendees</strong> &mdash; everyone who has ever
+              registered.
+            </li>
+          </ul>
+          <p>
+            In every case, only attendees who gave an email address are
+            included, and duplicate addresses are removed automatically.
+          </p>
+        </Q>
+
+        <Q q="Why do I need my own email provider to send?">
+          <p>
+            Bulk email sends through <strong>your own</strong> configured email
+            provider, not any shared/host email. Sending marketing from a shared
+            address would put every site on the platform at risk of being
+            flagged as spam. If you haven't added your own provider (under{" "}
+            <a href="/admin/settings-advanced">Advanced Settings</a> &rarr;{" "}
+            <strong>Email Notifications</strong>), the Send button is disabled
+            &mdash; but you can still use the BCC email-app option (see below).
+          </p>
+          <p>
+            Bulk sending also needs a provider with a <em>batch</em> API, so
+            it's currently limited to <strong>Resend</strong> and{" "}
+            <strong>Postmark</strong>. Other providers can still be used for
+            per-booking confirmation emails.
+          </p>
+        </Q>
+
+        <Q q="What's the difference between a marketing and a transactional email?">
+          <p>
+            A <strong>transactional</strong> (service) email is essential
+            information about an event someone booked &mdash; a venue change, a
+            reminder, cancellation details. A <strong>marketing</strong> email
+            promotes something &mdash; a new event, an offer, a newsletter.
+          </p>
+          <p>
+            When you tick <strong>marketing</strong>, every email gets an{" "}
+            <strong>unsubscribe footer</strong>, and anyone who has previously
+            unsubscribed is skipped automatically. Transactional emails get no
+            footer and reach everyone. Only mark genuine promotions as marketing
+            &mdash; mislabelling promotions as transactional to dodge the
+            unsubscribe rules can breach anti-spam laws (such as GDPR/PECR or
+            CAN-SPAM).
+          </p>
+        </Q>
+
+        <Q q="How does unsubscribing work?">
+          <p>
+            Every marketing email includes an unsubscribe link. It opens a page
+            where the recipient can unsubscribe (or resubscribe) with a single
+            click &mdash; no login needed. The link identifies them by a one-way
+            hash of their address, so the page never reveals or exposes the
+            email address itself, and the action only happens on a button press,
+            never just by opening the link.
+          </p>
+          <p>
+            Unsubscribes apply to <strong>marketing</strong> emails only.
+            Transactional/service messages about a booking still reach everyone.
+          </p>
+        </Q>
+
+        <Q q="What is the BCC email-app option?">
+          <p>
+            On the preview page there's always an option to open the email in
+            your own mail app with every recipient in <strong>BCC</strong> and
+            the subject and body pre-filled. It needs no provider setup, so it
+            works even when system sending is disabled. Use it sparingly though
+            &mdash; sending lots of mail this way, especially marketing, is a
+            quick way to get your personal email account rate-limited or
+            blocked. It's best for small, genuinely transactional messages.
+          </p>
+        </Q>
+      </Section>
+
       <Section id="host-subdomain" title="Host Subdomain">
         <Q q="What is a host subdomain?">
           <p>

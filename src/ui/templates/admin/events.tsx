@@ -248,10 +248,12 @@ const EventActionNav = ({
   event,
   dateFilter,
   hasPaidEvent,
+  isOwner,
 }: {
   event: EventWithCount;
   dateFilter: string | null;
   hasPaidEvent: boolean;
+  isOwner: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
   return (
@@ -292,6 +294,11 @@ const EventActionNav = ({
             Export CSV
           </a>
         </li>
+        {isOwner && (
+          <li>
+            <a href={`/admin/emails?event=${event.id}`}>Email Attendees</a>
+          </li>
+        )}
         {hasPaidEvent && (
           <li>
             <a class="danger" href={`/admin/event/${event.id}/refund-all`}>
@@ -878,6 +885,7 @@ export const adminEventPage = ({
         dateFilter={dateFilter}
         event={event}
         hasPaidEvent={hasPaidEvent}
+        isOwner={session.adminLevel === "owner"}
       />
       <Flash success={successMessage} />
       {!event.active && (

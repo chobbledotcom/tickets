@@ -38,7 +38,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "reorder event_attendees overlap index to (event_id, end_at, start_at)";
+  "add unsubscribed_emails table for marketing email opt-outs";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -454,6 +454,21 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
     },
   ],
+
+  [
+    // Marketing email opt-outs. Stores only the HMAC of each unsubscribed email
+    // (same blind-index approach as ticket_token_index / username_index), so a
+    // DB dump alone never reveals which addresses opted out — mapping a hash
+    // back to an address needs DB_ENCRYPTION_KEY. Presence of a row == opted
+    // out; resubscribing deletes the row.
+    "unsubscribed_emails",
+    {
+      columns: [
+        ["email_hash", "TEXT PRIMARY KEY"],
+        ["created", "TEXT NOT NULL"],
+      ],
+    },
+  ],
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */
@@ -855,6 +870,15 @@ const MIGRATIONS: Migration[] = [
     id: "2026-06-13_event_attendees_overlap_index",
     up: syncIndexes,
     verify: verifyOverlapIndex,
+  },
+  {
+    description: "Add unsubscribed_emails table for marketing email opt-outs",
+    id: "2026-06-14_unsubscribed_emails",
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
+    verify: verifyCurrentAppSchema,
   },
 ];
 

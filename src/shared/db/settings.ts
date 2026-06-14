@@ -65,6 +65,7 @@ export const CONFIG_KEYS = {
   APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
   ATTENDEE_COLUMN_ORDER: "attendee_column_order",
   BOOKING_FEE: "booking_fee",
+  BULK_EMAIL_DRAFT: "bulk_email_draft",
   BUNNY_SUBDOMAIN: "bunny_subdomain",
   BUSINESS_EMAIL: "business_email",
   CONTACT_PAGE_TEXT: "contact_page_text",
@@ -179,6 +180,7 @@ const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
 /** Plaintext string config keys (stored unencrypted, default ""). */
 const PLAINTEXT_KEYS = [
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
+  CONFIG_KEYS.BULK_EMAIL_DRAFT,
   CONFIG_KEYS.EMAIL_PROVIDER,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
@@ -380,6 +382,7 @@ type AccessorSpec = { key: StringSettingKey; readOnly?: true };
 
 const STRING_ACCESSORS = {
   attendeeColumnOrder: { key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER },
+  bulkEmailDraft: { key: CONFIG_KEYS.BULK_EMAIL_DRAFT },
   bunnySubdomain: { key: CONFIG_KEYS.BUNNY_SUBDOMAIN },
   businessEmail: { key: CONFIG_KEYS.BUSINESS_EMAIL },
   contactPageText: { key: CONFIG_KEYS.CONTACT_PAGE_TEXT },
