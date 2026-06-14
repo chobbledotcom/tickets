@@ -75,6 +75,12 @@ describe("AttendeeTable", () => {
       expect(html).toContain("John Doe");
     });
 
+    test("links Name to the edit attendee page", () => {
+      const rows = [makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) })];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).toContain('<a href="/admin/attendees/7">Jane</a>');
+    });
+
     test("renders Qty column", () => {
       const html = AttendeeTable(makeOpts());
       expect(html).toContain("<th>Qty</th>");
