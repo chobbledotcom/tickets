@@ -4,10 +4,10 @@
  * Implementation is split across files under `./attendees/`:
  * - `attendees/pii.ts` — PII blob build/parse + encrypt/decrypt
  * - `attendees/queries.ts` — SELECT helpers + read queries
- * - `attendees/stats.ts` — aggregated active-event statistics
+ * - `attendees/stats.ts` — aggregated active-listing statistics
  * - `attendees/capacity.ts` — availability/capacity checks
  * - `attendees/create.ts` — atomic attendee creation
- * - `attendees/delete.ts` — deletion + event unlink
+ * - `attendees/delete.ts` — deletion + listing unlink
  * - `attendees/update.ts` — PII, booking, status updates
  */
 
@@ -18,26 +18,33 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailabilityImpl,
-  checkEventAvailability,
+  checkListingAvailability,
 } from "#shared/db/attendees/capacity.ts";
 import { createAttendeeAtomicImpl } from "#shared/db/attendees/create.ts";
 
 export type {
-  ActiveEventStats,
+  ActiveListingStats,
   AttendeeInput,
   AttendeeWithBookings,
   BatchAvailabilityItem,
   CreateAttendeeResult,
-  EventAttendeeRow,
-  EventBooking,
+  ListingAttendeeRow,
+  ListingBooking,
   UpdateAttendeePIIInput,
-  UpdateEventLinkInput,
-  UpdateEventLinkResult,
+  UpdateListingLinkInput,
+  UpdateListingLinkResult,
 } from "#shared/db/attendee-types.ts";
 export {
-  getGroupRemainingByEventId,
+  type AtomicDesiredLine,
+  type ExistingLine,
+  lineKeyFromBooking,
+  loadExistingLines,
+  type UpdateAttendeeAtomicResult,
+} from "#shared/db/attendees/atomic-update.ts";
+export {
   getGroupRemainingByGroupId,
-  getGroupRemainingForEvent,
+  getGroupRemainingByListingId,
+  getGroupRemainingForListing,
 } from "#shared/db/attendees/capacity.ts";
 export {
   buildAttendeeInsert,
@@ -45,7 +52,7 @@ export {
 } from "#shared/db/attendees/create.ts";
 export {
   deleteAttendee,
-  unlinkAttendeeFromEvent,
+  unlinkAttendeeFromListing,
 } from "#shared/db/attendees/delete.ts";
 export {
   buildPiiBlob,
@@ -68,35 +75,26 @@ export {
   getAttendeesRaw,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
-export { getActiveEventStats } from "#shared/db/attendees/stats.ts";
-
+export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
 export {
-  addEventLink,
+  addListingLink,
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   markRefunded,
-  recomputeEventBookingRanges,
+  recomputeListingBookingRanges,
   updateAttendeePII,
   updateCheckedIn,
-  updateEventLink,
+  updateListingLink,
 } from "#shared/db/attendees/update.ts";
-export {
-  lineKeyFromBooking,
-  loadExistingLines,
-  type AtomicDesiredLine,
-  type ExistingLine,
-  type UpdateAttendeeAtomicResult,
-} from "#shared/db/attendees/atomic-update.ts";
-import {
-  applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl,
-} from "#shared/db/attendees/atomic-update.ts";
+
+import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/db/attendees/atomic-update.ts";
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   applyAttendeeAtomicEdit: applyAttendeeAtomicEditImpl,
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,
-  hasAvailableSpots: checkEventAvailability,
+  hasAvailableSpots: checkListingAvailability,
 };
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */

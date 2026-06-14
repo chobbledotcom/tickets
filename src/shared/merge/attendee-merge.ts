@@ -7,9 +7,9 @@
  */
 
 import { filter, map, reduce } from "#fp";
-import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { executeBatch, insert } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -56,13 +56,13 @@ const PII_FIELDS: {
 /** Attendee answer map: questionId -> { answerId, answerText } */
 type AnswerMap = Map<number, { answerId: number; answerText: string }>;
 
-/** Unique key for a booking: "eventId:startAt" */
-export const bookingKey = (eventId: number, startAt: string | null): string =>
-  `${eventId}:${startAt ?? "null"}`;
+/** Unique key for a booking: "listingId:startAt" */
+export const bookingKey = (listingId: number, startAt: string | null): string =>
+  `${listingId}:${startAt ?? "null"}`;
 
 /** Booking key for a diff item */
 const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
-  bookingKey(item.eventId, item.startAt);
+  bookingKey(item.listingId, item.startAt);
 
 /** Determine the conflict label for a non-moveable booking item */
 export const bookingConflictLabel = (
@@ -99,8 +99,8 @@ const joinAnswerEntries = joinMapped(
   (e: [number, { answerId: number }]) => `${e[0]}=${e[1].answerId}`,
 );
 
-const joinBookingKeys = joinMapped((b: EventAttendeeRow) =>
-  bookingKey(b.event_id, b.start_at),
+const joinBookingKeys = joinMapped((b: ListingAttendeeRow) =>
+  bookingKey(b.listing_id, b.start_at),
 );
 
 /** Compute a simple version string from diff inputs for stale-preview detection */
@@ -109,8 +109,8 @@ const computeVersion = (
   sourceId: number,
   targetAnswers: AnswerMap,
   sourceAnswers: AnswerMap,
-  targetBookings: EventAttendeeRow[],
-  sourceBookings: EventAttendeeRow[],
+  targetBookings: ListingAttendeeRow[],
+  sourceBookings: ListingAttendeeRow[],
 ): string => {
   const parts = [
     `t:${targetId}`,
@@ -218,20 +218,20 @@ const buildAnswerDiffItems = (
 
 /** Build booking diff items comparing source bookings against target */
 const buildBookingDiffItems = (
-  targetBookings: EventAttendeeRow[],
-  sourceBookings: EventAttendeeRow[],
+  targetBookings: ListingAttendeeRow[],
+  sourceBookings: ListingAttendeeRow[],
 ): AttendeeMergeDiffBookingItem[] => {
   // Index target bookings by key
   const targetByKey = reduce(
-    (acc: Map<string, EventAttendeeRow>, b: EventAttendeeRow) => {
-      acc.set(bookingKey(b.event_id, b.start_at), b);
+    (acc: Map<string, ListingAttendeeRow>, b: ListingAttendeeRow) => {
+      acc.set(bookingKey(b.listing_id, b.start_at), b);
       return acc;
     },
     new Map(),
   )(targetBookings);
 
-  return map((sb: EventAttendeeRow): AttendeeMergeDiffBookingItem => {
-    const key = bookingKey(sb.event_id, sb.start_at);
+  return map((sb: ListingAttendeeRow): AttendeeMergeDiffBookingItem => {
+    const key = bookingKey(sb.listing_id, sb.start_at);
     const tb = targetByKey.get(key) ?? null;
     let conflictClass: BookingConflictClass;
 
@@ -250,7 +250,7 @@ const buildBookingDiffItems = (
 
     return {
       conflictClass,
-      eventId: sb.event_id,
+      listingId: sb.listing_id,
       sourceBooking: sb,
       startAt: sb.start_at,
       targetBooking: tb,
@@ -296,7 +296,7 @@ export const validateAttendeeMergeDecision = (
   for (const item of conflictingBookings) {
     if (!decision.bookings[itemBookingKey(item)]) {
       errors.push(
-        `Missing decision for booking: Event #${item.eventId}${
+        `Missing decision for booking: Listing #${item.listingId}${
           item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""
         }`,
       );
@@ -406,14 +406,14 @@ const applyAnswerDecisions = async (
 /** Build an INSERT statement to copy a source booking to the target */
 const bookingInsertStatement = (
   targetId: number,
-  booking: EventAttendeeRow,
+  booking: ListingAttendeeRow,
 ): BatchStatement =>
-  insert("event_attendees", {
+  insert("listing_attendees", {
     attachment_downloads: booking.attachment_downloads,
     attendee_id: targetId,
     checked_in: booking.checked_in,
     end_at: booking.end_at,
-    event_id: booking.event_id,
+    listing_id: booking.listing_id,
     price_paid: booking.price_paid,
     quantity: booking.quantity,
     refunded: booking.refunded,
@@ -450,9 +450,9 @@ const applyBookingDecisions = (
     } else if (choice === "take_source" && item.targetBooking) {
       // Replace target booking with source booking
       deleteTargetBookingStatements.push({
-        args: [targetId, item.eventId, item.startAt, item.startAt],
-        sql: `DELETE FROM event_attendees
-              WHERE attendee_id = ? AND event_id = ?
+        args: [targetId, item.listingId, item.startAt, item.startAt],
+        sql: `DELETE FROM listing_attendees
+              WHERE attendee_id = ? AND listing_id = ?
               AND (start_at IS ? OR start_at = ?)`,
       });
       insertStatements.push(
@@ -518,7 +518,7 @@ export const applyAttendeeMerge = async (
     },
     {
       args: [sourceId],
-      sql: "DELETE FROM event_attendees WHERE attendee_id = ?",
+      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     },
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
@@ -526,7 +526,7 @@ export const applyAttendeeMerge = async (
   // Save merged answers for target (one answer per question → flat id list).
   await saveAttendeeAnswers(new Map([[targetId, [...finalAnswers.values()]]]));
 
-  invalidateEventsCache();
+  invalidateListingsCache();
 
   const summary: AttendeeMergeApplySummary = {
     answersCleared,

@@ -15,9 +15,9 @@ const makeTicketData = (
   attendeeDate: null,
   checkinUrl: "https://example.com/checkin/abc123",
   currency: "GBP",
-  eventDate: "",
-  eventLocation: "",
-  eventName: "Summer Concert",
+  listingDate: "",
+  listingLocation: "",
+  listingName: "Summer Concert",
   pricePaid: "0",
   quantity: 1,
   ...overrides,
@@ -54,20 +54,20 @@ describeWithEnv("svg-ticket", { db: true }, () => {
   });
 
   describe("buildInfoLines", () => {
-    test("includes quantity for free event", () => {
+    test("includes quantity for free listing", () => {
       const lines = buildInfoLines(makeTicketData());
       expect(lines).toEqual(["Qty: 1"]);
     });
 
-    test("includes price for paid event", () => {
+    test("includes price for paid listing", () => {
       const lines = buildInfoLines(makeTicketData({ pricePaid: "2500" }));
       expect(lines).toContainEqual("Qty: 1");
       expect(lines.some((l) => l.includes("Price:"))).toBe(true);
     });
 
-    test("includes event date when provided", () => {
+    test("includes listing date when provided", () => {
       const lines = buildInfoLines(
-        makeTicketData({ eventDate: "2026-06-15T18:00:00.000Z" }),
+        makeTicketData({ listingDate: "2026-06-15T18:00:00.000Z" }),
       );
       expect(lines.length).toBeGreaterThan(1);
       expect(lines[0]).toContain("June");
@@ -75,12 +75,12 @@ describeWithEnv("svg-ticket", { db: true }, () => {
 
     test("includes location when provided", () => {
       const lines = buildInfoLines(
-        makeTicketData({ eventLocation: "The Venue" }),
+        makeTicketData({ listingLocation: "The Venue" }),
       );
       expect(lines).toContain("The Venue");
     });
 
-    test("includes booking date for daily events", () => {
+    test("includes booking date for daily listings", () => {
       const lines = buildInfoLines(
         makeTicketData({ attendeeDate: "2026-06-15" }),
       );
@@ -101,16 +101,16 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       expect(svg).toContain("</svg>");
     });
 
-    test("includes event name", async () => {
+    test("includes listing name", async () => {
       const svg = await generateSvgTicket(
-        makeTicketData({ eventName: "Jazz Night" }),
+        makeTicketData({ listingName: "Jazz Night" }),
       );
       expect(svg).toContain("Jazz Night");
     });
 
-    test("escapes HTML in event name", async () => {
+    test("escapes HTML in listing name", async () => {
       const svg = await generateSvgTicket(
-        makeTicketData({ eventName: "A <B> & C" }),
+        makeTicketData({ listingName: "A <B> & C" }),
       );
       expect(svg).toContain("A &lt;B&gt; &amp; C");
       expect(svg).not.toContain("<B>");
@@ -146,14 +146,14 @@ describeWithEnv("svg-ticket", { db: true }, () => {
 
     test("includes location when provided", async () => {
       const svg = await generateSvgTicket(
-        makeTicketData({ eventLocation: "Main Hall" }),
+        makeTicketData({ listingLocation: "Main Hall" }),
       );
       expect(svg).toContain("Main Hall");
     });
 
-    test("includes event date when provided", async () => {
+    test("includes listing date when provided", async () => {
       const svg = await generateSvgTicket(
-        makeTicketData({ eventDate: "2026-06-15T18:00:00.000Z" }),
+        makeTicketData({ listingDate: "2026-06-15T18:00:00.000Z" }),
       );
       expect(svg).toContain("June");
     });
@@ -167,10 +167,10 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       expect(svg).not.toContain("checkin");
     });
 
-    test("includes event name and info lines when purchaseOnly is true", async () => {
+    test("includes listing name and info lines when purchaseOnly is true", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({
-          eventLocation: "Online",
+          listingLocation: "Online",
           pricePaid: "1000",
           purchaseOnly: true,
         }),

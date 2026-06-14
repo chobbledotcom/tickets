@@ -7,7 +7,7 @@
  *   POST /admin/attendees/:id      — handle edit submission
  *
  * Create and edit share every step:
- *   1. Load available events + (edit only) current attendee/lines.
+ *   1. Load available listings + (edit only) current attendee/lines.
  *   2. Parse the form into attendee + line items.
  *   3. If the operator clicked add-line / remove-line, re-render without
  *      saving (preserve all entered data).
@@ -19,30 +19,18 @@
 import { filter, map, pipe, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
-  applyAttendeeAtomicEdit,
-  buildPiiBlob,
-  type CreateAttendeeResult,
-  createAttendeeAtomic,
-  encryptPiiBlob,
-  ensureAllBookings,
-  type EventAttendeeRow,
-  type ExistingLine,
-  getAttendee,
-  loadExistingLines,
-} from "#shared/db/attendees.ts";
-import { getAllEvents } from "#shared/db/events.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
-import {
-  loadAttendeeQuestionData,
-  parseQuestionAnswers,
-  type QuestionWithAnswers,
-  saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
-import { getAvailableDates } from "#shared/dates.ts";
-import { todayInTz } from "#shared/timezone.ts";
-import { settings } from "#shared/db/settings.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+  ATTENDEE_FORM_ID,
+  type AttendeeFormLine,
+  type DailyDefaults,
+  defaultNewDailyDate,
+  type ParsedAttendeeForm,
+  parseAttendeeForm,
+  resolveDailyDefaults,
+  toCreateInput,
+  toDesiredLines,
+  trimTrailingBlankLines,
+  validateParsedForm,
+} from "#routes/admin/attendee-form-model.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -50,79 +38,87 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import {
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { getAvailableDates } from "#shared/dates.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  applyAttendeeAtomicEdit,
+  buildPiiBlob,
+  type CreateAttendeeResult,
+  createAttendeeAtomic,
+  type ExistingLine,
+  encryptPiiBlob,
+  ensureAllBookings,
+  getAttendee,
+  type ListingAttendeeRow,
+  loadExistingLines,
+} from "#shared/db/attendees.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getAllListings } from "#shared/db/listings.ts";
+import {
+  loadAttendeeQuestionData,
+  parseQuestionAnswers,
+  type QuestionWithAnswers,
+  saveAttendeeAnswers,
+} from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Attendee, EventWithCount, Holiday } from "#shared/types.ts";
+import { todayInTz } from "#shared/timezone.ts";
+import type { Attendee, Holiday, ListingWithCount } from "#shared/types.ts";
 import {
-  ATTENDEE_FORM_ID,
-  defaultNewDailyDate,
-  type AttendeeFormLine,
-  type DailyDefaults,
-  type ParsedAttendeeForm,
-  resolveDailyDefaults,
-  toCreateInput,
-  toDesiredLines,
-  trimTrailingBlankLines,
-  validateParsedForm,
-  parseAttendeeForm,
-} from "#routes/admin/attendee-form-model.ts";
-import {
-  attendeeFormPage,
   type AttendeeFormTemplateData,
+  attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
 
 // ---------------------------------------------------------------------------
 // Shared loaders / helpers
 // ---------------------------------------------------------------------------
 
-/** Events selectable in the dropdown: active events plus any currently
- * selected events (so an inactive selected event still renders its name). */
-const getEventsForSelector = async (
+/** Listings selectable in the dropdown: active listings plus any currently
+ * selected listings (so an inactive selected listing still renders its name). */
+const getListingsForSelector = async (
   parsed: ParsedAttendeeForm | null,
-): Promise<EventWithCount[]> => {
-  const allEvents = await getAllEvents();
-  const active = filter((e: EventWithCount) => e.active)(allEvents);
+): Promise<ListingWithCount[]> => {
+  const allListings = await getAllListings();
+  const active = filter((l: ListingWithCount) => l.active)(allListings);
   if (!parsed) return active;
   const selectedIds = new Set(
     pipe(
-      map((line: AttendeeFormLine) => line.eventId),
+      map((line: AttendeeFormLine) => line.listingId),
       filter((id: number) => id > 0),
     )(parsed.lines),
   );
   // Active and selected-inactive are disjoint (one is active, the other not),
   // so concatenating them needs no de-duplication.
   const selectedInactive = filter(
-    (e: EventWithCount) => selectedIds.has(e.id) && !e.active,
-  )(allEvents);
+    (l: ListingWithCount) => selectedIds.has(l.id) && !l.active,
+  )(allListings);
   return [...selectedInactive, ...active];
 };
 
-/** Index events by id for line resolution. */
-const eventsByIdMap = (
-  events: EventWithCount[],
-): Map<number, EventWithCount> => new Map(events.map((e) => [e.id, e]));
+/** Index listings by id for line resolution. */
+const listingsByIdMap = (
+  listings: ListingWithCount[],
+): Map<number, ListingWithCount> => new Map(listings.map((l) => [l.id, l]));
 
-/** Build the available-dates map for every daily event in the selector. */
+/** Build the available-dates map for every daily listing in the selector. */
 const buildAvailableDates = (
-  events: EventWithCount[],
+  listings: ListingWithCount[],
   holidays: Holiday[],
 ): Record<number, string[]> => {
   const result: Record<number, string[]> = {};
-  for (const event of events) {
-    if (event.event_type === "daily") {
-      result[event.id] = getAvailableDates(event, holidays);
+  for (const listing of listings) {
+    if (listing.listing_type === "daily") {
+      result[listing.id] = getAvailableDates(listing, holidays);
     }
   }
   return result;
 };
 
-/** A fresh, empty event line. The daily date defaults to the attendee's
+/** A fresh, empty listing line. The daily date defaults to the attendee's
  * shared start date when the existing daily lines are uniform, otherwise to
  * tomorrow — so a daily row never starts with an empty date. */
 const emptyLine = (
@@ -131,10 +127,10 @@ const emptyLine = (
 ): AttendeeFormLine => ({
   date: inheritedDate ?? defaultNewDailyDate(todayIso),
   error: null,
-  event: null,
-  eventId: 0,
   existingBooking: null,
   key: "",
+  listing: null,
+  listingId: 0,
   quantity: 1,
 });
 
@@ -155,25 +151,28 @@ const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
 const buildEditFormFromAttendee = (
   attendee: Attendee,
   existing: ExistingLine[],
-  eventsById: Map<number, EventWithCount>,
+  listingsById: Map<number, ListingWithCount>,
 ): ParsedAttendeeForm => {
   const lines: AttendeeFormLine[] = existing.map(({ key, booking }) => {
-    const event = eventsById.get(booking.event_id) ?? null;
+    const listing = listingsById.get(booking.listing_id) ?? null;
     return {
       date: booking.start_at?.slice(0, 10) ?? "",
       error: null,
-      event,
-      eventId: booking.event_id,
       existingBooking: booking,
       key,
+      listing,
+      listingId: booking.listing_id,
       quantity: booking.quantity,
     };
   });
   // Always append one blank line so the operator has somewhere to type a new
-  // registration without clicking "Add Event Line" first. It inherits the
+  // registration without clicking "Add Listing Line" first. It inherits the
   // attendee's shared daily date when the existing daily lines are uniform.
   lines.push(
-    emptyLine(todayInTz(settings.timezone), resolveDailyDefaults(lines).inheritedDate),
+    emptyLine(
+      todayInTz(settings.timezone),
+      resolveDailyDefaults(lines).inheritedDate,
+    ),
   );
   return {
     action: { kind: "save" },
@@ -201,15 +200,15 @@ const buildTemplateData = async (
     selectedAnswerIds?: number[];
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
-  const allEvents = await getEventsForSelector(parsed);
+  const allListings = await getListingsForSelector(parsed);
   const holidays = await getActiveHolidays();
-  const availableDatesByEvent = buildAvailableDates(allEvents, holidays);
+  const availableDatesByListing = buildAvailableDates(allListings, holidays);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
   return {
-    allEvents,
+    allListings,
     attendee,
     attendeeError: opts.attendeeError ?? null,
-    availableDatesByEvent,
+    availableDatesByListing,
     dailyDefaults,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
@@ -223,17 +222,20 @@ const buildTemplateData = async (
 };
 
 /** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked events (edit mode only). Rendering and saving every
- * event's questions — not just the first — is what keeps the save from wiping
- * answers tied to the attendee's other events: answers are stored per
+ * attendee's booked listings (edit mode only). Rendering and saving every
+ * listing's questions — not just the first — is what keeps the save from wiping
+ * answers tied to the attendee's other listings: answers are stored per
  * attendee, so the submitted set must cover every question it can have
  * answered. */
 const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
-): Promise<{ questions: QuestionWithAnswers[]; selectedAnswerIds: number[] }> => {
-  const eventIds = unique(existing.map((e) => e.booking.event_id));
-  const data = await loadAttendeeQuestionData(eventIds, [attendeeId]);
+): Promise<{
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
+}> => {
+  const listingIds = unique(existing.map((e) => e.booking.listing_id));
+  const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
   if (!data) return { questions: [], selectedAnswerIds: [] };
   return {
     questions: data.questions,
@@ -267,48 +269,50 @@ const renderAttendeeFormPage = (
 // ---------------------------------------------------------------------------
 
 /** Handle GET /admin/attendees/new — render the empty create form. */
-export const handleAttendeeNewGet: TypedRouteHandler<"GET /admin/attendees/new"> =
-  (request) =>
-    requireSessionOr(request, async (session) => {
-      const parsed = buildEmptyCreateForm();
-      const data = await buildTemplateData("create", parsed, null, {
-        returnUrl: getSearchParam(request, "return_url"),
-      });
-      return renderAttendeeFormPage(request, data, session);
+export const handleAttendeeNewGet: TypedRouteHandler<
+  "GET /admin/attendees/new"
+> = (request) =>
+  requireSessionOr(request, async (session) => {
+    const parsed = buildEmptyCreateForm();
+    const data = await buildTemplateData("create", parsed, null, {
+      returnUrl: getSearchParam(request, "return_url"),
     });
+    return renderAttendeeFormPage(request, data, session);
+  });
 
 /** Handle GET /admin/attendees/:id — render the edit form preloaded. */
-export const handleAttendeeEditGet: TypedRouteHandler<"GET /admin/attendees/:attendeeId"> =
-  (request, { attendeeId }) =>
-    requireSessionOr(request, async (session) => {
-      const loaded = await loadAttendeeForEdit(session, attendeeId);
-      if (!loaded) return notFoundResponse();
-      const allEvents = await getEventsForSelector(null);
-      const eventsById = eventsByIdMap(allEvents);
-      const parsed = buildEditFormFromAttendee(
-        loaded.attendee,
-        loaded.existing,
-        eventsById,
-      );
-      const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
-        attendeeId,
-        loaded.existing,
-      );
-      const data = await buildTemplateData("edit", parsed, loaded.attendee, {
-        questions,
-        returnUrl: getSearchParam(request, "return_url"),
-        selectedAnswerIds,
-      });
-      return renderAttendeeFormPage(request, data, session);
+export const handleAttendeeEditGet: TypedRouteHandler<
+  "GET /admin/attendees/:attendeeId"
+> = (request, { attendeeId }) =>
+  requireSessionOr(request, async (session) => {
+    const loaded = await loadAttendeeForEdit(session, attendeeId);
+    if (!loaded) return notFoundResponse();
+    const allListings = await getListingsForSelector(null);
+    const listingsById = listingsByIdMap(allListings);
+    const parsed = buildEditFormFromAttendee(
+      loaded.attendee,
+      loaded.existing,
+      listingsById,
+    );
+    const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
+      attendeeId,
+      loaded.existing,
+    );
+    const data = await buildTemplateData("edit", parsed, loaded.attendee, {
+      questions,
+      returnUrl: getSearchParam(request, "return_url"),
+      selectedAnswerIds,
     });
+    return renderAttendeeFormPage(request, data, session);
+  });
 
-/** Load an attendee + all its event_attendees rows for the edit page. */
+/** Load an attendee + all its listing_attendees rows for the edit page. */
 const loadAttendeeForEdit = async (
   session: AuthSession,
   attendeeId: number,
 ): Promise<{ attendee: Attendee; existing: ExistingLine[] } | null> => {
   const pk = await requirePrivateKey(session);
-  // PII-only load; the per-event lines come from loadExistingLines, so no join.
+  // PII-only load; the per-listing lines come from loadExistingLines, so no join.
   const attendee = await getAttendee(attendeeId, pk);
   if (!attendee) return null;
   const existing = await loadExistingLines(attendeeId);
@@ -318,7 +322,7 @@ const loadAttendeeForEdit = async (
 /** Everything the submit handler needs about an attendee being edited. */
 type EditContext = {
   attendee: Attendee | null;
-  existingByKey: Map<string, EventAttendeeRow>;
+  existingByKey: Map<string, ListingAttendeeRow>;
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
 };
@@ -361,7 +365,7 @@ const loadEditContext = async (
  *
  * Both actions are pure form-state edits — nothing is written to the
  * database. Removing an existing line just drops it from the form; the actual
- * `event_attendees` delete happens when the operator saves (the atomic update
+ * `listing_attendees` delete happens when the operator saves (the atomic update
  * diffs it out). That keeps removal part of the one logical "save the whole
  * attendee" submission, so other typed-in changes are never lost to a
  * mid-edit redirect. A newly added line inherits the attendee's shared daily
@@ -371,9 +375,7 @@ const loadEditContext = async (
 const applyLineAction = (
   parsed: ParsedAttendeeForm,
   todayIso: string,
-):
-  | { kind: "rerender"; parsed: ParsedAttendeeForm }
-  | { kind: "save" } => {
+): { kind: "rerender"; parsed: ParsedAttendeeForm } | { kind: "save" } => {
   const action = parsed.action;
   if (action.kind === "add_line") {
     const inherited = resolveDailyDefaults(parsed.lines).inheritedDate;
@@ -400,10 +402,8 @@ const applyLineAction = (
 
 /** Common submit handler for create + edit. `attendeeId` is null in create
  * mode. */
-const handleSubmit = (
-  mode: "create" | "edit",
-  attendeeId: number | null,
-) =>
+const handleSubmit =
+  (mode: "create" | "edit", attendeeId: number | null) =>
   (request: Request): Promise<Response> =>
     withAuth(request, AUTH_FORM, (session, form) =>
       handleSubmitInner(mode, attendeeId, session, form),
@@ -420,16 +420,21 @@ const handleSubmitInner = async (
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
   // Load attendee + existing lines + question context (edit mode only).
-  const edit = mode === "edit" && attendeeId !== null
-    ? await loadEditContext(session, attendeeId)
-    : EMPTY_EDIT_CONTEXT;
+  const edit =
+    mode === "edit" && attendeeId !== null
+      ? await loadEditContext(session, attendeeId)
+      : EMPTY_EDIT_CONTEXT;
   if (edit === null) return notFoundResponse();
   const { attendee, existingByKey, questions, selectedAnswerIds } = edit;
 
-  const allEvents = await getAllEvents();
-  const eventsById = eventsByIdMap(allEvents);
-  const parsed = parseAttendeeForm(form, eventsById, existingByKey);
-  const renderOpts = { questions, returnUrl: parsed.returnUrl, selectedAnswerIds };
+  const allListings = await getAllListings();
+  const listingsById = listingsByIdMap(allListings);
+  const parsed = parseAttendeeForm(form, listingsById, existingByKey);
+  const renderOpts = {
+    questions,
+    returnUrl: parsed.returnUrl,
+    selectedAnswerIds,
+  };
 
   // Step 1: line-action re-render (no save).
   const todayIso = todayInTz(settings.timezone);
@@ -465,16 +470,17 @@ const handleSubmitInner = async (
   // Step 4: apply atomic create or edit. On a recoverable failure (capacity,
   // encryption, no lines) re-render the submitted form in place so the
   // operator never loses entered data, marking the failing line where known.
-  const outcome = mode === "create"
-    ? await applyCreate(parsed)
-    : await applyEdit(
-      attendeeId!,
-      parsed,
-      attendee!,
-      questions,
-      // Admin edit treats answers as optional — keep only the valid ones.
-      parseQuestionAnswers({ optional: true })(form, questions).answerIds,
-    );
+  const outcome =
+    mode === "create"
+      ? await applyCreate(parsed)
+      : await applyEdit(
+          attendeeId!,
+          parsed,
+          attendee!,
+          questions,
+          // Admin edit treats answers as optional — keep only the valid ones.
+          parseQuestionAnswers({ optional: true })(form, questions).answerIds,
+        );
   if (outcome.ok) return outcome.response;
   // In-place re-render (no redirect): show the failure inside the form, the
   // same place a saved success lands, while preserving the entered data.
@@ -491,7 +497,7 @@ type SaveOutcome =
   | { ok: true; response: Response }
   | { ok: false; flashError: string };
 
-/** Shown when a submission has no usable event lines. */
+/** Shown when a submission has no usable listing lines. */
 const NO_LINES_ERROR = "Add at least one event line before saving";
 
 /** The edit page for an attendee, carrying the return_url through so the
@@ -535,8 +541,10 @@ const applyCreate = async (
     { success: true }
   >;
 
-  const firstEventId = parsed.lines.find((line) => line.eventId > 0)!.eventId;
-  await logActivity(`Attendee '${parsed.name}' added manually`, firstEventId);
+  const firstListingId = parsed.lines.find(
+    (line) => line.listingId > 0,
+  )!.listingId;
+  await logActivity(`Attendee '${parsed.name}' added manually`, firstListingId);
 
   const newId = attendees[0]!.id;
   return {
@@ -586,16 +594,20 @@ const applyEdit = async (
     };
   }
 
-  // Save question answers (atomic delete + insert) when the event has any.
+  // Save question answers (atomic delete + insert) when the listing has any.
   if (questions.length > 0) {
     await saveAttendeeAnswers(new Map([[attendeeId, answerIds]]));
   }
 
-  const firstEventId = desired[0]?.eventId;
-  await logActivity(`Attendee '${parsed.name}' updated`, firstEventId);
+  const firstListingId = desired[0]?.listingId;
+  await logActivity(`Attendee '${parsed.name}' updated`, firstListingId);
   return {
     ok: true,
-    response: savedRedirect(attendeeId, parsed.returnUrl, `Updated ${parsed.name}`),
+    response: savedRedirect(
+      attendeeId,
+      parsed.returnUrl,
+      `Updated ${parsed.name}`,
+    ),
   };
 };
 
@@ -608,5 +620,6 @@ export const handleAttendeeNewPost: TypedRouteHandler<"POST /admin/attendees/new
   handleSubmit("create", null);
 
 /** Handle POST /admin/attendees/:attendeeId — update an existing attendee. */
-export const handleAttendeeEditPost: TypedRouteHandler<"POST /admin/attendees/:attendeeId"> =
-  (request, { attendeeId }) => handleSubmit("edit", attendeeId)(request);
+export const handleAttendeeEditPost: TypedRouteHandler<
+  "POST /admin/attendees/:attendeeId"
+> = (request, { attendeeId }) => handleSubmit("edit", attendeeId)(request);

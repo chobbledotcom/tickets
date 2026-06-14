@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import {
   adminGet,
-  createTestEvent,
   createTestGroup,
+  createTestListing,
   describeWithEnv,
   mockRequest,
 } from "#test-utils";
@@ -14,8 +14,8 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions", () => {
     test("renders the bulk-actions landing page with a duplicate link", async () => {
       const group = await createTestGroup({ name: "My Group" });
-      await createTestEvent({ groupId: group.id, name: "Event A" });
-      await createTestEvent({ groupId: group.id, name: "Event B" });
+      await createTestListing({ groupId: group.id, name: "Listing A" });
+      await createTestListing({ groupId: group.id, name: "Listing B" });
 
       const { response } = await adminGet(
         `/admin/groups/${group.id}/bulk-actions`,
@@ -28,22 +28,22 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       expect(html).toContain(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
-      // Plural noun is used when the group has multiple events.
-      expect(html).toContain("all 2 events");
+      // Plural noun is used when the group has multiple listings.
+      expect(html).toContain("all 2 listings");
     });
 
-    test("uses singular 'event' when the group has exactly one", async () => {
+    test("uses singular 'listing' when the group has exactly one", async () => {
       const group = await createTestGroup({ name: "Solo Group" });
-      await createTestEvent({ groupId: group.id, name: "Only Event" });
+      await createTestListing({ groupId: group.id, name: "Only Listing" });
 
       const { response } = await adminGet(
         `/admin/groups/${group.id}/bulk-actions`,
       );
       const html = await response.text();
 
-      expect(html).toContain("all 1 event");
-      // Guard against the plural-suffix "events" slipping through
-      expect(html).not.toContain("1 events");
+      expect(html).toContain("all 1 listing");
+      // Guard against the plural-suffix "listings" slipping through
+      expect(html).not.toContain("1 listings");
     });
 
     test("returns 404 for a non-existent group", async () => {
@@ -60,9 +60,9 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
   });
 
   describe("GET /admin/groups/:id/bulk-actions — conditional links", () => {
-    test("shows deactivate link and hides reactivate when all events are active", async () => {
+    test("shows deactivate link and hides reactivate when all listings are active", async () => {
       const group = await createTestGroup({ name: "All Active" });
-      await createTestEvent({ groupId: group.id, name: "Active Event" });
+      await createTestListing({ groupId: group.id, name: "Active Listing" });
 
       const { response } = await adminGet(
         `/admin/groups/${group.id}/bulk-actions`,
@@ -77,13 +77,13 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
       );
     });
 
-    test("shows reactivate link and hides deactivate when all events are deactivated", async () => {
+    test("shows reactivate link and hides deactivate when all listings are deactivated", async () => {
       const group = await createTestGroup({ name: "All Off" });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
-        name: "Off Event",
+        name: "Off Listing",
       });
-      await eventsTable.update(event.id, { active: false });
+      await listingsTable.update(listing.id, { active: false });
 
       const { response } = await adminGet(
         `/admin/groups/${group.id}/bulk-actions`,
@@ -100,12 +100,12 @@ describeWithEnv("Admin bulk actions landing page", { db: true }, () => {
 
     test("shows only deactivate link when group is mixed (some active, some inactive)", async () => {
       const group = await createTestGroup({ name: "Mixed" });
-      await createTestEvent({ groupId: group.id, name: "Still Active" });
-      const inactive = await createTestEvent({
+      await createTestListing({ groupId: group.id, name: "Still Active" });
+      const inactive = await createTestListing({
         groupId: group.id,
         name: "Gone",
       });
-      await eventsTable.update(inactive.id, { active: false });
+      await listingsTable.update(inactive.id, { active: false });
 
       const { response } = await adminGet(
         `/admin/groups/${group.id}/bulk-actions`,

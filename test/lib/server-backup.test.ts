@@ -9,7 +9,7 @@ import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
-  createTestEvent,
+  createTestListing,
   createTestManagerSession,
   describeWithEnv,
   expectHtmlResponse,
@@ -76,7 +76,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("creates backup and redirects with success", async () => {
       await withLocalStorageEnabled(async () => {
-        await createTestEvent({ name: "Backup Test" });
+        await createTestListing({ name: "Backup Test" });
         const { response } = await adminFormPost("/admin/backup/create");
         expectRedirectWithFlash("/admin/backup")(response);
       });
@@ -290,15 +290,15 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("successfully restores from backup", async () => {
       await withLocalStorageEnabled(async () => {
-        const event = await createTestEvent({ name: "Restore Me" });
+        const listing = await createTestListing({ name: "Restore Me" });
         const zipData = await createBackupZip();
-        // Delete the event after capturing it in the backup so we can
+        // Delete the listing after capturing it in the backup so we can
         // verify the restore actually writes data back to the DB.
-        const { deleteEvent, getAllEvents } = await import(
-          "#shared/db/events.ts"
+        const { deleteListing, getAllListings } = await import(
+          "#shared/db/listings.ts"
         );
-        await deleteEvent(event.id);
-        expect((await getAllEvents()).find((e) => e.id === event.id)).toBe(
+        await deleteListing(listing.id);
+        expect((await getAllListings()).find((e) => e.id === listing.id)).toBe(
           undefined,
         );
 
@@ -312,7 +312,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         expectRedirectWithFlash("/admin/backup")(response);
 
-        const restored = (await getAllEvents()).find((e) => e.id === event.id);
+        const restored = (await getAllListings()).find(
+          (e) => e.id === listing.id,
+        );
         expect(restored).toBeDefined();
         expect(restored!.name).toBe("Restore Me");
       });

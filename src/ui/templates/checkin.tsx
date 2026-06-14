@@ -32,8 +32,8 @@ export const checkinAdminPage = (
     map(
       (e: TokenEntry): AttendeeTableRow => ({
         attendee: e.attendee,
-        eventId: e.event.id,
-        eventName: e.event.name,
+        listingId: e.listing.id,
+        listingName: e.listing.name,
       }),
     ),
   )(entries);
@@ -61,7 +61,7 @@ export const checkinAdminPage = (
             returnUrl: checkinPath,
             rows: tableRows,
             showDate,
-            showEvent: true,
+            showListing: true,
           })}
         />
       </div>
@@ -76,6 +76,6 @@ export const checkinPublicPage = (): string =>
   String(
     <Layout title="Check-in">
       <h1>Check-in</h1>
-      <p>Please show this QR code to an event administrator to check in.</p>
+      <p>Please show this QR code to an listing administrator to check in.</p>
     </Layout>,
   );

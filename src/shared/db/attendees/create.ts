@@ -1,5 +1,5 @@
 /**
- * Atomic attendee creation across one or more event bookings.
+ * Atomic attendee creation across one or more listing bookings.
  */
 
 import type { InValue } from "@libsql/client";
@@ -19,7 +19,7 @@ import {
   encryptAttendeeFields,
 } from "#shared/db/attendees/pii.ts";
 import { executeBatchWithResults, insert } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
@@ -61,8 +61,8 @@ export const buildAttendeeInsert = (enc: EncryptedAttendeeData) =>
 
 /** Build plain Attendee object from insert result */
 const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
-  event_id: input.eventId,
   id: Number(input.insertId),
+  listing_id: input.listingId,
   ...contactFields(input),
   attachment_downloads: 0,
   checked_in: false,
@@ -78,10 +78,10 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
 });
 
 /**
- * Atomically create an attendee linked to one or more events.
+ * Atomically create an attendee linked to one or more listings.
  * Single ACID batch transaction:
  *   1. INSERT attendee (unconditional)
- *   2..N+1. For each booking: INSERT event_attendees with capacity check
+ *   2..N+1. For each booking: INSERT listing_attendees with capacity check
  *   N+2. Clean up attendee if ALL capacity checks failed
  * Returns one Attendee per successful booking.
  */
@@ -105,9 +105,10 @@ export const createAttendeeAtomicImpl = async (
   if (bookings.some((b) => (b.quantity ?? 1) < 0)) {
     return { reason: "capacity_exceeded", success: false };
   }
-  // Reject duplicate (event_id, date) pairs in a single cart — two rows with
-  // the same slot would violate the event_attendees unique index, silently
-  // dropping one insert and delivering a half-fulfilled booking.
+  // Reject duplicate (listing_id, date) pairs in a single cart. The
+  // listing_attendees unique index is on (listing_id, attendee_id, start_at),
+  // so two rows with the same tuple would violate it — silently dropping
+  // one insert and delivering a half-fulfilled booking.
   if (hasDuplicateBookingSlot(bookings)) {
     return { reason: "capacity_exceeded", success: false };
   }
@@ -125,12 +126,12 @@ export const createAttendeeAtomicImpl = async (
 
   // Use a subquery to look up the attendee ID instead of last_insert_rowid().
   // last_insert_rowid() updates after each INSERT in a batch, so the 2nd+
-  // booking would get the event_attendees row ID instead of the attendee ID.
+  // booking would get the listing_attendees row ID instead of the attendee ID.
   const attendeeIdExpr =
     "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
   const bookingStatements = bookings.map((booking) => {
     const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
-    // Splice ticketTokenIndex after the first arg (eventId) to bind
+    // Splice ticketTokenIndex after the first arg (listingId) to bind
     // the ? in the attendeeIdExpr subquery
     const combined: InValue[] = [
       insert.args[0]!,
@@ -140,20 +141,20 @@ export const createAttendeeAtomicImpl = async (
     return { args: combined, sql: insert.sql };
   });
 
-  // Single ACID transaction: attendee first, then capacity-checked event links.
+  // Single ACID transaction: attendee first, then capacity-checked listing links.
   // If all capacity checks fail, the attendee is cleaned up in the final step.
   const batchResults = await executeBatchWithResults([
     // Step 1: Create attendee record (unconditional)
     buildAttendeeInsert(enc),
     // Steps 2..N+1: One capacity-checked INSERT per booking
     ...bookingStatements,
-    // Final step: Clean up attendee if no event links were created
+    // Final step: Clean up attendee if no listing links were created
     {
       args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
       sql: `DELETE FROM attendees WHERE id = (
               SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
             ) AND NOT EXISTS (
-              SELECT 1 FROM event_attendees WHERE attendee_id = (
+              SELECT 1 FROM listing_attendees WHERE attendee_id = (
                 SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
               )
             )`,
@@ -167,8 +168,8 @@ export const createAttendeeAtomicImpl = async (
       const booking = bookings[i]!;
       successfulBookings.push(
         buildAttendeeResult({
-          eventId: booking.eventId,
           insertId: batchResults[0]!.lastInsertRowid,
+          listingId: booking.listingId,
           ...contactInfo,
           created: enc.created,
           date: booking.date ?? null,
@@ -186,6 +187,6 @@ export const createAttendeeAtomicImpl = async (
     return { reason: "capacity_exceeded", success: false };
   }
 
-  invalidateEventsCache();
+  invalidateListingsCache();
   return { attendees: successfulBookings, success: true };
 };

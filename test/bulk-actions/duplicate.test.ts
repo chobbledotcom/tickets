@@ -1,20 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllEvents, getEventWithCount } from "#shared/db/events.ts";
-import { getAllGroups, getEventsByGroupId } from "#shared/db/groups.ts";
+import { getAllGroups, getListingsByGroupId } from "#shared/db/groups.ts";
+import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import {
   adminFormPost,
   adminGet,
-  createTestEvent,
   createTestGroup,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/duplicate", () => {
-    test("renders the duplicate form with event preview data", async () => {
+    test("renders the duplicate form with listing preview data", async () => {
       const group = await createTestGroup({ name: "Original" });
-      await createTestEvent({ groupId: group.id, name: "Spring Workshop" });
+      await createTestListing({ groupId: group.id, name: "Spring Workshop" });
 
       const { response } = await adminGet(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
@@ -24,12 +24,12 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(response.status).toBe(200);
       expect(html).toContain("Duplicate Group");
       expect(html).toContain("Spring Workshop");
-      expect(html).toContain('id="duplicate-preview-events"');
+      expect(html).toContain('id="duplicate-preview-listings"');
       // The default "new group name" suggestion is pre-filled.
       expect(html).toContain("Original (copy)");
     });
 
-    test("shows an empty-state message when the group has no events", async () => {
+    test("shows an empty-state message when the group has no listings", async () => {
       const group = await createTestGroup({ name: "Empty" });
 
       const { response } = await adminGet(
@@ -38,21 +38,21 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("This group has no events");
+      expect(html).toContain("This group has no listings");
     });
   });
 
   describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
-    test("creates a new group and clones every event with replacements applied", async () => {
+    test("creates a new group and clones every listing with replacements applied", async () => {
       const group = await createTestGroup({ name: "Source" });
-      const sourceEvent = await createTestEvent({
+      const sourceListing = await createTestListing({
         date: "2026-04-16T09:00",
         groupId: group.id,
         name: "Spring Workshop",
       });
 
       const groupCountBefore = (await getAllGroups()).length;
-      const eventCountBefore = (await getAllEvents()).length;
+      const listingCountBefore = (await getAllListings()).length;
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
@@ -78,30 +78,30 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         `/admin/groups/${newGroup!.id}`,
       );
 
-      const eventsAfter = await getAllEvents();
-      expect(eventsAfter.length).toBe(eventCountBefore + 1);
-      const newEvents = await getEventsByGroupId(newGroup!.id);
-      expect(newEvents.length).toBe(1);
-      const duplicate = newEvents[0]!;
-      expect(duplicate.id).not.toBe(sourceEvent.id);
+      const listingsAfter = await getAllListings();
+      expect(listingsAfter.length).toBe(listingCountBefore + 1);
+      const newListings = await getListingsByGroupId(newGroup!.id);
+      expect(newListings.length).toBe(1);
+      const duplicate = newListings[0]!;
+      expect(duplicate.id).not.toBe(sourceListing.id);
       expect(duplicate.name).toBe("Autumn Workshop");
 
       // The original date is shifted by 7 days; the time-of-day is preserved
       // (the exact hour in UTC depends on the configured timezone and DST).
-      const originalMs = Date.parse(sourceEvent.date);
+      const originalMs = Date.parse(sourceListing.date);
       const newMs = Date.parse(duplicate.date);
       expect(Math.round((newMs - originalMs) / 86_400_000)).toBe(7);
 
-      // Source event should still exist and be unchanged.
-      const original = await getEventWithCount(sourceEvent.id);
+      // Source listing should still exist and be unchanged.
+      const original = await getListingWithCount(sourceListing.id);
       expect(original?.name).toBe("Spring Workshop");
-      expect(original?.date).toBe(sourceEvent.date);
+      expect(original?.date).toBe(sourceListing.date);
       expect(original?.group_id).toBe(group.id);
     });
 
     test("duplicates with no replacements copies names and dates verbatim", async () => {
       const group = await createTestGroup({ name: "Verbatim" });
-      const sourceEvent = await createTestEvent({
+      const sourceListing = await createTestListing({
         date: "2026-05-01T10:00",
         groupId: group.id,
         name: "Untouched",
@@ -123,14 +123,14 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         (g) => g.name === "Verbatim Copy",
       );
       expect(newGroup).toBeDefined();
-      const newEvents = await getEventsByGroupId(newGroup!.id);
-      expect(newEvents[0]!.name).toBe("Untouched");
-      expect(newEvents[0]!.date).toBe(sourceEvent.date);
+      const newListings = await getListingsByGroupId(newGroup!.id);
+      expect(newListings[0]!.name).toBe("Untouched");
+      expect(newListings[0]!.date).toBe(sourceListing.date);
     });
 
     test("rejects an empty new group name with an error flash", async () => {
       const group = await createTestGroup({ name: "Needs Name" });
-      await createTestEvent({ groupId: group.id, name: "E" });
+      await createTestListing({ groupId: group.id, name: "E" });
 
       const groupCountBefore = (await getAllGroups()).length;
 

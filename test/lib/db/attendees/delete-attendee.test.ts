@@ -8,20 +8,20 @@ import {
 } from "#shared/db/processed-payments.ts";
 import {
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
     const attendee = await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "John Doe",
       "john@example.com",
     );
@@ -34,13 +34,13 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("removes processed payment records", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
     const attendee = await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "Jane Doe",
       "jane@example.com",
     );

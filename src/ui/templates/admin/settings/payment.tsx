@@ -19,43 +19,45 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
     id="settings-payment-provider"
   >
     <h2>Payment Provider</h2>
-    <p>Choose which payment provider to use for paid events.</p>
-    <label>
-      <input
-        checked={!s.paymentProvider}
-        name="payment_provider"
-        type="radio"
-        value="none"
-      />
-      None (payments disabled)
-    </label>
-    <label>
-      <input
-        checked={s.paymentProvider === "stripe"}
-        name="payment_provider"
-        type="radio"
-        value="stripe"
-      />
-      Stripe
-    </label>
-    <label>
-      <input
-        checked={s.paymentProvider === "square"}
-        name="payment_provider"
-        type="radio"
-        value="square"
-      />
-      Square
-    </label>
-    <label>
-      <input
-        checked={s.paymentProvider === "sumup"}
-        name="payment_provider"
-        type="radio"
-        value="sumup"
-      />
-      SumUp
-    </label>
+    <p>Choose which payment provider to use for paid listings.</p>
+    <fieldset class="radio-group">
+      <label>
+        <input
+          checked={!s.paymentProvider}
+          name="payment_provider"
+          type="radio"
+          value="none"
+        />
+        None (payments disabled)
+      </label>
+      <label>
+        <input
+          checked={s.paymentProvider === "stripe"}
+          name="payment_provider"
+          type="radio"
+          value="stripe"
+        />
+        Stripe
+      </label>
+      <label>
+        <input
+          checked={s.paymentProvider === "square"}
+          name="payment_provider"
+          type="radio"
+          value="square"
+        />
+        Square
+      </label>
+      <label>
+        <input
+          checked={s.paymentProvider === "sumup"}
+          name="payment_provider"
+          type="radio"
+          value="sumup"
+        />
+        SumUp
+      </label>
+    </fieldset>
     <button type="submit">Save Payment Provider</button>
   </CsrfForm>
 );
@@ -197,7 +199,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
               <code>{s.webhookUrl}</code>
             </li>
             <li>
-              Subscribe to the <strong>payment.updated</strong> event
+              Subscribe to the <strong>payment.updated</strong> listing
             </li>
             <li>
               Save the subscription and copy the <strong>Signature Key</strong>

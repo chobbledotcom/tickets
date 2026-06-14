@@ -7,7 +7,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
-import type { AdminSession, EventWithCount } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -79,8 +79,8 @@ export const adminQuestionPage = (
   session: AdminSession,
   error?: string,
   answerCounts?: Map<number, number>,
-  allEvents: EventWithCount[] = [],
-  assignedEventIds: Set<number> = new Set(),
+  allListings: ListingWithCount[] = [],
+  assignedListingIds: Set<number> = new Set(),
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
@@ -146,28 +146,30 @@ export const adminQuestionPage = (
         </ul>
       )}
 
-      <h2>Assign to Events</h2>
-      {allEvents.length === 0 ? (
+      <h2>Assign to Listings</h2>
+      {allListings.length === 0 ? (
         <p>
-          <em>No events yet.</em>
+          <em>No listings yet.</em>
         </p>
       ) : (
         <CsrfForm
-          action={`/admin/questions/${question.id}/events`}
-          id="question-events"
+          action={`/admin/questions/${question.id}/listings`}
+          id="question-listings"
         >
-          {map((e: EventWithCount) => (
-            <label>
-              <input
-                checked={assignedEventIds.has(e.id) || undefined}
-                name="event_ids"
-                type="checkbox"
-                value={String(e.id)}
-              />
-              {` ${e.name}`}
-            </label>
-          ))(allEvents)}
-          <button type="submit">Save Events</button>
+          <fieldset class="checkbox-group">
+            {map((e: ListingWithCount) => (
+              <label>
+                <input
+                  checked={assignedListingIds.has(e.id) || undefined}
+                  name="listing_ids"
+                  type="checkbox"
+                  value={String(e.id)}
+                />
+                {` ${e.name}`}
+              </label>
+            ))(allListings)}
+          </fieldset>
+          <button type="submit">Save Listings</button>
         </CsrfForm>
       )}
 
@@ -240,19 +242,19 @@ export const adminAnswerDeletePage = (
     </Layout>,
   );
 
-/** Event questions assignment page */
-export const adminEventQuestionsPage = (
-  event: EventWithCount,
+/** Listing questions assignment page */
+export const adminListingQuestionsPage = (
+  listing: ListingWithCount,
   allQuestions: QuestionWithAnswers[],
   assignedIds: Set<number>,
   session: AdminSession,
   error?: string,
 ): string =>
   String(
-    <Layout title={`Questions: ${event.name}`}>
+    <Layout title={`Questions: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
 
-      <h1>Questions for {event.name}</h1>
+      <h1>Questions for {listing.name}</h1>
       <Flash error={error} />
 
       {allQuestions.length === 0 ? (
@@ -261,26 +263,28 @@ export const adminEventQuestionsPage = (
           <a href="/admin/questions">Create questions</a> first.
         </p>
       ) : (
-        <CsrfForm action={`/admin/event/${event.id}/questions`}>
-          {map((q: QuestionWithAnswers) => (
-            <label>
-              <input
-                checked={assignedIds.has(q.id) || undefined}
-                name="question_ids"
-                type="checkbox"
-                value={String(q.id)}
-              />
-              {` ${q.text}`}
-              <small>
-                {" "}
-                ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
-                {q.answers.length > 0 && (
-                  <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
-                )}
-                )
-              </small>
-            </label>
-          ))(allQuestions)}
+        <CsrfForm action={`/admin/listing/${listing.id}/questions`}>
+          <fieldset class="checkbox-group">
+            {map((q: QuestionWithAnswers) => (
+              <label>
+                <input
+                  checked={assignedIds.has(q.id) || undefined}
+                  name="question_ids"
+                  type="checkbox"
+                  value={String(q.id)}
+                />
+                {` ${q.text}`}
+                <small>
+                  {" "}
+                  ({q.answers.length} option{q.answers.length !== 1 ? "s" : ""}
+                  {q.answers.length > 0 && (
+                    <>: {map((a: Answer) => a.text)(q.answers).join(", ")}</>
+                  )}
+                  )
+                </small>
+              </label>
+            ))(allQuestions)}
+          </fieldset>
           <button type="submit">Save</button>
         </CsrfForm>
       )}

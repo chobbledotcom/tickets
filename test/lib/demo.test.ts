@@ -12,15 +12,15 @@ import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
   DEMO_EMAILS,
-  DEMO_EVENT_DESCRIPTIONS,
-  DEMO_EVENT_LOCATIONS,
-  DEMO_EVENT_NAMES,
   DEMO_GROUP_NAMES,
   DEMO_HOLIDAY_NAMES,
+  DEMO_LISTING_DESCRIPTIONS,
+  DEMO_LISTING_LOCATIONS,
+  DEMO_LISTING_NAMES,
   DEMO_NAMES,
   type DemoFieldMap,
-  EVENT_DEMO_FIELDS,
   isDemoMode,
+  LISTING_DEMO_FIELDS,
   resetDemoMode,
   setDemoModeForTest,
   wrapResourceForDemo,
@@ -130,19 +130,19 @@ describe("applyDemoOverrides", () => {
     expect(form.get("csrf_token")).toBe("abc123");
   });
 
-  test("works with event demo fields", () => {
+  test("works with listing demo fields", () => {
     setDemoModeForTest(true);
     const form = new FormParams({
       description: "My description",
       location: "My location",
-      name: "My Event",
+      name: "My Listing",
     });
-    applyDemoOverrides(form, EVENT_DEMO_FIELDS);
-    expect(DEMO_EVENT_NAMES as readonly string[]).toContain(form.get("name"));
-    expect(DEMO_EVENT_DESCRIPTIONS as readonly string[]).toContain(
+    applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+    expect(DEMO_LISTING_NAMES as readonly string[]).toContain(form.get("name"));
+    expect(DEMO_LISTING_DESCRIPTIONS as readonly string[]).toContain(
       form.get("description"),
     );
-    expect(DEMO_EVENT_LOCATIONS as readonly string[]).toContain(
+    expect(DEMO_LISTING_LOCATIONS as readonly string[]).toContain(
       form.get("location"),
     );
   });

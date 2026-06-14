@@ -5,12 +5,12 @@ import {
   type FormValidator,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { addEventLink, updateEventLink } from "#shared/db/attendees.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { addListingLink, updateListingLink } from "#shared/db/attendees.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { defineForm } from "#shared/forms.tsx";
-import type { EventWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
-const eventOptionLabel = { label: "Select event...", value: "" };
+const listingOptionLabel = { label: "Select listing...", value: "" };
 const dateOptionLabel = { label: "Select date...", value: "" };
 const defaultQuantityField = {
   defaultValue: "1",
@@ -31,33 +31,33 @@ const defaultDateField = {
   type: "select",
 } as const;
 
-/** Event-link form backing the legacy per-event add-link POST. It is used
+/** Listing-link form backing the legacy per-listing add-link POST. It is used
  * for server-side validation only (the dropdown is rendered elsewhere), so a
  * single placeholder option suffices. */
-export const linkEventForm = defineForm({
+export const linkListingForm = defineForm({
   fields: [
     {
-      id: "add_event_id",
-      label: "Event",
-      name: "event_id",
-      options: [eventOptionLabel],
+      id: "add_listing_id",
+      label: "Listing",
+      name: "listing_id",
+      options: [listingOptionLabel],
       parse: (value) => Number.parseInt(value, 10),
       required: true,
       type: "select",
       validate: (value) => {
-        const eventId = Number.parseInt(value, 10);
-        return eventId > 0 ? null : "Event is required";
+        const listingId = Number.parseInt(value, 10);
+        return listingId > 0 ? null : "Listing is required";
       },
     },
     defaultQuantityField,
     defaultDateField,
   ] as const,
-  id: "linkEvent",
+  id: "linkListing",
 });
 
-export const linkEventUpdateForm = defineForm({
+export const linkListingUpdateForm = defineForm({
   fields: [defaultQuantityField, defaultDateField] as const,
-  id: "linkEventUpdate",
+  id: "linkListingUpdate",
 });
 type LinkFormValues = {
   date: string | null;
@@ -71,54 +71,55 @@ export const parseQuantity = (value: string, max: number): number => {
   return Math.max(1, Math.min(max, Number.isNaN(parsed) ? 1 : parsed));
 };
 
-/** Parse quantity, date, and (for daily events) duration from form for an event link operation */
+/** Parse quantity, date, and (for daily listings) duration from form for an listing link operation */
 const parseLinkFormFields = (
   values: LinkFormValues,
-  event: EventWithCount,
+  listing: ListingWithCount,
 ): LinkFormValues => ({
-  date: event.event_type === "daily" ? values.date : null,
-  durationDays: event.event_type === "daily" ? event.duration_days : undefined,
-  quantity: parseQuantity(String(values.quantity), event.max_quantity),
+  date: listing.listing_type === "daily" ? values.date : null,
+  durationDays:
+    listing.listing_type === "daily" ? listing.duration_days : undefined,
+  quantity: parseQuantity(String(values.quantity), listing.max_quantity),
 });
 
-/** Resolve event, parse form fields, run op, check capacity, redirect on success */
+/** Resolve listing, parse form fields, run op, check capacity, redirect on success */
 const applyLinkOp = async (
   attendeeId: number,
-  eventId: number,
+  listingId: number,
   values: LinkFormValues,
-  operate: (fields: LinkFormValues) => ReturnType<typeof addEventLink>,
-  onSuccess: (event: EventWithCount) => Promise<Response>,
+  operate: (fields: LinkFormValues) => ReturnType<typeof addListingLink>,
+  onSuccess: (listing: ListingWithCount) => Promise<Response>,
 ): Promise<Response> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return errorRedirect(`/admin/attendees/${attendeeId}`, "Event not found");
+  const listing = await getListingWithCount(listingId);
+  if (!listing) {
+    return errorRedirect(`/admin/attendees/${attendeeId}`, "Listing not found");
   }
 
-  const result = await operate(parseLinkFormFields(values, event));
+  const result = await operate(parseLinkFormFields(values, listing));
   return result.success
-    ? onSuccess(event)
+    ? onSuccess(listing)
     : errorRedirect(
         `/admin/attendees/${attendeeId}`,
         "Not enough spots available",
       );
 };
 
-type LinkRouteParams = { attendeeId: number; eventId?: number };
+type LinkRouteParams = { attendeeId: number; listingId?: number };
 
 const invalidLinkResponse = (attendeeId: number, error: string): Response =>
   errorRedirect(`/admin/attendees/${attendeeId}`, error);
 
 const createLinkRoute = <TValues extends LinkFormValues>(
   form: FormValidator<TValues>,
-  getEventId: (values: TValues, params: LinkRouteParams) => number,
+  getListingId: (values: TValues, params: LinkRouteParams) => number,
   operate: (
-    params: { attendeeId: number; eventId: number },
+    params: { attendeeId: number; listingId: number },
     values: TValues,
     fields: LinkFormValues,
-  ) => ReturnType<typeof addEventLink>,
+  ) => ReturnType<typeof addListingLink>,
   onSuccess: (
-    event: EventWithCount,
-    params: { attendeeId: number; eventId: number },
+    listing: ListingWithCount,
+    params: { attendeeId: number; listingId: number },
   ) => Promise<Response>,
 ) =>
   createAuthedFormRoute<TValues, LinkRouteParams>({
@@ -126,45 +127,45 @@ const createLinkRoute = <TValues extends LinkFormValues>(
     onInvalid: ({ error, params }) =>
       invalidLinkResponse(params.attendeeId, error),
     onValid: ({ params, values }) => {
-      const eventId = getEventId(values, params);
-      const linkParams = { attendeeId: params.attendeeId, eventId };
+      const listingId = getListingId(values, params);
+      const linkParams = { attendeeId: params.attendeeId, listingId };
       return applyLinkOp(
         linkParams.attendeeId,
-        linkParams.eventId,
+        linkParams.listingId,
         values,
         (fields) => operate(linkParams, values, fields),
-        (event) => onSuccess(event, linkParams),
+        (listing) => onSuccess(listing, linkParams),
       );
     },
   });
 
-export const handleUpdateEventLink: TypedRouteHandler<"POST /admin/attendees/:attendeeId/event/:eventId"> =
+export const handleUpdateListingLink: TypedRouteHandler<"POST /admin/attendees/:attendeeId/listing/:listingId"> =
   createLinkRoute(
-    linkEventUpdateForm,
-    (_values, params) => params.eventId!,
-    ({ attendeeId, eventId }, _values, fields) =>
-      updateEventLink(attendeeId, eventId, fields),
-    (event, { attendeeId }) =>
+    linkListingUpdateForm,
+    (_values, params) => params.listingId!,
+    ({ attendeeId, listingId }, _values, fields) =>
+      updateListingLink(attendeeId, listingId, fields),
+    (listing, { attendeeId }) =>
       Promise.resolve(
         redirect(
           `/admin/attendees/${attendeeId}`,
-          `Updated ${event.name}`,
+          `Updated ${listing.name}`,
           true,
         ),
       ),
   );
 
-export const handleAddEventLink: TypedRouteHandler<"POST /admin/attendees/:attendeeId/link"> =
+export const handleAddListingLink: TypedRouteHandler<"POST /admin/attendees/:attendeeId/link"> =
   createLinkRoute(
-    linkEventForm,
-    (values) => values.event_id,
-    ({ attendeeId, eventId }, _values, fields) =>
-      addEventLink(attendeeId, { eventId, ...fields }),
-    async (event, { attendeeId, eventId }) => {
-      await logActivity(`Attendee linked to '${event.name}'`, eventId);
+    linkListingForm,
+    (values) => values.listing_id,
+    ({ attendeeId, listingId }, _values, fields) =>
+      addListingLink(attendeeId, { listingId, ...fields }),
+    async (listing, { attendeeId, listingId }) => {
+      await logActivity(`Attendee linked to '${listing.name}'`, listingId);
       return redirect(
         `/admin/attendees/${attendeeId}`,
-        `Added to ${event.name}`,
+        `Added to ${listing.name}`,
         true,
       );
     },

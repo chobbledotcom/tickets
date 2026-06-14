@@ -2,7 +2,7 @@
  * Column order settings forms for the advanced settings page.
  *
  * Users configure which columns appear (and in what order) for the
- * Events and Attendees tables using Liquid-style templates like:
+ * Listings and Attendees tables using Liquid-style templates like:
  *   {{name}}, {{description}}, {{status}}, {{attendees}}, {{created}}
  */
 
@@ -12,13 +12,13 @@ import {
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
 import {
-  EVENT_DEFAULT_ORDER,
-  EVENT_TABLE_COLUMNS,
-} from "#shared/columns/event-columns.ts";
+  LISTING_DEFAULT_ORDER,
+  LISTING_TABLE_COLUMNS,
+} from "#shared/columns/listing-columns.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 
-const eventDefault = buildDefaultTemplate(EVENT_DEFAULT_ORDER);
+const listingDefault = buildDefaultTemplate(LISTING_DEFAULT_ORDER);
 const attendeeDefault = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
 
 /** Render available column tags as helper text */
@@ -35,16 +35,16 @@ const AvailableTags = ({
   </small>
 );
 
-export const EventColumnOrderForm = (
+export const ListingColumnOrderForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element => (
   <CsrfForm
-    action="/admin/settings/event-column-order"
-    id="settings-event-column-order"
+    action="/admin/settings/listing-column-order"
+    id="settings-listing-column-order"
   >
-    <h2>Event Table Columns</h2>
+    <h2>Listing Table Columns</h2>
     <p>
-      Control which columns appear on the Events table and in what order. Use
+      Control which columns appear on the Listings table and in what order. Use
       Liquid-style tags separated by commas. See the{" "}
       <a href="/admin/guide#column-order">Column Order guide</a> for full
       details including custom date and currency formatting.
@@ -54,15 +54,15 @@ export const EventColumnOrderForm = (
       <input
         autocomplete="off"
         name="column_order"
-        placeholder={eventDefault}
+        placeholder={listingDefault}
         type="text"
-        value={s.eventColumnOrder || eventDefault}
+        value={s.listingColumnOrder || listingDefault}
       />
     </label>
     <p>
-      <AvailableTags columns={EVENT_TABLE_COLUMNS} />
+      <AvailableTags columns={LISTING_TABLE_COLUMNS} />
     </p>
-    <button type="submit">Save Event Columns</button>
+    <button type="submit">Save Listing Columns</button>
   </CsrfForm>
 );
 

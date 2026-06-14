@@ -9,25 +9,25 @@ import {
   getAllQuestionsWithAnswers,
   getAnswerCountsForQuestion,
   getAttendeeAnswersBatch,
-  getEventQuestionIds,
+  getListingQuestionIds,
   getNextAnswerSortOrder,
-  getQuestionEventIds,
-  getQuestionsForEvent,
-  getQuestionsWithEventIds,
+  getQuestionListingIds,
+  getQuestionsForListing,
+  getQuestionsWithListingIds,
   getQuestionWithAnswers,
   questionsTable,
   saveAttendeeAnswers,
-  setEventQuestions,
-  setQuestionEvents,
+  setListingQuestions,
+  setQuestionListings,
   swapAnswerOrder,
   swapQuestionOrder,
 } from "#shared/db/questions.ts";
-import { createTestEvent, describeWithEnv } from "#test-utils";
+import { createTestListing, describeWithEnv } from "#test-utils";
 
 /** Create a test attendee directly via the DB (bypasses routes) */
-const createAttendee = async (eventId: number, name = "Alice") => {
+const createAttendee = async (listingId: number, name = "Alice") => {
   const result = await createAttendeeAtomic({
-    bookings: [{ eventId }],
+    bookings: [{ listingId }],
     email: `${name.toLowerCase()}@test.com`,
     name,
   });
@@ -63,16 +63,16 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Opt A",
       });
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [q.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [q.id]);
 
-      const attendee = await createAttendee(event.id);
+      const attendee = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));
 
       await deleteQuestion(q.id);
 
       expect(await questionsTable.findById(q.id)).toBeNull();
-      expect(await getQuestionsForEvent(event.id)).toEqual([]);
+      expect(await getQuestionsForListing(listing.id)).toEqual([]);
       const answers = await getAttendeeAnswersBatch([attendee.id]);
       expect(answers.get(attendee.id)).toBeUndefined();
     });
@@ -120,8 +120,8 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
   });
 
-  describe("event-question mapping", () => {
-    test("assigns questions to an event", async () => {
+  describe("listing-question mapping", () => {
+    test("assigns questions to an listing", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
@@ -135,37 +135,45 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "A2",
       });
 
-      const event = await createTestEvent();
-      // Assign in reverse; the event ignores assignment order and uses the
+      const listing = await createTestListing();
+      // Assign in reverse; the listing ignores assignment order and uses the
       // global question order (here creation/id order, since both are at the
       // default sort_order 0).
-      await setEventQuestions(event.id, [q2.id, q1.id]);
+      await setListingQuestions(listing.id, [q2.id, q1.id]);
 
-      const questions = await getQuestionsForEvent(event.id);
+      const questions = await getQuestionsForListing(listing.id);
       expect(questions).toHaveLength(2);
       expect(questions[0]!.text).toBe("Q1");
       expect(questions[1]!.text).toBe("Q2");
     });
 
-    test("orders event questions by the global sort_order, not assignment order", async () => {
+    test("orders listing questions by the global sort_order, not assignment order", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       await assignNextQuestionSortOrder(q1.id);
       const q2 = await questionsTable.insert({ text: "Q2" });
       await assignNextQuestionSortOrder(q2.id);
-      await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A1" });
-      await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "A2" });
+      await answersTable.insert({
+        questionId: q1.id,
+        sortOrder: 0,
+        text: "A1",
+      });
+      await answersTable.insert({
+        questionId: q2.id,
+        sortOrder: 0,
+        text: "A2",
+      });
 
       // Put q2 ahead of q1 globally.
       await swapQuestionOrder(q1.id, q2.id);
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [q1.id, q2.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [q1.id, q2.id]);
 
-      const questions = await getQuestionsForEvent(event.id);
+      const questions = await getQuestionsForListing(listing.id);
       expect(questions.map((q) => q.text)).toEqual(["Q2", "Q1"]);
     });
 
-    test("replaces event questions on re-assignment", async () => {
+    test("replaces listing questions on re-assignment", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
@@ -179,18 +187,18 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "A2",
       });
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [q1.id, q2.id]);
-      await setEventQuestions(event.id, [q2.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [q1.id, q2.id]);
+      await setListingQuestions(listing.id, [q2.id]);
 
-      const questions = await getQuestionsForEvent(event.id);
+      const questions = await getQuestionsForListing(listing.id);
       expect(questions).toHaveLength(1);
       expect(questions[0]!.text).toBe("Q2");
     });
 
-    test("returns empty array for event with no questions", async () => {
-      const event = await createTestEvent();
-      const questions = await getQuestionsForEvent(event.id);
+    test("returns empty array for listing with no questions", async () => {
+      const listing = await createTestListing();
+      const questions = await getQuestionsForListing(listing.id);
       expect(questions).toEqual([]);
     });
 
@@ -203,77 +211,77 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Yes",
       });
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [qWithAnswers.id, qNoAnswers.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [qWithAnswers.id, qNoAnswers.id]);
 
-      const questions = await getQuestionsForEvent(event.id);
+      const questions = await getQuestionsForListing(listing.id);
       expect(questions).toHaveLength(1);
       expect(questions[0]!.text).toBe("Has answers");
     });
   });
 
-  describe("getEventQuestionIds", () => {
+  describe("getListingQuestionIds", () => {
     test("returns assigned question IDs", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [q2.id, q1.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [q2.id, q1.id]);
 
       // Returned in the global question order, not the assignment order.
-      const ids = await getEventQuestionIds(event.id);
+      const ids = await getListingQuestionIds(listing.id);
       expect(ids).toEqual([q1.id, q2.id]);
     });
 
-    test("returns empty array for event with no questions", async () => {
-      const event = await createTestEvent();
-      expect(await getEventQuestionIds(event.id)).toEqual([]);
+    test("returns empty array for listing with no questions", async () => {
+      const listing = await createTestListing();
+      expect(await getListingQuestionIds(listing.id)).toEqual([]);
     });
   });
 
-  describe("getQuestionEventIds", () => {
-    test("returns the events a question is assigned to", async () => {
+  describe("getQuestionListingIds", () => {
+    test("returns the listings a question is assigned to", async () => {
       const q = await questionsTable.insert({ text: "Q" });
-      const event1 = await createTestEvent();
-      const event2 = await createTestEvent({ name: "Event 2" });
-      await setEventQuestions(event1.id, [q.id]);
-      await setEventQuestions(event2.id, [q.id]);
+      const listing1 = await createTestListing();
+      const listing2 = await createTestListing({ name: "Listing 2" });
+      await setListingQuestions(listing1.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
 
-      const ids = await getQuestionEventIds(q.id);
-      expect(ids.sort()).toEqual([event1.id, event2.id].sort());
+      const ids = await getQuestionListingIds(q.id);
+      expect(ids.sort()).toEqual([listing1.id, listing2.id].sort());
     });
 
-    test("returns empty array when assigned to no events", async () => {
+    test("returns empty array when assigned to no listings", async () => {
       const q = await questionsTable.insert({ text: "Lonely Q" });
-      expect(await getQuestionEventIds(q.id)).toEqual([]);
+      expect(await getQuestionListingIds(q.id)).toEqual([]);
     });
   });
 
-  describe("setQuestionEvents", () => {
-    test("assigns a question to the selected events", async () => {
+  describe("setQuestionListings", () => {
+    test("assigns a question to the selected listings", async () => {
       const q = await questionsTable.insert({ text: "Q" });
-      const event1 = await createTestEvent();
-      const event2 = await createTestEvent({ name: "Event 2" });
+      const listing1 = await createTestListing();
+      const listing2 = await createTestListing({ name: "Listing 2" });
 
-      await setQuestionEvents(q.id, [event1.id, event2.id]);
+      await setQuestionListings(q.id, [listing1.id, listing2.id]);
 
-      expect((await getQuestionEventIds(q.id)).sort()).toEqual(
-        [event1.id, event2.id].sort(),
+      expect((await getQuestionListingIds(q.id)).sort()).toEqual(
+        [listing1.id, listing2.id].sort(),
       );
     });
 
-    test("removes the question from unchecked events", async () => {
+    test("removes the question from unchecked listings", async () => {
       const q = await questionsTable.insert({ text: "Q" });
-      const event1 = await createTestEvent();
-      const event2 = await createTestEvent({ name: "Event 2" });
-      await setQuestionEvents(q.id, [event1.id, event2.id]);
+      const listing1 = await createTestListing();
+      const listing2 = await createTestListing({ name: "Listing 2" });
+      await setQuestionListings(q.id, [listing1.id, listing2.id]);
 
-      await setQuestionEvents(q.id, [event1.id]);
+      await setQuestionListings(q.id, [listing1.id]);
 
-      expect(await getQuestionEventIds(q.id)).toEqual([event1.id]);
+      expect(await getQuestionListingIds(q.id)).toEqual([listing1.id]);
     });
 
-    test("lists an event's assigned questions in the global question order", async () => {
+    test("lists a listing's assigned questions in the global question order", async () => {
       const existing = await questionsTable.insert({ text: "Existing" });
       const added = await questionsTable.insert({ text: "Added" });
       await answersTable.insert({
@@ -287,38 +295,38 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "B",
       });
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [existing.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [existing.id]);
 
-      await setQuestionEvents(added.id, [event.id]);
+      await setQuestionListings(added.id, [listing.id]);
 
-      const ids = await getEventQuestionIds(event.id);
+      const ids = await getListingQuestionIds(listing.id);
       expect(ids).toEqual([existing.id, added.id]);
     });
 
     test("does nothing when the assignment is unchanged", async () => {
       const q = await questionsTable.insert({ text: "Q" });
-      const event = await createTestEvent();
-      await setQuestionEvents(q.id, [event.id]);
+      const listing = await createTestListing();
+      await setQuestionListings(q.id, [listing.id]);
 
-      await setQuestionEvents(q.id, [event.id]);
+      await setQuestionListings(q.id, [listing.id]);
 
-      expect(await getQuestionEventIds(q.id)).toEqual([event.id]);
+      expect(await getQuestionListingIds(q.id)).toEqual([listing.id]);
     });
 
-    test("clears all events when given an empty list", async () => {
+    test("clears all listings when given an empty list", async () => {
       const q = await questionsTable.insert({ text: "Q" });
-      const event = await createTestEvent();
-      await setQuestionEvents(q.id, [event.id]);
+      const listing = await createTestListing();
+      await setQuestionListings(q.id, [listing.id]);
 
-      await setQuestionEvents(q.id, []);
+      await setQuestionListings(q.id, []);
 
-      expect(await getQuestionEventIds(q.id)).toEqual([]);
+      expect(await getQuestionListingIds(q.id)).toEqual([]);
     });
   });
 
-  describe("getQuestionsWithEventIds", () => {
-    test("deduplicates questions across events", async () => {
+  describe("getQuestionsWithListingIds", () => {
+    test("deduplicates questions across listings", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
@@ -332,21 +340,21 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "A2",
       });
 
-      const event1 = await createTestEvent();
-      const event2 = await createTestEvent({ name: "Event 2" });
-      await setEventQuestions(event1.id, [q1.id, q2.id]);
-      await setEventQuestions(event2.id, [q2.id]);
+      const listing1 = await createTestListing();
+      const listing2 = await createTestListing({ name: "Listing 2" });
+      await setListingQuestions(listing1.id, [q1.id, q2.id]);
+      await setListingQuestions(listing2.id, [q2.id]);
 
-      const { questions } = await getQuestionsWithEventIds([
-        event1.id,
-        event2.id,
+      const { questions } = await getQuestionsWithListingIds([
+        listing1.id,
+        listing2.id,
       ]);
       expect(questions).toHaveLength(2);
       expect(questions[0]!.text).toBe("Q1");
       expect(questions[1]!.text).toBe("Q2");
     });
 
-    test("returns event-ID mapping for each question", async () => {
+    test("returns listing-ID mapping for each question", async () => {
       const q1 = await questionsTable.insert({ text: "Q1" });
       const q2 = await questionsTable.insert({ text: "Q2" });
       await answersTable.insert({
@@ -360,26 +368,25 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "A2",
       });
 
-      const event1 = await createTestEvent();
-      const event2 = await createTestEvent({ name: "Event 2" });
-      await setEventQuestions(event1.id, [q1.id, q2.id]);
-      await setEventQuestions(event2.id, [q2.id]);
+      const listing1 = await createTestListing();
+      const listing2 = await createTestListing({ name: "Listing 2" });
+      await setListingQuestions(listing1.id, [q1.id, q2.id]);
+      await setListingQuestions(listing2.id, [q2.id]);
 
-      const { questionEventMap } = await getQuestionsWithEventIds([
-        event1.id,
-        event2.id,
+      const { questionListingMap } = await getQuestionsWithListingIds([
+        listing1.id,
+        listing2.id,
       ]);
-      expect(questionEventMap.get(q1.id)).toEqual([event1.id]);
-      const q2Events = questionEventMap.get(q2.id)!;
-      expect(q2Events.sort()).toEqual([event1.id, event2.id].sort());
+      expect(questionListingMap.get(q1.id)).toEqual([listing1.id]);
+      const q2Listings = questionListingMap.get(q2.id)!;
+      expect(q2Listings.sort()).toEqual([listing1.id, listing2.id].sort());
     });
 
-    test("returns empty for no events", async () => {
-      const { questions, questionEventMap } = await getQuestionsWithEventIds(
-        [],
-      );
+    test("returns empty for no listings", async () => {
+      const { questions, questionListingMap } =
+        await getQuestionsWithListingIds([]);
       expect(questions).toEqual([]);
-      expect(questionEventMap.size).toBe(0);
+      expect(questionListingMap.size).toBe(0);
     });
 
     test("skips questions with no answers", async () => {
@@ -391,10 +398,10 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Yes",
       });
 
-      const event = await createTestEvent();
-      await setEventQuestions(event.id, [qWithAnswers.id, qNoAnswers.id]);
+      const listing = await createTestListing();
+      await setListingQuestions(listing.id, [qWithAnswers.id, qNoAnswers.id]);
 
-      const { questions } = await getQuestionsWithEventIds([event.id]);
+      const { questions } = await getQuestionsWithListingIds([listing.id]);
       expect(questions).toHaveLength(1);
       expect(questions[0]!.text).toBe("Has answers");
     });
@@ -414,8 +421,8 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Large",
       });
 
-      const event = await createTestEvent();
-      const attendee = await createAttendee(event.id);
+      const listing = await createTestListing();
+      const attendee = await createAttendee(listing.id);
 
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
@@ -436,9 +443,9 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Large",
       });
 
-      const event = await createTestEvent();
-      const att1 = await createAttendee(event.id, "Alice");
-      const att2 = await createAttendee(event.id, "Bob");
+      const listing = await createTestListing();
+      const att1 = await createAttendee(listing.id, "Alice");
+      const att2 = await createAttendee(listing.id, "Bob");
 
       await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
       await saveAttendeeAnswers(new Map([[att2.id, [a2.id]]]));
@@ -476,8 +483,8 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Blue",
       });
 
-      const event = await createTestEvent();
-      const att = await createAttendee(event.id);
+      const listing = await createTestListing();
+      const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
       const before = await getAttendeeAnswersBatch([att.id]);
@@ -497,8 +504,8 @@ describeWithEnv("custom questions", { db: true }, () => {
         text: "Red",
       });
 
-      const event = await createTestEvent();
-      const att = await createAttendee(event.id);
+      const listing = await createTestListing();
+      const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
       await saveAttendeeAnswers(new Map([[att.id, []]]));
@@ -572,7 +579,7 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("counts attendee answers correctly", async () => {
-      const event = await createTestEvent();
+      const listing = await createTestListing();
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -584,8 +591,8 @@ describeWithEnv("custom questions", { db: true }, () => {
         sortOrder: 1,
         text: "M",
       });
-      const att1 = await createAttendee(event.id, "Alice");
-      const att2 = await createAttendee(event.id, "Bob");
+      const att1 = await createAttendee(listing.id, "Alice");
+      const att2 = await createAttendee(listing.id, "Bob");
       await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
       await saveAttendeeAnswers(new Map([[att2.id, [a1.id]]]));
       const counts = await getAnswerCountsForQuestion(q.id);

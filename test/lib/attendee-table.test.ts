@@ -26,8 +26,8 @@ const makeRow = (
   overrides: Partial<AttendeeTableRow> = {},
 ): AttendeeTableRow => ({
   attendee: testAttendee(),
-  eventId: 1,
-  eventName: "Test Event",
+  listingId: 1,
+  listingName: "Test Listing",
   ...overrides,
 });
 
@@ -37,26 +37,26 @@ const makeOpts = (
   allowedDomain: ALLOWED_DOMAIN,
   rows: [makeRow()],
   showDate: false,
-  showEvent: false,
+  showListing: false,
   ...overrides,
 });
 
-/** Zara (id=1, B Event) then Alice (id=2, A Event) — unsorted input order */
+/** Zara (id=1, B Listing) then Alice (id=2, A Listing) — unsorted input order */
 const zaraAliceRows = (): AttendeeTableRow[] => [
   makeRow({
     attendee: testAttendee({ id: 1, name: "Zara" }),
-    eventName: "B Event",
+    listingName: "B Listing",
   }),
   makeRow({
     attendee: testAttendee({ id: 2, name: "Alice" }),
-    eventName: "A Event",
+    listingName: "A Listing",
   }),
 ];
 
 /** Render zaraAliceRows with default sorting and assert Alice appears before Zara */
 const expectAliceSortedBeforeZara = () => {
   const html = AttendeeTable(
-    makeOpts({ rows: zaraAliceRows(), showEvent: true }),
+    makeOpts({ rows: zaraAliceRows(), showListing: true }),
   );
   expect(html.indexOf("Alice")).toBeLessThan(html.indexOf("Zara"));
 };
@@ -76,7 +76,9 @@ describe("AttendeeTable", () => {
     });
 
     test("links Name to the edit attendee page", () => {
-      const rows = [makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain('<a href="/admin/attendees/7">Jane</a>');
     });
@@ -117,11 +119,11 @@ describe("AttendeeTable", () => {
             phone: "555",
             special_instructions: "VIP",
           }),
-          eventName: "Gala",
+          listingName: "Gala",
         }),
       ];
       const html = AttendeeTable(
-        makeOpts({ rows, showDate: true, showEvent: true }),
+        makeOpts({ rows, showDate: true, showListing: true }),
       );
       const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
         (m) => m[1],
@@ -129,7 +131,7 @@ describe("AttendeeTable", () => {
       // Empty headers are for Checked In (first) and Actions (last)
       expect(headers).toEqual([
         "",
-        "Event",
+        "Listing",
         "Date",
         "Name",
         "Email",
@@ -144,17 +146,17 @@ describe("AttendeeTable", () => {
     });
   });
 
-  describe("Event column", () => {
-    test("hidden when showEvent is false", () => {
-      const html = AttendeeTable(makeOpts({ showEvent: false }));
-      expect(html).not.toContain("<th>Event</th>");
+  describe("Listing column", () => {
+    test("hidden when showListing is false", () => {
+      const html = AttendeeTable(makeOpts({ showListing: false }));
+      expect(html).not.toContain("<th>Listing</th>");
     });
 
-    test("shown with linked event name when showEvent is true", () => {
-      const rows = [makeRow({ eventId: 42, eventName: "Test Gala" })];
-      const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
-      expect(html).toContain("<th>Event</th>");
-      expect(html).toContain("/admin/event/42");
+    test("shown with linked listing name when showListing is true", () => {
+      const rows = [makeRow({ listingId: 42, listingName: "Test Gala" })];
+      const html = AttendeeTable(makeOpts({ rows, showListing: true }));
+      expect(html).toContain("<th>Listing</th>");
+      expect(html).toContain("/admin/listing/42");
       expect(html).toContain("Test Gala");
     });
   });
@@ -315,9 +317,9 @@ describe("AttendeeTable", () => {
     });
 
     test("form action points to correct endpoint", () => {
-      const rows = [makeRow({ eventId: 42 })];
+      const rows = [makeRow({ listingId: 42 })];
       const html = AttendeeTable(makeOpts({ rows }));
-      expect(html).toContain("/admin/event/42/attendee/1/checkin");
+      expect(html).toContain("/admin/listing/42/attendee/1/checkin");
     });
 
     test("includes activeFilter as return_filter", () => {
@@ -413,14 +415,14 @@ describe("AttendeeTable", () => {
 
     test("empty row has correct colspan for minimal columns", () => {
       const html = AttendeeTable(
-        makeOpts({ rows: [], showDate: false, showEvent: false }),
+        makeOpts({ rows: [], showDate: false, showListing: false }),
       );
       expect(html).toContain('colspan="6"');
     });
 
     test("empty row colspan includes optional visible columns", () => {
       const html = AttendeeTable(
-        makeOpts({ rows: [], showDate: true, showEvent: true }),
+        makeOpts({ rows: [], showDate: true, showListing: true }),
       );
       expect(html).toContain('colspan="8"');
     });
@@ -454,7 +456,7 @@ describe("AttendeeTable", () => {
   describe("presorted option", () => {
     test("preserves row order when presorted is true", () => {
       const html = AttendeeTable(
-        makeOpts({ presorted: true, rows: zaraAliceRows(), showEvent: true }),
+        makeOpts({ presorted: true, rows: zaraAliceRows(), showListing: true }),
       );
       const zaraIdx = html.indexOf("Zara");
       const aliceIdx = html.indexOf("Alice");
@@ -468,49 +470,49 @@ describe("AttendeeTable", () => {
 });
 
 describe("sortAttendeeRows", () => {
-  test("sorts by event date ascending, null dates last", () => {
+  test("sorts by listing date ascending, null dates last", () => {
     const rows = [
       makeRow({
         attendee: testAttendee({ date: null, id: 1 }),
-        eventName: "A",
+        listingName: "A",
       }),
       makeRow({
         attendee: testAttendee({ date: "2026-03-01", id: 2 }),
-        eventName: "A",
+        listingName: "A",
       }),
       makeRow({
         attendee: testAttendee({ date: "2026-01-15", id: 3 }),
-        eventName: "A",
+        listingName: "A",
       }),
     ];
     const sorted = sortAttendeeRows(rows);
     expect(sorted.map((r) => r.attendee.id)).toEqual([3, 2, 1]);
   });
 
-  test("sorts by event name when dates are equal", () => {
+  test("sorts by listing name when dates are equal", () => {
     const rows = [
       makeRow({
         attendee: testAttendee({ date: "2026-03-01", id: 1 }),
-        eventName: "Zebra",
+        listingName: "Zebra",
       }),
       makeRow({
         attendee: testAttendee({ date: "2026-03-01", id: 2 }),
-        eventName: "Alpha",
+        listingName: "Alpha",
       }),
     ];
     const sorted = sortAttendeeRows(rows);
     expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
   });
 
-  test("sorts by attendee name when date and event name are equal", () => {
+  test("sorts by attendee name when date and listing name are equal", () => {
     const rows = [
       makeRow({
         attendee: testAttendee({ id: 1, name: "Zara" }),
-        eventName: "Gala",
+        listingName: "Gala",
       }),
       makeRow({
         attendee: testAttendee({ id: 2, name: "Alice" }),
-        eventName: "Gala",
+        listingName: "Gala",
       }),
     ];
     const sorted = sortAttendeeRows(rows);
@@ -521,11 +523,11 @@ describe("sortAttendeeRows", () => {
     const rows = [
       makeRow({
         attendee: testAttendee({ id: 5, name: "Sam" }),
-        eventName: "Gala",
+        listingName: "Gala",
       }),
       makeRow({
         attendee: testAttendee({ id: 2, name: "Sam" }),
-        eventName: "Gala",
+        listingName: "Gala",
       }),
     ];
     const sorted = sortAttendeeRows(rows);
@@ -536,19 +538,19 @@ describe("sortAttendeeRows", () => {
     const rows = [
       makeRow({
         attendee: testAttendee({ date: "2026-02-01", id: 1, name: "Bob" }),
-        eventName: "Concert",
+        listingName: "Concert",
       }),
       makeRow({
         attendee: testAttendee({ date: null, id: 2, name: "Alice" }),
-        eventName: "Gala",
+        listingName: "Gala",
       }),
       makeRow({
         attendee: testAttendee({ date: "2026-01-15", id: 3, name: "Alice" }),
-        eventName: "Concert",
+        listingName: "Concert",
       }),
       makeRow({
         attendee: testAttendee({ date: "2026-02-01", id: 4, name: "Alice" }),
-        eventName: "Concert",
+        listingName: "Concert",
       }),
     ];
     const sorted = sortAttendeeRows(rows);
@@ -558,8 +560,8 @@ describe("sortAttendeeRows", () => {
 
   test("does not mutate the original array", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 2 }), eventName: "B" }),
-      makeRow({ attendee: testAttendee({ id: 1 }), eventName: "A" }),
+      makeRow({ attendee: testAttendee({ id: 2 }), listingName: "B" }),
+      makeRow({ attendee: testAttendee({ id: 1 }), listingName: "A" }),
     ];
     const original = [...rows];
     sortAttendeeRows(rows);

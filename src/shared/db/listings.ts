@@ -1,12 +1,12 @@
 /**
- * Events table operations
+ * Listings table operations
  */
 
 import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter, reduce, sort, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { addDays } from "#shared/dates.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { addDays } from "#shared/dates.ts";
 import {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
@@ -32,10 +32,10 @@ import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   type Attendee,
-  type Event,
-  type EventFields,
-  type EventType,
-  type EventWithCount,
+  type Listing,
+  type ListingFields,
+  type ListingType,
+  type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -43,8 +43,8 @@ import { VALID_DAY_NAMES } from "#templates/fields.ts";
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];
 
-/** Event input fields for create/update (camelCase) */
-export type EventInput = {
+/** Listing input fields for create/update (camelCase) */
+export type ListingInput = {
   name: string;
   description?: string;
   date?: string;
@@ -58,9 +58,9 @@ export type EventInput = {
   maxQuantity?: number;
   webhookUrl?: string;
   active?: boolean;
-  fields?: EventFields;
+  fields?: ListingFields;
   closesAt?: string;
-  eventType?: EventType;
+  listingType?: ListingType;
   bookableDays?: string[];
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
@@ -131,16 +131,16 @@ const readClosesAt = async (v: string | null): Promise<string | null> => {
   return result === "" ? null : result;
 };
 
-/** Encrypt event date for DB storage */
-export const writeEventDate = (v: string): Promise<string> =>
+/** Encrypt listing date for DB storage */
+export const writeListingDate = (v: string): Promise<string> =>
   encryptDatetime(v, "date");
 
 /**
- * Events table definition
+ * Listings table definition
  * slug is encrypted; slug_index is HMAC for lookups
- * Write methods (insert, update, deleteById) auto-invalidate the events cache.
+ * Write methods (insert, update, deleteById) auto-invalidate the listings cache.
  */
-const rawEventsTable = defineIdTable<Event, EventInput>("events", {
+const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   ...encryptedNameSchema(encrypt, decrypt),
   active: col.boolean(true),
@@ -158,15 +158,15 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   can_pay_more: col.boolean(false),
   closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
   created: col.withDefault(() => nowIso()),
-  date: { default: () => "", read: decryptDatetime, write: writeEventDate },
+  date: { default: () => "", read: decryptDatetime, write: writeListingDate },
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
-  event_type: col.withDefault<EventType>(() => "standard"),
-  fields: col.withDefault<EventFields>(() => "email"),
+  fields: col.withDefault<ListingFields>(() => "email"),
   group_id: col.withDefault(() => 0),
   hidden: col.boolean(false),
   image_url: col.encryptedText(encrypt, decrypt),
   initial_site_months: col.withDefault(() => 0),
+  listing_type: col.withDefault<ListingType>(() => "standard"),
   location: col.encryptedText(encrypt, decrypt),
   max_attendees: col.simple<number>(),
   max_price: col.withDefault(() => 0),
@@ -181,107 +181,106 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
-export const eventsTable = withCacheInvalidation(
-  rawEventsTable,
-  () => invalidateEventsCache(),
+export const listingsTable = withCacheInvalidation(rawListingsTable, () =>
+  invalidateListingsCache(),
 );
 
-/** Find a cached event by ID */
-const findCachedEventById = async (
+/** Find a cached listing by ID */
+const findCachedListingById = async (
   id: number,
-): Promise<EventWithCount | null> => {
-  const events = await eventsCache.getAll();
-  return events.find((e) => e.id === id) ?? null;
+): Promise<ListingWithCount | null> => {
+  const listings = await listingsCache.getAll();
+  return listings.find((e) => e.id === id) ?? null;
 };
 
 /**
- * Get a single event by ID (from cache)
+ * Get a single listing by ID (from cache)
  */
-export const getEvent = (id: number): Promise<Event | null> =>
-  findCachedEventById(id);
+export const getListing = (id: number): Promise<Listing | null> =>
+  findCachedListingById(id);
 
 /**
- * Check if a slug is already in use (optionally excluding a specific event ID)
+ * Check if a slug is already in use (optionally excluding a specific listing ID)
  * Uses slug_index for lookup (blind index)
  */
 export const isSlugTaken = async (
   slug: string,
-  excludeEventId?: number,
+  excludeListingId?: number,
 ): Promise<boolean> => {
   const slugIndex = await computeSlugIndex(slug);
-  const sql = excludeEventId
-    ? "SELECT 1 WHERE EXISTS (SELECT 1 FROM events WHERE slug_index = ? AND id != ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)"
-    : "SELECT 1 WHERE EXISTS (SELECT 1 FROM events WHERE slug_index = ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)";
-  const args = excludeEventId
-    ? [slugIndex, excludeEventId, slugIndex]
+  const sql = excludeListingId
+    ? "SELECT 1 WHERE EXISTS (SELECT 1 FROM listings WHERE slug_index = ? AND id != ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)"
+    : "SELECT 1 WHERE EXISTS (SELECT 1 FROM listings WHERE slug_index = ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)";
+  const args = excludeListingId
+    ? [slugIndex, excludeListingId, slugIndex]
     : [slugIndex, slugIndex];
   const result = await getDb().execute({ args, sql });
   return result.rows.length > 0;
 };
 
 /**
- * Delete an event and all its attendees in a single database round-trip.
- * Uses write batch to cascade: processed_payments → attendees → event.
+ * Delete an listing and all its attendees in a single database round-trip.
+ * Uses write batch to cascade: processed_payments → attendees → listing.
  * Reduces 3 sequential HTTP round-trips to 1.
  */
-export const deleteEvent = async (eventId: number): Promise<void> => {
+export const deleteListing = async (listingId: number): Promise<void> => {
   await executeBatch([
-    // Remove event links first
-    { args: [eventId], sql: "DELETE FROM event_attendees WHERE event_id = ?" },
-    // Delete orphaned attendees (no remaining event links) and their dependent data
+    // Remove listing links first
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
+    },
+    // Delete orphaned attendees (no remaining listing links) and their dependent data
     {
       args: [],
-      sql:
-        "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql: "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM listing_attendees)",
     },
     {
       args: [],
-      sql:
-        "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql: "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM listing_attendees)",
     },
     {
       args: [],
-      sql:
-        "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM event_attendees)",
+      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)",
     },
-    { args: [eventId], sql: "DELETE FROM activity_log WHERE event_id = ?" },
-    { args: [eventId], sql: "DELETE FROM events WHERE id = ?" },
+    { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
+    { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
-  invalidateEventsCache();
+  invalidateListingsCache();
 };
 
-/** Decrypt event fields and attach an attendee count */
+/** Decrypt listing fields and attach an attendee count */
 const decryptAndAttachCount = async (
-  row: Event,
+  row: Listing,
   attendeeCount: number,
-): Promise<EventWithCount> => {
-  const event = await eventsTable.fromDb(row);
-  return { ...event, attendee_count: attendeeCount };
+): Promise<ListingWithCount> => {
+  const listing = await listingsTable.fromDb(row);
+  return { ...listing, attendee_count: attendeeCount };
 };
 
-/** Extract event row from batch result, returning null if not found */
-const extractEventRow = (result: ResultSet): Event | null =>
-  resultRows<Event>(result)[0] ?? null;
+/** Extract listing row from batch result, returning null if not found */
+const extractListingRow = (result: ResultSet): Listing | null =>
+  resultRows<Listing>(result)[0] ?? null;
 
-/** Extract event from batch result, decrypt and attach count. Returns null if event not found. */
-const withBatchEvent = async <T>(
-  eventResult: ResultSet,
+/** Extract listing from batch result, decrypt and attach count. Returns null if listing not found. */
+const withBatchListing = async <T>(
+  listingResult: ResultSet,
   getCount: () => number,
-  build: (event: EventWithCount) => T,
+  build: (listing: ListingWithCount) => T,
 ): Promise<T | null> => {
-  const eventRow = extractEventRow(eventResult);
-  if (!eventRow) return null;
-  return build(await decryptAndAttachCount(eventRow, getCount()));
+  const listingRow = extractListingRow(listingResult);
+  if (!listingRow) return null;
+  return build(await decryptAndAttachCount(listingRow, getCount()));
 };
 
-/** Query events with attendee counts, optionally filtered by a WHERE clause */
-const queryEventsWithCounts = async (
+/** Query listings with attendee counts, optionally filtered by a WHERE clause */
+const queryListingsWithCounts = async (
   whereClause = "",
-): Promise<EventWithCount[]> => {
-  const rows = await queryAll<EventWithCount>(
+): Promise<ListingWithCount[]> => {
+  const rows = await queryAll<ListingWithCount>(
     `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-     FROM events e
-     LEFT JOIN event_attendees ea ON e.id = ea.event_id
+     FROM listings e
+     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
      ${whereClause}
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
@@ -291,105 +290,106 @@ const queryEventsWithCounts = async (
   );
 };
 
-const eventsCache = requestCache(() => queryEventsWithCounts());
+const listingsCache = requestCache(() => queryListingsWithCounts());
 
-registerCache(() => ({ entries: eventsCache.size(), name: "events" }));
+registerCache(() => ({ entries: listingsCache.size(), name: "listings" }));
 
-/** Invalidate the events cache (for testing or after writes). */
-export const invalidateEventsCache = (): void => {
-  eventsCache.invalidate();
+/** Invalidate the listings cache (for testing or after writes). */
+export const invalidateListingsCache = (): void => {
+  listingsCache.invalidate();
 };
 
 /**
- * Get all events with attendee counts (from cache)
+ * Get all listings with attendee counts (from cache)
  */
-export const getAllEvents = (): Promise<EventWithCount[]> =>
-  eventsCache.getAll();
+export const getAllListings = (): Promise<ListingWithCount[]> =>
+  listingsCache.getAll();
 
 /**
- * Get event with attendee count (from cache)
+ * Get listing with attendee count (from cache)
  */
-export const getEventWithCount = (id: number): Promise<EventWithCount | null> =>
-  findCachedEventById(id);
+export const getListingWithCount = (
+  id: number,
+): Promise<ListingWithCount | null> => findCachedListingById(id);
 
 /**
- * Get event with attendee count by slug (from cache)
+ * Get listing with attendee count by slug (from cache)
  */
-export const getEventWithCountBySlug = async (
+export const getListingWithCountBySlug = async (
   slug: string,
-): Promise<EventWithCount | null> => {
+): Promise<ListingWithCount | null> => {
   const slugIndex = await computeSlugIndex(slug);
-  const events = await eventsCache.getAll();
-  return events.find((e) => e.slug_index === slugIndex) ?? null;
+  const listings = await listingsCache.getAll();
+  return listings.find((e) => e.slug_index === slugIndex) ?? null;
 };
 
-/** Result type for combined event + attendees query */
-export type EventWithAttendees = {
-  event: EventWithCount;
+/** Result type for combined listing + attendees query */
+export type ListingWithAttendees = {
+  listing: ListingWithCount;
   attendeesRaw: Attendee[];
 };
 
 /**
- * Get event and all attendees in a single database round-trip.
+ * Get listing and all attendees in a single database round-trip.
  * Uses batch API to execute both queries together, reducing latency
  * for remote databases like Turso from 2 RTTs to 1.
  * Computes attendee_count from the attendees array.
  */
-export const getEventWithAttendeesRaw = async (
+export const getListingWithAttendeesRaw = async (
   id: number,
-): Promise<EventWithAttendees | null> => {
-  const [eventResult, attendeesResult] = await queryBatch([
-    { args: [id], sql: "SELECT * FROM events WHERE id = ?" },
+): Promise<ListingWithAttendees | null> => {
+  const [listingResult, attendeesResult] = await queryBatch([
+    { args: [id], sql: "SELECT * FROM listings WHERE id = ?" },
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
             FROM attendees a
-            JOIN event_attendees ea ON ea.attendee_id = a.id
-            WHERE ea.event_id = ?
+            JOIN listing_attendees ea ON ea.attendee_id = a.id
+            WHERE ea.listing_id = ?
             ORDER BY a.created DESC`,
     },
   ]);
 
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
-  return withBatchEvent(
-    eventResult!,
+  return withBatchListing(
+    listingResult!,
     () => attendeesRaw.reduce((sum, a) => sum + a.quantity, 0),
-    (event) => ({ attendeesRaw, event }),
+    (listing) => ({ attendeesRaw, listing }),
   );
 };
 
-/** Get cached events filtered by event_type */
-const getCachedEventsByType = async (
-  type: EventType,
-): Promise<EventWithCount[]> => {
-  const events = await eventsCache.getAll();
-  return fpFilter((e: EventWithCount) => e.event_type === type)(events);
+/** Get cached listings filtered by listing_type */
+const getCachedListingsByType = async (
+  type: ListingType,
+): Promise<ListingWithCount[]> => {
+  const listings = await listingsCache.getAll();
+  return fpFilter((e: ListingWithCount) => e.listing_type === type)(listings);
 };
 
 /**
- * Get all daily events with attendee counts (from cache).
+ * Get all daily listings with attendee counts (from cache).
  */
-export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
-  getCachedEventsByType("daily");
+export const getAllDailyListings = (): Promise<ListingWithCount[]> =>
+  getCachedListingsByType("daily");
 
 /**
- * Get all standard events with attendee counts (from cache).
- * Used by the calendar view to include one-time events on their scheduled date.
+ * Get all standard listings with attendee counts (from cache).
+ * Used by the calendar view to include one-time listings on their scheduled date.
  */
-export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
-  getCachedEventsByType("standard");
+export const getAllStandardListings = (): Promise<ListingWithCount[]> =>
+  getCachedListingsByType("standard");
 
 /**
- * Get distinct attendee dates for daily events.
+ * Get distinct attendee dates for daily listings.
  * Used for the calendar date picker (lightweight, no attendee data).
  */
-export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
+export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   // start_at and end_at are always written together (see dateToStartEnd), so
   // filtering on both being non-null lets the row type stay honestly non-null.
   const rows = await queryAll<{ start_at: string; end_at: string }>(
-    `SELECT DISTINCT ea.start_at, ea.end_at FROM event_attendees ea
-     INNER JOIN events e ON ea.event_id = e.id
-     WHERE e.event_type = 'daily'
+    `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
+     INNER JOIN listings e ON ea.listing_id = e.id
+     WHERE e.listing_type = 'daily'
        AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
@@ -410,101 +410,100 @@ export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
 };
 
 /**
- * Get raw attendees for daily events on a specific date.
+ * Get raw attendees for daily listings on a specific date.
  * Bounded query: only returns attendees matching the given date.
  */
-export const getDailyEventAttendeesByDate = (
+export const getDailyListingAttendeesByDate = (
   date: string,
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
   return queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
-     JOIN events e ON ea.event_id = e.id
-     WHERE e.event_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     JOIN listings e ON ea.listing_id = e.id
+     WHERE e.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
      ORDER BY a.created DESC`,
     [endAt, startAt],
   );
 };
 
 /**
- * Get raw attendees for a set of event IDs.
- * Used by the calendar to load attendees for standard events whose
+ * Get raw attendees for a set of listing IDs.
+ * Used by the calendar to load attendees for standard listings whose
  * decrypted date matches the selected calendar date.
  */
-export const getAttendeesByEventIds = (
-  eventIds: number[],
+export const getAttendeesByListingIds = (
+  listingIds: number[],
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
-     JOIN event_attendees ea ON ea.attendee_id = a.id
-     WHERE ea.event_id IN (${inPlaceholders(eventIds)})
+     JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE ea.listing_id IN (${inPlaceholders(listingIds)})
      ORDER BY a.created DESC`,
-    eventIds,
+    listingIds,
   );
 
-/** Result type for event + single attendee query */
-export type EventWithAttendeeRaw = {
-  event: EventWithCount;
+/** Result type for listing + single attendee query */
+export type ListingWithAttendeeRaw = {
+  listing: ListingWithCount;
   attendeeRaw: Attendee | null;
 };
 
 /**
- * Get event and a single attendee in a single database round-trip.
- * Used for attendee management pages where we need both the event context
+ * Get listing and a single attendee in a single database round-trip.
+ * Used for attendee management pages where we need both the listing context
  * and the specific attendee data.
  */
-export const getEventWithAttendeeRaw = async (
-  eventId: number,
+export const getListingWithAttendeeRaw = async (
+  listingId: number,
   attendeeId: number,
-): Promise<EventWithAttendeeRaw | null> => {
-  const [eventResult, attendeeResult, countResult] = await queryBatch([
-    { args: [eventId], sql: "SELECT * FROM events WHERE id = ?" },
+): Promise<ListingWithAttendeeRaw | null> => {
+  const [listingResult, attendeeResult, countResult] = await queryBatch([
+    { args: [listingId], sql: "SELECT * FROM listings WHERE id = ?" },
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
             FROM attendees a
-            LEFT JOIN event_attendees ea ON ea.attendee_id = a.id
+            LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
             WHERE a.id = ?`,
     },
     {
-      args: [eventId],
-      sql:
-        "SELECT COALESCE(SUM(quantity), 0) as count FROM event_attendees WHERE event_id = ?",
+      args: [listingId],
+      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM listing_attendees WHERE listing_id = ?",
     },
   ]);
 
-  return withBatchEvent(
-    eventResult!,
+  return withBatchListing(
+    listingResult!,
     () => resultRows<{ count: number }>(countResult!)[0]!.count,
-    (event) => ({
+    (listing) => ({
       attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
-      event,
+      listing,
     }),
   );
 };
 
 /**
- * Get multiple events by slugs (from cache).
- * Returns events in the same order as the input slugs.
- * Missing or inactive events are returned as null.
+ * Get multiple listings by slugs (from cache).
+ * Returns listings in the same order as the input slugs.
+ * Missing or inactive listings are returned as null.
  */
-export const getEventsBySlugsBatch = async (
+export const getListingsBySlugsBatch = async (
   slugs: string[],
-): Promise<(EventWithCount | null)[]> => {
+): Promise<(ListingWithCount | null)[]> => {
   if (slugs.length === 0) return [];
 
   // Compute slug indices for all slugs
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
 
-  const events = await eventsCache.getAll();
-  const eventBySlugIndex = new Map<string, EventWithCount>();
-  for (const event of events) {
-    eventBySlugIndex.set(event.slug_index, event);
+  const listings = await listingsCache.getAll();
+  const listingBySlugIndex = new Map<string, ListingWithCount>();
+  for (const listing of listings) {
+    listingBySlugIndex.set(listing.slug_index, listing);
   }
 
-  // Return events in the same order as input slugs
-  return slugIndices.map((index) => eventBySlugIndex.get(index) ?? null);
+  // Return listings in the same order as input slugs
+  return slugIndices.map((index) => listingBySlugIndex.get(index) ?? null);
 };

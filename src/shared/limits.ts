@@ -83,7 +83,7 @@ export const SESSION_MAX_AGE_S = readLimit("SESSION_MAX_AGE_S", 60 * 60 * 24);
 /**
  * CSRF token validity for the scanner check-in API in seconds.
  * Defaults to the session lifetime: admins keep the scanner page open for a
- * whole event, so the embedded CSRF token should stay valid for as long as the
+ * whole listing, so the embedded CSRF token should stay valid for as long as the
  * session that authenticates them — otherwise check-ins fail on CSRF expiry
  * while the admin is still logged in.
  */

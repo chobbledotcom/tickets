@@ -21,10 +21,10 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { isPaidEvent, normalizeDurationDays } from "#shared/types.ts";
+import { isPaidListing, normalizeDurationDays } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
-import { eventNames } from "#templates/email/shared.ts";
+import { listingNames } from "#templates/email/shared.ts";
 
 /** Create a configured Liquid engine with custom filters */
 const createEngine = (): Liquid => {
@@ -51,7 +51,7 @@ export const resetEngine = (): void => {
 
 /** Template entry shape exposed to Liquid templates */
 type TemplateEntry = {
-  event: {
+  listing: {
     name: string;
     slug: string;
     is_paid: boolean;
@@ -73,7 +73,7 @@ type TemplateEntry = {
 /** Data object passed to Liquid templates */
 export type TemplateData = {
   entries: TemplateEntry[];
-  event_names: string;
+  listing_names: string;
   attendee: TemplateEntry["attendee"];
   ticket_url: string;
   currency: string;
@@ -86,10 +86,10 @@ export const buildTemplateData = (
   ticketUrl: string,
 ): TemplateData => {
   const templateEntries: TemplateEntry[] = map(
-    ({ event, attendee }: EmailEntry): TemplateEntry => {
+    ({ listing, attendee }: EmailEntry): TemplateEntry => {
       const duration =
-        event.event_type === "daily"
-          ? normalizeDurationDays(event.duration_days)
+        listing.listing_type === "daily"
+          ? normalizeDurationDays(listing.duration_days)
           : 1;
       const dateRangeLabel = attendee.date
         ? duration > 1
@@ -111,10 +111,10 @@ export const buildTemplateData = (
           quantity: attendee.quantity,
           special_instructions: attendee.special_instructions,
         },
-        event: {
-          is_paid: isPaidEvent(event),
-          name: event.name,
-          slug: event.slug,
+        listing: {
+          is_paid: isPaidListing(listing),
+          name: listing.name,
+          slug: listing.slug,
         },
       };
     },
@@ -124,7 +124,7 @@ export const buildTemplateData = (
     attendee: templateEntries[0]!.attendee,
     currency,
     entries: templateEntries,
-    event_names: eventNames(entries),
+    listing_names: listingNames(entries),
     ticket_url: ticketUrl,
   };
 };

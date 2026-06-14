@@ -7,56 +7,56 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { handleTicketQrGet } from "#routes/public/ticket-routes.ts";
 import {
-  createTestEvent,
   createTestGroup,
+  createTestListing,
   describeWithEnv,
   mockRequest,
 } from "#test-utils";
 
 describeWithEnv("ticket QR code", { db: true }, () => {
   describe("GET /ticket/:slug/qr", () => {
-    test("returns SVG content type for valid event", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+    test("returns SVG content type for valid listing", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
       const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}/qr`),
+        mockRequest(`/ticket/${listing.slug}/qr`),
       );
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("image/svg+xml");
     });
 
     test("returns valid SVG with QR code", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+      const listing = await createTestListing({ maxAttendees: 50 });
       const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}/qr`),
+        mockRequest(`/ticket/${listing.slug}/qr`),
       );
       const body = await response.text();
       expect(body).toContain("<svg");
       expect(body).toContain("</svg>");
     });
 
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for non-existent listing", async () => {
       const response = await handleRequest(
-        mockRequest("/ticket/no-such-event/qr"),
+        mockRequest("/ticket/no-such-listing/qr"),
       );
       expect(response.status).toBe(404);
     });
   });
 
   describe("handleTicketQrGet", () => {
-    test("generates QR code encoding event public URL", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
-      const request = mockRequest(`/ticket/${event.slug}/qr`);
-      const response = await handleTicketQrGet(request, { slug: event.slug });
+    test("generates QR code encoding listing public URL", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const request = mockRequest(`/ticket/${listing.slug}/qr`);
+      const response = await handleTicketQrGet(request, { slug: listing.slug });
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("image/svg+xml");
       const body = await response.text();
       expect(body).toContain("<svg");
     });
 
-    test("returns 404 for missing event", async () => {
-      const request = mockRequest("/ticket/no-such-event/qr");
+    test("returns 404 for missing listing", async () => {
+      const request = mockRequest("/ticket/no-such-listing/qr");
       const response = await handleTicketQrGet(request, {
-        slug: "no-such-event",
+        slug: "no-such-listing",
       });
       expect(response.status).toBe(404);
     });

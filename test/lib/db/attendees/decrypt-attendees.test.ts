@@ -5,43 +5,43 @@ import { getDb } from "#shared/db/client.ts";
 import {
   bookAttendee,
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   test("returns empty array when no attendees", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
     const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(event.id);
+    const raw = await getAttendeesRaw(listing.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees).toEqual([]);
   });
 
-  test("returns decrypted attendees for event", async () => {
-    const event = await createTestEvent({
+  test("returns decrypted attendees for listing", async () => {
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
     await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "John Doe",
       "john@example.com",
     );
     await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "Jane Doe",
       "jane@example.com",
     );
 
     const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(event.id);
+    const raw = await getAttendeesRaw(listing.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees.length).toBe(2);
     const names = attendees.map((a) => a.name).sort();
@@ -49,12 +49,12 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   });
 
   test("decrypts phone when present", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
 
-    const result = await bookAttendee(event, {
+    const result = await bookAttendee(listing, {
       email: "phone@example.com",
       name: "Phone Person",
       phone: "+44 7700 900000",
@@ -67,7 +67,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     }
 
     const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(event.id);
+    const raw = await getAttendeesRaw(listing.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees.length).toBe(1);
     expect(attendees[0]?.phone).toBe("+44 7700 900000");
@@ -75,12 +75,12 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   });
 
   test("handles empty email, phone, address, and special_instructions strings", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
 
-    const result = await bookAttendee(event, {
+    const result = await bookAttendee(listing, {
       address: "",
       email: "",
       name: "NoContact Person",
@@ -98,7 +98,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     }
 
     const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(event.id);
+    const raw = await getAttendeesRaw(listing.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees.length).toBe(1);
     expect(attendees[0]?.email).toBe("");
@@ -108,12 +108,12 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   });
 
   test("encrypts and decrypts non-empty special_instructions", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
 
-    const result = await bookAttendee(event, {
+    const result = await bookAttendee(listing, {
       email: "inst@example.com",
       name: "Instructions Person",
       quantity: 1,
@@ -122,7 +122,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
 
     expect(result.success).toBe(true);
     const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(event.id);
+    const raw = await getAttendeesRaw(listing.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees.length).toBe(1);
     expect(attendees[0]?.special_instructions).toBe(
@@ -131,12 +131,12 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   });
 
   test("encrypts and decrypts non-empty address", async () => {
-    const event = await createTestEvent({
+    const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
 
-    const result = await bookAttendee(event, {
+    const result = await bookAttendee(listing, {
       address: "123 Main St\nSpringfield\nIL 62701",
       email: "addr@example.com",
       name: "Address Person",
@@ -145,35 +145,35 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
 
     expect(result.success).toBe(true);
     const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(event.id);
+    const raw = await getAttendeesRaw(listing.id);
     const attendees = await decryptAttendees(raw, privateKey);
     expect(attendees.length).toBe(1);
     expect(attendees[0]?.address).toBe("123 Main St\nSpringfield\nIL 62701");
   });
 
   test("treats empty checked_in as false for pre-migration attendees", async () => {
-    const event = await createTestEvent({ maxAttendees: 100 });
+    const listing = await createTestListing({ maxAttendees: 100 });
     await createTestAttendee(
-      event.id,
-      event.slug,
+      listing.id,
+      listing.slug,
       "Old User",
       "old@example.com",
     );
 
     // Simulate pre-migration state: set checked_in to empty string directly
     await getDb().execute({
-      args: [event.id],
+      args: [listing.id],
       sql: `UPDATE attendees
             SET checked_in = ''
             WHERE id IN (
               SELECT attendee_id
-              FROM event_attendees
-              WHERE event_id = ?
+              FROM listing_attendees
+              WHERE listing_id = ?
             )`,
     });
 
     const privateKey = await getTestPrivateKey();
-    const rows = await getAttendeesRaw(event.id);
+    const rows = await getAttendeesRaw(listing.id);
     expect((rows[0] as unknown as Record<string, unknown>).checked_in).toBe(0);
 
     const decrypted = await decryptAttendees(rows, privateKey);

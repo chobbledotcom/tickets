@@ -122,7 +122,7 @@ const ERROR_DEFS = {
   NOT_FOUND_ATTENDEE: ["E_NOT_FOUND_ATTENDEE", "Attendee not found"],
 
   // Not found
-  NOT_FOUND_EVENT: ["E_NOT_FOUND_EVENT", "Event not found"],
+  NOT_FOUND_LISTING: ["E_NOT_FOUND_LISTING", "Listing not found"],
   PAYMENT_CHECKOUT: ["E_PAYMENT_CHECKOUT", "Payment checkout failed"],
   PAYMENT_REFUND: ["E_PAYMENT_REFUND", "Payment refund failed"],
   PAYMENT_SESSION: ["E_PAYMENT_SESSION", "Payment session error"],
@@ -194,14 +194,14 @@ export const errorCodeLabel: Record<ErrorCodeType, string> = Object.fromEntries(
  * Redact dynamic segments from paths for privacy-safe logging
  * Replaces:
  * - /ticket/:slug -> /ticket/[redacted]
- * - /admin/events/:id -> /admin/events/[id]
- * - /admin/events/:id/attendees/:aid -> /admin/events/[id]/attendees/[id]
+ * - /admin/listings/:id -> /admin/listings/[id]
+ * - /admin/listings/:id/attendees/:aid -> /admin/listings/[id]/attendees/[id]
  */
 export const redactPath = (path: string): string => {
   // Redact ticket slugs: /ticket/anything -> /ticket/[redacted]
   let redacted = path.replace(/^\/ticket\/[^/]+/, "/ticket/[redacted]");
 
-  // Redact numeric IDs in admin paths: /admin/events/123 -> /admin/events/[id]
+  // Redact numeric IDs in admin paths: /admin/listings/123 -> /admin/listings/[id]
   redacted = redacted.replace(/\/(\d+)(\/|$)/g, "/[id]$2");
 
   // Redact tokens in wallet webservice paths:
@@ -258,8 +258,8 @@ export const logRequest = (entry: RequestLogEntry): void => {
 export type ErrorContext = {
   /** Error code for classification */
   code: ErrorCodeType;
-  /** Optional: event ID (not slug) */
-  eventId?: number;
+  /** Optional: listing ID (not slug) */
+  listingId?: number;
   /** Optional: attendee ID */
   attendeeId?: number;
   /** Optional: additional safe context */
@@ -294,7 +294,7 @@ const persistErrorToActivityLog = async (
   if (errorPersistGuard.active) return;
   errorPersistGuard.active = true;
   try {
-    await logActivity(formatErrorMessage(context), context.eventId ?? null);
+    await logActivity(formatErrorMessage(context), context.listingId ?? null);
   } catch {
     // Swallow DB errors to avoid cascading failures
   } finally {
@@ -309,7 +309,7 @@ const persistErrorToActivityLog = async (
 export const logErrorLocal = (context: ErrorContext): void => {
   const parts = [
     `[Error] ${context.code}`,
-    context.eventId !== undefined ? `event=${context.eventId}` : null,
+    context.listingId !== undefined ? `listing=${context.listingId}` : null,
     context.attendeeId !== undefined ? `attendee=${context.attendeeId}` : null,
     context.detail ? `detail="${context.detail}"` : null,
   ].filter(Boolean);

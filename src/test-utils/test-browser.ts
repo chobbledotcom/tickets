@@ -194,7 +194,12 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
 const findFormByButton = (
   forms: FormInfo[],
   buttonText: string,
-): { action: string; body: string; buttonName?: string; buttonValue?: string } => {
+): {
+  action: string;
+  body: string;
+  buttonName?: string;
+  buttonValue?: string;
+} => {
   const lower = buttonText.toLowerCase();
   for (const f of forms) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
@@ -403,8 +408,14 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const { action, body, hiddenFields, visibleFields, buttonName, buttonValue } = this
-      .findForm(buttonText);
+    const {
+      action,
+      body,
+      hiddenFields,
+      visibleFields,
+      buttonName,
+      buttonValue,
+    } = this.findForm(buttonText);
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();

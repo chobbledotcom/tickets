@@ -27,7 +27,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml(
         "/admin/guide",
         "Getting Started",
-        "Events",
+        "Listings",
         "Payments",
         "Check-in",
       );
@@ -39,8 +39,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Booking Questions",
         "multiple-choice",
         "must select one",
-        "shared across multiple events",
-        "attendee table on event and group pages",
+        "shared across multiple listings",
+        "attendee table on listing and group pages",
       );
     });
 
@@ -145,10 +145,10 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
-    test("contains event image, duplicate, and deactivate info", async () => {
+    test("contains listing image, duplicate, and deactivate info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "image to an event",
+        "image to an listing",
         "Duplicate",
         "Deactivate",
       );
@@ -199,8 +199,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml(
         "/admin/guide",
         "edit an attendee",
-        "Event Registrations",
-        "Add to Event",
+        "Listing Registrations",
+        "Add to Listing",
       );
     });
 
@@ -214,11 +214,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
-    test("contains hidden events info", async () => {
+    test("contains hidden listings info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "hide an event",
-        "Hidden Event",
+        "hide an listing",
+        "Hidden Listing",
         "noindex, nofollow",
       );
     });
@@ -234,7 +234,12 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains admin navigation", async () => {
-      await assertAdminHtml("/admin/guide", "/admin/guide", "Events", "Logout");
+      await assertAdminHtml(
+        "/admin/guide",
+        "/admin/guide",
+        "Listings",
+        "Logout",
+      );
     });
 
     test("shows default email setup instructions when no host email configured", async () => {
@@ -371,7 +376,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Authorization: Bearer YOUR_API_KEY",
         "owners only",
         "shown only once",
-        "/api/admin/events",
+        "/api/admin/listings",
         "/api/admin/groups",
         "/api/admin/holidays",
         "confirm_identifier",

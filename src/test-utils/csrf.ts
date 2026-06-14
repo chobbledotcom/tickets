@@ -114,7 +114,7 @@ export const submitTicketForm = async (
   const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
   const html = await getResponse.text();
   const csrfToken = extractCsrfToken(html) ?? (await signCsrfToken());
-  const normalizedData = normalizeSingleEventFields(data, html);
+  const normalizedData = normalizeSingleListingFields(data, html);
   return handleRequest(mockTicketFormRequest(slug, normalizedData, csrfToken));
 };
 
@@ -137,28 +137,28 @@ export const submitMultiTicketForm = async (
   );
 };
 
-const extractQuantityEventId = (html: string): string | null => {
+const extractQuantityListingId = (html: string): string | null => {
   const match = html.match(/name="quantity_(\d+)"/);
   return match?.[1] ?? null;
 };
 
-const normalizeSingleEventFields = (
+const normalizeSingleListingFields = (
   data: Record<string, string>,
   html: string,
 ): Record<string, string> => {
-  const eventId = extractQuantityEventId(html);
-  if (!eventId) return data;
+  const listingId = extractQuantityListingId(html);
+  if (!listingId) return data;
   const result = { ...data };
-  if (!(`quantity_${eventId}` in result)) {
+  if (!(`quantity_${listingId}` in result)) {
     if ("quantity" in result) {
-      result[`quantity_${eventId}`] = result.quantity;
+      result[`quantity_${listingId}`] = result.quantity;
       delete result.quantity;
     } else {
-      result[`quantity_${eventId}`] = "1";
+      result[`quantity_${listingId}`] = "1";
     }
   }
-  if ("custom_price" in result && !(`custom_price_${eventId}` in result)) {
-    result[`custom_price_${eventId}`] = result.custom_price;
+  if ("custom_price" in result && !(`custom_price_${listingId}` in result)) {
+    result[`custom_price_${listingId}`] = result.custom_price;
     delete result.custom_price;
   }
   return result;

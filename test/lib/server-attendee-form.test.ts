@@ -8,20 +8,20 @@ import {
   getAttendeeAnswersBatch,
   questionsTable,
   saveAttendeeAnswers,
-  setEventQuestions,
+  setListingQuestions,
 } from "#shared/db/questions.ts";
 import {
   adminFormPost,
   awaitTestRequest,
   buildAttendeeEditForm,
   createTestAttendee,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   getAttendeesRaw,
   mockFormRequest,
-  setupEventAndLogin,
+  setupListingAndLogin,
   testCookie,
   testRequiresAuth,
   withMocks,
@@ -32,7 +32,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     testRequiresAuth("/admin/attendees/new");
 
     test("renders the empty create form with one blank line", async () => {
-      await createTestEvent({ maxAttendees: 100, name: "Pick Me" });
+      await createTestListing({ maxAttendees: 100, name: "Pick Me" });
       const response = await awaitTestRequest("/admin/attendees/new", {
         cookie: await testCookie(),
       });
@@ -51,7 +51,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("preserves return_url as a hidden field when provided", async () => {
-      await createTestEvent({ maxAttendees: 100 });
+      await createTestListing({ maxAttendees: 100 });
       const returnUrl = "/admin/calendar";
       const response = await awaitTestRequest(
         `/admin/attendees/new?return_url=${encodeURIComponent(returnUrl)}`,
@@ -78,17 +78,18 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       body: { line_count: "1", name: "X" },
       method: "POST",
       setup: async () => {
-        await createTestEvent({ maxAttendees: 100 });
+        await createTestListing({ maxAttendees: 100 });
       },
     });
 
     test("creates an attendee with one event line", async () => {
-      const { event } = await setupEventAndLogin({
+      const { listing: event } = await setupListingAndLogin({
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await import("#test-utils")
-        .then((m) => m.getTestSession());
+      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
+        m.getTestSession(),
+      );
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -110,18 +111,19 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("creates an attendee with multiple event lines in one submission", async () => {
-      const event1 = await createTestEvent({
+      const event1 = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
         name: "A",
       });
-      const event2 = await createTestEvent({
+      const event2 = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
         name: "B",
       });
-      const { cookie, csrfToken } = await import("#test-utils")
-        .then((m) => m.getTestSession());
+      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
+        m.getTestSession(),
+      );
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -146,9 +148,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("re-renders the form without saving when 'Add Event Line' is clicked", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
-      const { cookie, csrfToken } = await import("#test-utils")
-        .then((m) => m.getTestSession());
+      const event = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
+        m.getTestSession(),
+      );
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -176,9 +182,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("re-renders with one fewer line when 'Remove' is clicked", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
-      const { cookie, csrfToken } = await import("#test-utils")
-        .then((m) => m.getTestSession());
+      const event = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
+        m.getTestSession(),
+      );
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -202,9 +212,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("fails validation when name is blank and re-renders with the rest preserved", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
-      const { cookie, csrfToken } = await import("#test-utils")
-        .then((m) => m.getTestSession());
+      const event = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
+        m.getTestSession(),
+      );
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -228,8 +242,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("re-renders preserving entered data when capacity is exceeded", async () => {
-      const event = await createTestEvent({ maxAttendees: 1 });
-      await createTestAttendee(event.id, event.slug, "First", "first@example.com");
+      const event = await createTestListing({ maxAttendees: 1 });
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "First",
+        "first@example.com",
+      );
       const { response } = await adminFormPost("/admin/attendees/new", {
         email: "second@example.com",
         line_count: "1",
@@ -248,9 +267,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("create rolls back entirely when one of several lines is full", async () => {
-      const open = await createTestEvent({ maxAttendees: 100, name: "Open" });
-      const full = await createTestEvent({ maxAttendees: 1, name: "Full" });
-      await createTestAttendee(full.id, full.slug, "Filler", "filler@example.com");
+      const open = await createTestListing({ maxAttendees: 100, name: "Open" });
+      const full = await createTestListing({ maxAttendees: 1, name: "Full" });
+      await createTestAttendee(
+        full.id,
+        full.slug,
+        "Filler",
+        "filler@example.com",
+      );
       const { response } = await adminFormPost("/admin/attendees/new", {
         line_count: "2",
         line_event_id_0: String(open.id),
@@ -271,8 +295,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
   describe("POST /admin/attendees/:id — line edits via the unified form", () => {
     test("adds a new event line to an existing attendee", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50, name: "E1" });
-      const event2 = await createTestEvent({ maxAttendees: 50, name: "E2" });
+      const event1 = await createTestListing({ maxAttendees: 50, name: "E1" });
+      const event2 = await createTestListing({ maxAttendees: 50, name: "E2" });
       const attendee = await createTestAttendee(
         event1.id,
         event1.slug,
@@ -309,14 +333,17 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("removes an existing event line via the unified form", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50, name: "E1" });
-      const event2 = await createTestEvent({ maxAttendees: 50, name: "E2" });
+      const event1 = await createTestListing({ maxAttendees: 50, name: "E1" });
+      const event2 = await createTestListing({ maxAttendees: 50, name: "E2" });
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        bookings: [{ eventId: event1.id, quantity: 1 }, {
-          eventId: event2.id,
-          quantity: 1,
-        }],
+        bookings: [
+          { listingId: event1.id, quantity: 1 },
+          {
+            listingId: event2.id,
+            quantity: 1,
+          },
+        ],
         email: "",
         name: "Multi",
       });
@@ -324,15 +351,19 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const attendeeId = result.attendees[0]!.id;
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendeeId);
-      const event1Key = existing.find((e) => e.booking.event_id === event1.id)!.key;
+      const event1Key = existing.find(
+        (e) => e.booking.listing_id === event1.id,
+      )!.key;
       // Submit only event1 — event2 should be removed
       const form = await buildAttendeeEditForm(attendeeId, {
-        lines: [{
-          date: "",
-          eventId: event1.id,
-          key: event1Key,
-          quantity: 1,
-        }],
+        lines: [
+          {
+            date: "",
+            eventId: event1.id,
+            key: event1Key,
+            quantity: 1,
+          },
+        ],
         name: "Multi",
       });
       const { response } = await adminFormPost(
@@ -345,7 +376,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("updates quantity on an existing line via the unified form", async () => {
-      const event = await createTestEvent({
+      const event = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Qty",
@@ -359,12 +390,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendee.id);
       const form = await buildAttendeeEditForm(attendee.id, {
-        lines: [{
-          date: "",
-          eventId: event.id,
-          key: existing[0]!.key,
-          quantity: 4,
-        }],
+        lines: [
+          {
+            date: "",
+            eventId: event.id,
+            key: existing[0]!.key,
+            quantity: 4,
+          },
+        ],
         name: "Qty",
       });
       const { response } = await adminFormPost(
@@ -378,7 +411,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
   describe("daily defaults + mixed-timing alert on the edit page", () => {
     test("shows the mixed-timing alert when daily bookings differ in start date", async () => {
-      const daily = await createTestEvent({
+      const daily = await createTestListing({
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -389,7 +422,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           "Sunday",
         ],
         durationDays: 1,
-        eventType: "daily",
+        listingType: "daily",
         maxAttendees: 50,
         name: "Mixed Daily",
       });
@@ -397,8 +430,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Book two distinct dates for the same attendee — both daily, different start dates.
       const result = await createAttendeeAtomic({
         bookings: [
-          { date: "2026-06-15", eventId: daily.id, quantity: 1 },
-          { date: "2026-06-20", eventId: daily.id, quantity: 1 },
+          { date: "2026-06-15", listingId: daily.id, quantity: 1 },
+          { date: "2026-06-20", listingId: daily.id, quantity: 1 },
         ],
         email: "",
         name: "Mixed",
@@ -415,7 +448,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("does not show the mixed-timing alert when daily bookings are uniform", async () => {
-      const daily = await createTestEvent({
+      const daily = await createTestListing({
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -426,13 +459,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           "Sunday",
         ],
         durationDays: 1,
-        eventType: "daily",
+        listingType: "daily",
         maxAttendees: 50,
         name: "Uniform Daily",
       });
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
       const result = await createAttendeeAtomic({
-        bookings: [{ date: "2026-06-15", eventId: daily.id, quantity: 1 }],
+        bookings: [{ date: "2026-06-15", listingId: daily.id, quantity: 1 }],
         email: "",
         name: "Uniform",
       });
@@ -450,12 +483,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
   describe("integration: mixed single-day and multi-day on one attendee", () => {
     test("creates an attendee with both a standard and a daily line", async () => {
-      const standard = await createTestEvent({
+      const standard = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Standard Ev",
       });
-      const daily = await createTestEvent({
+      const daily = await createTestListing({
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -466,13 +499,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           "Sunday",
         ],
         durationDays: 1,
-        eventType: "daily",
+        listingType: "daily",
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Daily Ev",
       });
-      const { cookie, csrfToken } = await import("#test-utils")
-        .then((m) => m.getTestSession());
+      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
+        m.getTestSession(),
+      );
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const { settings } = await import("#shared/db/settings.ts");
@@ -509,12 +543,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("edits an attendee adding a daily line alongside an existing standard one", async () => {
-      const standard = await createTestEvent({
+      const standard = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Std Ev",
       });
-      const daily = await createTestEvent({
+      const daily = await createTestListing({
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -525,7 +559,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           "Sunday",
         ],
         durationDays: 1,
-        eventType: "daily",
+        listingType: "daily",
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Daily Ev",
@@ -578,7 +612,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
   describe("error paths and edge cases", () => {
     test("create re-renders with an error when no event line is filled in", async () => {
-      await createTestEvent({ maxAttendees: 100 });
+      await createTestListing({ maxAttendees: 100 });
       const { response } = await adminFormPost("/admin/attendees/new", {
         line_count: "1",
         line_event_id_0: "0",
@@ -591,14 +625,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("create re-renders with error when atomic create fails with capacity_exceeded", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const event = await createTestListing({ maxAttendees: 100 });
       await withMocks(
         () =>
           stub(attendeesApi, "createAttendeeAtomic", () =>
             Promise.resolve({
               reason: "capacity_exceeded" as const,
               success: false,
-            })
+            }),
           ),
         async () => {
           const { response } = await adminFormPost("/admin/attendees/new", {
@@ -614,7 +648,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("create re-renders with null quantity showing empty value", async () => {
-      const event = await createTestEvent({
+      const event = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 2,
       });
@@ -631,7 +665,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("create re-renders with line-level error only (no attendee error)", async () => {
-      const event = await createTestEvent({
+      const event = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 2,
       });
@@ -648,7 +682,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("create rejects a malformed email and saves nothing", async () => {
-      const event = await createTestEvent({
+      const event = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
       });
@@ -670,7 +704,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("edit remove_line drops the line from the form without deleting until save", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const event = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -694,7 +728,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("create removing the only new blank line re-renders with a blank line", async () => {
-      await createTestEvent({ maxAttendees: 100 });
+      await createTestListing({ maxAttendees: 100 });
       const { response } = await adminFormPost("/admin/attendees/new", {
         action: "remove_line_0",
         line_count: "1",
@@ -707,7 +741,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("edit with only blank lines re-renders with no_lines error", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const event = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -730,7 +764,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("edit re-renders preserving data when capacity is exceeded", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const event = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -743,7 +777,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             Promise.resolve({
               reason: "capacity_exceeded" as const,
               success: false,
-            })
+            }),
           ),
         async () => {
           const form = await buildAttendeeEditForm(attendee.id, {
@@ -764,7 +798,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("GET edit page for attendee with no bookings renders with no questions", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const event = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -773,10 +807,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
       const db = getDbFn();
-      await db.execute(
-        "DELETE FROM event_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      await db.execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
+        attendee.id,
+      ]);
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
@@ -787,7 +820,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("POST edit for attendee with no bookings re-renders with no_lines error", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const event = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -796,10 +829,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
       const db = getDbFn();
-      await db.execute(
-        "DELETE FROM event_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      await db.execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
+        attendee.id,
+      ]);
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
@@ -818,8 +850,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     /** Book an attendee on both events with a custom question on each, plus an
      * answer to each question. Returns the ids needed to drive an edit. */
     const setupMultiEventQuestions = async () => {
-      const eventA = await createTestEvent({ maxAttendees: 10, name: "QA Event" });
-      const eventB = await createTestEvent({ maxAttendees: 10, name: "QB Event" });
+      const eventA = await createTestListing({
+        maxAttendees: 10,
+        name: "QA Event",
+      });
+      const eventB = await createTestListing({
+        maxAttendees: 10,
+        name: "QB Event",
+      });
 
       const qA = await questionsTable.insert({ text: "Shirt size?" });
       const aA = await answersTable.insert({
@@ -827,7 +865,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         sortOrder: 0,
         text: "Medium",
       });
-      await setEventQuestions(eventA.id, [qA.id]);
+      await setListingQuestions(eventA.id, [qA.id]);
 
       const qB = await questionsTable.insert({ text: "Meal choice?" });
       const aB = await answersTable.insert({
@@ -835,12 +873,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         sortOrder: 0,
         text: "Vegan",
       });
-      await setEventQuestions(eventB.id, [qB.id]);
+      await setListingQuestions(eventB.id, [qB.id]);
 
       const created = await createAttendeeAtomic({
         bookings: [
-          { eventId: eventA.id, quantity: 1 },
-          { eventId: eventB.id, quantity: 1 },
+          { listingId: eventA.id, quantity: 1 },
+          { listingId: eventB.id, quantity: 1 },
         ],
         email: "multi@example.com",
         name: "Multi",
@@ -853,9 +891,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("edit page renders questions from every booked event", async () => {
       const { attendeeId } = await setupMultiEventQuestions();
-      const response = await awaitTestRequest(`/admin/attendees/${attendeeId}`, {
-        cookie: await testCookie(),
-      });
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        {
+          cookie: await testCookie(),
+        },
+      );
       const html = await response.text();
       expect(html).toContain("Shirt size?");
       expect(html).toContain("Meal choice?");
@@ -913,7 +954,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("editing one attendee's answers leaves another attendee's untouched", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, name: "Shared" });
+      const event = await createTestListing({
+        maxAttendees: 10,
+        name: "Shared",
+      });
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -925,11 +969,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         sortOrder: 1,
         text: "L",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(event.id, [q.id]);
 
       const makeAttendee = async (name: string, email: string) => {
         const result = await createAttendeeAtomic({
-          bookings: [{ eventId: event.id, quantity: 1 }],
+          bookings: [{ listingId: event.id, quantity: 1 }],
           email,
           name,
         });

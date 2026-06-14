@@ -52,9 +52,9 @@ describeWithEnv(
       expect(html).not.toContain("Renew now");
     });
 
-    test("POST /api/admin/events returns 403 JSON", async () => {
+    test("POST /api/admin/listings returns 403 JSON", async () => {
       const res = await handleRequest(
-        apiRequest("/api/admin/events", "POST", { name: "test" }),
+        apiRequest("/api/admin/listings", "POST", { name: "test" }),
       );
       expect(res.status).toBe(403);
       const body = await res.json();
@@ -62,51 +62,53 @@ describeWithEnv(
       expect(body.message).toBe("This site is in read-only mode");
     });
 
-    test("PUT /api/admin/events/1 returns 403 JSON", async () => {
+    test("PUT /api/admin/listings/1 returns 403 JSON", async () => {
       const res = await handleRequest(
-        apiRequest("/api/admin/events/1", "PUT", { name: "test" }),
+        apiRequest("/api/admin/listings/1", "PUT", { name: "test" }),
       );
       expect(res.status).toBe(403);
       const body = await res.json();
       expect(body.error).toBe(true);
     });
 
-    test("DELETE /api/admin/events/1 returns 403 JSON", async () => {
+    test("DELETE /api/admin/listings/1 returns 403 JSON", async () => {
       const res = await handleRequest(
-        apiRequest("/api/admin/events/1", "DELETE"),
+        apiRequest("/api/admin/listings/1", "DELETE"),
       );
       expect(res.status).toBe(403);
     });
 
-    test("POST /api/events/my-event/book returns 403 JSON", async () => {
+    test("POST /api/listings/my-listing/book returns 403 JSON", async () => {
       const res = await handleRequest(
-        apiRequest("/api/events/my-event/book", "POST", { name: "test" }),
+        apiRequest("/api/listings/my-listing/book", "POST", { name: "test" }),
       );
       expect(res.status).toBe(403);
       const body = await res.json();
       expect(body.error).toBe(true);
     });
 
-    test("GET /api/admin/events is allowed", async () => {
-      const res = await handleRequest(apiRequest("/api/admin/events"));
+    test("GET /api/admin/listings is allowed", async () => {
+      const res = await handleRequest(apiRequest("/api/admin/listings"));
       // Should not be 403 — may be 401 (no auth) but not blocked by read-only
       expect(res.status).not.toBe(403);
     });
 
-    test("GET /admin/event/new redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/event/new"));
+    test("GET /admin/listing/new redirects to /read-only", async () => {
+      const res = await handleRequest(mockRequest("/admin/listing/new"));
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
-    test("GET /admin/event/42/edit redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/event/42/edit"));
+    test("GET /admin/listing/42/edit redirects to /read-only", async () => {
+      const res = await handleRequest(mockRequest("/admin/listing/42/edit"));
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
-    test("GET /admin/event/42/duplicate redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/event/42/duplicate"));
+    test("GET /admin/listing/42/duplicate redirects to /read-only", async () => {
+      const res = await handleRequest(
+        mockRequest("/admin/listing/42/duplicate"),
+      );
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("/read-only");
     });
@@ -123,9 +125,9 @@ describeWithEnv(
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
-    test("POST /ticket/my-event redirects to /read-only", async () => {
+    test("POST /ticket/my-listing redirects to /read-only", async () => {
       const res = await handleRequest(
-        mockRequest("/ticket/my-event", {
+        mockRequest("/ticket/my-listing", {
           body: "name=test",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           method: "POST",
@@ -135,9 +137,9 @@ describeWithEnv(
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
-    test("POST /admin/event redirects to /read-only", async () => {
+    test("POST /admin/listing redirects to /read-only", async () => {
       const res = await handleRequest(
-        mockRequest("/admin/event", {
+        mockRequest("/admin/listing", {
           body: "name=test",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           method: "POST",
@@ -159,9 +161,9 @@ describeWithEnv(
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
-    test("POST /admin/event/42/attendee redirects to /read-only", async () => {
+    test("POST /admin/listing/42/attendee redirects to /read-only", async () => {
       const res = await handleRequest(
-        mockRequest("/admin/event/42/attendee", {
+        mockRequest("/admin/listing/42/attendee", {
           body: "name=test",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           method: "POST",
@@ -195,18 +197,18 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
-    test("GET /events is not blocked by read-only guard", async () => {
-      const res = await handleRequest(mockRequest("/events"));
+    test("GET /listings is not blocked by read-only guard", async () => {
+      const res = await handleRequest(mockRequest("/listings"));
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
-    test("groups on events page show Registration Closed in read-only mode", async () => {
+    test("groups on listings page show Registration Closed in read-only mode", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       const { groupsTable, computeGroupSlugIndex } = await import(
         "#shared/db/groups.ts"
       );
-      const { eventsTable, computeSlugIndex } = await import(
-        "#shared/db/events.ts"
+      const { listingsTable, computeSlugIndex } = await import(
+        "#shared/db/listings.ts"
       );
       await settings.update.showPublicSite(true);
       const slugIndex = await computeGroupSlugIndex("ro-group");
@@ -218,23 +220,23 @@ describeWithEnv(
         slugIndex,
         termsAndConditions: "",
       });
-      await eventsTable.insert({
+      await listingsTable.insert({
         groupId: group.id,
         maxAttendees: 50,
         maxPrice: 0,
-        name: "RO Event",
-        slug: "ro-event",
-        slugIndex: await computeSlugIndex("ro-event"),
+        name: "RO Listing",
+        slug: "ro-listing",
+        slugIndex: await computeSlugIndex("ro-listing"),
       });
-      const res = await handleRequest(mockRequest("/events"));
+      const res = await handleRequest(mockRequest("/listings"));
       const html = await res.text();
       expect(html).toContain("Read Only Group");
       expect(html).toContain("Registration Closed");
     });
 
-    test("GET /ticket/my-event is allowed (view form)", async () => {
-      const res = await handleRequest(mockRequest("/ticket/my-event"));
-      // 404 (no such event) is fine — not blocked by read-only
+    test("GET /ticket/my-listing is allowed (view form)", async () => {
+      const res = await handleRequest(mockRequest("/ticket/my-listing"));
+      // 404 (no such listing) is fine — not blocked by read-only
       expect(res.status).not.toBe(302);
     });
 
@@ -249,10 +251,10 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
-    test("POST /admin/groups/5/add-events redirects to /read-only", async () => {
+    test("POST /admin/groups/5/add-listings redirects to /read-only", async () => {
       const res = await handleRequest(
-        mockRequest("/admin/groups/5/add-events", {
-          body: "event_ids=1",
+        mockRequest("/admin/groups/5/add-listings", {
+          body: "listing_ids=1",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           method: "POST",
         }),

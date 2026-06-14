@@ -53,7 +53,7 @@ export const encryptPiiBlob = (
 export const decryptPiiBlob = async (
   encrypted: string,
   privateKey: CryptoKey,
-  paidEvent: boolean,
+  paidListing: boolean,
 ): Promise<{
   name: string;
   email: string;
@@ -69,7 +69,7 @@ export const decryptPiiBlob = async (
     address: blob.a,
     email: blob.e,
     name: blob.n,
-    payment_id: paidEvent ? blob.pi : "",
+    payment_id: paidListing ? blob.pi : "",
     phone: blob.p,
     special_instructions: blob.s,
     ticket_token: blob.t,
@@ -79,21 +79,21 @@ export const decryptPiiBlob = async (
 /**
  * Decrypt attendee fields from the PII blob.
  * Requires migration to be complete (admin is gated behind migration).
- * When paidEvent is false, payment_id and refunded are skipped.
+ * When paidListing is false, payment_id and refunded are skipped.
  */
 export const decryptAttendeeFields = async (
   row: Attendee,
   privateKey: CryptoKey,
-  paidEvent = true,
+  paidListing = true,
 ): Promise<Attendee> => {
-  const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidEvent);
+  const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidListing);
   return {
     ...row,
     ...pii,
     checked_in: Boolean(row.checked_in),
     // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
     price_paid: String(row.price_paid),
-    refunded: paidEvent ? Boolean(row.refunded) : false,
+    refunded: paidListing ? Boolean(row.refunded) : false,
   };
 };
 
@@ -146,10 +146,10 @@ export const encryptAttendeeFields = async (
 export const decryptAttendees = (
   rows: Attendee[],
   privateKey: CryptoKey,
-  paidEvent = true,
+  paidListing = true,
 ): Promise<Attendee[]> =>
   Promise.all(
-    map((row: Attendee) => decryptAttendeeFields(row, privateKey, paidEvent))(
+    map((row: Attendee) => decryptAttendeeFields(row, privateKey, paidListing))(
       rows,
     ),
   );

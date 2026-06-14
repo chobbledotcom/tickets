@@ -6,7 +6,7 @@
  * 2. Apply: the admin submits explicit decisions for each conflict.
  */
 
-import type { EventAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import type { ContactInfo } from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -53,12 +53,12 @@ export type BookingConflictClass =
   | "duplicate"
   | "conflicting_metadata";
 
-/** A single event booking comparison */
+/** A single listing booking comparison */
 export type AttendeeMergeDiffBookingItem = {
-  eventId: number;
+  listingId: number;
   startAt: string | null;
-  sourceBooking: EventAttendeeRow;
-  targetBooking: EventAttendeeRow | null;
+  sourceBooking: ListingAttendeeRow;
+  targetBooking: ListingAttendeeRow | null;
   conflictClass: BookingConflictClass;
 };
 
@@ -83,7 +83,7 @@ export type AttendeeMergeDecisionPii = Record<string, MergeValueChoice>;
 /** Per-question decision */
 export type AttendeeMergeDecisionAnswers = Record<string, MergeAnswerChoice>;
 
-/** Per-booking decision (keyed by "eventId:startAt") */
+/** Per-booking decision (keyed by "listingId:startAt") */
 export type AttendeeMergeDecisionBookings = Record<string, MergeBookingChoice>;
 
 /** Full decision payload from the form */
@@ -132,8 +132,8 @@ export type BuildAttendeeMergeDiffInput = {
   sourceId: number;
   targetPii: ContactInfo;
   sourcePii: ContactInfo;
-  targetBookings: EventAttendeeRow[];
-  sourceBookings: EventAttendeeRow[];
+  targetBookings: ListingAttendeeRow[];
+  sourceBookings: ListingAttendeeRow[];
 };
 
 export type ApplyAttendeeMergeInput = {

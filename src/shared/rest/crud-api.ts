@@ -110,7 +110,7 @@ export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
   getAll: () => Promise<FullRow[]>;
-  /** When true, activity log entries for create/update are linked to the row's id as event_id */
+  /** When true, activity log entries for create/update are linked to the row's id as listing_id */
   linkActivityToRow?: boolean;
   /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
   listExtras?: (session: AdminSession) => Record<string, unknown>;
@@ -201,7 +201,7 @@ export const defineCrudApi = <
   /** Clean a row for JSON response */
   const toResponse = (row: FullRow) => stripRow(row, stripKeys);
 
-  /** Log create/update, optionally linking to the row's id as event_id */
+  /** Log create/update, optionally linking to the row's id as listing_id */
   const logAction = (action: string, row: Row): Promise<unknown> =>
     logActivity(
       `${singular} '${row.name}' ${action}`,

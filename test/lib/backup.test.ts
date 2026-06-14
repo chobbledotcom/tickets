@@ -22,7 +22,7 @@ import {
   splitStatements,
 } from "#shared/db/backup.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import {
   initDb,
   SCHEMA_HASH,
@@ -30,7 +30,7 @@ import {
 } from "#shared/db/migrations.ts";
 import { listFiles, uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
-import { createTestEvent, describeWithEnv, setTestEnv } from "#test-utils";
+import { createTestListing, describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
   describe("splitStatements", () => {
@@ -56,26 +56,26 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("exportTable", () => {
     test("returns empty sql and zero rowCount for empty table", async () => {
-      expect(await exportTable("events")).toEqual({ rowCount: 0, sql: "" });
+      expect(await exportTable("listings")).toEqual({ rowCount: 0, sql: "" });
     });
 
     test("exports INSERT statements for table with data", async () => {
-      await createTestEvent({ name: "Test Event" });
-      const { sql, rowCount } = await exportTable("events");
-      expect(sql).toContain('INSERT INTO "events"');
+      await createTestListing({ name: "Test Listing" });
+      const { sql, rowCount } = await exportTable("listings");
+      expect(sql).toContain('INSERT INTO "listings"');
       expect(rowCount).toBe(1);
     });
 
     test("quotes column names in INSERT statements", async () => {
-      await createTestEvent({ name: "Quote Test" });
-      const { sql } = await exportTable("events");
-      expect(sql).toMatch(/INSERT INTO "events" \("id", "created"/);
+      await createTestListing({ name: "Quote Test" });
+      const { sql } = await exportTable("listings");
+      expect(sql).toMatch(/INSERT INTO "listings" \("id", "created"/);
     });
 
     test("batches multiple rows into a single multi-row INSERT", async () => {
-      await createTestEvent({ name: "Row One" });
-      await createTestEvent({ name: "Row Two" });
-      const { sql, rowCount } = await exportTable("events");
+      await createTestListing({ name: "Row One" });
+      await createTestListing({ name: "Row Two" });
+      const { sql, rowCount } = await exportTable("listings");
       expect(rowCount).toBe(2);
       // One statement (one trailing semicolon), two value tuples.
       expect(sql.match(/;/g)).toHaveLength(1);
@@ -83,8 +83,8 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("handles NULL values", async () => {
-      await createTestEvent({ name: "Null Test" });
-      const { sql } = await exportTable("events");
+      await createTestListing({ name: "Null Test" });
+      const { sql } = await exportTable("listings");
       expect(sql).toContain("NULL");
     });
   });
@@ -110,7 +110,7 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("createBackupZip", () => {
     test("creates zip with .sql files and manifest", async () => {
-      await createTestEvent({ name: "Zip Test" });
+      await createTestListing({ name: "Zip Test" });
       const zipData = await createBackupZip();
       const files = unzipSync(zipData);
 
@@ -126,7 +126,7 @@ describeWithEnv("backup", { db: true }, () => {
       expect(manifest.schemaHash).toBe(SCHEMA_HASH);
       expect(manifest.latestUpdate).toBeTruthy();
       expect(manifest.timestamp).toBeTruthy();
-      expect(manifest.tables.events).toBe(1);
+      expect(manifest.tables.listings).toBe(1);
     });
   });
 
@@ -366,7 +366,7 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("countZipStatements", () => {
     test("counts SQL statements across files in zip", async () => {
-      await createTestEvent({ name: "Count Test" });
+      await createTestListing({ name: "Count Test" });
       const count = countZipStatements(await createBackupZip());
       expect(count).toBeGreaterThanOrEqual(2);
     });
@@ -374,22 +374,22 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("restoreFromSql", () => {
     test("restores data from SQL statements", async () => {
-      await createTestEvent({ name: "Before Restore" });
-      const { sql } = await exportTable("events");
+      await createTestListing({ name: "Before Restore" });
+      const { sql } = await exportTable("listings");
       await restoreFromSql(sql);
-      const events = await queryAll<Record<string, unknown>>(
-        "SELECT * FROM events",
+      const listings = await queryAll<Record<string, unknown>>(
+        "SELECT * FROM listings",
       );
-      expect(events.length).toBe(1);
+      expect(listings.length).toBe(1);
     });
 
     test("clears existing data before restoring", async () => {
-      await createTestEvent({ name: "Gone" });
+      await createTestListing({ name: "Gone" });
       await restoreFromSql("");
-      const events = await queryAll<Record<string, unknown>>(
-        "SELECT * FROM events",
+      const listings = await queryAll<Record<string, unknown>>(
+        "SELECT * FROM listings",
       );
-      expect(events.length).toBe(0);
+      expect(listings.length).toBe(0);
     });
 
     test("initDb re-checks markers after a restore instead of trusting the ready cache", async () => {
@@ -412,21 +412,21 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("restoreFromZip", () => {
     test("round-trips backup and restore", async () => {
-      await createTestEvent({ name: "Zip Restore Test" });
+      await createTestListing({ name: "Zip Restore Test" });
       await restoreFromZip(await createBackupZip());
-      const events = await eventsTable.findAll();
-      expect(events.length).toBe(1);
-      expect(events[0]!.name).toBe("Zip Restore Test");
+      const listings = await listingsTable.findAll();
+      expect(listings.length).toBe(1);
+      expect(listings[0]!.name).toBe("Zip Restore Test");
     });
 
     test("preserves newlines in values through roundtrip", async () => {
-      await createTestEvent({
+      await createTestListing({
         description: "first\nsecond\nthird",
         name: "Newline Zip",
       });
       await restoreFromZip(await createBackupZip());
-      const events = await eventsTable.findAll();
-      expect(events[0]!.description.replace(/\r\n/g, "\n")).toBe(
+      const listings = await listingsTable.findAll();
+      expect(listings[0]!.description.replace(/\r\n/g, "\n")).toBe(
         "first\nsecond\nthird",
       );
     });

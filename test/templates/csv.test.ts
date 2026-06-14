@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { type CsvEventInfo, generateAttendeesCsv } from "#templates/csv.ts";
+import { type CsvListingInfo, generateAttendeesCsv } from "#templates/csv.ts";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
 beforeAll(async () => {
@@ -114,8 +114,8 @@ describe("generateAttendeesCsv", () => {
         price_paid: "1000",
       }),
       testAttendee({
-        event_id: 2,
         id: 2,
+        listing_id: 2,
         payment_id: "pi_shared_123",
         price_paid: "3000",
         quantity: 2,
@@ -181,59 +181,62 @@ describe("generateAttendeesCsv", () => {
   });
 });
 
-describe("generateAttendeesCsv with eventInfo", () => {
-  test("includes Event Date column when eventInfo has non-empty eventDate", () => {
-    const eventInfo: CsvEventInfo = {
-      eventDate: "2026-06-15T14:00:00.000Z",
-      eventLocation: "",
+describe("generateAttendeesCsv with listingInfo", () => {
+  test("includes Listing Date column when listingInfo has non-empty listingDate", () => {
+    const listingInfo: CsvListingInfo = {
+      listingDate: "2026-06-15T14:00:00.000Z",
+      listingLocation: "",
     };
-    const csv = generateAttendeesCsv([], false, eventInfo);
-    expect(csv).toContain("Event Date,Name");
-    expect(csv).not.toContain("Event Location");
+    const csv = generateAttendeesCsv([], false, listingInfo);
+    expect(csv).toContain("Listing Date,Name");
+    expect(csv).not.toContain("Listing Location");
   });
 
-  test("includes Event Location column when eventInfo has non-empty eventLocation", () => {
-    const eventInfo: CsvEventInfo = {
-      eventDate: "",
-      eventLocation: "Village Hall",
+  test("includes Listing Location column when listingInfo has non-empty listingLocation", () => {
+    const listingInfo: CsvListingInfo = {
+      listingDate: "",
+      listingLocation: "Village Hall",
     };
-    const csv = generateAttendeesCsv([], false, eventInfo);
-    expect(csv).toContain("Event Location,Name");
-    expect(csv).not.toContain("Event Date");
+    const csv = generateAttendeesCsv([], false, listingInfo);
+    expect(csv).toContain("Listing Location,Name");
+    expect(csv).not.toContain("Listing Date");
   });
 
-  test("includes both Event Date and Event Location columns", () => {
-    const eventInfo: CsvEventInfo = {
-      eventDate: "2026-06-15T14:00:00.000Z",
-      eventLocation: "Village Hall",
+  test("includes both Listing Date and Listing Location columns", () => {
+    const listingInfo: CsvListingInfo = {
+      listingDate: "2026-06-15T14:00:00.000Z",
+      listingLocation: "Village Hall",
     };
-    const csv = generateAttendeesCsv([], false, eventInfo);
-    expect(csv).toContain("Event Date,Event Location,Name");
+    const csv = generateAttendeesCsv([], false, listingInfo);
+    expect(csv).toContain("Listing Date,Listing Location,Name");
   });
 
-  test("includes event date and location values in rows", () => {
-    const eventInfo: CsvEventInfo = {
-      eventDate: "2026-06-15T14:00:00.000Z",
-      eventLocation: "Village Hall",
+  test("includes listing date and location values in rows", () => {
+    const listingInfo: CsvListingInfo = {
+      listingDate: "2026-06-15T14:00:00.000Z",
+      listingLocation: "Village Hall",
     };
     const attendees = [testAttendee()];
-    const csv = generateAttendeesCsv(attendees, false, eventInfo);
+    const csv = generateAttendeesCsv(attendees, false, listingInfo);
     const lines = csv.split("\n");
     expect(lines[1]).toContain(
       "2026-06-15T14:00:00.000Z,Village Hall,John Doe",
     );
   });
 
-  test("omits Event Date and Event Location when eventInfo is undefined", () => {
+  test("omits Listing Date and Listing Location when listingInfo is undefined", () => {
     const csv = generateAttendeesCsv([], false);
-    expect(csv).not.toContain("Event Date");
-    expect(csv).not.toContain("Event Location");
+    expect(csv).not.toContain("Listing Date");
+    expect(csv).not.toContain("Listing Location");
   });
 
-  test("omits Event Date and Event Location when both are empty", () => {
-    const eventInfo: CsvEventInfo = { eventDate: "", eventLocation: "" };
-    const csv = generateAttendeesCsv([], false, eventInfo);
-    expect(csv).not.toContain("Event Date");
-    expect(csv).not.toContain("Event Location");
+  test("omits Listing Date and Listing Location when both are empty", () => {
+    const listingInfo: CsvListingInfo = {
+      listingDate: "",
+      listingLocation: "",
+    };
+    const csv = generateAttendeesCsv([], false, listingInfo);
+    expect(csv).not.toContain("Listing Date");
+    expect(csv).not.toContain("Listing Location");
   });
 });

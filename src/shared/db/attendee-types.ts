@@ -4,8 +4,8 @@
 
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
 
-/** Aggregated statistics for active events */
-export type ActiveEventStats = {
+/** Aggregated statistics for active listings */
+export type ActiveListingStats = {
   income: number;
   tickets: number;
   attendees: number;
@@ -28,7 +28,7 @@ export type EncryptInput = ContactInfo & {
 /** Input for building an Attendee result from an insert */
 export type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
-  eventId: number;
+  listingId: number;
   created: string;
   paymentId: string;
   quantity: number;
@@ -43,9 +43,9 @@ export type CreateAttendeeResult =
   | { success: true; attendees: Attendee[] }
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
-/** A single event booking within a multi-event attendee creation */
-export type EventBooking = {
-  eventId: number;
+/** A single listing booking within a multi-listing attendee creation */
+export type ListingBooking = {
+  listingId: number;
   quantity?: number;
   pricePaid?: number;
   date?: string | null;
@@ -53,15 +53,15 @@ export type EventBooking = {
   durationDays?: number;
 };
 
-/** Input for creating an attendee atomically (one or more events) */
+/** Input for creating an attendee atomically (one or more listings) */
 export type AttendeeInput = ContactFields & {
   paymentId?: string;
-  bookings: EventBooking[];
+  bookings: ListingBooking[];
 };
 
-/** Row from event_attendees — per-event booking data */
-export type EventAttendeeRow = {
-  event_id: number;
+/** Row from listing_attendees — per-listing booking data */
+export type ListingAttendeeRow = {
+  listing_id: number;
   start_at: string | null;
   end_at: string | null;
   quantity: number;
@@ -71,27 +71,27 @@ export type EventAttendeeRow = {
   attachment_downloads: number;
 };
 
-/** An attendee with all their event bookings (for token resolution) */
+/** An attendee with all their listing bookings (for token resolution) */
 export type AttendeeWithBookings = {
-  /** Base attendee fields (PII, token, created — shared across events) */
+  /** Base attendee fields (PII, token, created — shared across listings) */
   id: number;
   created: string;
   ticket_token: string;
   ticket_token_index: string;
   pii_blob: string;
-  /** Per-event bookings, sorted by start_at then event_id */
-  bookings: EventAttendeeRow[];
+  /** Per-listing bookings, sorted by start_at then listing_id */
+  bookings: ListingAttendeeRow[];
 };
 
 /** Item for batch availability check */
 export type BatchAvailabilityItem = {
-  eventId: number;
+  listingId: number;
   quantity: number;
   /** Duration in days for multi-day bookings (defaults to 1 when absent). */
   durationDays?: number;
 };
 
-/** Input for updating attendee PII (shared across events) */
+/** Input for updating attendee PII (shared across listings) */
 export type UpdateAttendeePIIInput = {
   name: string;
   email: string;
@@ -105,34 +105,34 @@ export type UpdateAttendeePIIInput = {
 };
 
 /**
- * A desired final-state event line for the atomic attendee edit path.
- * One per event registration the operator wants the attendee to end up with.
+ * A desired final-state listing line for the atomic attendee edit path.
+ * One per listing registration the operator wants the attendee to end up with.
  * Shared by the admin form model (which builds it) and the DB edit helper
  * (which applies it) so the shape is defined once.
  */
-export type DesiredEventLine = {
-  /** Stable identity of the existing row (`${eventId}|${startAt}`). Empty
+export type DesiredListingLine = {
+  /** Stable identity of the existing row (`${listingId}|${startAt}`). Empty
    * string for newly-added lines. */
   key: string;
-  eventId: number;
+  listingId: number;
   quantity: number;
-  /** YYYY-MM-DD for daily events, null otherwise. */
+  /** YYYY-MM-DD for daily listings, null otherwise. */
   date: string | null;
-  /** Duration (days) — only meaningful for daily events. Defaults to 1. */
+  /** Duration (days) — only meaningful for daily listings. Defaults to 1. */
   durationDays: number;
-  /** True when the line carries an existing event_attendees identity. */
+  /** True when the line carries an existing listing_attendees identity. */
   exists: boolean;
 };
 
-/** Input for updating a single event link */
-export type UpdateEventLinkInput = {
+/** Input for updating a single listing link */
+export type UpdateListingLinkInput = {
   quantity: number;
   date: string | null;
   /** Duration in days (defaults to 1). Only meaningful when date is set. */
   durationDays?: number;
 };
 
-/** Result of updating an event link */
-export type UpdateEventLinkResult =
+/** Result of updating an listing link */
+export type UpdateListingLinkResult =
   | { success: true }
   | { success: false; reason: "capacity_exceeded" };

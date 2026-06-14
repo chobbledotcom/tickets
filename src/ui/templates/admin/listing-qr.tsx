@@ -1,7 +1,7 @@
 /**
  * Admin page for generating pre-filled booking QR codes.
  *
- * Admin enters (optional) customer name, price, quantity, and for daily events
+ * Admin enters (optional) customer name, price, quantity, and for daily listings
  * a date. The server signs a URL and renders the resulting QR inline so the
  * admin can photograph, print, or share it. Links expire 5 minutes after
  * generation.
@@ -12,14 +12,14 @@ import { formatDateLabel } from "#shared/dates.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
-import type { AdminSession, EventWithCount } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
 
 /** Values the admin previously submitted, re-rendered on error/success */
-export type AdminEventQrValues = {
+export type AdminListingQrValues = {
   customer_name: string;
   value: string;
   quantity: string;
@@ -27,40 +27,42 @@ export type AdminEventQrValues = {
 };
 
 /** Result of generating a QR (shown alongside the form on success) */
-export type AdminEventQrResult = {
+export type AdminListingQrResult = {
   url: string;
   svg: string;
 };
 
-/** Options for the admin event-QR page */
-export type AdminEventQrPageOptions = {
-  event: EventWithCount;
+/** Options for the admin listing-QR page */
+export type AdminListingQrPageOptions = {
+  listing: ListingWithCount;
   session: AdminSession;
   bookableDates: string[];
-  values: AdminEventQrValues;
+  values: AdminListingQrValues;
   canDirectCheckout: boolean;
   error?: string;
-  result?: AdminEventQrResult;
+  result?: AdminListingQrResult;
 };
 
-/** Render the price input. Can_pay_more events use the configured min/max;
- *  fixed-price events have no upper bound so the admin can set any override. */
+/** Render the price input. Can_pay_more listings use the configured min/max;
+ *  fixed-price listings have no upper bound so the admin can set any override. */
 const PriceInput = ({
-  event,
+  listing,
   value,
 }: {
-  event: EventWithCount;
+  listing: ListingWithCount;
   value: string;
 }): JSX.Element => {
-  const hint = event.can_pay_more
-    ? `Minimum ${formatCurrency(event.unit_price)}, maximum ${formatCurrency(
-        event.max_price,
+  const hint = listing.can_pay_more
+    ? `Minimum ${formatCurrency(listing.unit_price)}, maximum ${formatCurrency(
+        listing.max_price,
       )}`
     : `Overrides the ticket price of ${formatCurrency(
-        event.unit_price,
+        listing.unit_price,
       )} for this booking`;
-  const min = event.can_pay_more ? toMajorUnits(event.unit_price) : "0";
-  const max = event.can_pay_more ? toMajorUnits(event.max_price) : undefined;
+  const min = listing.can_pay_more ? toMajorUnits(listing.unit_price) : "0";
+  const max = listing.can_pay_more
+    ? toMajorUnits(listing.max_price)
+    : undefined;
   return (
     <label>
       Price
@@ -79,7 +81,7 @@ const PriceInput = ({
   );
 };
 
-/** Date dropdown for daily events (required) */
+/** Date dropdown for daily listings (required) */
 const DateSelect = ({
   dates,
   value,
@@ -110,7 +112,7 @@ const QrResultPanel = ({
   refreshUrl,
   formAction,
 }: {
-  result: AdminEventQrResult;
+  result: AdminListingQrResult;
   refreshUrl: string;
   formAction: string;
 }): JSX.Element => (
@@ -143,29 +145,29 @@ const QrResultPanel = ({
 );
 
 /** Admin "generate booking QR code" page */
-export const adminEventQrPage = ({
-  event,
+export const adminListingQrPage = ({
+  listing,
   session,
   bookableDates,
   values,
   canDirectCheckout,
   error,
   result,
-}: AdminEventQrPageOptions): string => {
-  const isDaily = event.event_type === "daily";
-  const formAction = `/admin/event/${event.id}/qr`;
-  const refreshUrl = `/admin/event/${event.id}/qr.json`;
+}: AdminListingQrPageOptions): string => {
+  const isDaily = listing.listing_type === "daily";
+  const formAction = `/admin/listing/${listing.id}/qr`;
+  const refreshUrl = `/admin/listing/${listing.id}/qr.json`;
   return String(
-    <Layout title={`QR Code: ${event.name}`}>
+    <Layout title={`QR Code: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <article>
         <h1>
           Booking QR code &mdash;{" "}
-          <a href={`/admin/event/${event.id}`}>{event.name}</a>
+          <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
         </h1>
         <p>
           Generate a signed link that pre-fills the booking form. If name and
-          price are both set and the event has no extra required fields{" "}
+          price are both set and the listing has no extra required fields{" "}
           <span class={canDirectCheckout ? "success-text" : "danger-text"}>
             (this <strong>{canDirectCheckout ? "is" : "is not"}</strong> the
             case)
@@ -183,11 +185,11 @@ export const adminEventQrPage = ({
             />
             <small>Optional &mdash; pre-fills the name field.</small>
           </label>
-          <PriceInput event={event} value={values.value} />
+          <PriceInput listing={listing} value={values.value} />
           <label>
             Quantity
             <input
-              max={event.max_quantity}
+              max={listing.max_quantity}
               min="1"
               name="quantity"
               required

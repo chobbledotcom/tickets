@@ -3,14 +3,14 @@
  */
 
 import { getIframeMode } from "#shared/iframe.ts";
-import type { Attendee, Event } from "#shared/types.ts";
+import type { Attendee, Listing } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
  * Payment page - redirects to Stripe Checkout
  */
 export const paymentPage = (
-  _event: Event,
+  _listing: Listing,
   attendee: Attendee,
   checkoutUrl: string,
   formattedPrice: string,
@@ -105,7 +105,10 @@ export const successPage = ({
 /**
  * Payment cancelled page
  */
-export const paymentCancelPage = (_event: Event, ticketUrl: string): string =>
+export const paymentCancelPage = (
+  _listing: Listing,
+  ticketUrl: string,
+): string =>
   String(
     <Layout title="Payment Cancelled">
       <div data-payment-result="cancel">

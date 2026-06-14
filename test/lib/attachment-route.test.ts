@@ -5,7 +5,7 @@ import { getMimeType } from "#routes/attachments.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { getAttendeeRaw } from "#shared/db/attendees.ts";
-import { eventsTable } from "#shared/db/events.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   createTestAttendeeWithToken,
@@ -58,38 +58,38 @@ describeWithEnv(
     },
   },
   () => {
-    /** Create an event+attendee with an attachment configured */
+    /** Create an listing+attendee with an attachment configured */
     const setupAttachment = async () => {
-      const { event, attendee } = await createTestAttendeeWithToken(
+      const { listing, attendee } = await createTestAttendeeWithToken(
         "Test User",
         "test@example.com",
       );
-      await eventsTable.update(event.id, {
+      await listingsTable.update(listing.id, {
         attachmentName: "guide.pdf",
         attachmentUrl: "file.pdf",
       });
-      return { attendeeId: attendee.id, eventId: event.id };
+      return { attendeeId: attendee.id, listingId: listing.id };
     };
 
-    /** Create an event+attendee with a custom attachment name */
+    /** Create an listing+attendee with a custom attachment name */
     const setupAttachmentWithName = async (attachmentName: string) => {
-      const { event, attendee } = await createTestAttendeeWithToken(
+      const { listing, attendee } = await createTestAttendeeWithToken(
         "Test User",
         "test@example.com",
       );
-      await eventsTable.update(event.id, {
+      await listingsTable.update(listing.id, {
         attachmentName,
         attachmentUrl: "file.pdf",
       });
-      return { attendeeId: attendee.id, eventId: event.id };
+      return { attendeeId: attendee.id, listingId: listing.id };
     };
 
     /** Sign a URL and return the full path with query params */
     const signUrl = async (
-      eventId: number,
+      listingId: number,
       attendeeId: number,
     ): Promise<string> => {
-      return await signAttachmentUrl(eventId, attendeeId);
+      return await signAttachmentUrl(listingId, attendeeId);
     };
 
     /** Mock CDN fetch to return encrypted data with isolated storage config */
@@ -113,8 +113,8 @@ describeWithEnv(
 
     test("returns 404 when storage is not enabled", async () => {
       await withStorageDisabled(async () => {
-        const { eventId, attendeeId } = await setupAttachment();
-        const path = await signUrl(eventId, attendeeId);
+        const { listingId, attendeeId } = await setupAttachment();
+        const path = await signUrl(listingId, attendeeId);
         const response = await handleRequest(mockRequest(path));
         expect(response.status).toBe(404);
       });
@@ -142,46 +142,46 @@ describeWithEnv(
 
     test("returns 403 when signature is invalid", async () => {
       await withStorage(async () => {
-        const { eventId, attendeeId } = await setupAttachment();
+        const { listingId, attendeeId } = await setupAttachment();
         const response = await handleRequest(
           mockRequest(
-            `/attachment/${eventId}?a=${attendeeId}&exp=9999999999&sig=invalidsig`,
+            `/attachment/${listingId}?a=${attendeeId}&exp=9999999999&sig=invalidsig`,
           ),
         );
         expect(response.status).toBe(403);
       });
     });
 
-    test("returns 404 when event has no attachment", async () => {
+    test("returns 404 when listing has no attachment", async () => {
       await withStorage(async () => {
-        const { event, attendee } = await createTestAttendeeWithToken(
+        const { listing, attendee } = await createTestAttendeeWithToken(
           "No Attach",
           "noattach@example.com",
         );
-        const path = await signUrl(event.id, attendee.id);
+        const path = await signUrl(listing.id, attendee.id);
         const response = await handleRequest(mockRequest(path));
         expect(response.status).toBe(404);
       });
     });
 
-    test("returns 403 when attendee does not belong to event", async () => {
+    test("returns 403 when attendee does not belong to listing", async () => {
       await withStorage(async () => {
-        const { eventId } = await setupAttachment();
-        // Create a second attendee on a different event
+        const { listingId } = await setupAttachment();
+        // Create a second attendee on a different listing
         const { attendee: otherAttendee } = await createTestAttendeeWithToken(
           "Other User",
           "other@example.com",
         );
-        // Sign with the first event but the other attendee
-        const path = await signUrl(eventId, otherAttendee.id);
+        // Sign with the first listing but the other attendee
+        const path = await signUrl(listingId, otherAttendee.id);
         const response = await handleRequest(mockRequest(path));
         expect(response.status).toBe(403);
       });
     });
 
     test("serves decrypted file with correct Content-Type and Content-Disposition", async () => {
-      const { eventId, attendeeId } = await setupAttachment();
-      const path = await signUrl(eventId, attendeeId);
+      const { listingId, attendeeId } = await setupAttachment();
+      const path = await signUrl(listingId, attendeeId);
       const fileContent = new TextEncoder().encode("hello pdf content");
 
       await withCdnMock(fileContent, async () => {
@@ -261,8 +261,8 @@ describeWithEnv(
       equals,
     } of sanitizationCases) {
       test(`sanitizes attachment filename: ${label}`, async () => {
-        const { eventId, attendeeId } = await setupAttachmentWithName(name);
-        const path = await signUrl(eventId, attendeeId);
+        const { listingId, attendeeId } = await setupAttachmentWithName(name);
+        const path = await signUrl(listingId, attendeeId);
         const fileContent = new TextEncoder().encode("data");
 
         await withCdnMock(fileContent, async () => {
@@ -283,8 +283,8 @@ describeWithEnv(
     }
 
     test("increments attachment_downloads counter", async () => {
-      const { eventId, attendeeId } = await setupAttachment();
-      const path = await signUrl(eventId, attendeeId);
+      const { listingId, attendeeId } = await setupAttachment();
+      const path = await signUrl(listingId, attendeeId);
       const fileContent = new TextEncoder().encode("data");
 
       const before = await getAttendeeRaw(attendeeId);
@@ -299,8 +299,8 @@ describeWithEnv(
     });
 
     test("returns 404 when CDN download fails", async () => {
-      const { eventId, attendeeId } = await setupAttachment();
-      const path = await signUrl(eventId, attendeeId);
+      const { listingId, attendeeId } = await setupAttachment();
+      const path = await signUrl(listingId, attendeeId);
 
       await withStorage(() =>
         withFetchMock(async (originalFetch) => {
@@ -319,8 +319,8 @@ describeWithEnv(
     });
 
     test("returns public cache control for CDN caching", async () => {
-      const { eventId, attendeeId } = await setupAttachment();
-      const path = await signUrl(eventId, attendeeId);
+      const { listingId, attendeeId } = await setupAttachment();
+      const path = await signUrl(listingId, attendeeId);
       const fileContent = new TextEncoder().encode("data");
 
       await withCdnMock(fileContent, async () => {

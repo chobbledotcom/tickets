@@ -1,5 +1,5 @@
 /**
- * Admin seed data routes - populate database with sample events and attendees
+ * Admin seed data routes - populate database with sample listings and attendees
  */
 
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
@@ -11,28 +11,28 @@ import { defineForm } from "#shared/forms.tsx";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 
-/** Max events that can be created in a single seed operation */
-export const MAX_SEED_EVENTS = 30;
+/** Max listings that can be created in a single seed operation */
+export const MAX_SEED_LISTINGS = 30;
 
 export const seedsForm = defineForm({
   fields: [
     {
       defaultValue: "5",
-      id: "event_count",
-      label: "Number of events",
-      max: MAX_SEED_EVENTS,
+      id: "listing_count",
+      label: "Number of listings",
+      max: MAX_SEED_LISTINGS,
       min: 1,
-      name: "event_count",
+      name: "listing_count",
       required: true,
       type: "number",
     },
     {
       defaultValue: "10",
-      id: "attendees_per_event",
-      label: "Attendees per event",
+      id: "attendees_per_listing",
+      label: "Attendees per listing",
       max: SEED_MAX_ATTENDEES,
       min: 0,
-      name: "attendees_per_event",
+      name: "attendees_per_listing",
       required: true,
       type: "number",
     },
@@ -54,17 +54,21 @@ const clamp = (value: number | null, lo: number, hi: number): number =>
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
-    const { event_count, attendees_per_event } = (
+    const { listing_count, attendees_per_listing } = (
       seedsForm.validate(form) as {
         valid: true;
-        values: { attendees_per_event: number; event_count: number };
+        values: { attendees_per_listing: number; listing_count: number };
       }
     ).values;
-    const eventCount = clamp(event_count, 1, MAX_SEED_EVENTS);
-    const attendeesPerEvent = clamp(attendees_per_event, 0, SEED_MAX_ATTENDEES);
+    const listingCount = clamp(listing_count, 1, MAX_SEED_LISTINGS);
+    const attendeesPerListing = clamp(
+      attendees_per_listing,
+      0,
+      SEED_MAX_ATTENDEES,
+    );
     try {
-      const result = await createSeeds(eventCount, attendeesPerEvent);
-      const message = `Created ${result.eventsCreated} event(s) with ${result.attendeesCreated} attendee(s) total.`;
+      const result = await createSeeds(listingCount, attendeesPerListing);
+      const message = `Created ${result.listingsCreated} listing(s) with ${result.attendeesCreated} attendee(s) total.`;
       return redirect("/admin/seeds", message, true);
     } catch {
       return redirect(

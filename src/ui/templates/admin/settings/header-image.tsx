@@ -14,7 +14,7 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
         <div>
           <img
             alt="Header preview"
-            class="event-image-preview"
+            class="listing-image-preview"
             src={getImageProxyUrl(s.headerImageUrl)}
           />
           <CsrfForm

@@ -4,7 +4,6 @@
 
 import { map } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
-import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
@@ -13,28 +12,29 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees.ts";
-import { getAttendeesByEventIds, getEvent } from "#shared/db/events.ts";
 import {
-  assignEventsToGroup,
+  assignListingsToGroup,
   computeGroupSlugIndex,
   type GroupInput,
   getAllGroups,
-  getEventsByGroupId,
-  getUngroupedEvents,
+  getListingsByGroupId,
+  getUngroupedListings,
   groupsTable,
   isGroupSlugTaken,
-  resetGroupEvents,
-  validateGroupEventType,
+  resetGroupListings,
+  validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getAttendeesByListingIds, getListing } from "#shared/db/listings.ts";
+import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
-import { sortEvents } from "#shared/sort-events.ts";
-import { type Attendee, type Group, isPaidEvent } from "#shared/types.ts";
+import { sortListings } from "#shared/sort-listings.ts";
+import { type Attendee, type Group, isPaidListing } from "#shared/types.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -92,11 +92,11 @@ const extractGroupEditInput = async (
   };
 };
 
-/** Delete a group and reset its events to ungrouped */
+/** Delete a group and reset its listings to ungrouped */
 export const deleteGroup = async (
   id: Parameters<typeof groupsTable.findById>[0],
 ) => {
-  await resetGroupEvents(Number(id));
+  await resetGroupListings(Number(id));
   await groupsTable.deleteById(id);
 };
 
@@ -164,41 +164,41 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
 ) =>
   requireSessionOr(request, (session) =>
     withGroup(id)(async (group) => {
-      const [events, ungroupedEvents, holidays] = await Promise.all([
-        getEventsByGroupId(id),
-        getUngroupedEvents(),
+      const [listings, ungroupedListings, holidays] = await Promise.all([
+        getListingsByGroupId(id),
+        getUngroupedListings(),
         getActiveHolidays(),
       ]);
-      const sortedEvents = sortEvents(events, holidays);
-      const eventIds = map((e: { id: number }) => e.id)(sortedEvents);
+      const sortedListings = sortListings(listings, holidays);
+      const listingIds = map((e: { id: number }) => e.id)(sortedListings);
       let attendees: Attendee[] = [];
       let phonePrefix: string | undefined;
-      if (eventIds.length > 0) {
+      if (listingIds.length > 0) {
         const privateKey = await requirePrivateKey(session);
-        const hasPaidEvent = sortedEvents.some(isPaidEvent);
+        const hasPaidListing = sortedListings.some(isPaidListing);
         const [rawAttendees, prefix] = await Promise.all([
-          getAttendeesByEventIds(eventIds),
+          getAttendeesByListingIds(listingIds),
           Promise.resolve(settings.phonePrefix),
         ]);
         attendees = await decryptAttendees(
           rawAttendees,
           privateKey,
-          hasPaidEvent,
+          hasPaidListing,
         );
         phonePrefix = prefix;
       }
       const allowedDomain = getEffectiveDomain();
       const successMessage = getFlash().success;
       const questionData = await loadAttendeeQuestionData(
-        eventIds,
+        listingIds,
         attendees.map((a) => a.id),
       );
 
       return htmlResponse(
         adminGroupDetailPage(
           group,
-          sortedEvents,
-          sortEvents(ungroupedEvents, holidays),
+          sortedListings,
+          sortListings(ungroupedListings, holidays),
           attendees,
           session,
           allowedDomain,
@@ -210,38 +210,41 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
     }),
   );
 
-/** Validate that all event types match the group; returns error message or null */
-const validateEventTypesForGroup = async (
+/** Validate that all listing types match the group; returns error message or null */
+const validateListingTypesForGroup = async (
   groupId: number,
-  eventIds: number[],
+  listingIds: number[],
 ): Promise<string | null> => {
-  for (const eventId of eventIds) {
-    const event = await getEvent(eventId);
-    if (event) {
-      const typeError = await validateGroupEventType(groupId, event.event_type);
+  for (const listingId of listingIds) {
+    const listing = await getListing(listingId);
+    if (listing) {
+      const typeError = await validateGroupListingType(
+        groupId,
+        listing.listing_type,
+      );
       if (typeError) return typeError;
     }
   }
   return null;
 };
 
-/** Handle POST /admin/groups/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup = groupFormPost(async (group, form) => {
-  const eventIds = form
-    .getAll("event_ids")
+/** Handle POST /admin/groups/:id/add-listings - assign ungrouped listings to group */
+const handleAddListingsToGroup = groupFormPost(async (group, form) => {
+  const listingIds = form
+    .getAll("listing_ids")
     .map(Number)
     .filter((n) => n > 0);
-  if (eventIds.length > 0) {
-    const typeError = await validateEventTypesForGroup(group.id, eventIds);
+  if (listingIds.length > 0) {
+    const typeError = await validateListingTypesForGroup(group.id, listingIds);
     if (typeError) {
       return redirect(`/admin/groups/${group.id}`, typeError, false);
     }
-    await assignEventsToGroup(eventIds, group.id);
+    await assignListingsToGroup(listingIds, group.id);
     await logActivity(
-      `${eventIds.length} event(s) added to group '${group.name}'`,
+      `${listingIds.length} listing(s) added to group '${group.name}'`,
     );
   }
-  return redirect(`/admin/groups/${group.id}`, "Events added to group", true);
+  return redirect(`/admin/groups/${group.id}`, "Listings added to group", true);
 });
 
 /** Group routes */
@@ -252,6 +255,6 @@ export const groupsRoutes = {
   "POST /admin/groups": crudCreate.createPost,
   ...defineRoutes({
     "GET /admin/groups/:id": handleGroupDetail,
-    "POST /admin/groups/:id/add-events": handleAddEventsToGroup,
+    "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
   }),
 };

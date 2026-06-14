@@ -6,7 +6,7 @@
  * - Checkout uses SumUp Hosted Checkout (hosted_checkout.enabled = true)
  * - Checkouts carry no arbitrary metadata, so booking metadata is stored
  *   locally (db/sumup-checkouts.ts) keyed by our generated checkout_reference
- * - Webhooks are unsigned: events are pre-filtered against our staging rows,
+ * - Webhooks are unsigned: listings are pre-filtered against our staging rows,
  *   then authenticity comes from re-fetching the checkout
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
@@ -15,8 +15,8 @@
  * decimal places (the shared currency helpers).
  */
 
-import { SumUp } from "@sumup/sdk";
 import type { CheckoutSuccess, Currency } from "@sumup/sdk";
+import { SumUp } from "@sumup/sdk";
 import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
@@ -160,7 +160,7 @@ export const sumupApi: {
         amount: Number(toMajorUnits(totalMinor)),
         checkout_reference: reference,
         currency: settings.currency.toUpperCase() as Currency,
-        description: `Tickets (${intent.items.length} event(s))`,
+        description: `Tickets (${intent.items.length} listing(s))`,
         hosted_checkout: { enabled: true },
         merchant_code: merchantCode,
         redirect_url: `${baseUrl}/payment/success?session_id=${reference}`,
@@ -168,7 +168,10 @@ export const sumupApi: {
       });
       const url = checkout.hosted_checkout_url;
       if (!checkout.id || !url) {
-        logDebug("SumUp", "Checkout response missing id or hosted_checkout_url");
+        logDebug(
+          "SumUp",
+          "Checkout response missing id or hosted_checkout_url",
+        );
         return null;
       }
       // Record the SumUp id so webhooks for this checkout pass the pre-filter
@@ -257,8 +260,7 @@ export const createCheckout = (i: CheckoutIntent, b: string) =>
   sumupApi.createCheckout(i, b);
 export const retrieveCheckoutById = (id: string) =>
   sumupApi.retrieveCheckoutById(id);
-export const refundTransaction = (id: string) =>
-  sumupApi.refundTransaction(id);
+export const refundTransaction = (id: string) => sumupApi.refundTransaction(id);
 export const getTransactionStatus = (id: string) =>
   sumupApi.getTransactionStatus(id);
 export const testSumupConnection = () => sumupApi.testSumupConnection();

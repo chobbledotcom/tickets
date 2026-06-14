@@ -252,7 +252,7 @@ const getDnsZoneImpl = async (): Promise<
 
 /**
  * Build the full subdomain record name (user choice + suffix).
- * e.g. "myevent" + ".tickets" → "myevent.tickets"
+ * e.g. "mylisting" + ".tickets" → "mylisting.tickets"
  */
 export const buildSubdomainRecordName = (subdomain: string): string =>
   `${subdomain}${getBunnyDnsSubdomainSuffix()}`;

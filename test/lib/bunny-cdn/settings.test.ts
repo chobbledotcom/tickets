@@ -27,8 +27,8 @@ describeWithEnv("bunny-cdn domain settings", { db: true }, () => {
   });
 
   test("bunnySubdomain stores and clears", async () => {
-    await settings.update.bunnySubdomain("myevent.tickets.example.com");
-    expect(settings.bunnySubdomain).toBe("myevent.tickets.example.com");
+    await settings.update.bunnySubdomain("mylisting.tickets.example.com");
+    expect(settings.bunnySubdomain).toBe("mylisting.tickets.example.com");
     await settings.update.bunnySubdomain("");
     expect(settings.bunnySubdomain).toBe("");
   });

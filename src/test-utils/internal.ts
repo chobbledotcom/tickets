@@ -58,9 +58,9 @@ export const resetTestSlugCounter = (): void => {
   _nameCounter = { value: 0 };
 };
 
-export const generateTestEventName = (): string => {
+export const generateTestListingName = (): string => {
   _nameCounter.value++;
-  return `Test Event ${_nameCounter.value}`;
+  return `Test Listing ${_nameCounter.value}`;
 };
 
 export interface DescribeEnvOptions {
@@ -81,14 +81,14 @@ export interface FetchCall {
 }
 
 export type AdminTestContext = {
-  event: import("#shared/types.ts").Event;
+  listing: import("#shared/types.ts").Listing;
   attendee: import("#shared/types.ts").Attendee;
   cookie: string;
   csrfToken: string;
 };
 
 export type BookAttendeeOpts = Partial<
-  Omit<import("#shared/db/attendee-types.ts").EventBooking, "eventId">
+  Omit<import("#shared/db/attendee-types.ts").ListingBooking, "listingId">
 > & {
   name?: string;
   email?: string;
@@ -98,7 +98,7 @@ export type BookAttendeeOpts = Partial<
   paymentId?: string;
 };
 
-export type RawEventRange = {
+export type RawListingRange = {
   start_at: string | null;
   end_at: string | null;
   quantity: number;
@@ -110,8 +110,8 @@ export type PaymentProviderType =
 export type SessionMetadata = import("#shared/payments.ts").SessionMetadata;
 
 export type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
-export type { EventInput } from "#shared/db/events.ts";
 export type { GroupInput } from "#shared/db/groups.ts";
 export type { HolidayInput } from "#shared/db/holidays.ts";
-export type { EmailEntry, EmailEvent } from "#shared/email.ts";
+export type { ListingInput } from "#shared/db/listings.ts";
+export type { EmailEntry, EmailListing } from "#shared/email.ts";
 export type { WebhookAttendee } from "#shared/webhook.ts";

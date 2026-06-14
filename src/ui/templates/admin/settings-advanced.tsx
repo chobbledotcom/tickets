@@ -8,7 +8,7 @@ import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import {
   AttendeeColumnOrderForm,
-  EventColumnOrderForm,
+  ListingColumnOrderForm,
 } from "#templates/admin/settings/column-order.tsx";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
 import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
@@ -54,7 +54,7 @@ export type AdvancedSettingsPageState = {
   googleWalletServiceAccountEmail: string;
   hostGoogleWalletLabel: string;
   theme: Theme;
-  eventColumnOrder: string;
+  listingColumnOrder: string;
   attendeeColumnOrder: string;
   paymentProvider: string;
 };
@@ -83,7 +83,7 @@ export const adminAdvancedSettingsPage = (
       {CustomDomainForm(s)}
       {ConfirmationEmailTemplateForm(s)}
       {AdminEmailTemplateForm(s)}
-      {EventColumnOrderForm(s)}
+      {ListingColumnOrderForm(s)}
       {AttendeeColumnOrderForm(s)}
       {PublicApiForm(s)}
       {GoogleWalletForm(s)}

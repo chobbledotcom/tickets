@@ -4,9 +4,9 @@
  */
 
 import { renderSVG } from "uqr";
-import { getQuestionsForEvent } from "#shared/db/questions.ts";
-import { parseEventFields } from "#shared/event-fields.ts";
-import type { EventWithCount } from "#shared/types.ts";
+import { getQuestionsForListing } from "#shared/db/questions.ts";
+import { parseListingFields } from "#shared/listing-fields.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
 /**
  * Generate an SVG string for a QR code encoding the given text.
@@ -15,12 +15,12 @@ import type { EventWithCount } from "#shared/types.ts";
 export const generateQrSvg = (text: string): string =>
   renderSVG(text, { border: 1 });
 
-/** Whether this event can send QR code scanners directly to checkout.
+/** Whether this listing can send QR code scanners directly to checkout.
  * True when no extra contact fields or questions are required. */
-export const eventSupportsDirectCheckout = async (
-  event: Pick<EventWithCount, "id" | "fields">,
+export const listingSupportsDirectCheckout = async (
+  listing: Pick<ListingWithCount, "id" | "fields">,
 ): Promise<boolean> => {
-  if (parseEventFields(event.fields).length > 0) return false;
-  const questions = await getQuestionsForEvent(event.id);
+  if (parseListingFields(listing.fields).length > 0) return false;
+  const questions = await getQuestionsForListing(listing.id);
   return questions.length === 0;
 };

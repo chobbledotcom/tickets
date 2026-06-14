@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
-import { invalidateEventsCache } from "#shared/db/events.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -20,7 +20,7 @@ import {
   type DescribeEnvOptions,
   getCachedSetupSettings,
   getCachedSetupUsers,
-  type RawEventRange,
+  type RawListingRange,
   resetTestSession,
   resetTestSlugCounter,
   setCachedAdminSession,
@@ -36,7 +36,7 @@ const prepareTestClient = async (): Promise<void> => {
   settings.setup.clearCache();
   resetSessionCache();
   invalidateUsersCache();
-  invalidateEventsCache();
+  invalidateListingsCache();
   invalidateHolidaysCache();
   invalidateGroupsCache();
 
@@ -174,7 +174,7 @@ export const resetDb = (): void => {
   settings.setup.clearCache();
   settings.invalidateCache();
   invalidateUsersCache();
-  invalidateEventsCache();
+  invalidateListingsCache();
   invalidateHolidaysCache();
   invalidateGroupsCache();
   resetSessionCache();
@@ -219,8 +219,10 @@ export const describeWithEnv = (
   });
 };
 
-export const rawEventRange = (eventId: number): Promise<RawEventRange | null> =>
-  queryOne<RawEventRange>(
-    "SELECT start_at, end_at, quantity FROM event_attendees WHERE event_id = ? ORDER BY attendee_id LIMIT 1",
-    [eventId],
+export const rawListingRange = (
+  listingId: number,
+): Promise<RawListingRange | null> =>
+  queryOne<RawListingRange>(
+    "SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ? ORDER BY attendee_id LIMIT 1",
+    [listingId],
   );

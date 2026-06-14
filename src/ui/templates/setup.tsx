@@ -42,7 +42,7 @@ const DataControllerAgreement = (): JSX.Element => (
       </li>
       <li>
         <strong>Deletion</strong> - Your data is deleted when you delete your
-        events or close your account
+        listings or close your account
       </li>
     </ol>
     <p class="password-warning">

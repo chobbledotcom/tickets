@@ -62,8 +62,8 @@ describe("iframe", () => {
 
     test("places param before hash fragment", () => {
       detectIframeMode("https://example.com/?iframe=true");
-      expect(appendIframeParam("/admin/event/1?flash=abc#myform")).toBe(
-        "/admin/event/1?flash=abc&iframe=true#myform",
+      expect(appendIframeParam("/admin/listing/1?flash=abc#myform")).toBe(
+        "/admin/listing/1?flash=abc&iframe=true#myform",
       );
     });
 

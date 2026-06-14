@@ -1,5 +1,5 @@
 /**
- * Public pages - home, events, terms, contact
+ * Public pages - home, listings, terms, contact
  */
 
 import {
@@ -9,17 +9,17 @@ import {
 } from "#routes/response.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
-import { loadSortedEvents } from "#shared/sort-events.ts";
-import type { EventWithCount, Group } from "#shared/types.ts";
+import { loadSortedListings } from "#shared/sort-listings.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import {
   homepagePage,
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
-import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
+import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
-/** Active+visible filter for public event listings */
-const isPublicEvent = (e: EventWithCount): boolean => e.active && !e.hidden;
+/** Active+visible filter for public listing listings */
+const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 
 /** Load non-hidden groups (for public listing) */
 const loadPublicGroups = async (): Promise<Group[]> => {
@@ -47,16 +47,16 @@ const renderPublicPage = (
 export const handleHome = (): Response =>
   renderPublicPage("home", () => settings.homepageText);
 
-/** Handle GET /events - public events listing */
-export const handlePublicEvents = (): Response | Promise<Response> =>
+/** Handle GET /listings - public listings listing */
+export const handlePublicListings = (): Response | Promise<Response> =>
   requirePublicSite(async () => {
-    const [groups, { events }] = await Promise.all([
+    const [groups, { listings }] = await Promise.all([
       loadPublicGroups(),
-      loadSortedEvents(isPublicEvent),
+      loadSortedListings(isPublicListing),
     ]);
-    const ticketEvents = await buildTicketEventsWithGroupCapacity(events);
+    const ticketListings = await buildTicketListingsWithGroupCapacity(listings);
     return htmlResponse(
-      homepagePage(ticketEvents, settings.websiteTitle, groups),
+      homepagePage(ticketListings, settings.websiteTitle, groups),
     );
   });
 

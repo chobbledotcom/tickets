@@ -1,7 +1,7 @@
 /**
  * QR scanner routes for admin check-in
- * GET /admin/event/:id/scanner - Scanner page with camera UI
- * POST /admin/event/:id/scan - JSON API for processing scanned tokens
+ * GET /admin/listing/:id/scanner - Scanner page with camera UI
+ * POST /admin/listing/:id/scan - JSON API for processing scanned tokens
  */
 
 import { filter, map, pipe } from "#fp";
@@ -29,19 +29,19 @@ import {
   getAttendeesRaw,
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
-import { getEventWithCount } from "#shared/db/events.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { Attendee } from "#shared/types.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
-const withEvent = withEntityLoader(getEventWithCount);
+const withListing = withEntityLoader(getListingWithCount);
 
-/** Handle GET /admin/event/:id/scanner - render scanner page */
+/** Handle GET /admin/listing/:id/scanner - render scanner page */
 const handleScannerGet: IdRouteHandler = (request, { id }) =>
   requireSessionOr(request, (session) =>
-    withEvent(id)(async (event) => {
+    withListing(id)(async (listing) => {
       const privateKey = await requirePrivateKey(session);
-      const rawAttendees = await getAttendeesRaw(event.id);
+      const rawAttendees = await getAttendeesRaw(listing.id);
       const attendees = await decryptAttendees(rawAttendees, privateKey);
       const uncheckedIn = pipe(
         filter((a: Attendee) => !a.checked_in && !a.refunded),
@@ -51,7 +51,7 @@ const handleScannerGet: IdRouteHandler = (request, { id }) =>
           token: a.ticket_token,
         })),
       )(attendees);
-      return htmlResponse(adminScannerPage(event, session, uncheckedIn));
+      return htmlResponse(adminScannerPage(listing, session, uncheckedIn));
     }),
   );
 
@@ -79,19 +79,19 @@ const resolveAttendeeName = async (
   return decrypted[0]!.name;
 };
 
-/** Build a wrong_event response when scanned token doesn't match the event */
-const wrongEventResponse = (
+/** Build a wrong_listing response when scanned token doesn't match the listing */
+const wrongListingResponse = (
   allEntries: TokenEntry[],
   attendeeName: string,
 ): Response => {
-  const eventNames =
+  const listingNames =
     allEntries.length > 0
-      ? allEntries.map((e) => e.event.name).join(", ")
-      : "Unknown event";
+      ? allEntries.map((e) => e.listing.name).join(", ")
+      : "Unknown listing";
   return jsonResponse({
-    eventName: eventNames,
+    listingName: listingNames,
     name: attendeeName,
-    status: "wrong_event",
+    status: "wrong_listing",
   });
 };
 
@@ -111,7 +111,7 @@ const checkAttendeeState = (
       status: "already_checked_in",
     });
   }
-  if (entry.event.non_transferable && !idVerified) {
+  if (entry.listing.non_transferable && !idVerified) {
     return jsonResponse({
       name: attendeeName,
       quantity: entry.attendee.quantity,
@@ -126,10 +126,10 @@ const performCheckIn = async (
   entry: TokenEntry,
   attendeeName: string,
 ): Promise<Response> => {
-  await updateCheckedIn(entry.attendee.id, entry.event.id, true);
+  await updateCheckedIn(entry.attendee.id, entry.listing.id, true);
   await logActivity(
-    `Attendee checked in via scanner for '${entry.event.name}'`,
-    entry.event.id,
+    `Attendee checked in via scanner for '${entry.listing.name}'`,
+    entry.listing.id,
   );
   return jsonResponse({
     name: attendeeName,
@@ -139,7 +139,7 @@ const performCheckIn = async (
 };
 
 /**
- * Handle POST /admin/event/:id/scan - JSON check-in API.
+ * Handle POST /admin/listing/:id/scan - JSON check-in API.
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
  * accidental check-outs from double-scans during rapid door check-in.
  */
@@ -172,15 +172,15 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
     }
 
     const allEntries = await resolveTokenEntries(awb, privateKey);
-    const matchingEntry = allEntries.find((e) => e.event.id === id);
+    const matchingEntry = allEntries.find((e) => e.listing.id === id);
     const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
 
-    // Wrong event — attendee not registered for the scanned event
+    // Wrong listing — attendee not registered for the scanned listing
     if (!matchingEntry && !force) {
-      return wrongEventResponse(allEntries, attendeeName);
+      return wrongListingResponse(allEntries, attendeeName);
     }
 
-    // When force=true, use the first entry if no match (cross-event check-in)
+    // When force=true, use the first entry if no match (cross-listing check-in)
     const entry = matchingEntry ?? allEntries[0];
     if (!entry) {
       return jsonResponse({ status: "not_found" }, 404);
@@ -193,10 +193,10 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
   });
 
 /** Pattern matching scan API paths (used by middleware for content-type validation) */
-export const SCAN_API_PATTERN = /^\/admin\/event\/\d+\/scan$/;
+export const SCAN_API_PATTERN = /^\/admin\/listing\/\d+\/scan$/;
 
 /** Scanner routes */
 export const scannerRoutes = defineRoutes({
-  "GET /admin/event/:id/scanner": handleScannerGet,
-  "POST /admin/event/:id/scan": handleScanPost,
+  "GET /admin/listing/:id/scanner": handleScannerGet,
+  "POST /admin/listing/:id/scan": handleScanPost,
 });

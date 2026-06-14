@@ -445,13 +445,13 @@ describe("adminAdvancedSettingsPage", () => {
     emailApiKeyConfigured: false,
     emailFromAddress: "",
     emailProvider: "",
-    eventColumnOrder: "",
     googleWalletConfigured: false,
     googleWalletIssuerId: "",
     googleWalletServiceAccountEmail: "",
     hostAppleWalletLabel: "",
     hostEmailLabel: "",
     hostGoogleWalletLabel: "",
+    listingColumnOrder: "",
     paymentProvider: "",
     showPublicApi: false,
     subdomainPreview: "",
@@ -516,14 +516,14 @@ describe("adminAdvancedSettingsPage", () => {
       ...advancedDefaultState,
       bunnyDnsEnabled: true,
       bunnyDnsSubdomainSuffix: ".tickets.example.com",
-      subdomainPreview: "myevent",
-      subdomainPreviewFullDomain: "myevent.tickets.example.com",
+      subdomainPreview: "mylisting",
+      subdomainPreviewFullDomain: "mylisting.tickets.example.com",
     });
-    expect(html).toContain("myevent.tickets.example.com");
+    expect(html).toContain("mylisting.tickets.example.com");
     expect(html).toContain("is available");
     expect(html).toContain('name="save"');
     expect(html).toContain("Confirm registration");
-    expect(html).toContain('value="myevent"');
+    expect(html).toContain('value="mylisting"');
   });
 
   test("custom domain form warns Square users about the webhook URL", () => {

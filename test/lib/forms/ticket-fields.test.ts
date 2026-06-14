@@ -5,7 +5,7 @@ import { renderFields } from "#shared/forms.tsx";
 import {
   fieldsApi,
   getTicketFields,
-  mergeEventFields,
+  mergeListingFields,
   validateAddress,
   validatePhone,
   validateSpecialInstructions,
@@ -99,7 +99,7 @@ describe("getTicketFields — field validation", () => {
 });
 
 describe("getTicketFields — Square payment provider", () => {
-  test("injects email for paid events when Square is active", () => {
+  test("injects email for paid listings when Square is active", () => {
     const s = stub(fieldsApi, "getSettingCached", () => "square");
     try {
       expect(fieldNames("phone", true)).toEqual(["name", "email", "phone"]);
@@ -108,7 +108,7 @@ describe("getTicketFields — Square payment provider", () => {
     }
   });
 
-  test("does not inject email for free events", () => {
+  test("does not inject email for free listings", () => {
     const s = stub(fieldsApi, "getSettingCached", () => "square");
     try {
       expect(fieldNames("phone", false)).toEqual(["name", "phone"]);
@@ -140,29 +140,29 @@ describe("getTicketFields — Square payment provider", () => {
   });
 });
 
-describe("mergeEventFields", () => {
+describe("mergeListingFields", () => {
   test("returns empty string for empty input", () => {
-    expect(mergeEventFields([])).toBe("");
-    expect(mergeEventFields(["", ""])).toBe("");
+    expect(mergeListingFields([])).toBe("");
+    expect(mergeListingFields(["", ""])).toBe("");
   });
 
   test("returns the single setting unchanged", () => {
-    expect(mergeEventFields(["phone"])).toBe("phone");
-    expect(mergeEventFields(["email,phone"])).toBe("email,phone");
+    expect(mergeListingFields(["phone"])).toBe("phone");
+    expect(mergeListingFields(["email,phone"])).toBe("email,phone");
   });
 
-  test("returns the union of all fields across events", () => {
-    expect(mergeEventFields(["email", "phone"])).toBe("email,phone");
-    expect(mergeEventFields(["email", "phone,address"])).toBe(
+  test("returns the union of all fields across listings", () => {
+    expect(mergeListingFields(["email", "phone"])).toBe("email,phone");
+    expect(mergeListingFields(["email", "phone,address"])).toBe(
       "email,phone,address",
     );
-    expect(mergeEventFields(["email,special_instructions", "phone"])).toBe(
+    expect(mergeListingFields(["email,special_instructions", "phone"])).toBe(
       "email,phone,special_instructions",
     );
   });
 
   test("sorts output in canonical CONTACT_FIELDS order", () => {
-    expect(mergeEventFields(["address", "email"])).toBe("email,address");
+    expect(mergeListingFields(["address", "email"])).toBe("email,address");
   });
 });
 

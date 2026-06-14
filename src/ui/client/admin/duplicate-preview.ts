@@ -10,20 +10,20 @@ import {
   buildDuplicatePreview,
   type DuplicateReplacements,
   formatIsoForPreview,
-  type PreviewableEvent,
+  type PreviewableListing,
 } from "#shared/bulk-replace.ts";
 
 export const initDuplicatePreview = (): void => {
   const container = document.querySelector<HTMLElement>(
     "[data-duplicate-preview]",
   );
-  const dataEl = document.getElementById("duplicate-preview-events");
+  const dataEl = document.getElementById("duplicate-preview-listings");
   const tbody = document.querySelector<HTMLTableSectionElement>(
     "[data-duplicate-preview-rows]",
   );
   if (!container || !dataEl || !tbody) return;
 
-  const events: PreviewableEvent[] = JSON.parse(dataEl.textContent ?? "[]");
+  const listings: PreviewableListing[] = JSON.parse(dataEl.textContent ?? "[]");
   const tz = container.dataset.timezone ?? "UTC";
   const fieldVal = (name: string): string =>
     container.querySelector<HTMLInputElement>(
@@ -37,7 +37,7 @@ export const initDuplicatePreview = (): void => {
       nameFind: fieldVal("name_find"),
       nameReplace: fieldVal("name_replace"),
     };
-    const rows = buildDuplicatePreview(events, replacements);
+    const rows = buildDuplicatePreview(listings, replacements);
     tbody.innerHTML = rows
       .map((row) => {
         const td = (cls: string, text: string) =>
@@ -46,7 +46,7 @@ export const initDuplicatePreview = (): void => {
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")}</td>`;
         return (
-          `<tr data-event-id="${row.id}">` +
+          `<tr data-listing-id="${row.id}">` +
           td("original-name", row.originalName) +
           td("new-name", row.newName) +
           td("original-date", formatIsoForPreview(row.originalDate, tz)) +

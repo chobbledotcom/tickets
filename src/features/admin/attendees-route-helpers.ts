@@ -13,62 +13,65 @@ import {
 } from "#routes/auth.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees.ts";
-import { getEventWithAttendeeRaw } from "#shared/db/events.ts";
+import { getListingWithAttendeeRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Attendee, EventWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 
-/** Attendee with event data */
-export type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
+/** Attendee with listing data */
+export type AttendeeWithListing = {
+  attendee: Attendee;
+  listing: ListingWithCount;
+};
 
 /** No payment provider configured error (shared with attendee-refunds) */
 export const NO_PROVIDER_ERROR = "No payment provider configured.";
 
 /**
- * Load attendee ensuring it belongs to the specified event.
- * Uses batched query to fetch event + attendee in a single DB round-trip.
+ * Load attendee ensuring it belongs to the specified listing.
+ * Uses batched query to fetch listing + attendee in a single DB round-trip.
  * Decrypts attendee PII using the admin private key.
  */
-const loadAttendeeForEvent = async (
+const loadAttendeeForListing = async (
   session: AuthSession,
-  eventId: number,
+  listingId: number,
   attendeeId: number,
-): Promise<AttendeeWithEvent | null> => {
+): Promise<AttendeeWithListing | null> => {
   const pk = await requirePrivateKey(session);
-  const result = await getEventWithAttendeeRaw(eventId, attendeeId);
+  const result = await getListingWithAttendeeRaw(listingId, attendeeId);
   if (!result) return null;
 
   const attendee = await decryptAttendeeOrNull(result.attendeeRaw, pk);
-  if (!attendee || attendee.event_id !== eventId) return null;
+  if (!attendee || attendee.listing_id !== listingId) return null;
 
-  return { attendee, event: result.event };
+  return { attendee, listing: result.listing };
 };
 
 /** Load attendee with auth, returning 404 if not found */
-const withAttendee = withEntityLoader(loadAttendeeForEvent);
+const withAttendee = withEntityLoader(loadAttendeeForListing);
 
-/** Route params for event-scoped routes */
-export type EventRouteParams = { id: number };
+/** Route params for listing-scoped routes */
+export type ListingRouteParams = { id: number };
 
 /** Route params for attendee-scoped routes */
-type AttendeeRouteParams = { eventId: number; attendeeId: number };
+type AttendeeRouteParams = { listingId: number; attendeeId: number };
 
 /** Auth + load attendee GET handler (shared by delete, refund, and resend-notification GET routes) */
 export const attendeeGetRoute =
   (
     handler: (
-      data: AttendeeWithEvent,
+      data: AttendeeWithListing,
       session: AuthSession,
       request: Request,
     ) => Response | Promise<Response>,
   ) =>
   (
     request: Request,
-    { eventId, attendeeId }: AttendeeRouteParams,
+    { listingId, attendeeId }: AttendeeRouteParams,
   ): Promise<Response> =>
     requireSessionOr(request, (session) =>
       withAttendee(
         session,
-        eventId,
+        listingId,
         attendeeId,
       )((data) => handler(data, session, request)),
     );
@@ -76,10 +79,10 @@ export const attendeeGetRoute =
 /** Auth + load attendee from form handler */
 const withAttendeeForm = (
   request: Request,
-  eventId: number,
+  listingId: number,
   attendeeId: number,
   handler: (
-    data: AttendeeWithEvent,
+    data: AttendeeWithListing,
     session: AuthSession,
     form: FormParams,
   ) => Response | Promise<Response>,
@@ -87,7 +90,7 @@ const withAttendeeForm = (
   withAuth(request, AUTH_FORM, (session, form) =>
     withAttendee(
       session,
-      eventId,
+      listingId,
       attendeeId,
     )((data) => handler(data, session, form)),
   );
@@ -98,10 +101,10 @@ export const getReturnUrl = (request: Request): string =>
 
 /** Attendee form handler that receives typed IDs */
 type AttendeeFormAction = (
-  data: AttendeeWithEvent,
+  data: AttendeeWithListing,
   session: AuthSession,
   form: FormParams,
-  eventId: number,
+  listingId: number,
   attendeeId: number,
 ) => Response | Promise<Response>;
 
@@ -110,10 +113,10 @@ export const attendeeFormAction =
   (handler: AttendeeFormAction) =>
   (
     request: Request,
-    { eventId, attendeeId }: AttendeeRouteParams,
+    { listingId, attendeeId }: AttendeeRouteParams,
   ): Promise<Response> =>
-    withAttendeeForm(request, eventId, attendeeId, (data, session, form) =>
-      handler(data, session, form, eventId, attendeeId),
+    withAttendeeForm(request, listingId, attendeeId, (data, session, form) =>
+      handler(data, session, form, listingId, attendeeId),
     );
 
 /** Attendee form handler that first verifies the attendee name */
@@ -121,20 +124,20 @@ export const verifiedAttendeeForm = (
   action: string,
   actionLabel: string | undefined,
   handler: (
-    data: AttendeeWithEvent,
+    data: AttendeeWithListing,
     form: FormParams,
-    eventId: number,
+    listingId: number,
     attendeeId: number,
   ) => Response | Promise<Response>,
 ) =>
-  attendeeFormAction((data, _session, form, eventId, attendeeId) => {
+  attendeeFormAction((data, _session, form, listingId, attendeeId) => {
     const error = verifyOrRedirect(
       form,
       data.attendee.name,
-      `/admin/event/${eventId}/attendee/${attendeeId}/${action}`,
+      `/admin/listing/${listingId}/attendee/${attendeeId}/${action}`,
       "Attendee name",
       actionLabel,
     );
     if (error) return error;
-    return handler(data, form, eventId, attendeeId);
+    return handler(data, form, listingId, attendeeId);
   });

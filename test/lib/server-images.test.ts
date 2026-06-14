@@ -3,11 +3,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { toMajorUnits } from "#shared/currency.ts";
-import { eventsTable, getEvent, getEventWithCount } from "#shared/db/events.ts";
+import {
+  getListing,
+  getListingWithCount,
+  listingsTable,
+} from "#shared/db/listings.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   cdnOkResponse,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -19,10 +23,10 @@ import {
   mockMultipartRequest,
   mockRequest,
   PDF_BYTES,
-  setupEventAndLogin,
+  setupListingAndLogin,
   testCookie,
   testCsrfToken,
-  updateTestEvent,
+  updateTestListing,
   withCdnProxy,
   withExpectedError,
   withFetchMock,
@@ -33,47 +37,47 @@ import {
 /** Reusable proxy route test path */
 const PROXY_PATH = "/image/abc123-def4-5678-9abc-def012345678";
 
-/** Build form data for event edit with all required fields */
+/** Build form data for listing edit with all required fields */
 const editFormData = async (
-  eventId: number,
+  listingId: number,
   csrfToken: string,
 ): Promise<Record<string, string>> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) throw new Error(`Event not found: ${eventId}`);
+  const listing = await getListingWithCount(listingId);
+  if (!listing) throw new Error(`Listing not found: ${listingId}`);
   return {
-    bookable_days: event.bookable_days.join(","),
+    bookable_days: listing.bookable_days.join(","),
     closes_at_date: "",
     closes_at_time: "",
     csrf_token: csrfToken,
     date_date: "",
     date_time: "",
-    description: event.description,
-    event_type: event.event_type,
-    fields: event.fields || "email",
-    location: event.location,
-    max_attendees: String(event.max_attendees),
-    max_price: toMajorUnits(event.max_price),
-    max_quantity: String(event.max_quantity),
-    maximum_days_after: String(event.maximum_days_after),
-    minimum_days_before: String(event.minimum_days_before),
-    name: event.name,
-    slug: event.slug,
-    thank_you_url: event.thank_you_url ?? "",
-    unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
-    webhook_url: event.webhook_url ?? "",
+    description: listing.description,
+    fields: listing.fields || "email",
+    listing_type: listing.listing_type,
+    location: listing.location,
+    max_attendees: String(listing.max_attendees),
+    max_price: toMajorUnits(listing.max_price),
+    max_quantity: String(listing.max_quantity),
+    maximum_days_after: String(listing.maximum_days_after),
+    minimum_days_before: String(listing.minimum_days_before),
+    name: listing.name,
+    slug: listing.slug,
+    thank_you_url: listing.thank_you_url ?? "",
+    unit_price: listing.unit_price > 0 ? toMajorUnits(listing.unit_price) : "",
+    webhook_url: listing.webhook_url ?? "",
   };
 };
 
 /** Submit an edit-form multipart request with an image file attached */
 const submitEditImage = async (
-  eventId: number,
+  listingId: number,
   cookie: string,
   csrfToken: string,
   file: { name: string; data: Uint8Array; contentType: string },
 ): Promise<Response> => {
-  const fields = await editFormData(eventId, csrfToken);
+  const fields = await editFormData(listingId, csrfToken);
   return handleRequest(
-    mockMultipartRequest(`/admin/event/${eventId}/edit`, fields, cookie, {
+    mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
       fieldName: "image",
       ...file,
     }),
@@ -82,26 +86,26 @@ const submitEditImage = async (
 
 /** Submit a JPEG image via the edit form (most common upload case) */
 const submitEditJpeg = (
-  eventId: number,
+  listingId: number,
   cookie: string,
   csrfToken: string,
   filename: string,
 ): Promise<Response> =>
-  submitEditImage(eventId, cookie, csrfToken, {
+  submitEditImage(listingId, cookie, csrfToken, {
     contentType: "image/jpeg",
     data: JPEG_HEADER,
     name: filename,
   });
 
-/** Submit a POST to /admin/event/:id/image/delete */
+/** Submit a POST to /admin/listing/:id/image/delete */
 const submitImageDelete = (
-  eventId: number,
+  listingId: number,
   cookie: string,
   csrfToken: string,
 ): Promise<Response> =>
   handleRequest(
     mockFormRequest(
-      `/admin/event/${eventId}/image/delete`,
+      `/admin/listing/${listingId}/image/delete`,
       { csrf_token: csrfToken },
       cookie,
     ),
@@ -122,8 +126,8 @@ const expectImageErrorRedirect = (
   expect(decoded).toContain(errorSubstring);
 };
 
-/** Shared form fields for creating a new event via POST /admin/event */
-const newEventFormFields = (
+/** Shared form fields for creating a new listing via POST /admin/listing */
+const newListingFormFields = (
   csrfToken: string,
   name: string,
 ): Record<string, string> => ({
@@ -134,8 +138,8 @@ const newEventFormFields = (
   date_date: "",
   date_time: "",
   description: "",
-  event_type: "standard",
   fields: "email",
+  listing_type: "standard",
   location: "",
   max_attendees: "50",
   max_quantity: "1",
@@ -147,61 +151,61 @@ const newEventFormFields = (
   webhook_url: "",
 });
 
-/** Submit a create-event form with an image file attached */
+/** Submit a create-listing form with an image file attached */
 const submitCreateImage = (
   cookie: string,
   csrfToken: string,
-  eventName: string,
+  listingName: string,
   file: { name: string; data: Uint8Array; contentType: string },
 ): Promise<Response> =>
   handleRequest(
     mockMultipartRequest(
-      "/admin/event",
-      newEventFormFields(csrfToken, eventName),
+      "/admin/listing",
+      newListingFormFields(csrfToken, listingName),
       cookie,
       { fieldName: "image", ...file },
     ),
   );
 
-/** Submit a POST to /admin/event/:id/attachment/delete */
+/** Submit a POST to /admin/listing/:id/attachment/delete */
 const submitAttachmentDelete = (
-  eventId: number,
+  listingId: number,
   cookie: string,
   csrfToken: string,
 ): Promise<Response> =>
   handleRequest(
     mockFormRequest(
-      `/admin/event/${eventId}/attachment/delete`,
+      `/admin/listing/${listingId}/attachment/delete`,
       { csrf_token: csrfToken },
       cookie,
     ),
   );
 
-/** Submit a POST to /admin/event/:id/delete with confirmation */
-const submitEventDelete = (
-  eventId: number,
-  eventName: string,
+/** Submit a POST to /admin/listing/:id/delete with confirmation */
+const submitListingDelete = (
+  listingId: number,
+  listingName: string,
   cookie: string,
   csrfToken: string,
 ): Promise<Response> =>
   handleRequest(
     mockFormRequest(
-      `/admin/event/${eventId}/delete`,
-      { confirm_identifier: eventName, csrf_token: csrfToken },
+      `/admin/listing/${listingId}/delete`,
+      { confirm_identifier: listingName, csrf_token: csrfToken },
       cookie,
     ),
   );
 
 /** Submit an edit form with an attachment file */
 const submitEditAttachment = async (
-  eventId: number,
+  listingId: number,
   cookie: string,
   csrfToken: string,
   file: { name: string; data: Uint8Array; contentType: string },
 ): Promise<Response> => {
-  const fields = await editFormData(eventId, csrfToken);
+  const fields = await editFormData(listingId, csrfToken);
   return handleRequest(
-    mockMultipartRequest(`/admin/event/${eventId}/edit`, fields, cookie, {
+    mockMultipartRequest(`/admin/listing/${listingId}/edit`, fields, cookie, {
       fieldName: "attachment",
       ...file,
     }),
@@ -213,7 +217,7 @@ const proxyRequest = (ext = "jpg"): Promise<Response> =>
   handleRequest(mockRequest(`${PROXY_PATH}.${ext}`));
 
 describeWithEnv(
-  "server (event images)",
+  "server (listing images)",
   {
     db: true,
     env: {
@@ -222,54 +226,60 @@ describeWithEnv(
     },
   },
   () => {
-    describe("POST /admin/event/:id/edit (image upload via edit form)", () => {
+    describe("POST /admin/listing/:id/edit (image upload via edit form)", () => {
       describeWithEnv(
         "when storage is not configured",
         { env: { STORAGE_ZONE_KEY: undefined, STORAGE_ZONE_NAME: undefined } },
         () => {
           test("ignores image", async () => {
             await withStorageDisabled(async () => {
-              const { event, cookie, csrfToken } = await setupEventAndLogin();
+              const { listing, cookie, csrfToken } =
+                await setupListingAndLogin();
 
               const response = await submitEditJpeg(
-                event.id,
+                listing.id,
                 cookie,
                 csrfToken,
                 "test.jpg",
               );
               expect(response.status).toBe(302);
-              const updated = await getEventWithCount(event.id);
+              const updated = await getListingWithCount(listing.id);
               expect(updated?.image_url).toBe("");
             });
           });
         },
       );
 
-      test("updates event without image when no file is uploaded", async () => {
-        const event = await createTestEvent();
-        await updateTestEvent(event.id, { name: "Updated Name" });
-        const updated = await getEventWithCount(event.id);
+      test("updates listing without image when no file is uploaded", async () => {
+        const listing = await createTestListing();
+        await updateTestListing(listing.id, { name: "Updated Name" });
+        const updated = await getListingWithCount(listing.id);
         expect(updated?.name).toBe("Updated Name");
         expect(updated?.image_url).toBe("");
       });
 
       test("redirects with image error for invalid image type", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const response = await submitEditImage(event.id, cookie, csrfToken, {
-            contentType: "application/pdf",
-            data: PDF_BYTES,
-            name: "test.pdf",
-          });
+          const response = await submitEditImage(
+            listing.id,
+            cookie,
+            csrfToken,
+            {
+              contentType: "application/pdf",
+              data: PDF_BYTES,
+              name: "test.pdf",
+            },
+          );
           await expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("");
         });
       });
 
       test("redirects with image error for oversized image", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         const oversized = new Uint8Array(257 * 1024);
         oversized[0] = 0xff;
@@ -277,56 +287,66 @@ describeWithEnv(
         oversized[2] = 0xff;
 
         await withStorageMock(async () => {
-          const response = await submitEditImage(event.id, cookie, csrfToken, {
-            contentType: "image/jpeg",
-            data: oversized,
-            name: "big.jpg",
-          });
+          const response = await submitEditImage(
+            listing.id,
+            cookie,
+            csrfToken,
+            {
+              contentType: "image/jpeg",
+              data: oversized,
+              name: "big.jpg",
+            },
+          );
           await expectImageErrorRedirect(response, "256KB");
         });
       });
 
       test("redirects with image error for mismatched magic bytes", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const response = await submitEditImage(event.id, cookie, csrfToken, {
-            contentType: "image/jpeg",
-            data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
-            name: "fake.jpg",
-          });
+          const response = await submitEditImage(
+            listing.id,
+            cookie,
+            csrfToken,
+            {
+              contentType: "image/jpeg",
+              data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
+              name: "fake.jpg",
+            },
+          );
           await expectImageErrorRedirect(response, "valid image");
         });
       });
 
-      test("uploads image and updates event via edit form", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      test("uploads image and updates listing via edit form", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
           const response = await submitEditJpeg(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
             "photo.jpg",
           );
           expectRedirectWithFlash(
-            `/admin/event/${event.id}`,
-            "Event updated",
+            `/admin/listing/${listing.id}`,
+            "Listing updated",
           )(response);
 
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).not.toBe("");
           expect(updated?.image_url).toMatch(/\.jpg$/);
         });
       });
 
       test("deletes old image when uploading new one via edit form", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, { imageUrl: "old-image.jpg" });
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, { imageUrl: "old-image.jpg" });
 
         await withStorageMock(async (fetchCalls) => {
           const response = await submitEditJpeg(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
             "new-photo.jpg",
@@ -341,8 +361,8 @@ describeWithEnv(
       });
 
       test("succeeds even when old image delete throws", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, { imageUrl: "old-failing.jpg" });
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, { imageUrl: "old-failing.jpg" });
 
         await withFetchMock(async (originalFetch) => {
           installUrlHandler(originalFetch, (url) => {
@@ -356,20 +376,20 @@ describeWithEnv(
           });
 
           const response = await submitEditJpeg(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
             "new.jpg",
           );
           expect(response.status).toBe(302);
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toMatch(/\.jpg$/);
         });
       });
     });
 
-    describe("POST /admin/event (image upload via create form)", () => {
-      test("uploads image when creating a new event", async () => {
+    describe("POST /admin/listing (image upload via create form)", () => {
+      test("uploads image when creating a new listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
@@ -377,20 +397,20 @@ describeWithEnv(
           const response = await submitCreateImage(
             cookie,
             csrfToken,
-            "Image Test Event",
+            "Image Test Listing",
             { contentType: "image/jpeg", data: JPEG_HEADER, name: "photo.jpg" },
           );
           expect(response.status).toBe(302);
 
-          const { getAllEvents } = await import("#shared/db/events.ts");
-          const events = await getAllEvents();
-          const created = events.find((e) => e.name === "Image Test Event");
+          const { getAllListings } = await import("#shared/db/listings.ts");
+          const listings = await getAllListings();
+          const created = listings.find((e) => e.name === "Image Test Listing");
           expect(created).not.toBeUndefined();
           expect(created?.image_url).toMatch(/\.jpg$/);
         });
       });
 
-      test("redirects with image error when creating event with invalid image", async () => {
+      test("redirects with image error when creating listing with invalid image", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
@@ -398,7 +418,7 @@ describeWithEnv(
           const response = await submitCreateImage(
             cookie,
             csrfToken,
-            "Bad Image Event",
+            "Bad Image Listing",
             {
               contentType: "application/pdf",
               data: PDF_BYTES,
@@ -407,9 +427,9 @@ describeWithEnv(
           );
           expectImageErrorRedirect(response, "JPEG, PNG, GIF, or WebP");
 
-          const { getAllEvents } = await import("#shared/db/events.ts");
-          const events = await getAllEvents();
-          const created = events.find((e) => e.name === "Bad Image Event");
+          const { getAllListings } = await import("#shared/db/listings.ts");
+          const listings = await getAllListings();
+          const created = listings.find((e) => e.name === "Bad Image Listing");
           expect(created).not.toBeUndefined();
           expect(created?.image_url).toBe("");
         });
@@ -436,11 +456,11 @@ describeWithEnv(
         );
       });
 
-      test("displays image error on event detail page", async () => {
-        const { event, cookie } = await setupEventAndLogin();
+      test("displays image error on listing detail page", async () => {
+        const { listing, cookie } = await setupListingAndLogin();
 
         const response = await handleRequest(
-          mockRequest(`/admin/event/${event.id}?flash=${FLASH_TEST_ID}`, {
+          mockRequest(`/admin/listing/${listing.id}?flash=${FLASH_TEST_ID}`, {
             headers: {
               cookie: `${cookie}; ${flashCookieHeader(
                 "Image must be a JPEG, PNG, GIF, or WebP file",
@@ -457,48 +477,52 @@ describeWithEnv(
       });
 
       test("does not display image error when flash cookie is absent", async () => {
-        const { event, cookie } = await setupEventAndLogin();
+        const { listing, cookie } = await setupListingAndLogin();
 
         const response = await handleRequest(
-          mockRequest(`/admin/event/${event.id}`, { headers: { cookie } }),
+          mockRequest(`/admin/listing/${listing.id}`, { headers: { cookie } }),
         );
         const html = await response.text();
         expect(html).not.toContain("image was not uploaded");
       });
     });
 
-    describe("POST /admin/event/:id/image/delete", () => {
+    describe("POST /admin/listing/:id/image/delete", () => {
       const expectImageDeleteRedirect = (
         response: Response,
-        eventId: number,
+        listingId: number,
       ) => {
         expectRedirectWithFlash(
-          `/admin/event/${eventId}`,
+          `/admin/listing/${listingId}`,
           "Image removed",
         )(response);
       };
 
-      test("removes image from event and storage", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, { imageUrl: "to-delete.jpg" });
+      test("removes image from listing and storage", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, { imageUrl: "to-delete.jpg" });
 
         await withStorageMock(async () => {
-          const response = await submitImageDelete(event.id, cookie, csrfToken);
-          expectImageDeleteRedirect(response, event.id);
+          const response = await submitImageDelete(
+            listing.id,
+            cookie,
+            csrfToken,
+          );
+          expectImageDeleteRedirect(response, listing.id);
 
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("");
         });
       });
 
-      test("redirects when event has no image", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      test("redirects when listing has no image", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
-        const response = await submitImageDelete(event.id, cookie, csrfToken);
-        expectImageDeleteRedirect(response, event.id);
+        const response = await submitImageDelete(listing.id, cookie, csrfToken);
+        expectImageDeleteRedirect(response, listing.id);
       });
 
-      test("returns 404 for non-existent event", async () => {
+      test("returns 404 for non-existent listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
@@ -507,19 +531,23 @@ describeWithEnv(
       });
 
       test("reports error when storage delete throws", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, { imageUrl: "failing.jpg" });
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, { imageUrl: "failing.jpg" });
 
         await withFetchMock(async (originalFetch) => {
           installUrlHandler(originalFetch, () =>
             Promise.reject(new Error("CDN unreachable")),
           );
 
-          const response = await submitImageDelete(event.id, cookie, csrfToken);
+          const response = await submitImageDelete(
+            listing.id,
+            cookie,
+            csrfToken,
+          );
           expectImageErrorRedirect(response, "removal failed");
 
           // DB record should NOT be cleared when CDN delete fails
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("failing.jpg");
         });
       });
@@ -606,27 +634,27 @@ describeWithEnv(
       });
     });
 
-    describe("POST /admin/event/:id/edit (attachment upload via edit form)", () => {
+    describe("POST /admin/listing/:id/edit (attachment upload via edit form)", () => {
       test("logs diagnostic when attachment field is not a File", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const fields = await editFormData(event.id, csrfToken);
+          const fields = await editFormData(listing.id, csrfToken);
           // Add attachment as a text field instead of a file
           fields.attachment = "not-a-file";
           const response = await handleRequest(
             mockMultipartRequest(
-              `/admin/event/${event.id}/edit`,
+              `/admin/listing/${listing.id}/edit`,
               fields,
               cookie,
             ),
           );
           expectRedirectWithFlash(
-            `/admin/event/${event.id}`,
-            "Event updated",
+            `/admin/listing/${listing.id}`,
+            "Listing updated",
           )(response);
 
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.attachment_url).toBe("");
         });
       });
@@ -637,10 +665,11 @@ describeWithEnv(
         () => {
           test("ignores attachment", async () => {
             await withStorageDisabled(async () => {
-              const { event, cookie, csrfToken } = await setupEventAndLogin();
+              const { listing, cookie, csrfToken } =
+                await setupListingAndLogin();
 
               const response = await submitEditAttachment(
-                event.id,
+                listing.id,
                 cookie,
                 csrfToken,
                 {
@@ -650,19 +679,19 @@ describeWithEnv(
                 },
               );
               expect(response.status).toBe(302);
-              const updated = await getEventWithCount(event.id);
+              const updated = await getListingWithCount(listing.id);
               expect(updated?.attachment_url).toBe("");
             });
           });
         },
       );
 
-      test("uploads attachment and updates event", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      test("uploads attachment and updates listing", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
           const response = await submitEditAttachment(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
             {
@@ -672,23 +701,23 @@ describeWithEnv(
             },
           );
           expectRedirectWithFlash(
-            `/admin/event/${event.id}`,
-            "Event updated",
+            `/admin/listing/${listing.id}`,
+            "Listing updated",
           )(response);
 
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.attachment_url).toMatch(/guide\.pdf$/);
           expect(updated?.attachment_name).toBe("guide.pdf");
         });
       });
 
       test("rejects oversized attachment", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         const oversized = new Uint8Array(25 * 1024 * 1024 + 1);
         await withStorageMock(async () => {
           const response = await submitEditAttachment(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
             {
@@ -698,21 +727,21 @@ describeWithEnv(
             },
           );
           expectImageErrorRedirect(response, "25MB");
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.attachment_url).toBe("");
         });
       });
 
       test("deletes old attachment when uploading new one", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
           attachmentName: "old.pdf",
           attachmentUrl: "old-file.pdf",
         });
 
         await withStorageMock(async (fetchCalls) => {
           const response = await submitEditAttachment(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
             {
@@ -731,7 +760,7 @@ describeWithEnv(
       });
 
       test("reports error when attachment upload fails", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await runWithStorageConfig(
           { zoneKey: "testkey", zoneName: "testzone" },
@@ -742,7 +771,7 @@ describeWithEnv(
               );
 
               const response = await submitEditAttachment(
-                event.id,
+                listing.id,
                 cookie,
                 csrfToken,
                 {
@@ -757,16 +786,16 @@ describeWithEnv(
       });
     });
 
-    describe("POST /admin/event (attachment upload via create form)", () => {
-      test("uploads attachment when creating a new event", async () => {
+    describe("POST /admin/listing (attachment upload via create form)", () => {
+      test("uploads attachment when creating a new listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
         await withStorageMock(async () => {
           const response = await handleRequest(
             mockMultipartRequest(
-              "/admin/event",
-              newEventFormFields(csrfToken, "Attachment Event"),
+              "/admin/listing",
+              newListingFormFields(csrfToken, "Attachment Listing"),
               cookie,
               {
                 contentType: "application/pdf",
@@ -776,58 +805,58 @@ describeWithEnv(
               },
             ),
           );
-          expectRedirectWithFlash("/admin", "Event created")(response);
+          expectRedirectWithFlash("/admin", "Listing created")(response);
 
-          const events = await import("#shared/db/events.ts").then((m) =>
-            m.getAllEvents(),
+          const listings = await import("#shared/db/listings.ts").then((m) =>
+            m.getAllListings(),
           );
-          const created = events.find((e) => e.name === "Attachment Event");
+          const created = listings.find((e) => e.name === "Attachment Listing");
           expect(created?.attachment_url).toMatch(/info\.pdf$/);
           expect(created?.attachment_name).toBe("info.pdf");
         });
       });
     });
 
-    describe("POST /admin/event/:id/attachment/delete", () => {
-      test("removes attachment from event and storage", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, {
+    describe("POST /admin/listing/:id/attachment/delete", () => {
+      test("removes attachment from listing and storage", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
           attachmentName: "file.pdf",
           attachmentUrl: "to-delete.pdf",
         });
 
         await withStorageMock(async () => {
           const response = await submitAttachmentDelete(
-            event.id,
+            listing.id,
             cookie,
             csrfToken,
           );
           expectRedirectWithFlash(
-            `/admin/event/${event.id}`,
+            `/admin/listing/${listing.id}`,
             "Attachment removed",
           )(response);
 
-          const updated = await getEventWithCount(event.id);
+          const updated = await getListingWithCount(listing.id);
           expect(updated?.attachment_url).toBe("");
           expect(updated?.attachment_name).toBe("");
         });
       });
 
-      test("redirects when event has no attachment", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      test("redirects when listing has no attachment", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         const response = await submitAttachmentDelete(
-          event.id,
+          listing.id,
           cookie,
           csrfToken,
         );
         expectRedirectWithFlash(
-          `/admin/event/${event.id}`,
+          `/admin/listing/${listing.id}`,
           "Attachment removed",
         )(response);
       });
 
-      test("returns 404 for non-existent event", async () => {
+      test("returns 404 for non-existent listing", async () => {
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
@@ -836,65 +865,67 @@ describeWithEnv(
       });
     });
 
-    describe("event deletion cleans up storage files", () => {
-      test("deletes image from storage when event is deleted", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, { imageUrl: "event-image.jpg" });
+    describe("listing deletion cleans up storage files", () => {
+      test("deletes image from storage when listing is deleted", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
+          imageUrl: "listing-image.jpg",
+        });
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await submitEventDelete(
-            event.id,
-            event.name,
+          const response = await submitListingDelete(
+            listing.id,
+            listing.name,
             cookie,
             csrfToken,
           );
           expect(response.status).toBe(302);
 
           const deleteCall = fetchCalls.find((url) =>
-            url.includes("event-image.jpg"),
+            url.includes("listing-image.jpg"),
           );
           expect(deleteCall).not.toBeUndefined();
 
-          const deleted = await getEvent(event.id);
+          const deleted = await getListing(listing.id);
           expect(deleted).toBeNull();
         });
       });
 
-      test("deletes attachment from storage when event is deleted", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, {
+      test("deletes attachment from storage when listing is deleted", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
           attachmentName: "doc.pdf",
-          attachmentUrl: "event-attachment.pdf",
+          attachmentUrl: "listing-attachment.pdf",
         });
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await submitEventDelete(
-            event.id,
-            event.name,
+          const response = await submitListingDelete(
+            listing.id,
+            listing.name,
             cookie,
             csrfToken,
           );
           expect(response.status).toBe(302);
 
           const deleteCall = fetchCalls.find((url) =>
-            url.includes("event-attachment.pdf"),
+            url.includes("listing-attachment.pdf"),
           );
           expect(deleteCall).not.toBeUndefined();
         });
       });
 
-      test("deletes both image and attachment from storage when event is deleted", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, {
+      test("deletes both image and attachment from storage when listing is deleted", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
           attachmentName: "both.pdf",
           attachmentUrl: "both-attachment.pdf",
           imageUrl: "both-image.jpg",
         });
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await submitEventDelete(
-            event.id,
-            event.name,
+          const response = await submitListingDelete(
+            listing.id,
+            listing.name,
             cookie,
             csrfToken,
           );
@@ -911,9 +942,11 @@ describeWithEnv(
         });
       });
 
-      test("succeeds even when storage delete fails during event deletion", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
-        await eventsTable.update(event.id, { imageUrl: "failing-image.jpg" });
+      test("succeeds even when storage delete fails during listing deletion", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
+          imageUrl: "failing-image.jpg",
+        });
 
         await withFetchMock(async (originalFetch) => {
           installUrlHandler(originalFetch, (url) => {
@@ -926,26 +959,26 @@ describeWithEnv(
             return null;
           });
 
-          const response = await submitEventDelete(
-            event.id,
-            event.name,
+          const response = await submitListingDelete(
+            listing.id,
+            listing.name,
             cookie,
             csrfToken,
           );
           expect(response.status).toBe(302);
 
-          const deleted = await getEvent(event.id);
+          const deleted = await getListing(listing.id);
           expect(deleted).toBeNull();
         });
       });
 
-      test("skips storage cleanup when event has no image or attachment", async () => {
-        const { event, cookie, csrfToken } = await setupEventAndLogin();
+      test("skips storage cleanup when listing has no image or attachment", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async (fetchCalls) => {
-          const response = await submitEventDelete(
-            event.id,
-            event.name,
+          const response = await submitListingDelete(
+            listing.id,
+            listing.name,
             cookie,
             csrfToken,
           );

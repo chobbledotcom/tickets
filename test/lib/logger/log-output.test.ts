@@ -32,7 +32,7 @@ describe("logRequest", () => {
     logRequest({
       durationMs: 42,
       method: "GET",
-      path: "/ticket/my-event",
+      path: "/ticket/my-listing",
       status: 200,
     });
     expectLogged("[Request] GET /ticket/[redacted] 200 42ms");
@@ -42,10 +42,10 @@ describe("logRequest", () => {
     logRequest({
       durationMs: 100,
       method: "POST",
-      path: "/admin/events/123",
+      path: "/admin/listings/123",
       status: 201,
     });
-    expectLogged("[Request] POST /admin/events/[id] 201 100ms");
+    expectLogged("[Request] POST /admin/listings/[id] 201 100ms");
   });
 
   test("logs error status codes", () => {

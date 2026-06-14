@@ -101,7 +101,7 @@ describeWithEnv(
       expect(fetch.callCount()).toBe(1);
       const body = fetch.getFetchJsonBody();
       expect(body.to).toEqual(["jane@example.com"]);
-      expect(body.subject).toContain("Test Event");
+      expect(body.subject).toContain("Test Listing");
     });
 
     test("sends both confirmation and admin notification when business email set", async () => {
@@ -146,10 +146,10 @@ describeWithEnv(
       expect(body.attachments).toBeUndefined();
     });
 
-    test("attaches numbered tickets for multi-event registration", async () => {
+    test("attaches numbered tickets for multi-listing registration", async () => {
       const entries = [
-        makeEntry({ name: "Event A" }, { ticket_token: "tok1" }),
-        makeEntry({ name: "Event B" }, { ticket_token: "tok2" }),
+        makeEntry({ name: "Listing A" }, { ticket_token: "tok1" }),
+        makeEntry({ name: "Listing B" }, { ticket_token: "tok2" }),
       ];
       await setupAndSendRegistration({}, entries);
 

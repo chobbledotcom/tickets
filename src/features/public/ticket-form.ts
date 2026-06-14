@@ -6,15 +6,15 @@ import { filter, map } from "#fp";
 import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
-import {
-  type QuestionEventMap,
-  type QuestionWithAnswers,
+import type {
+  QuestionListingMap,
+  QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { EventFields } from "#shared/types.ts";
-import { extractContact, mergeEventFields } from "#templates/fields.ts";
-import { type TicketEvent, ticketPage } from "#templates/public.tsx";
-import type { EventQty, TicketCtx } from "./types.ts";
+import type { ListingFields } from "#shared/types.ts";
+import { extractContact, mergeListingFields } from "#templates/fields.ts";
+import { type TicketListing, ticketPage } from "#templates/public.tsx";
+import type { ListingQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */
 export const parseQuantityValue = (
@@ -43,22 +43,44 @@ export const formatAtomicError = capacityErrorFormatter({
   withName: (name) => `Sorry, ${name} no longer has enough spots available`,
 });
 
-/** Build a per-event answer map from parsed answers and the question-event mapping.
- * Each event gets only the answer IDs for questions assigned to it. */
-export const buildEventAnswerMap = (
+/** Parse and validate answers for custom questions from form data.
+ * Returns answer IDs if valid, or an error message if any required question is unanswered. */
+export const parseQuestionAnswers = (
+  form: URLSearchParams,
+  questions: QuestionWithAnswers[],
+): { ok: true; answerIds: number[] } | { ok: false; error: string } => {
+  const answerIds: number[] = [];
+  for (const q of questions) {
+    const raw = form.get(`question_${q.id}`);
+    if (!raw) {
+      return { error: `Please answer: ${q.text}`, ok: false };
+    }
+    const answerId = Number.parseInt(raw, 10);
+    const validAnswer = q.answers.some((a) => a.id === answerId);
+    if (!validAnswer) {
+      return { error: `Invalid answer for: ${q.text}`, ok: false };
+    }
+    answerIds.push(answerId);
+  }
+  return { answerIds, ok: true };
+};
+
+/** Build a per-listing answer map from parsed answers and the question-listing mapping.
+ * Each listing gets only the answer IDs for questions assigned to it. */
+export const buildListingAnswerMap = (
   questions: QuestionWithAnswers[],
   answerIds: number[],
-  questionEventMap: QuestionEventMap,
-  selectedEventIds: Set<number>,
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
 ): Record<string, number[]> => {
   const result: Record<string, number[]> = {};
   for (let i = 0; i < questions.length; i++) {
     const question = questions[i]!;
     const answerId = answerIds[i]!;
-    // questionEventMap always contains entries for all questions from getQuestionsWithEventIds
-    for (const eventId of questionEventMap.get(question.id)!) {
-      if (!selectedEventIds.has(eventId)) continue;
-      const key = String(eventId);
+    // questionListingMap always contains entries for all questions from getQuestionsWithListingIds
+    for (const listingId of questionListingMap.get(question.id)!) {
+      if (!selectedListingIds.has(listingId)) continue;
+      const key = String(listingId);
       (result[key] ??= []).push(answerId);
     }
   }
@@ -93,37 +115,38 @@ export const ticketFormErrorResponse = (ctx: TicketCtx) => {
 /** Parse quantity values from ticket form */
 export const parseQuantities = (
   form: FormParams,
-  events: TicketEvent[],
+  listings: TicketListing[],
 ): Map<number, number> => {
   const quantities = new Map<number, number>();
 
-  for (const { event, isSoldOut, isClosed, maxPurchasable } of events) {
+  for (const { listing, isSoldOut, isClosed, maxPurchasable } of listings) {
     if (isSoldOut || isClosed) continue;
 
-    const raw = form.get(`quantity_${event.id}`) || "0";
+    const raw = form.get(`quantity_${listing.id}`) || "0";
     const quantity = parseQuantityValue(raw, maxPurchasable, 0);
     if (quantity > 0) {
-      quantities.set(event.id, quantity);
+      quantities.set(listing.id, quantity);
     }
   }
 
   return quantities;
 };
 
-/** Filter events to those with selected quantity, returning event and quantity */
-export const eventsWithQuantity = (
-  events: TicketEvent[],
+/** Filter listings to those with selected quantity, returning listing and quantity */
+export const listingsWithQuantity = (
+  listings: TicketListing[],
   quantities: Map<number, number>,
-): EventQty[] => {
-  const withQty: EventQty[] = map(({ event }: TicketEvent) => ({
-    event,
-    qty: quantities.get(event.id) ?? 0,
-  }))(events);
-  return filter(({ qty }: EventQty) => qty > 0)(withQty);
+): ListingQty[] => {
+  const withQty: ListingQty[] = map(({ listing }: TicketListing) => ({
+    listing,
+    qty: quantities.get(listing.id) ?? 0,
+  }))(listings);
+  return filter(({ qty }: ListingQty) => qty > 0)(withQty);
 };
 
-/** Determine merged fields setting for selected events */
-export const getTicketFieldsSetting = (events: TicketEvent[]): EventFields =>
-  mergeEventFields(events.map((e) => e.event.fields));
+/** Determine merged fields setting for selected listings */
+export const getTicketFieldsSetting = (
+  listings: TicketListing[],
+): ListingFields => mergeListingFields(listings.map((e) => e.listing.fields));
 
 export { extractContact };

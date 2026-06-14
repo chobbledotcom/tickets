@@ -47,7 +47,7 @@ import {
 } from "#shared/business-email.ts";
 import { validateColumnTemplate } from "#shared/column-order.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { EVENT_TABLE_COLUMNS } from "#shared/columns/event-columns.ts";
+import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   getEffectiveDomain,
@@ -58,7 +58,7 @@ import { clearSessionCookie } from "#shared/cookies.ts";
 import { isValidCountry } from "#shared/countries.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllEvents } from "#shared/db/events.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -93,7 +93,7 @@ import {
   validateSquareWebhookSignatureKey,
 } from "#shared/square-validation.ts";
 import {
-  deleteAllEventStorageFiles,
+  deleteAllListingStorageFiles,
   deleteFile,
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
@@ -192,7 +192,6 @@ const getAdvancedSettingsPageState = async (
     emailApiKeyConfigured: settings.email.hasApiKey,
     emailFromAddress: settings.email.fromAddress,
     emailProvider: settings.email.provider,
-    eventColumnOrder: settings.eventColumnOrder,
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
     googleWalletIssuerId: settings.googleWallet.issuerId,
     googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,
@@ -212,6 +211,7 @@ const getAdvancedSettingsPageState = async (
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
+    listingColumnOrder: settings.listingColumnOrder,
     paymentProvider: settings.paymentProvider ?? "",
     showPublicApi: settings.showPublicApi,
     subdomainPreview,
@@ -753,7 +753,7 @@ const handleResetDatabasePost = advancedSettingsRoute(
 
     await logActivity("Database reset initiated");
     if (isStorageEnabled()) {
-      await deleteAllEventStorageFiles(await getAllEvents());
+      await deleteAllListingStorageFiles(await getAllListings());
     }
     await resetDatabase();
 
@@ -765,18 +765,18 @@ const handleResetDatabasePost = advancedSettingsRoute(
 );
 
 /**
- * Build a column-order settings handler for the event or attendee table.
- * Handles POST /admin/settings/{event,attendee}-column-order - owner only
+ * Build a column-order settings handler for the listing or attendee table.
+ * Handles POST /admin/settings/{listing,attendee}-column-order - owner only
  */
-const columnOrderHandler = (kind: "event" | "attendee") => {
+const columnOrderHandler = (kind: "listing" | "attendee") => {
   const columns =
-    kind === "event" ? EVENT_TABLE_COLUMNS : ATTENDEE_TABLE_COLUMNS;
+    kind === "listing" ? LISTING_TABLE_COLUMNS : ATTENDEE_TABLE_COLUMNS;
   const update =
-    kind === "event"
-      ? settings.update.eventColumnOrder
+    kind === "listing"
+      ? settings.update.listingColumnOrder
       : settings.update.attendeeColumnOrder;
   const label =
-    kind === "event" ? "Event column order" : "Attendee column order";
+    kind === "listing" ? "Listing column order" : "Attendee column order";
   return settingsHandler({
     advanced: true,
     extract: (form) => form.getString("column_order").trim(),
@@ -789,7 +789,7 @@ const columnOrderHandler = (kind: "event" | "attendee") => {
   });
 };
 
-const handleEventColumnOrderPost = columnOrderHandler("event");
+const handleListingColumnOrderPost = columnOrderHandler("listing");
 const handleAttendeeColumnOrderPost = columnOrderHandler("attendee");
 
 /** Roll back a created superuser after email failure and return error page */
@@ -915,11 +915,11 @@ export const settingsRoutes = defineRoutes({
     handleEmailTemplatePreviewPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
   "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
-  "POST /admin/settings/event-column-order": handleEventColumnOrderPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
+  "POST /admin/settings/listing-column-order": handleListingColumnOrderPost,
   "POST /admin/settings/payment-provider": handlePaymentProviderPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,

@@ -3,20 +3,20 @@
  */
 
 import type {
-  QuestionEventMap,
+  QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import type { EventWithCount } from "#shared/types.ts";
-import type { QrPrefill, TicketEvent } from "#templates/public.tsx";
+import type { ListingWithCount } from "#shared/types.ts";
+import type { QrPrefill, TicketListing } from "#templates/public.tsx";
 
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {
   slugs: string[];
-  events: TicketEvent[];
+  listings: TicketListing[];
   dates: string[];
   terms: string;
   questions: QuestionWithAnswers[];
-  questionEventMap: QuestionEventMap;
+  questionListingMap: QuestionListingMap;
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
@@ -39,7 +39,7 @@ export type TicketSharedContext = {
   dates: string[];
   terms: string;
   questions: QuestionWithAnswers[];
-  questionEventMap: QuestionEventMap;
+  questionListingMap: QuestionListingMap;
   groupName?: string;
   groupDescription?: string;
   actionUrl?: string;
@@ -48,17 +48,17 @@ export type TicketSharedContext = {
 
 /** Shared context provider for ticket pages */
 export type TicketContextProvider = (
-  events: TicketEvent[],
+  listings: TicketListing[],
 ) => Promise<TicketSharedContext>;
 
-/** Event with selected quantity */
-export type EventQty = { event: EventWithCount; qty: number };
+/** Listing with selected quantity */
+export type ListingQty = { listing: ListingWithCount; qty: number };
 
 /** Registration closed message for form submissions */
 export const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
 
-/** Parse slugs from a slug string (may contain + separator for multiple events) */
+/** Parse slugs from a slug string (may contain + separator for multiple listings) */
 export const parseSlugs = (slug: string): string[] =>
   slug.split("+").filter((s) => s.length > 0);
 
@@ -68,7 +68,7 @@ export const applyNoindex = (response: Response): Response => {
   return response;
 };
 
-/** Set noindex signal header on response for hidden events */
+/** Set noindex signal header on response for hidden listings */
 export const applyHiddenNoindex = (
   response: Response,
   hidden: boolean,

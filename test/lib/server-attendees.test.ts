@@ -6,13 +6,13 @@ import { attendeesApi } from "#shared/db/attendees.ts";
 import {
   answersTable,
   questionsTable,
-  setEventQuestions,
+  setListingQuestions,
 } from "#shared/db/questions.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import {
   adminAttendeeAction,
-  adminEventPage,
   adminFormPost,
+  adminListingPage,
   assertAdminHtml,
   awaitTestRequest,
   bookAttendee,
@@ -20,7 +20,7 @@ import {
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
-  createTestEvent,
+  createTestListing,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -34,7 +34,7 @@ import {
   mockFormRequest,
   mockProviderType,
   setupAdminTest,
-  setupEventAndLogin,
+  setupListingAndLogin,
   testCookie,
   testCsrfToken,
   testRequiresAuth,
@@ -45,73 +45,73 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
   const checkinAction = adminAttendeeAction("checkin");
 
-  describe("GET /admin/event/:eventId/attendee/:attendeeId/delete", () => {
-    testRequiresAuth("/admin/event/1/attendee/1/delete", {
+  describe("GET /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
+    testRequiresAuth("/admin/listing/1/attendee/1/delete", {
       setup: async () => {
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
         });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
       },
     });
 
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for non-existent listing", async () => {
       const response = await awaitTestRequest(
-        "/admin/event/999/attendee/1/delete",
+        "/admin/listing/999/attendee/1/delete",
         { cookie: await testCookie() },
       );
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/999/delete",
+        "/admin/listing/1/attendee/999/delete",
         { cookie: await testCookie() },
       );
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 when attendee belongs to different event", async () => {
-      const event1 = await createTestEvent({
+    test("returns 404 when attendee belongs to different listing", async () => {
+      const listing1 = await createTestListing({
         maxAttendees: 100,
-        name: "Event 1",
+        name: "Listing 1",
         thankYouUrl: "https://example.com",
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 100,
-        name: "Event 2",
+        name: "Listing 2",
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(
-        event2.id,
-        event2.slug,
+        listing2.id,
+        listing2.slug,
         "John Doe",
         "john@example.com",
       );
 
-      // Try to delete attendee from event 2 via event 1 URL
+      // Try to delete attendee from listing 2 via listing 1 URL
       const response = await awaitTestRequest(
-        `/admin/event/${event1.id}/attendee/${attendee.id}/delete`,
+        `/admin/listing/${listing1.id}/attendee/${attendee.id}/delete`,
         { cookie: await testCookie() },
       );
       expect(response.status).toBe(404);
     });
 
     test("shows delete confirmation page when authenticated", async () => {
-      const { response } = await adminEventPage(
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete`,
+          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/delete`,
       )();
       await expectHtmlResponse(
         response,
@@ -123,9 +123,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("includes return_url as hidden field when provided", async () => {
-      const { response } = await adminEventPage(
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent(
+          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent(
             "/admin/calendar#attendees",
           )}`,
       )();
@@ -138,42 +138,42 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete", () => {
-    testRequiresAuth("/admin/event/1/attendee/1/delete", {
+  describe("POST /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
+    testRequiresAuth("/admin/listing/1/attendee/1/delete", {
       body: {
         confirm_identifier: "John Doe",
       },
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
         });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
       },
     });
 
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost(
-        "/admin/event/999/attendee/1/delete",
+        "/admin/listing/999/attendee/1/delete",
         { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
       const { response } = await adminFormPost(
-        "/admin/event/1/attendee/999/delete",
+        "/admin/listing/1/attendee/999/delete",
         { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
@@ -205,11 +205,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
-      const { response, event, attendee } = await deleteAction({
+      const { response, listing, attendee } = await deleteAction({
         confirm_identifier: "john doe",
       })();
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "Attendee deleted",
       )(response);
 
@@ -223,19 +223,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await deleteAction({
         confirm_identifier: "  John Doe  ",
       })();
-      expectRedirectWithFlash("/admin/event/1", "Attendee deleted")(response);
+      expectRedirectWithFlash("/admin/listing/1", "Attendee deleted")(response);
     });
   });
 
-  describe("DELETE /admin/event/:eventId/attendee/:attendeeId/delete", () => {
+  describe("DELETE /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     test("deletes attendee with DELETE method", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -247,7 +247,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const response = await handleRequest(
         new Request(
-          `http://localhost/admin/event/${event.id}/attendee/${attendee.id}/delete`,
+          `http://localhost/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
           {
             body: formBody,
             headers: {
@@ -259,7 +259,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectRedirectWithFlash("/admin/event/1", "Attendee deleted")(response);
+      expectRedirectWithFlash("/admin/listing/1", "Attendee deleted")(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
@@ -268,7 +268,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (confirm_identifier edge case)", () => {
+  describe("POST /admin/listing/:listingId/attendee/:attendeeId/delete (confirm_identifier edge case)", () => {
     test("handles missing confirm_identifier field (falls back to empty string)", async () => {
       // Submit without confirm_identifier field at all
       const { response } = await deleteAction({})();
@@ -280,14 +280,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("routes/admin/attendees.ts (parseAttendeeIds)", () => {
     test("returns 404 for non-existent attendee on delete page", async () => {
-      const { event, cookie } = await setupEventAndLogin({
+      const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Att Del 404",
       });
 
       const response = await handleRequest(
         new Request(
-          `http://localhost/admin/event/${event.id}/attendee/99999/delete`,
+          `http://localhost/admin/listing/${listing.id}/attendee/99999/delete`,
           {
             headers: {
               cookie,
@@ -302,13 +302,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("routes/admin/attendees.ts (parseAttendeeIds)", () => {
     test("exercises parseAttendeeIds via POST route with valid params", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 50,
         name: "Parse Ids Test",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Test User",
         "test@example.com",
       );
@@ -317,7 +317,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // The custom handler requires confirm_identifier to match the attendee name.
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
           { confirm_identifier: "Test User", csrf_token: csrfToken },
           cookie,
         ),
@@ -327,17 +327,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete", () => {
-    testRequiresAuth("/admin/event/1/attendee/1/delete-incomplete", {
+  describe("POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete", () => {
+    testRequiresAuth("/admin/listing/1/attendee/1/delete-incomplete", {
       body: {},
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           maxAttendees: 100,
           unitPrice: 1000,
         });
         await createPaidTestAttendee(
-          event.id,
+          listing.id,
           "John Doe",
           "john@example.com",
           "",
@@ -347,12 +347,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("deletes incomplete attendee without name confirmation", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
         unitPrice: 1000,
       });
       const attendee = await createPaidTestAttendee(
-        event.id,
+        listing.id,
         "Jane Stuck",
         "jane@example.com",
         "",
@@ -361,13 +361,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
           { csrf_token: csrfToken },
           cookie,
         ),
       );
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "Incomplete registration removed",
       )(response);
 
@@ -378,12 +378,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("refuses to delete complete attendee via delete-incomplete", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
         unitPrice: 1000,
       });
       const attendee = await createPaidTestAttendee(
-        event.id,
+        listing.id,
         "John Paid",
         "john@example.com",
         "pi_test_123",
@@ -392,61 +392,61 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
           { csrf_token: csrfToken },
           cookie,
         ),
       );
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         undefined,
         false,
       )(response);
 
       // Verify attendee was NOT deleted (still exists)
-      const rows = await getAttendeesRaw(event.id);
+      const rows = await getAttendeesRaw(listing.id);
       expect(rows.length).toBe(1);
     });
 
-    test("refuses to delete admin-added attendee on paid event via delete-incomplete", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+    test("refuses to delete admin-added attendee on paid listing via delete-incomplete", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
         unitPrice: 1000,
       });
       // Admin-added attendee: no payment_id and price_paid=0
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Admin Added",
         "admin@example.com",
       );
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
           { csrf_token: csrfToken },
           cookie,
         ),
       );
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         undefined,
         false,
       )(response);
 
       // Verify attendee was NOT deleted
-      const rows = await getAttendeesRaw(event.id);
+      const rows = await getAttendeesRaw(listing.id);
       expect(rows.length).toBe(1);
     });
 
-    test("deletes incomplete attendee on free can_pay_more event", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+    test("deletes incomplete attendee on free can_pay_more listing", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         canPayMore: true,
         maxAttendees: 100,
         unitPrice: 0,
       });
       const attendee = await createPaidTestAttendee(
-        event.id,
+        listing.id,
         "Jane Stuck",
         "jane@example.com",
         "",
@@ -455,13 +455,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
           { csrf_token: csrfToken },
           cookie,
         ),
       );
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "Incomplete registration removed",
       )(response);
 
@@ -471,14 +471,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
         unitPrice: 1000,
       });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/999/delete-incomplete`,
+          `/admin/listing/${listing.id}/attendee/999/delete-incomplete`,
           { csrf_token: csrfToken },
           cookie,
         ),
@@ -487,18 +487,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/checkin", () => {
-    testRequiresAuth("/admin/event/1/attendee/1/checkin", {
+  describe("POST /admin/listing/:listingId/attendee/:attendeeId/checkin", () => {
+    testRequiresAuth("/admin/listing/1/attendee/1/checkin", {
       body: {},
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({
+        const listing = await createTestListing({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
         });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
@@ -513,29 +513,29 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestEvent({
+      await createTestListing({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
       const { response } = await adminFormPost(
-        "/admin/event/1/attendee/999/checkin",
+        "/admin/listing/1/attendee/999/checkin",
       );
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost(
-        "/admin/event/999/attendee/1/checkin",
+        "/admin/listing/999/attendee/1/checkin",
       );
       expect(response.status).toBe(404);
     });
 
     test("checks in an attendee and redirects with message", async () => {
-      const { response, event } = await checkinAction({})();
+      const { response, listing } = await checkinAction({})();
       expectRedirect(
         response,
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "checkin_status=in",
         "checkin_name=John",
         "#message",
@@ -543,39 +543,44 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("redirects to filtered page when return_filter is set", async () => {
-      const { response, event } = await checkinAction({
+      const { response, listing } = await checkinAction({
         return_filter: "in",
       })();
       expectRedirect(
         response,
-        `/admin/event/${event.id}/in?`,
+        `/admin/listing/${listing.id}/in?`,
         "checkin_status=in",
       );
     });
 
     test("redirects to out filtered page when return_filter is out", async () => {
       // Check in first, then check out with return_filter=out
-      const { event, attendee, cookie, csrfToken } = await checkinAction({})();
+      const { listing, attendee, cookie, csrfToken } = await checkinAction(
+        {},
+      )();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
           { csrf_token: csrfToken, return_filter: "out" },
           cookie,
         ),
       );
       expectRedirect(
         response,
-        `/admin/event/${event.id}/out?`,
+        `/admin/listing/${listing.id}/out?`,
         "checkin_status=out",
       );
     });
 
     test("redirects to unfiltered page when return_filter is all", async () => {
-      const { response, event } = await checkinAction({
+      const { response, listing } = await checkinAction({
         return_filter: "all",
       })();
-      const location = expectRedirect(response, `/admin/event/${event.id}?`);
+      const location = expectRedirect(
+        response,
+        `/admin/listing/${listing.id}?`,
+      );
       expect(location).not.toContain("/in?");
       expect(location).not.toContain("/out?");
     });
@@ -595,12 +600,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("checks out an already checked-in attendee", async () => {
       // First check in via the curried helper
-      const { event, attendee, cookie, csrfToken } = await checkinAction({})();
+      const { listing, attendee, cookie, csrfToken } = await checkinAction(
+        {},
+      )();
 
       // Then check out
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
           { csrf_token: csrfToken },
           cookie,
         ),
@@ -608,17 +615,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectRedirect(response, "checkin_status=out");
     });
 
-    test("event page shows Check in button for unchecked attendee", async () => {
-      const { response } = await adminEventPage(
-        (ctx) => `/admin/event/${ctx.event.id}`,
+    test("listing page shows Check in button for unchecked attendee", async () => {
+      const { response } = await adminListingPage(
+        (ctx) => `/admin/listing/${ctx.listing.id}`,
       )();
       await expectHtmlResponse(response, 200, "Check in", "/checkin");
     });
 
-    test("event page shows check-in success message when query params present", async () => {
-      const { response } = await adminEventPage(
+    test("listing page shows check-in success message when query params present", async () => {
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=in`,
+          `/admin/listing/${ctx.listing.id}?checkin_name=John%20Doe&checkin_status=in`,
       )();
       await expectHtmlResponse(
         response,
@@ -628,10 +635,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("event page shows check-out message in red", async () => {
-      const { response } = await adminEventPage(
+    test("listing page shows check-out message in red", async () => {
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=out`,
+          `/admin/listing/${ctx.listing.id}?checkin_name=John%20Doe&checkin_status=out`,
       )();
       await expectHtmlResponse(
         response,
@@ -641,26 +648,26 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("event page ignores invalid checkin_status param", async () => {
-      const { response } = await adminEventPage(
+    test("listing page ignores invalid checkin_status param", async () => {
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=invalid`,
+          `/admin/listing/${ctx.listing.id}?checkin_name=John%20Doe&checkin_status=invalid`,
       )();
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Checked John Doe");
     });
 
-    test("event page shows Check out button for checked-in attendee", async () => {
-      // Check in first, then view the event page
-      const { event } = await checkinAction({})();
+    test("listing page shows Check out button for checked-in attendee", async () => {
+      // Check in first, then view the listing page
+      const { listing } = await checkinAction({})();
 
-      await assertAdminHtml(`/admin/event/${event.id}`, "Check out");
+      await assertAdminHtml(`/admin/listing/${listing.id}`, "Check out");
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee (add attendee)", () => {
-    testRequiresAuth("/admin/event/1/attendee", {
+  describe("POST /admin/listing/:listingId/attendee (add attendee)", () => {
+    testRequiresAuth("/admin/listing/1/attendee", {
       body: {
         email: "jane@example.com",
         name: "Jane Doe",
@@ -668,16 +675,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       },
       method: "POST",
       setup: async () => {
-        await createTestEvent({ maxAttendees: 100 });
+        await createTestListing({ maxAttendees: 100 });
       },
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
+          `/admin/listing/${listing.id}/attendee`,
           {
             csrf_token: "invalid-token",
             email: "jane@example.com",
@@ -690,8 +699,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(403);
     });
 
-    test("returns 404 for non-existent event", async () => {
-      const { response } = await adminFormPost("/admin/event/999/attendee", {
+    test("returns 404 for non-existent listing", async () => {
+      const { response } = await adminFormPost("/admin/listing/999/attendee", {
         email: "jane@example.com",
         name: "Jane Doe",
         quantity: "1",
@@ -699,15 +708,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("adds attendee to email event", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+    test("adds attendee to email listing", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         fields: "email",
         maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
+          `/admin/listing/${listing.id}/attendee`,
           {
             csrf_token: csrfToken,
             email: "jane@example.com",
@@ -717,22 +726,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirect(response, `/admin/event/${event.id}`);
+      expectRedirect(response, `/admin/listing/${listing.id}`);
       expectFlash(response, expect.stringContaining("Added"));
 
-      const attendees = await getAttendeesRaw(event.id);
+      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
     });
 
-    test("adds attendee to phone event", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+    test("adds attendee to phone listing", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         fields: "phone",
         maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
+          `/admin/listing/${listing.id}/attendee`,
           {
             csrf_token: csrfToken,
             name: "Phone User",
@@ -745,19 +754,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Added"));
 
-      const attendees = await getAttendeesRaw(event.id);
+      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
     });
 
-    test("adds attendee to both event", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+    test("adds attendee to both listing", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         fields: "email,phone",
         maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
+          `/admin/listing/${listing.id}/attendee`,
           {
             csrf_token: csrfToken,
             email: "both@example.com",
@@ -771,19 +780,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Added"));
 
-      const attendees = await getAttendeesRaw(event.id);
+      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.quantity).toBe(2);
     });
 
     test("redirects with error on validation failure", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
+          `/admin/listing/${listing.id}/attendee`,
           {
             csrf_token: csrfToken,
             email: "",
@@ -798,16 +807,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("redirects with error when capacity exceeded", async () => {
-      const event = await createTestEvent({ maxAttendees: 1 });
+      const listing = await createTestListing({ maxAttendees: 1 });
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "First",
         "first@example.com",
       );
 
       const { response } = await adminFormPost(
-        `/admin/event/${event.id}/attendee`,
+        `/admin/listing/${listing.id}/attendee`,
         {
           email: "second@example.com",
           name: "Second",
@@ -819,7 +828,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("redirects with error on encryption failure", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
       });
 
@@ -834,7 +843,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         async () => {
           const response = await handleRequest(
             mockFormRequest(
-              `/admin/event/${event.id}/attendee`,
+              `/admin/listing/${listing.id}/attendee`,
               {
                 csrf_token: csrfToken,
                 email: "enc@example.com",
@@ -850,12 +859,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("adds attendee to daily event with date", async () => {
+    test("adds attendee to daily listing with date", async () => {
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const futureDate = addDays(todayInTz("UTC"), 7);
 
-      const { event, cookie, csrfToken } = await setupEventAndLogin({
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
         bookableDays: [
           "Monday",
           "Tuesday",
@@ -865,13 +874,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           "Saturday",
           "Sunday",
         ],
-        eventType: "daily",
+        listingType: "daily",
         maxAttendees: 100,
       });
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee`,
+          `/admin/listing/${listing.id}/attendee`,
           {
             csrf_token: csrfToken,
             date: futureDate,
@@ -885,28 +894,30 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Added"));
 
-      const attendees = await getAttendeesRaw(event.id);
+      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.date).toBe(futureDate);
     });
 
-    test("event page shows add attendee form", async () => {
-      const { event } = await setupEventAndLogin({ maxAttendees: 100 });
+    test("listing page shows add attendee form", async () => {
+      const { listing } = await setupListingAndLogin({ maxAttendees: 100 });
 
       await assertAdminHtml(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "Add Attendee",
-        `/admin/event/${event.id}/attendee`,
+        `/admin/listing/${listing.id}/attendee`,
         "Your Name",
         "Quantity",
       );
     });
 
-    test("event page shows success message when flash cookie present", async () => {
-      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
+    test("listing page shows success message when flash cookie present", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}?flash=${FLASH_TEST_ID}`,
+        `/admin/listing/${listing.id}?flash=${FLASH_TEST_ID}`,
         {
           cookie: `${cookie}; ${flashCookieHeader("Added Jane Doe")}`,
         },
@@ -914,11 +925,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Added Jane Doe");
     });
 
-    test("event page shows error message when flash cookie present", async () => {
-      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
+    test("listing page shows error message when flash cookie present", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}?flash=${FLASH_TEST_ID}`,
+        `/admin/listing/${listing.id}?flash=${FLASH_TEST_ID}`,
         {
           cookie: `${cookie}; ${flashCookieHeader("Not enough spots", false)}`,
         },
@@ -930,10 +943,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("GET /admin/attendees/:attendeeId", () => {
     testRequiresAuth("/admin/attendees/1", {
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 100 });
+        const listing = await createTestListing({ maxAttendees: 100 });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
@@ -948,8 +961,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows edit form with prefilled attendee data", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const result = await bookAttendee(event, {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const result = await bookAttendee(listing, {
         address: "123 Main St",
         email: "john@example.com",
         name: "John Doe",
@@ -977,10 +990,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("includes return_url as hidden field when provided", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -998,14 +1011,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("shows current event in registrations table", async () => {
-      const event = await createTestEvent({
+    test("shows current listing in registrations table", async () => {
+      const listing = await createTestListing({
         maxAttendees: 100,
-        name: "Current Event",
+        name: "Current Listing",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1016,19 +1029,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Current Event",
-        "Event Registrations",
+        "Current Listing",
+        "Listing Registrations",
       );
     });
 
-    test("edit page shows event registrations and add-to-event sections", async () => {
-      const event = await createTestEvent({
+    test("edit page shows listing registrations and add-to-listing sections", async () => {
+      const listing = await createTestListing({
         maxAttendees: 100,
-        name: "Edit Page Event",
+        name: "Edit Page Listing",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Edit User",
         "edit@example.com",
       );
@@ -1043,27 +1056,29 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Add Event Line",
         "Save Attendee",
       );
-      // Event link table shows the event
-      expect(html).toContain("Edit Page Event");
-      // Line editor has event selector
+      // Listing link table shows the listing
+      expect(html).toContain("Edit Page Listing");
+      // Line editor has listing selector
       expect(html).toContain("line_event_id_");
     });
 
     test("edit page shows checked-in badge for checked-in attendee", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
-        name: "Checkin Badge Event",
+        name: "Checkin Badge Listing",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Badge User",
         "badge@example.com",
       );
       const { updateCheckedIn } = await import("#shared/db/attendees.ts");
-      await updateCheckedIn(attendee.id, event.id, true);
-      const { invalidateEventsCache } = await import("#shared/db/events.ts");
-      invalidateEventsCache();
+      await updateCheckedIn(attendee.id, listing.id, true);
+      const { invalidateListingsCache } = await import(
+        "#shared/db/listings.ts"
+      );
+      invalidateListingsCache();
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
@@ -1071,13 +1086,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Checked in");
     });
 
-    test("edit page loads available dates for daily events", async () => {
-      const event = await createTestEvent({
-        eventType: "daily",
+    test("edit page loads available dates for daily listings", async () => {
+      const listing = await createTestListing({
+        listingType: "daily",
         maxAttendees: 100,
-        name: "Daily Dates Event",
+        name: "Daily Dates Listing",
       });
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         date: "2026-04-07",
         email: "daily@example.com",
         name: "Daily User",
@@ -1091,25 +1106,25 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const html = await expectHtmlResponse(
         response,
         200,
-        "Daily Dates Event",
+        "Daily Dates Listing",
         "attendee-form-data",
       );
       expect(html).toContain("2026-");
     });
 
-    test("includes active events in add-to-event selector", async () => {
-      const event1 = await createTestEvent({
+    test("includes active listings in add-to-listing selector", async () => {
+      const listing1 = await createTestListing({
         maxAttendees: 100,
-        name: "Event 1",
+        name: "Listing 1",
       });
-      await createTestEvent({
+      await createTestListing({
         active: true,
         maxAttendees: 100,
-        name: "Event 2",
+        name: "Listing 2",
       });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1117,7 +1132,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      await expectHtmlResponse(response, 200, "Event 1", "Event 2");
+      await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
   });
 
@@ -1136,10 +1151,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       },
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 100 });
+        const listing = await createTestListing({ maxAttendees: 100 });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
@@ -1161,10 +1176,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1176,7 +1191,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             csrf_token: "invalid-token",
             email: "jane@example.com",
             line_count: "1",
-            line_event_id_0: String(event.id),
+            line_event_id_0: String(listing.id),
             line_quantity_0: "1",
             name: "Jane Doe",
             phone: "",
@@ -1189,10 +1204,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects empty name", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1208,10 +1223,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("preserves return_url on edit validation error", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1232,10 +1247,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects whitespace-only name", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1250,10 +1265,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates attendee with new data", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1289,10 +1304,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns to the edit form after edit, preserving return_url", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1319,13 +1334,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates attendee PII via edit form", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
-        name: "Event 1",
+        name: "Listing 1",
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1345,12 +1360,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("preserves quantity when editing contact info without quantity field", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
       });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
         3,
@@ -1370,11 +1385,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(updated!.quantity).toBe(3);
     });
 
-    test("event page shows edit success message", async () => {
-      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
+    test("listing page shows edit success message", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}?flash=${FLASH_TEST_ID}`,
+        `/admin/listing/${listing.id}?flash=${FLASH_TEST_ID}`,
         {
           cookie: `${cookie}; ${flashCookieHeader("Updated Jane Doe")}`,
         },
@@ -1383,14 +1400,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("attendee table shows edit link", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie: await testCookie(),
       });
       await expectHtmlResponse(
@@ -1401,18 +1418,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("shows current event in registrations and active events in add-to-event", async () => {
-      const event1 = await createTestEvent({
+    test("shows current listing in registrations and active listings in add-to-listing", async () => {
+      const listing1 = await createTestListing({
         active: true,
         maxAttendees: 100,
-        name: "Event 1",
+        name: "Listing 1",
       });
-      await createTestEvent({
+      await createTestListing({
         active: true,
         maxAttendees: 100,
-        name: "Event 2",
+        name: "Listing 2",
       });
-      const result = await bookAttendee(event1, {
+      const result = await bookAttendee(listing1, {
         email: "john@example.com",
         name: "John Doe",
         quantity: 1,
@@ -1427,15 +1444,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Event 1",
-        "Event 2",
+        "Listing 1",
+        "Listing 2",
         "Add Event Line",
       );
     });
 
     test("shows edit form with empty email field", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const result = await bookAttendee(event, {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const result = await bookAttendee(listing, {
         email: "",
         name: "John Doe",
         quantity: 1,
@@ -1450,13 +1467,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
     });
 
-    test("shows inactive event in registrations table", async () => {
-      const inactiveEvent = await createTestEvent({
+    test("shows inactive listing in registrations table", async () => {
+      const inactiveListing = await createTestListing({
         maxAttendees: 100,
-        name: "Inactive Event",
+        name: "Inactive Listing",
       });
 
-      const result = await bookAttendee(inactiveEvent, {
+      const result = await bookAttendee(inactiveListing, {
         email: "john@example.com",
         name: "John Doe",
         quantity: 1,
@@ -1464,29 +1481,29 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed to create attendee");
       const attendee = result.attendees[0]!;
 
-      // Manually set event to inactive after creating attendee
+      // Manually set listing to inactive after creating attendee
       const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute({
-        args: [inactiveEvent.id],
-        sql: "UPDATE events SET active = 0 WHERE id = ?",
+        args: [inactiveListing.id],
+        sql: "UPDATE listings SET active = 0 WHERE id = ?",
       });
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      // Event still shows in registrations table even when inactive
+      // Listing still shows in registrations table even when inactive
       await expectHtmlResponse(
         response,
         200,
-        "Inactive Event",
-        "Event Registrations",
+        "Inactive Listing",
+        "Listing Registrations",
       );
     });
 
     test("updates attendee with empty email", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const result = await bookAttendee(event, {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const result = await bookAttendee(listing, {
         email: "john@example.com",
         name: "John Doe",
         quantity: 1,
@@ -1506,8 +1523,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates attendee with all non-empty fields", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const result = await bookAttendee(event, {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const result = await bookAttendee(listing, {
         address: "123 Main St",
         email: "john@example.com",
         name: "John Doe",
@@ -1537,13 +1554,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows quantity field on edit form", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1555,41 +1572,41 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
-    testRequiresAuth("/admin/event/1/attendee/1/resend-notification", {
+  describe("GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
+    testRequiresAuth("/admin/listing/1/attendee/1/resend-notification", {
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 100 });
+        const listing = await createTestListing({ maxAttendees: 100 });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
       },
     });
 
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for non-existent listing", async () => {
       const response = await awaitTestRequest(
-        "/admin/event/999/attendee/1/resend-notification",
+        "/admin/listing/999/attendee/1/resend-notification",
         { cookie: await testCookie() },
       );
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestEvent({ maxAttendees: 100 });
+      await createTestListing({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/999/resend-notification",
+        "/admin/listing/1/attendee/999/resend-notification",
         { cookie: await testCookie() },
       );
       expect(response.status).toBe(404);
     });
 
     test("shows resend notification confirmation page when authenticated", async () => {
-      const { response } = await adminEventPage(
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification`,
+          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/resend-notification`,
       )();
       await expectHtmlResponse(
         response,
@@ -1601,9 +1618,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("includes return_url as hidden field when provided", async () => {
-      const { response } = await adminEventPage(
+      const { response } = await adminListingPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${encodeURIComponent(
+          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${encodeURIComponent(
             "/admin/calendar#attendees",
           )}`,
       )();
@@ -1616,10 +1633,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows error message when attendee name does not match", async () => {
-      const { event, attendee, cookie, csrfToken } = await setupAdminTest();
+      const { listing, attendee, cookie, csrfToken } = await setupAdminTest();
       const postResponse = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/resend-notification`,
           { confirm_identifier: "Wrong Name", csrf_token: csrfToken },
           cookie,
         ),
@@ -1634,12 +1651,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows amount paid on resend notification page for paid attendee", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         unitPrice: 1000,
       });
 
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         email: "jane@example.com",
         name: "Jane Paid",
         paymentId: "pi_test",
@@ -1652,7 +1669,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       }
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${
+        `/admin/listing/${listing.id}/attendee/${
           result.attendees[0]!.id
         }/resend-notification`,
         { cookie: await testCookie() },
@@ -1667,38 +1684,38 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
+  describe("POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
     const resendNotificationAction = adminAttendeeAction("resend-notification");
 
-    testRequiresAuth("/admin/event/1/attendee/1/resend-notification", {
+    testRequiresAuth("/admin/listing/1/attendee/1/resend-notification", {
       body: {
         confirm_identifier: "John Doe",
       },
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 100 });
+        const listing = await createTestListing({ maxAttendees: 100 });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
       },
     });
 
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost(
-        "/admin/event/999/attendee/1/resend-notification",
+        "/admin/listing/999/attendee/1/resend-notification",
         { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestEvent({ maxAttendees: 100 });
+      await createTestListing({ maxAttendees: 100 });
 
       const { response } = await adminFormPost(
-        "/admin/event/1/attendee/999/resend-notification",
+        "/admin/listing/1/attendee/999/resend-notification",
         { confirm_identifier: "John Doe" },
       );
       expect(response.status).toBe(404);
@@ -1726,14 +1743,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       try {
-        const { response, event } = await resendNotificationAction({
+        const { response, listing } = await resendNotificationAction({
           confirm_identifier: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
         });
         expect(response.status).toBe(302);
         expectRedirectWithFlash(
-          `/admin/event/${event.id}`,
+          `/admin/listing/${listing.id}`,
           "Notification re-sent",
         )(response);
 
@@ -1750,7 +1767,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       try {
-        const { response, event } = await resendNotificationAction({
+        const { response, listing } = await resendNotificationAction({
           confirm_identifier: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
@@ -1758,10 +1775,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         expect(response.status).toBe(302);
 
         // Verify activity was logged
-        const { getEventActivityLog } = await import(
+        const { getListingActivityLog } = await import(
           "#shared/db/activityLog.ts"
         );
-        const logs = await getEventActivityLog(event.id);
+        const logs = await getListingActivityLog(listing.id);
         const resendLog = logs.find((l: { message: string }) =>
           l.message.includes("Notification re-sent"),
         );
@@ -1775,11 +1792,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("payment details on edit page", () => {
     test("shows payment details for paid attendee", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         email: "paid@example.com",
         name: "Paid User",
         paymentId: "pi_test_123",
@@ -1802,12 +1819,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows refunded status for refunded attendee", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         unitPrice: 1000,
       });
       const { markRefunded } = await import("#shared/db/attendees.ts");
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         email: "refunded@example.com",
         name: "Refunded User",
         paymentId: "pi_refunded_123",
@@ -1815,7 +1832,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      await markRefunded(result.attendees[0]!.id, event.id);
+      await markRefunded(result.attendees[0]!.id, listing.id);
       const response = await awaitTestRequest(
         `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },
@@ -1824,10 +1841,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows success message when flash cookie present", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1844,10 +1861,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("does not show payment details for free attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Free User",
         "free@example.com",
       );
@@ -1866,10 +1883,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       body: {},
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 100 });
+        const listing = await createTestListing({ maxAttendees: 100 });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
@@ -1877,10 +1894,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("redirects to edit page when attendee has no payment", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -1903,19 +1920,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 when attendee has no bookings", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
       const db = getDbFn();
-      await db.execute(
-        "DELETE FROM event_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      await db.execute({
+        args: [attendee.id],
+        sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/refresh-payment`,
       );
@@ -1923,12 +1940,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns error when no payment provider configured", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         unitPrice: 500,
       });
       const attendee = await createPaidTestAttendee(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
         "pi_no_provider",
@@ -1950,12 +1967,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("marks as refunded when Stripe reports refund", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         unitPrice: 500,
       });
       const attendee = await createPaidTestAttendee(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
         "pi_refresh_refund",
@@ -1992,12 +2009,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("redirects without marking refunded when payment is not refunded", async () => {
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         maxAttendees: 100,
         unitPrice: 500,
       });
       const attendee = await createPaidTestAttendee(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
         "pi_refresh_ok",
@@ -2035,11 +2052,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("edit attendee questions", () => {
     const setupQuestionAndAttendee = async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+      const listing = await createTestListing({ maxAttendees: 100 });
       // Create attendee before assigning questions (public route requires answers)
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "John Doe",
         "john@example.com",
       );
@@ -2054,8 +2071,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 1,
         text: "Large",
       });
-      await setEventQuestions(event.id, [q.id]);
-      return { a1, a2, attendee, event, q };
+      await setListingQuestions(listing.id, [q.id]);
+      return { a1, a2, attendee, listing, q };
     };
 
     test("shows questions on edit page", async () => {
@@ -2086,11 +2103,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(html).toContain(`value="${a1.id}" checked`);
     });
 
-    test("does not show questions when event has none", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
+    test("does not show questions when listing has none", async () => {
+      const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Jane Doe",
         "jane@example.com",
       );
@@ -2189,108 +2206,112 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
   });
 
-  describe("event link management", () => {
-    test("POST /admin/attendees/:id/link adds event link", async () => {
-      const event1 = await createTestEvent({
+  describe("listing link management", () => {
+    test("POST /admin/attendees/:id/link adds listing link", async () => {
+      const listing1 = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "Link User",
         "link@test.com",
       );
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: String(event2.id), quantity: "2" },
+        { listing_id: String(listing2.id), quantity: "2" },
       );
       expect(response.status).toBe(302);
 
-      // Verify attendee is linked to both events
+      // Verify attendee is linked to both listings
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const att1 = await getAttendeesRaw(event1.id);
-      const att2 = await getAttendeesRaw(event2.id);
+      const att1 = await getAttendeesRaw(listing1.id);
+      const att2 = await getAttendeesRaw(listing2.id);
       expect(att1.length).toBe(1);
       expect(att2.length).toBe(1);
       expect(att2[0]!.quantity).toBe(2);
     });
 
-    test("POST /admin/attendees/:id/link rejects missing event_id", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+    test("POST /admin/attendees/:id/link rejects missing listing_id", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "No Event",
-        "noevent@test.com",
+        listing.id,
+        listing.slug,
+        "No Listing",
+        "nolisting@test.com",
       );
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: "0", quantity: "1" },
+        { listing_id: "0", quantity: "1" },
       );
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Event is required"),
+        expect.stringContaining("Listing is required"),
         false,
       );
     });
 
     test("POST /admin/attendees/:id/link rejects when capacity exceeded", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 1 });
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 1 });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "Cap",
         "cap@test.com",
       );
-      // Fill event2
+      // Fill listing2
       await createTestAttendee(
-        event2.id,
-        event2.slug,
+        listing2.id,
+        listing2.slug,
         "Filler",
         "filler@test.com",
       );
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: String(event2.id), quantity: "1" },
+        { listing_id: String(listing2.id), quantity: "1" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Not enough spots"), false);
     });
 
-    test("POST /admin/attendees/:id/link rejects non-existent event", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+    test("POST /admin/attendees/:id/link rejects non-existent listing", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Bad",
         "bad@test.com",
       );
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: "99999", quantity: "1" },
+        { listing_id: "99999", quantity: "1" },
       );
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Event not found"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Listing not found"),
+        false,
+      );
     });
 
-    test("POST /admin/attendees/:id/link rejects missing event_id", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+    test("POST /admin/attendees/:id/link rejects missing listing_id", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "Missing Event",
-        "missing-event@test.com",
+        listing.id,
+        listing.slug,
+        "Missing Listing",
+        "missing-listing@test.com",
       );
 
       const { response } = await adminFormPost(
@@ -2300,19 +2321,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Event is required"),
+        expect.stringContaining("Listing is required"),
         false,
       );
     });
 
-    test("POST /admin/attendees/:id/unlink/:eventId removes event link", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 50 });
+    test("POST /admin/attendees/:id/unlink/:listingId removes listing link", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
       const { createAttendeeAtomic: create } = await import(
         "#shared/db/attendees.ts"
       );
       const result = await create({
-        bookings: [{ eventId: event1.id }, { eventId: event2.id }],
+        bookings: [{ listingId: listing1.id }, { listingId: listing2.id }],
         email: "unlink@test.com",
         name: "Unlink",
       });
@@ -2320,27 +2341,27 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const attendeeId = result.attendees[0]!.id;
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}/unlink/${event1.id}`,
+        `/admin/attendees/${attendeeId}/unlink/${listing1.id}`,
       );
       expect(response.status).toBe(302);
 
-      // Attendee still linked to event2
+      // Attendee still linked to listing2
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      expect((await getAttendeesRaw(event1.id)).length).toBe(0);
-      expect((await getAttendeesRaw(event2.id)).length).toBe(1);
+      expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
+      expect((await getAttendeesRaw(listing2.id)).length).toBe(1);
     });
 
-    test("POST /admin/attendees/:id/unlink/:eventId blocks removing last event", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+    test("POST /admin/attendees/:id/unlink/:listingId blocks removing last listing", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "LastLink",
         "lastlink@test.com",
       );
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/unlink/${event.id}`,
+        `/admin/attendees/${attendee.id}/unlink/${listing.id}`,
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -2350,189 +2371,193 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("POST /admin/attendees/:id/event/:eventId updates quantity", async () => {
-      const event = await createTestEvent({
+    test("POST /admin/attendees/:id/listing/:listingId updates quantity", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 10,
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Qty",
         "qty@test.com",
       );
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
         { quantity: "5" },
       );
       expect(response.status).toBe(302);
 
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(event.id);
+      const raw = await getAttendeesRaw(listing.id);
       expect(raw[0]!.quantity).toBe(5);
     });
 
-    test("POST /admin/attendees/:id/event/:eventId rejects over-capacity", async () => {
-      const event = await createTestEvent({
+    test("POST /admin/attendees/:id/listing/:listingId rejects over-capacity", async () => {
+      const listing = await createTestListing({
         maxAttendees: 3,
         maxQuantity: 10,
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Over",
         "over@test.com",
       );
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
         { quantity: "5" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Not enough spots"), false);
     });
 
-    test("POST /admin/attendees/:id/event/:eventId rejects non-existent event", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
+    test("POST /admin/attendees/:id/listing/:listingId rejects non-existent listing", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Missing",
         "missing@test.com",
       );
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/event/99999`,
+        `/admin/attendees/${attendee.id}/listing/99999`,
         { quantity: "1" },
       );
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Event not found"), false);
+      expectFlash(
+        response,
+        expect.stringContaining("Listing not found"),
+        false,
+      );
     });
 
     test("POST /admin/attendees/:id/link defaults missing quantity to 1", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "Default Qty",
         "dq@test.com",
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { event_id: String(event2.id) },
+        { listing_id: String(listing2.id) },
       );
       expect(response.status).toBe(302);
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(event2.id);
+      const raw = await getAttendeesRaw(listing2.id);
       expect(raw[0]!.quantity).toBe(1);
     });
 
-    test("POST /admin/attendees/:id/link handles daily event without date", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({
-        eventType: "daily",
+    test("POST /admin/attendees/:id/link handles daily listing without date", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({
+        listingType: "daily",
         maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "No Date",
         "nodate@test.com",
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { date: "", event_id: String(event2.id) },
+        { date: "", listing_id: String(listing2.id) },
       );
       expect(response.status).toBe(302);
     });
 
-    test("POST /admin/attendees/:id/link handles daily event with empty date string", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({
-        eventType: "daily",
+    test("POST /admin/attendees/:id/link handles daily listing with empty date string", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({
+        listingType: "daily",
         maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "Empty Date",
         "emptydate@test.com",
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { date: "", event_id: String(event2.id), quantity: "1" },
+        { date: "", listing_id: String(listing2.id), quantity: "1" },
       );
       expect(response.status).toBe(302);
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(event2.id);
+      const raw = await getAttendeesRaw(listing2.id);
       expect(raw[0]!.date).toBeNull();
     });
 
-    test("POST /admin/attendees/:id/link handles daily event with date", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({
-        eventType: "daily",
+    test("POST /admin/attendees/:id/link handles daily listing with date", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({
+        listingType: "daily",
         maxAttendees: 50,
       });
       const attendee = await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "Daily Link",
         "dl@test.com",
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/link`,
-        { date: "2026-04-07", event_id: String(event2.id) },
+        { date: "2026-04-07", listing_id: String(listing2.id) },
       );
       expect(response.status).toBe(302);
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(event2.id);
+      const raw = await getAttendeesRaw(listing2.id);
       expect(raw[0]!.date).toBe("2026-04-07");
     });
 
-    test("POST /admin/attendees/:id/event/:eventId defaults missing quantity to 1", async () => {
-      const event = await createTestEvent({
+    test("POST /admin/attendees/:id/listing/:listingId defaults missing quantity to 1", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Upd Qty",
         "uq@test.com",
       );
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
       );
       expect(response.status).toBe(302);
     });
 
-    test("POST /admin/attendees/:id/event/:eventId handles standard event (no date)", async () => {
-      const event = await createTestEvent({
+    test("POST /admin/attendees/:id/listing/:listingId handles standard listing (no date)", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Std Upd",
         "su@test.com",
       );
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
         { date: "", quantity: "2" },
       );
       expect(response.status).toBe(302);
     });
 
-    test("POST /admin/attendees/:id/event/:eventId handles daily event without date", async () => {
-      const event = await createTestEvent({
-        eventType: "daily",
+    test("POST /admin/attendees/:id/listing/:listingId handles daily listing without date", async () => {
+      const listing = await createTestListing({
+        listingType: "daily",
         maxAttendees: 50,
       });
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         date: "2026-04-07",
         email: "dnd@test.com",
         name: "Daily NoDate",
@@ -2540,18 +2565,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed");
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
+        `/admin/attendees/${result.attendees[0]!.id}/listing/${listing.id}`,
         { date: "", quantity: "1" },
       );
       expect(response.status).toBe(302);
     });
 
-    test("POST /admin/attendees/:id/event/:eventId handles daily event date", async () => {
-      const event = await createTestEvent({
-        eventType: "daily",
+    test("POST /admin/attendees/:id/listing/:listingId handles daily listing date", async () => {
+      const listing = await createTestListing({
+        listingType: "daily",
         maxAttendees: 50,
       });
-      const result = await bookAttendee(event, {
+      const result = await bookAttendee(listing, {
         date: "2026-04-07",
         email: "du@test.com",
         name: "Daily Upd",
@@ -2559,32 +2584,32 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("Failed");
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${result.attendees[0]!.id}/event/${event.id}`,
+        `/admin/attendees/${result.attendees[0]!.id}/listing/${listing.id}`,
         { date: "2026-04-08", quantity: "1" },
       );
       expect(response.status).toBe(302);
     });
 
-    test("POST /admin/attendees/:id/event/:eventId treats invalid quantity as 1", async () => {
-      const event = await createTestEvent({
+    test("POST /admin/attendees/:id/listing/:listingId treats invalid quantity as 1", async () => {
+      const listing = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 10,
       });
       const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Qty",
         "qty@test.com",
       );
 
       const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/event/${event.id}`,
+        `/admin/attendees/${attendee.id}/listing/${listing.id}`,
         { quantity: "abc" },
       );
       expect(response.status).toBe(302);
 
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const raw = await getAttendeesRaw(event.id);
+      const raw = await getAttendeesRaw(listing.id);
       expect(raw[0]!.quantity).toBe(1);
     });
   });
@@ -2592,10 +2617,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("GET /admin/attendees/:attendeeId/merge", () => {
     testRequiresAuth("/admin/attendees/1/merge", {
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 10 });
+        const listing = await createTestListing({ maxAttendees: 10 });
         await createTestAttendee(
-          event.id,
-          event.slug,
+          listing.id,
+          listing.slug,
           "John Doe",
           "john@example.com",
         );
@@ -2610,9 +2635,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows search form without token param", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
       );
@@ -2629,9 +2654,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows error when token not found", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
       );
@@ -2643,9 +2668,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows error when token matches same attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee, token } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
       );
@@ -2663,14 +2688,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows merge preview when valid source token provided", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Smith",
         "john@example.com",
       );
@@ -2715,9 +2740,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       },
       method: "POST",
       setup: async () => {
-        const event = await createTestEvent({ maxAttendees: 10 });
+        const listing = await createTestListing({ maxAttendees: 10 });
         await createTestAttendeeDirect(
-          event.id,
+          listing.id,
           "John Doe",
           "john@example.com",
         );
@@ -2732,9 +2757,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects missing source_token", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
       );
@@ -2747,9 +2772,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects invalid source token", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
       );
@@ -2762,9 +2787,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects self-merge", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee, token } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Doe",
         "john@example.com",
       );
@@ -2780,24 +2805,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("merges source events into target and deletes source", async () => {
-      const event1 = await createTestEvent({
+    test("merges source listings into target and deletes source", async () => {
+      const listing1 = await createTestListing({
         maxAttendees: 10,
-        name: "Event One",
+        name: "Listing One",
       });
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
-        name: "Event Two",
+        name: "Listing Two",
       });
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event1.id,
+        listing1.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken, attendee: source } =
         await createTestAttendeeDirect(
-          event2.id,
+          listing2.id,
           "John Smith",
           "john@example.com",
         );
@@ -2822,32 +2847,33 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const surviving = await getAttendeeRaw(target.id);
       expect(surviving).not.toBeNull();
 
-      // Target should now have both event links
-      const targetEventLinks = await import("#shared/db/client.ts").then((m) =>
-        m.queryAll<{ event_id: number }>(
-          "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
-          [target.id],
-        ),
+      // Target should now have both listing links
+      const targetListingLinks = await import("#shared/db/client.ts").then(
+        (m) =>
+          m.queryAll<{ listing_id: number }>(
+            "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
+            [target.id],
+          ),
       );
-      const eventIds = targetEventLinks.map((r) => r.event_id).sort();
-      expect(eventIds).toEqual([event1.id, event2.id].sort());
+      const listingIds = targetListingLinks.map((r) => r.listing_id).sort();
+      expect(listingIds).toEqual([listing1.id, listing2.id].sort());
     });
 
     test("keeps target PII when no source fields selected", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
         1,
         "555-1111",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
         1,
@@ -2871,18 +2897,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("takes source PII fields when selected", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
         1,
@@ -2922,25 +2948,25 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
-    test("skips conflicting event booking during merge", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+    test("skips conflicting listing booking during merge", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
 
-      // Both attendees are registered for the same event
+      // Both attendees are registered for the same listing
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken, attendee: source } =
         await createTestAttendeeDirect(
-          event.id,
+          listing.id,
           "John Smith",
           "john@example.com",
         );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      // Booking conflict: same event, same start_at (null) — choose keep_target
-      const bookingKey = `${event.id}:null`;
+      // Booking conflict: same listing, same start_at (null) — choose keep_target
+      const bookingKey = `${listing.id}:null`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -2956,22 +2982,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       expect(await getAttendeeRaw(source.id)).toBeNull();
 
-      // Target still has exactly one link to the event (conflict was skipped)
+      // Target still has exactly one link to the listing (conflict was skipped)
       const { queryAll } = await import("#shared/db/client.ts");
-      const links = await queryAll<{ event_id: number }>(
-        "SELECT event_id FROM event_attendees WHERE attendee_id = ?",
+      const links = await queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
         [target.id],
       );
       expect(links.length).toBe(1);
-      expect(links[0]!.event_id).toBe(event.id);
+      expect(links[0]!.listing_id).toBe(listing.id);
     });
   });
 
   describe("GET /admin/attendees/:attendeeId/merge (coverage branches)", () => {
     test("shows merge preview with multiline field differences (address differs)", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
         1,
@@ -2979,9 +3005,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "123 Main St",
         "No nuts",
       );
-      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
         1,
@@ -3000,18 +3029,21 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows merge preview when source has empty phone but target does not", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
         1,
         "555-1234",
       );
-      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
       // Source has no phone — exercises sourceValue || "—" branch
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3025,16 +3057,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows merge preview when source and target have empty email", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       // Empty email covers the `email || ""` branches on both target and source
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "",
       );
-      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "",
       );
@@ -3047,19 +3082,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Merge Preview");
     });
 
-    test("shows daily event start_at date in source bookings list", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+    test("shows daily listing start_at date in source bookings list", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
-      const dailyEvent = await createTestEvent({
-        eventType: "daily",
+      const dailyListing = await createTestListing({
+        listingType: "daily",
         maxAttendees: 50,
         name: "Daily E",
       });
-      const result = await bookAttendee(dailyEvent, {
+      const result = await bookAttendee(dailyListing, {
         date: "2026-05-01",
         email: "john@example.com",
         name: "John Smith",
@@ -3073,21 +3108,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         )}`,
         { cookie: await testCookie() },
       );
-      // start_at is set for daily events — exercises the b.start_at ? `— date` : "" branch
+      // start_at is set for daily listings — exercises the b.start_at ? `— date` : "" branch
       await expectHtmlResponse(response, 200, "2026-05-01");
     });
 
     test("shows moveable booking row without decision column when no conflicts", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({ maxAttendees: 10, name: "E2" });
+      const listing1 = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event1.id,
+        listing1.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3098,20 +3136,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         )}`,
         { cookie: await testCookie() },
       );
-      // All bookings are moveable (different events) — no Decision column rendered
+      // All bookings are moveable (different listings) — no Decision column rendered
       await expectHtmlResponse(response, 200, "Will be moved");
     });
 
-    test("shows duplicate booking status when same event with identical metadata", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+    test("shows duplicate booking status when same listing with identical metadata", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Smith",
         "john@example.com",
       );
@@ -3122,14 +3160,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         )}`,
         { cookie: await testCookie() },
       );
-      // Same event, same qty/price/checked_in/refunded — classified as "duplicate"
+      // Same listing, same qty/price/checked_in/refunded — classified as "duplicate"
       await expectHtmlResponse(response, 200, "Duplicate");
     });
   });
 
   describe("merge with answer conflicts", () => {
     test("GET merge page renders answer decision table when conflicts exist", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const q = await questionsTable.insert({ text: "Favourite colour?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -3141,20 +3179,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 1,
         text: "Blue",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(listing.id, [q.id]);
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
-      await setEventQuestions(event2.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3184,7 +3222,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge applies selected answer winners", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const q = await questionsTable.insert({ text: "Size?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -3196,20 +3234,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 1,
         text: "Large",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(listing.id, [q.id]);
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
-      await setEventQuestions(event2.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3249,15 +3287,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge reports skipped bookings in flash", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Smith",
         "john@example.com",
       );
@@ -3272,7 +3310,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const html = await previewPage.text();
       const mergeVersion = extractInputValue(html, "merge_version")!;
 
-      const bookingKey = `${event.id}:null`;
+      const bookingKey = `${listing.id}:null`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3290,19 +3328,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("stale preview version rejected", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3322,7 +3360,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge with clear answer choice clears the answer", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const q = await questionsTable.insert({ text: "Diet?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -3334,20 +3372,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 1,
         text: "Keto",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(listing.id, [q.id]);
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
-      await setEventQuestions(event2.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3376,7 +3414,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge with target answer choice keeps target answer", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
       const q = await questionsTable.insert({ text: "Shirt?" });
       const a1 = await answersTable.insert({
         questionId: q.id,
@@ -3388,20 +3426,20 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 1,
         text: "L",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(listing.id, [q.id]);
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
-      await setEventQuestions(event2.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3430,8 +3468,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge auto-adopts source-only non-conflicting answer", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({
+      const listing1 = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
@@ -3441,16 +3479,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 0,
         text: "Green",
       });
-      await setEventQuestions(event1.id, [q.id]);
-      await setEventQuestions(event2.id, [q.id]);
+      await setListingQuestions(listing1.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event1.id,
+        listing1.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3478,8 +3516,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge keeps target-only non-conflicting answer", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 10 });
-      const event2 = await createTestEvent({
+      const listing1 = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
         maxAttendees: 10,
         name: "E2",
       });
@@ -3489,16 +3527,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         sortOrder: 0,
         text: "Pizza",
       });
-      await setEventQuestions(event1.id, [q.id]);
-      await setEventQuestions(event2.id, [q.id]);
+      await setListingQuestions(listing1.id, [q.id]);
+      await setListingQuestions(listing2.id, [q.id]);
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event1.id,
+        listing1.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event2.id,
+        listing2.id,
         "John Smith",
         "john@example.com",
       );
@@ -3524,22 +3562,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge with take_source replaces target booking", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 10 });
 
       const { attendee: target } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "Jane Doe",
         "jane@example.com",
       );
       const { token: sourceToken } = await createTestAttendeeDirect(
-        event.id,
+        listing.id,
         "John Smith",
         "john@example.com",
       );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
-      const bookingKey = `${event.id}:null`;
+      const bookingKey = `${listing.id}:null`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {

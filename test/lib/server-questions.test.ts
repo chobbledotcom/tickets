@@ -5,7 +5,7 @@ import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
-  createTestEvent,
+  createTestListing,
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
@@ -269,80 +269,83 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/questions/:id/events", () => {
-    testRequiresAuth("/admin/questions/1/events", {
-      body: { event_ids: "1" },
+  describe("POST /admin/questions/:id/listings", () => {
+    testRequiresAuth("/admin/questions/1/listings", {
+      body: { listing_ids: "1" },
       method: "POST",
       setup: async () => {
-        await createQuestion("Events auth question");
+        await createQuestion("Listings auth question");
       },
     });
 
     test("returns 404 for non-existent question", async () => {
-      const event = await createTestEvent({ name: "Orphan event" });
-      const { response } = await adminFormPost("/admin/questions/999/events", {
-        event_ids: String(event.id),
-      });
+      const listing = await createTestListing({ name: "Orphan listing" });
+      const { response } = await adminFormPost(
+        "/admin/questions/999/listings",
+        {
+          listing_ids: String(listing.id),
+        },
+      );
       expectStatus(404)(response);
     });
 
-    test("assigns question to a single event and redirects", async () => {
-      const event = await createTestEvent({ name: "Target event" });
+    test("assigns question to a single listing and redirects", async () => {
+      const listing = await createTestListing({ name: "Target listing" });
       const qId = await createQuestion("Assign me?");
 
       const { response } = await adminFormPost(
-        `/admin/questions/${qId}/events`,
-        { event_ids: String(event.id) },
+        `/admin/questions/${qId}/listings`,
+        { listing_ids: String(listing.id) },
       );
       expectRedirectWithFlash(
         `/admin/questions/${qId}`,
-        "Events updated",
+        "Listings updated",
       )(response);
 
-      const { getQuestionEventIds } = await import("#shared/db/questions.ts");
-      expect(await getQuestionEventIds(qId)).toEqual([event.id]);
+      const { getQuestionListingIds } = await import("#shared/db/questions.ts");
+      expect(await getQuestionListingIds(qId)).toEqual([listing.id]);
     });
 
-    test("removes question from unchecked events", async () => {
-      const event = await createTestEvent({ name: "Unassign event" });
+    test("removes question from unchecked listings", async () => {
+      const listing = await createTestListing({ name: "Unassign listing" });
       const qId = await createQuestion("Unassign me?");
 
-      const { setQuestionEvents, getQuestionEventIds } = await import(
+      const { setQuestionListings, getQuestionListingIds } = await import(
         "#shared/db/questions.ts"
       );
-      await setQuestionEvents(qId, [event.id]);
+      await setQuestionListings(qId, [listing.id]);
 
       const { response } = await adminFormPost(
-        `/admin/questions/${qId}/events`,
+        `/admin/questions/${qId}/listings`,
         {},
       );
       expectRedirectWithFlash(
         `/admin/questions/${qId}`,
-        "Events updated",
+        "Listings updated",
       )(response);
-      expect(await getQuestionEventIds(qId)).toEqual([]);
+      expect(await getQuestionListingIds(qId)).toEqual([]);
     });
 
-    test("logs singular when assigned to one event", async () => {
-      const event = await createTestEvent({ name: "Singular event" });
-      const qId = await createQuestion("Singular events log");
-      await adminFormPost(`/admin/questions/${qId}/events`, {
-        event_ids: String(event.id),
+    test("logs singular when assigned to one listing", async () => {
+      const listing = await createTestListing({ name: "Singular listing" });
+      const qId = await createQuestion("Singular listings log");
+      await adminFormPost(`/admin/questions/${qId}/listings`, {
+        listing_ids: String(listing.id),
       });
 
       const { response } = await adminGet("/admin/log");
       const body = await response.text();
-      expect(body).toContain("assigned to 1 event");
-      expect(body).not.toContain("assigned to 1 events");
+      expect(body).toContain("assigned to 1 listing");
+      expect(body).not.toContain("assigned to 1 listings");
     });
 
-    test("logs plural when assigned to zero events", async () => {
-      const qId = await createQuestion("Plural events log");
-      await adminFormPost(`/admin/questions/${qId}/events`, {});
+    test("logs plural when assigned to zero listings", async () => {
+      const qId = await createQuestion("Plural listings log");
+      await adminFormPost(`/admin/questions/${qId}/listings`, {});
 
       const { response } = await adminGet("/admin/log");
       const body = await response.text();
-      expect(body).toContain("assigned to 0 events");
+      expect(body).toContain("assigned to 0 listings");
     });
   });
 
@@ -570,21 +573,23 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/event/:id/questions", () => {
-    testRequiresAuth("/admin/event/1/questions", {
+  describe("GET /admin/listing/:id/questions", () => {
+    testRequiresAuth("/admin/listing/1/questions", {
       setup: async () => {
-        await createTestEvent({ name: "Auth Event" });
+        await createTestListing({ name: "Auth Listing" });
       },
     });
 
-    test("returns 404 for non-existent event", async () => {
-      const { response } = await adminGet("/admin/event/999/questions");
+    test("returns 404 for non-existent listing", async () => {
+      const { response } = await adminGet("/admin/listing/999/questions");
       expectStatus(404)(response);
     });
 
     test("shows empty state when no questions exist", async () => {
-      const event = await createTestEvent({ name: "No Questions Event" });
-      const { response } = await adminGet(`/admin/event/${event.id}/questions`);
+      const listing = await createTestListing({ name: "No Questions Listing" });
+      const { response } = await adminGet(
+        `/admin/listing/${listing.id}/questions`,
+      );
       await expectHtmlResponse(
         response,
         200,
@@ -593,60 +598,64 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
     });
 
-    test("shows event questions page with available questions", async () => {
-      const event = await createTestEvent({ name: "Question Event" });
+    test("shows listing questions page with available questions", async () => {
+      const listing = await createTestListing({ name: "Question Listing" });
       const qId = await createQuestion("Dietary needs?");
       await addAnswer(qId, "Vegetarian");
       await addAnswer(qId, "Vegan");
 
-      const { response } = await adminGet(`/admin/event/${event.id}/questions`);
+      const { response } = await adminGet(
+        `/admin/listing/${listing.id}/questions`,
+      );
       await expectHtmlResponse(
         response,
         200,
-        "Question Event",
+        "Question Listing",
         "Dietary needs?",
       );
     });
 
     test("shows assigned questions as checked", async () => {
-      const event = await createTestEvent({ name: "Assigned Event" });
+      const listing = await createTestListing({ name: "Assigned Listing" });
       const qId = await createQuestion("Shirt size?");
 
-      // Assign the question to the event
-      const { setEventQuestions } = await import("#shared/db/questions.ts");
-      await setEventQuestions(event.id, [qId]);
+      // Assign the question to the listing
+      const { setListingQuestions } = await import("#shared/db/questions.ts");
+      await setListingQuestions(listing.id, [qId]);
 
-      const { response } = await adminGet(`/admin/event/${event.id}/questions`);
+      const { response } = await adminGet(
+        `/admin/listing/${listing.id}/questions`,
+      );
       await expectHtmlResponse(
         response,
         200,
-        "Assigned Event",
+        "Assigned Listing",
         "Shirt size?",
         "checked",
       );
     });
   });
 
-  describe("POST /admin/event/:id/questions", () => {
-    testRequiresAuth("/admin/event/1/questions", {
+  describe("POST /admin/listing/:id/questions", () => {
+    testRequiresAuth("/admin/listing/1/questions", {
       body: {
         question_ids: "1",
       },
       method: "POST",
       setup: async () => {
-        await createTestEvent({ name: "Post Auth Event" });
+        await createTestListing({ name: "Post Auth Listing" });
       },
     });
 
-    test("returns 404 for non-existent event", async () => {
-      const { response } = await adminFormPost("/admin/event/999/questions", {
+    test("returns 404 for non-existent listing", async () => {
+      const { response } = await adminFormPost("/admin/listing/999/questions", {
         question_ids: "1",
       });
       expectStatus(404)(response);
     });
 
-    test("assigns questions to event and redirects", async () => {
-      const event = await createTestEvent({ name: "Assign Questions" });
+    test("assigns questions to listing and redirects", async () => {
+      const listing = await createTestListing({ name: "Assign Questions" });
       const q1 = await createQuestion("Question A?");
       await createQuestion("Question B?");
 
@@ -654,7 +663,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/questions`,
+          `/admin/listing/${listing.id}/questions`,
           {
             csrf_token: csrfToken,
             question_ids: String(q1),
@@ -664,50 +673,50 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         ),
       );
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "Questions updated",
       )(response);
 
       // Verify the questions are assigned
-      const { getEventQuestionIds } = await import("#shared/db/questions.ts");
-      const assigned = await getEventQuestionIds(event.id);
+      const { getListingQuestionIds } = await import("#shared/db/questions.ts");
+      const assigned = await getListingQuestionIds(listing.id);
       expect(assigned.length).toBe(1);
       expect(assigned[0]).toBe(q1);
     });
 
     test("assigns no questions when none selected", async () => {
-      const event = await createTestEvent({ name: "No Questions" });
+      const listing = await createTestListing({ name: "No Questions" });
       const { response } = await adminFormPost(
-        `/admin/event/${event.id}/questions`,
+        `/admin/listing/${listing.id}/questions`,
         {},
       );
       expectRedirectWithFlash(
-        `/admin/event/${event.id}`,
+        `/admin/listing/${listing.id}`,
         "Questions updated",
       )(response);
 
-      const { getEventQuestionIds } = await import("#shared/db/questions.ts");
-      const assigned = await getEventQuestionIds(event.id);
+      const { getListingQuestionIds } = await import("#shared/db/questions.ts");
+      const assigned = await getListingQuestionIds(listing.id);
       expect(assigned.length).toBe(0);
     });
 
     test("replaces existing question assignments", async () => {
-      const event = await createTestEvent({ name: "Replace Questions" });
+      const listing = await createTestListing({ name: "Replace Questions" });
       const q1 = await createQuestion("Old question?");
       const q2 = await createQuestion("New question?");
 
       // Assign q1 first
-      const { setEventQuestions, getEventQuestionIds } = await import(
+      const { setListingQuestions, getListingQuestionIds } = await import(
         "#shared/db/questions.ts"
       );
-      await setEventQuestions(event.id, [q1]);
+      await setListingQuestions(listing.id, [q1]);
 
       // Now assign q2 via the route
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/questions`,
+          `/admin/listing/${listing.id}/questions`,
           {
             csrf_token: csrfToken,
             question_ids: String(q2),
@@ -717,20 +726,20 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const assigned = await getEventQuestionIds(event.id);
+      const assigned = await getListingQuestionIds(listing.id);
       expect(assigned.length).toBe(1);
       expect(assigned[0]).toBe(q2);
     });
 
     test("logs activity with singular when 1 question assigned", async () => {
-      const event = await createTestEvent({ name: "Singular Log" });
+      const listing = await createTestListing({ name: "Singular Log" });
       const q1 = await createQuestion("Solo question?");
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
       await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/questions`,
+          `/admin/listing/${listing.id}/questions`,
           {
             csrf_token: csrfToken,
             question_ids: String(q1),
@@ -745,11 +754,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("logs activity with plural when multiple questions assigned", async () => {
-      const event = await createTestEvent({ name: "Plural Log" });
+      const listing = await createTestListing({ name: "Plural Log" });
 
       // Assign 0 questions to test the plural form (0 questions)
       const { response: r } = await adminFormPost(
-        `/admin/event/${event.id}/questions`,
+        `/admin/listing/${listing.id}/questions`,
         {},
       );
       expect(r.status).toBe(302);
@@ -920,15 +929,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${firstId}/move-down`,
         {},
       );
-      expectRedirectWithFlash("/admin/questions", "Question moved")(
-        down.response,
-      );
+      expectRedirectWithFlash(
+        "/admin/questions",
+        "Question moved",
+      )(down.response);
       expect(await questionOrder()).toEqual(["Second", "First"]);
 
-      const up = await adminFormPost(
-        `/admin/questions/${firstId}/move-up`,
-        {},
-      );
+      const up = await adminFormPost(`/admin/questions/${firstId}/move-up`, {});
       expect(up.response.status).toBe(302);
       expect(await questionOrder()).toEqual(["First", "Second"]);
     });

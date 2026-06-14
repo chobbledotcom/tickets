@@ -5,11 +5,6 @@
 import { formatCurrency } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
-import {
-  mergeEventFields,
-  parseEventFields,
-  withRequiredEmail,
-} from "#shared/event-fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { type Field, validateForm } from "#shared/forms.tsx";
 import {
@@ -18,16 +13,21 @@ import {
   MAX_IMAGE_SIZE,
   MAX_TEXTAREA_LENGTH,
 } from "#shared/limits.ts";
+import {
+  mergeListingFields,
+  parseListingFields,
+  withRequiredEmail,
+} from "#shared/listing-fields.ts";
 import { normalizeSlug, validateSlug } from "#shared/slug.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
 import {
   type AdminLevel,
   type ContactField,
   type ContactInfo,
-  type EventFields,
-  type EventType,
   isContactField,
-  isEventType,
+  isListingType,
+  type ListingFields,
+  type ListingType,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 
@@ -41,20 +41,20 @@ import {
 // produce `number | null`.
 // ---------------------------------------------------------------------------
 
-/** Typed values from event form validation */
-export type EventFormValues = {
+/** Typed values from listing form validation */
+export type ListingFormValues = {
   name: string;
   description: string;
   date: string;
   location: string;
   max_attendees: number;
   max_quantity: number;
-  fields: EventFields | "";
+  fields: ListingFields | "";
   unit_price: string;
   closes_at: string;
   thank_you_url: string;
   webhook_url: string;
-  event_type: EventType | "";
+  listing_type: ListingType | "";
   bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
@@ -70,8 +70,8 @@ export type EventFormValues = {
   initial_site_months: string;
 };
 
-/** Typed values from event edit form (includes slug) */
-export type EventEditFormValues = EventFormValues & {
+/** Typed values from listing edit form (includes slug) */
+export type ListingEditFormValues = ListingFormValues & {
   slug: string;
 };
 
@@ -89,7 +89,7 @@ export type GroupFormValues = GroupCreateFormValues & {
   slug: string;
 };
 
-/** Typed values from ticket form (field presence varies by event config) */
+/** Typed values from ticket form (field presence varies by listing config) */
 export type TicketFormValues = {
   name: string;
   email: string | null;
@@ -343,8 +343,8 @@ export const loginFields: Field[] = [
   },
 ];
 
-/** Validate event fields setting (comma-separated contact field names) */
-const validateEventFields = (value: string): string | null => {
+/** Validate listing fields setting (comma-separated contact field names) */
+const validateListingFields = (value: string): string | null => {
   const parts = value
     .split(",")
     .map((v) => v.trim())
@@ -357,10 +357,10 @@ const validateEventFields = (value: string): string | null => {
   return null;
 };
 
-/** Validate event type setting */
-const validateEventType = (value: string): string | null => {
-  if (!isEventType(value)) {
-    return "Event Type must be standard or daily";
+/** Validate listing type setting */
+const validateListingType = (value: string): string | null => {
+  if (!isListingType(value)) {
+    return "Listing Type must be standard or daily";
   }
   return null;
 };
@@ -405,37 +405,37 @@ const validateDescription = (value: string): string | null =>
 const validateDatetime = (value: string): string | null =>
   isValidDatetime(value) ? null : "Please enter a valid date and time";
 
-/** Build a "hidden" visibility checkbox field for an event or group. */
-const buildHiddenField = (kind: "Event" | "Group"): Field => ({
-  hint: `Hide from the public events page and search engines. The ${kind.toLowerCase()} is still bookable via its direct link.`,
+/** Build a "hidden" visibility checkbox field for an listing or group. */
+const buildHiddenField = (kind: "Listing" | "Group"): Field => ({
+  hint: `Hide from the public listings page and search engines. The ${kind.toLowerCase()} is still bookable via its direct link.`,
   label: `Hidden ${kind}`,
   name: "hidden",
-  options: [{ label: "Hide from public events list", value: "1" }],
+  options: [{ label: "Hide from public listings list", value: "1" }],
   type: "checkbox-group",
 });
 
 /**
- * Event form field definitions (shared between create and edit)
+ * Listing form field definitions (shared between create and edit)
  */
-export const eventFields: Field[] = [
+export const listingFields: Field[] = [
   {
     hint: "Displayed to attendees on the ticket page",
-    label: "Event Name",
+    label: "Listing Name",
     name: "name",
     placeholder: "Village Quiz Night",
     required: true,
     type: "text",
   },
   {
-    hint: "Daily events require attendees to select a specific date when booking",
-    label: "Event Type",
-    name: "event_type",
+    hint: "Daily listings require attendees to select a specific date when booking",
+    label: "Listing Type",
+    name: "listing_type",
     options: [
       { label: "Standard", value: "standard" },
       { label: "Daily", value: "daily" },
     ],
     type: "select",
-    validate: validateEventType,
+    validate: validateListingType,
   },
   {
     hint: "Shown on the ticket page.",
@@ -443,26 +443,26 @@ export const eventFields: Field[] = [
     label: "Description (optional)",
     maxlength: MAX_TEXTAREA_LENGTH,
     name: "description",
-    placeholder: "A short description of the event",
+    placeholder: "A short description of the listing",
     type: "textarea",
     validate: validateDescription,
   },
   {
-    hint: "When the event takes place. Times are in your configured timezone.",
-    label: "Event Date (optional)",
+    hint: "When the listing takes place. Times are in your configured timezone.",
+    label: "Listing Date (optional)",
     name: "date",
     type: "datetime",
     validate: validateDatetime,
   },
   {
-    hint: "Where the event takes place. Shown on the ticket page.",
+    hint: "Where the listing takes place. Shown on the ticket page.",
     label: "Location (optional)",
     name: "location",
     placeholder: "e.g. Village Hall, Main Street",
     type: "text",
   },
   {
-    hint: "For daily events, this limit applies per date",
+    hint: "For daily listings, this limit applies per date",
     label: "Max Attendees",
     min: 1,
     name: "max_attendees",
@@ -479,7 +479,7 @@ export const eventFields: Field[] = [
   },
   {
     hint: "Select which days of the week are available for booking",
-    label: "Bookable Days (for daily events)",
+    label: "Bookable Days (for daily listings)",
     name: "bookable_days",
     options: VALID_DAY_NAMES.map((d) => ({ label: d, value: d })),
     type: "checkbox-group",
@@ -487,20 +487,20 @@ export const eventFields: Field[] = [
   },
   {
     hint: "How many days in advance attendees must book (0 = same day)",
-    label: "Minimum Days Notice (for daily events)",
+    label: "Minimum Days Notice (for daily listings)",
     min: 0,
     name: "minimum_days_before",
     type: "number",
   },
   {
     hint: "How far into the future attendees can book (0 = no limit)",
-    label: "Maximum Days Ahead (for daily events)",
+    label: "Maximum Days Ahead (for daily listings)",
     min: 0,
     name: "maximum_days_after",
     type: "number",
   },
   {
-    hint: "How many days each booking reserves. Only applies to daily events.",
+    hint: "How many days each booking reserves. Only applies to daily listings.",
     label: "Booking Duration (days)",
     max: MAX_DURATION_DAYS,
     min: 1,
@@ -533,7 +533,7 @@ export const eventFields: Field[] = [
       { label: "Special Instructions", value: "special_instructions" },
     ],
     type: "checkbox-group",
-    validate: validateEventFields,
+    validate: validateListingFields,
   },
   {
     inputmode: "decimal",
@@ -601,7 +601,7 @@ export const eventFields: Field[] = [
     ],
     type: "select",
   },
-  buildHiddenField("Event"),
+  buildHiddenField("Listing"),
   {
     hint: "For raffles, fundraisers, donations, or other non-attendance items. Hides QR codes, check-in, and wallet passes. Shows \u2018Buy now\u2019 instead of \u2018Reserve\u2019.",
     label: "Purchase Only",
@@ -612,7 +612,7 @@ export const eventFields: Field[] = [
 ];
 
 export const monthsPerUnitField: Field = {
-  hint: "How many months one ticket buys. Leave 0 for non-renewal events.",
+  hint: "How many months one ticket buys. Leave 0 for non-renewal listings.",
   label: "Months Per Unit (renewal tiers only)",
   max: 24,
   min: 0,
@@ -622,7 +622,7 @@ export const monthsPerUnitField: Field = {
 
 export const initialSiteMonthsField: Field = {
   hint: "How many months the site stays active after purchase. Required when assigning a built site.",
-  label: "Initial Site Months (built site events only)",
+  label: "Initial Site Months (built site listings only)",
   max: 120,
   min: 0,
   name: "initial_site_months",
@@ -712,33 +712,33 @@ export const builtSiteFields: Field[] = [
   },
 ];
 
-/** Field for assign_built_site on events (conditionally shown when CAN_BUILD_SITES is enabled) */
+/** Field for assign_built_site on listings (conditionally shown when CAN_BUILD_SITES is enabled) */
 export const assignBuiltSiteField: Field = {
-  hint: "Automatically assign a built site to each ticket purchased for this event",
+  hint: "Automatically assign a built site to each ticket purchased for this listing",
   label: "Assign Built Site",
   name: "assign_built_site",
   options: [{ label: "Assign a site on booking", value: "1" }],
   type: "checkbox-group",
 };
 
-/** Image upload field for event forms (appended when storage is enabled) */
+/** Image upload field for listing forms (appended when storage is enabled) */
 export const imageField: Field = {
   accept: "image/jpeg,image/png,image/gif,image/webp",
-  label: `Event Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(
+  label: `Listing Image (JPEG, PNG, GIF, WebP \u2014 max ${formatBytes(
     MAX_IMAGE_SIZE,
   )})`,
   name: "image",
   type: "file",
 };
 
-/** Attachment upload field for event forms (appended when storage is enabled) */
+/** Attachment upload field for listing forms (appended when storage is enabled) */
 export const attachmentField: Field = {
   label: `Attachment (any file \u2014 max ${formatBytes(MAX_ATTACHMENT_SIZE)})`,
   name: "attachment",
   type: "file",
 };
 
-/** Slug field for event/group edit pages */
+/** Slug field for listing/group edit pages */
 export const slugField: Field = {
   hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   label: "Slug",
@@ -759,13 +759,13 @@ export const groupIdField: Field = {
 
 /** Max attendees field for group forms */
 const groupMaxAttendeesField: Field = {
-  hint: "Limits total attendees across all events in this group. Leave blank for no limit. Works best when all events in the group are the same type (daily or standard).",
+  hint: "Limits total attendees across all listings in this group. Leave blank for no limit. Works best when all listings in the group are the same type (daily or standard).",
   label: "Max Attendees (optional)",
   name: "max_attendees",
   type: "number",
 };
 
-/** Hidden group field (same as event hidden field) */
+/** Hidden group field (same as listing hidden field) */
 const groupHiddenField: Field = buildHiddenField("Group");
 
 /** Group description field */
@@ -895,19 +895,19 @@ const contactFieldMap: Record<ContactField, Field> = {
   special_instructions: specialInstructionsField,
 };
 
-export { mergeEventFields, parseEventFields };
+export { mergeListingFields, parseListingFields };
 
 /** Stubbable API for testing */
 export const fieldsApi = { getSettingCached: settings.getCachedRaw };
 
 /**
- * Get ticket form fields based on event fields setting.
+ * Get ticket form fields based on listing fields setting.
  * Always includes name. Adds contact fields based on the comma-separated setting.
  * When isPaid is true and Square is the active provider, email is always included
  * because Square requires an email address for checkout.
  */
 export const getTicketFields = (
-  fields: EventFields,
+  fields: ListingFields,
   isPaid: boolean,
 ): Field[] => {
   const effective =
@@ -915,14 +915,14 @@ export const getTicketFields = (
     fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
       ? withRequiredEmail(fields)
       : fields;
-  const parsed = parseEventFields(effective);
+  const parsed = parseListingFields(effective);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
 
 /** Validate ticket fields, mapping validation failure to a response via onError */
 export const tryValidateTicketFields = (
   form: FormParams,
-  fieldsSetting: EventFields,
+  fieldsSetting: ListingFields,
   onError: (message: string) => Response,
   isPaid: boolean,
 ): TicketFormValues | Response => {
@@ -951,7 +951,7 @@ const addAttendeeQuantityField: Field = {
   type: "number",
 };
 
-/** Date field for admin add-attendee form (daily events only) */
+/** Date field for admin add-attendee form (daily listings only) */
 const addAttendeeDateField: Field = {
   label: "Date",
   name: "date",
@@ -961,12 +961,12 @@ const addAttendeeDateField: Field = {
 };
 
 /**
- * Get admin add-attendee form fields based on event config.
+ * Get admin add-attendee form fields based on listing config.
  * Includes contact fields (name + email/phone per setting), quantity,
- * and a date field for daily events.
+ * and a date field for daily listings.
  */
 export const getAddAttendeeFields = (
-  fields: EventFields,
+  fields: ListingFields,
   isDaily: boolean,
 ): Field[] => {
   const result = [...getTicketFields(fields, false), addAttendeeQuantityField];

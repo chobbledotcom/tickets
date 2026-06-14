@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-/** Auto-populate closes_at from event date when closes_at is empty. */
+/** Auto-populate closes_at from listing date when closes_at is empty. */
 export const initClosesAtAutofill = (): void => {
   const dateInput =
     document.querySelector<HTMLInputElement>('input[name="date"]');

@@ -8,7 +8,7 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  groupEventAnswers,
+  groupListingAnswers,
   parseQuestionAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
@@ -16,24 +16,28 @@ import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
-import { type EventWithCount, type Group, isPaidEvent } from "#shared/types.ts";
+import {
+  type Group,
+  isPaidListing,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
-import type { TicketEvent } from "#templates/public.tsx";
-import { buildTicketEventsWithGroupCapacity } from "./ticket-events.ts";
+import type { TicketListing } from "#templates/public.tsx";
 import {
-  buildEventAnswerMap,
-  eventsWithQuantity,
+  buildListingAnswerMap,
   extractContact,
   getTicketFieldsSetting,
+  listingsWithQuantity,
   parseCustomPrice,
   parseQuantities,
   ticketFormErrorResponse,
   ticketResponse,
   validateSubmittedDate,
 } from "./ticket-form.ts";
+import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   anyRequiresPayment,
   buildRegistrationItems,
@@ -41,7 +45,7 @@ import {
   getTicketContext,
   handlePaymentFlow,
   processFreeReservation,
-  withActiveEvents,
+  withActiveListings,
 } from "./ticket-payment.ts";
 import {
   applyHiddenNoindex,
@@ -51,16 +55,16 @@ import {
   type TicketSharedContext,
 } from "./types.ts";
 
-/** Validate fields, terms and event availability. Returns Response on error, or parsed field values. */
+/** Validate fields, terms and listing availability. Returns Response on error, or parsed field values. */
 const validateFormAndAvailability = (
   form: FormParams,
   ctx: TicketCtx,
 ): Response | TicketFormValues => {
   const errorResponse = ticketFormErrorResponse(ctx);
-  const anyPaid = ctx.events.some((e) => isPaidEvent(e.event));
+  const anyPaid = ctx.listings.some((e) => isPaidListing(e.listing));
   const fieldResult = tryValidateTicketFields(
     form,
-    getTicketFieldsSetting(ctx.events),
+    getTicketFieldsSetting(ctx.listings),
     errorResponse,
     anyPaid,
   );
@@ -70,9 +74,9 @@ const validateFormAndAvailability = (
     return errorResponse("You must agree to the terms and conditions");
   }
 
-  const allUnavailable = ctx.events.every((e) => e.isSoldOut || e.isClosed);
+  const allUnavailable = ctx.listings.every((e) => e.isSoldOut || e.isClosed);
   if (allUnavailable) {
-    const allClosed = ctx.events.every((e) => e.isClosed);
+    const allClosed = ctx.listings.every((e) => e.isClosed);
     return errorResponse(
       allClosed
         ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
@@ -80,9 +84,9 @@ const validateFormAndAvailability = (
     );
   }
 
-  for (const { event, isClosed } of ctx.events) {
+  for (const { listing, isClosed } of ctx.listings) {
     const selectedQty = Number.parseInt(
-      form.get(`quantity_${event.id}`) || "0",
+      form.get(`quantity_${listing.id}`) || "0",
       10,
     );
     if (isClosed && selectedQty > 0) {
@@ -92,7 +96,7 @@ const validateFormAndAvailability = (
   return fieldResult;
 };
 
-/** Parse custom prices for pay-more events. Returns Response on validation error. */
+/** Parse custom prices for pay-more listings. Returns Response on validation error. */
 const parseCustomPrices = (
   form: FormParams,
   ctx: TicketCtx,
@@ -100,20 +104,20 @@ const parseCustomPrices = (
 ): Response | Map<number, number> => {
   const errorResponse = ticketFormErrorResponse(ctx);
   const customPrices = new Map<number, number>();
-  for (const { event } of ctx.events) {
-    if (!event.can_pay_more) continue;
-    const qty = quantities.get(event.id) ?? 0;
+  for (const { listing } of ctx.listings) {
+    if (!listing.can_pay_more) continue;
+    const qty = quantities.get(listing.id) ?? 0;
     if (qty <= 0) continue;
     const priceResult = parseCustomPrice(
       form,
-      `custom_price_${event.id}`,
-      event.unit_price,
-      event.max_price,
+      `custom_price_${listing.id}`,
+      listing.unit_price,
+      listing.max_price,
     );
     if (!priceResult.ok) {
-      return errorResponse(`${event.name}: ${priceResult.error}`);
+      return errorResponse(`${listing.name}: ${priceResult.error}`);
     }
-    customPrices.set(event.id, priceResult.price);
+    customPrices.set(listing.id, priceResult.price);
   }
   return customPrices;
 };
@@ -121,10 +125,10 @@ const parseCustomPrices = (
 /**
  * Apply signed QR-token price overrides to the custom prices map.
  *
- * QR tokens can pre-set a price for a specific event. For can_pay_more events
+ * QR tokens can pre-set a price for a specific listing. For can_pay_more listings
  * the user-submitted custom_price_{id} already populated the map in
- * parseCustomPrices and wins. For fixed-price events the signed value
- * overrides event.unit_price so admins can generate one-off bookings at any
+ * parseCustomPrices and wins. For fixed-price listings the signed value
+ * overrides listing.unit_price so admins can generate one-off bookings at any
  * price. Tokens are re-verified here to prevent tampering of the hidden field.
  */
 const applyQrTokenOverride = async (
@@ -136,28 +140,28 @@ const applyQrTokenOverride = async (
   if (!token || ctx.slugs.length !== 1) return;
   const payload = await verifyQrBookToken(ctx.slugs[0]!, token);
   if (!payload || payload.v < 0) return;
-  for (const { event } of ctx.events) {
-    if (!event.can_pay_more) customPrices.set(event.id, payload.v);
+  for (const { listing } of ctx.listings) {
+    if (!listing.can_pay_more) customPrices.set(listing.id, payload.v);
   }
 };
 
 type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
-  selectedEventIds: Set<number>;
+  selectedListingIds: Set<number>;
 };
 
-/** Compute event-answer map if answers exist */
-const computeEventAnswerMap = (
+/** Compute listing-answer map if answers exist */
+const computeListingAnswerMap = (
   ctx: TicketCtx,
   info: AnswerInfo,
 ): Record<string, number[]> | undefined =>
   info.answerIds.length > 0
-    ? buildEventAnswerMap(
+    ? buildListingAnswerMap(
         info.activeQuestions,
         info.answerIds,
-        ctx.questionEventMap,
-        info.selectedEventIds,
+        ctx.questionListingMap,
+        info.selectedListingIds,
       )
     : undefined;
 
@@ -175,18 +179,18 @@ const handlePaidPath = async (
   params: PathParams & { items: ReturnType<typeof buildRegistrationItems> },
 ): Promise<Response> => {
   const { ctx, quantities, date, contact, items, info } = params;
-  const available = await checkAvailability(ctx.events, quantities, date);
+  const available = await checkAvailability(ctx.listings, quantities, date);
   if (!available) {
     return ticketFormErrorResponse(ctx)(
       "Sorry, some tickets are no longer available",
     );
   }
-  const eventAnswerIds = computeEventAnswerMap(ctx, info);
+  const listingAnswerIds = computeListingAnswerMap(ctx, info);
   const intent = {
     ...contact,
     date,
-    eventAnswerIds,
     items,
+    listingAnswerIds,
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
   };
   return handlePaymentFlow(request, intent, ctx);
@@ -196,7 +200,7 @@ const handlePaidPath = async (
 const handleFreePath = async (params: PathParams): Promise<Response> => {
   const { ctx, quantities, date, contact, info } = params;
   const result = await processFreeReservation(
-    ctx.events,
+    ctx.listings,
     quantities,
     contact,
     date,
@@ -205,17 +209,19 @@ const handleFreePath = async (params: PathParams): Promise<Response> => {
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
   if (info.answerIds.length > 0) {
-    const eventAnswerMap = buildEventAnswerMap(
+    const listingAnswerMap = buildListingAnswerMap(
       info.activeQuestions,
       info.answerIds,
-      ctx.questionEventMap,
-      info.selectedEventIds,
+      ctx.questionListingMap,
+      info.selectedListingIds,
     );
-    await saveAttendeeAnswers(groupEventAnswers(result.entries, eventAnswerMap));
+    await saveAttendeeAnswers(
+      groupListingAnswers(result.entries, listingAnswerMap),
+    );
   }
 
-  if (ctx.events.length === 1) {
-    const thankYouUrl = ctx.events[0]!.event.thank_you_url;
+  if (ctx.listings.length === 1) {
+    const thankYouUrl = ctx.listings[0]!.listing.thank_you_url;
     if (thankYouUrl) return redirectResponse(thankYouUrl);
   }
   const token = encodeURIComponent(result.token);
@@ -234,7 +240,7 @@ const processSubmission = async (
   if (validated instanceof Response) return validated;
   const values = validated;
 
-  const quantities = parseQuantities(form, ctx.events);
+  const quantities = parseQuantities(form, ctx.listings);
   const totalQuantity = reduce(
     (sum: number, qty: number) => sum + qty,
     0,
@@ -243,17 +249,17 @@ const processSubmission = async (
     return errorResponse("Please select at least one ticket");
   }
 
-  const selectedEventIds = new Set(quantities.keys());
+  const selectedListingIds = new Set(quantities.keys());
   const siteAssignmentCheck = await validateSiteAssignmentConfig(
-    eventsWithQuantity(ctx.events, quantities),
+    listingsWithQuantity(ctx.listings, quantities),
   );
   if (!siteAssignmentCheck.ok) {
     return errorResponse(siteAssignmentCheck.message);
   }
 
   const activeQuestions = ctx.questions.filter((q) => {
-    const eventIds = ctx.questionEventMap.get(q.id);
-    return !eventIds || eventIds.some((eid) => selectedEventIds.has(eid));
+    const listingIds = ctx.questionListingMap.get(q.id);
+    return !listingIds || listingIds.some((eid) => selectedListingIds.has(eid));
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
     form,
@@ -277,7 +283,7 @@ const processSubmission = async (
   await applyQrTokenOverride(form, ctx, customPricesResult);
 
   const items = buildRegistrationItems(
-    ctx.events,
+    ctx.listings,
     quantities,
     customPricesResult,
   );
@@ -285,7 +291,7 @@ const processSubmission = async (
   const info: AnswerInfo = {
     activeQuestions,
     answerIds: answersResult.answerIds,
-    selectedEventIds,
+    selectedListingIds,
   };
 
   if (await anyRequiresPayment(items)) {
@@ -317,17 +323,17 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
 export const handleTicket = async (
   request: Request,
   actionSlugs: string[],
-  activeEvents: TicketEvent[],
+  activeListings: TicketListing[],
   getContext: TicketContextProvider,
   qrPrefill?: TicketCtx["qrPrefill"],
 ): Promise<Response> => {
   const [sharedCtx] = await Promise.all([
-    getContext(activeEvents),
+    getContext(activeListings),
     signCsrfToken(),
   ]);
   const ctx: TicketCtx = {
     baseUrl: getBaseUrl(request),
-    events: activeEvents,
+    listings: activeListings,
     slugs: actionSlugs,
     ...sharedCtx,
     qrPrefill,
@@ -336,21 +342,21 @@ export const handleTicket = async (
     request.method === "GET"
       ? ticketResponse(ctx)(applyFlash(request).error)
       : await submitTicket(request, ctx);
-  const anyHidden = activeEvents.some((e) => e.event.hidden);
+  const anyHidden = activeListings.some((e) => e.listing.hidden);
   return applyHiddenNoindex(response, anyHidden);
 };
 
-/** Handle ticket page by slugs (multi-event) */
+/** Handle ticket page by slugs (multi-listing) */
 export const handleTicketBySlugs = (
   request: Request,
   slugs: string[],
 ): Promise<Response> =>
-  withActiveEvents(slugs, (activeEvents) =>
-    handleTicket(request, slugs, activeEvents, getTicketContext),
+  withActiveListings(slugs, (activeListings) =>
+    handleTicket(request, slugs, activeListings, getTicketContext),
   );
 
-/** Curried: build capacity-aware TicketEvents and hand off to handleTicket with
- * shared context. Caller supplies the events; `group` flows into getTicketContext
+/** Curried: build capacity-aware TicketListings and hand off to handleTicket with
+ * shared context. Caller supplies the listings; `group` flows into getTicketContext
  * and `overrides` win over its result (e.g. for renewal's actionUrl/siteToken). */
 export const renderTicketFlow =
   (
@@ -358,9 +364,9 @@ export const renderTicketFlow =
     slugs: string[],
     options: { group?: Group; overrides?: Partial<TicketSharedContext> } = {},
   ) =>
-  async (events: EventWithCount[]): Promise<Response> => {
-    const activeEvents = await buildTicketEventsWithGroupCapacity(events);
-    return handleTicket(request, slugs, activeEvents, async (e) => ({
+  async (listings: ListingWithCount[]): Promise<Response> => {
+    const activeListings = await buildTicketListingsWithGroupCapacity(listings);
+    return handleTicket(request, slugs, activeListings, async (e) => ({
       ...(await getTicketContext(e, options.group)),
       ...options.overrides,
     }));

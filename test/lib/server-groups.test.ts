@@ -10,8 +10,8 @@ import {
   assertAdminHtml,
   awaitTestRequest,
   createTestAttendee,
-  createTestEvent,
   createTestGroup,
+  createTestListing,
   createTestManagerSession,
   deleteTestGroup,
   describeWithEnv,
@@ -133,11 +133,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
 
     test("creates group with description", async () => {
       const group = await createTestGroup({
-        description: "A fun group of events",
+        description: "A fun group of listings",
         name: "Described Group",
       });
       expect(group.name).toBe("Described Group");
-      expect(group.description).toBe("A fun group of events");
+      expect(group.description).toBe("A fun group of listings");
     });
 
     test("creates group without description defaults to empty string", async () => {
@@ -302,7 +302,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
   });
 
   describe("GET /admin/groups/:id/delete", () => {
-    test("shows delete confirmation with event note", async () => {
+    test("shows delete confirmation with listing note", async () => {
       const group = await createTestGroup({
         name: "Delete Me",
         slug: "delete-me",
@@ -312,7 +312,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         response,
         200,
         "Delete Group",
-        "Events in this group will not be deleted",
+        "Listings in this group will not be deleted",
         "confirm_identifier",
       );
     });
@@ -364,26 +364,26 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       )(response);
     });
 
-    test("deletes group, resets events to group_id=0, and does not delete events", async () => {
+    test("deletes group, resets listings to group_id=0, and does not delete listings", async () => {
       const group = await createTestGroup({
         name: "To Delete",
         slug: "to-delete",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
-        name: "Grouped Event",
+        name: "Grouped Listing",
       });
-      expect(event.group_id).toBe(group.id);
+      expect(listing.group_id).toBe(group.id);
 
       await deleteTestGroup(group.id);
 
       const { groupsTable } = await import("#shared/db/groups.ts");
-      const { getEvent } = await import("#shared/db/events.ts");
+      const { getListing } = await import("#shared/db/listings.ts");
 
       expect(await groupsTable.findById(group.id)).toBeNull();
-      const existingEvent = await getEvent(event.id);
-      expect(existingEvent).not.toBeNull();
-      expect(existingEvent?.group_id).toBe(0);
+      const existingListing = await getListing(listing.id);
+      expect(existingListing).not.toBeNull();
+      expect(existingListing?.group_id).toBe(0);
     });
 
     test("returns 404 when deleting a non-existent group", async () => {
@@ -447,14 +447,14 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expectStatus(404)(response);
     });
 
-    test("shows group detail with events and embed options", async () => {
+    test("shows group detail with listings and embed options", async () => {
       const group = await createTestGroup({
         name: "Detail Group",
         slug: "detail-group",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
-        name: "Grouped Event",
+        name: "Grouped Listing",
       });
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
@@ -463,8 +463,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         200,
         "Detail Group",
         "detail-group",
-        "Grouped Event",
-        `/admin/event/${event.id}`,
+        "Grouped Listing",
+        `/admin/listing/${listing.id}`,
         "Edit Group",
         "Delete Group",
         "Public URL",
@@ -472,7 +472,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         "QR Code",
         "/ticket/detail-group/qr",
         "Embed Script",
-        "data-events=",
+        "data-listings=",
         "Embed Iframe",
         "iframe",
       );
@@ -489,7 +489,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         response,
         200,
         "Hidden",
-        "not shown in public events list",
+        "not shown in public listings list",
       );
     });
 
@@ -500,46 +500,46 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       const html = await response.text();
-      expect(html).not.toContain("not shown in public events list");
+      expect(html).not.toContain("not shown in public listings list");
     });
 
-    test("shows empty events message when group has no events", async () => {
+    test("shows empty listings message when group has no listings", async () => {
       const group = await createTestGroup({
         name: "Empty Group",
         slug: "empty-group",
       });
       const { response } = await adminGet(`/admin/groups/${group.id}`);
-      await expectHtmlResponse(response, 200, "No events in this group");
+      await expectHtmlResponse(response, 200, "No listings in this group");
     });
 
-    test("shows ungrouped events for adding to group", async () => {
+    test("shows ungrouped listings for adding to group", async () => {
       const group = await createTestGroup({
         name: "Target Group",
         slug: "target-group",
       });
-      const ungrouped = await createTestEvent({ name: "Ungrouped Event" });
+      const ungrouped = await createTestListing({ name: "Ungrouped Listing" });
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       await expectHtmlResponse(
         response,
         200,
-        "Add Events to Group",
-        "Ungrouped Event",
+        "Add Listings to Group",
+        "Ungrouped Listing",
         `value="${ungrouped.id}"`,
       );
     });
 
-    test("hides add-events form when no ungrouped events exist", async () => {
+    test("hides add-listings form when no ungrouped listings exist", async () => {
       const group = await createTestGroup({
         name: "Solo Group",
         slug: "solo-group",
       });
-      await createTestEvent({ groupId: group.id, name: "Already Grouped" });
+      await createTestListing({ groupId: group.id, name: "Already Grouped" });
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).not.toContain("Add Events to Group");
+      expect(html).not.toContain("Add Listings to Group");
     });
 
     test("shows attendee count and checked-in stats", async () => {
@@ -547,13 +547,18 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Stats Group",
         slug: "stats-group",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 20,
-        name: "Stats Event",
+        name: "Stats Listing",
       });
-      await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-      await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Alice",
+        "alice@test.com",
+      );
+      await createTestAttendee(listing.id, listing.slug, "Bob", "bob@test.com");
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
@@ -569,20 +574,25 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Multi Qty Group",
         slug: "multi-qty-group",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 20,
         maxQuantity: 5,
-        name: "Multi Qty Event",
+        name: "Multi Qty Listing",
       });
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Alice",
         "alice@multi.com",
         3,
       );
-      await createTestAttendee(event.id, event.slug, "Bob", "bob@multi.com");
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Bob",
+        "bob@multi.com",
+      );
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
@@ -594,19 +604,19 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("0 / 4");
     });
 
-    test("shows attendees table with event name column", async () => {
+    test("shows attendees table with listing name column", async () => {
       const group = await createTestGroup({
         name: "Table Group",
         slug: "table-group",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
-        name: "Table Event",
+        name: "Table Listing",
       });
       await createTestAttendee(
-        event.id,
-        event.slug,
+        listing.id,
+        listing.slug,
         "Charlie",
         "charlie@test.com",
       );
@@ -615,8 +625,8 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Charlie");
-      expect(html).toContain("Table Event");
-      expect(html).toContain(`/admin/event/${event.id}`);
+      expect(html).toContain("Table Listing");
+      expect(html).toContain(`/admin/listing/${listing.id}`);
     });
 
     test("shows question answer summary in group details", async () => {
@@ -624,22 +634,26 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Q Group",
         slug: "q-group",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
-        name: "Q Event",
+        name: "Q Listing",
       });
-      await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com");
-      const { questionsTable, answersTable, setEventQuestions } = await import(
-        "#shared/db/questions.ts"
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Dave",
+        "dave@test.com",
       );
+      const { questionsTable, answersTable, setListingQuestions } =
+        await import("#shared/db/questions.ts");
       const q = await questionsTable.insert({ text: "Color" });
       await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
         text: "Red",
       });
-      await setEventQuestions(event.id, [q.id]);
+      await setListingQuestions(listing.id, [q.id]);
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
@@ -648,18 +662,23 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("Red (0)");
     });
 
-    test("shows total revenue for paid events", async () => {
+    test("shows total revenue for paid listings", async () => {
       const group = await createTestGroup({
         name: "Revenue Group",
         slug: "revenue-group",
       });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
-        name: "Paid Event",
+        name: "Paid Listing",
         unitPrice: 1000,
       });
-      await createTestAttendee(event.id, event.slug, "Donor", "donor@test.com");
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Donor",
+        "donor@test.com",
+      );
 
       const { response } = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
@@ -667,18 +686,18 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("Total Revenue");
     });
 
-    const createGroupWithEvent = async (
+    const createGroupWithListing = async (
       groupName: string,
       groupSlug: string,
-      eventName: string,
+      listingName: string,
     ) => {
       const group = await createTestGroup({ name: groupName, slug: groupSlug });
-      const event = await createTestEvent({
+      const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
-        name: eventName,
+        name: listingName,
       });
-      return { event, group };
+      return { group, listing };
     };
 
     const getGroupPageHtml = async (groupId: number): Promise<string> => {
@@ -687,36 +706,36 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       return response.text();
     };
 
-    test("hides total revenue for free events", async () => {
-      const { group } = await createGroupWithEvent(
+    test("hides total revenue for free listings", async () => {
+      const { group } = await createGroupWithListing(
         "Free Group",
         "free-group",
-        "Free Event",
+        "Free Listing",
       );
       const html = await getGroupPageHtml(group.id);
       expect(html).not.toContain("Total Revenue");
     });
 
-    test("shows attendees from multiple events in group", async () => {
-      const { group, event: event1 } = await createGroupWithEvent(
+    test("shows attendees from multiple listings in group", async () => {
+      const { group, listing: listing1 } = await createGroupWithListing(
         "Multi Group",
         "multi-group",
-        "Event Alpha",
+        "Listing Alpha",
       );
-      const event2 = await createTestEvent({
+      const listing2 = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
-        name: "Event Beta",
+        name: "Listing Beta",
       });
       await createTestAttendee(
-        event1.id,
-        event1.slug,
+        listing1.id,
+        listing1.slug,
         "Alice Alpha",
         "alice@test.com",
       );
       await createTestAttendee(
-        event2.id,
-        event2.slug,
+        listing2.id,
+        listing2.slug,
         "Bob Beta",
         "bob@test.com",
       );
@@ -724,24 +743,24 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const html = await getGroupPageHtml(group.id);
       expect(html).toContain("Alice Alpha");
       expect(html).toContain("Bob Beta");
-      expect(html).toContain("Event Alpha");
-      expect(html).toContain("Event Beta");
+      expect(html).toContain("Listing Alpha");
+      expect(html).toContain("Listing Beta");
     });
 
-    test("shows no attendees message for group with events but no registrations", async () => {
-      const { group } = await createGroupWithEvent(
+    test("shows no attendees message for group with listings but no registrations", async () => {
+      const { group } = await createGroupWithListing(
         "No Reg Group",
         "no-reg-group",
-        "Empty Event",
+        "Empty Listing",
       );
       const html = await getGroupPageHtml(group.id);
       expect(html).toContain("No attendees yet");
     });
   });
 
-  describe("POST /admin/groups/:id/add-events", () => {
-    testRequiresAuth("/admin/groups/1/add-events", {
-      body: { event_ids: "1" },
+  describe("POST /admin/groups/:id/add-listings", () => {
+    testRequiresAuth("/admin/groups/1/add-listings", {
+      body: { listing_ids: "1" },
       method: "POST",
     });
 
@@ -750,11 +769,11 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         name: "Add Allow",
         slug: "add-allow",
       });
-      const cookie = await createTestManagerSession("mgr-add-events");
+      const cookie = await createTestManagerSession("mgr-add-listings");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/groups/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-listings`,
           {
             csrf_token: csrfToken,
           },
@@ -765,31 +784,34 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent group", async () => {
-      const { response } = await adminFormPost("/admin/groups/999/add-events", {
-        event_ids: "1",
-      });
+      const { response } = await adminFormPost(
+        "/admin/groups/999/add-listings",
+        {
+          listing_ids: "1",
+        },
+      );
       expectStatus(404)(response);
     });
 
-    test("assigns ungrouped events to group", async () => {
+    test("assigns ungrouped listings to group", async () => {
       const group = await createTestGroup({
         name: "Assign Group",
         slug: "assign-group",
       });
-      const event1 = await createTestEvent({ name: "Event A" });
-      const event2 = await createTestEvent({ name: "Event B" });
+      const listing1 = await createTestListing({ name: "Listing A" });
+      const listing2 = await createTestListing({ name: "Listing B" });
 
-      expect(event1.group_id).toBe(0);
-      expect(event2.group_id).toBe(0);
+      expect(listing1.group_id).toBe(0);
+      expect(listing2.group_id).toBe(0);
 
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/groups/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-listings`,
           {
             csrf_token: csrfToken,
-            event_ids: String(event1.id),
+            listing_ids: String(listing1.id),
           },
           cookie,
         ),
@@ -797,12 +819,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
         `/admin/groups/${group.id}`,
-        "Events added to group",
+        "Listings added to group",
       )(response);
 
-      const { getEvent } = await import("#shared/db/events.ts");
-      const updated1 = await getEvent(event1.id);
-      const updated2 = await getEvent(event2.id);
+      const { getListing } = await import("#shared/db/listings.ts");
+      const updated1 = await getListing(listing1.id);
+      const updated2 = await getListing(listing2.id);
       expect(updated1?.group_id).toBe(group.id);
       expect(updated2?.group_id).toBe(0);
     });
@@ -816,7 +838,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/groups/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-listings`,
           {
             csrf_token: csrfToken,
           },
@@ -826,22 +848,22 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectRedirectWithFlash(
         `/admin/groups/${group.id}`,
-        "Events added to group",
+        "Listings added to group",
       )(response);
     });
 
-    test("rejects adding event with mismatched type", async () => {
+    test("rejects adding listing with mismatched type", async () => {
       const group = await createTestGroup({
         name: "Type Check",
         slug: "type-check",
       });
-      await createTestEvent({
-        eventType: "standard",
+      await createTestListing({
         groupId: group.id,
+        listingType: "standard",
         name: "Standard In Group",
       });
-      const dailyEvent = await createTestEvent({
-        eventType: "daily",
+      const dailyListing = await createTestListing({
+        listingType: "daily",
         name: "Daily Ungrouped",
       });
 
@@ -849,23 +871,23 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/groups/${group.id}/add-events`,
+          `/admin/groups/${group.id}/add-listings`,
           {
             csrf_token: csrfToken,
-            event_ids: String(dailyEvent.id),
+            listing_ids: String(dailyListing.id),
           },
           cookie,
         ),
       );
       expectRedirectWithFlash(
         `/admin/groups/${group.id}`,
-        "This group already contains standard events — all events in a group must be the same type",
+        "This group already contains standard listings — all listings in a group must be the same type",
         false,
       )(response);
 
-      // Verify event was NOT assigned
-      const { getEvent } = await import("#shared/db/events.ts");
-      const unchanged = await getEvent(dailyEvent.id);
+      // Verify listing was NOT assigned
+      const { getListing } = await import("#shared/db/listings.ts");
+      const unchanged = await getListing(dailyListing.id);
       expect(unchanged?.group_id).toBe(0);
     });
   });

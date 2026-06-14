@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Branch Diff Infographic: Built Site Renewals</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #5a6673;
+      --line: #d8dee6;
+      --paper: #f7f8fa;
+      --panel: #ffffff;
+      --blue: #1f6feb;
+      --green: #238636;
+      --amber: #9a6700;
+      --red: #cf222e;
+      --violet: #8250df;
+      --teal: #087990;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1.35fr 0.65fr;
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+
+    section,
+    .card,
+    .hero,
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .hero {
+      padding: 28px;
+      min-height: 250px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto 24px 24px auto;
+      width: 270px;
+      height: 140px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, transparent 49%, var(--line) 50%, transparent 51%),
+        linear-gradient(0deg, transparent 49%, var(--line) 50%, transparent 51%);
+      background-size: 44px 44px;
+      opacity: 0.45;
+      transform: rotate(-2deg);
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin-bottom: 16px;
+      font-size: clamp(34px, 5vw, 64px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 720px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.94em;
+      background: #eef2f7;
+      border: 1px solid #d7dde6;
+      border-radius: 5px;
+      padding: 1px 5px;
+      white-space: nowrap;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    section {
+      padding: 22px;
+    }
+
+    h2 {
+      margin-bottom: 14px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .compare .card {
+      padding: 16px;
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      margin-bottom: 10px;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .label.main {
+      background: #fff1f0;
+      color: var(--red);
+      border: 1px solid #ffd8d3;
+    }
+
+    .label.branch {
+      background: #dafbe1;
+      color: var(--green);
+      border: 1px solid #aceebb;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .step {
+      min-height: 176px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      position: relative;
+    }
+
+    .step::before {
+      content: attr(data-step);
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 10px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 28px;
+      right: -11px;
+      width: 11px;
+      height: 2px;
+      background: var(--line);
+    }
+
+    .map {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .map .card {
+      padding: 15px;
+      border-left: 5px solid var(--blue);
+    }
+
+    .map .card:nth-child(2) {
+      border-left-color: var(--green);
+    }
+
+    .map .card:nth-child(3) {
+      border-left-color: var(--amber);
+    }
+
+    .map .card:nth-child(4) {
+      border-left-color: var(--violet);
+    }
+
+    .map .card:nth-child(5) {
+      border-left-color: var(--teal);
+    }
+
+    .map .card:nth-child(6) {
+      border-left-color: var(--red);
+    }
+
+    .bars {
+      display: grid;
+      gap: 10px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 180px 1fr 58px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .bar-track {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e8edf3;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .bar-row:nth-child(2) .bar-fill {
+      background: var(--green);
+    }
+
+    .bar-row:nth-child(3) .bar-fill {
+      background: var(--violet);
+    }
+
+    .bar-row:nth-child(4) .bar-fill {
+      background: var(--amber);
+    }
+
+    .bar-row:nth-child(5) .bar-fill {
+      background: var(--teal);
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1.4fr;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+    }
+
+    .matrix div {
+      padding: 10px 12px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      min-height: 44px;
+      font-size: 13px;
+    }
+
+    .matrix div:nth-child(3n) {
+      border-right: 0;
+    }
+
+    .matrix .head {
+      background: #eef2f7;
+      font-weight: 800;
+    }
+
+    .matrix div:nth-last-child(-n+3) {
+      border-bottom: 0;
+    }
+
+    .callout {
+      border-left: 5px solid var(--green);
+      background: #f0fff4;
+    }
+
+    .risk {
+      border-left: 5px solid var(--amber);
+      background: #fff8e6;
+    }
+
+    .footer {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .cols-2,
+      .cols-3,
+      .compare,
+      .flow,
+      .map {
+        grid-template-columns: 1fr;
+      }
+
+      .step {
+        min-height: 0;
+      }
+
+      .step:not(:last-child)::after {
+        display: none;
+      }
+
+      .matrix {
+        grid-template-columns: 1fr;
+      }
+
+      .matrix div,
+      .matrix div:nth-child(3n),
+      .matrix div:nth-last-child(-n+3) {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .bar-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Diff against main: claude/plan-renewal-system-LY7F8</p>
+          <h1>Built sites gain a renewal lifecycle.</h1>
+          <p class="subtitle">
+            The branch turns one-off assigned Bunny sites into expiring, token-renewable assets:
+            events define initial access and renewal tiers, edge scripts receive cutoff secrets,
+            and completed renewal payments extend <code>READ_ONLY_FROM</code>.
+          </p>
+        </div>
+        <p class="muted">Base: <code>main</code> at <code>05b9447</code>. Head: <code>6fb20d5</code>.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>66</strong><span>files changed</span></div>
+        <div class="stat"><strong>+4013</strong><span>insertions</span></div>
+        <div class="stat"><strong>-811</strong><span>deletions</span></div>
+        <div class="stat"><strong>1</strong><span>new public route: <code>/renew</code></span></div>
+      </div>
+    </header>
+
+    <section>
+      <h2>What Changed Conceptually</h2>
+      <div class="compare">
+        <div class="card">
+          <span class="label main">main</span>
+          <h3>Built-site assignment stops at delivery</h3>
+          <ul>
+            <li><code>assign_built_site</code> links a prebuilt site to an attendee.</li>
+            <li>Read-only mode is controlled by a simple <code>READ_ONLY</code> env flag.</li>
+            <li>Payment intent has no site renewal context.</li>
+            <li>Admin can edit built-site metadata but not operate renewal state.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="label branch">this branch</span>
+          <h3>Built-site assignment creates a renewable asset</h3>
+          <ul>
+            <li>Assignment provisions a renewal token and an initial deadline.</li>
+            <li>Read-only mode is driven by <code>READ_ONLY_FROM</code> plus warning window logic.</li>
+            <li><code>CheckoutIntent.siteToken</code> threads renewal identity through Stripe/webhooks.</li>
+            <li>Admin can provision, rotate, bump, override, and re-sync renewal state.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <h2>Runtime Flow</h2>
+      <div class="flow">
+        <div class="step" data-step="1">
+          <h3>Configure event</h3>
+          <p class="muted">Event edit/API accepts <code>initial_site_months</code> for site delivery and <code>months_per_unit</code> for renewal tiers.</p>
+          <code>src/shared/events-actions.ts</code>
+        </div>
+        <div class="step" data-step="2">
+          <h3>Assign site</h3>
+          <p class="muted">Paid ticket assignment calls <code>assignSiteWithRenewal</code>, generates token + HMAC index, and computes the first cutoff.</p>
+          <code>src/shared/site-assignment.ts</code>
+        </div>
+        <div class="step" data-step="3">
+          <h3>Push edge state</h3>
+          <p class="muted">Bunny edge script secrets receive <code>READ_ONLY_FROM</code> and <code>RENEWAL_URL</code>.</p>
+          <code>syncReadOnlyFrom</code>
+        </div>
+        <div class="step" data-step="4">
+          <h3>Customer renews</h3>
+          <p class="muted"><code>/renew/?t=...</code> resolves the token index, loads every qualifying tier, then reuses <code>handleTicket</code>.</p>
+          <code>src/features/public/renewal.ts</code>
+        </div>
+        <div class="step" data-step="5">
+          <h3>Webhook extends deadline</h3>
+          <p class="muted"><code>applyRenewalsForEntries</code> multiplies quantity by <code>months_per_unit</code> and pushes the new cutoff.</p>
+          <code>src/shared/webhook.ts</code>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid cols-2">
+      <section>
+        <h2>Data Model Delta</h2>
+        <div class="matrix">
+          <div class="head">Area</div>
+          <div class="head">New field</div>
+          <div class="head">Why it exists</div>
+
+          <div><code>events</code></div>
+          <div><code>initial_site_months</code></div>
+          <div>Initial access window when a ticket assigns a built site.</div>
+
+          <div><code>events</code></div>
+          <div><code>months_per_unit</code></div>
+          <div>Marks hidden purchase-only events as renewal tiers and defines duration per quantity.</div>
+
+          <div><code>built_sites</code></div>
+          <div><code>renewal_token_index</code></div>
+          <div>Unique HMAC blind index used to resolve public renewal links without storing lookup by raw token.</div>
+
+          <div><code>built_sites</code></div>
+          <div><code>read_only_from</code></div>
+          <div>Persisted deadline mirrored into the edge script secret.</div>
+
+          <div><code>site_data</code></div>
+          <div><code>v: 2</code>, <code>rt</code></div>
+          <div>Encrypted blob carries the raw renewal token for admin display/rotation.</div>
+
+          <div><code>payments</code></div>
+          <div><code>site_token</code></div>
+          <div>Threads renewal identity from checkout session to payment success handling.</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Largest Change Clusters</h2>
+        <div class="bars">
+          <div class="bar-row">
+            <span>Renewal route and tests</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+            <strong>579</strong>
+          </div>
+          <div class="bar-row">
+            <span>Admin built-site actions</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 94%"></div></div>
+            <strong>826</strong>
+          </div>
+          <div class="bar-row">
+            <span>Site assignment lifecycle</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 70%"></div></div>
+            <strong>598</strong>
+          </div>
+          <div class="bar-row">
+            <span>Builder/Bunny provisioning</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 50%"></div></div>
+            <strong>285</strong>
+          </div>
+          <div class="bar-row">
+            <span>Env/date/payment/webhook</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 45%"></div></div>
+            <strong>323</strong>
+          </div>
+        </div>
+        <p class="muted" style="margin-top: 12px;">Counts are approximate line churn from the diff, grouped by subsystem rather than exact ownership.</p>
+      </section>
+    </div>
+
+    <section>
+      <h2>Codebase Touchpoints</h2>
+      <div class="map">
+        <div class="card">
+          <h3>Routing</h3>
+          <p class="muted">Adds lazy <code>renew</code> route in <code>src/features/index.ts</code> with GET and POST handled by <code>src/features/public/renewal.ts</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Admin UI</h3>
+          <p class="muted"><code>src/ui/templates/admin/built-sites.tsx</code> gains read-only deadline column and renewal operation panels.</p>
+        </div>
+        <div class="card">
+          <h3>Event Admin</h3>
+          <p class="muted"><code>src/ui/templates/fields.ts</code>, <code>events.ts</code>, and event columns expose renewal tier and initial-site-month fields.</p>
+        </div>
+        <div class="card">
+          <h3>Edge Behavior</h3>
+          <p class="muted"><code>src/shared/env.ts</code> replaces boolean <code>READ_ONLY</code> with cutoff-based read-only and warning helpers.</p>
+        </div>
+        <div class="card">
+          <h3>Builder</h3>
+          <p class="muted"><code>src/shared/builder.ts</code> can deploy caller-supplied bundle code and auto-provision Bunny DB credentials.</p>
+        </div>
+        <div class="card">
+          <h3>Schema</h3>
+          <p class="muted"><code>src/shared/db/migrations.ts</code> adds event duration fields and built-site renewal lookup/deadline columns.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid cols-3">
+      <section class="callout">
+        <h2>New Admin Operations</h2>
+        <ul>
+          <li><code>provision-renewal</code>: create token, deadline, and edge secrets after a qualifying tier exists.</li>
+          <li><code>rotate-renewal-token</code>: swap public link while preserving current deadline.</li>
+          <li><code>bump-deadline</code>: add up to 120 months from current deadline or now.</li>
+          <li><code>override-deadline</code>: set an explicit <code>YYYY-MM-DDT23:59:59Z</code> cutoff.</li>
+          <li><code>re-sync-deadline</code>: re-push stored cutoff and renewal URL to Bunny.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Payment Semantics</h2>
+        <ul>
+          <li>Renewal checkout is still the normal ticket picker and Stripe path.</li>
+          <li>Only qualifying tiers are shown: <code>months_per_unit &gt; 0</code>, hidden, purchase-only.</li>
+          <li>Multi-tier renewal is supported: quantity times months per unit per item.</li>
+          <li>Unknown or missing token returns 404; no tier renders a renewal-unavailable page.</li>
+        </ul>
+      </section>
+
+      <section class="risk">
+        <h2>Operational Notes</h2>
+        <ul>
+          <li>Site assignment can now build a site on demand if the assignable pool is empty.</li>
+          <li>Bunny DB creation switched to hardcoded European region lists.</li>
+          <li><code>scripts/build-site.ts</code> provisions from a freshly built local edge bundle.</li>
+          <li><code>scripts/bunny-regions.ts</code> documents current Bunny region diagnostics.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section>
+      <h2>Test Coverage Added Around the New Contract</h2>
+      <div class="map">
+        <div class="card">
+          <h3>Route behavior</h3>
+          <p class="muted"><code>test/routes/renewal.test.ts</code> covers GET picker, token failure modes, missing tiers, inactive tiers, CSRF, and multi-item POST.</p>
+        </div>
+        <div class="card">
+          <h3>Deadline math</h3>
+          <p class="muted"><code>test/lib/dates.test.ts</code> and <code>test/lib/renewals.test.ts</code> cover month clamping, expired deadlines, future deadlines, and webhook bumping.</p>
+        </div>
+        <div class="card">
+          <h3>Assignment</h3>
+          <p class="muted"><code>test/lib/site-assignment.test.ts</code> covers token generation, edge secret pushes, missing initial months, and partial Bunny push failure.</p>
+        </div>
+        <div class="card">
+          <h3>Admin actions</h3>
+          <p class="muted"><code>test/admin-built-sites-actions.test.ts</code> covers rotate, bump, override, re-sync, and provision flows.</p>
+        </div>
+        <div class="card">
+          <h3>Persistence</h3>
+          <p class="muted"><code>test/lib/built-sites.test.ts</code> covers renewal columns, nullable token indexes, and preserving v2 token blobs on CRUD update.</p>
+        </div>
+        <div class="card">
+          <h3>API/forms</h3>
+          <p class="muted"><code>test/admin-api-events.test.ts</code>, column tests, template tests, and payment-helper tests cover the new fields and intent plumbing.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Review Lens For Maintainers</h2>
+      <div class="compare">
+        <div class="card">
+          <h3>Invariants introduced</h3>
+          <ul>
+            <li>A built site is provisioned for renewals iff <code>renewalTokenIndex !== null</code>.</li>
+            <li>Raw token is stored only inside encrypted <code>site_data</code>; lookup uses HMAC index.</li>
+            <li>Assigned-site events require <code>initial_site_months &gt; 0</code>.</li>
+            <li>Renewal tier events must be hidden and purchase-only.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Failure paths now matter</h3>
+          <ul>
+            <li>Bunny secret push can fail after token generation; token is retained so admin can re-sync.</li>
+            <li>Renewal payment can succeed while deadline push fails; error logging and ntfy are used.</li>
+            <li>Expired renewal extends from now, not from the stale past cutoff.</li>
+            <li>Multiple renewal tier events are valid; customer picks the tier at renew time.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer">Generated from <code>git diff main...HEAD</code> on 2026-05-17.</p>
+  </main>
+</body>
+</html>
