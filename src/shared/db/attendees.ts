@@ -61,14 +61,20 @@ export {
   PII_BLOB_VERSION,
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
+export type {
+  AttendeeSort,
+  AttendeesPage,
+} from "#shared/db/attendees/queries.ts";
 export {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
+  ATTENDEES_PAGE_SIZE,
   getAllAttendeePiiBlobs,
   getAttendee,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByTokens,
+  getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";

@@ -1852,3 +1852,29 @@ a.cal-day-selected:hover {
 }
 
 /* Guide page */
+
+/* Attendees browser filter/sort form */
+.attendees-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.attendees-filter label {
+  margin: 0;
+}
+
+.attendees-filter button {
+  margin: 0;
+}
+
+/* Previous/next pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+}

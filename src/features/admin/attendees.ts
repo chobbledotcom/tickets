@@ -37,6 +37,7 @@ import {
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
+import { handleAttendeesListGet } from "./attendees-list.ts";
 import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
@@ -267,6 +268,7 @@ const handleResendNotification = verifiedAttendeeForm(
  * Attendee routes
  * Unified add/edit page (add/update/remove listing registrations):
  *   attendee-form-routes.ts
+ * Paginated attendees browser: attendees-list.ts
  * Refresh payment: attendees-edit.ts
  * Merge: attendees-merge.ts
  * Refunds: attendee-refunds.ts
@@ -274,6 +276,7 @@ const handleResendNotification = verifiedAttendeeForm(
 export const attendeesRoutes = defineRoutes({
   "DELETE /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAttendeeDelete,
+  "GET /admin/attendees": handleAttendeesListGet,
   "GET /admin/attendees/:attendeeId": handleAttendeeEditGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
   "GET /admin/attendees/new": handleAttendeeNewGet,
