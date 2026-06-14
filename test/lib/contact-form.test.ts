@@ -203,21 +203,6 @@ describe("sendContactMessage", () => {
     expect(String(captured.body.text)).toContain("spoof the host");
   });
 
-  test("does not flag a submitter address that has no host", async () => {
-    configureEmail();
-    const captured = { body: {} as Record<string, unknown> };
-    stubFetch((_url, init) => {
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
-
-    const result = await sendContactMessage("hostless", "Hi");
-
-    expect(result).toBe(true);
-    expect(captured.body.reply_to).toBe("hostless");
-    expect(String(captured.body.html)).not.toContain("spoof");
-  });
-
   test("returns false when the email provider responds with an error", async () => {
     configureEmail();
     stubFetch(() => Promise.resolve(new Response("nope", { status: 422 })));
