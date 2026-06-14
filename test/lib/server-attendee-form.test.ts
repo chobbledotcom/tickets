@@ -2,7 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { attendeesApi } from "#shared/db/attendees.ts";
+import { attendeesApi, createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  answersTable,
+  getAttendeeAnswersBatch,
+  questionsTable,
+  saveAttendeeAnswers,
+  setEventQuestions,
+} from "#shared/db/questions.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -770,6 +777,79 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       expect(await response.text()).toContain("Add at least one event line");
+    });
+  });
+
+  describe("custom questions on a multi-event attendee", () => {
+    /** Book an attendee on both events with a custom question on each, plus an
+     * answer to each question. Returns the ids needed to drive an edit. */
+    const setupMultiEventQuestions = async () => {
+      const eventA = await createTestEvent({ maxAttendees: 10, name: "QA Event" });
+      const eventB = await createTestEvent({ maxAttendees: 10, name: "QB Event" });
+
+      const qA = await questionsTable.insert({ text: "Shirt size?" });
+      const aA = await answersTable.insert({
+        questionId: qA.id,
+        sortOrder: 0,
+        text: "Medium",
+      });
+      await setEventQuestions(eventA.id, [qA.id]);
+
+      const qB = await questionsTable.insert({ text: "Meal choice?" });
+      const aB = await answersTable.insert({
+        questionId: qB.id,
+        sortOrder: 0,
+        text: "Vegan",
+      });
+      await setEventQuestions(eventB.id, [qB.id]);
+
+      const created = await createAttendeeAtomic({
+        bookings: [
+          { eventId: eventA.id, quantity: 1 },
+          { eventId: eventB.id, quantity: 1 },
+        ],
+        email: "multi@example.com",
+        name: "Multi",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+      await saveAttendeeAnswers([attendeeId], [aA.id, aB.id]);
+      return { aA, aB, attendeeId, qA, qB };
+    };
+
+    test("edit page renders questions from every booked event", async () => {
+      const { attendeeId } = await setupMultiEventQuestions();
+      const response = await awaitTestRequest(`/admin/attendees/${attendeeId}`, {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("Shirt size?");
+      expect(html).toContain("Meal choice?");
+    });
+
+    test("saving an edit preserves answers for every booked event", async () => {
+      const { aA, aB, attendeeId, qA, qB } = await setupMultiEventQuestions();
+
+      // Submit both answers, as the rendered (pre-checked) form would.
+      const form = await buildAttendeeEditForm(attendeeId, {
+        extra: {
+          [`question_${qA.id}`]: String(aA.id),
+          [`question_${qB.id}`]: String(aB.id),
+        },
+        name: "Multi Edited",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      // Both answers survive — not just the first event's.
+      const saved = new Set(
+        (await getAttendeeAnswersBatch([attendeeId])).get(attendeeId) ?? [],
+      );
+      expect(saved.has(aA.id)).toBe(true);
+      expect(saved.has(aB.id)).toBe(true);
     });
   });
 });

@@ -16,7 +16,7 @@
  *   6. Redirect with a success/failure flash.
  */
 
-import { compact, filter, map, pipe, uniqueBy } from "#fp";
+import { compact, filter, map, pipe, unique, uniqueBy } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   applyAttendeeAtomicEdit,
@@ -33,7 +33,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getAttendeeAnswersBatch,
-  getQuestionsForEvent,
+  getQuestionsWithEventIds,
   type QuestionWithAnswers,
   readQuestionAnswer,
   saveAttendeeAnswers,
@@ -220,19 +220,21 @@ const buildTemplateData = async (
   };
 };
 
-/** Load custom questions + currently-selected answers for the attendee's
- * first existing event (edit mode only). Matches the pre-unified-form
- * behavior of showing questions for the first booked event. */
-const loadQuestionsContext = async (
+/** Load custom questions + currently-selected answers across ALL of the
+ * attendee's events (edit mode only). Rendering and saving every event's
+ * questions — not just the first — is what keeps the save from wiping answers
+ * tied to the attendee's other events: answers are stored per attendee, so the
+ * submitted set must cover every question the attendee can have answered. */
+const loadAttendeeQuestions = async (
   attendeeId: number,
-  firstEventId: number | null,
+  eventIds: number[],
 ): Promise<{
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
 }> => {
-  if (firstEventId === null) return { questions: [], selectedAnswerIds: [] };
-  const [questions, answersMap] = await Promise.all([
-    getQuestionsForEvent(firstEventId),
+  if (eventIds.length === 0) return { questions: [], selectedAnswerIds: [] };
+  const [{ questions }, answersMap] = await Promise.all([
+    getQuestionsWithEventIds(eventIds),
     getAttendeeAnswersBatch([attendeeId]),
   ]);
   return {
@@ -260,12 +262,15 @@ const renderAttendeeFormPage = (
   );
 };
 
-/** Load custom questions for an attendee, keyed off its first existing line. */
+/** Load custom questions for an attendee across every event it is booked on. */
 const loadQuestionsForExisting = (
   attendeeId: number,
   existing: { booking: { event_id: number } }[],
 ): Promise<{ questions: QuestionWithAnswers[]; selectedAnswerIds: number[] }> =>
-  loadQuestionsContext(attendeeId, existing[0]?.booking.event_id ?? null);
+  loadAttendeeQuestions(
+    attendeeId,
+    unique(existing.map((e) => e.booking.event_id)),
+  );
 
 // ---------------------------------------------------------------------------
 // GET /admin/attendees/new  (and GET /admin/attendees/:id)
