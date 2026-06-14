@@ -71,8 +71,7 @@ const result = reduce((acc, item) => {
 - `deno task start` - Run the server
 - `deno task test` - Run tests
 - `deno task test:coverage` - Run tests with coverage
-- `deno task lint` - Check code with Deno lint
-- `deno task fmt` - Format code with Deno fmt
+- `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 

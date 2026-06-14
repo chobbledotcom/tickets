@@ -1745,9 +1745,22 @@ button.secondary:hover,
 }
 
 /* Link-based date picker calendar */
-.calendar {
+.date-picker {
   max-width: 22rem;
   margin-bottom: var(--space-m);
+  padding: var(--space-s);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+.date-picker > select {
+  display: block;
+  width: 100%;
+}
+
+.calendar {
+  max-width: 22rem;
+  margin-bottom: var(--space-s);
 }
 
 .calendar-nav {

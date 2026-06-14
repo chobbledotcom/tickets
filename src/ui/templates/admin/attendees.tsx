@@ -2,11 +2,9 @@
  * Admin attendee page templates
  */
 
-import { createLinkListingForm } from "#routes/admin/attendees-link-form.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -24,7 +22,7 @@ import type {
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { Layout } from "#templates/layout.tsx";
 
 /**
  * Admin delete attendee confirmation page
@@ -156,8 +154,13 @@ export const adminRefundAllAttendeesPage = (
     </Layout>,
   );
 
-/** Render payment details section (read-only) */
-const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
+/** Render payment details section (read-only). Shared by the unified
+ * add/edit attendee form. */
+export const PaymentDetails = ({
+  attendee,
+}: {
+  attendee: Attendee;
+}): string => {
   if (!attendee.payment_id) return "";
   const pricePaid = Number.parseInt(attendee.price_paid, 10);
   const isRefunded = attendee.refunded;
@@ -191,270 +194,34 @@ const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
   );
 };
 
-/** Render custom question fields with pre-selected answers for admin edit */
-const renderEditQuestions = (
-  questions: QuestionWithAnswers[],
-  selectedAnswerIds: number[],
-): string => {
-  if (questions.length === 0) return "";
-  return questions
-    .map((q) => {
-      const options = q.answers
-        .map((a) => {
-          const checked = selectedAnswerIds.includes(a.id) ? " checked" : "";
-          return `<label><input type="radio" name="question_${q.id}" value="${a.id}"${checked}> ${escapeHtml(
-            a.text,
-          )}</label>`;
-        })
-        .join("");
-      return `<fieldset class="custom-question"><legend>${escapeHtml(
-        q.text,
-      )}</legend>${options}</fieldset>`;
-    })
-    .join("");
-};
-
-/**
- * Admin edit attendee page
- */
-/** Listing link data for the edit page */
-type ListingLinkDisplay = {
-  listing: ListingWithCount;
-  booking: ListingAttendeeRow;
-  date: string | null;
-};
-
-export const adminEditAttendeePage = (
-  {
-    attendee,
-    listingLinks = [],
-    allListings,
-    questions = [],
-    selectedAnswerIds = [],
-    availableDatesByListing = {},
-    emailStats = null,
-  }: {
-    listing: ListingWithCount;
-    attendee: Attendee;
-    listingLinks?: ListingLinkDisplay[];
-    allListings: ListingWithCount[];
-    questions?: QuestionWithAnswers[];
-    selectedAnswerIds?: number[];
-    availableDatesByListing?: Record<number, string[]>;
-    emailStats?: EmailStats | null;
-  },
-  session: AdminSession,
-  returnUrl?: string,
-  success?: string,
-  error?: string,
-): string => {
-  const linkListingForm = createLinkListingForm(allListings);
-  return String(
-    <Layout title={`Edit Attendee: ${attendee.name}`}>
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={error} success={success} />
-
-      <h2>Edit Attendee</h2>
-
-      <Raw html={PaymentDetails({ attendee })} />
-
-      {/* PII Section — shared across all listings */}
-      <h3>Contact Information</h3>
-      <CsrfForm action={`/admin/attendees/${attendee.id}`}>
-        {returnUrl && (
-          <input name="return_url" type="hidden" value={returnUrl} />
-        )}
-
-        <label for="name">
-          Name
-          <input
-            autofocus
-            id="name"
-            name="name"
-            required
-            type="text"
-            value={attendee.name}
-          />
-        </label>
-
-        <label for="email">
-          Email
-          <input
-            id="email"
-            name="email"
-            type="email"
-            value={attendee.email || ""}
-          />
-        </label>
-
-        <label for="phone">
-          Phone
-          <input
-            id="phone"
-            name="phone"
-            pattern="[+\d][\d\s\-()]{5,}"
-            title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
-            type="text"
-            value={attendee.phone || ""}
-          />
-        </label>
-
-        <label for="address">
-          Address
-          <textarea id="address" maxlength={250} name="address" rows={3}>
-            {attendee.address || ""}
-          </textarea>
-        </label>
-
-        <label for="special_instructions">
-          Special Instructions
-          <textarea
-            id="special_instructions"
-            maxlength={250}
-            name="special_instructions"
-            rows={3}
-          >
-            {attendee.special_instructions || ""}
-          </textarea>
-        </label>
-
-        <Raw html={renderEditQuestions(questions, selectedAnswerIds)} />
-
-        <SubmitButton icon="save">Save Contact Info</SubmitButton>
-      </CsrfForm>
-
-      {/* Email history Section */}
-      {attendee.email && (
-        <>
-          <h3>Email History</h3>
-          {emailStats && emailStats.contactCount > 0 ? (
-            <ul>
-              <li>
-                <strong>Total messages:</strong> {emailStats.contactCount}
-              </li>
-              <li>
-                <strong>Last contacted:</strong>{" "}
-                {formatDatetimeShort(emailStats.lastContact)}
-              </li>
-              <li>
-                <strong>Last subject:</strong> {emailStats.lastSubject}
-              </li>
-            </ul>
-          ) : (
-            <p>Never contacted by bulk email.</p>
-          )}
-        </>
-      )}
-
-      {/* Listing Links Section */}
-      <h3>Listing Registrations</h3>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Listing</th>
-              <th>Date</th>
-              <th>Qty</th>
-              <th>Status</th>
-              <th style="width:1%"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {listingLinks.map(({ listing: evt, booking, date: linkDate }) => (
-              <tr>
-                <td>
-                  <a href={`/admin/listing/${evt.id}`}>{evt.name}</a>
-                </td>
-                <td>
-                  {linkDate
-                    ? formatDateRangeLabel(booking.start_at, booking.end_at)
-                    : ""}
-                </td>
-                <td>
-                  <CsrfForm
-                    action={`/admin/attendees/${attendee.id}/listing/${evt.id}`}
-                    class="inline"
-                  >
-                    <input
-                      max={String(evt.max_quantity)}
-                      min="1"
-                      name="quantity"
-                      style="width:4em"
-                      type="number"
-                      value={String(booking.quantity)}
-                    />
-                    <button class="link-button" type="submit">
-                      Update
-                    </button>
-                  </CsrfForm>
-                </td>
-                <td>
-                  {Boolean(booking.checked_in) && (
-                    <span class="badge">Checked in</span>
-                  )}
-                  {Boolean(booking.refunded) && (
-                    <span class="badge danger">Refunded</span>
-                  )}
-                </td>
-                <td style="white-space:nowrap">
-                  <CsrfForm
-                    action={`/admin/attendees/${attendee.id}/unlink/${evt.id}`}
-                    class="inline"
-                  >
-                    <button class="link-button danger" type="submit">
-                      Remove
-                    </button>
-                  </CsrfForm>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Add Listing Link Section */}
-      <h3>Add to Listing</h3>
-      <CsrfForm action={`/admin/attendees/${attendee.id}/link`}>
-        <Raw html={linkListingForm.field("listing_id").render()} />
-        <Raw html={linkListingForm.field("quantity").render()} />
-        <div class="daily-date-field" style="display:none">
-          <Raw html={linkListingForm.field("date").render()} />
-        </div>
-
-        <SubmitButton icon="plus">Add to Listing</SubmitButton>
-      </CsrfForm>
-
-      {/* Available dates JSON for client-side date picker filtering (read by admin.ts) */}
-      <script id="available-dates-data" type="application/json">
-        <Raw html={JSON.stringify(availableDatesByListing)} />
-      </script>
-
-      {/* Merge Section */}
-      <h3>Merge Attendee</h3>
-      <p>
-        Search for another attendee by their ticket token and merge their
-        listing registrations into this attendee.
-      </p>
-      <form
-        action={`/admin/attendees/${attendee.id}/merge`}
-        class="inline-row"
-        method="get"
-      >
-        <label for="merge_token">
-          Ticket token
-          <input
-            id="merge_token"
-            name="token"
-            placeholder="Enter ticket token…"
-            required
-            type="text"
-          />
-        </label>
-        <SubmitButton icon="search">Search</SubmitButton>
-      </form>
-    </Layout>,
-  );
-};
+/** Render custom question fields with pre-selected answers for admin edit.
+ * Shared by the unified add/edit attendee form. */
+export const EditQuestions = ({
+  questions,
+  selectedAnswerIds,
+}: {
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
+}): JSX.Element => (
+  <>
+    {questions.map((q) => (
+      <fieldset class="custom-question">
+        <legend>{q.text}</legend>
+        {q.answers.map((a) => (
+          <label>
+            <input
+              checked={selectedAnswerIds.includes(a.id)}
+              name={`question_${q.id}`}
+              type="radio"
+              value={String(a.id)}
+            />{" "}
+            {a.text}
+          </label>
+        ))}
+      </fieldset>
+    ))}
+  </>
+);
 
 /** Source attendee data for the merge preview page */
 type MergeSourceInfo = {

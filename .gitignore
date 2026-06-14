@@ -13,11 +13,11 @@ cov_profile/
 .jscpd-report/
 bunny-script.ts
 .build-tag
-src/static/admin.js
-src/static/scanner.js
-src/static/embed.js
-src/static/iframe-resizer-parent.js
-src/static/iframe-resizer-child.js
+src/ui/static/admin.js
+src/ui/static/scanner.js
+src/ui/static/embed.js
+src/ui/static/iframe-resizer-parent.js
+src/ui/static/iframe-resizer-child.js
 .envrc
 .deno_cache/
 .deno/

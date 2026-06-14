@@ -16,7 +16,7 @@ import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
-  deleteAttendee,
+  ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
@@ -203,28 +203,6 @@ const buildBookings = (
     quantity: qty,
     ...bookingDateFields(listing, date),
   }));
-
-/**
- * Check if a multi-booking result is incomplete (some listings failed capacity).
- * If so, rolls back any partially-created attendee. Returns the failure reason.
- */
-export const ensureAllBookings = async (
-  result: CreateAttendeeResult,
-  expectedCount: number,
-): Promise<
-  { ok: true } | { ok: false; reason: "capacity_exceeded" | "encryption_error" }
-> => {
-  if (result.success && result.attendees.length >= expectedCount) {
-    return { ok: true };
-  }
-  if (result.success && result.attendees.length > 0) {
-    await deleteAttendee(result.attendees[0]!.id);
-  }
-  return {
-    ok: false,
-    reason: result.success ? "capacity_exceeded" : result.reason,
-  };
-};
 
 export const processFreeReservation = async (
   listings: TicketListing[],

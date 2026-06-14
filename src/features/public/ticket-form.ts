@@ -43,28 +43,6 @@ export const formatAtomicError = capacityErrorFormatter({
   withName: (name) => `Sorry, ${name} no longer has enough spots available`,
 });
 
-/** Parse and validate answers for custom questions from form data.
- * Returns answer IDs if valid, or an error message if any required question is unanswered. */
-export const parseQuestionAnswers = (
-  form: URLSearchParams,
-  questions: QuestionWithAnswers[],
-): { ok: true; answerIds: number[] } | { ok: false; error: string } => {
-  const answerIds: number[] = [];
-  for (const q of questions) {
-    const raw = form.get(`question_${q.id}`);
-    if (!raw) {
-      return { error: `Please answer: ${q.text}`, ok: false };
-    }
-    const answerId = Number.parseInt(raw, 10);
-    const validAnswer = q.answers.some((a) => a.id === answerId);
-    if (!validAnswer) {
-      return { error: `Invalid answer for: ${q.text}`, ok: false };
-    }
-    answerIds.push(answerId);
-  }
-  return { answerIds, ok: true };
-};
-
 /** Build a per-listing answer map from parsed answers and the question-listing mapping.
  * Each listing gets only the answer IDs for questions assigned to it. */
 export const buildListingAnswerMap = (

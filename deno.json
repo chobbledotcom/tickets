@@ -3,19 +3,15 @@
   "version": "1.0.0",
   "exports": "./src/index.ts",
   "tasks": {
-    "start": "deno task build:static && deno run --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
+    "start": "deno task build:static && deno run --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
     "test": "deno run -A scripts/run-tests.ts",
     "test:coverage": "deno run -A scripts/run-tests.ts --coverage",
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
-    "lint": "deno lint src test scripts && deno task biome:check",
-    "lint:fix": "deno lint --fix src test scripts && deno task biome:fix",
-    "fmt": "deno fmt src test scripts",
+    "lint": "deno run -A scripts/biome.ts check --write src test scripts",
     "typecheck": "deno check --unstable-tsgo src/**/*.ts src/**/*.tsx test/**/*.ts",
     "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
-    "biome:fix": "deno run -A npm:@biomejs/biome check --write src test scripts",
-    "biome:check": "deno run -A npm:@biomejs/biome check src test scripts",
     "precommit": "deno run -A scripts/precommit.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
     "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts"
@@ -70,16 +66,5 @@
   },
   "test": {
     "include": ["test/"]
-  },
-  "lint": {
-    "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/ui/client/", "src/ui/static/admin.js", "src/ui/static/scanner.js", "src/ui/static/embed.js", "src/ui/static/iframe-resizer-parent.js", "src/ui/static/iframe-resizer-child.js"],
-    "rules": {
-      "tags": ["recommended"]
-    }
-  },
-  "fmt": {
-    "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/ui/client/", "src/ui/static/admin.js", "src/ui/static/scanner.js", "src/ui/static/embed.js", "src/ui/static/iframe-resizer-parent.js", "src/ui/static/iframe-resizer-child.js"]
   }
 }

@@ -365,6 +365,65 @@ export const createTestAttendeeDirect = async (
   };
 };
 
+/**
+ * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`)
+ * that preserves the attendee's existing event-registration lines.
+ *
+ * Reads the attendee's current `event_attendees` rows and emits one
+ * `line_*_N` block per existing booking with the correct `line_key_N`. Use
+ * `overrides.lines` to swap / add / drop lines, and the top-level overrides
+ * for PII fields.
+ */
+export const buildAttendeeEditForm = async (
+  attendeeId: number,
+  overrides: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    special_instructions?: string;
+    returnUrl?: string;
+    lines?: Array<{
+      eventId: number;
+      quantity?: number;
+      date?: string;
+      /** Omit to add as a new line; pass the existing key to update. */
+      key?: string;
+    }>;
+    /** Extra fields to merge in (e.g. `question_<id>`). */
+    extra?: Record<string, string>;
+  } = {},
+): Promise<Record<string, string>> => {
+  const { loadExistingLines } = await import("#shared/db/attendees.ts");
+  const existing = await loadExistingLines(attendeeId);
+  const lines =
+    overrides.lines ??
+    existing.map(({ key, booking }) => ({
+      date: booking.start_at?.slice(0, 10) ?? "",
+      eventId: booking.listing_id,
+      key,
+      quantity: booking.quantity,
+    }));
+  const form: Record<string, string> = {
+    action: "save",
+    address: overrides.address ?? "",
+    email: overrides.email ?? "",
+    line_count: String(lines.length),
+    name: overrides.name ?? "",
+    phone: overrides.phone ?? "",
+    special_instructions: overrides.special_instructions ?? "",
+  };
+  if (overrides.returnUrl) form.return_url = overrides.returnUrl;
+  lines.forEach((line, i) => {
+    form[`line_event_id_${i}`] = String(line.eventId);
+    form[`line_quantity_${i}`] = String(line.quantity ?? 1);
+    form[`line_date_${i}`] = line.date ?? "";
+    form[`line_key_${i}`] = line.key ?? "";
+  });
+  if (overrides.extra) Object.assign(form, overrides.extra);
+  return form;
+};
+
 export const createTestAttendeeWithToken = async (
   name: string,
   email: string,

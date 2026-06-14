@@ -93,6 +93,7 @@ describe("limits", () => {
     test("entries match the set of exported tunable constants", () => {
       const exportedKeys = [
         "MAX_TEXTAREA_LENGTH",
+        "MAX_FORM_LINES",
         "MAX_IMAGE_SIZE",
         "MAX_ATTACHMENT_SIZE",
         "MAX_BACKUPS",
