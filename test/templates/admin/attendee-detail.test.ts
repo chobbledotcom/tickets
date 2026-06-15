@@ -9,12 +9,8 @@ import {
 } from "#templates/admin/attendee-detail.tsx";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
-const ALLOWED_DOMAIN = "tickets.example.com";
-
 const renderDetail = (attendee = testAttendee(), phonePrefix = "44"): string =>
-  String(
-    AttendeeDetail({ allowedDomain: ALLOWED_DOMAIN, attendee, phonePrefix }),
-  );
+  String(AttendeeDetail({ attendee, phonePrefix }));
 
 beforeAll(() => {
   setupTestEncryptionKey();
@@ -27,7 +23,7 @@ describe("AttendeeDetail", () => {
     );
     expect(html).toContain('<th scope="row">Name</th>');
     expect(html).toContain("Jane Doe");
-    expect(html).toContain(`https://${ALLOWED_DOMAIN}/t/tok-123`);
+    expect(html).toContain('href="/t/tok-123"');
     expect(html).toContain("Registered");
   });
 

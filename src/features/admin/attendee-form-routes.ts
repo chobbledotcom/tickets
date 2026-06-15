@@ -42,7 +42,6 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
@@ -262,7 +261,6 @@ const buildTemplateData = async (
   return {
     activityLog,
     allListings,
-    allowedDomain: getEffectiveDomain(),
     attendee,
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
