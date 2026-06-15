@@ -18,6 +18,7 @@ import {
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
+  targetHiddenFields,
   targetQuery,
   unsubscribeUrl,
   validateDraftInput,
@@ -80,8 +81,24 @@ describe("bulk-email audiences and targets", () => {
     expect(isBulkEmailTarget({ kind: "attendee", token: "" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "attendee" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "other" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: 123 })).toBe(false);
+    expect(isBulkEmailTarget({})).toBe(false);
     expect(isBulkEmailTarget(null)).toBe(false);
     expect(isBulkEmailTarget("nope")).toBe(false);
+  });
+
+  test("targetHiddenFields round-trips fixed targets, none for audiences", () => {
+    // Audiences are chosen via a dropdown, so they contribute no hidden fields;
+    // listing/attendee targets carry their identifier through preview → send.
+    expect(
+      targetHiddenFields({ audience: "active", kind: "audience" }),
+    ).toEqual([]);
+    expect(targetHiddenFields({ kind: "listing", listingId: 7 })).toEqual([
+      ["listing_id", "7"],
+    ]);
+    expect(targetHiddenFields({ kind: "attendee", token: "tok" })).toEqual([
+      ["attendee", "tok"],
+    ]);
   });
 });
 

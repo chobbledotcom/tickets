@@ -7,6 +7,7 @@ import {
   type BulkEmailDraft,
   type BulkEmailTarget,
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
+  targetHiddenFields,
   targetQuery,
 } from "#shared/bulk-email.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -25,11 +26,11 @@ const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
 
 export type BulkEmailComposeState = {
   target: BulkEmailTarget;
-  /** Present when target.kind === "listing". */
-  listingName?: string;
-  /** The attendee's email address, when target.kind === "attendee" and one is
-   * on file (used to label the single recipient). */
-  attendeeEmail?: string;
+  /** Human label for a fixed target (listing name / attendee address); unused
+   * for the audience selector. */
+  targetLabel: string;
+  /** Whether the target is a single person (tunes the page's wording). */
+  single: boolean;
   recipientCount: number;
   canBulkSend: boolean;
   /** Why provider sending is unavailable ("" when it is available). */
@@ -38,44 +39,42 @@ export type BulkEmailComposeState = {
   draft: BulkEmailDraft | null;
 };
 
-/** The audience/listing selector at the top of the compose form. */
+/**
+ * The recipient control at the top of the compose form. The audience target is
+ * a chooser (a dropdown you can change); every other (fixed) target round-trips
+ * via spec-declared hidden fields and shows its label. New fixed-target kinds
+ * need no change here.
+ */
 const TargetField = ({
   state,
 }: {
   state: BulkEmailComposeState;
 }): JSX.Element => {
-  if (state.target.kind === "listing") {
+  if (state.target.kind === "audience") {
+    const selected = state.target.audience;
     return (
-      <>
-        <input name="listing_id" type="hidden" value={state.target.listingId} />
-        <p>
-          <strong>Recipients:</strong> attendees of {state.listingName}
-        </p>
-      </>
+      <label>
+        Audience
+        <select name="audience">
+          {AUDIENCES.map((a) => (
+            <option selected={selected === a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </label>
     );
   }
-  if (state.target.kind === "attendee") {
-    return (
-      <>
-        <input name="attendee" type="hidden" value={state.target.token} />
-        <p>
-          <strong>Recipient:</strong> {state.attendeeEmail}
-        </p>
-      </>
-    );
-  }
-  const selected = state.target.audience;
   return (
-    <label>
-      Audience
-      <select name="audience">
-        {AUDIENCES.map((a) => (
-          <option selected={selected === a.id} value={a.id}>
-            {a.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <>
+      {targetHiddenFields(state.target).map(([name, value]) => (
+        <input name={name} type="hidden" value={value} />
+      ))}
+      <p>
+        <strong>{state.single ? "Recipient" : "Recipients"}:</strong>{" "}
+        {state.targetLabel}
+      </p>
+    </>
   );
 };
 
@@ -87,17 +86,16 @@ export const bulkEmailComposePage = (
   session: AdminSession,
   state: BulkEmailComposeState,
 ): string => {
-  const { draft } = state;
-  const isAttendee = state.target.kind === "attendee";
+  const { draft, single } = state;
   return String(
-    <Layout title={isAttendee ? "Email an attendee" : "Send a bulk email"}>
+    <Layout title={single ? "Email an attendee" : "Send a bulk email"}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <Flash />
 
       <div class="prose">
-        <h1>{isAttendee ? "Email an attendee" : "Send a bulk email"}</h1>
+        <h1>{single ? "Email an attendee" : "Send a bulk email"}</h1>
         <p>
-          {isAttendee
+          {single
             ? "Send a one-off email to this attendee. Write your message in Markdown, then preview before sending."
             : "Email your attendees about an upcoming listing or other news. Choose who receives it, write your message in Markdown, then preview before sending."}
         </p>
@@ -159,7 +157,7 @@ export const bulkEmailComposePage = (
         </fieldset>
 
         <div class="prose">
-          {isAttendee ? (
+          {single ? (
             <p>Preview to confirm the message before sending.</p>
           ) : (
             <p>

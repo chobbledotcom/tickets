@@ -86,7 +86,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           cookie: await testCookie(),
         },
       ).then((r) => r.text());
-      expect(html).toContain("attendees of Gig");
+      expect(html).toContain("Recipients:</strong> Attendees of Gig");
     });
 
     test("404s for a non-existent listing", async () => {

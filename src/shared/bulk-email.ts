@@ -1,23 +1,23 @@
 /**
- * Bulk email domain logic — audiences, recipient resolution, drafts and the
- * marketing unsubscribe footer.
+ * Bulk email domain logic — recipient resolution, drafts and the marketing
+ * unsubscribe footer.
  *
- * Sending itself lives in `#shared/email.ts` (`sendBulkEmails`); this module
- * decides *who* gets a message and *what* the message looks like. The audience
- * model is deliberately a small, strictly-typed registry so new audiences can
- * be added in one place without touching the routes or templates.
+ * *Who* a message goes to (the audience/listing/attendee target registry)
+ * lives in `#shared/bulk-email-targets.ts`; the target API is re-exported here
+ * so callers have a single import. Sending itself lives in `#shared/email.ts`
+ * (`sendBulkEmails`). This module turns a target into a de-duplicated address
+ * list, validates drafts, and builds the send payload + unsubscribe footer.
  */
 
 import { compact, filter, map, pipe, sort, unique, uniqueBy } from "#fp";
+import {
+  type BulkEmailTarget,
+  isBulkEmailTarget,
+  loadTargetPiiBlobs,
+} from "#shared/bulk-email-targets.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import {
-  getAllAttendeePiiBlobs,
-  getAttendeePiiBlobForToken,
-  getAttendeePiiBlobsForListings,
-} from "#shared/db/attendees/queries.ts";
 import { hashEmail } from "#shared/db/email-preferences.ts";
-import { getAllListings } from "#shared/db/listings.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkBatchResponse,
@@ -26,133 +26,32 @@ import {
 } from "#shared/email.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import {
-  createTypeGuard,
-  isRecord,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import { isRecord } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 
-// ── Audiences ───────────────────────────────────────────────────────
-
-/** Named recipient groups selectable from the Emails page. */
-export const AUDIENCE_IDS = ["active", "upcoming", "all"] as const;
-export type AudienceId = (typeof AUDIENCE_IDS)[number];
-export const isAudienceId = createTypeGuard(AUDIENCE_IDS);
-
-export type Audience = {
-  readonly id: AudienceId;
-  readonly label: string;
-  /** One-line explanation shown in the selector and on the preview page. */
-  readonly description: string;
-};
-
-/** Registry of audiences, in the order they appear in the dropdown. */
-export const AUDIENCES: readonly Audience[] = [
-  {
-    description: "Everyone booked onto a listing that is currently active.",
-    id: "active",
-    label: "Active listing attendees",
-  },
-  {
-    description:
-      "Everyone booked onto an active listing that has not happened yet.",
-    id: "upcoming",
-    label: "Upcoming listing attendees",
-  },
-  {
-    description: "Everyone who has ever registered, across every listing.",
-    id: "all",
-    label: "All attendees",
-  },
-];
-
-/** The audience pre-selected when none is specified. */
-export const DEFAULT_AUDIENCE_ID: AudienceId = "active";
-
-/** Look up an audience definition by id (ids come from AUDIENCES, always present). */
-export const audienceById = (id: AudienceId): Audience =>
-  AUDIENCES.find((a) => a.id === id)!;
-
-// ── Targets ─────────────────────────────────────────────────────────
-
-/**
- * What a bulk email is aimed at: a named audience (from the Emails page), a
- * single listing (from that listing's admin page), or a single attendee
- * identified by ticket token (from that attendee's edit page).
- */
-export type BulkEmailTarget =
-  | { readonly kind: "audience"; readonly audience: AudienceId }
-  | { readonly kind: "listing"; readonly listingId: number }
-  | { readonly kind: "attendee"; readonly token: string };
-
-/** Query string that round-trips a target back to the compose page. */
-export const targetQuery = (target: BulkEmailTarget): string => {
-  if (target.kind === "listing") return `?listing=${target.listingId}`;
-  if (target.kind === "attendee") {
-    return `?attendee=${encodeURIComponent(target.token)}`;
-  }
-  return `?audience=${target.audience}`;
-};
-
-/** Runtime guard for a deserialized target (drafts are stored as JSON). */
-export const isBulkEmailTarget = (v: unknown): v is BulkEmailTarget => {
-  if (!isRecord(v)) return false;
-  if (v.kind === "audience") {
-    return typeof v.audience === "string" && isAudienceId(v.audience);
-  }
-  if (v.kind === "listing") {
-    return typeof v.listingId === "number" && Number.isInteger(v.listingId);
-  }
-  if (v.kind === "attendee") {
-    return typeof v.token === "string" && v.token !== "";
-  }
-  return false;
-};
+// Re-export the target registry's public API so `#shared/bulk-email.ts` stays
+// the single entry point for callers (routes, templates, tests).
+export {
+  AUDIENCES,
+  type Audience,
+  type AudienceId,
+  audienceById,
+  type BulkEmailTarget,
+  DEFAULT_AUDIENCE_ID,
+  describeTarget,
+  isAudienceId,
+  isBulkEmailTarget,
+  type TargetDescription,
+  targetAllowsEmpty,
+  targetFromForm,
+  targetFromQuery,
+  targetHiddenFields,
+  targetIsSingleRecipient,
+  targetLogListingId,
+  targetQuery,
+} from "#shared/bulk-email-targets.ts";
 
 // ── Recipient resolution ────────────────────────────────────────────
-
-/** Whether an active listing has not yet happened (no date = ongoing/undated). */
-const isUpcomingListing = (listing: ListingWithCount, now: number): boolean => {
-  if (!listing.active) return false;
-  if (listing.date === "") return true;
-  const todayStart = new Date(now);
-  todayStart.setUTCHours(0, 0, 0, 0);
-  return listing.date >= todayStart.toISOString();
-};
-
-/** Listing IDs covered by an "active" or "upcoming" audience. */
-const audienceListingIds = async (
-  audience: Exclude<AudienceId, "all">,
-  now: number,
-): Promise<number[]> => {
-  const listings = await getAllListings();
-  const matches =
-    audience === "active"
-      ? filter((l: ListingWithCount) => l.active)
-      : filter((l: ListingWithCount) => isUpcomingListing(l, now));
-  return map((l: ListingWithCount) => l.id)(matches(listings));
-};
-
-/** Load the encrypted PII blobs for whichever attendees a target covers. */
-const loadTargetPiiBlobs = async (
-  target: BulkEmailTarget,
-  now: number,
-): Promise<string[]> => {
-  if (target.kind === "listing") {
-    return getAttendeePiiBlobsForListings([target.listingId]);
-  }
-  if (target.kind === "attendee") {
-    const blob = await getAttendeePiiBlobForToken(target.token);
-    return blob ? [blob] : [];
-  }
-  if (target.audience === "all") {
-    return getAllAttendeePiiBlobs();
-  }
-  return getAttendeePiiBlobsForListings(
-    await audienceListingIds(target.audience, now),
-  );
-};
 
 /** Trim, drop blanks, de-duplicate case-insensitively, and sort a list of emails. */
 export const dedupeEmails = (emails: string[]): string[] =>
