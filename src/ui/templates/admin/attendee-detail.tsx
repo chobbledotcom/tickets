@@ -72,9 +72,11 @@ const PhoneCell = ({
  */
 export const AttendeeDetail = ({
   attendee,
+  allowedDomain,
   phonePrefix,
 }: {
   attendee: Attendee;
+  allowedDomain: string;
   phonePrefix: string;
 }): JSX.Element => {
   const rows = compact([
@@ -100,7 +102,9 @@ export const AttendeeDetail = ({
       </DetailTableRow>
     ) : null,
     <DetailTableRow label="Ticket">
-      <a href={`/t/${attendee.ticket_token}`}>{attendee.ticket_token}</a>
+      <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
+        {attendee.ticket_token}
+      </a>
     </DetailTableRow>,
     <DetailTableRow label="Registered">
       {formatDatetimeShort(attendee.created)}

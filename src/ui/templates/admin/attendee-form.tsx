@@ -99,6 +99,8 @@ export type AttendeeFormTemplateData = {
   /** Bulk-email contact history for the attendee's email (edit mode only;
    * null when there is no email on file or it has never been contacted). */
   emailStats?: EmailStats | null;
+  /** Public site domain, for the read-only ticket link (edit mode). */
+  allowedDomain: string;
   /** Country dialling code, for the read-only phone tel/WhatsApp links. */
   phonePrefix: string;
   /** This attendee's activity log entries, newest first (edit mode only). */
@@ -631,7 +633,11 @@ export const attendeeFormPage = (
       </div>
 
       {isEdit && a && (
-        <AttendeeDetail attendee={a} phonePrefix={data.phonePrefix} />
+        <AttendeeDetail
+          allowedDomain={data.allowedDomain}
+          attendee={a}
+          phonePrefix={data.phonePrefix}
+        />
       )}
 
       {isEdit && (
