@@ -14,7 +14,6 @@ export const TermsForm = (s: SettingsPageState): JSX.Element => (
     description={
       <p>If set, users must agree to these terms before reserving tickets.</p>
     }
-    id="settings-terms"
     submitLabel="Save Terms"
     title="Terms and Conditions"
   >

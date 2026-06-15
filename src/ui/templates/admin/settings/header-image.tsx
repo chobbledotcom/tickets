@@ -36,7 +36,6 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
           </p>
         }
         enctype="multipart/form-data"
-        id="settings-header-image"
         submitLabel="Upload"
         title="Header Image"
       >

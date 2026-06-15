@@ -21,7 +21,6 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
             : ""}
       </p>
     }
-    id="settings-apple-wallet"
     submitLabel="Save Apple Wallet Settings"
     title="Apple Wallet"
   >

@@ -15,6 +15,13 @@ import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 
+/**
+ * Derive a settings form's id from its POST target, since each settings
+ * endpoint hosts exactly one form: `/admin/settings/foo` -> `settings-foo`.
+ */
+const formIdFromAction = (action: string): string =>
+  `settings-${action.replace("/admin/settings/", "")}`;
+
 export const SettingsSection = ({
   action,
   description,
@@ -29,12 +36,21 @@ export const SettingsSection = ({
   description?: Child;
   /** Set for forms that upload files (e.g. `multipart/form-data`). */
   enctype?: string;
-  id: string;
+  /**
+   * Form id — also the flash-message target and page anchor. Defaults to the
+   * id derived from `action`; pass explicitly only when the id can't be derived
+   * from the post target (e.g. a form posting to the base settings endpoint).
+   */
+  id?: string;
   submitLabel: string;
   title: string;
   children?: Child;
 }): JSX.Element => (
-  <CsrfForm action={action} enctype={enctype} id={id}>
+  <CsrfForm
+    action={action}
+    enctype={enctype}
+    id={id ?? formIdFromAction(action)}
+  >
     <div class="prose">
       <h2>{title}</h2>
       {description}

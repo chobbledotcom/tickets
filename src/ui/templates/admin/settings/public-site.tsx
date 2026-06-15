@@ -14,7 +14,6 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
         for Home, Listings, T&amp;Cs and Contact pages.
       </p>
     }
-    id="settings-show-public-site"
     submitLabel="Save"
     title="Show public site?"
   >

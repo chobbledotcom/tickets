@@ -15,7 +15,6 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
         details.
       </p>
     }
-    id="settings-show-public-api"
     submitLabel="Save"
     title="Enable public API?"
   >

@@ -48,7 +48,6 @@ export const ListingColumnOrderForm = (
         details including custom date and currency formatting.
       </p>
     }
-    id="settings-listing-column-order"
     submitLabel="Save Listing Columns"
     title="Listing Table Columns"
   >
@@ -82,7 +81,6 @@ export const AttendeeColumnOrderForm = (
         details including custom date and currency formatting.
       </p>
     }
-    id="settings-attendee-column-order"
     submitLabel="Save Attendee Columns"
     title="Attendee Table Columns"
   >

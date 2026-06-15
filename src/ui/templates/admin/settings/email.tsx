@@ -21,7 +21,6 @@ export const EmailNotificationsForm = (
           registrations come in. <a href="/admin/guide#email">Setup guide</a>.
         </p>
       }
-      id="settings-email"
       submitLabel="Save Email Settings"
       title="Email Notifications"
     >

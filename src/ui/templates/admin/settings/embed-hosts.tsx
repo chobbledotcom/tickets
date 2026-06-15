@@ -14,7 +14,6 @@ export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
         blank to allow embedding from any site.
       </p>
     }
-    id="settings-embed-hosts"
     submitLabel="Save Embed Hosts"
     title="Only allow embedding on these hosts"
   >

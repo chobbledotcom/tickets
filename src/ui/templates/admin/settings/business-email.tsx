@@ -14,7 +14,6 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
         reply-to address for automated emails.
       </p>
     }
-    id="settings-business-email"
     submitLabel="Save Business Email"
     title="Business Email"
   >

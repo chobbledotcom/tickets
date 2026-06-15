@@ -11,7 +11,6 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
     description={
       <p>Choose between light and dark themes for the site interface.</p>
     }
-    id="settings-theme"
     submitLabel="Save Theme"
     title="Site Theme"
   >

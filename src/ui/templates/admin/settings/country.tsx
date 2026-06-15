@@ -10,7 +10,6 @@ export const CountryForm = (s: SettingsPageState): JSX.Element => (
   <SettingsSection
     action="/admin/settings/country"
     description={<p>Sets your timezone, currency, and phone prefix.</p>}
-    id="settings-country"
     submitLabel="Save Country"
     title="Your Country"
   >

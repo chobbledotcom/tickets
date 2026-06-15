@@ -22,7 +22,6 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
             : ""}
       </p>
     }
-    id="settings-google-wallet"
     submitLabel="Save Google Wallet Settings"
     title="Google Wallet"
   >
