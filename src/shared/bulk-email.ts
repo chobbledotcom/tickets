@@ -8,6 +8,7 @@
  * be added in one place without touching the routes or templates.
  */
 
+import * as v from "valibot";
 import { compact, filter, map, pipe, sort, unique, uniqueBy } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
@@ -25,19 +26,17 @@ import {
 } from "#shared/email.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import {
-  createTypeGuard,
-  isRecord,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import { isRecord, type ListingWithCount } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
 
 /** Named recipient groups selectable from the Emails page. */
 export const AUDIENCE_IDS = ["active", "upcoming", "all"] as const;
-export type AudienceId = (typeof AUDIENCE_IDS)[number];
-export const isAudienceId = createTypeGuard(AUDIENCE_IDS);
+export const AudienceIdSchema = v.picklist(AUDIENCE_IDS);
+export type AudienceId = v.InferOutput<typeof AudienceIdSchema>;
+export const isAudienceId = (s: string): s is AudienceId =>
+  v.is(AudienceIdSchema, s);
 
 export type Audience = {
   readonly id: AudienceId;
