@@ -3,6 +3,8 @@
  */
 
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
+import { stashForm } from "#shared/form-stash.ts";
+import { getSavedFormData } from "#shared/forms.tsx";
 import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
 import { getRequestId } from "#shared/logger.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
@@ -117,6 +119,22 @@ type RedirectOpts = {
 };
 
 /**
+ * On a failed PRG redirect, stash the just-submitted form values so the
+ * follow-up GET can re-fill the fields. Prefers an explicitly passed form,
+ * otherwise the per-request submission captured during CSRF parsing. The CSRF
+ * token is dropped — a fresh one is issued on the next render. Returns the
+ * redemption token, or null when there is nothing (eligible) to stash.
+ */
+const maybeStashForm = (explicit?: URLSearchParams): string | null => {
+  const source = explicit ?? getSavedFormData();
+  if (!source) return null;
+  const copy = new URLSearchParams(source.toString());
+  copy.delete("csrf_token");
+  const serialized = copy.toString();
+  return serialized ? stashForm(serialized) : null;
+};
+
+/**
  * Redirect with a success or error message (PRG pattern).
  * Stores the message in a flash cookie instead of the query string
  * to avoid leaking potentially sensitive data in URLs, browser history,
@@ -144,6 +162,7 @@ export const redirect = (
     succeeded,
     opts?.result,
     opts?.level,
+    succeeded ? undefined : (maybeStashForm(opts?.form) ?? undefined),
   );
   const response = redirectResponse(u.pathname + u.search + u.hash, flash);
   if (opts?.cookie) withCookie(response, opts.cookie);

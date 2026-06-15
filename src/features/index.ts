@@ -50,7 +50,9 @@ import {
   runWithFlashContext,
   setFlashContext,
 } from "#shared/flash-context.ts";
-import { clearSavedFormData } from "#shared/forms.tsx";
+import { FormParams } from "#shared/form-data.ts";
+import { takeForm } from "#shared/form-stash.ts";
+import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import {
   createRequestTimer,
@@ -479,6 +481,12 @@ const applyFlashFromCookie = (request: Request): string | null => {
     : null;
   const flash = flashRaw ? parseFlashValue(flashRaw) : null;
   if (flash) setFlashContext(flash);
+  // Redeem the form re-fill stash (warm-isolate optimisation). A miss is fine:
+  // the flash message above still renders, matching the cookie-only fallback.
+  if (flash?.formToken) {
+    const stashed = takeForm(flash.formToken);
+    if (stashed) setSavedFormData(new FormParams(stashed));
+  }
   return flash ? flashId : null;
 };
 

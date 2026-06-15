@@ -21,6 +21,7 @@ import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { setSavedFormData } from "#shared/forms.tsx";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
@@ -430,6 +431,9 @@ const parseCsrfBody = async (
   }
   if (mode === "form") {
     const form = await parseFormData(request);
+    // Capture the submission so a later validation-failure redirect can stash
+    // it for re-filling, mirroring requireCsrfForm for public forms.
+    setSavedFormData(form);
     const err = await verifyCsrf(form.getString("csrf_token"), channel, maxAge);
     return err ?? form;
   }
