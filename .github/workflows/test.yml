@@ -21,49 +21,26 @@ jobs:
         with:
           deno-version: v2.x
 
+      # stripe-mock is downloaded, started, and stopped by scripts/run-tests.ts
+      # (invoked via the test:coverage step inside precommit). Caching .bin just
+      # avoids re-downloading it on every run.
       - name: Cache stripe-mock
         uses: actions/cache@v4
         with:
           path: .bin
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
 
-      - name: Download stripe-mock
-        run: |
-          if [ ! -f .bin/stripe-mock ]; then
-            mkdir -p .bin
-            curl -sL "https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_linux_amd64.tar.gz" | tar -xz -C .bin
-            chmod +x .bin/stripe-mock
-          fi
-
       - name: Install dependencies
         run: deno install --allow-scripts
 
-      - name: Typecheck
-        run: deno task typecheck
-
-      - name: Lint
-        run: |
-          deno task lint
-          git diff --exit-code || (echo "::error::Code is not formatted/linted. Run 'deno task lint' locally and commit the result." && exit 1)
-
-      - name: Copy-paste detection
-        run: deno task cpd
-
-      - name: Build edge script
-        run: deno task build:edge
-
-      - name: Start stripe-mock
-        run: |
-          .bin/stripe-mock -http-port 12111 &
-          sleep 2
-          curl -s http://localhost:12111 > /dev/null && echo "stripe-mock is running"
-
-      - name: Run tests with coverage
+      # Runs the same battery as a local `deno task precommit` (lint, typecheck,
+      # cpd, build:edge, test:coverage) so CI and precommit can never drift. The
+      # --ci flag makes the lint step fail on unformatted code instead of
+      # silently fixing it.
+      - name: Run precommit checks
         env:
-          STRIPE_MOCK_HOST: localhost
-          STRIPE_MOCK_PORT: "12111"
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-        run: deno task test:coverage
+        run: deno task precommit --ci
 
       - name: Generate HTML coverage report
         if: always()
