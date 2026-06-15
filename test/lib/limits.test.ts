@@ -112,6 +112,7 @@ describe("limits", () => {
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_INTERVAL_HOURS",
+        "SUPPORT_FORM_NAG_DAYS",
       ].sort();
       const entryKeys = LIMIT_ENTRIES.map((e) => e.envKey).sort();
       expect(entryKeys).toEqual(exportedKeys);

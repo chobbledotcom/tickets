@@ -21,10 +21,12 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import {
+  MESSAGE_SEND_FAILED,
+  readMessageSubmission,
+} from "#shared/inbound-message.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { isValidEmail } from "#shared/validation/email.ts";
 import {
   contactPage,
   homepagePage,
@@ -111,31 +113,14 @@ export const handlePublicContact = (
 ): Response | Promise<Response> =>
   requirePublicSite(() => renderContactPage(request));
 
-/** Validate submitted contact fields. Returns an error message or null. */
-const validateContactSubmission = (
-  email: string,
-  message: string,
-): string | null => {
-  if (!isValidEmail(email)) {
-    return "Please enter a valid email address.";
-  }
-  if (!message) return "Please enter a message.";
-  if (message.length > MAX_TEXTAREA_LENGTH) {
-    return `Message must be ${MAX_TEXTAREA_LENGTH} characters or fewer.`;
-  }
-  return null;
-};
-
 /** Process a CSRF-checked contact form submission: validate, run Botpoison
  * verification, and only deliver to the owner when verification passes. */
 const processContactSubmission = async (
   form: FormParams,
 ): Promise<Response> => {
-  const email = form.getString("email");
-  const message = form.getString("message");
-
-  const validationError = validateContactSubmission(email, message);
-  if (validationError) return errorRedirect("/contact", validationError);
+  const submission = readMessageSubmission(form);
+  if (!submission.ok) return errorRedirect("/contact", submission.error);
+  const { email, message } = submission;
 
   // Botpoison is an optional spam-protection layer: when configured the
   // submission must pass verification; otherwise it is accepted as-is.
@@ -152,12 +137,7 @@ const processContactSubmission = async (
   }
 
   const sent = await sendContactMessage(email, message);
-  if (!sent) {
-    return errorRedirect(
-      "/contact",
-      "Sorry, your message could not be sent. Please try again later.",
-    );
-  }
+  if (!sent) return errorRedirect("/contact", MESSAGE_SEND_FAILED);
   return redirect("/contact", "Message sent", true);
 };
 

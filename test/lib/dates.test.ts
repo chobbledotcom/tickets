@@ -12,6 +12,7 @@ import {
   formatDatetimeLabel,
   formatDatetimeShort,
   formatMonthLabel,
+  formatTimeAgo,
   getAvailableDates,
   getNextBookableDate,
   isBookingRangeValid,
@@ -712,6 +713,56 @@ describeWithEnv("dates", { db: true }, () => {
         expect(daysAgo(`${yesterdayTokyo}T16:00:00.000Z`)).toBeNull();
       },
     );
+  });
+
+  describe("formatTimeAgo", () => {
+    const base = Date.parse("2026-06-15T12:00:00.000Z");
+
+    test("returns null for an unparseable timestamp", () => {
+      expect(formatTimeAgo("not-a-date", base)).toBeNull();
+    });
+
+    test("returns null for a future timestamp", () => {
+      expect(formatTimeAgo("2026-06-15T12:00:01.000Z", base)).toBeNull();
+    });
+
+    test("returns 'just now' under a minute", () => {
+      expect(formatTimeAgo("2026-06-15T11:59:30.000Z", base)).toBe("just now");
+    });
+
+    test("uses singular minute at exactly one minute", () => {
+      expect(formatTimeAgo("2026-06-15T11:59:00.000Z", base)).toBe(
+        "1 minute ago",
+      );
+    });
+
+    test("pluralises minutes", () => {
+      expect(formatTimeAgo("2026-06-15T11:45:00.000Z", base)).toBe(
+        "15 minutes ago",
+      );
+    });
+
+    test("uses singular hour at exactly one hour", () => {
+      expect(formatTimeAgo("2026-06-15T11:00:00.000Z", base)).toBe(
+        "1 hour ago",
+      );
+    });
+
+    test("pluralises hours", () => {
+      expect(formatTimeAgo("2026-06-15T09:00:00.000Z", base)).toBe(
+        "3 hours ago",
+      );
+    });
+
+    test("uses singular day at exactly one day", () => {
+      expect(formatTimeAgo("2026-06-14T12:00:00.000Z", base)).toBe("1 day ago");
+    });
+
+    test("pluralises days", () => {
+      expect(formatTimeAgo("2026-06-13T12:00:00.000Z", base)).toBe(
+        "2 days ago",
+      );
+    });
   });
 
   describe("formatDatetimeLabel", () => {

@@ -7,6 +7,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { Icon } from "#templates/components/actions.tsx";
 
 const escapeHtml = (str: string): string =>
@@ -577,6 +578,29 @@ export const setFormError = (formId: string, message: string): void => {
  * When `id` is provided, the form gets an id attribute (also usable as an anchor).
  * Shows a success or error message when the form's id matches the current state.
  */
+/**
+ * Email + message + submit fields shared by the public contact form and the
+ * admin support form. Extracted so the two render identical inputs; each caller
+ * supplies only the surrounding <form> and its heading.
+ */
+export const MessageFields = (): JSX.Element => (
+  <>
+    <label>
+      Your email address
+      <input autocomplete="email" name="email" required type="email" />
+    </label>
+    <label>
+      Message
+      <textarea
+        maxlength={MAX_TEXTAREA_LENGTH}
+        name="message"
+        required
+      ></textarea>
+    </label>
+    <button type="submit">Send message</button>
+  </>
+);
+
 export const CsrfForm = ({
   action,
   children,

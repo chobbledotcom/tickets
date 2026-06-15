@@ -418,6 +418,28 @@ export const daysAgo = (utcIso: string): number | null => {
 };
 
 /**
+ * Human "time ago" label for a past ISO timestamp, relative to `nowMsValue`
+ * (epoch ms). Returns e.g. "just now", "5 minutes ago", "3 hours ago",
+ * "2 days ago". Returns null for an unparseable or future timestamp.
+ */
+export const formatTimeAgo = (
+  iso: string,
+  nowMsValue: number,
+): string | null => {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return null;
+  const diffMs = nowMsValue - then;
+  if (diffMs < 0) return null;
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+};
+
+/**
  * Convert a UTC ISO datetime to a YYYY-MM-DD calendar date in the given timezone.
  * Returns null if the input is empty or invalid.
  * Used by the calendar view to map standard listing dates to calendar days.

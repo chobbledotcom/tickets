@@ -171,6 +171,17 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
+// ---------------------------------------------------------------------------
+// Support form
+// ---------------------------------------------------------------------------
+
+/**
+ * Days within which a repeat admin support-form submission is discouraged
+ * (default: 7). After a submission the Support page shows a "you last submitted
+ * this form …" notice for this long, to deter duplicate messages to the host.
+ */
+export const SUPPORT_FORM_NAG_DAYS = readLimit("SUPPORT_FORM_NAG_DAYS", 7);
+
 /** Computed: prune interval in ms. */
 export const PRUNE_INTERVAL_MS = PRUNE_INTERVAL_HOURS * 60 * 60 * 1000;
 
@@ -388,5 +399,12 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "PRUNE_INTERVAL_HOURS",
     label: "Prune: run interval",
     unit: "hours",
+  },
+  {
+    current: SUPPORT_FORM_NAG_DAYS,
+    defaultValue: 7,
+    envKey: "SUPPORT_FORM_NAG_DAYS",
+    label: "Support form repeat-submit notice",
+    unit: "days",
   },
 ];
