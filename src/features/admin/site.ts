@@ -3,11 +3,15 @@
  * Owner-only access
  */
 
-import { settingsHandler } from "#routes/admin/settings-helpers.ts";
+import {
+  settingsHandler,
+  settingsToggle,
+} from "#routes/admin/settings-helpers.ts";
 import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { isBotpoisonEnabled } from "#shared/config.ts";
 import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -37,6 +41,7 @@ export const siteHomeForm = defineForm({
       hintHtml: `Text displayed on the public homepage (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
       id: "homepage_text",
       label: "Homepage Text",
+      markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
       name: "homepage_text",
       placeholder: "Welcome to our site...",
@@ -52,6 +57,7 @@ export const siteContactForm = defineForm({
       hintHtml: `Text displayed on the public contact page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
       id: "contact_page_text",
       label: "Contact Page Text",
+      markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
       name: "contact_page_text",
       placeholder: "Get in touch with us...",
@@ -93,6 +99,11 @@ const renderContactPage: PageRenderer = (session, error, success) => {
   return adminSiteContactPage(
     session,
     settings.contactPageText,
+    {
+      botpoisonEnabled: isBotpoisonEnabled(),
+      enabled: settings.contactFormEnabled,
+      hasBusinessEmail: settings.businessEmail !== "",
+    },
     error,
     success,
   );
@@ -125,6 +136,14 @@ const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
   },
 });
 
+/** Handle POST /admin/site/contact/form - toggle the public contact form */
+const handleSiteContactFormTogglePost = settingsToggle({
+  field: "contact_form_enabled",
+  label: "Contact form",
+  redirectTo: "/admin/site/contact",
+  save: (v) => settings.update.contactFormEnabled(v),
+});
+
 /** Handle POST /admin/site/contact - save contact page */
 const handleSiteContactPost = settingsHandler({
   extract: (form) => {
@@ -147,4 +166,5 @@ export const siteRoutes = defineRoutes({
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
   "POST /admin/site": handleSiteHomePost,
   "POST /admin/site/contact": handleSiteContactPost,
+  "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
 });

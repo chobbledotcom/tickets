@@ -43,6 +43,8 @@ import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   createAttendeeAtomic,
   ensureAllBookings,
@@ -67,6 +69,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -437,6 +440,9 @@ const extractIntent = (
   const parsedDayCount = Number.parseInt(metadata.day_count, 10);
   return {
     address: metadata.address,
+    balanceAttendeeId: metadata.balance_attendee_id
+      ? Number(metadata.balance_attendee_id)
+      : undefined,
     date: metadata.date || null,
     dayCount:
       Number.isInteger(parsedDayCount) && parsedDayCount > 0
@@ -447,6 +453,7 @@ const extractIntent = (
     listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
     name: metadata.name,
     phone: metadata.phone,
+    reservationAmount: metadata.reservation_amount || undefined,
     siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
   };
@@ -520,6 +527,24 @@ const validateAllItems = async (
   return { items: validatedItems, ok: true };
 };
 
+/**
+ * Per-line reservation deposits for a session, or `total: undefined` when the
+ * session is a normal full-price booking. metadata `p` is the full line price,
+ * so each line's deposit is re-derived identically to how it was charged. The
+ * `perLine` order matches `intent.items` (and thus the validated-items order).
+ */
+const reservationDeposits = (
+  intent: BookingIntent,
+): { perLine: number[]; total: number | undefined } => {
+  const amount = intent.reservationAmount;
+  if (!amount) return { perLine: [], total: undefined };
+  const totalQty = intent.items.reduce((sum, item) => sum + item.q, 0);
+  const perLine = intent.items.map((item) =>
+    reservationDepositForLine(amount, item.p, item.q, totalQty),
+  );
+  return { perLine, total: perLine.reduce((sum, d) => sum + d, 0) };
+};
+
 /** Verify per-item and total prices for paid sessions. Returns null on success. */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
@@ -540,14 +565,14 @@ const verifyPaidPricing = async (
     }
   }
 
-  // Total must equal sum of per-item prices + booking fee
+  // The booking fee is always charged on the full order. The charged ticket
+  // amount is the deposit subtotal for a reservation, or the full subtotal
+  // otherwise. metadata `p` always holds the full line price.
   const bookingFeePercent = getBookingFee();
-  const metadataTotal = validatedItems.reduce(
-    (sum, { item }) => sum + item.p,
-    0,
-  );
+  const fullTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  const chargedTickets = reservationDeposits(intent).total ?? fullTotal;
   const expectedTotal =
-    metadataTotal + calculateBookingFee(metadataTotal, bookingFeePercent);
+    chargedTickets + calculateBookingFee(fullTotal, bookingFeePercent);
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
       session,
@@ -575,12 +600,18 @@ const createAttendeeForSession = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
-  const bookings = validatedItems.map(({ item, listing }) => ({
+  // A reservation charges only the per-line deposit up front; the rest of the
+  // full order price is recorded as the attendee's outstanding balance.
+  const deposits = reservationDeposits(intent);
+  const bookings = validatedItems.map(({ item, listing }, i) => ({
     listingId: item.e,
-    pricePaid: item.p,
+    pricePaid: deposits.perLine[i] ?? item.p,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
+  const fullTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  const remainingBalance =
+    deposits.total === undefined ? 0 : fullTotal - deposits.total;
 
   const result = await createAttendeeAtomic({
     address: intent.address,
@@ -589,7 +620,9 @@ const createAttendeeForSession = async (
     name: intent.name,
     paymentId: session.paymentReference,
     phone: intent.phone,
+    remainingBalance,
     special_instructions: intent.special_instructions,
+    statusId: await getPublicStatusId(),
   });
 
   // For paid bookings, require all-or-nothing: partial success = rollback + refund
@@ -628,6 +661,31 @@ const createAttendeeForSession = async (
  * 2. Validate listings and create attendees atomically (with rollback on failure)
  * 3. Finalize session (records attendee ID)
  */
+/**
+ * Settle a reserved attendee's balance instead of creating a new attendee.
+ * The per-item price checks are skipped (the single line is the balance, not a
+ * ticket); the amount the provider actually charged is the trust boundary.
+ */
+const settleBalanceSession = async (
+  sessionId: string,
+  intent: BookingIntent,
+): Promise<PaymentResult> => {
+  const attendeeId = intent.balanceAttendeeId as number;
+  await settleAttendeeBalance(attendeeId);
+  // extractIntent guarantees a non-empty items array.
+  const listing = await getListingWithCount(intent.items[0]!.e);
+  if (!listing) {
+    return { error: "Listing not found", status: 404, success: false };
+  }
+  await finalizeSession(sessionId, attendeeId, []);
+  return {
+    attendee: { id: attendeeId },
+    listing,
+    success: true,
+    ticketTokens: [],
+  };
+};
+
 const processPaymentSession = async (
   sessionId: string,
   data: ValidatedSession,
@@ -638,6 +696,11 @@ const processPaymentSession = async (
   const reservation = await reserveSession(sessionId);
   if (!reservation.reserved) {
     return handleReservationConflict(intent, reservation.existing);
+  }
+
+  // Balance payment: settle the existing attendee rather than create one.
+  if (intent.balanceAttendeeId) {
+    return settleBalanceSession(sessionId, intent);
   }
 
   // Phase 2: Validate listings and create attendees atomically

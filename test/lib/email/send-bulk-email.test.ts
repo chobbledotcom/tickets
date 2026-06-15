@@ -7,11 +7,11 @@ import {
   type EmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
-import { useFetchStub } from "#test-utils";
+import { useFetchStub, validEmail } from "#test-utils";
 
 const config: EmailConfig = {
   apiKey: "re_key",
-  fromAddress: "tickets@example.com",
+  fromAddress: validEmail("tickets@example.com"),
   provider: "resend",
 };
 
@@ -19,7 +19,7 @@ const config: EmailConfig = {
 const payload = (n: number): BulkEmailPayload => ({
   html: "<p>Hi</p>",
   recipients: Array.from({ length: n }, (_, i) => ({
-    to: `user${i}@example.com`,
+    to: validEmail(`user${i}@example.com`),
   })),
   subject: "Hello",
   text: "Hi",
@@ -58,7 +58,9 @@ describe("sendBulkEmails", () => {
   test("Resend substitutes each recipient's unsubscribe URL", async () => {
     await sendBulkEmails(config, {
       html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
-      recipients: [{ to: "a@example.com", unsubscribeUrl: "https://x/u/a" }],
+      recipients: [
+        { to: validEmail("a@example.com"), unsubscribeUrl: "https://x/u/a" },
+      ],
       subject: "Promo",
       text: `Hi ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
     });
@@ -112,8 +114,8 @@ describe("sendBulkEmails", () => {
       {
         html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
         recipients: [
-          { to: "a@example.com", unsubscribeUrl: "https://x/u/a" },
-          { to: "b@example.com", unsubscribeUrl: "https://x/u/b" },
+          { to: validEmail("a@example.com"), unsubscribeUrl: "https://x/u/a" },
+          { to: validEmail("b@example.com"), unsubscribeUrl: "https://x/u/b" },
         ],
         subject: "Promo",
         text: "Hi",
@@ -151,14 +153,14 @@ describe("sendBulkEmails", () => {
     const result = await sendBulkEmails(
       {
         ...config,
-        fromAddress: "tickets@mg.example.com",
+        fromAddress: validEmail("tickets@mg.example.com"),
         provider: "mailgun-us",
       },
       {
         html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
         recipients: [
-          { to: "a@example.com", unsubscribeUrl: "https://x/u/a" },
-          { to: "b@example.com", unsubscribeUrl: "https://x/u/b" },
+          { to: validEmail("a@example.com"), unsubscribeUrl: "https://x/u/a" },
+          { to: validEmail("b@example.com"), unsubscribeUrl: "https://x/u/b" },
         ],
         subject: "Promo",
         text: "Hi",
@@ -187,7 +189,11 @@ describe("sendBulkEmails", () => {
 
   test("Mailgun (EU) uses the EU host and empty vars for transactional sends", async () => {
     await sendBulkEmails(
-      { ...config, fromAddress: "t@mg.example.com", provider: "mailgun-eu" },
+      {
+        ...config,
+        fromAddress: validEmail("t@mg.example.com"),
+        provider: "mailgun-eu",
+      },
       payload(1),
     );
     const [url] = fetch.getFetchArgs();

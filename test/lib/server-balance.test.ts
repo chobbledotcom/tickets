@@ -1,0 +1,232 @@
+import { expect } from "@std/expect";
+import { afterEach, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
+import { signBalanceToken } from "#shared/balance-link.ts";
+import {
+  attendeeStatusesTable,
+  getPaidDefaultStatus,
+} from "#shared/db/attendee-statuses.ts";
+import {
+  getAttendeeBalanceState,
+  settleAttendeeBalance,
+} from "#shared/db/attendees/balance.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import {
+  createTestListing,
+  describeWithEnv,
+  mockFormRequest,
+  mockRequest,
+  setupStripe,
+  testCsrfToken,
+} from "#test-utils";
+
+/** POST a pay form for a token as the customer. */
+const postPay = async (token: string): Promise<Response> =>
+  handleRequest(
+    mockFormRequest(`/pay/${token}`, { csrf_token: await testCsrfToken() }, ""),
+  );
+
+/** Insert a bare attendee row (no bookings) with a status and balance. */
+const insertBareAttendee = async (
+  statusId: number | null,
+  remainingBalance: number,
+): Promise<number> => {
+  await getDb().execute({
+    args: [statusId, remainingBalance],
+    sql: "INSERT INTO attendees (created, pii_blob, status_id, remaining_balance) VALUES ('2024-01-01T00:00:00Z', '', ?, ?)",
+  });
+  const { rows } = await getDb().execute(
+    "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
+  );
+  return Number(rows[0]!.id);
+};
+
+/** Create a reserved attendee with an outstanding balance and a paid listing. */
+const createReserved = async (remainingBalance: number) => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    name: "Workshop Ticket",
+    thankYouUrl: "https://example.com",
+  });
+  const reservation = await attendeeStatusesTable.insert({
+    isReservation: true,
+    name: "Reserved",
+    reservationAmount: "10%",
+  });
+  const result = await createAttendeeAtomic({
+    bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 2 }],
+    email: "guest@example.com",
+    name: "Guest",
+    remainingBalance,
+    statusId: reservation.id,
+  });
+  if (!result.success) throw new Error("setup failed");
+  return result.attendees[0]!.id;
+};
+
+describeWithEnv("server (public balance page)", { db: true }, () => {
+  afterEach(() => resetStripeClient());
+
+  test("GET shows the recap and balance due for a reserved attendee", async () => {
+    const attendeeId = await createReserved(1500);
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Pay your balance");
+    expect(html).toContain("Workshop Ticket");
+    expect(html).toContain("Balance due");
+    // No PII (the booker's name) is shown.
+    expect(html).not.toContain("Guest");
+  });
+
+  test("GET shows a settled message once the balance is cleared", async () => {
+    const attendeeId = await createReserved(1500);
+    await settleAttendeeBalance(attendeeId);
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    const html = await response.text();
+    expect(html).toContain("Nothing to pay");
+  });
+
+  test("GET rejects an invalid token", async () => {
+    const response = await handleRequest(mockRequest("/pay/bal1.bogus.bogus"));
+    const html = await response.text();
+    expect(html).toContain("not valid");
+  });
+
+  test("GET treats a balance with no status as settled", async () => {
+    const attendeeId = await insertBareAttendee(null, 1500);
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(await response.text()).toContain("Nothing to pay");
+  });
+
+  test("POST handles a reservation with no booking lines", async () => {
+    await setupStripe();
+    const reservation = await attendeeStatusesTable.insert({
+      isReservation: true,
+      name: "Reserved",
+      reservationAmount: "10%",
+    });
+    const attendeeId = await insertBareAttendee(reservation.id, 1500);
+    const token = await signBalanceToken(attendeeId);
+    const response = await postPay(token);
+    // Checkout still starts (the line falls back to listing id 0).
+    expect([302, 303]).toContain(response.status);
+  });
+
+  test("POST starts a checkout for the balance", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(
+      mockFormRequest(
+        `/pay/${token}`,
+        { csrf_token: await testCsrfToken() },
+        "",
+      ),
+    );
+    // Redirects to the hosted checkout (302/303) on success.
+    expect([302, 303]).toContain(response.status);
+    expect(response.headers.get("location")).toContain("http");
+  });
+
+  test("POST shows an error when no payment provider is configured", async () => {
+    const attendeeId = await createReserved(1500);
+    const token = await signBalanceToken(attendeeId);
+    const response = await postPay(token);
+    expect(await response.text()).toContain("not valid");
+  });
+
+  test("POST shows an error when the checkout cannot be created", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const token = await signBalanceToken(attendeeId);
+    const checkoutStub = stub(
+      stripePaymentProvider,
+      "createCheckoutSession",
+      () => Promise.resolve({ error: "boom" }),
+    );
+    try {
+      const response = await postPay(token);
+      expect(await response.text()).toContain("not valid");
+    } finally {
+      checkoutStub.restore();
+    }
+  });
+
+  test("the webhook settles the balance on payment success", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const paid = await getPaidDefaultStatus();
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_balance",
+        metadata: {
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_balance",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance"),
+      );
+      expect(response.status).toBe(200);
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(0);
+      expect(state?.statusId).toBe(paid!.id);
+    } finally {
+      session.restore();
+    }
+  });
+
+  test("the webhook returns 404 if the settled listing is missing", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_bal_nolisting",
+        metadata: {
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: 98765, p: 1500, q: 1 }]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_bal_nolisting",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_nolisting"),
+      );
+      expect(response.status).toBe(404);
+    } finally {
+      session.restore();
+    }
+  });
+
+  test("non-matching /pay requests fall through", async () => {
+    // The bare prefix and an unsupported method are not handled here (→ not 200).
+    expect((await handleRequest(mockRequest("/pay"))).status).not.toBe(200);
+    expect((await handleRequest(mockRequest("/pay/"))).status).not.toBe(200);
+    const del = await handleRequest(
+      new Request("http://localhost/pay/bal1.x.y", { method: "DELETE" }),
+    );
+    expect(del.status).not.toBe(200);
+  });
+});

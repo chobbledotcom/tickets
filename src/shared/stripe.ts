@@ -5,7 +5,7 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { itemsSubtotal } from "#shared/booking-fee.ts";
+import { chargeUnitAmount, feeSubtotalFor } from "#shared/booking-fee.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -277,12 +277,12 @@ export const stripeApi: {
             item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
           name: `Ticket: ${item.name}`,
         },
-        unit_amount: item.unitPrice,
+        unit_amount: chargeUnitAmount(intent, item),
       },
       quantity: item.quantity,
     }));
 
-    lineItems.push(...stripeFeeItems(itemsSubtotal(intent.items), currency));
+    lineItems.push(...stripeFeeItems(feeSubtotalFor(intent), currency));
 
     const params: Stripe.Checkout.SessionCreateParams = {
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,

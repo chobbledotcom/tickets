@@ -2,10 +2,27 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   calculateBookingFee,
+  chargeSubtotal,
+  chargeUnitAmount,
+  feeSubtotalFor,
   getBookingFeeAmount,
   itemsSubtotal,
 } from "#shared/booking-fee.ts";
 import { testWithSetting } from "#test-utils";
+
+describe("feeSubtotalFor", () => {
+  const items = [{ quantity: 2, unitPrice: 500 }];
+
+  test("uses the item subtotal when no override is given", () => {
+    expect(feeSubtotalFor({ items })).toBe(1000);
+  });
+
+  test("uses an explicit feeSubtotal override when present", () => {
+    // 0 (fee-free balance payment) and a larger value (deposit fee on full).
+    expect(feeSubtotalFor({ feeSubtotal: 0, items })).toBe(0);
+    expect(feeSubtotalFor({ feeSubtotal: 4000, items })).toBe(4000);
+  });
+});
 
 describe("calculateBookingFee", () => {
   test("applies the fee percentage to the subtotal", () => {
@@ -59,6 +76,46 @@ describe("getBookingFeeAmount", () => {
       // parseFloat returns NaN for garbage input — the `|| 0` guard in
       // getBookingFee() must prevent NaN ever reaching the payment provider.
       expect(getBookingFeeAmount(10000)).toBe(0);
+    },
+  );
+});
+
+describe("chargeUnitAmount", () => {
+  const item = { quantity: 2, unitPrice: 1000 };
+
+  test("charges the full unit price for a non-reservation", () => {
+    // No reservationAmount → the customer pays the listed price up front.
+    expect(chargeUnitAmount({ items: [item] }, item)).toBe(1000);
+  });
+
+  testWithSetting(
+    "charges the per-unit deposit for a reservation",
+    { currency: "GBP" },
+    () => {
+      // 10% of a £10.00 ticket = £1.00 charged now.
+      expect(
+        chargeUnitAmount({ items: [item], reservationAmount: "10%" }, item),
+      ).toBe(100);
+    },
+  );
+});
+
+describe("chargeSubtotal", () => {
+  const items = [
+    { quantity: 2, unitPrice: 1000 },
+    { quantity: 1, unitPrice: 2000 },
+  ];
+
+  test("sums the full prices when there is no reservation", () => {
+    expect(chargeSubtotal({ items })).toBe(4000);
+  });
+
+  testWithSetting(
+    "sums the per-unit deposits for a reservation",
+    { currency: "GBP" },
+    () => {
+      // 10% of each line: (1000×2)×10% + (2000×1)×10% = 200 + 200 = 400.
+      expect(chargeSubtotal({ items, reservationAmount: "10%" })).toBe(400);
     },
   );
 });

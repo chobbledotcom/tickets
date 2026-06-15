@@ -21,6 +21,7 @@ export const TermsForm = (s: SettingsPageState): JSX.Element => (
         </small>
       </p>
       <textarea
+        data-markdown-preview
         maxlength={MAX_TEXTAREA_LENGTH}
         name="terms_and_conditions"
         placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."

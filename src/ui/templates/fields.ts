@@ -30,6 +30,7 @@ import {
   type ListingType,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
+import { EMAIL_REGEX } from "#shared/validation/email.ts";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -290,14 +291,8 @@ const validateNonNegativePrice = (value: string): string | null => {
 /**
  * Validate email format
  */
-export const validateEmail = (value: string): string | null => {
-  // Basic email format check - more permissive than strict RFC but catches common issues
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(value)) {
-    return "Please enter a valid email address";
-  }
-  return null;
-};
+export const validateEmail = (value: string): string | null =>
+  EMAIL_REGEX.test(value) ? null : "Please enter a valid email address";
 
 /**
  * Validate phone number format
@@ -448,6 +443,7 @@ export const listingFields: Field[] = [
     hint: "Shown on the ticket page.",
     hintHtml: FORMATTING_HINT,
     label: "Description (optional)",
+    markdown: true,
     maxlength: MAX_TEXTAREA_LENGTH,
     name: "description",
     placeholder: "A short description of the listing",
@@ -787,6 +783,7 @@ const groupDescriptionField: Field = {
   hint: "Shown on the public page.",
   hintHtml: FORMATTING_HINT,
   label: "Description (optional)",
+  markdown: true,
   maxlength: MAX_TEXTAREA_LENGTH,
   name: "description",
   placeholder: "A short description of the group",
@@ -809,6 +806,7 @@ export const groupCreateFields: Field[] = [
     hint: "If set, overrides the global terms and conditions for this group ticket page",
     hintHtml: FORMATTING_HINT,
     label: "Terms and Conditions (optional)",
+    markdown: true,
     maxlength: MAX_TEXTAREA_LENGTH,
     name: "terms_and_conditions",
     type: "textarea",

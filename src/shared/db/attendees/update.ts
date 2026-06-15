@@ -38,6 +38,22 @@ export const updateCheckedIn = (
   checkedIn: boolean,
 ): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
 
+/**
+ * Set an attendee's plaintext order fields (status + outstanding balance).
+ * Used by the admin edit form, where both are operator-editable. These columns
+ * live outside the encrypted pii_blob, so this is a plain column write.
+ */
+export const updateAttendeeOrder = async (
+  attendeeId: number,
+  statusId: number | null,
+  remainingBalance: number,
+): Promise<void> => {
+  await getDb().execute({
+    args: [statusId, remainingBalance, attendeeId],
+    sql: "UPDATE attendees SET status_id = ?, remaining_balance = ? WHERE id = ?",
+  });
+};
+
 export const incrementAttachmentDownloads = async (
   attendeeId: number,
   listingId: number,

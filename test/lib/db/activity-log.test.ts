@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   getAllActivityLog,
+  getAttendeeActivityLog,
   getListingActivityLog,
   getListingWithActivityLog,
   logActivity,
@@ -30,6 +31,17 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
     expect(entry.listing_id).toBe(listing.id);
     expect(entry.message).toBe("Created listing 'Test Listing'");
+  });
+
+  test("logActivity records an attendee_id and getAttendeeActivityLog filters by it", async () => {
+    await logActivity("Unrelated entry");
+    await logActivity("Balance paid", null, 42);
+    await logActivity("Other attendee", null, 99);
+
+    const entries = await getAttendeeActivityLog(42);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.message).toBe("Balance paid");
+    expect(entries[0]!.attendee_id).toBe(42);
   });
 
   test("getListingActivityLog returns entries for specific listing", async () => {

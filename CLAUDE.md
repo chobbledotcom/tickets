@@ -117,6 +117,8 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
+- `BOTPOISON_PUBLIC_KEY` - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with `BOTPOISON_SECRET_KEY` adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.
+- `BOTPOISON_SECRET_KEY` - Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled. Never sent to the browser.
 - `ADMIN_EMAIL_ADDRESS` - Enables a superuser recovery option in owner settings. The local-part (before `@`) must be a valid app username (2–32 characters, letters, numbers, hyphens, underscores). Email delivery must be configured before the superuser can be enabled.
 - `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (e.g. `pass.com.example.tickets`)
 - `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (e.g. `ABC1234567`)

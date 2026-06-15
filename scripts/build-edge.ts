@@ -48,6 +48,7 @@ const ASSET_DEFS: [string, string, string, string][] = [
     "IFRAME_RESIZER_CHILD_JS_PATH",
   ],
   ["embed.js", "handleEmbedJs", JS, "EMBED_JS_PATH"],
+  ["contact.js", "handleContactJs", JS, "CONTACT_JS_PATH"],
 ];
 
 const STATIC_ASSETS: Record<string, string> = {

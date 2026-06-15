@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getBookingFee,
+  getBotpoisonPublicKey,
+  getBotpoisonSecretKey,
   getEffectiveDomain,
   getEmbedHosts,
+  isBotpoisonEnabled,
   isPaymentsEnabled,
   loadEffectiveDomain,
   resetEffectiveDomain,
@@ -11,7 +14,7 @@ import {
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
-import { describeWithEnv, setupStripe } from "#test-utils";
+import { describeWithEnv, setTestEnv, setupStripe } from "#test-utils";
 
 describeWithEnv("isPaymentsEnabled", { db: true }, () => {
   test("returns false when no provider is configured", () => {
@@ -205,5 +208,57 @@ describeWithEnv("getEmbedHosts", { db: true }, () => {
       "two.example.com",
       "three.example.com",
     ]);
+  });
+});
+
+describe("Botpoison config", () => {
+  let restoreEnv: (() => void) | undefined;
+  afterEach(() => {
+    restoreEnv?.();
+    restoreEnv = undefined;
+  });
+
+  test("getBotpoisonPublicKey returns the configured env value", () => {
+    restoreEnv = setTestEnv({ BOTPOISON_PUBLIC_KEY: "pk_live_abc" });
+    expect(getBotpoisonPublicKey()).toBe("pk_live_abc");
+  });
+
+  test("getBotpoisonPublicKey returns an empty string when unset", () => {
+    restoreEnv = setTestEnv({ BOTPOISON_PUBLIC_KEY: undefined });
+    expect(getBotpoisonPublicKey()).toBe("");
+  });
+
+  test("getBotpoisonSecretKey returns the configured env value", () => {
+    restoreEnv = setTestEnv({ BOTPOISON_SECRET_KEY: "sk_live_abc" });
+    expect(getBotpoisonSecretKey()).toBe("sk_live_abc");
+  });
+
+  test("getBotpoisonSecretKey returns an empty string when unset", () => {
+    restoreEnv = setTestEnv({ BOTPOISON_SECRET_KEY: undefined });
+    expect(getBotpoisonSecretKey()).toBe("");
+  });
+
+  test("isBotpoisonEnabled is true only when both keys are set", () => {
+    restoreEnv = setTestEnv({
+      BOTPOISON_PUBLIC_KEY: "pk_live_abc",
+      BOTPOISON_SECRET_KEY: "sk_live_abc",
+    });
+    expect(isBotpoisonEnabled()).toBe(true);
+  });
+
+  test("isBotpoisonEnabled is false when only the public key is set", () => {
+    restoreEnv = setTestEnv({
+      BOTPOISON_PUBLIC_KEY: "pk_live_abc",
+      BOTPOISON_SECRET_KEY: undefined,
+    });
+    expect(isBotpoisonEnabled()).toBe(false);
+  });
+
+  test("isBotpoisonEnabled is false when only the secret key is set", () => {
+    restoreEnv = setTestEnv({
+      BOTPOISON_PUBLIC_KEY: undefined,
+      BOTPOISON_SECRET_KEY: "sk_live_abc",
+    });
+    expect(isBotpoisonEnabled()).toBe(false);
   });
 });

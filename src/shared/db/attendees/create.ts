@@ -54,11 +54,22 @@ export const ensureAllBookings = async (
   };
 };
 
+/** Order-level fields shared by every booking in one atomic create. */
+type AttendeeOrderFields = {
+  statusId: number | null;
+  remainingBalance: number;
+};
+
 /** Build an INSERT statement for the attendees table from encrypted fields. */
-export const buildAttendeeInsert = (enc: EncryptedAttendeeData) =>
+export const buildAttendeeInsert = (
+  enc: EncryptedAttendeeData,
+  order: AttendeeOrderFields,
+) =>
   insert("attendees", {
     created: enc.created,
     pii_blob: enc.encryptedPiiBlob,
+    remaining_balance: order.remainingBalance,
+    status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
   });
 
@@ -81,6 +92,8 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   price_paid: String(input.pricePaid),
   quantity: input.quantity,
   refunded: false,
+  remaining_balance: input.remainingBalance,
+  status_id: input.statusId,
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
 });
@@ -104,7 +117,10 @@ export const createAttendeeAtomicImpl = async (
     address = "",
     special_instructions = "",
     bookings,
+    statusId = null,
+    remainingBalance = 0,
   } = input;
+  const order = { remainingBalance, statusId };
   if (bookings.length === 0) {
     return { reason: "capacity_exceeded", success: false };
   }
@@ -153,7 +169,7 @@ export const createAttendeeAtomicImpl = async (
   // If all capacity checks fail, the attendee is cleaned up in the final step.
   const batchResults = await executeBatchWithResults([
     // Step 1: Create attendee record (unconditional)
-    buildAttendeeInsert(enc),
+    buildAttendeeInsert(enc, order),
     // Steps 2..N+1: One capacity-checked INSERT per booking
     ...bookingStatements,
     // Final step: Clean up attendee if no listing links were created
@@ -185,6 +201,8 @@ export const createAttendeeAtomicImpl = async (
           paymentId,
           pricePaid: booking.pricePaid ?? 0,
           quantity: booking.quantity ?? 1,
+          remainingBalance,
+          statusId,
           ticketToken: enc.ticketToken,
           ticketTokenIndex: enc.ticketTokenIndex,
         }),

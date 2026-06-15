@@ -156,7 +156,7 @@ const prepareAttendee = async (
   }))!;
 
   return [
-    buildAttendeeInsert(enc),
+    buildAttendeeInsert(enc, { remainingBalance: 0, statusId: null }),
     insert("listing_attendees", {
       attendee_id: rawSql("last_insert_rowid()"),
       listing_id: listingId,

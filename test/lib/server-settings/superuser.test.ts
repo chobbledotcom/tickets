@@ -25,6 +25,7 @@ import {
   mockFormRequest,
   setTestEnv,
   testCookie,
+  validEmail,
   withMocks,
 } from "#test-utils";
 
@@ -356,7 +357,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       restoreAdminEmail("admin@example.com");
       setHostEmailConfigForTest({
         apiKey: "host-key",
-        fromAddress: "host@example.com",
+        fromAddress: validEmail("host@example.com"),
         provider: "resend",
       });
       await withMocks(
@@ -477,7 +478,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       restoreAdminEmail("admin@example.com");
       setHostEmailConfigForTest({
         apiKey: "k",
-        fromAddress: "f@e.com",
+        fromAddress: validEmail("f@e.com"),
         provider: "resend",
       });
       await withMocks(
@@ -500,7 +501,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       restoreAdminEmail("admin@example.com");
       setHostEmailConfigForTest({
         apiKey: "k",
-        fromAddress: "f@e.com",
+        fromAddress: validEmail("f@e.com"),
         provider: "resend",
       });
       await withMocks(
@@ -523,7 +524,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       restoreAdminEmail("admin@example.com");
       setHostEmailConfigForTest({
         apiKey: "k",
-        fromAddress: "f@e.com",
+        fromAddress: validEmail("f@e.com"),
         provider: "resend",
       });
       await withMocks(
@@ -546,7 +547,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       restoreAdminEmail("admin@example.com");
       setHostEmailConfigForTest({
         apiKey: "k",
-        fromAddress: "f@e.com",
+        fromAddress: validEmail("f@e.com"),
         provider: "resend",
       });
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
@@ -572,7 +573,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       restoreAdminEmail("admin@example.com");
       setHostEmailConfigForTest({
         apiKey: "k",
-        fromAddress: "f@e.com",
+        fromAddress: validEmail("f@e.com"),
         provider: "resend",
       });
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
@@ -599,7 +600,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     restoreAdminEmail("admin@example.com");
     setHostEmailConfigForTest({
       apiKey: "k",
-      fromAddress: "f@e.com",
+      fromAddress: validEmail("f@e.com"),
       provider: "resend",
     });
     const user = await getUserByUsername("testadmin");
@@ -688,7 +689,7 @@ function setupForEnable(email: string): void {
   restoreAdminEmail(email);
   setHostEmailConfigForTest({
     apiKey: "k",
-    fromAddress: "f@e.com",
+    fromAddress: validEmail("f@e.com"),
     provider: "resend",
   });
 }

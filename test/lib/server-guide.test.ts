@@ -12,6 +12,7 @@ import {
   expectHtmlResponse,
   setTestEnv,
   testRequiresAuth,
+  validEmail,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
@@ -148,7 +149,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains listing image, duplicate, and deactivate info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "image to an listing",
+        "image to a listing",
         "Duplicate",
         "Deactivate",
       );
@@ -217,7 +218,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains hidden listings info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "hide an listing",
+        "hide a listing",
         "Hidden Listing",
         "noindex, nofollow",
       );
@@ -255,7 +256,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("shows host email config and setup instructions when configured", async () => {
       setHostEmailConfigForTest({
         apiKey: "re_test_key",
-        fromAddress: "tickets@example.com",
+        fromAddress: validEmail("tickets@example.com"),
         provider: "resend",
       });
       try {

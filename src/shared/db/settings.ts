@@ -68,6 +68,7 @@ export const CONFIG_KEYS = {
   BULK_EMAIL_DRAFT: "bulk_email_draft",
   BUNNY_SUBDOMAIN: "bunny_subdomain",
   BUSINESS_EMAIL: "business_email",
+  CONTACT_FORM_ENABLED: "contact_form_enabled",
   CONTACT_PAGE_TEXT: "contact_page_text",
   COUNTRY: "country",
   CURRENT_TASK: "current_task",
@@ -257,6 +258,7 @@ type SpecificFields = {
   theme: Theme;
   show_public_site: boolean;
   show_public_api: boolean;
+  contact_form_enabled: boolean;
   payment_provider: PaymentProviderType | null;
   payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
@@ -273,6 +275,7 @@ export type SettingsData = SpecificFields & StringSettingFields;
 /** Mutable snapshot of all settings. Populated by loadAll(). */
 const data: SettingsData = {
   booking_fee: "0",
+  contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   payment_provider: null,
@@ -509,6 +512,8 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.theme = raw.get(CONFIG_KEYS.THEME) === "dark" ? "dark" : "light";
   data.show_public_site = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
   data.show_public_api = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
+  data.contact_form_enabled =
+    raw.get(CONFIG_KEYS.CONTACT_FORM_ENABLED) === "true";
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.payment_provider =
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
@@ -729,6 +734,10 @@ const settingsBase = {
   // Sync reads — all populated by loadAll()
   // -----------------------------------------------------------------------
 
+  get contactFormEnabled(): boolean {
+    return snap("contact_form_enabled");
+  },
+
   get country(): string {
     return snap("country");
   },
@@ -891,6 +900,10 @@ const settingsBase = {
       data.payment_provider = null;
       data.payment_provider_setting = null;
     },
+    contactFormEnabled: boolUpdate(
+      CONFIG_KEYS.CONTACT_FORM_ENABLED,
+      "contact_form_enabled",
+    ),
     country: async (v: string): Promise<void> => {
       await writeRaw(CONFIG_KEYS.COUNTRY, v);
       data.country = v;

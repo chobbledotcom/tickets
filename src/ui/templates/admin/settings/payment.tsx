@@ -200,7 +200,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
               <code>{s.webhookUrl}</code>
             </li>
             <li>
-              Subscribe to the <strong>payment.updated</strong> listing
+              Subscribe to the <strong>payment.updated</strong> event
             </li>
             <li>
               Save the subscription and copy the <strong>Signature Key</strong>

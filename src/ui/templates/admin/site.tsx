@@ -55,12 +55,75 @@ export const adminSiteHomePage = (
     </Layout>,
   );
 
+/** State of the optional public contact form feature */
+interface ContactFormState {
+  /** Whether the owner has enabled the form */
+  enabled: boolean;
+  /** Whether a business email is set (required for delivery) */
+  hasBusinessEmail: boolean;
+  /** Whether Botpoison spam protection is configured (env keys set) */
+  botpoisonEnabled: boolean;
+}
+
+/** Spam-protection status note: Botpoison is an optional enhancement. */
+const SpamProtectionNote = ({
+  botpoisonEnabled,
+}: {
+  botpoisonEnabled: boolean;
+}): JSX.Element =>
+  botpoisonEnabled ? (
+    <p>
+      <small>Spam protection: Botpoison is active.</small>
+    </p>
+  ) : (
+    <p>
+      <small>
+        No spam-protection provider is configured, so submissions are accepted
+        without a spam check. Set <code>BOTPOISON_PUBLIC_KEY</code> and{" "}
+        <code>BOTPOISON_SECRET_KEY</code> to enable Botpoison.
+      </small>
+    </p>
+  );
+
+/** Toggle for the public contact form (always available; Botpoison optional) */
+const ContactFormToggle = ({
+  enabled,
+  hasBusinessEmail,
+  botpoisonEnabled,
+}: ContactFormState): JSX.Element => (
+  <CsrfForm action="/admin/site/contact/form">
+    <h2>Contact Form</h2>
+    <p>
+      Add a contact form to the public contact page. Visitors enter their email
+      address and a message, which is sent to your business email.
+    </p>
+    {!hasBusinessEmail && (
+      <p class="error" role="alert">
+        Set a business email on the Settings page to receive contact form
+        messages.
+      </p>
+    )}
+    <SpamProtectionNote botpoisonEnabled={botpoisonEnabled} />
+    <label>
+      <input
+        checked={enabled}
+        name="contact_form_enabled"
+        type="checkbox"
+        value="true"
+      />{" "}
+      Enable contact form
+    </label>
+    <SubmitButton icon="save">Save</SubmitButton>
+  </CsrfForm>
+);
+
 /**
  * Contact page editor
  */
 export const adminSiteContactPage = (
   session: AdminSession,
   contactPageText: string,
+  contactForm: ContactFormState,
   error?: string,
   success?: string,
 ): string =>
@@ -81,5 +144,11 @@ export const adminSiteContactPage = (
         />
         <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
+
+      <ContactFormToggle
+        botpoisonEnabled={contactForm.botpoisonEnabled}
+        enabled={contactForm.enabled}
+        hasBusinessEmail={contactForm.hasBusinessEmail}
+      />
     </Layout>,
   );

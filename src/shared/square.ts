@@ -5,13 +5,13 @@
  * Square flow differs from Stripe:
  * - Checkout uses Payment Links (CreatePaymentLink) instead of sessions
  * - Metadata is stored on the Order object
- * - Webhook listing is payment.updated (check status === "COMPLETED")
+ * - Webhook event is payment.updated (check status === "COMPLETED")
  * - Webhook signature uses HMAC-SHA256 of notification_url + body
  * - Retrieving session data requires fetching the Order by ID
  */
 
 import { map } from "#fp";
-import { itemsSubtotal } from "#shared/booking-fee.ts";
+import { chargeUnitAmount, feeSubtotalFor } from "#shared/booking-fee.ts";
 import { settings } from "#shared/db/settings.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -582,7 +582,7 @@ export const squareApi: {
     const lineItems: SquareLineItem[] = map(
       (item: CheckoutIntent["items"][number]) => ({
         basePriceMoney: {
-          amount: BigInt(item.unitPrice),
+          amount: BigInt(chargeUnitAmount(intent, item)),
           currency: prep.config.currency,
         },
         name: `Ticket: ${item.name}`,
@@ -594,7 +594,7 @@ export const squareApi: {
     return submitPaymentLink(
       prep,
       lineItems,
-      itemsSubtotal(intent.items),
+      feeSubtotalFor(intent),
       intent,
       baseUrl,
       "Payment link",

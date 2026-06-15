@@ -4,6 +4,7 @@
  */
 
 import { getBookingFee } from "#shared/config.ts";
+import { reservationDepositPerUnit } from "#shared/reservation-amount.ts";
 
 /** Calculate the booking fee amount in minor units from a subtotal and percentage. */
 export const calculateBookingFee = (
@@ -22,3 +23,48 @@ export const getBookingFeeAmount = (subtotalMinorUnits: number): number =>
 export const itemsSubtotal = (
   items: ReadonlyArray<{ unitPrice: number; quantity: number }>,
 ): number => items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+
+/**
+ * The subtotal the booking fee is charged on: an explicit `feeSubtotal`
+ * override (used by reservation deposits — fee on the full order — and balance
+ * payments — no fee) or the item subtotal otherwise.
+ */
+export const feeSubtotalFor = (intent: {
+  items: ReadonlyArray<{ unitPrice: number; quantity: number }>;
+  feeSubtotal?: number;
+}): number => intent.feeSubtotal ?? itemsSubtotal(intent.items);
+
+/** Total quantity across all checkout items. */
+const totalQuantity = (items: ReadonlyArray<{ quantity: number }>): number =>
+  items.reduce((sum, i) => sum + i.quantity, 0);
+
+/** Shape a checkout intent must satisfy for deposit-aware charging. */
+type ChargeableIntent = {
+  items: ReadonlyArray<{ unitPrice: number; quantity: number }>;
+  reservationAmount?: string;
+};
+
+/**
+ * The unit price a checkout line is actually charged. For a reservation
+ * (intent.reservationAmount set) this is the per-unit deposit; otherwise the
+ * full unit price. Providers charge this so the customer pays only the deposit
+ * up front while metadata still records the full price.
+ */
+export const chargeUnitAmount = (
+  intent: ChargeableIntent,
+  item: { unitPrice: number; quantity: number },
+): number =>
+  intent.reservationAmount
+    ? reservationDepositPerUnit(
+        intent.reservationAmount,
+        item.unitPrice,
+        totalQuantity(intent.items),
+      )
+    : item.unitPrice;
+
+/** Sum of the per-line charges (deposits for a reservation, else full prices). */
+export const chargeSubtotal = (intent: ChargeableIntent): number =>
+  intent.items.reduce(
+    (sum, item) => sum + chargeUnitAmount(intent, item) * item.quantity,
+    0,
+  );

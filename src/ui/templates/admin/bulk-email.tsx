@@ -121,7 +121,12 @@ export const bulkEmailComposePage = (
 
         <label>
           Message (Markdown)
-          <textarea maxlength={MAX_TEXTAREA_LENGTH} name="body" required>
+          <textarea
+            data-markdown-preview
+            maxlength={MAX_TEXTAREA_LENGTH}
+            name="body"
+            required
+          >
             {draft?.body ?? ""}
           </textarea>
         </label>
@@ -164,6 +169,8 @@ export type BulkEmailPreviewState = {
   recipientCount: number;
   skippedCount: number;
   sendableCount: number;
+  /** The exact addresses that will be emailed, for copying. */
+  sendableEmails: string[];
   canBulkSend: boolean;
   disabledReason: string;
   /** Provider display name, e.g. "Resend" (only when canBulkSend). */
@@ -299,6 +306,24 @@ export const bulkEmailPreviewPage = (
           <a href={state.mailtoLink}>Open a BCC draft to {recipients}</a>
         </p>
       </div>
+
+      {state.sendableEmails.length > 0 && (
+        <>
+          <div class="prose">
+            <h2>Copy the address list</h2>
+            <p>
+              Every address that will be emailed, separated by commas. Copy
+              these into your own email tool if you'd rather send another way.
+            </p>
+          </div>
+          <label>
+            Recipient addresses
+            <textarea class="recipient-emails" readonly>
+              {state.sendableEmails.join(", ")}
+            </textarea>
+          </label>
+        </>
+      )}
     </Layout>,
   );
 };

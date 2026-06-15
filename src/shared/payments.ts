@@ -47,6 +47,12 @@ export type BookingIntent = ContactInfo & {
   /** HMAC index of the site renewal token. The plain token never reaches the
    * payment provider, so a compromised provider cannot use it at /renew. */
   siteTokenIndex?: string;
+  /** When set, this session settles a reserved attendee's outstanding balance
+   * (rather than creating a new attendee). */
+  balanceAttendeeId?: number;
+  /** Reservation amount snapshot — present when the items are deposit-priced,
+   * so the webhook can re-derive the deposit and the remaining balance. */
+  reservationAmount?: string;
 };
 
 /** Registration intent for checkout (one or more listings) */
@@ -61,6 +67,16 @@ export type CheckoutIntent = ContactInfo & {
   /** Plain site renewal token from /renew. Hashed before storage in provider
    * metadata; never stored at the provider in plaintext. */
   siteToken?: string;
+  /** Settle this attendee's outstanding balance instead of creating an attendee. */
+  balanceAttendeeId?: number;
+  /** Override the subtotal the booking fee is calculated on (defaults to the
+   * item subtotal). Used so a deposit charges the fee on the full order, and a
+   * balance payment charges no fee (the fee was collected up front). */
+  feeSubtotal?: number;
+  /** Reservation-amount mini-language string (e.g. "10%"). When set, each line
+   * is charged the per-unit deposit instead of its full price, while metadata
+   * still records the full price so the webhook can compute the balance owed. */
+  reservationAmount?: string;
 };
 
 /** Result of creating a checkout session.
@@ -99,6 +115,10 @@ export type SessionMetadata = {
   day_count: string;
   answer_ids: string;
   site_token_index: string;
+  /** Attendee id when this session settles an outstanding balance ("" if not). */
+  balance_attendee_id: string;
+  /** Reservation-amount snapshot when the items are deposit-priced ("" if not). */
+  reservation_amount: string;
 };
 
 /** Valid payment status values. "failed" is a terminal non-payment (declined

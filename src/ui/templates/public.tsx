@@ -3,6 +3,8 @@
  */
 
 import { map, pipe } from "#fp";
+import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
+import { isContactFormActive } from "#shared/contact-form.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   daysAgo,
@@ -19,6 +21,7 @@ import type { Field } from "#shared/forms.tsx";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -62,9 +65,11 @@ const PublicNav = ({
   </nav>
 );
 
-/** Compute which public pages have content */
+/** Compute which public pages have content.
+ * The Contact link also shows when the contact form is active, even if the
+ * contact page has no descriptive text of its own. */
 const navFlags = () => ({
-  hasContact: !!settings.contactPageText,
+  hasContact: !!settings.contactPageText || isContactFormActive(),
   hasTerms: !!settings.terms,
 });
 
@@ -101,6 +106,78 @@ export const publicSitePage = (
           </p>
         )}
       </div>
+      <footer class="homepage-footer">
+        <p>
+          <a href="/admin/login">Login</a>
+        </p>
+      </footer>
+    </Layout>,
+  );
+};
+
+/** Message form shown on the public contact page.
+ * When a Botpoison public key is supplied it is rendered into a data attribute
+ * for the browser widget (the secret key stays server-side for verification);
+ * without one the form posts as a plain CSRF-protected form. */
+const ContactForm = ({
+  botpoisonPublicKey,
+}: {
+  botpoisonPublicKey: string;
+}): JSX.Element => {
+  const botpoisonAttr: Record<`data-${string}`, string> = botpoisonPublicKey
+    ? { "data-botpoison-public-key": botpoisonPublicKey }
+    : {};
+  return (
+    <CsrfForm action="/contact" {...botpoisonAttr}>
+      <h2>Send us a message</h2>
+      <label>
+        Your email address
+        <input autocomplete="email" name="email" required type="email" />
+      </label>
+      <label>
+        Message
+        <textarea
+          maxlength={MAX_TEXTAREA_LENGTH}
+          name="message"
+          required
+        ></textarea>
+      </label>
+      <button type="submit">Send message</button>
+    </CsrfForm>
+  );
+};
+
+/**
+ * Public contact page - optional descriptive text plus, when the contact form
+ * is active, a message form. The Botpoison widget script is loaded only when a
+ * public key is configured (progressive enhancement).
+ */
+export const contactPage = (options: {
+  websiteTitle?: string | null;
+  content?: string | null;
+  formActive: boolean;
+  botpoisonPublicKey: string;
+  success?: string;
+  error?: string;
+}): string => {
+  const { websiteTitle, content, formActive, botpoisonPublicKey } = options;
+  const pageTitle = websiteTitle ? `Contact - ${websiteTitle}` : "Contact";
+  const loadWidget = formActive && botpoisonPublicKey !== "";
+  const headExtra = loadWidget
+    ? `${FEED_DISCOVERY_TAGS}\n<script defer src="${CONTACT_JS_PATH}"></script>`
+    : FEED_DISCOVERY_TAGS;
+
+  return String(
+    <Layout headExtra={headExtra} title={pageTitle}>
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav {...navFlags()} />
+      <Flash error={options.error} success={options.success} />
+      {content && (
+        <div class="prose">
+          <Raw html={renderMarkdown(content)} />
+        </div>
+      )}
+      {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
       <footer class="homepage-footer">
         <p>
           <a href="/admin/login">Login</a>

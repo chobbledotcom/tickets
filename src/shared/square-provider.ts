@@ -7,7 +7,7 @@
  * Key differences from Stripe:
  * - Uses Payment Links instead of checkout sessions
  * - Order ID is the session equivalent
- * - Webhook listing is payment.updated (not checkout.session.completed)
+ * - Webhook event is payment.updated (not checkout.session.completed)
  * - Retrieving session requires fetching Order + checking payment status
  * - Webhook setup is manual (user provides signature key from dashboard)
  */

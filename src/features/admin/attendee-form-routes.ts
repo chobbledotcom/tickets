@@ -21,6 +21,7 @@ import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
+  attendeeBalanceNotice,
   type DailyDefaults,
   defaultNewDailyDate,
   type ParsedAttendeeForm,
@@ -43,6 +44,8 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
@@ -54,6 +57,7 @@ import {
   getAttendee,
   type ListingAttendeeRow,
   loadExistingLines,
+  updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
 import {
   type EmailStats,
@@ -167,8 +171,10 @@ const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
   lines: [emptyLine(todayInTz(settings.timezone), null)],
   name: "",
   phone: "",
+  remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
+  statusId: null,
 });
 
 /** Build the edit-mode form shell from a loaded attendee + its bookings. */
@@ -206,8 +212,10 @@ const buildEditFormFromAttendee = (
     lines,
     name: attendee.name,
     phone: attendee.phone || "",
+    remainingBalance: attendee.remaining_balance,
     returnUrl: "",
     special_instructions: attendee.special_instructions || "",
+    statusId: attendee.status_id,
   };
 };
 
@@ -231,11 +239,22 @@ const buildTemplateData = async (
   const availableDatesByListing = buildAvailableDates(allListings, holidays);
   const customisableByListing = buildCustomisableDayCounts(allListings);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
+  const statuses = await getAllAttendeeStatuses();
+  // Surface a status/balance mismatch. The order totals come from the saved
+  // booking (edit only); in create mode there is nothing paid yet.
+  const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
+  const balanceNotice = attendeeBalanceNotice(
+    statuses.find((s) => s.id === parsed.statusId) ?? null,
+    parsed.remainingBalance,
+    summary?.fullPrice ?? 0,
+    summary?.depositPaid ?? 0,
+  );
   return {
     allListings,
     attendee,
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
+    balanceNotice,
     customisableByListing,
     dailyDefaults,
     emailStats: opts.emailStats ?? null,
@@ -246,6 +265,7 @@ const buildTemplateData = async (
     questions: opts.questions,
     returnUrl: opts.returnUrl,
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
+    statuses,
     todayIso: todayInTz(settings.timezone),
   };
 };
@@ -640,6 +660,14 @@ const applyEdit = async (
     }
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
+
+  // Status + outstanding balance are plaintext, operator-editable columns;
+  // persist them once the line/PII edit has committed.
+  await updateAttendeeOrder(
+    attendeeId,
+    parsed.statusId,
+    parsed.remainingBalance,
+  );
 
   // Save question answers (atomic delete + insert) when the listing has any.
   if (questions.length > 0) {

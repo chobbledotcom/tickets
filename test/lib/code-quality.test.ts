@@ -36,6 +36,7 @@ const FORBIDDEN_PATTERNS = [
 const TEST_UTILITY_FILES = [
   "test-utils/internal.ts",
   "test-utils/db.ts",
+  "test-utils/email.ts",
   "test-utils/env.ts",
   "test-utils/mocks.ts",
   "test-utils/assertions.ts",

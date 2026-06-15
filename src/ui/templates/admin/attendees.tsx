@@ -15,6 +15,7 @@ import {
   nonConflictAnswerLabel,
 } from "#shared/merge/attendee-merge.ts";
 import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
+import { paymentDashboardUrl } from "#shared/payment-dashboard.ts";
 import type {
   AdminSession,
   Attendee,
@@ -164,12 +165,20 @@ export const PaymentDetails = ({
   if (!attendee.payment_id) return "";
   const pricePaid = Number.parseInt(attendee.price_paid, 10);
   const isRefunded = attendee.refunded;
+  const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
   return String(
     <article>
       <h3>Payment Details</h3>
       <p>
-        <strong>Payment ID:</strong> {attendee.payment_id}
+        <strong>Payment ID:</strong>{" "}
+        {dashboardUrl ? (
+          <a href={dashboardUrl} rel="noopener" target="_blank">
+            {attendee.payment_id}
+          </a>
+        ) : (
+          attendee.payment_id
+        )}
       </p>
       {pricePaid > 0 && (
         <p>
@@ -184,6 +193,15 @@ export const PaymentDetails = ({
           "Not refunded"
         )}
       </p>
+      {attendee.remaining_balance > 0 && (
+        <p>
+          <strong>Balance outstanding:</strong>{" "}
+          {formatCurrency(attendee.remaining_balance)} —{" "}
+          <a href={`/admin/attendees/${attendee.id}/balance`}>
+            view balance &amp; payment link
+          </a>
+        </p>
+      )}
       <CsrfForm
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
         class="inline"

@@ -314,10 +314,13 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   await resetDatabase();
   await initDb({ allowMissingSettings: true });
 
-  // initDb writes migration markers into settings/schema_migrations; clear them
-  // so the backup's own rows don't collide on primary keys.
+  // initDb writes migration markers into settings/schema_migrations and seeds a
+  // default attendee_statuses row; clear them so the backup's own rows don't
+  // collide on primary keys. (An older backup with no attendee_statuses rows
+  // re-seeds on the next initDb, which runs because the markers are cleared.)
   await getDb().execute("DELETE FROM settings");
   await getDb().execute("DELETE FROM schema_migrations");
+  await getDb().execute("DELETE FROM attendee_statuses");
 
   const statements = splitStatements(sql);
   if (statements.length > 0) {

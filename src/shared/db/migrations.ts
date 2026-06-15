@@ -13,6 +13,7 @@
 
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
+import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
@@ -38,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -192,6 +193,27 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
+    "attendee_statuses",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        ["name", "TEXT NOT NULL"],
+        ["is_public_default", "INTEGER NOT NULL DEFAULT 0"],
+        ["is_paid_default", "INTEGER NOT NULL DEFAULT 0"],
+        ["is_reservation", "INTEGER NOT NULL DEFAULT 0"],
+        ["reservation_amount", "TEXT NOT NULL DEFAULT '0'"],
+      ],
+      indexes: [
+        {
+          columns: ["sort_order"],
+          name: "idx_attendee_statuses_sort_order",
+        },
+      ],
+    },
+  ],
+
+  [
     "attendees",
     {
       columns: [
@@ -201,12 +223,18 @@ const SCHEMA: [name: string, table: Table][] = [
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
+        ["status_id", "INTEGER DEFAULT NULL"],
+        ["remaining_balance", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
           columns: ["ticket_token_index"],
           name: "idx_attendees_ticket_token_index",
           unique: true,
+        },
+        {
+          columns: ["status_id"],
+          name: "idx_attendees_status_id",
         },
       ],
     },
@@ -277,6 +305,13 @@ const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["listing_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
+        ["attendee_id", "INTEGER"],
+      ],
+      indexes: [
+        {
+          columns: ["attendee_id"],
+          name: "idx_activity_log_attendee_id",
+        },
       ],
     },
   ],
@@ -964,6 +999,17 @@ const MIGRATIONS: Migration[] = [
     id: "2026-06-14_listing_customisable_days",
     up: async () => {
       await applySchemaChanges();
+    },
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add attendee_statuses table, status_id + remaining_balance on attendees, and attendee_id on activity_log; seed the default status and backfill existing attendees onto it",
+    id: "2026-06-14_attendee_statuses",
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+      await ensureDefaultAttendeeStatus();
     },
     verify: verifyCurrentAppSchema,
   },

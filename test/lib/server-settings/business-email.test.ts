@@ -54,7 +54,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("clears business email when empty string", async () => {
-      const { updateBusinessEmail } = await import("#shared/business-email.ts");
+      const { updateBusinessEmail } = await import(
+        "#shared/validation/email.ts"
+      );
 
       // First set an email
       await updateBusinessEmail("old@example.com");

@@ -7,6 +7,7 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import {
   groupListingAnswers,
   parseQuestionAnswers,
@@ -179,7 +180,10 @@ type PathParams = {
 /** Handle the paid registration path */
 const handlePaidPath = async (
   request: Request,
-  params: PathParams & { items: ReturnType<typeof buildRegistrationItems> },
+  params: PathParams & {
+    items: ReturnType<typeof buildRegistrationItems>;
+    reservationAmount?: string;
+  },
 ): Promise<Response> => {
   const {
     ctx,
@@ -190,6 +194,7 @@ const handlePaidPath = async (
     contact,
     items,
     info,
+    reservationAmount,
   } = params;
   const available = await checkAvailability(
     ctx.listings,
@@ -213,8 +218,22 @@ const handlePaidPath = async (
     // listing's fixed duration.
     ...(hasCustomisable ? { dayCount } : {}),
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
+    ...(reservationAmount ? { reservationAmount } : {}),
   };
   return handlePaymentFlow(request, intent, ctx);
+};
+
+/**
+ * The reservation-amount the public-default status charges as a deposit, or
+ * undefined when public bookings are paid in full. Drives the deposit pricing
+ * on the paid path: items keep their full prices (so the booking fee stays on
+ * the full order) and each line is charged only this fraction up front.
+ */
+const publicReservationAmount = async (): Promise<string | undefined> => {
+  const status = await getPublicDefaultStatus();
+  return status?.is_reservation && status.reservation_amount
+    ? status.reservation_amount
+    : undefined;
 };
 
 /** Handle the free registration path */
@@ -335,6 +354,7 @@ const processSubmission = async (
       info,
       items,
       quantities,
+      reservationAmount: await publicReservationAmount(),
     });
   }
   return handleFreePath({

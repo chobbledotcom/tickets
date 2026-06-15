@@ -2,6 +2,7 @@
  * Admin attendee management routes
  */
 
+import { handleAttendeeBalanceGet } from "#routes/admin/attendee-balance.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
@@ -293,6 +294,7 @@ export const attendeesRoutes = defineRoutes({
     handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
   "GET /admin/attendees/:attendeeId": handleAttendeeEditGet,
+  "GET /admin/attendees/:attendeeId/balance": handleAttendeeBalanceGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
   "GET /admin/attendees/new": handleAttendeeNewGet,
   "GET /admin/listing/:listingId/attendee/:attendeeId/delete":

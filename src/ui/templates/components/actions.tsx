@@ -28,7 +28,8 @@ export type IconName =
   | "search"
   | "trash-2"
   | "log-in"
-  | "log-out";
+  | "log-out"
+  | "x";
 
 /** Visual variants for a button-styled link */
 export type BtnVariant = "primary" | "outline" | "secondary";

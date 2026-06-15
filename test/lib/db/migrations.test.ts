@@ -878,8 +878,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-14_question_sort_order",
         "2026-06-14_email_preferences",
         "2026-06-14_listing_customisable_days",
+        "2026-06-14_attendee_statuses",
       ],
-      schemaHash: "163bsqo",
+      schemaHash: "1lac1px",
     });
   });
 });

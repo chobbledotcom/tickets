@@ -314,7 +314,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     test("sends test email and redirects with success including status code", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
-        "#shared/business-email.ts"
+        "#shared/validation/email.ts"
       );
 
       await settings.update.email.provider("resend");
@@ -342,7 +342,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     test("shows error when email API returns non-2xx status", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
-        "#shared/business-email.ts"
+        "#shared/validation/email.ts"
       );
 
       await settings.update.email.provider("resend");
@@ -374,7 +374,7 @@ describeWithEnv("server (admin settings-advanced)", { db: true }, () => {
     test("shows error when email send encounters network error", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
-        "#shared/business-email.ts"
+        "#shared/validation/email.ts"
       );
 
       await settings.update.email.provider("resend");

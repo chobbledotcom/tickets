@@ -259,6 +259,7 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
         canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
       recipientCount: recipients.length,
       sendableCount: sendable.length,
+      sendableEmails: sendable,
       skippedCount: skipped,
       targetLabel,
     }),
