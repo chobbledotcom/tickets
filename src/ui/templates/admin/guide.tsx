@@ -1886,12 +1886,15 @@ export const adminGuidePage = (
         <Q q="What is the BCC email-app option?">
           <p>
             On the preview page there's always an option to open the email in
-            your own mail app with every recipient in <strong>BCC</strong> and
-            the subject and body pre-filled. It needs no provider setup, so it
-            works even when system sending is disabled. Use it sparingly though
-            &mdash; sending lots of mail this way, especially marketing, is a
-            quick way to get your personal email account rate-limited or
-            blocked. It's best for small, genuinely transactional messages.
+            your own mail app with the subject and body pre-filled. When it's
+            going to several people they all go in <strong>BCC</strong> (with
+            the draft addressed from your business email) so they can't see each
+            other; a single recipient is simply addressed directly. It needs no
+            provider setup, so it works even when system sending is disabled.
+            Use it sparingly though &mdash; sending lots of mail this way,
+            especially marketing, is a quick way to get your personal email
+            account rate-limited or blocked. It's best for small, genuinely
+            transactional messages.
           </p>
         </Q>
 
