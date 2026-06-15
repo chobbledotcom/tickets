@@ -7,6 +7,7 @@ import {
   collectionCache,
   compact,
   filter,
+  firstMatch,
   flatMap,
   lazyRef,
   map,
@@ -252,6 +253,51 @@ describe("fp", () => {
     test("removes only null and undefined from mixed array", () => {
       const result = compact([null, undefined]);
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("firstMatch", () => {
+    test("returns the first defined result", async () => {
+      expect(await firstMatch([() => undefined, () => "b", () => "c"])).toBe(
+        "b",
+      );
+    });
+
+    test("treats null as a match and stops there", async () => {
+      // null = "claimed but invalid"; a later defined value must not win.
+      expect(await firstMatch([() => null, () => "late"])).toBe(null);
+    });
+
+    test("returns undefined when every producer declines", async () => {
+      expect(await firstMatch([() => undefined, () => undefined])).toBe(
+        undefined,
+      );
+    });
+
+    test("returns undefined for no producers", async () => {
+      expect(await firstMatch<string>([])).toBe(undefined);
+    });
+
+    test("awaits async producers in order", async () => {
+      expect(
+        await firstMatch([
+          () => Promise.resolve(undefined),
+          () => Promise.resolve("async"),
+        ]),
+      ).toBe("async");
+    });
+
+    test("does not call producers after the first match", async () => {
+      let laterCalled = false;
+      const result = await firstMatch([
+        () => "first",
+        () => {
+          laterCalled = true;
+          return "second";
+        },
+      ]);
+      expect(result).toBe("first");
+      expect(laterCalled).toBe(false);
     });
   });
 

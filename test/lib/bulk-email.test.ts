@@ -18,6 +18,7 @@ import {
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
+  targetComposeControl,
   targetQuery,
   unsubscribeUrl,
   validateDraftInput,
@@ -59,20 +60,56 @@ describe("bulk-email audiences and targets", () => {
     expect(targetQuery({ kind: "listing", listingId: 7 })).toBe("?listing=7");
   });
 
+  test("targetQuery URL-encodes an attendee token", () => {
+    expect(targetQuery({ kind: "attendee", token: "abc/def+ghi" })).toBe(
+      "?attendee=abc%2Fdef%2Bghi",
+    );
+  });
+
   test("isBulkEmailTarget validates shape", () => {
     expect(isBulkEmailTarget({ audience: "active", kind: "audience" })).toBe(
       true,
     );
     expect(isBulkEmailTarget({ kind: "listing", listingId: 3 })).toBe(true);
+    expect(isBulkEmailTarget({ kind: "attendee", token: "tok123" })).toBe(true);
     expect(isBulkEmailTarget({ audience: "bogus", kind: "audience" })).toBe(
       false,
     );
     expect(isBulkEmailTarget({ kind: "audience" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "listing", listingId: 1.5 })).toBe(false);
     expect(isBulkEmailTarget({ kind: "listing" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: "attendee", token: "" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: "attendee" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "other" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: 123 })).toBe(false);
+    expect(isBulkEmailTarget({})).toBe(false);
     expect(isBulkEmailTarget(null)).toBe(false);
     expect(isBulkEmailTarget("nope")).toBe(false);
+  });
+
+  test("targetComposeControl drives the recipient control per kind", () => {
+    // Audiences render a dropdown chooser; fixed targets carry hidden fields
+    // that round-trip the chosen value through preview → send.
+    const audience = targetComposeControl({
+      audience: "active",
+      kind: "audience",
+    });
+    expect(audience.mode).toBe("select");
+    if (audience.mode === "select") {
+      expect(audience.name).toBe("audience");
+      expect(audience.selected).toBe("active");
+      expect(audience.options.map((o) => o.value)).toEqual(
+        AUDIENCES.map((a) => a.id),
+      );
+    }
+    expect(targetComposeControl({ kind: "listing", listingId: 7 })).toEqual({
+      fields: [["listing_id", "7"]],
+      mode: "fixed",
+    });
+    expect(targetComposeControl({ kind: "attendee", token: "tok" })).toEqual({
+      fields: [["attendee", "tok"]],
+      mode: "fixed",
+    });
   });
 });
 
@@ -272,6 +309,13 @@ describe("mailto and unsubscribe footers", () => {
     expect(buildMailtoLink([], "", "")).toBe("mailto:?");
   });
 
+  test("buildMailtoLink encodes line breaks as a single %0A", () => {
+    // CRLF, lone CR, and LF all collapse to %0A so clients don't show ^M.
+    expect(
+      buildMailtoLink([], "", "line one\r\nline two\rline three\nend"),
+    ).toBe("mailto:?body=line%20one%0Aline%20two%0Aline%20three%0Aend");
+  });
+
   test("unsubscribeUrl includes the hash, encoded", () => {
     setEffectiveDomainForTest("tickets.example.com");
     try {
@@ -396,5 +440,28 @@ describeWithEnv("resolveRecipientEmails", { db: true }, () => {
     expect(
       await resolveRecipientEmails({ kind: "listing", listingId: past.id }, pk),
     ).toEqual(["alice@example.com", "dave@example.com"]);
+  });
+
+  test("attendee target returns just that attendee's address", async () => {
+    const listing = await createTestListing({ maxAttendees: 5, name: "Solo" });
+    const { token } = await createTestAttendeeDirect(
+      listing.id,
+      "Eve",
+      "eve@example.com",
+    );
+    const pk = await getTestPrivateKey();
+    expect(
+      await resolveRecipientEmails({ kind: "attendee", token }, pk),
+    ).toEqual(["eve@example.com"]);
+  });
+
+  test("attendee target with an unknown token resolves to no recipients", async () => {
+    const pk = await getTestPrivateKey();
+    expect(
+      await resolveRecipientEmails(
+        { kind: "attendee", token: "does-not-exist" },
+        pk,
+      ),
+    ).toEqual([]);
   });
 });

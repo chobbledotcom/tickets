@@ -23,17 +23,22 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  audienceById,
   type BulkEmailTarget,
   buildBulkPayload,
   buildMailtoLink,
   contactFrequencySummary,
-  DEFAULT_AUDIENCE_ID,
-  isAudienceId,
+  describeTarget,
   parseDraft,
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
+  targetAllowsEmpty,
+  targetComposeControl,
+  targetComposeCopy,
+  targetFromForm,
+  targetFromQuery,
+  targetIsSingleRecipient,
+  targetLogListingId,
   targetQuery,
   validateDraftInput,
 } from "#shared/bulk-email.ts";
@@ -44,7 +49,6 @@ import {
   hashEmail,
   recordContacts,
 } from "#shared/db/email-preferences.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   EMAIL_PROVIDER_LABELS,
@@ -52,7 +56,6 @@ import {
   getEmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { ok } from "#shared/response.ts";
 import {
@@ -80,50 +83,6 @@ const getBulkAvailability = (): BulkAvailability => {
         disabledReason:
           "You haven't configured your own email provider, so the system won't send bulk email for you. Sending marketing from a shared address risks the whole platform's deliverability.",
       };
-};
-
-/** Resolve a listing id string to a target + name, or null if absent/invalid/gone. */
-const listingTargetFromId = async (
-  raw: string,
-): Promise<{ target: BulkEmailTarget; listingName: string } | null> => {
-  const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) return null;
-  const listing = await getListingWithCount(id);
-  if (!listing) return null;
-  return {
-    listingName: listing.name,
-    target: { kind: "listing", listingId: id },
-  };
-};
-
-/** Build an audience target from a raw value, defaulting unknown/blank input. */
-const audienceTargetFrom = (raw: string | null): BulkEmailTarget => ({
-  audience: raw && isAudienceId(raw) ? raw : DEFAULT_AUDIENCE_ID,
-  kind: "audience",
-});
-
-/** Resolve a compose-page target from query params, or null if the listing is gone. */
-const resolveComposeTarget = (
-  request: Request,
-): Promise<{ target: BulkEmailTarget; listingName?: string } | null> => {
-  const params = new URL(request.url).searchParams;
-  const listingParam = params.get("listing");
-  if (listingParam !== null) return listingTargetFromId(listingParam);
-  return Promise.resolve({
-    target: audienceTargetFrom(params.get("audience")),
-  });
-};
-
-/** Resolve a target from posted form fields, or null if a named listing is gone. */
-const parseFormTarget = async (
-  form: FormParams,
-): Promise<BulkEmailTarget | null> => {
-  const listingIdStr = form.getString("listing_id");
-  if (listingIdStr) {
-    const resolved = await listingTargetFromId(listingIdStr);
-    return resolved ? resolved.target : null;
-  }
-  return audienceTargetFrom(form.getString("audience"));
 };
 
 /** Recipients + the private key used + the owner's bulk-send availability. */
@@ -170,41 +129,32 @@ const partitionRecipients = async (
   return { sendable, skipped };
 };
 
-/** Human label + optional description for a target. */
-const describeTarget = async (
-  target: BulkEmailTarget,
-): Promise<{ targetLabel: string; audienceDescription?: string }> => {
-  if (target.kind === "listing") {
-    const listing = await getListingWithCount(target.listingId);
-    return {
-      targetLabel: listing
-        ? `Attendees of ${listing.name}`
-        : "Listing attendees",
-    };
-  }
-  const audience = audienceById(target.audience);
-  return {
-    audienceDescription: audience.description,
-    targetLabel: audience.label,
-  };
-};
-
 /** GET /admin/emails — compose form. */
 const handleComposeGet = ownerEmailPage(async (request, session) => {
-  const resolved = await resolveComposeTarget(request);
-  if (!resolved) return notFoundResponse();
+  const target = await targetFromQuery(new URL(request.url).searchParams);
+  if (!target) return notFoundResponse();
   const { recipients, canBulkSend, disabledReason } = await loadSendContext(
     session,
-    resolved.target,
+    target,
   );
+  // A listing or attendee target with no emailable recipient (an unknown
+  // attendee token, or nobody with an email on file) has nothing to send to —
+  // treat it as not found rather than rendering an empty compose page. Named
+  // audiences are allowed to be empty (they may fill up later).
+  if (!targetAllowsEmpty(target) && recipients.length === 0) {
+    return notFoundResponse();
+  }
+  const { targetLabel } = await describeTarget(target, recipients);
   return htmlResponse(
     bulkEmailComposePage(session, {
       canBulkSend,
+      control: targetComposeControl(target),
+      copy: targetComposeCopy(target),
       disabledReason,
       draft: parseDraft(settings.bulkEmailDraft),
-      listingName: resolved.listingName,
       recipientCount: recipients.length,
-      target: resolved.target,
+      single: targetIsSingleRecipient(target),
+      targetLabel,
     }),
   );
 });
@@ -212,7 +162,7 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
 /** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
 const handlePreviewPost = (request: Request): Promise<Response> =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
-    const target = await parseFormTarget(form);
+    const target = await targetFromForm(form);
     if (!target) {
       return errorRedirect(COMPOSE_PATH, "That listing no longer exists.");
     }
@@ -245,6 +195,7 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
   );
   const { targetLabel, audienceDescription } = await describeTarget(
     draft.target,
+    recipients,
   );
   const counts = await getContactCounts(await hashAll(sendable), privateKey);
   return htmlResponse(
@@ -316,7 +267,7 @@ const handleSendPost = (request: Request): Promise<Response> =>
     }`;
     await logActivity(
       `Sent bulk email "${draft.subject}" to ${recipientLabel}. ${providerSummary}`,
-      draft.target.kind === "listing" ? draft.target.listingId : null,
+      targetLogListingId(draft.target),
     );
     return ok(
       COMPOSE_PATH,

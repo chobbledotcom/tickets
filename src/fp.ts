@@ -117,6 +117,27 @@ export const compact = <T>(array: (T | null | undefined)[]): T[] =>
   array.filter((x): x is T => x !== null && x !== undefined);
 
 /**
+ * Alternative combinator: try a sequence of producers in order and return the
+ * first that yields a defined value, or undefined if every one declines.
+ *
+ * Producers run lazily and may be async (each is awaited before the next is
+ * tried), so later, more expensive lookups are skipped once one claims the
+ * input. Use it to fold an ordered set of fallible parsers/handlers into a
+ * single "first match wins" lookup instead of an `if … else if …` ladder. A
+ * `null` result counts as a match (the producer claimed the input but found it
+ * invalid), distinct from `undefined` ("not mine — try the next").
+ */
+export const firstMatch = async <T>(
+  producers: ReadonlyArray<() => T | undefined | Promise<T | undefined>>,
+): Promise<T | undefined> => {
+  for (const produce of producers) {
+    const value = await produce();
+    if (value !== undefined) return value;
+  }
+  return undefined;
+};
+
+/**
  * Lazy evaluation - compute once on first call, cache forever.
  * Use instead of `let x = null; const getX = () => x ??= compute();`
  */

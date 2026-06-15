@@ -514,6 +514,9 @@ const renderListingPage = async (
             dateFilter,
             errorMessage: flash.error,
             groupContext,
+            // Emailing a listing targets every attendee across all dates, so
+            // gate the action on the full set, not the date-filtered view.
+            hasEmailableAttendees: attendees.some((a) => a.email !== ""),
             listing,
             phonePrefix,
             questionData,
