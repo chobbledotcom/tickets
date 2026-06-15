@@ -36,26 +36,37 @@ const sh = (cmd: string, args: string[]): string => {
   return success ? new TextDecoder().decode(stdout) : "";
 };
 
-/** Best-effort: the pristine origin/main version of a path (empty if new file). */
-const pristine = (path: string): string => sh("git", ["show", `origin/main:${path}`]);
+/** The added `import { t } from "#i18n";` line (ignored when comparing). */
+const isTImport = (l: string): boolean =>
+  /^\s*import\s+\{[^}]*\bt\b[^}]*\}\s+from\s+["']#i18n["'];?\s*$/.test(l);
 
-/** Normalise for comparison: drop the t-import line, collapse whitespace. */
-const normalise = (src: string): string =>
-  src
-    .split("\n")
-    .filter((l) => !/^\s*import\s+\{[^}]*\bt\b[^}]*\}\s+from\s+["']#i18n["'];?\s*$/.test(l))
-    .join("\n")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Does a param-less t() call still remain (i.e. an unreversible ICU/param call)? */
+const HAS_T_CALL = /(?<![A-Za-z0-9_$])t\(/;
+
+/** Collapse whitespace for line comparison. */
+const norm = (l: string): string => l.replace(/\s+/g, " ").trim();
 
 const usedKeys = (src: string): string[] =>
   [...src.matchAll(T_CALL)].map((m) => m[2]);
 
-/** Replace each param-less t("k") with its en value, so we can compare to origin. */
-const untranslate = (src: string): string =>
-  src.replace(T_CALL_NOARGS, (whole, _q, key) =>
-    key in messages ? messages[key] : whole,
-  );
+/**
+ * Reverse a param-less t("key") back to the source it replaced, honouring the
+ * three syntactic positions so the result is byte-comparable to origin/main:
+ *   attr:  title={t("k")}  -> title="value"
+ *   child: >{t("k")}<      -> >value<
+ *   bare:  fail(t("k"))    -> fail("value")   (TS string context)
+ */
+const untranslateLine = (line: string): string =>
+  line
+    .replace(/=\s*\{\s*t\((["'`])([^"'`]+)\1\)\s*\}/g, (m, _q, k) =>
+      k in messages ? `=${JSON.stringify(messages[k])}` : m,
+    )
+    .replace(/\{\s*t\((["'`])([^"'`]+)\1\)\s*\}/g, (m, _q, k) =>
+      k in messages ? messages[k] : m,
+    )
+    .replace(T_CALL_NOARGS, (m, _q, k) =>
+      k in messages ? JSON.stringify(messages[k]) : m,
+    );
 
 /** Heuristic scan for user-facing strings that still look hard-coded. */
 const leftoverLiterals = (src: string): string[] => {
@@ -106,21 +117,48 @@ const check = (file: string, expect: string[]): Result => {
     }
   }
 
-  // B. English-preserving (only when the file exists on origin/main)
-  const origin = pristine(file);
-  if (origin) {
-    const got = normalise(untranslate(src));
-    const want = normalise(origin);
-    if (got === want) {
-      lines.push(`  [B] ok    rendered English matches origin/main`);
-    } else {
-      hardFail = true;
-      lines.push(`  [B] FAIL  English output differs from origin/main (a t() key maps`);
-      lines.push(`            to different text, or content was edited). Diff the`);
-      lines.push(`            un-translated file against 'git show origin/main:${file}'.`);
-    }
+  // B. English-preserving: every wired line, un-translated, must reproduce a
+  // line removed from origin/main. Works off the diff so only changed lines are
+  // checked; ICU/param calls can't be reversed textually and are reported, not
+  // failed.
+  const diff = sh("git", ["diff", "--no-color", "-U0", "origin/main", "--", file]);
+  if (!diff.trim()) {
+    lines.push(`  [B] skip  no changes vs origin/main`);
   } else {
-    lines.push(`  [B] skip  no origin/main baseline (new file)`);
+    const removed = new Map<string, number>();
+    const added: string[] = [];
+    for (const l of diff.split("\n")) {
+      if (l.startsWith("+++") || l.startsWith("---") || l.startsWith("@@")) continue;
+      if (l.startsWith("+")) added.push(l.slice(1));
+      else if (l.startsWith("-")) {
+        const n = norm(l.slice(1));
+        removed.set(n, (removed.get(n) ?? 0) + 1);
+      }
+    }
+    const mismatches: string[] = [];
+    let paramUnverified = 0;
+    for (const a of added) {
+      if (isTImport(a)) continue;
+      const u = untranslateLine(a);
+      if (HAS_T_CALL.test(u)) {
+        paramUnverified++; // ICU/param call — not textually reversible
+        continue;
+      }
+      const n = norm(u);
+      const count = removed.get(n) ?? 0;
+      if (count > 0) removed.set(n, count - 1);
+      else mismatches.push(a.trim());
+    }
+    if (mismatches.length) {
+      hardFail = true;
+      lines.push(`  [B] FAIL ${mismatches.length} wired line(s) don't reproduce origin English (wrong key or stray edit):`);
+      for (const m of mismatches.slice(0, 8)) lines.push(`        + ${m}`);
+    } else {
+      const note = paramUnverified
+        ? ` (${paramUnverified} ICU/param line(s) not auto-checked — eyeball)`
+        : "";
+      lines.push(`  [B] ok    English preserved${note}`);
+    }
   }
 
   // C. Leftover literals (warning)

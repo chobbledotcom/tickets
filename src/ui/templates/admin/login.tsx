@@ -8,21 +8,22 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { loginFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { t } from "#i18n";
 
 /**
  * Admin login page
  */
 export const adminLoginPage = (error?: string): string =>
   String(
-    <Layout title="Login">
+    <Layout title={t("login.title")}>
       <Flash error={error} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(loginFields)} />
-        <SubmitButton icon="log-in">Login</SubmitButton>
+        <SubmitButton icon="log-in">{t("login.submit")}</SubmitButton>
       </CsrfForm>
       {isDemoMode() && (
         <p>
-          <a href="/demo/reset">Reset database</a>
+          <a href="/demo/reset">{t("login.reset_database")}</a>
         </p>
       )}
     </Layout>,
