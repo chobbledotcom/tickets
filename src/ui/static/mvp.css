@@ -1288,6 +1288,12 @@ form:not(:has(input[name="can_pay_more"]:checked))
   display: none;
 }
 
+/* Hide reservation amount field when "This is a reservation" is not checked */
+form:not(:has(input[name="is_reservation"]:checked))
+  > label:has([name="reservation_amount"]) {
+  display: none;
+}
+
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
   display: none;
