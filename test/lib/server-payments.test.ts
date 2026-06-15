@@ -572,12 +572,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         name: "John Doe",
       });
 
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("choose how many days"),
-        false,
-      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("choose how many days");
     });
 
     test("creates a checkout session for a customisable-days listing priced by day count", async () => {
@@ -894,12 +890,8 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         name: "Second",
       });
 
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not enough spots available"),
-        false,
-      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("not enough spots available");
     });
 
     test("handles encryption error during payment confirmation", async () => {

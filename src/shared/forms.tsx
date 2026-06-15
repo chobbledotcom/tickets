@@ -530,6 +530,15 @@ export const clearSavedFormData = (): void => {
   _savedFormData.form = null;
 };
 
+/**
+ * Read a raw saved form value by name, or "" when no form was saved this
+ * request. Lets non-Field booking controls (quantity selectors, the date and
+ * day-count pickers, question radios, the terms checkbox) restore exactly what
+ * the visitor submitted when a validation error re-renders the page inline.
+ */
+export const savedFormValue = (name: string): string =>
+  _savedFormData.form?.getString(name) ?? "";
+
 /** Get a saved value for a field, or empty string if not available */
 const getSavedValue = (field: Field): string => {
   if (!_savedFormData.form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";

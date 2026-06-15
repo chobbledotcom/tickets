@@ -18,7 +18,12 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import { getRenewalUrl, isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
-import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import {
+  CsrfForm,
+  Flash,
+  renderFields,
+  savedFormValue,
+} from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -36,15 +41,15 @@ import { Icon } from "#templates/components/actions.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact/orders links when off/empty */
+/** Public site navigation - hides terms/contact/order links when off/empty */
 const PublicNav = ({
   hasTerms,
   hasContact,
-  hasOrders,
+  hasOrder,
 }: {
   hasTerms?: boolean;
   hasContact?: boolean;
-  hasOrders?: boolean;
+  hasOrder?: boolean;
 }): JSX.Element => (
   <nav>
     <ul>
@@ -54,9 +59,9 @@ const PublicNav = ({
       <li>
         <a href="/listings">Listings</a>
       </li>
-      {hasOrders && (
+      {hasOrder && (
         <li>
-          <a href="/order">Orders</a>
+          <a href="/order">Order</a>
         </li>
       )}
       {hasTerms && (
@@ -75,11 +80,11 @@ const PublicNav = ({
 
 /** Compute which public pages have content.
  * The Contact link also shows when the contact form is active, even if the
- * contact page has no descriptive text of its own. The Orders link shows
+ * contact page has no descriptive text of its own. The Order link shows
  * whenever the owner has enabled the order page. */
 const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
-  hasOrders: settings.orderEnabled,
+  hasOrder: settings.orderEnabled,
   hasTerms: !!settings.terms,
 });
 
@@ -381,14 +386,17 @@ export const sharedDayCounts = (listings: TicketListing[]): number[] => {
 };
 
 /** Render the "number of days" selector for customisable-days listings. When a
- * single listing drives the page, each option shows its price for that span. */
+ * single listing drives the page, each option shows its price for that span.
+ * The submitted day count is restored when a validation error re-renders. */
 const renderDayCountSelector = (
   counts: number[],
   priceFor?: (days: number) => number | null,
-): string =>
-  counts.length === 0
-    ? `<div class="error" role="alert">No booking lengths are currently available.</div>`
-    : `<label for="day_count">Number of days</label>
+): string => {
+  if (counts.length === 0) {
+    return `<div class="error" role="alert">No booking lengths are currently available.</div>`;
+  }
+  const selected = savedFormValue("day_count");
+  return `<label for="day_count">Number of days</label>
        <select name="day_count" id="day_count" required>
          <option value="">— Select —</option>
          ${counts
@@ -398,12 +406,13 @@ const renderDayCountSelector = (
                price !== undefined && price !== null
                  ? ` — ${formatCurrency(price)}`
                  : "";
-             return `<option value="${n}">${n} day${
-               n === 1 ? "" : "s"
-             }${suffix}</option>`;
+             return `<option value="${n}"${
+               selected === String(n) ? " selected" : ""
+             }>${n} day${n === 1 ? "" : "s"}${suffix}</option>`;
            })
            .join("")}
        </select>`;
+};
 
 /** Quantity values parsed from ticket form */
 export type TicketQuantities = Map<number, number>;
@@ -420,14 +429,18 @@ const renderPayMoreInput = (
     minPrice > 0
       ? `Price per ticket (${formatCurrency(minPrice)} minimum)`
       : `Price per ticket (optional, up to ${formatCurrency(maxPrice)})`;
-  const defaultValue =
+  const prefillValue =
     prefillMinor !== undefined && prefillMinor >= minPrice
       ? prefillMinor
       : minPrice;
+  // A re-render after a validation error restores exactly what was typed
+  // (already in major units); otherwise fall back to the pre-fill/minimum.
+  const saved = savedFormValue(fieldName);
+  const value = saved !== "" ? saved : toMajorUnits(prefillValue);
   return (
     `<label>${rangeHint}` +
     `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(
-      toMajorUnits(defaultValue),
+      value,
     )}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(
       toMajorUnits(maxPrice),
     )}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${
@@ -436,10 +449,15 @@ const renderPayMoreInput = (
   );
 };
 
-/** Render terms and conditions block with agreement checkbox */
-const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="prose">${renderMarkdown(terms)}</div>` +
-  `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
+/** Render terms and conditions block with agreement checkbox. The checkbox stays
+ * ticked when a validation error re-renders so agreement isn't lost. */
+const renderTermsAndCheckbox = (terms: string): string => {
+  const checked = savedFormValue("agree_terms") === "1" ? " checked" : "";
+  return (
+    `<div class="prose">${renderMarkdown(terms)}</div>` +
+    `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1"${checked} required> I agree to the terms above</label>`
+  );
+};
 
 /** Render custom multiple-choice question fields (radio buttons).
  * When questionListingMap is provided, adds data-listing-ids
@@ -451,12 +469,14 @@ export const renderQuestions = (
   if (questions.length === 0) return "";
   return questions
     .map((q) => {
+      // Restore the chosen answer when a validation error re-renders the page.
+      const answered = savedFormValue(`question_${q.id}`);
       const options = q.answers
         .map(
           (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(
-              a.text,
-            )}</label>`,
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
+              answered === String(a.id) ? " checked" : ""
+            } required> ${escapeHtml(a.text)}</label>`,
         )
         .join("");
       const listingIds = questionListingMap?.get(q.id);
@@ -667,6 +687,19 @@ const resolveQuantity = (
   return Math.max(0, Math.min(prefill.quantity, maxPurchasable));
 };
 
+/** The quantity to pre-select for a row: the value the visitor just submitted
+ * (restored when a validation error re-renders the page), else the QR/order
+ * pre-fill — both clamped to the available range. */
+const restoredQuantity = (
+  listingId: number,
+  prefill: TicketPrefill | undefined,
+  maxPurchasable: number,
+): number => {
+  const saved = savedFormValue(`quantity_${listingId}`);
+  if (saved === "") return resolveQuantity(prefill, maxPurchasable);
+  return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, maxPurchasable));
+};
+
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
@@ -705,7 +738,7 @@ const renderListingRow = (
     ? `<input type="hidden" name="${fieldName}" value="1" />`
     : `<select name="${fieldName}">${quantityOptions(
         maxPurchasable,
-        resolveQuantity(prefill, maxPurchasable),
+        restoredQuantity(listing.id, prefill, maxPurchasable),
       )}</select>`;
 
   const showPayMore = listing.can_pay_more;
@@ -730,7 +763,7 @@ const renderSingleListingControls = (
 ): string => {
   const { listing, maxPurchasable } = info;
   const fieldName = `quantity_${listing.id}`;
-  const prefilledQty = resolveQuantity(prefill, maxPurchasable);
+  const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
@@ -893,7 +926,11 @@ const TicketPageForm = ({
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (
         <Raw
-          html={renderDateSelector(dates, prefill?.date ?? "", durationDays)}
+          html={renderDateSelector(
+            dates,
+            savedFormValue("date") || prefill?.date || "",
+            durationDays,
+          )}
         />
       )}
       {hasCustomisable && (
