@@ -251,11 +251,16 @@ const LineEditor = ({
 );
 
 /** Render the bulk-email contact history (edit mode only, attendee has an
- * email). Shows a placeholder when the attendee has never been contacted. */
+ * email). Shows a placeholder when the attendee has never been contacted.
+ * Owners also get a link to email just this attendee, prefilled by token. */
 const EmailHistory = ({
+  attendee,
   emailStats,
+  isOwner,
 }: {
+  attendee: Attendee;
   emailStats: EmailStats | null;
+  isOwner: boolean;
 }): JSX.Element => (
   <article>
     <h3>Email History</h3>
@@ -274,6 +279,18 @@ const EmailHistory = ({
       </ul>
     ) : (
       <p>Never contacted by bulk email.</p>
+    )}
+    {isOwner && (
+      <p>
+        <a
+          class="button"
+          href={`/admin/emails?attendee=${encodeURIComponent(
+            attendee.ticket_token,
+          )}`}
+        >
+          Send an email to this attendee
+        </a>
+      </p>
     )}
   </article>
 );
@@ -564,7 +581,11 @@ export const attendeeFormPage = (
       </CsrfForm>
 
       {isEdit && a && a.email && (
-        <EmailHistory emailStats={data.emailStats ?? null} />
+        <EmailHistory
+          attendee={a}
+          emailStats={data.emailStats ?? null}
+          isOwner={session.adminLevel === "owner"}
+        />
       )}
 
       {isEdit && a && <MergeSection attendee={a} />}

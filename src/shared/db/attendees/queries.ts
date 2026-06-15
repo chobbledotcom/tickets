@@ -149,6 +149,23 @@ export const getAttendeePiiBlobsForListings = async (
 };
 
 /**
+ * Get the encrypted PII blob(s) for the attendee identified by a plaintext
+ * ticket token. Used to resolve a single-attendee bulk-email recipient.
+ * Returns an empty array when the token matches no attendee, so a stale or
+ * unknown token resolves to zero recipients rather than erroring.
+ */
+export const getAttendeePiiBlobsForToken = async (
+  token: string,
+): Promise<string[]> => {
+  const tokenIndex = await computeTicketTokenIndex(token);
+  const rows = await queryAll<{ pii_blob: string }>(
+    "SELECT pii_blob FROM attendees WHERE ticket_token_index = ?",
+    [tokenIndex],
+  );
+  return rows.map((r) => r.pii_blob);
+};
+
+/**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)

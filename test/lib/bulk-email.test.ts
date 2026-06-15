@@ -59,17 +59,26 @@ describe("bulk-email audiences and targets", () => {
     expect(targetQuery({ kind: "listing", listingId: 7 })).toBe("?listing=7");
   });
 
+  test("targetQuery URL-encodes an attendee token", () => {
+    expect(targetQuery({ kind: "attendee", token: "abc/def+ghi" })).toBe(
+      "?attendee=abc%2Fdef%2Bghi",
+    );
+  });
+
   test("isBulkEmailTarget validates shape", () => {
     expect(isBulkEmailTarget({ audience: "active", kind: "audience" })).toBe(
       true,
     );
     expect(isBulkEmailTarget({ kind: "listing", listingId: 3 })).toBe(true);
+    expect(isBulkEmailTarget({ kind: "attendee", token: "tok123" })).toBe(true);
     expect(isBulkEmailTarget({ audience: "bogus", kind: "audience" })).toBe(
       false,
     );
     expect(isBulkEmailTarget({ kind: "audience" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "listing", listingId: 1.5 })).toBe(false);
     expect(isBulkEmailTarget({ kind: "listing" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: "attendee", token: "" })).toBe(false);
+    expect(isBulkEmailTarget({ kind: "attendee" })).toBe(false);
     expect(isBulkEmailTarget({ kind: "other" })).toBe(false);
     expect(isBulkEmailTarget(null)).toBe(false);
     expect(isBulkEmailTarget("nope")).toBe(false);
@@ -396,5 +405,28 @@ describeWithEnv("resolveRecipientEmails", { db: true }, () => {
     expect(
       await resolveRecipientEmails({ kind: "listing", listingId: past.id }, pk),
     ).toEqual(["alice@example.com", "dave@example.com"]);
+  });
+
+  test("attendee target returns just that attendee's address", async () => {
+    const listing = await createTestListing({ maxAttendees: 5, name: "Solo" });
+    const { token } = await createTestAttendeeDirect(
+      listing.id,
+      "Eve",
+      "eve@example.com",
+    );
+    const pk = await getTestPrivateKey();
+    expect(
+      await resolveRecipientEmails({ kind: "attendee", token }, pk),
+    ).toEqual(["eve@example.com"]);
+  });
+
+  test("attendee target with an unknown token resolves to no recipients", async () => {
+    const pk = await getTestPrivateKey();
+    expect(
+      await resolveRecipientEmails(
+        { kind: "attendee", token: "does-not-exist" },
+        pk,
+      ),
+    ).toEqual([]);
   });
 });

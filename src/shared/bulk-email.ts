@@ -14,6 +14,7 @@ import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobsForListings,
+  getAttendeePiiBlobsForToken,
 } from "#shared/db/attendees/queries.ts";
 import { hashEmail } from "#shared/db/email-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -76,18 +77,23 @@ export const audienceById = (id: AudienceId): Audience =>
 // ── Targets ─────────────────────────────────────────────────────────
 
 /**
- * What a bulk email is aimed at: either a named audience (from the Emails
- * page) or a single listing (from that listing's admin page).
+ * What a bulk email is aimed at: a named audience (from the Emails page), a
+ * single listing (from that listing's admin page), or a single attendee
+ * identified by ticket token (from that attendee's edit page).
  */
 export type BulkEmailTarget =
   | { readonly kind: "audience"; readonly audience: AudienceId }
-  | { readonly kind: "listing"; readonly listingId: number };
+  | { readonly kind: "listing"; readonly listingId: number }
+  | { readonly kind: "attendee"; readonly token: string };
 
 /** Query string that round-trips a target back to the compose page. */
-export const targetQuery = (target: BulkEmailTarget): string =>
-  target.kind === "listing"
-    ? `?listing=${target.listingId}`
-    : `?audience=${target.audience}`;
+export const targetQuery = (target: BulkEmailTarget): string => {
+  if (target.kind === "listing") return `?listing=${target.listingId}`;
+  if (target.kind === "attendee") {
+    return `?attendee=${encodeURIComponent(target.token)}`;
+  }
+  return `?audience=${target.audience}`;
+};
 
 /** Runtime guard for a deserialized target (drafts are stored as JSON). */
 export const isBulkEmailTarget = (v: unknown): v is BulkEmailTarget => {
@@ -97,6 +103,9 @@ export const isBulkEmailTarget = (v: unknown): v is BulkEmailTarget => {
   }
   if (v.kind === "listing") {
     return typeof v.listingId === "number" && Number.isInteger(v.listingId);
+  }
+  if (v.kind === "attendee") {
+    return typeof v.token === "string" && v.token !== "";
   }
   return false;
 };
@@ -132,6 +141,9 @@ const loadTargetPiiBlobs = async (
 ): Promise<string[]> => {
   if (target.kind === "listing") {
     return getAttendeePiiBlobsForListings([target.listingId]);
+  }
+  if (target.kind === "attendee") {
+    return getAttendeePiiBlobsForToken(target.token);
   }
   if (target.audience === "all") {
     return getAllAttendeePiiBlobs();

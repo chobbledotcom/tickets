@@ -107,6 +107,12 @@ const resolveComposeTarget = (
   request: Request,
 ): Promise<{ target: BulkEmailTarget; listingName?: string } | null> => {
   const params = new URL(request.url).searchParams;
+  const attendeeParam = params.get("attendee");
+  if (attendeeParam !== null) {
+    return Promise.resolve({
+      target: { kind: "attendee", token: attendeeParam },
+    });
+  }
   const listingParam = params.get("listing");
   if (listingParam !== null) return listingTargetFromId(listingParam);
   return Promise.resolve({
@@ -118,6 +124,8 @@ const resolveComposeTarget = (
 const parseFormTarget = async (
   form: FormParams,
 ): Promise<BulkEmailTarget | null> => {
+  const attendeeToken = form.getString("attendee");
+  if (attendeeToken) return { kind: "attendee", token: attendeeToken };
   const listingIdStr = form.getString("listing_id");
   if (listingIdStr) {
     const resolved = await listingTargetFromId(listingIdStr);
@@ -170,9 +178,11 @@ const partitionRecipients = async (
   return { sendable, skipped };
 };
 
-/** Human label + optional description for a target. */
+/** Human label + optional description for a target. The resolved recipient
+ * list labels a single-attendee send with that attendee's own address. */
 const describeTarget = async (
   target: BulkEmailTarget,
+  recipients: string[],
 ): Promise<{ targetLabel: string; audienceDescription?: string }> => {
   if (target.kind === "listing") {
     const listing = await getListingWithCount(target.listingId);
@@ -181,6 +191,9 @@ const describeTarget = async (
         ? `Attendees of ${listing.name}`
         : "Listing attendees",
     };
+  }
+  if (target.kind === "attendee") {
+    return { targetLabel: recipients[0] ?? "the selected attendee" };
   }
   const audience = audienceById(target.audience);
   return {
@@ -199,6 +212,8 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
   );
   return htmlResponse(
     bulkEmailComposePage(session, {
+      attendeeEmail:
+        resolved.target.kind === "attendee" ? recipients[0] : undefined,
       canBulkSend,
       disabledReason,
       draft: parseDraft(settings.bulkEmailDraft),
@@ -245,6 +260,7 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
   );
   const { targetLabel, audienceDescription } = await describeTarget(
     draft.target,
+    recipients,
   );
   const counts = await getContactCounts(await hashAll(sendable), privateKey);
   return htmlResponse(

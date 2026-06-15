@@ -467,6 +467,139 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
   });
 
+  describe("single-attendee email (?attendee)", () => {
+    const fetch = useFetchStub();
+
+    const seedSoloAttendee = async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      const { attendee, token } = await createTestAttendeeDirect(
+        listing.id,
+        "Alice",
+        "alice@example.com",
+      );
+      return { attendee, listing, token };
+    };
+
+    test("compose page targets just the one attendee", async () => {
+      const { token } = await seedSoloAttendee();
+      const html = await awaitTestRequest(
+        `/admin/emails?attendee=${encodeURIComponent(token)}`,
+        { cookie: await testCookie() },
+      ).then((r) => r.text());
+      expect(html).toContain("Email an attendee");
+      expect(html).toContain("alice@example.com");
+      // The token round-trips through a hidden field so the POST keeps the target.
+      expect(html).toContain('name="attendee"');
+      expect(html).toContain("recipient. Preview to confirm before sending.");
+    });
+
+    test("a stale token composes to nobody with a generic label", async () => {
+      const html = await awaitTestRequest("/admin/emails?attendee=gone", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain("Email an attendee");
+      expect(html).toContain("this attendee");
+      expect(html).toContain("<strong>0</strong> recipients");
+    });
+
+    test("preview falls back to a generic label for a stale token", async () => {
+      useResend();
+      settings.setForTest({
+        bulk_email_draft: serializeDraft({
+          body: "Body",
+          marketing: false,
+          subject: "Subject",
+          target: { kind: "attendee", token: "gone" },
+        }),
+      });
+      const html = await awaitTestRequest("/admin/emails/preview", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain("the selected attendee");
+    });
+
+    test("preview labels the recipient with their own address", async () => {
+      useResend();
+      const { token } = await seedSoloAttendee();
+      await adminFormPost("/admin/emails/preview", {
+        attendee: token,
+        body: "Just for you",
+        subject: "Hello Alice",
+      });
+      const html = await awaitTestRequest("/admin/emails/preview", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain("Hello Alice");
+      expect(html).toContain("alice@example.com");
+      expect(html).toContain("1 recipient");
+    });
+
+    test("sends to only that attendee and logs against no listing", async () => {
+      useResend();
+      const { token } = await seedSoloAttendee();
+      await adminFormPost("/admin/emails/preview", {
+        attendee: token,
+        body: "Personal note",
+        subject: "Just you",
+      });
+
+      const { response } = await adminFormPost("/admin/emails/send", {});
+
+      expectRedirectWithFlash(
+        "/admin/emails",
+        "Sent to 1 recipient via Resend. The email provider responded with HTTP 200.",
+      )(response);
+      const body = fetch.getFetchJsonBody();
+      expect(body[0].to).toEqual(["alice@example.com"]);
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) =>
+        e.message.includes('Sent bulk email "Just you"'),
+      );
+      expect(entry?.listing_id).toBe(null);
+    });
+  });
+
+  describe("attendee page Email link", () => {
+    test("owners see a link to email the attendee, carrying their token", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      const { attendee, token } = await createTestAttendeeDirect(
+        listing.id,
+        "Alice",
+        "alice@example.com",
+      );
+      const html = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain(
+        `/admin/emails?attendee=${encodeURIComponent(token)}`,
+      );
+      expect(html).toContain("Send an email to this attendee");
+    });
+
+    test("managers do not see the email link", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Alice",
+        "alice@example.com",
+      );
+      const cookie = await createTestManagerSession();
+      const html = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+        cookie,
+      }).then((r) => r.text());
+      expect(html).not.toContain("/admin/emails?attendee=");
+    });
+  });
+
   describe("listing page Email link", () => {
     test("owners see the link on the listing page", async () => {
       const listing = await seedListingWithAttendees();

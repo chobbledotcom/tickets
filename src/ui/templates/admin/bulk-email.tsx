@@ -27,6 +27,9 @@ export type BulkEmailComposeState = {
   target: BulkEmailTarget;
   /** Present when target.kind === "listing". */
   listingName?: string;
+  /** The attendee's email address, when target.kind === "attendee" and one is
+   * on file (used to label the single recipient). */
+  attendeeEmail?: string;
   recipientCount: number;
   canBulkSend: boolean;
   /** Why provider sending is unavailable ("" when it is available). */
@@ -47,6 +50,16 @@ const TargetField = ({
         <input name="listing_id" type="hidden" value={state.target.listingId} />
         <p>
           <strong>Recipients:</strong> attendees of {state.listingName}
+        </p>
+      </>
+    );
+  }
+  if (state.target.kind === "attendee") {
+    return (
+      <>
+        <input name="attendee" type="hidden" value={state.target.token} />
+        <p>
+          <strong>Recipient:</strong> {state.attendeeEmail ?? "this attendee"}
         </p>
       </>
     );
@@ -75,17 +88,18 @@ export const bulkEmailComposePage = (
   state: BulkEmailComposeState,
 ): string => {
   const { draft } = state;
+  const isAttendee = state.target.kind === "attendee";
   return String(
-    <Layout title="Send a bulk email">
+    <Layout title={isAttendee ? "Email an attendee" : "Send a bulk email"}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <Flash />
 
       <div class="prose">
-        <h1>Send a bulk email</h1>
+        <h1>{isAttendee ? "Email an attendee" : "Send a bulk email"}</h1>
         <p>
-          Email your attendees about an upcoming listing or other news. Choose
-          who receives it, write your message in Markdown, then preview before
-          sending.
+          {isAttendee
+            ? "Send a one-off email to this attendee. Write your message in Markdown, then preview before sending."
+            : "Email your attendees about an upcoming listing or other news. Choose who receives it, write your message in Markdown, then preview before sending."}
         </p>
       </div>
 
@@ -145,13 +159,22 @@ export const bulkEmailComposePage = (
         </fieldset>
 
         <div class="prose">
-          <p>
-            This selection currently reaches{" "}
-            <strong>{state.recipientCount}</strong> recipient
-            {state.recipientCount === 1 ? "" : "s"}. That's everyone who gave an
-            email address, de-duplicated. Preview to confirm the exact list for
-            your final selection.
-          </p>
+          {isAttendee ? (
+            <p>
+              This email will go to <strong>{state.recipientCount}</strong>{" "}
+              recipient
+              {state.recipientCount === 1 ? "" : "s"}. Preview to confirm before
+              sending.
+            </p>
+          ) : (
+            <p>
+              This selection currently reaches{" "}
+              <strong>{state.recipientCount}</strong> recipient
+              {state.recipientCount === 1 ? "" : "s"}. That's everyone who gave
+              an email address, de-duplicated. Preview to confirm the exact list
+              for your final selection.
+            </p>
+          )}
         </div>
 
         <button type="submit">Preview</button>
