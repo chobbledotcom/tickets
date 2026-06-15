@@ -184,6 +184,28 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("creates a customisable-days listing with day_prices", async () => {
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            customisable_days: true,
+            // Mixed entries: day<1, non-integer key, and a non-numeric value
+            // are all dropped by the parser.
+            day_prices: { 0: 50, 1: 1000, 2: 1800, 3: "nope", x: 70 },
+            duration_days: 3,
+            max_attendees: 20,
+            name: "Flexible Pass",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.listing.customisable_days).toBe(true);
+          expect(body.listing.day_prices).toEqual({ 1: 1000, 2: 1800 });
+        },
+      );
+    });
+
     test("returns 400 when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
@@ -605,6 +627,29 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.non_transferable).toBe(true);
           expect(body.listing.can_pay_more).toBe(true);
           expect(body.listing.hidden).toBe(true);
+        },
+      );
+    });
+
+    test("updates customisable_days and day_prices", async () => {
+      const listing = await createTestListing({
+        durationDays: 2,
+        name: "To Flex",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: {
+            customisable_days: true,
+            day_prices: { 1: 500, 2: 900 },
+            duration_days: 2,
+          },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.listing.customisable_days).toBe(true);
+          expect(body.listing.day_prices).toEqual({ 1: 500, 2: 900 });
         },
       );
     });
