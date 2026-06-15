@@ -53,6 +53,31 @@ const activityLogRows = (entries: ActivityLogEntry[]): string =>
     : '<tr><td colspan="2">No activity recorded yet</td></tr>';
 
 /**
+ * The Time/Activity log table, scrollable on narrow screens. Shared by the
+ * listing and global log pages and the per-attendee log section so every
+ * activity log renders identically.
+ */
+export const ActivityLogTable = ({
+  entries,
+}: {
+  entries: ActivityLogEntry[];
+}): JSX.Element => (
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <Raw html={activityLogRows(entries)} />
+      </tbody>
+    </table>
+  </div>
+);
+
+/**
  * Admin activity log page for a specific listing
  */
 export const adminListingActivityLogPage = (
@@ -69,19 +94,7 @@ export const adminListingActivityLogPage = (
           Activity log guide
         </GuideLink>
       </p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={activityLogRows(entries)} />
-          </tbody>
-        </table>
-      </div>
+      <ActivityLogTable entries={entries} />
     </Layout>,
   );
 
@@ -101,19 +114,7 @@ export const adminGlobalActivityLogPage = (
           Activity log guide
         </GuideLink>
       </p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={activityLogRows(entries)} />
-          </tbody>
-        </table>
-      </div>
+      <ActivityLogTable entries={entries} />
       {truncated && <p>Showing the most recent 200 entries.</p>}
     </Layout>,
   );
