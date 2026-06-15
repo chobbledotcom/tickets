@@ -82,23 +82,23 @@ describeWithEnv(
         }
       });
 
-      test("omits the form and explains when no business email is set", async () => {
+      test("renders no form (and no note) when no business email is set", async () => {
         const { response } = await adminGet("/admin/support");
         const html = await response.text();
+        // The page (support text) still renders, but the form section is empty.
+        expect(response.status).toBe(200);
         expect(html).not.toContain('name="message"');
-        expect(html).toContain("Set a business email");
+        expect(html).not.toContain('action="/admin/support"');
       });
 
-      test("shows the message form with the business email pre-filled read-only", async () => {
+      test("shows just a message box when a business email is set", async () => {
         await settings.update.businessEmail("owner@example.com");
         const { response } = await adminGet("/admin/support");
         const html = await response.text();
         expect(html).toContain('action="/admin/support"');
         expect(html).toContain('name="message"');
-        // Email box is pre-filled with the business email and not editable.
-        expect(html).toContain('name="email"');
-        expect(html).toContain('value="owner@example.com"');
-        expect(html).toContain("readonly");
+        // No email field at all: support always sends from the business email.
+        expect(html).not.toContain('name="email"');
       });
 
       test("shows the Support link in the admin nav", async () => {

@@ -13,17 +13,13 @@ import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
-/** Message form delivering to the platform host (no Botpoison). The email box
- * is pre-filled read-only with the site's business email: support always comes
- * from that address, so there's nothing for the operator to type or change. */
-const SupportForm = ({
-  businessEmail,
-}: {
-  businessEmail: string;
-}): JSX.Element => (
+/** Message form delivering to the platform host (no Botpoison). Just a message
+ * box: support always comes from the site's own business email, so there's no
+ * address for the operator to enter. */
+const SupportForm = (): JSX.Element => (
   <CsrfForm action="/admin/support">
     <h2>Contact support</h2>
-    <MessageFields email={businessEmail} />
+    <MessageFields />
   </CsrfForm>
 );
 
@@ -39,7 +35,6 @@ export const adminSupportPage = (opts: {
   session: AdminSession;
   supportText: string | null;
   formActive: boolean;
-  businessEmail: string;
   nagLabel: string | null;
   success?: string;
   error?: string;
@@ -56,13 +51,6 @@ export const adminSupportPage = (opts: {
         )}
       </div>
       {opts.nagLabel && <p>You last submitted this form {opts.nagLabel}.</p>}
-      {opts.formActive ? (
-        <SupportForm businessEmail={opts.businessEmail} />
-      ) : (
-        <p class="error" role="alert">
-          Set a business email on the <a href="/admin/settings">Settings</a>{" "}
-          page to enable the support form.
-        </p>
-      )}
+      {opts.formActive && <SupportForm />}
     </Layout>,
   );

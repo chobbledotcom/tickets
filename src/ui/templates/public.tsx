@@ -134,6 +134,10 @@ const ContactForm = ({
   return (
     <CsrfForm action="/contact" {...botpoisonAttr}>
       <h2>Send us a message</h2>
+      <label>
+        Your email address
+        <input autocomplete="email" name="email" required type="email" />
+      </label>
       <MessageFields />
     </CsrfForm>
   );

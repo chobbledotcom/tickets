@@ -602,23 +602,12 @@ export const CsrfForm = ({
 );
 
 /**
- * Email + message + submit fields shared by the public contact form and the
- * admin support form, so the two render identical inputs.
- *
- * Pass `email` to pre-fill a read-only address (the support form, which always
- * sends from the site's own business email and ignores any submitted value);
- * omit it for an editable, required input (the public contact form).
+ * The message textarea and submit button shared by the public contact form and
+ * the admin support form. Each form supplies its own surrounding <form> and
+ * heading; the contact form adds its own email input above this.
  */
-export const MessageFields = ({ email }: { email?: string }): JSX.Element => (
+export const MessageFields = (): JSX.Element => (
   <>
-    <label>
-      Your email address
-      {email === undefined ? (
-        <input autocomplete="email" name="email" required type="email" />
-      ) : (
-        <input name="email" readonly type="email" value={email} />
-      )}
-    </label>
     <label>
       Message
       <textarea

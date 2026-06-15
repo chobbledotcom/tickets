@@ -16,7 +16,6 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -39,7 +38,6 @@ const handleSupportGet = (request: Request): Promise<Response> =>
     const flash = getFlash();
     return htmlResponse(
       adminSupportPage({
-        businessEmail: settings.businessEmail,
         error: flash.error,
         formActive: isSupportFormActive(),
         nagLabel: supportNagLabel(),
