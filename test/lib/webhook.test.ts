@@ -271,6 +271,15 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(1);
     });
 
+    test("refuses to fetch an unsafe (internal) webhook URL", async () => {
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+      // SSRF guard: an internal/non-https URL must never be fetched.
+      await sendWebhook("http://169.254.169.254/latest/meta-data", payload);
+
+      expect(fetchSpy.calls.length).toBe(0);
+    });
+
     test("logs error message on fetch error", async () => {
       const logs = await sendAndCollectErrors(() =>
         Promise.reject(new Error("Connection refused")),

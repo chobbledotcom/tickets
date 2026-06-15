@@ -167,6 +167,23 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("rejects an unsafe (internal) webhook_url (SSRF guard)", async () => {
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            max_attendees: 10,
+            name: "SSRF Attempt",
+            webhook_url: "http://169.254.169.254/latest/meta-data",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain("Webhook URL");
+        },
+      );
+    });
+
     test("returns 400 when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
