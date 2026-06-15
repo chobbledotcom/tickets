@@ -268,7 +268,9 @@ const publicPagePath = (prefix: string): string =>
 
 type PublicGetPageSpec = {
   prefix: string;
-  pick: (pages: PublicPagesModule) => () => Response | Promise<Response>;
+  pick: (
+    pages: PublicPagesModule,
+  ) => (request: Request) => Response | Promise<Response>;
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
@@ -291,9 +293,9 @@ const publicPageHandlers = reduce(
   (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
     const { prefix, pick } = spec;
     const path = publicPagePath(prefix);
-    acc[prefix] = async (_request, reqPath, method) => {
+    acc[prefix] = async (request, reqPath, method) => {
       if (reqPath !== path || method !== "GET") return null;
-      return pick(await loadPublicPages())();
+      return pick(await loadPublicPages())(request);
     };
     return acc;
   },

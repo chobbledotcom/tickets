@@ -2,6 +2,7 @@
  * Public pages - home, listings, terms, contact
  */
 
+import { unique } from "#fp";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -10,6 +11,7 @@ import {
   redirect,
   redirectResponse,
 } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { BOTPOISON_FIELD, verifyBotpoisonSolution } from "#shared/botpoison.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
 import {
@@ -28,6 +30,8 @@ import { isValidEmail } from "#shared/validation/email.ts";
 import {
   contactPage,
   homepagePage,
+  isListingFilter,
+  type ListingFilter,
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
@@ -35,6 +39,14 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
+
+/** The type category a listing falls under for the public listings filter. */
+const listingCategory = (e: ListingWithCount): ListingFilter =>
+  e.purchase_only
+    ? "purchase-only"
+    : e.listing_type === "daily"
+      ? "daily"
+      : "standard";
 
 /** Load non-hidden groups (for public listing) */
 const loadPublicGroups = async (): Promise<Group[]> => {
@@ -62,16 +74,32 @@ const renderPublicPage = (
 export const handleHome = (): Response =>
   renderPublicPage("home", () => settings.homepageText);
 
-/** Handle GET /listings - public listings listing */
-export const handlePublicListings = (): Response | Promise<Response> =>
+/** Handle GET /listings - public listings listing, optionally filtered by type
+ * via `?filter=standard|daily|purchase-only`. Groups are shown only on the
+ * unfiltered ("all") view since they aren't a listing type. */
+export const handlePublicListings = (
+  request: Request,
+): Response | Promise<Response> =>
   requirePublicSite(async () => {
     const [groups, { listings }] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
     ]);
-    const ticketListings = await buildTicketListingsWithGroupCapacity(listings);
+    const raw = getSearchParam(request, "filter");
+    const active: ListingFilter = isListingFilter(raw) ? raw : "all";
+    const categories = unique(listings.map(listingCategory));
+    const shown =
+      active === "all"
+        ? listings
+        : listings.filter((e) => listingCategory(e) === active);
+    const ticketListings = await buildTicketListingsWithGroupCapacity(shown);
     return htmlResponse(
-      homepagePage(ticketListings, settings.websiteTitle, groups),
+      homepagePage(
+        ticketListings,
+        settings.websiteTitle,
+        active === "all" ? groups : [],
+        { active, categories },
+      ),
     );
   });
 
