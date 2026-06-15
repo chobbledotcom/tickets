@@ -97,10 +97,10 @@ export const CONFIG_KEYS = {
   LATEST_SCRIPT_VERSION: "latest_script_version",
   LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
   LISTING_COLUMN_ORDER: "listing_column_order",
+  ORDER_ENABLED: "order_enabled",
+  ORDER_INTRO_TEXT: "order_intro_text",
   PAYMENT_PROVIDER: "payment_provider",
   PUBLIC_KEY: "public_key",
-  QUOTE_ENABLED: "quote_enabled",
-  QUOTE_INTRO_TEXT: "quote_intro_text",
   SETUP_COMPLETE: "setup_complete",
   SHOW_PUBLIC_API: "show_public_api",
   SHOW_PUBLIC_SITE: "show_public_site",
@@ -213,7 +213,7 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.WEBSITE_TITLE,
   CONFIG_KEYS.HOMEPAGE_TEXT,
   CONFIG_KEYS.CONTACT_PAGE_TEXT,
-  CONFIG_KEYS.QUOTE_INTRO_TEXT,
+  CONFIG_KEYS.ORDER_INTRO_TEXT,
   CONFIG_KEYS.STRIPE_SECRET_KEY,
   CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
   CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
@@ -262,7 +262,7 @@ type SpecificFields = {
   show_public_site: boolean;
   show_public_api: boolean;
   contact_form_enabled: boolean;
-  quote_enabled: boolean;
+  order_enabled: boolean;
   payment_provider: PaymentProviderType | null;
   payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
@@ -282,10 +282,10 @@ const data: SettingsData = {
   contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
+  order_enabled: false,
   payment_provider: null,
   payment_provider_setting: null,
   phone_prefix: "+44",
-  quote_enabled: false,
   show_public_api: false,
   show_public_site: false,
   square_sandbox: false,
@@ -412,9 +412,9 @@ const STRING_ACCESSORS = {
   latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
   latestScriptVersionName: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME },
   listingColumnOrder: { key: CONFIG_KEYS.LISTING_COLUMN_ORDER },
+  orderIntroText: { key: CONFIG_KEYS.ORDER_INTRO_TEXT },
   // readOnly: key material is only written by setup/password flows
   publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
-  quoteIntroText: { key: CONFIG_KEYS.QUOTE_INTRO_TEXT },
   terms: { key: CONFIG_KEYS.TERMS_AND_CONDITIONS },
   websiteTitle: { key: CONFIG_KEYS.WEBSITE_TITLE },
   wrappedPrivateKey: { key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY, readOnly: true },
@@ -520,7 +520,7 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.show_public_api = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
   data.contact_form_enabled =
     raw.get(CONFIG_KEYS.CONTACT_FORM_ENABLED) === "true";
-  data.quote_enabled = raw.get(CONFIG_KEYS.QUOTE_ENABLED) === "true";
+  data.order_enabled = raw.get(CONFIG_KEYS.ORDER_ENABLED) === "true";
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.payment_provider =
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
@@ -791,6 +791,10 @@ const settingsBase = {
   invalidateCache,
   // --- Core ---
   loadAll,
+
+  get orderEnabled(): boolean {
+    return snap("order_enabled");
+  },
   get paymentProvider(): PaymentProviderType | null {
     return snap("payment_provider");
   },
@@ -799,10 +803,6 @@ const settingsBase = {
   },
   get phonePrefix(): string {
     return snap("phone_prefix");
-  },
-
-  get quoteEnabled(): boolean {
-    return snap("quote_enabled");
   },
 
   /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
@@ -943,12 +943,12 @@ const settingsBase = {
     },
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
+    orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
       data.payment_provider = v;
       data.payment_provider_setting = v;
     },
-    quoteEnabled: boolUpdate(CONFIG_KEYS.QUOTE_ENABLED, "quote_enabled"),
     setPaymentProviderNone: async (): Promise<void> => {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
       data.payment_provider = null;

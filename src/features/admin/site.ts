@@ -24,7 +24,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
-  adminSiteQuotePage,
+  adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 
@@ -69,27 +69,26 @@ export const siteContactForm = defineForm({
   id: "siteContact",
 });
 
-export const siteQuoteForm = defineForm({
+export const siteOrderForm = defineForm({
   fields: [
     {
-      hintHtml: `Shown at the top of the public quote page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
-      id: "quote_intro_text",
-      label: "Quote Page Intro",
+      hintHtml: `Shown at the top of the public order page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      id: "order_intro_text",
+      label: "Order Page Intro",
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
-      name: "quote_intro_text",
-      placeholder: "Pick the products you're interested in...",
+      name: "order_intro_text",
+      placeholder: "Pick the items you're interested in...",
       type: "textarea" as const,
     },
   ] as const,
-  id: "siteQuote",
+  id: "siteOrder",
 });
 
-/** Count active, visible, purchase-only products eligible for the quote page. */
-const countQuoteProducts = async (): Promise<number> => {
+/** Count active, visible listings — every one appears on the order page. */
+const countOrderListings = async (): Promise<number> => {
   const listings = await getAllListings();
-  return listings.filter((e) => e.active && !e.hidden && e.purchase_only)
-    .length;
+  return listings.filter((e) => e.active && !e.hidden).length;
 };
 
 type PageRenderer = (
@@ -185,42 +184,42 @@ const handleSiteContactPost = settingsHandler({
       : null,
 });
 
-/** Handle GET /admin/site/quotes - quote page editor (owner only).
- * Loads the live product count so the editor can warn when there is nothing to
+/** Handle GET /admin/site/order - order page editor (owner only).
+ * Loads the live listing count so the editor can warn when there is nothing to
  * show, then renders the toggle + intro-text forms. */
-const handleSiteQuoteGet = (request: Request): Promise<Response> =>
+const handleSiteOrderGet = (request: Request): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const flash = applyFlash(request);
-    const productCount = await countQuoteProducts();
+    const listingCount = await countOrderListings();
     return htmlResponse(
-      adminSiteQuotePage(
+      adminSiteOrderPage(
         session,
-        settings.quoteIntroText,
-        { enabled: settings.quoteEnabled, productCount },
+        settings.orderIntroText,
+        { enabled: settings.orderEnabled, listingCount },
         flash.error,
         flash.success,
       ),
     );
   });
 
-/** Handle POST /admin/site/quotes/toggle - enable/disable the public quote page */
-const handleSiteQuoteTogglePost = settingsToggle({
-  field: "quote_enabled",
-  label: "Quote page",
-  redirectTo: "/admin/site/quotes",
-  save: (v) => settings.update.quoteEnabled(v),
+/** Handle POST /admin/site/order/toggle - enable/disable the public order page */
+const handleSiteOrderTogglePost = settingsToggle({
+  field: "order_enabled",
+  label: "Order page",
+  redirectTo: "/admin/site/order",
+  save: (v) => settings.update.orderEnabled(v),
 });
 
-/** Handle POST /admin/site/quotes - save the quote page intro text */
-const handleSiteQuotePost = settingsHandler({
-  extract: (form) => form.getString("quote_intro_text"),
-  label: "Quote page",
-  log: () => "Quote page updated",
-  redirectTo: "/admin/site/quotes",
-  save: (v) => settings.update.quoteIntroText(v),
+/** Handle POST /admin/site/order - save the order page intro text */
+const handleSiteOrderPost = settingsHandler({
+  extract: (form) => form.getString("order_intro_text"),
+  label: "Order page",
+  log: () => "Order page updated",
+  redirectTo: "/admin/site/order",
+  save: (v) => settings.update.orderIntroText(v),
   validate: (v) =>
     v.length > MAX_TEXTAREA_LENGTH
-      ? `Quote intro must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      ? `Order intro must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
       : null,
 });
 
@@ -228,10 +227,10 @@ const handleSiteQuotePost = settingsHandler({
 export const siteRoutes = defineRoutes({
   "GET /admin/site": siteGetRoute(renderHomePage),
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
-  "GET /admin/site/quotes": handleSiteQuoteGet,
+  "GET /admin/site/order": handleSiteOrderGet,
   "POST /admin/site": handleSiteHomePost,
   "POST /admin/site/contact": handleSiteContactPost,
   "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
-  "POST /admin/site/quotes": handleSiteQuotePost,
-  "POST /admin/site/quotes/toggle": handleSiteQuoteTogglePost,
+  "POST /admin/site/order": handleSiteOrderPost,
+  "POST /admin/site/order/toggle": handleSiteOrderTogglePost,
 });

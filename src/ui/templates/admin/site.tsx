@@ -5,7 +5,7 @@
 import {
   siteContactForm,
   siteHomeForm,
-  siteQuoteForm,
+  siteOrderForm,
 } from "#routes/admin/site.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -25,7 +25,7 @@ const SiteSubNav = (): JSX.Element => (
         <a href="/admin/site/contact">Contact</a>
       </li>
       <li>
-        <a href="/admin/site/quotes">Quotes</a>
+        <a href="/admin/site/order">Order</a>
       </li>
     </ul>
   </nav>
@@ -162,79 +162,78 @@ export const adminSiteContactPage = (
     </Layout>,
   );
 
-/** State of the optional public quote page feature */
-interface QuotePageState {
-  /** Whether the owner has enabled the quote page */
+/** State of the optional public order page feature */
+interface OrderPageState {
+  /** Whether the owner has enabled the order page */
   enabled: boolean;
-  /** Number of active, visible, purchase-only products available to quote */
-  productCount: number;
+  /** Number of active, visible listings that appear on the order page */
+  listingCount: number;
 }
 
-/** Note about how many products will appear on the quote page (or a warning
+/** Note about how many listings will appear on the order page (or a warning
  * when there are none, since the page would render empty). */
-const QuoteProductsNote = ({
-  productCount,
+const OrderListingsNote = ({
+  listingCount,
 }: {
-  productCount: number;
+  listingCount: number;
 }): JSX.Element =>
-  productCount === 0 ? (
+  listingCount === 0 ? (
     <p class="error" role="alert">
-      You have no purchase-only products yet. Mark a listing as “Purchase Only”
-      for it to appear on the quote page.
+      You have no bookable listings yet. <a href="/admin/">Create a listing</a>{" "}
+      for it to appear on the order page.
     </p>
   ) : (
     <p>
       <small>
-        {productCount} purchase-only{" "}
-        {productCount === 1 ? "product" : "products"} will be shown on the quote
-        page.
+        {listingCount} {listingCount === 1 ? "listing" : "listings"} will be
+        shown on the order page.
       </small>
     </p>
   );
 
 /**
- * Quote page editor — toggle the public `/quote` gallery on/off and edit the
- * intro text shown above the product grid.
+ * Order page editor — toggle the public `/order` gallery on/off and edit the
+ * intro text shown above the item grid.
  */
-export const adminSiteQuotePage = (
+export const adminSiteOrderPage = (
   session: AdminSession,
   introText: string,
-  state: QuotePageState,
+  state: OrderPageState,
   error?: string,
   success?: string,
 ): string =>
   String(
-    <Layout title="Site - Quotes">
+    <Layout title="Site - Order">
       <AdminNav active="/admin/site" session={session} />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
 
       <div class="prose">
-        <h2>Quote Page</h2>
+        <h2>Order Page</h2>
         <p>
-          Publish a <code>/quote</code> page that shows your purchase-only
-          products in a gallery. Visitors tick the products they want and submit
-          a quote request — a booking page pre-filled with their selection.
+          Publish an <code>/order</code> page that shows your bookable listings
+          in a gallery. Visitors tick the items they want and continue to a
+          booking page pre-filled with their selection.
         </p>
-        <QuoteProductsNote productCount={state.productCount} />
+        <OrderListingsNote listingCount={state.listingCount} />
       </div>
 
-      <CsrfForm action="/admin/site/quotes/toggle">
+      <CsrfForm action="/admin/site/order/toggle">
         <label>
           <input
             checked={state.enabled}
-            name="quote_enabled"
+            name="order_enabled"
             type="checkbox"
             value="true"
           />{" "}
-          Enable quote page
+          Enable order page
         </label>
         <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
 
-      <CsrfForm action="/admin/site/quotes">
-        <Raw html={siteQuoteForm.render({ quote_intro_text: introText })} />
+      <CsrfForm action="/admin/site/order">
+        <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
         <SubmitButton icon="save">Save</SubmitButton>
       </CsrfForm>
     </Layout>,

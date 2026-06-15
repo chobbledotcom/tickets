@@ -36,15 +36,15 @@ import { Icon } from "#templates/components/actions.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact/quotes links when off/empty */
+/** Public site navigation - hides terms/contact/orders links when off/empty */
 const PublicNav = ({
   hasTerms,
   hasContact,
-  hasQuotes,
+  hasOrders,
 }: {
   hasTerms?: boolean;
   hasContact?: boolean;
-  hasQuotes?: boolean;
+  hasOrders?: boolean;
 }): JSX.Element => (
   <nav>
     <ul>
@@ -54,9 +54,9 @@ const PublicNav = ({
       <li>
         <a href="/listings">Listings</a>
       </li>
-      {hasQuotes && (
+      {hasOrders && (
         <li>
-          <a href="/quote">Quotes</a>
+          <a href="/order">Orders</a>
         </li>
       )}
       {hasTerms && (
@@ -75,11 +75,11 @@ const PublicNav = ({
 
 /** Compute which public pages have content.
  * The Contact link also shows when the contact form is active, even if the
- * contact page has no descriptive text of its own. The Quotes link shows
- * whenever the owner has enabled the quote page. */
+ * contact page has no descriptive text of its own. The Orders link shows
+ * whenever the owner has enabled the order page. */
 const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
-  hasQuotes: settings.quoteEnabled,
+  hasOrders: settings.orderEnabled,
   hasTerms: !!settings.terms,
 });
 
@@ -670,7 +670,7 @@ const resolveQuantity = (
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
- * available range) — used by multi-listing scenarios such as the quote cart. */
+ * available range) — used by multi-listing scenarios such as the order cart. */
 const renderListingRow = (
   info: TicketListing,
   hideQuantity = false,
@@ -760,7 +760,7 @@ const getTicketFieldsSetting = (listings: TicketListing[]): ListingFields =>
  *
  * This is part of the booking-page framework: any scenario that wants to land a
  * visitor on a booking form with some listings pre-selected builds one of these.
- * The QR booking flow sets a single listing plus a `token`; the quote cart sets
+ * The QR booking flow sets a single listing plus a `token`; the order cart sets
  * many listings (quantity 1 each) and no token.
  */
 export type BookingPrefill = {
@@ -985,7 +985,7 @@ export const ticketPage = ({
 
   // For single listings, render just the quantity/pay-more controls (listing details are in the header).
   // Both single- and multi-listing rows honour per-listing quantity pre-fills,
-  // so QR links (single) and the quote cart (multi) share the same machinery.
+  // so QR links (single) and the order cart (multi) share the same machinery.
   const listingRows = isSingleListing
     ? renderSingleListingControls(
         listings[0]!,
@@ -1057,60 +1057,60 @@ export const ticketPage = ({
 };
 
 /**
- * One product card in the quote gallery. A `<label>` wraps a hidden checkbox so
+ * One listing card in the order gallery. A `<label>` wraps a hidden checkbox so
  * the whole card toggles selection with no JavaScript; CSS highlights the card
- * via `:checked`. Sold-out / closed / read-only products render a dimmed,
- * non-selectable card so they can't be added to a quote.
+ * via `:checked`. Sold-out / closed / read-only listings render a dimmed,
+ * non-selectable card so they can't be added to an order.
  */
-const renderQuoteCard = (info: TicketListing): string => {
+const renderOrderCard = (info: TicketListing): string => {
   const { listing, isSoldOut, isClosed } = info;
-  const imageHtml = renderListingImage(listing, "quote-card-image");
+  const imageHtml = renderListingImage(listing, "order-card-image");
   const priceHtml =
     listing.unit_price > 0
-      ? `<span class="quote-card-price">${
+      ? `<span class="order-card-price">${
           listing.can_pay_more ? "From " : ""
         }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
       : "";
 
   if (isSoldOut || isClosed || isReadOnly()) {
     const status = isSoldOut && !isClosed ? "Sold Out" : "Unavailable";
-    return `<div class="quote-card quote-card--unavailable">
+    return `<div class="order-card order-card--unavailable">
         ${imageHtml}
-        <span class="quote-card-body">
-          <span class="quote-card-name">${escapeHtml(listing.name)}</span>
-          <span class="quote-card-status">${status}</span>
+        <span class="order-card-body">
+          <span class="order-card-name">${escapeHtml(listing.name)}</span>
+          <span class="order-card-status">${status}</span>
         </span>
       </div>`;
   }
 
   const fieldName = `select_${listing.id}`;
-  return `<label class="quote-card" for="${fieldName}">
-      <input class="quote-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
+  return `<label class="order-card" for="${fieldName}">
+      <input class="order-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
       ${imageHtml}
-      <span class="quote-card-body">
-        <span class="quote-card-name">${escapeHtml(listing.name)}</span>
+      <span class="order-card-body">
+        <span class="order-card-name">${escapeHtml(listing.name)}</span>
         ${priceHtml}
       </span>
-      <span class="quote-card-tick" aria-hidden="true"></span>
+      <span class="order-card-tick" aria-hidden="true"></span>
     </label>`;
 };
 
 /**
- * Quote gallery page — a grid of "purchase only" products the visitor selects to
- * request a quote. The whole page is one CSRF-protected form: each card is a
- * checkbox and the floating cart is the submit button, so `POST /quote` renders
- * the booking page with the chosen products pre-selected. Selection styling and
- * the live item count are pure CSS (`:checked`, a counter, and `:has()`), so the
- * page needs no JavaScript. The cart button is placed last in the DOM so its CSS
- * counter sees every checkbox.
+ * Order gallery page — a grid of bookable listings the visitor selects to start
+ * an order. The whole page is one GET form: each card is a checkbox and the
+ * floating cart is the submit button, so submitting navigates to `/order` with
+ * the selection, which redirects into the pre-filled multi-listing booking page.
+ * Selection styling and the live item count are pure CSS (`:checked`, a counter,
+ * and `:has()`), so the page needs no JavaScript. The cart button is placed last
+ * in the DOM so its CSS counter sees every checkbox.
  */
-export const quoteGalleryPage = (
+export const orderGalleryPage = (
   listings: TicketListing[],
   websiteTitle?: string | null,
   introText?: string | null,
 ): string => {
-  const title = websiteTitle ? `Quotes - ${websiteTitle}` : "Quotes";
-  const cards = pipe(map(renderQuoteCard), (rows: string[]) => rows.join(""))(
+  const title = websiteTitle ? `Order - ${websiteTitle}` : "Order";
+  const cards = pipe(map(renderOrderCard), (rows: string[]) => rows.join(""))(
     listings,
   );
 
@@ -1125,20 +1125,20 @@ export const quoteGalleryPage = (
       )}
       {listings.length === 0 ? (
         <p>
-          <em>No products are available to quote right now.</em>
+          <em>No items are available to order right now.</em>
         </p>
       ) : (
-        <CsrfForm action="/quote" class="quote-gallery">
-          <fieldset class="quote-grid">
-            <legend class="visually-hidden">Select products to quote</legend>
+        <form action="/order" class="order-gallery" method="get">
+          <fieldset class="order-grid">
+            <legend class="visually-hidden">Select items to order</legend>
             <Raw html={cards} />
           </fieldset>
-          <button class="quote-cart" type="submit">
+          <button class="order-cart" type="submit">
             <Icon name="shopping-cart" />
-            <span aria-hidden="true" class="quote-cart-count"></span>
-            <span class="quote-cart-label">Request a quote</span>
+            <span aria-hidden="true" class="order-cart-count"></span>
+            <span class="order-cart-label">View order</span>
           </button>
-        </CsrfForm>
+        </form>
       )}
       <footer class="homepage-footer">
         <p>

@@ -2060,7 +2060,7 @@ a.cal-day-selected:hover {
   margin: 1rem 0;
 }
 
-/* ── Quote gallery ──────────────────────────────────────────────────────
+/* ── Order gallery ──────────────────────────────────────────────────────
    The whole gallery is one form: each product card is a <label> wrapping a
    hidden checkbox, and the floating cart is the submit button. Selection
    highlighting and the live count are pure CSS (:checked, a counter, and
@@ -2079,11 +2079,11 @@ a.cal-day-selected:hover {
   white-space: nowrap;
 }
 
-.quote-gallery {
+.order-gallery {
   counter-reset: cart;
 }
 
-.quote-grid {
+.order-grid {
   border: 0;
   margin: 0;
   padding: 0;
@@ -2092,7 +2092,7 @@ a.cal-day-selected:hover {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
-.quote-card {
+.order-card {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -2110,40 +2110,40 @@ a.cal-day-selected:hover {
     box-shadow 0.15s;
 }
 
-.quote-card:hover {
+.order-card:hover {
   border-color: var(--color-secondary);
 }
 
 /* Visually hidden but still focusable/checkable for keyboard + screen readers */
-.quote-select {
+.order-select {
   position: absolute;
   width: 1px;
   height: 1px;
   opacity: 0;
 }
 
-.quote-card-image {
+.order-card-image {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
   border-radius: 4px;
 }
 
-.quote-card-body {
+.order-card-body {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
 }
 
-.quote-card-name {
+.order-card-name {
   font-weight: bold;
 }
 
-.quote-card-price {
+.order-card-price {
   color: var(--color-text-secondary);
 }
 
-.quote-card-status {
+.order-card-status {
   font-size: smaller;
   font-weight: bold;
   text-transform: uppercase;
@@ -2151,7 +2151,7 @@ a.cal-day-selected:hover {
 }
 
 /* Tick badge — revealed only when the card's checkbox is checked */
-.quote-card-tick {
+.order-card-tick {
   position: absolute;
   top: var(--space-s);
   right: var(--space-s);
@@ -2165,34 +2165,34 @@ a.cal-day-selected:hover {
   color: #fff;
 }
 
-.quote-card-tick::after {
+.order-card-tick::after {
   content: "\2713";
   font-size: 0.9rem;
   line-height: 1;
 }
 
-.quote-select:checked ~ .quote-card-tick {
+.order-select:checked ~ .order-card-tick {
   display: flex;
 }
 
-.quote-card:has(.quote-select:checked) {
+.order-card:has(.order-select:checked) {
   border-color: var(--color-secondary);
   box-shadow: var(--box-shadow) var(--color-secondary-accent);
 }
 
-.quote-select:focus-visible ~ .quote-card-tick,
-.quote-card:has(.quote-select:focus-visible) {
+.order-select:focus-visible ~ .order-card-tick,
+.order-card:has(.order-select:focus-visible) {
   outline: 2px solid var(--color-secondary);
   outline-offset: 2px;
 }
 
-/* Each checked product increments the cart counter read by .quote-cart-count */
-.quote-select:checked {
+/* Each checked product increments the cart counter read by .order-cart-count */
+.order-select:checked {
   counter-increment: cart;
 }
 
 /* Unavailable products: dimmed and not selectable */
-.quote-card--unavailable {
+.order-card--unavailable {
   cursor: not-allowed;
   border-style: dashed;
   opacity: 0.55;
@@ -2200,7 +2200,7 @@ a.cal-day-selected:hover {
 
 /* Floating cart — fixed bottom-left, last in the DOM so its CSS counter has
    seen every checkbox. Hidden until at least one product is selected. */
-.quote-cart {
+.order-cart {
   position: fixed;
   bottom: var(--space-m);
   left: var(--space-m);
@@ -2212,7 +2212,7 @@ a.cal-day-selected:hover {
   box-shadow: var(--box-shadow) var(--color-shadow);
 }
 
-.quote-cart-count::after {
+.order-cart-count::after {
   content: counter(cart);
   display: inline-flex;
   align-items: center;
@@ -2226,6 +2226,6 @@ a.cal-day-selected:hover {
   font-weight: bold;
 }
 
-.quote-gallery:not(:has(.quote-select:checked)) .quote-cart {
+.order-gallery:not(:has(.order-select:checked)) .order-cart {
   display: none;
 }

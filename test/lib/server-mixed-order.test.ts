@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { checkBatchAvailability } from "#shared/db/attendees.ts";
+import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
+import { checkBatchAvailability } from "#shared/db/attendees.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -69,10 +69,12 @@ describeWithEnv("server (mixed standard + daily order)", { db: true }, () => {
     const daily = await createDaily("Day Pass", { maxAttendees: 5 });
     const date = addDays(todayInTz("UTC"), 1);
 
+    // The order-wide date is the shared second arg: it constrains the daily
+    // line while the standard line is counted cumulatively (date-independent).
     const fits = await checkBatchAvailability(
       [
-        { date: null, durationDays: 1, listingId: standard.id, quantity: 2 },
-        { date, durationDays: 1, listingId: daily.id, quantity: 2 },
+        { durationDays: 1, listingId: standard.id, quantity: 2 },
+        { durationDays: 1, listingId: daily.id, quantity: 2 },
       ],
       date,
     );
@@ -88,8 +90,8 @@ describeWithEnv("server (mixed standard + daily order)", { db: true }, () => {
 
     const fits = await checkBatchAvailability(
       [
-        { date: null, durationDays: 1, listingId: standard.id, quantity: 1 },
-        { date, durationDays: 1, listingId: daily.id, quantity: 1 },
+        { durationDays: 1, listingId: standard.id, quantity: 1 },
+        { durationDays: 1, listingId: daily.id, quantity: 1 },
       ],
       date,
     );
