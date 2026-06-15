@@ -41,7 +41,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   applyAttendeeAtomicEdit,
@@ -122,13 +122,7 @@ const buildAvailableDates = (
   const result: Record<number, string[]> = {};
   for (const listing of listings) {
     if (listing.listing_type === "daily") {
-      // Customisable listings offer every individually-bookable start (the
-      // chosen span is validated separately), so compute for a single day.
-      result[listing.id] = getAvailableDates(
-        listing,
-        holidays,
-        listing.customisable_days ? 1 : undefined,
-      );
+      result[listing.id] = getBookableStartDates(listing, holidays);
     }
   }
   return result;

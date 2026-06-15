@@ -9,7 +9,7 @@
 
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
@@ -61,17 +61,22 @@ const canSkipToCheckout = async (
   payload: QrBookPayload,
 ): Promise<boolean> => {
   if (!payload.n || payload.v < 0) return false;
+  // Customisable listings are priced by a chosen day count, so the visitor must
+  // pass through the booking form to select it — never skip to a fixed price.
+  if (listing.customisable_days) return false;
   return await listingSupportsDirectCheckout(listing);
 };
 
-/** Validate a daily-listing booking date against available dates (minus holidays) */
+/** Validate a daily-listing booking date against available dates (minus holidays).
+ * Customisable listings use single-day availability — the chosen span is picked
+ * on the booking form — so an individually-bookable start isn't over-restricted. */
 const isDailyDateBookable = async (
   listing: ListingWithCount,
   date: string,
 ): Promise<boolean> => {
   if (!date) return false;
   const holidays = await getActiveHolidays();
-  return getAvailableDates(listing, holidays).includes(date);
+  return getBookableStartDates(listing, holidays).includes(date);
 };
 
 /** Construct a CheckoutIntent for a single-listing direct-to-Stripe booking */

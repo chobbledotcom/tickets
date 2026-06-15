@@ -251,6 +251,63 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       }
     });
 
+    test("renders the booking form (never direct checkout) for a customisable listing", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        fields: "",
+        maxAttendees: 10,
+      });
+      const token = await signQrBookToken(
+        listing.slug,
+        buildQrBookPayload({ name: "Ada", value: 1000 }),
+      );
+      const stripe = stubStripe();
+      try {
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
+        // The visitor must choose a day count, so the form renders instead.
+        expect(response.status).toBe(200);
+        expect(stripe.checkoutStub.calls.length).toBe(0);
+        expect(await response.text()).toContain('name="day_count"');
+      } finally {
+        stripe.restore();
+      }
+    });
+
+    test("accepts an individually-bookable date for a customisable daily listing", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        fields: "",
+        listingType: "daily",
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      });
+      const token = await signQrBookToken(
+        listing.slug,
+        buildQrBookPayload({
+          date: addDays(todayInTz("UTC"), 5),
+          name: "Ada",
+          value: 1000,
+        }),
+      );
+      const stripe = stubStripe();
+      try {
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain('name="day_count"');
+      } finally {
+        stripe.restore();
+      }
+    });
+
     test("renders the error page when the provider cannot create a session", async () => {
       const listing = await createTestListing({
         fields: "",

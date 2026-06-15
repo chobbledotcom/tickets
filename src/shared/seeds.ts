@@ -53,6 +53,15 @@ const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
   return results;
 };
 
+/** Demo day-count prices derived from a base (1-day) price, so the seeded
+ * customisable listing shows realistic 1/2/3-day tiers. */
+const demoDayPrices = (unitPrice: number): string =>
+  JSON.stringify({
+    1: unitPrice,
+    2: Math.round(unitPrice * 1.8),
+    3: Math.round(unitPrice * 2.5),
+  });
+
 /** Prepare encrypted values for a single listing */
 const prepareListing = async (
   index: number,
@@ -60,6 +69,7 @@ const prepareListing = async (
   unitPrice: number,
   slug: string,
   slugIndex: string,
+  customisable: boolean,
 ) => {
   const name = DEMO_LISTING_NAMES[index % DEMO_LISTING_NAMES.length]!;
   const description =
@@ -103,7 +113,9 @@ const prepareListing = async (
     ]),
     closes_at: encClosesAt,
     created,
+    customisable_days: customisable ? 1 : 0,
     date: encDate,
+    day_prices: customisable ? demoDayPrices(unitPrice) : "{}",
     description: encDesc,
     fields: "email",
     group_id: 0,
@@ -195,6 +207,9 @@ export const createSeeds = async (
         d.unitPrice,
         d.slug.slug,
         d.slug.slugIndex,
+        // Showcase the customisable-days feature on the first (always-priced)
+        // demo listing so it appears in any seeded dataset.
+        d.index === 0,
       ),
     )(listingData),
   );

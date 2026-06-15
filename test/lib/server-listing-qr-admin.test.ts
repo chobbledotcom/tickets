@@ -9,7 +9,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { addDays } from "#shared/dates.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   adminFormPost,
   adminGet,
@@ -81,6 +83,22 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
       expect(body).toContain('name="date"');
+    });
+
+    test("offers single-day dates for a customisable daily listing", async () => {
+      const listing = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      });
+      const { response } = await adminGet(`/admin/listing/${listing.id}/qr`);
+      const body = await response.text();
+      expect(body).toContain('name="date"');
+      // A date one day before the window edge supports a single day even though
+      // it can't fit the 2-day maximum — single-day availability still offers it.
+      expect(body).toContain(addDays(todayInTz("UTC"), 60));
     });
 
     test("omits the date selector for standard listings", async () => {

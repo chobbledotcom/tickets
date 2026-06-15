@@ -192,6 +192,22 @@ export const getAvailableDates = (
 };
 
 /**
+ * Available start dates for a daily listing's booking/date pickers.
+ * Customisable-days listings use single-day availability — the span is chosen
+ * separately and validated at submit time — so every individually-bookable
+ * start is offered; other listings use their fixed duration.
+ */
+export const getBookableStartDates = (
+  listing: Listing,
+  holidays: Holiday[],
+): string[] =>
+  getAvailableDates(
+    listing,
+    holidays,
+    listing.customisable_days ? 1 : undefined,
+  );
+
+/**
  * Whether booking `days` consecutive days starting on `date` is valid for a
  * daily listing: every day must be a bookable weekday, fall outside all
  * holidays, and stay within the listing's booking window. Used to enforce the

@@ -11,7 +11,7 @@ import {
 import { getBaseUrl } from "#routes/url.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getAvailableDates, isBookingRangeValid } from "#shared/dates.ts";
+import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
@@ -343,14 +343,7 @@ export const computeSharedDates = async (
   // list is computed for a single day (every individually-bookable start) and
   // the chosen span is validated separately at submit time.
   const dateSets = dailyListings.map(
-    (e) =>
-      new Set(
-        getAvailableDates(
-          e.listing,
-          holidays,
-          e.listing.customisable_days ? 1 : undefined,
-        ),
-      ),
+    (e) => new Set(getBookableStartDates(e.listing, holidays)),
   );
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
