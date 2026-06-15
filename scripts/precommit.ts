@@ -17,8 +17,6 @@ interface Step {
   cmd: string[];
   filterOutput?: (stdout: string, stderr: string) => string;
   name: string;
-  /** Runs after a successful command; return an error message to fail the step */
-  verify?: () => Promise<string | null>;
 }
 
 /** True when a line starts an ERRORS or FAILURES section or is a summary line */
@@ -52,29 +50,13 @@ const filterTestOutput = (stdout: string, stderr: string): string => {
 const isCi = (): boolean =>
   Deno.args.includes("--ci") || Boolean(Deno.env.get("CI"));
 
-/**
- * In CI, `lint` (Biome `check --write`) silently fixes files and exits 0, so a
- * passing lint step would hide unformatted code. After it runs, fail if the
- * working tree changed — the same guard the CI workflow used to inline.
- */
-const checkFormatted = async (): Promise<string | null> => {
-  const { success } = await new Deno.Command("git", {
-    args: ["diff", "--exit-code"],
-    stderr: "null",
-    stdout: "null",
-  }).output();
-  return success
-    ? null
-    : "Code is not formatted/linted. Run 'deno task lint' locally and commit the result.";
-};
-
 const getSteps = (ci: boolean): Step[] => {
   return [
-    {
-      cmd: ["deno", "task", "lint"],
-      name: "lint",
-      verify: ci ? checkFormatted : undefined,
-    },
+    // Dev runs the auto-fixing `lint` (Biome `check --write`). CI runs the
+    // read-only `lint:ci`, which fails when code *would* be reformatted or has
+    // a lint warning — catching unformatted code without modifying the checkout
+    // or requiring a clean working tree.
+    { cmd: ["deno", "task", ci ? "lint:ci" : "lint"], name: "lint" },
     { cmd: ["deno", "task", "typecheck"], name: "typecheck" },
     { cmd: ["deno", "task", "cpd"], name: "cpd" },
     { cmd: ["deno", "task", "build:edge"], name: "build:edge" },
@@ -100,14 +82,8 @@ const runStep = async (step: Step): Promise<boolean> => {
   const elapsed = ((performance.now() - start) / 1000).toFixed(1);
 
   if (result.success) {
-    const verifyError = step.verify ? await step.verify() : null;
-    if (!verifyError) {
-      write(`${green("✓")} ${dim(`${elapsed}s`)}\n`);
-      return true;
-    }
-    write(`${red("✗")} ${dim(`${elapsed}s`)}\n`);
-    console.log(verifyError);
-    return false;
+    write(`${green("✓")} ${dim(`${elapsed}s`)}\n`);
+    return true;
   }
 
   write(`${red("✗")} ${dim(`${elapsed}s`)}\n`);
