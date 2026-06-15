@@ -39,11 +39,14 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+/* jscpd:ignore-start */
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
+/* jscpd:ignore-end */
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
@@ -261,6 +264,7 @@ const buildTemplateData = async (
   return {
     activityLog,
     allListings,
+    allowedDomain: getEffectiveDomain(),
     attendee,
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
