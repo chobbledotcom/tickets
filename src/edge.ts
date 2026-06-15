@@ -8,6 +8,7 @@ import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
+import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   ErrorCode,
   formatRequestError,
@@ -17,6 +18,9 @@ import {
 
 const initialize = once((): void => {
   validateEncryptionKey();
+  // In production a request must never be killed by the N+1 guard: report it
+  // to the error log instead of throwing (dev/test keep the default throw).
+  setN1GuardNotifyOnly(true);
   logDebug("Setup", "App started");
 });
 
