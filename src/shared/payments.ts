@@ -38,6 +38,9 @@ export type BookingItem = { e: number; q: number; p: number };
 /** Processed booking intent extracted from payment session metadata */
 export type BookingIntent = ContactInfo & {
   date: string | null;
+  /** Visitor-chosen day count for "customisable days" listings (shared across
+   * the checkout). Absent when no selected listing is customisable. */
+  dayCount?: number;
   items: BookingItem[];
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
@@ -55,6 +58,9 @@ export type BookingIntent = ContactInfo & {
 /** Registration intent for checkout (one or more listings) */
 export type CheckoutIntent = ContactInfo & {
   date: string | null;
+  /** Visitor-chosen day count for "customisable days" listings (shared across
+   * the checkout). Absent when no selected listing is customisable. */
+  dayCount?: number;
   items: CheckoutItem[];
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
@@ -106,6 +112,7 @@ export type SessionMetadata = {
   special_instructions: string;
   items: string;
   date: string;
+  day_count: string;
   answer_ids: string;
   site_token_index: string;
   /** Attendee id when this session settles an outstanding balance ("" if not). */

@@ -18,6 +18,7 @@ import {
 import {
   adminFormPost,
   awaitTestRequest,
+  bookAttendee,
   buildAttendeeEditForm,
   createTestAttendee,
   createTestListing,
@@ -25,6 +26,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getAttendeesRaw,
+  hasSelectedOption,
   mockFormRequest,
   setupListingAndLogin,
   testCookie,
@@ -53,6 +55,31 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // One blank line is rendered
       expect(html).toContain('name="line_event_id_0"');
       expect(html).toContain('name="line_count" type="hidden" value="1"');
+    });
+
+    test("offers a day-count selector for a customisable daily booking", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0, 3: 0 },
+        durationDays: 3,
+        listingType: "daily",
+        maxAttendees: 50,
+      });
+      const result = await bookAttendee(listing, {
+        date: "2026-09-10",
+        durationDays: 2,
+      });
+      const attendeeId = result.success ? result.attendees[0]!.id : 0;
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await response.text();
+      expect(html).toContain('name="line_day_count_0"');
+      expect(html).toContain("Number of days");
+      // The booking's current 2-day span is preselected.
+      expect(hasSelectedOption(html, "2")).toBe(true);
     });
 
     test("preserves return_url as a hidden field when provided", async () => {

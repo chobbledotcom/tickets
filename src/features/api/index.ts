@@ -25,7 +25,12 @@ import {
 } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import { isPaidListing, type ListingWithCount } from "#shared/types.ts";
+import {
+  availableDayCounts,
+  dayPriceFor,
+  isPaidListing,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================
@@ -70,6 +75,12 @@ export type PublicListing = {
   purchaseOnly: boolean;
   fields: string;
   listingType: string;
+  /** True when visitors choose how many days to book; price comes from
+   * `dayPrices` rather than `unitPrice`. */
+  customisableDays: boolean;
+  /** Offered day counts mapped to their price (minor units). Present only for
+   * customisable-days listings. */
+  dayPrices?: Record<number, number>;
   isSoldOut: boolean;
   isClosed: boolean;
   maxPurchasable: number;
@@ -95,6 +106,7 @@ export const toPublicListing = (
 
   const result: PublicListing = {
     canPayMore: listing.can_pay_more,
+    customisableDays: listing.customisable_days,
     date: listing.date || null,
     description: listing.description,
     fields: listing.fields,
@@ -114,6 +126,13 @@ export const toPublicListing = (
 
   if (availableDates) {
     result.availableDates = availableDates;
+  }
+
+  if (listing.customisable_days) {
+    // availableDayCounts only yields priced counts, so dayPriceFor is non-null.
+    result.dayPrices = Object.fromEntries(
+      availableDayCounts(listing).map((n) => [n, dayPriceFor(listing, n)!]),
+    );
   }
 
   return result;
@@ -247,6 +266,15 @@ const bookingResultToResponse = (
 const handleBook = withActiveListing(async (request, listing) => {
   if (isRegistrationClosed(listing)) {
     return apiResponse({ error: "Registration is closed" }, 400);
+  }
+  // Customisable-days listings are priced by a chosen day count, which this
+  // endpoint doesn't accept — booking them here would charge the wrong amount,
+  // so they must be booked through the website form.
+  if (listing.customisable_days) {
+    return apiResponse(
+      { error: "This listing must be booked through the website." },
+      400,
+    );
   }
 
   const bodyOrError = await parseApiJsonBody(request);

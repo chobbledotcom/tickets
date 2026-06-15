@@ -18,7 +18,7 @@ import {
 } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { validatePrice } from "#shared/currency.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -38,13 +38,15 @@ const EMPTY_VALUES: AdminListingQrValues = {
   value: "",
 };
 
-/** Load bookable dates for daily listings (empty for standard listings) */
+/** Load bookable dates for daily listings (empty for standard listings).
+ * Customisable listings use single-day availability — the visitor chooses the
+ * span on the booking form — so every individually-bookable start is offered. */
 const loadBookableDates = async (
   listing: ListingWithCount,
 ): Promise<string[]> => {
   if (listing.listing_type !== "daily") return [];
   const holidays = await getActiveHolidays();
-  return getAvailableDates(listing, holidays);
+  return getBookableStartDates(listing, holidays);
 };
 
 const withListing = withEntityLoader(getListingWithCount);

@@ -21,7 +21,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { isPaidListing, normalizeDurationDays } from "#shared/types.ts";
+import { isPaidListing } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { listingNames } from "#templates/email/shared.ts";
@@ -87,16 +87,13 @@ export const buildTemplateData = (
 ): TemplateData => {
   const templateEntries: TemplateEntry[] = map(
     ({ listing, attendee }: EmailEntry): TemplateEntry => {
-      const duration =
-        listing.listing_type === "daily"
-          ? normalizeDurationDays(listing.duration_days)
-          : 1;
+      // Render the booking's actual span from its stored range (end_date is the
+      // exclusive end), so customisable-days bookings show the chosen length
+      // rather than the listing's maximum duration.
+      const lastDay = attendee.end_date ? addDays(attendee.end_date, -1) : null;
       const dateRangeLabel = attendee.date
-        ? duration > 1
-          ? formatDateRangeLabelCompactEn(
-              attendee.date,
-              addDays(attendee.date, duration - 1),
-            )
+        ? lastDay && lastDay > attendee.date
+          ? formatDateRangeLabelCompactEn(attendee.date, lastDay)
           : formatDateLabel(attendee.date)
         : "";
       return {

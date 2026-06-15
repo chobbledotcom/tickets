@@ -60,6 +60,7 @@ export type ListingFormValues = {
   minimum_days_before: number | null;
   maximum_days_after: number | null;
   duration_days: number | null;
+  customisable_days: string;
   non_transferable: string;
   group_id: string;
   can_pay_more: string;
@@ -103,6 +104,7 @@ export type TicketFormValues = {
 export type AddAttendeeFormValues = TicketFormValues & {
   quantity: number;
   date: string;
+  day_count: string;
 };
 
 /** Typed values from login form */
@@ -501,7 +503,7 @@ export const listingFields: Field[] = [
     type: "number",
   },
   {
-    hint: "How many days each booking reserves. Only applies to daily listings.",
+    hint: "How many days each booking reserves. With Customisable Days on, this is the maximum a visitor can choose. Only applies to daily listings unless Customisable Days is on.",
     label: "Booking Duration (days)",
     max: MAX_DURATION_DAYS,
     min: 1,
@@ -520,6 +522,13 @@ export const listingFields: Field[] = [
       }
       return null;
     },
+  },
+  {
+    hint: "Let visitors choose how many days to book (1 up to the Booking Duration above), each priced separately below. Works for standard and daily listings. Cannot be combined with Allow Pay More.",
+    label: "Customisable Days",
+    name: "customisable_days",
+    options: [{ label: "Let visitors choose the number of days", value: "1" }],
+    type: "checkbox-group",
   },
   {
     hint: "Which contact details to collect from attendees",
@@ -963,17 +972,34 @@ const addAttendeeDateField: Field = {
   validate: validateDate,
 };
 
+/** Day-count select for adding an attendee to a customisable daily listing. */
+const addAttendeeDayCountField = (dayCounts: number[]): Field => ({
+  label: "Number of days",
+  name: "day_count",
+  options: dayCounts.map((n) => ({
+    label: `${n} day${n === 1 ? "" : "s"}`,
+    value: String(n),
+  })),
+  required: true,
+  type: "select",
+});
+
 /**
  * Get admin add-attendee form fields based on listing config.
- * Includes contact fields (name + email/phone per setting), quantity,
- * and a date field for daily listings.
+ * Includes contact fields (name + email/phone per setting), quantity, a date
+ * field for daily listings, and — for customisable daily listings — a day-count
+ * selector so the manually-added booking reserves the chosen span.
  */
 export const getAddAttendeeFields = (
   fields: ListingFields,
   isDaily: boolean,
+  dayCounts?: number[],
 ): Field[] => {
   const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
+  if (dayCounts && dayCounts.length > 0) {
+    result.push(addAttendeeDayCountField(dayCounts));
+  }
   return result;
 };
 

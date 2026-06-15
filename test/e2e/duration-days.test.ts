@@ -322,10 +322,12 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       ).entries[0]!.attendee.date_range_label;
 
     test("multi-day booking shows en-dash range", () => {
+      // The label reflects the booking's stored span (end_date exclusive), so a
+      // 3-day booking from the 12th ends (exclusive) on the 15th.
       expect(
         labelFor(
           { duration_days: 3, listing_type: "daily" },
-          { date: "2026-06-12" },
+          { date: "2026-06-12", end_date: "2026-06-15" },
         ),
       ).toBe("12\u201314 June 2026");
     });
@@ -515,14 +517,23 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       });
       await bookAttendee(listing, { date: "2026-06-12", durationDays: 3 });
       const attendees = await getAttendeesRaw(listing.id);
-      const csv = generateAttendeesCsv(
-        attendees,
-        true,
-        undefined,
-        undefined,
-        3,
-      );
+      const csv = generateAttendeesCsv(attendees, true);
       expect(csv).toContain("2026-06-12 to 2026-06-14");
+    });
+
+    test("date column reflects a customisable booking's chosen span, not the maximum", async () => {
+      const listing = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0, 5: 0 },
+        durationDays: 5,
+        maxAttendees: 5,
+      });
+      // The visitor chose 2 days even though the listing's maximum is 5.
+      await bookAttendee(listing, { date: "2026-06-12", durationDays: 2 });
+      const attendees = await getAttendeesRaw(listing.id);
+      const csv = generateAttendeesCsv(attendees, true);
+      expect(csv).toContain("2026-06-12 to 2026-06-13");
+      expect(csv).not.toContain("2026-06-16");
     });
 
     test("date column shows single date for 1-day bookings", async () => {
@@ -856,6 +867,34 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         "Listing updated",
       )(response);
 
+      const after = await rawListingRange(listing.id);
+      expect(after!.end_at).toBe(before!.end_at);
+      const messages = (await getListingActivityLog(listing.id)).map(
+        (l: { message: string }) => l.message,
+      );
+      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
+        false,
+      );
+    });
+
+    test("editing a customisable listing's max duration leaves existing booking ranges untouched", async () => {
+      const listing = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 5,
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+      });
+      // The visitor chose a 2-day span; that's their booking, not the maximum.
+      await bookAttendee(listing, { date: "2026-09-10", durationDays: 2 });
+      const before = await rawListingRange(listing.id);
+
+      await updateTestListing(listing.id, { durationDays: 4 });
+
+      const fresh = await getListing(listing.id);
+      expect(fresh?.duration_days).toBe(4);
+      // The maximum changed, but the existing booking's stored range is intact —
+      // customisable bookings are never rewritten from the listing duration.
       const after = await rawListingRange(listing.id);
       expect(after!.end_at).toBe(before!.end_at);
       const messages = (await getListingActivityLog(listing.id)).map(

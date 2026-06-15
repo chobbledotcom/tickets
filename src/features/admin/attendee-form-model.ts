@@ -14,7 +14,11 @@
 
 import { filter, map, pipe } from "#fp";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
-import { addDays, getAvailableDates } from "#shared/dates.ts";
+import {
+  addDays,
+  getAvailableDates,
+  isBookingRangeValid,
+} from "#shared/dates.ts";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -23,7 +27,12 @@ import type {
 import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
-import type { Holiday, ListingWithCount } from "#shared/types.ts";
+import {
+  dayPriceFor,
+  type Holiday,
+  type ListingWithCount,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import {
   validateAddress,
   validateEmail,
@@ -38,6 +47,7 @@ import {
 export const LINE_EVENT_ID_PREFIX = "line_event_id_";
 export const LINE_QUANTITY_PREFIX = "line_quantity_";
 export const LINE_DATE_PREFIX = "line_date_";
+export const LINE_DAY_COUNT_PREFIX = "line_day_count_";
 export const LINE_KEY_PREFIX = "line_key_";
 export const LINE_COUNT_FIELD = "line_count";
 export const STATUS_FIELD = "status_id";
@@ -67,6 +77,9 @@ export type AttendeeFormLine = {
   quantity: number | null;
   /** Raw date string (YYYY-MM-DD) — only meaningful for daily listings. */
   date: string;
+  /** Chosen day count for customisable daily listings; null when not submitted
+   * (then the existing booking's span, or 1, is used). */
+  dayCount: number | null;
   /** Resolved listing reference (null when listingId is unknown or blank). */
   listing: ListingWithCount | null;
   /** Existing booking row, when editing an existing line. */
@@ -208,6 +221,7 @@ const parseAttendeeLine = (
   const key = form.getString(`${LINE_KEY_PREFIX}${i}`);
   return {
     date: form.getString(`${LINE_DATE_PREFIX}${i}`),
+    dayCount: form.getOptionalInt(`${LINE_DAY_COUNT_PREFIX}${i}`),
     error: null,
     existingBooking: key ? (existingByKey.get(key) ?? null) : null,
     key,
@@ -342,6 +356,31 @@ const validateAttendeeBlock = (
  * survive are treated as no-ops so the operator can submit a partially
  * filled form without losing data.
  */
+/** Validate the date/day-count of a daily line. For customisable listings the
+ * date list is computed for a single day (every individually-bookable start)
+ * and the chosen span is checked separately; otherwise the listing's fixed
+ * duration is used. */
+const validateDailyLine = (
+  line: AttendeeFormLine,
+  listing: ListingWithCount,
+  holidays: Holiday[],
+): string | null => {
+  if (listing.customisable_days) {
+    const days = lineDayCount(line);
+    if (dayPriceFor(listing, days) === null) {
+      return `This listing doesn't offer a ${days}-day booking`;
+    }
+    if (!isBookingRangeValid(listing, line.date, days, holidays)) {
+      return "Those dates aren't all available — choose fewer days or another start date";
+    }
+    return null;
+  }
+  const allowed = new Set(getAvailableDates(listing, holidays));
+  return allowed.has(line.date)
+    ? null
+    : "Date is not bookable for this listing";
+};
+
 const validateLine = (
   line: AttendeeFormLine,
   holidays: Holiday[],
@@ -370,10 +409,8 @@ const validateLine = (
     if (!isValidDateString(line.date)) {
       return "Date must be a valid YYYY-MM-DD value";
     }
-    const allowed = new Set(getAvailableDates(line.listing, holidays));
-    if (!allowed.has(line.date)) {
-      return "Date is not bookable for this listing";
-    }
+    const lineError = validateDailyLine(line, line.listing, holidays);
+    if (lineError) return lineError;
   }
 
   // Duplicate-line check: same listing + same date would collide on the
@@ -470,6 +507,28 @@ export const defaultNewDailyDate = (todayIso: string): string =>
  * Convert a parsed, validated form into the multi-listing AttendeeInput used
  * by `createAttendeeAtomic`. Non-daily lines pass `date: null`.
  */
+/** Whole-day span of an existing booking from its stored [start_at, end_at). */
+const existingSpanDays = (row: ListingAttendeeRow | null): number | null => {
+  if (!row?.start_at || !row?.end_at) return null;
+  const ms = new Date(row.end_at).getTime() - new Date(row.start_at).getTime();
+  const days = Math.round(ms / 86_400_000);
+  return days > 0 ? days : null;
+};
+
+/** Effective day count for a customisable line: the chosen value, else the
+ * existing booking's span (so an unrelated edit preserves it), else 1. */
+export const lineDayCount = (line: AttendeeFormLine): number =>
+  normalizeDurationDays(
+    line.dayCount ?? existingSpanDays(line.existingBooking) ?? 1,
+  );
+
+/** Booking duration (days) for a daily line — the chosen span for customisable
+ * listings, the listing's fixed duration otherwise. */
+const lineDurationDays = (line: AttendeeFormLine): number =>
+  line.listing!.customisable_days
+    ? lineDayCount(line)
+    : line.listing!.duration_days;
+
 export const toCreateInput = (
   parsed: ParsedAttendeeForm,
 ): {
@@ -489,7 +548,7 @@ export const toCreateInput = (
         date: line.listing!.listing_type === "daily" ? line.date : null,
         durationDays:
           line.listing!.listing_type === "daily"
-            ? line.listing!.duration_days
+            ? lineDurationDays(line)
             : undefined,
         listingId: line.listingId,
         quantity: line.quantity!,
@@ -525,7 +584,7 @@ export const toDesiredLines = (
       const isDaily = line.listing!.listing_type === "daily";
       return {
         date: isDaily ? line.date : null,
-        durationDays: isDaily ? line.listing!.duration_days : 1,
+        durationDays: isDaily ? lineDurationDays(line) : 1,
         exists: Boolean(line.key) && Boolean(line.existingBooking),
         key: line.key,
         listingId: line.listingId,

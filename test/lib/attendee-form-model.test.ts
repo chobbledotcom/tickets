@@ -5,15 +5,19 @@ import {
   type AttendeeFormLine,
   attendeeBalanceNotice,
   bookingDurationDays,
+  lineDayCount,
   parseAttendeeForm,
   resolveDailyDefaults,
   toCreateInput,
+  toDesiredLines,
   trimTrailingBlankLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { addDays } from "#shared/dates.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import type { Holiday } from "#shared/types.ts";
 import { testListingWithCount } from "#test-utils";
 
@@ -24,6 +28,7 @@ const blankLine = (
   overrides: Partial<AttendeeFormLine> = {},
 ): AttendeeFormLine => ({
   date: "",
+  dayCount: null,
   error: null,
   existingBooking: null,
   key: "",
@@ -736,6 +741,172 @@ function parsedBase() {
     statusId: null,
   };
 }
+
+describe("customisable day count (edit)", () => {
+  const custDaily = (overrides = {}) =>
+    testListingWithCount({
+      active: true,
+      customisable_days: true,
+      day_prices: { 1: 0, 2: 0 },
+      duration_days: 2,
+      id: 1,
+      listing_type: "daily",
+      max_quantity: 5,
+      ...overrides,
+    });
+
+  const futureDate = () => addDays(todayInTz("UTC"), 30);
+
+  test("accepts a line whose chosen day count is offered", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_date_0: futureDate(),
+        line_day_count_0: "2",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([[1, custDaily()]]),
+    );
+    expect(validateParsedForm(parsed, []).valid).toBe(true);
+  });
+
+  test("rejects a day count the listing does not offer", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_date_0: futureDate(),
+        line_day_count_0: "5",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([
+        [1, custDaily({ day_prices: { 1: 0, 2: 0 }, duration_days: 5 })],
+      ]),
+    );
+    const result = validateParsedForm(parsed, []);
+    expect(result.valid).toBe(false);
+  });
+
+  test("rejects a chosen span that overlaps a holiday", () => {
+    const date = futureDate();
+    const holiday: Holiday = {
+      end_date: addDays(date, 1),
+      id: 1,
+      name: "H",
+      start_date: addDays(date, 1),
+    };
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_date_0: date,
+        line_day_count_0: "2",
+        line_event_id_0: "1",
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([[1, custDaily()]]),
+    );
+    expect(validateParsedForm(parsed, [holiday]).valid).toBe(false);
+  });
+
+  test("preserves an existing booking's span when no count is submitted", () => {
+    const key = "1|2026-09-10T00:00:00Z";
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_date_0: "2026-09-10",
+        line_event_id_0: "1",
+        line_key_0: key,
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([[1, custDaily({ duration_days: 5 })]]),
+      new Map([
+        [
+          key,
+          bookingRow({
+            // A stored 2-day span (10th → exclusive 12th).
+            end_at: "2026-09-12T00:00:00.000Z",
+            listing_id: 1,
+            start_at: "2026-09-10T00:00:00Z",
+          }),
+        ],
+      ]),
+    );
+    expect(toDesiredLines(parsed)[0]!.durationDays).toBe(2);
+  });
+
+  test("uses the submitted count over the existing span", () => {
+    const key = "1|2026-09-10T00:00:00Z";
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_count: "1",
+        line_date_0: "2026-09-10",
+        line_day_count_0: "1",
+        line_event_id_0: "1",
+        line_key_0: key,
+        line_quantity_0: "1",
+        name: "Jane",
+      }),
+      new Map([[1, custDaily({ duration_days: 5 })]]),
+      new Map([
+        [
+          key,
+          bookingRow({
+            end_at: "2026-09-12T00:00:00.000Z",
+            listing_id: 1,
+            start_at: "2026-09-10T00:00:00Z",
+          }),
+        ],
+      ]),
+    );
+    expect(toDesiredLines(parsed)[0]!.durationDays).toBe(1);
+  });
+});
+
+describe("lineDayCount", () => {
+  const cust = testListingWithCount({
+    customisable_days: true,
+    day_prices: { 1: 0, 2: 0, 3: 0 },
+    duration_days: 3,
+    id: 1,
+  });
+
+  test("uses the chosen count when submitted", () => {
+    expect(lineDayCount(blankLine({ dayCount: 2, listing: cust }))).toBe(2);
+  });
+
+  test("falls back to the existing booking's span", () => {
+    const line = blankLine({
+      dayCount: null,
+      existingBooking: bookingRow({
+        end_at: "2026-09-13T00:00:00.000Z",
+        start_at: "2026-09-10T00:00:00Z",
+      }),
+      listing: cust,
+    });
+    expect(lineDayCount(line)).toBe(3);
+  });
+
+  test("defaults to 1 with no chosen count and no existing booking", () => {
+    expect(lineDayCount(blankLine({ dayCount: null, listing: cust }))).toBe(1);
+  });
+
+  test("defaults to 1 when the existing range is degenerate", () => {
+    const line = blankLine({
+      dayCount: null,
+      existingBooking: bookingRow({
+        end_at: "2026-09-10T00:00:00Z",
+        start_at: "2026-09-10T00:00:00Z",
+      }),
+      listing: cust,
+    });
+    expect(lineDayCount(line)).toBe(1);
+  });
+});
 
 describe("attendeeBalanceNotice", () => {
   const paid = { is_paid_default: true, is_reservation: false };

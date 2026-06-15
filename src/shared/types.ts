@@ -122,10 +122,18 @@ const LISTING_TYPES: readonly ListingType[] = ["standard", "daily"];
 /** Type guard: check if an arbitrary string is a valid ListingType */
 export const isListingType = createTypeGuard(LISTING_TYPES);
 
-/** Whether an listing can accept payments (has a price or allows pay-what-you-want) */
+/** Whether an listing can accept payments: a flat price, pay-what-you-want, or
+ * a customisable-days listing with at least one non-zero day-count price. */
 export const isPaidListing = (
-  listing: Pick<Listing, "unit_price" | "can_pay_more">,
-): boolean => listing.unit_price > 0 || listing.can_pay_more;
+  listing: Pick<
+    Listing,
+    "unit_price" | "can_pay_more" | "customisable_days" | "day_prices"
+  >,
+): boolean =>
+  listing.unit_price > 0 ||
+  listing.can_pay_more ||
+  (listing.customisable_days &&
+    Object.values(listing.day_prices).some((price) => price > 0));
 
 /** Upper bound on multi-day booking duration. Each day in a booking range
  * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
@@ -147,6 +155,75 @@ export const normalizeDurationDays = (value: number): number =>
     ? Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)))
     : 1;
 
+/**
+ * Per-day-count ticket prices for "customisable days" listings, in minor
+ * units, keyed by the number of days booked. e.g. `{ 1: 1000, 2: 1800 }`
+ * means a 1-day booking costs 1000 and a 2-day booking 1800. Only counts
+ * present here are offered to the visitor.
+ */
+export type DayPrices = Record<number, number>;
+
+/**
+ * Coerce an arbitrary stored/parsed value into a clean {@link DayPrices} map.
+ * Keeps only whole-number day counts in [1, MAX_DURATION_DAYS] mapped to
+ * finite, non-negative whole-number minor-unit prices; everything else is
+ * dropped. Used on both the DB read path and form parsing so the rest of the
+ * code can treat the map as already-valid.
+ */
+export const parseDayPrices = (raw: unknown): DayPrices => {
+  if (typeof raw !== "object" || raw === null) return {};
+  const result: DayPrices = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const days = Number(key);
+    const price = Number(value);
+    if (
+      Number.isInteger(days) &&
+      days >= 1 &&
+      days <= MAX_DURATION_DAYS &&
+      Number.isInteger(price) &&
+      price >= 0
+    ) {
+      result[days] = price;
+    }
+  }
+  return result;
+};
+
+/** The subset of listing fields needed to reason about day-count pricing. */
+type DayPricedListing = Pick<
+  Listing,
+  "customisable_days" | "day_prices" | "duration_days"
+>;
+
+/**
+ * The day counts a customisable listing offers, ascending: the priced counts
+ * that fall within [1, duration_days] (duration_days is the maximum when
+ * `customisable_days` is on). Empty for non-customisable listings.
+ */
+export const availableDayCounts = (listing: DayPricedListing): number[] => {
+  if (!listing.customisable_days) return [];
+  const max = normalizeDurationDays(listing.duration_days);
+  return Object.keys(listing.day_prices)
+    .map(Number)
+    .filter((n) => n >= 1 && n <= max)
+    .sort((a, b) => a - b);
+};
+
+/**
+ * The per-ticket price (minor units) for booking `days` on a customisable
+ * listing, or null when the listing isn't customisable or that count has no
+ * configured price (and therefore isn't offered).
+ */
+export const dayPriceFor = (
+  listing: DayPricedListing,
+  days: number,
+): number | null => {
+  if (!listing.customisable_days) return null;
+  const max = normalizeDurationDays(listing.duration_days);
+  if (!Number.isInteger(days) || days < 1 || days > max) return null;
+  return listing.day_prices[days] ?? null;
+};
+
 export interface Listing {
   active: boolean;
   assign_built_site: boolean;
@@ -156,7 +233,9 @@ export interface Listing {
   can_pay_more: boolean;
   closes_at: string | null;
   created: string;
+  customisable_days: boolean;
   date: string; // encrypted UTC ISO datetime or empty string
+  day_prices: DayPrices;
   description: string;
   listing_type: ListingType;
   fields: ListingFields;
@@ -188,6 +267,12 @@ export interface Attendee extends ContactInfo {
   checked_in: boolean;
   created: string;
   date: string | null;
+  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
+   * booked day), derived from `listing_attendees.end_at`. Null for date-less
+   * (standard) bookings. Lets render paths show each booking's true span — which
+   * varies per booking on customisable-days listings — instead of assuming the
+   * listing's duration. */
+  end_date: string | null;
   listing_id: number;
   id: number;
   payment_id: string;

@@ -3,6 +3,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { addDays } from "#shared/dates.ts";
 import type {
   AttendeeInput,
   BuildAttendeeInput,
@@ -22,7 +23,7 @@ import {
   hashEmail,
 } from "#shared/db/email-preferences.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
-import type { Attendee } from "#shared/types.ts";
+import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
 /**
  * Enforce all-or-nothing semantics on a (greedy) create result.
@@ -81,6 +82,11 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   checked_in: false,
   created: input.created,
   date: input.date,
+  // Exclusive end (start + duration), matching SUBSTR(end_at) on the read path.
+  // Null for date-less bookings, where no range is stored.
+  end_date: input.date
+    ? addDays(input.date, normalizeDurationDays(input.durationDays ?? 1))
+    : null,
   payment_id: input.paymentId,
   pii_blob: "",
   price_paid: String(input.pricePaid),
@@ -191,6 +197,7 @@ export const createAttendeeAtomicImpl = async (
           ...contactInfo,
           created: enc.created,
           date: booking.date ?? null,
+          durationDays: booking.durationDays,
           paymentId,
           pricePaid: booking.pricePaid ?? 0,
           quantity: booking.quantity ?? 1,

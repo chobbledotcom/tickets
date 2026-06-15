@@ -20,7 +20,11 @@ import {
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
-import { type ContactInfo, isPaidListing } from "#shared/types.ts";
+import {
+  type ContactInfo,
+  type DayPrices,
+  isPaidListing,
+} from "#shared/types.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -54,6 +58,8 @@ export type WebhookListing = {
   attendee_count: number;
   unit_price: number;
   can_pay_more: boolean;
+  customisable_days: boolean;
+  day_prices: DayPrices;
   months_per_unit: number;
 };
 
@@ -65,6 +71,9 @@ export type WebhookAttendee = ContactInfo & {
   price_paid: string;
   ticket_token: string;
   date: string | null;
+  /** Exclusive end of the booked range (YYYY-MM-DD), or null for date-less
+   * bookings. Used to render the true span of multi-day/customisable bookings. */
+  end_date: string | null;
 };
 
 /** Registration entry: listing + attendee pair */

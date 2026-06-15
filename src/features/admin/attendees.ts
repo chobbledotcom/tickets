@@ -19,6 +19,7 @@ import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   type AdminSession,
+  availableDayCounts,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
@@ -154,17 +155,28 @@ const handleAttendeeCheckin = attendeeFormAction(
 /** Build create-attendee input from validated form values */
 const buildCreateAttendeeInput = (
   values: AddAttendeeFormValues,
-  listing: { id: number; listing_type: string; duration_days: number },
+  listing: {
+    id: number;
+    listing_type: string;
+    customisable_days: boolean;
+    duration_days: number;
+  },
 ) => {
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
   const isDaily = listing.listing_type === "daily";
+  // Customisable daily bookings span the admin's chosen day count (a required,
+  // options-constrained field; any odd value is clamped downstream by
+  // normalizeDurationDays); other daily bookings use the fixed duration.
+  const durationDays = listing.customisable_days
+    ? Number(values.day_count)
+    : listing.duration_days;
   return {
     address: address || "",
     bookings: [
       {
         date: isDaily ? date : null,
-        durationDays: isDaily ? listing.duration_days : undefined,
+        durationDays: isDaily ? durationDays : undefined,
         listingId: listing.id,
         quantity,
       },
@@ -209,6 +221,9 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
           getAddAttendeeFields(
             listing.fields,
             listing.listing_type === "daily",
+            listing.customisable_days && listing.listing_type === "daily"
+              ? availableDayCounts(listing)
+              : undefined,
           ),
         ),
     }),

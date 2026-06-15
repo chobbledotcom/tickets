@@ -1,19 +1,42 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { processFreeReservation } from "#routes/public/ticket-payment.ts";
+import {
+  bookingDateFields,
+  buildRegistrationItems,
+  computeSharedDates,
+  processFreeReservation,
+  resolveDayCount,
+} from "#routes/public/ticket-payment.ts";
+import { addDays } from "#shared/dates.ts";
 import {
   createAttendeeAtomic,
   ensureAllBookings,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  testListingWithCount,
 } from "#test-utils";
+
+/** Wrap a listing-with-count as a selected cart line. */
+const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
+
+const allDays = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
 const contact: ContactInfo = {
   address: "",
@@ -170,6 +193,210 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(result.success).toBe(true);
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+    });
+  });
+
+  describe("bookingDateFields", () => {
+    test("standard non-customisable booking spans a single dateless day", () => {
+      const listing = testListingWithCount({ listing_type: "standard" });
+      expect(bookingDateFields(listing, null, 3)).toEqual({
+        date: null,
+        durationDays: 1,
+      });
+    });
+
+    test("daily non-customisable booking uses the listing's fixed duration", () => {
+      const listing = testListingWithCount({
+        duration_days: 4,
+        listing_type: "daily",
+      });
+      expect(bookingDateFields(listing, "2026-07-01", 2)).toEqual({
+        date: "2026-07-01",
+        durationDays: 4,
+      });
+    });
+
+    test("customisable daily booking spans the chosen day count", () => {
+      const listing = testListingWithCount({
+        customisable_days: true,
+        day_prices: { 1: 1000, 3: 2500 },
+        duration_days: 5,
+        listing_type: "daily",
+      });
+      expect(bookingDateFields(listing, "2026-07-01", 3)).toEqual({
+        date: "2026-07-01",
+        durationDays: 3,
+      });
+    });
+
+    test("customisable standard booking carries the day count but no date", () => {
+      const listing = testListingWithCount({
+        customisable_days: true,
+        day_prices: { 2: 1800 },
+        duration_days: 3,
+        listing_type: "standard",
+      });
+      expect(bookingDateFields(listing, null, 2)).toEqual({
+        date: null,
+        durationDays: 2,
+      });
+    });
+  });
+
+  describe("buildRegistrationItems", () => {
+    test("prices customisable listings by the chosen day count", () => {
+      const listing = testListingWithCount({
+        customisable_days: true,
+        day_prices: { 1: 1000, 2: 1800 },
+        duration_days: 3,
+        id: 7,
+        unit_price: 0,
+      });
+      const items = buildRegistrationItems(
+        [buildTicketListing(listing, false, undefined)],
+        new Map([[7, 1]]),
+        new Map(),
+        2,
+      );
+      expect(items[0]!.unitPrice).toBe(1800);
+    });
+
+    test("prices an unoffered day count at zero for a customisable listing", () => {
+      const listing = testListingWithCount({
+        customisable_days: true,
+        day_prices: { 1: 1000 },
+        duration_days: 3,
+        id: 8,
+      });
+      const items = buildRegistrationItems(
+        [buildTicketListing(listing, false, undefined)],
+        new Map([[8, 1]]),
+        new Map(),
+        2,
+      );
+      expect(items[0]!.unitPrice).toBe(0);
+    });
+
+    test("prices non-customisable listings by custom or unit price", () => {
+      const listing = testListingWithCount({ id: 9, unit_price: 500 });
+      const items = buildRegistrationItems(
+        [buildTicketListing(listing, false, undefined)],
+        new Map([[9, 1]]),
+        new Map(),
+      );
+      expect(items[0]!.unitPrice).toBe(500);
+    });
+  });
+
+  describe("resolveDayCount", () => {
+    const custStandard = (overrides = {}) =>
+      testListingWithCount({
+        customisable_days: true,
+        day_prices: { 1: 1000, 2: 1800 },
+        duration_days: 2,
+        listing_type: "standard",
+        ...overrides,
+      });
+
+    test("returns a single day when no selected listing is customisable", async () => {
+      const result = await resolveDayCount(
+        [line(testListingWithCount({ id: 1 }))],
+        new FormParams({}),
+        null,
+      );
+      expect(result).toEqual({ dayCount: 1 });
+    });
+
+    test("rejects a missing day count", async () => {
+      const result = await resolveDayCount(
+        [line(custStandard({ id: 1 }))],
+        new FormParams({}),
+        null,
+      );
+      expect(result).toEqual({ error: "Please choose how many days to book" });
+    });
+
+    test("rejects a day count with no configured price", async () => {
+      const result = await resolveDayCount(
+        [line(custStandard({ id: 1, name: "Pass" }))],
+        new FormParams({ day_count: "5" }),
+        null,
+      );
+      expect(result).toEqual({
+        error: "Pass does not offer a 5-day booking",
+      });
+    });
+
+    test("accepts a valid day count for a standard customisable listing", async () => {
+      const result = await resolveDayCount(
+        [line(custStandard({ id: 1 }))],
+        new FormParams({ day_count: "2" }),
+        null,
+      );
+      expect(result).toEqual({ dayCount: 2 });
+    });
+
+    test("rejects a daily range that runs past the booking window", async () => {
+      const listing = testListingWithCount({
+        bookable_days: allDays,
+        customisable_days: true,
+        day_prices: { 1: 1000, 5: 4000 },
+        duration_days: 5,
+        listing_type: "daily",
+        maximum_days_after: 2,
+        minimum_days_before: 0,
+        name: "Trip",
+      });
+      const result = await resolveDayCount(
+        [line(listing)],
+        new FormParams({ day_count: "5" }),
+        todayInTz("UTC"),
+      );
+      expect(result).toEqual({
+        error:
+          "Trip: 5 days aren't all available from that date — choose fewer days or a different start date",
+      });
+    });
+
+    test("accepts a daily range that fits the window", async () => {
+      const listing = testListingWithCount({
+        bookable_days: allDays,
+        customisable_days: true,
+        day_prices: { 1: 1000, 3: 2500 },
+        duration_days: 3,
+        listing_type: "daily",
+        maximum_days_after: 10,
+        minimum_days_before: 0,
+      });
+      const result = await resolveDayCount(
+        [line(listing)],
+        new FormParams({ day_count: "3" }),
+        todayInTz("UTC"),
+      );
+      expect(result).toEqual({ dayCount: 3 });
+    });
+  });
+
+  describe("computeSharedDates", () => {
+    test("offers individually-bookable starts for customisable daily listings", async () => {
+      // duration_days is the max (5); a non-customisable listing would only
+      // offer starts whose 5-day span fits, but a customisable one offers
+      // every single-day start within the window.
+      const listing = testListingWithCount({
+        bookable_days: allDays,
+        customisable_days: true,
+        day_prices: { 1: 1000, 5: 4000 },
+        duration_days: 5,
+        listing_type: "daily",
+        maximum_days_after: 3,
+        minimum_days_before: 0,
+      });
+      const dates = await computeSharedDates([
+        buildTicketListing(listing, false, undefined),
+      ]);
+      // The last day in the 3-day window can't fit a 5-day span, yet it's still
+      // offered as a start because availability is computed for a single day.
+      expect(dates).toContain(addDays(todayInTz("UTC"), 3));
     });
   });
 });

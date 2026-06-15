@@ -275,6 +275,15 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       )(response);
     });
 
+    test("seeds a customisable-days listing with day prices", async () => {
+      await createSeeds(1, 0);
+      const { getAllListings } = await import("#shared/db/listings.ts");
+      const listings = await getAllListings();
+      const customisable = listings.find((l) => l.customisable_days);
+      expect(customisable).toBeDefined();
+      expect(Object.keys(customisable!.day_prices).length).toBeGreaterThan(0);
+    });
+
     test("throws when public key is not configured", async () => {
       // Remove public key to cause createSeeds to throw
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");

@@ -156,22 +156,34 @@ export const getListingsByGroupId = (
 ): Promise<ListingWithCount[]> => queryGroupListings(groupId, false);
 
 /**
- * Validate that an listing type is compatible with a group's existing listings.
+ * Validate that a listing is compatible with a group's existing listings.
+ * Every listing in a group must share both the same {@link ListingType} and
+ * the same `customisable_days` setting, so the shared booking form can show a
+ * single day-count selector (or none) for the whole group.
  * Returns an error message if mismatched, null if OK.
  * Pass excludeListingId to skip a specific listing (for edit-self case).
  */
 export const validateGroupListingType = async (
   groupId: number,
   listingType: ListingType,
+  customisableDays: boolean,
   excludeListingId?: number,
 ): Promise<string | null> => {
-  const siblings = await getListingsByGroupId(groupId);
-  const other = siblings.find(
-    (e) => e.id !== excludeListingId && e.listing_type !== listingType,
+  const allSiblings = await getListingsByGroupId(groupId);
+  const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
+  const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
+  if (typeMismatch) {
+    return `This group already contains ${typeMismatch.listing_type} listings — all listings in a group must be the same type`;
+  }
+  const customisableMismatch = siblings.find(
+    (e) => e.customisable_days !== customisableDays,
   );
-  return other
-    ? `This group already contains ${other.listing_type} listings — all listings in a group must be the same type`
-    : null;
+  if (customisableMismatch) {
+    return customisableMismatch.customisable_days
+      ? "This group already contains listings with customisable days — all listings in a group must match"
+      : "This group already contains listings without customisable days — all listings in a group must match";
+  }
+  return null;
 };
 
 /**

@@ -139,7 +139,7 @@ export const toBookingItems = (items: CheckoutIntent["items"]): BookingItem[] =>
 const optionalFields = (
   intent: Partial<
     Pick<ContactInfo, "phone" | "address" | "special_instructions">
-  > & { date: string | null },
+  > & { date: string | null; dayCount?: number },
 ): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -147,6 +147,7 @@ const optionalFields = (
     ? { special_instructions: intent.special_instructions }
     : {}),
   ...(intent.date ? { date: intent.date } : {}),
+  ...(intent.dayCount ? { day_count: String(intent.dayCount) } : {}),
 });
 
 /** Serialize per-listing answer IDs for metadata (only if non-empty) */
@@ -189,6 +190,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "phone"
       | "address"
       | "special_instructions"
+      | "dayCount"
       | "listingAnswerIds"
       | "siteTokenIndex"
       | "balanceAttendeeId"
@@ -308,6 +310,7 @@ export const extractSessionMetadata = (
   answer_ids: metadata.answer_ids || "",
   balance_attendee_id: metadata.balance_attendee_id || "",
   date: metadata.date || "",
+  day_count: metadata.day_count || "",
   email: metadata.email || "",
   items: metadata.items || "",
   name: metadata.name,

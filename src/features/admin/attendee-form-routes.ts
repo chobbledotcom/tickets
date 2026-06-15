@@ -42,7 +42,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
@@ -76,7 +76,12 @@ import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { Attendee, Holiday, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  availableDayCounts,
+  type Holiday,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
@@ -121,7 +126,20 @@ const buildAvailableDates = (
   const result: Record<number, string[]> = {};
   for (const listing of listings) {
     if (listing.listing_type === "daily") {
-      result[listing.id] = getAvailableDates(listing, holidays);
+      result[listing.id] = getBookableStartDates(listing, holidays);
+    }
+  }
+  return result;
+};
+
+/** Offered day counts per customisable daily listing, for the day-count picker. */
+const buildCustomisableDayCounts = (
+  listings: ListingWithCount[],
+): Record<number, number[]> => {
+  const result: Record<number, number[]> = {};
+  for (const listing of listings) {
+    if (listing.customisable_days && listing.listing_type === "daily") {
+      result[listing.id] = availableDayCounts(listing);
     }
   }
   return result;
@@ -135,6 +153,7 @@ const emptyLine = (
   inheritedDate: string | null,
 ): AttendeeFormLine => ({
   date: inheritedDate ?? defaultNewDailyDate(todayIso),
+  dayCount: null,
   error: null,
   existingBooking: null,
   key: "",
@@ -168,6 +187,7 @@ const buildEditFormFromAttendee = (
     const listing = listingsById.get(booking.listing_id) ?? null;
     return {
       date: booking.start_at?.slice(0, 10) ?? "",
+      dayCount: null,
       error: null,
       existingBooking: booking,
       key,
@@ -217,6 +237,7 @@ const buildTemplateData = async (
   const allListings = await getListingsForSelector(parsed);
   const holidays = await getActiveHolidays();
   const availableDatesByListing = buildAvailableDates(allListings, holidays);
+  const customisableByListing = buildCustomisableDayCounts(allListings);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
   const statuses = await getAllAttendeeStatuses();
   // Surface a status/balance mismatch. The order totals come from the saved
@@ -234,6 +255,7 @@ const buildTemplateData = async (
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
     balanceNotice,
+    customisableByListing,
     dailyDefaults,
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,

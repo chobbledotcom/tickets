@@ -537,6 +537,95 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       expectRedirect(response, "https://example.com/thanks");
     });
 
+    test("free customisable-days booking reserves the chosen number of days", async () => {
+      await setupStripe("sk_test_fake_key");
+
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0 },
+        durationDays: 2,
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        day_count: "2",
+        email: "john@example.com",
+        name: "John Doe",
+      });
+
+      expectRedirect(response, "https://example.com/thanks");
+    });
+
+    test("rejects a booking with no day count chosen for a customisable listing", async () => {
+      await setupStripe("sk_test_fake_key");
+
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0 },
+        durationDays: 2,
+        maxAttendees: 50,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        email: "john@example.com",
+        name: "John Doe",
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("choose how many days"),
+        false,
+      );
+    });
+
+    test("creates a checkout session for a customisable-days listing priced by day count", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_customisable_web",
+          });
+        },
+      );
+
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          day_count: "2",
+          email: "john@example.com",
+          name: "John Doe",
+        });
+
+        expect(response.status).toBe(302);
+        // The chosen span and its price are carried into the checkout intent.
+        expect(capturedIntent?.dayCount).toBe(2);
+        expect(capturedIntent?.items[0]?.unitPrice).toBe(1800);
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
     test("zero price ticket is treated as free", async () => {
       await setupStripe("sk_test_fake_key");
 

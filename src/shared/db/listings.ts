@@ -32,11 +32,13 @@ import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   type Attendee,
+  type DayPrices,
   type Listing,
   type ListingFields,
   type ListingType,
   type ListingWithCount,
   normalizeDurationDays,
+  parseDayPrices,
 } from "#shared/types.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 
@@ -76,6 +78,8 @@ export type ListingInput = {
   monthsPerUnit?: number;
   initialSiteMonths?: number;
   durationDays?: number;
+  customisableDays?: boolean;
+  dayPrices?: DayPrices;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -158,7 +162,13 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   can_pay_more: col.boolean(false),
   closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
   created: col.withDefault(() => nowIso()),
+  customisable_days: col.boolean(false),
   date: { default: () => "", read: decryptDatetime, write: writeListingDate },
+  day_prices: col.converted<DayPrices>({
+    default: () => ({}),
+    read: (v) => parseDayPrices(JSON.parse(v as string)),
+    write: (v) => JSON.stringify(parseDayPrices(v)),
+  }),
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),

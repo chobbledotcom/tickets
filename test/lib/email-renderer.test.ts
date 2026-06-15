@@ -129,10 +129,12 @@ describeWithEnv("email-renderer", { db: true }, () => {
     });
 
     test("date_range_label: multi-day booking uses en dash", () => {
+      // The label comes from the booking's stored span (end_date is exclusive),
+      // so a 3-day booking from the 15th ends (exclusive) on the 18th.
       expect(
         dateRangeLabelFor(
           { duration_days: 3, listing_type: "daily" },
-          { date: "2026-04-15" },
+          { date: "2026-04-15", end_date: "2026-04-18" },
         ),
       ).toBe("15\u201317 April 2026");
     });

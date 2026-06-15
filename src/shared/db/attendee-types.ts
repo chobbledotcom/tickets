@@ -36,6 +36,7 @@ export type BuildAttendeeInput = ContactInfo & {
   ticketToken: string;
   ticketTokenIndex: string;
   date: string | null;
+  durationDays?: number;
   remainingBalance: number;
   statusId: number | null;
 };

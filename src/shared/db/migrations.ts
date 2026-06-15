@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "add email_preferences table for marketing opt-outs and contact history; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -107,6 +107,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["months_per_unit", "INTEGER NOT NULL DEFAULT 0"],
         ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
         ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
+        ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
+        ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
       ],
       indexes: [
         {
@@ -988,6 +990,15 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
+    },
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add customisable_days and day_prices columns to listings so visitors can choose how many days to book with per-day-count pricing",
+    id: "2026-06-14_listing_customisable_days",
+    up: async () => {
+      await applySchemaChanges();
     },
     verify: verifyCurrentAppSchema,
   },

@@ -14,6 +14,7 @@ import {
   formatMonthLabel,
   getAvailableDates,
   getNextBookableDate,
+  isBookingRangeValid,
   listingDateToCalendarDate,
   monthsAround,
   normalizeDatetime,
@@ -337,6 +338,88 @@ describeWithEnv("dates", { db: true }, () => {
       expect(dates).not.toContain(holidayStart);
       // day+4 start → covers day 4,5,6 → no holiday → included
       expect(dates).toContain(addDays(today(), 4));
+    });
+
+    test("durationOverride filters by the given span instead of duration_days", () => {
+      // duration_days is the max (5), but a customisable listing's date list is
+      // built for a single day so every individually-bookable start appears.
+      const holidayDay = addDays(today(), 2);
+      const listing = testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 5,
+        listing_type: "daily",
+        maximum_days_after: 14,
+        minimum_days_before: 0,
+      });
+      const holidays = [
+        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+      ];
+      // With the listing's own duration (5), the day+1 start spans the holiday
+      // and is excluded; with an override of 1 it is offered.
+      expect(getAvailableDates(listing, holidays)).not.toContain(
+        addDays(today(), 1),
+      );
+      expect(getAvailableDates(listing, holidays, 1)).toContain(
+        addDays(today(), 1),
+      );
+    });
+  });
+
+  describe("isBookingRangeValid", () => {
+    const dailyAllDays = () =>
+      testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        listing_type: "daily",
+        maximum_days_after: 10,
+        minimum_days_before: 0,
+      });
+
+    test("accepts a holiday-free range within the booking window", () => {
+      expect(isBookingRangeValid(dailyAllDays(), today(), 3, [])).toBe(true);
+    });
+
+    test("rejects a range that overlaps a holiday", () => {
+      const holidayDay = addDays(today(), 2);
+      const holidays = [
+        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+      ];
+      expect(isBookingRangeValid(dailyAllDays(), today(), 3, holidays)).toBe(
+        false,
+      );
+    });
+
+    test("rejects a range that runs past the booking window", () => {
+      const listing = testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        listing_type: "daily",
+        maximum_days_after: 2,
+        minimum_days_before: 0,
+      });
+      expect(isBookingRangeValid(listing, today(), 5, [])).toBe(false);
+    });
+
+    test("rejects a start date before the earliest bookable date", () => {
+      const listing = testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        listing_type: "daily",
+        maximum_days_after: 10,
+        minimum_days_before: 2,
+      });
+      // today is before today+2 (minimum_days_before), so it's too early.
+      expect(isBookingRangeValid(listing, today(), 1, [])).toBe(false);
+    });
+
+    test("rejects a range that hits a non-bookable weekday", () => {
+      // Only Mondays are bookable, so a 2-day span from a Monday includes
+      // Tuesday and must be rejected.
+      const listing = testListing({
+        bookable_days: ["Monday"],
+        listing_type: "daily",
+        maximum_days_after: 21,
+        minimum_days_before: 0,
+      });
+      const monday = getAvailableDates(listing, [])[0]!;
+      expect(isBookingRangeValid(listing, monday, 2, [])).toBe(false);
     });
   });
 

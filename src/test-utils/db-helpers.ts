@@ -9,6 +9,7 @@ import type { HolidayInput } from "#shared/db/holidays.ts";
 import { getListingWithCount, type ListingInput } from "#shared/db/listings.ts";
 import type {
   Attendee,
+  DayPrices,
   Group,
   Holiday,
   Listing,
@@ -23,6 +24,17 @@ const optionalNumber = (v: number | null | undefined): string =>
 const optionalPrice = (v: number | null | undefined): string =>
   v != null ? toMajorUnits(v) : "";
 const formatBookableDaysForForm = (days: string[]): string => days.join(",");
+
+/** Serialize a DayPrices map into the form's `day_price_<n>` fields. */
+const dayPriceFormFields = (
+  dayPrices: DayPrices | undefined,
+): Record<string, string> => {
+  const result: Record<string, string> = {};
+  for (const [days, price] of Object.entries(dayPrices ?? {})) {
+    result[`day_price_${days}`] = toMajorUnits(price);
+  }
+  return result;
+};
 
 const splitClosesAt = (
   update: string | undefined,
@@ -53,10 +65,12 @@ const buildCreateListingForm = (
     can_pay_more: bool(input.canPayMore),
     closes_at_date: closesAtParts.date,
     closes_at_time: closesAtParts.time,
+    customisable_days: bool(input.customisableDays),
     date_date: dateParts.date,
     date_time: dateParts.time,
     description: input.description ?? "",
     duration_days: optionalNumber(input.durationDays),
+    ...dayPriceFormFields(input.dayPrices),
     fields: input.fields ?? "email",
     group_id: String(input.groupId ?? 0),
     hidden: bool(input.hidden),
@@ -155,8 +169,12 @@ const buildUpdateListingForm = (
     ...buildUpdateBoolFields(updates, existing),
     ...buildUpdateNumericFields(updates, existing),
     ...buildUpdateStringFields(updates, existing),
+    ...dayPriceFormFields(updates.dayPrices ?? existing.day_prices),
     closes_at_date: closesAtParts.date,
     closes_at_time: closesAtParts.time,
+    customisable_days: bool(
+      updates.customisableDays ?? existing.customisable_days,
+    ),
     date_date: dateParts.date,
     date_time: dateParts.time,
   };

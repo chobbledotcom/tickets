@@ -222,6 +222,37 @@ describe("payment-helpers", () => {
       expect("site_token_index" in metadata).toBe(false);
     });
 
+    test("buildMetadata includes day_count when present", () => {
+      const metadata = buildMetadata({
+        date: "2026-07-01",
+        dayCount: 3,
+        email: "buyer@example.com",
+        items: [{ e: 5, p: 2500, q: 1 }],
+        name: "Buyer",
+      });
+      expect(metadata.day_count).toBe("3");
+    });
+
+    test("buildMetadata omits day_count when absent", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "x@x.com",
+        items: [{ e: 1, p: 0, q: 1 }],
+        name: "X",
+      });
+      expect("day_count" in metadata).toBe(false);
+    });
+
+    test("extractSessionMetadata round-trips day_count", () => {
+      const extracted = extractSessionMetadata({
+        day_count: "3",
+        email: "x@x.com",
+        items: "[]",
+        name: "X",
+      } as SessionMetadata);
+      expect(extracted.day_count).toBe("3");
+    });
+
     test("extractSessionMetadata surfaces site_token_index when present", () => {
       const extracted = extractSessionMetadata({
         email: "renew@example.com",

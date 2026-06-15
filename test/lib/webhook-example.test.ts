@@ -68,6 +68,7 @@ describe("webhook example", () => {
       address: EXAMPLE_ATTENDEE.address,
       date: EXAMPLE_ATTENDEE.date,
       email: EXAMPLE_ATTENDEE.email,
+      end_date: null,
       id: 1,
       name: EXAMPLE_ATTENDEE.name,
       payment_id: EXAMPLE_ATTENDEE.payment_id,
@@ -80,6 +81,8 @@ describe("webhook example", () => {
     listing: {
       attendee_count: 10,
       can_pay_more: false,
+      customisable_days: false,
+      day_prices: {},
       id: 1,
       max_attendees: 100,
       months_per_unit: 0,

@@ -62,6 +62,32 @@ describe("adminListingEditPage duration warning", () => {
   });
 });
 
+describe("adminListingEditPage day prices", () => {
+  test("renders priced day-count inputs and checks the customisable toggle", () => {
+    const listing = testListingWithCount({
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    // One input per day up to the maximum duration, pre-filled from day_prices.
+    expect(html).toContain('name="day_price_1"');
+    expect(html).toContain('value="10.00"');
+    expect(html).toContain('name="day_price_2"');
+    expect(html).toContain('value="18.00"');
+    // The customisable-days checkbox is rendered checked for such a listing.
+    expect(html).toContain('name="customisable_days"');
+    expect(html).toContain("Day Prices (customisable days)");
+  });
+
+  test("renders a single blank day-price row on the new-listing form", () => {
+    const html = adminListingNewPage([], TEST_SESSION);
+    expect(html).toContain('name="day_price_1"');
+    // The maximum defaults to 1 day for a new listing, so only one row shows.
+    expect(html).not.toContain('name="day_price_2"');
+  });
+});
+
 describe("adminListingPage duration display", () => {
   test("shows booking duration row for daily listings", () => {
     const listing = testListingWithCount({
@@ -92,6 +118,72 @@ describe("adminListingPage duration display", () => {
       session: TEST_SESSION,
     });
     expect(html).not.toContain("Booking Duration");
+  });
+
+  test("shows the customisable-days prices on a customisable listing", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Customisable Days");
+    expect(html).toContain("1 day:");
+    expect(html).toContain("2 days:");
+  });
+
+  test("offers a day-count selector when adding to a customisable daily listing", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+      listing_type: "daily",
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain('name="day_count"');
+    expect(html).toContain("Number of days");
+  });
+
+  test("notes when a customisable listing has no day prices set", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: {},
+      duration_days: 3,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("No day prices set");
+  });
+
+  test("omits the customisable-days row for a fixed-duration listing", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: false,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Customisable Days");
   });
 });
 
