@@ -312,16 +312,23 @@ export const validatePhone = (value: string): string | null =>
     : "Please enter a valid phone number";
 
 /** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
+const UsernameSchema = v.pipe(
+  v.string(),
+  v.minLength(2, "Username must be at least 2 characters"),
+  v.maxLength(32, "Username must be 32 characters or fewer"),
+  v.regex(
+    /^[a-zA-Z0-9_-]+$/,
+    "Username may only contain letters, numbers, hyphens, and underscores",
+  ),
+  v.check(
+    (s) => !s.startsWith("-") && !s.startsWith("_"),
+    "Username may not start with a hyphen or underscore",
+  ),
+);
+
 export const validateUsername = (value: string): string | null => {
-  if (value.length < 2) return "Username must be at least 2 characters";
-  if (value.length > 32) return "Username must be 32 characters or fewer";
-  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-    return "Username may only contain letters, numbers, hyphens, and underscores";
-  }
-  if (value.startsWith("-") || value.startsWith("_")) {
-    return "Username may not start with a hyphen or underscore";
-  }
-  return null;
+  const result = v.safeParse(UsernameSchema, value, { abortPipeEarly: true });
+  return result.success ? null : result.issues[0].message;
 };
 
 /** Base username field shared across login and invite forms */
@@ -403,10 +410,11 @@ export const FORMATTING_HINT =
   '<a href="/admin/guide#text-formatting" target="_blank" rel="noopener">Formatting help</a>';
 
 /** Validate description length */
+const DescriptionSchema = v.pipe(v.string(), v.maxLength(MAX_TEXTAREA_LENGTH));
 const validateDescription = (value: string): string | null =>
-  value.length > MAX_TEXTAREA_LENGTH
-    ? `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`
-    : null;
+  v.safeParse(DescriptionSchema, value).success
+    ? null
+    : `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`;
 
 /** Validate a datetime value is parseable */
 const validateDatetime = (value: string): string | null =>
@@ -869,10 +877,11 @@ const phoneField: Field = {
 const MAX_ADDRESS_LENGTH = 250;
 
 /** Validate address length */
+const AddressSchema = v.pipe(v.string(), v.maxLength(MAX_ADDRESS_LENGTH));
 export const validateAddress = (value: string): string | null =>
-  value.length > MAX_ADDRESS_LENGTH
-    ? `Address must be ${MAX_ADDRESS_LENGTH} characters or fewer`
-    : null;
+  v.safeParse(AddressSchema, value).success
+    ? null
+    : `Address must be ${MAX_ADDRESS_LENGTH} characters or fewer`;
 
 /** Address field for ticket forms (textarea) */
 const addressField: Field = {
@@ -889,10 +898,14 @@ const addressField: Field = {
 const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
 
 /** Validate special instructions length */
+const SpecialInstructionsSchema = v.pipe(
+  v.string(),
+  v.maxLength(MAX_SPECIAL_INSTRUCTIONS_LENGTH),
+);
 export const validateSpecialInstructions = (value: string): string | null =>
-  value.length > MAX_SPECIAL_INSTRUCTIONS_LENGTH
-    ? `Special instructions must be ${MAX_SPECIAL_INSTRUCTIONS_LENGTH} characters or fewer`
-    : null;
+  v.safeParse(SpecialInstructionsSchema, value).success
+    ? null
+    : `Special instructions must be ${MAX_SPECIAL_INSTRUCTIONS_LENGTH} characters or fewer`;
 
 /** Special instructions field for ticket forms (textarea) */
 const specialInstructionsField: Field = {
