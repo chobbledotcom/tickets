@@ -21,6 +21,7 @@ import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
+  attendeeBalanceNotice,
   type DailyDefaults,
   defaultNewDailyDate,
   type ParsedAttendeeForm,
@@ -44,6 +45,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
@@ -217,11 +219,21 @@ const buildTemplateData = async (
   const availableDatesByListing = buildAvailableDates(allListings, holidays);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
   const statuses = await getAllAttendeeStatuses();
+  // Surface a status/balance mismatch. The order totals come from the saved
+  // booking (edit only); in create mode there is nothing paid yet.
+  const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
+  const balanceNotice = attendeeBalanceNotice(
+    statuses.find((s) => s.id === parsed.statusId) ?? null,
+    parsed.remainingBalance,
+    summary?.fullPrice ?? 0,
+    summary?.depositPaid ?? 0,
+  );
   return {
     allListings,
     attendee,
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
+    balanceNotice,
     dailyDefaults,
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,

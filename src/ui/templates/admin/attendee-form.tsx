@@ -15,6 +15,7 @@ import {
   ADD_LINE_ACTION,
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
+  type BalanceNotice,
   type DailyDefaults,
   LINE_COUNT_FIELD,
   LINE_DATE_PREFIX,
@@ -27,7 +28,7 @@ import {
   SAVE_ACTION,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
-import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import { toMajorUnits } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { EmailStats } from "#shared/db/email-preferences.ts";
@@ -56,6 +57,8 @@ export type AttendeeFormTemplateData = {
   allListings: ListingWithCount[];
   /** All attendee statuses, for the status dropdown. */
   statuses: AttendeeStatus[];
+  /** Status/balance mismatch notice, or null when they agree. */
+  balanceNotice: BalanceNotice | null;
   /** Available dates per daily listing id (for the date picker). */
   availableDatesByListing: Record<number, string[]>;
   /** Daily-line defaults computed from existing bookings. */
@@ -322,10 +325,11 @@ const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
 };
 
 /**
- * Status dropdown, outstanding-balance editor, and a mismatch warning. The
- * warning fires whenever a balance is owed; it's worded more strongly when the
- * selected status is the "paid" default — owing money in a paid status is a
- * contradiction worth flagging.
+ * Status dropdown, outstanding-balance editor, and a status/balance mismatch
+ * notice (precomputed by the route): a warning for a paid status that still
+ * owes or a reservation that's lost its balance, and a softer info nudge for a
+ * fully-paid reservation. A reservation that still owes is the normal state and
+ * shows nothing.
  */
 const StatusAndBalanceFields = ({
   data,
@@ -333,15 +337,12 @@ const StatusAndBalanceFields = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
   const { statusId, remainingBalance } = data.parsed;
-  const status = data.statuses.find((s) => s.id === statusId) ?? null;
   return (
     <>
       <h3>Status &amp; Balance</h3>
-      {remainingBalance > 0 && (
-        <output class="warning" role="alert">
-          {status?.is_paid_default
-            ? `This attendee is in the “${status.name}” status, which marks the balance as paid, but still owes ${formatCurrency(remainingBalance)}.`
-            : `This attendee has an outstanding balance of ${formatCurrency(remainingBalance)}.`}
+      {data.balanceNotice && (
+        <output class={data.balanceNotice.tone}>
+          {data.balanceNotice.message}
         </output>
       )}
       <label for={STATUS_FIELD}>
