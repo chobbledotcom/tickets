@@ -43,13 +43,16 @@ export const generateSlug = (): string => {
 export const normalizeSlug = (input: string): string =>
   input.trim().toLowerCase().replace(/\s+/g, "-");
 
-/** Valid slug schema: non-empty, lowercase alphanumeric and hyphens only */
+/**
+ * Valid slug schema: non-empty, lowercase alphanumeric segments joined by
+ * single hyphens or underscores (valibot's canonical slug form). The same
+ * shape gates URL routing (router.ts) and embeddable paths (middleware.ts).
+ */
 const SlugSchema = v.pipe(
   v.string(),
   v.nonEmpty("Slug is required"),
-  v.regex(
-    /^[a-z0-9-]+$/,
-    "Slug may only contain lowercase letters, numbers, and hyphens",
+  v.slug(
+    "Slug must be lowercase letters and numbers separated by single hyphens or underscores",
   ),
 );
 

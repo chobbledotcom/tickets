@@ -88,8 +88,8 @@ export const getSecurityHeaders = (
   "content-security-policy": buildCspHeader(embeddable),
 });
 
-/** Single slug: alphanumeric segments joined by hyphens (e.g. "a1b2" or "my-listing") */
-const SLUG = "[a-z0-9]+(?:-[a-z0-9]+)*";
+/** Single slug: alphanumeric segments joined by single hyphens or underscores (e.g. "a1b2", "my-listing", "my_listing") */
+const SLUG = "[a-z0-9]+(?:[-_][a-z0-9]+)*";
 
 /** Matches /ticket/ with one or more slugs separated by + */
 const EMBEDDABLE_PATH = new RegExp(`^/ticket/${SLUG}(?:\\+${SLUG})*$`);

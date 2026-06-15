@@ -71,8 +71,8 @@ const isNumericParam = (name: string): boolean =>
 const getParamPattern = (name: string): string => {
   // Params ending in Id match digits only (e.g., listingId, attendeeId)
   if (isNumericParam(name)) return "(\\d+)";
-  // Slugs match lowercase alphanumeric with hyphens and + (for multi-listing URLs)
-  if (name === "slug") return "([a-z0-9]+(?:[-+][a-z0-9]+)*)";
+  // Slugs match lowercase alphanumeric with hyphens/underscores and + (for multi-listing URLs)
+  if (name === "slug") return "([a-z0-9]+(?:[-_+][a-z0-9]+)*)";
   // Default: match any non-slash characters
   return "([^/]+)";
 };
