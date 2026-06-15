@@ -119,6 +119,54 @@ describe("adminListingPage duration display", () => {
     });
     expect(html).not.toContain("Booking Duration");
   });
+
+  test("shows the customisable-days prices on a customisable listing", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Customisable Days");
+    expect(html).toContain("1 day:");
+    expect(html).toContain("2 days:");
+  });
+
+  test("notes when a customisable listing has no day prices set", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: {},
+      duration_days: 3,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("No day prices set");
+  });
+
+  test("omits the customisable-days row for a fixed-duration listing", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: false,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Customisable Days");
+  });
 });
 
 describe("adminListingPage", () => {

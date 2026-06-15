@@ -5,7 +5,7 @@
 import { filter, joinStrings, map, pipe } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
-import { toMajorUnits } from "#shared/currency.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   formatDateLabel,
   formatDatetimeLabel,
@@ -31,6 +31,8 @@ import { utcToLocalInput } from "#shared/timezone.ts";
 import {
   type AdminSession,
   type Attendee,
+  availableDayCounts,
+  dayPriceFor,
   type Group,
   isPaidListing,
   type ListingWithCount,
@@ -329,6 +331,39 @@ const ListingActionNav = ({
   );
 };
 
+/** Detail row listing each offered day count and its price, shown when a
+ * listing has customisable days so owners can verify pricing at a glance. */
+const CustomisableDaysRow = ({
+  listing,
+}: {
+  listing: ListingWithCount;
+}): JSX.Element => {
+  const counts = availableDayCounts(listing);
+  return (
+    <tr>
+      <th>Customisable Days</th>
+      <td>
+        Visitors choose 1&ndash;{normalizeDurationDays(listing.duration_days)}{" "}
+        days.{" "}
+        {counts.length > 0 ? (
+          <span>
+            {counts
+              .map(
+                (n) =>
+                  `${n} day${n === 1 ? "" : "s"}: ${formatCurrency(
+                    dayPriceFor(listing, n)!,
+                  )}`,
+              )
+              .join(", ")}
+          </span>
+        ) : (
+          <em>No day prices set</em>
+        )}
+      </td>
+    </tr>
+  );
+};
+
 /** Daily-specific schedule rows (bookable days, booking window) */
 const DailyScheduleRows = ({
   listing,
@@ -523,6 +558,9 @@ const ListingDetailsTable = ({
             <th>Listing Type</th>
             <td>{listing.listing_type === "daily" ? "Daily" : "Standard"}</td>
           </tr>
+          {listing.customisable_days && (
+            <CustomisableDaysRow listing={listing} />
+          )}
           {listing.months_per_unit > 0 && (
             <tr>
               <th>Renewal</th>

@@ -275,6 +275,26 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(body.error).toBe("Listing not found");
     });
 
+    test("exposes customisable days and day prices", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+      });
+      const { body } = await fetchListingBySlug(listing.slug);
+      const apiListing = body.listing as Record<string, unknown>;
+      expect(apiListing.customisableDays).toBe(true);
+      expect(apiListing.dayPrices).toEqual({ 1: 1000, 2: 1800 });
+    });
+
+    test("omits day prices for a fixed-duration listing", async () => {
+      const listing = await createTestListing({ name: "Fixed" });
+      const { body } = await fetchListingBySlug(listing.slug);
+      const apiListing = body.listing as Record<string, unknown>;
+      expect(apiListing.customisableDays).toBe(false);
+      expect(apiListing.dayPrices).toBeUndefined();
+    });
+
     test("returns 404 for inactive listing", async () => {
       const listing = await createTestListing();
       await deactivateTestListing(listing.id);
