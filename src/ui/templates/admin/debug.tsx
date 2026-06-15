@@ -3,6 +3,7 @@
  */
 
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
+import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -56,6 +57,7 @@ export type DebugPageState = {
     timestamp: string;
     commit: string;
   };
+  runtime: RuntimeInfo;
   domain: string;
   limits: typeof LIMIT_ENTRIES;
   prune: {
@@ -89,6 +91,51 @@ const BuildSection = ({
         <tr>
           <td>Commit</td>
           <td>{build.commit || "—"}</td>
+        </tr>
+      </tbody>
+    </table>
+  </article>
+);
+
+const RuntimeSection = ({
+  runtime,
+}: {
+  runtime: DebugPageState["runtime"];
+}): JSX.Element => (
+  <article>
+    <h2>Runtime</h2>
+    <table>
+      <tbody>
+        <tr>
+          <td>Host runtime</td>
+          <td>{runtime.runtime}</td>
+        </tr>
+        <tr>
+          <td>Deno version</td>
+          <td>{runtime.denoVersion || "—"}</td>
+        </tr>
+        <tr>
+          <td>V8 version</td>
+          <td>{runtime.v8Version || "—"}</td>
+        </tr>
+        <tr>
+          <td>TypeScript version</td>
+          <td>{runtime.typescriptVersion || "—"}</td>
+        </tr>
+        <tr>
+          <td>Node compatibility</td>
+          <td>{runtime.nodeCompatVersion || "—"}</td>
+        </tr>
+        <tr>
+          <td>OS / architecture</td>
+          <td>
+            {runtime.os || "—"}
+            {runtime.arch ? ` / ${runtime.arch}` : ""}
+          </td>
+        </tr>
+        <tr>
+          <td>User agent</td>
+          <td>{runtime.userAgent || "—"}</td>
         </tr>
       </tbody>
     </table>
@@ -458,6 +505,7 @@ export const adminDebugPage = (
       </div>
 
       <BuildSection build={s.build} />
+      <RuntimeSection runtime={s.runtime} />
       <AppleWalletSection appleWallet={s.appleWallet} />
       <GoogleWalletSection googleWallet={s.googleWallet} />
       <PaymentsSection payment={s.payment} />

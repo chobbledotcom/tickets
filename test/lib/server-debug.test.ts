@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { settings } from "#shared/db/settings.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
+import { getRuntimeInfo } from "#shared/runtime.ts";
 import {
   adminDebugPage,
   type DebugPageState,
@@ -39,6 +40,26 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Build section", async () => {
       await assertAdminHtml("/admin/debug", "Build", "Timestamp", "Commit");
+    });
+
+    test("shows Runtime section with version rows", async () => {
+      await assertAdminHtml(
+        "/admin/debug",
+        "Runtime",
+        "Host runtime",
+        "Deno version",
+        "V8 version",
+        "TypeScript version",
+        "Node compatibility",
+        "OS / architecture",
+        "User agent",
+      );
+    });
+
+    test("shows the actual Deno version it is running on", async () => {
+      const { denoVersion } = getRuntimeInfo();
+      const html = await assertAdminHtml("/admin/debug", "Deno version");
+      expect(html).toContain(denoVersion);
     });
 
     test("shows Apple Wallet section", async () => {
@@ -406,6 +427,16 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           webhookConfigured: false,
         },
         prune: { logins: "Never", payments: "Never", sessions: "Never" },
+        runtime: {
+          arch: "",
+          denoVersion: "",
+          nodeCompatVersion: "",
+          os: "",
+          runtime: "unknown",
+          typescriptVersion: "",
+          userAgent: "",
+          v8Version: "",
+        },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };
@@ -491,6 +522,16 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           webhookConfigured: false,
         },
         prune: { logins: "Never", payments: "Never", sessions: "Never" },
+        runtime: {
+          arch: "",
+          denoVersion: "",
+          nodeCompatVersion: "",
+          os: "",
+          runtime: "unknown",
+          typescriptVersion: "",
+          userAgent: "",
+          v8Version: "",
+        },
         theme: "light",
       };
       const session = { adminLevel: "owner" as const };

@@ -23,6 +23,7 @@ import { getHostEmailConfig } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
+import { getRuntimeInfo } from "#shared/runtime.ts";
 import { getStorageBackend } from "#shared/storage.ts";
 import {
   adminDebugPage,
@@ -175,6 +176,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       payments: formatLastPruned(settings.lastPrunedPayments),
       sessions: formatLastPruned(settings.lastPrunedSessions),
     },
+    runtime: getRuntimeInfo(),
     theme: settings.theme,
   };
 };
