@@ -78,9 +78,15 @@ export const audienceById = (id: AudienceId): Audience =>
  * What a bulk email is aimed at: either a named audience (from the Emails
  * page) or a single listing (from that listing's admin page).
  */
-export type BulkEmailTarget =
-  | { readonly kind: "audience"; readonly audience: AudienceId }
-  | { readonly kind: "listing"; readonly listingId: number };
+export const BulkEmailTargetSchema = v.variant("kind", [
+  v.object({ audience: AudienceIdSchema, kind: v.literal("audience") }),
+  v.object({
+    kind: v.literal("listing"),
+    listingId: v.pipe(v.number(), v.integer()),
+  }),
+]);
+
+export type BulkEmailTarget = v.InferOutput<typeof BulkEmailTargetSchema>;
 
 /** Query string that round-trips a target back to the compose page. */
 export const targetQuery = (target: BulkEmailTarget): string =>
@@ -89,16 +95,8 @@ export const targetQuery = (target: BulkEmailTarget): string =>
     : `?audience=${target.audience}`;
 
 /** Runtime guard for a deserialized target (drafts are stored as JSON). */
-export const isBulkEmailTarget = (v: unknown): v is BulkEmailTarget => {
-  if (!isRecord(v)) return false;
-  if (v.kind === "audience") {
-    return typeof v.audience === "string" && isAudienceId(v.audience);
-  }
-  if (v.kind === "listing") {
-    return typeof v.listingId === "number" && Number.isInteger(v.listingId);
-  }
-  return false;
-};
+export const isBulkEmailTarget = (val: unknown): val is BulkEmailTarget =>
+  v.is(BulkEmailTargetSchema, val);
 
 // ── Recipient resolution ────────────────────────────────────────────
 
@@ -179,12 +177,12 @@ export type BulkEmailDraft = {
   readonly target: BulkEmailTarget;
 };
 
-const isBulkEmailDraft = (v: unknown): v is BulkEmailDraft =>
-  isRecord(v) &&
-  typeof v.subject === "string" &&
-  typeof v.body === "string" &&
-  typeof v.marketing === "boolean" &&
-  isBulkEmailTarget(v.target);
+const isBulkEmailDraft = (val: unknown): val is BulkEmailDraft =>
+  isRecord(val) &&
+  typeof val.subject === "string" &&
+  typeof val.body === "string" &&
+  typeof val.marketing === "boolean" &&
+  isBulkEmailTarget(val.target);
 
 /** Serialize a draft for storage in settings. */
 export const serializeDraft = (draft: BulkEmailDraft): string =>
