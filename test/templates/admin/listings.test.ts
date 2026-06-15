@@ -88,6 +88,166 @@ describe("adminListingEditPage day prices", () => {
   });
 });
 
+describe("adminListingEditPage form sections", () => {
+  test("groups fields under section legends and an Advanced disclosure", () => {
+    const listing = testListingWithCount();
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    expect(html).toContain("<legend>Basics</legend>");
+    expect(html).toContain("<legend>Tickets &amp; Pricing</legend>");
+    expect(html).toContain("<legend>Daily Scheduling</legend>");
+    expect(html).toContain(
+      "<legend>Booking Duration &amp; Day Prices</legend>",
+    );
+    expect(html).toContain("<legend>Options &amp; Visibility</legend>");
+    expect(html).toContain("<summary>Advanced settings</summary>");
+  });
+
+  test("renders the day-prices block immediately after the customisable-days checkbox", () => {
+    const listing = testListingWithCount({
+      customisable_days: true,
+      day_prices: { 1: 1000 },
+      duration_days: 1,
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const customisableIdx = html.indexOf('name="customisable_days"');
+    const dayPriceIdx = html.indexOf('name="day_price_1"');
+    const contactFieldsIdx = html.indexOf('name="fields"');
+    // The prices follow the checkbox, and both sit before the later Options
+    // section — i.e. no longer dumped at the bottom of the form.
+    expect(customisableIdx).toBeGreaterThan(-1);
+    expect(customisableIdx).toBeLessThan(dayPriceIdx);
+    expect(dayPriceIdx).toBeLessThan(contactFieldsIdx);
+  });
+
+  test("places the technical fields inside the Advanced disclosure", () => {
+    const listing = testListingWithCount();
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    const advancedIdx = html.indexOf("<summary>Advanced settings</summary>");
+    expect(advancedIdx).toBeGreaterThan(-1);
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="webhook_url"'));
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="thank_you_url"'));
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="slug"'));
+  });
+});
+
+describe("adminListingEditPage Advanced section auto-open", () => {
+  test("stays collapsed when only the slug is set", () => {
+    // Slug is always populated; on its own it must not force the section open.
+    const listing = testListingWithCount({
+      thank_you_url: "",
+      webhook_url: "",
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    expect(html).toContain('<details class="listing-advanced">');
+    expect(html).not.toContain('<details class="listing-advanced" open>');
+  });
+
+  test("opens when a thank-you URL is set", () => {
+    const listing = testListingWithCount({
+      thank_you_url: "https://example.com/thanks",
+      webhook_url: "",
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    expect(html).toContain('<details class="listing-advanced" open>');
+  });
+
+  test("opens when a webhook URL is set", () => {
+    const listing = testListingWithCount({
+      thank_you_url: "",
+      webhook_url: "https://hooks.example.com/notify",
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    expect(html).toContain('<details class="listing-advanced" open>');
+  });
+
+  test("opens on a validation error so hidden fields stay reachable", () => {
+    const listing = testListingWithCount({
+      thank_you_url: "",
+      webhook_url: "",
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION, "Bad input");
+    expect(html).toContain('<details class="listing-advanced" open>');
+  });
+});
+
+describe("adminListingNewPage Advanced section", () => {
+  test("renders collapsed by default", () => {
+    const html = adminListingNewPage([], TEST_SESSION);
+    expect(html).toContain('<details class="listing-advanced">');
+    expect(html).not.toContain('<details class="listing-advanced" open>');
+  });
+
+  test("opens when re-rendered with an error", () => {
+    const html = adminListingNewPage([], TEST_SESSION, "Something went wrong");
+    expect(html).toContain('<details class="listing-advanced" open>');
+  });
+});
+
+describe("adminListingEditPage Advanced section auto-open (builder fields)", () => {
+  const withBuilder = (fn: () => void): void => {
+    Deno.env.set("CAN_BUILD_SITES", "true");
+    try {
+      fn();
+    } finally {
+      Deno.env.delete("CAN_BUILD_SITES");
+    }
+  };
+
+  test("opens when a renewal tier (months per unit) is set", () => {
+    withBuilder(() => {
+      const listing = testListingWithCount({
+        months_per_unit: 3,
+        thank_you_url: "",
+        webhook_url: "",
+      });
+      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      expect(html).toContain('<details class="listing-advanced" open>');
+    });
+  });
+
+  test("opens when initial site months is set", () => {
+    withBuilder(() => {
+      const listing = testListingWithCount({
+        initial_site_months: 6,
+        months_per_unit: 0,
+        thank_you_url: "",
+        webhook_url: "",
+      });
+      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      expect(html).toContain('<details class="listing-advanced" open>');
+    });
+  });
+
+  test("opens when a built site is assigned on booking", () => {
+    withBuilder(() => {
+      const listing = testListingWithCount({
+        assign_built_site: true,
+        initial_site_months: 0,
+        months_per_unit: 0,
+        thank_you_url: "",
+        webhook_url: "",
+      });
+      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      expect(html).toContain('<details class="listing-advanced" open>');
+    });
+  });
+
+  test("stays collapsed when no advanced field is set even with the builder enabled", () => {
+    withBuilder(() => {
+      const listing = testListingWithCount({
+        assign_built_site: false,
+        initial_site_months: 0,
+        months_per_unit: 0,
+        thank_you_url: "",
+        webhook_url: "",
+      });
+      const html = adminListingEditPage(listing, [], TEST_SESSION);
+      expect(html).toContain('<details class="listing-advanced">');
+      expect(html).not.toContain('<details class="listing-advanced" open>');
+    });
+  });
+});
+
 describe("adminListingPage duration display", () => {
   test("shows booking duration row for daily listings", () => {
     const listing = testListingWithCount({

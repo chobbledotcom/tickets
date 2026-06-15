@@ -1291,27 +1291,70 @@ label.terms-agree {
   min-width: 0;
 }
 
-/* Hide daily-only fields when listing type is "standard" */
+/* Listing form sections: grouped <fieldset>s with a heading legend, and a
+   collapsible <details> for the technical/advanced fields. Field spacing inside
+   each section comes from the nested .stack; the form's gap spaces the sections
+   themselves. */
+.listing-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.listing-section > legend {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--space-m);
+  padding-bottom: var(--space-s);
+  border-bottom: 1px solid var(--color-bg-secondary);
+  font-weight: bold;
+  font-size: 1.05rem;
+}
+
+.listing-advanced > summary {
+  font-size: 1.05rem;
+}
+
+/* When expanded, the summary reads as a section heading like the legends. */
+.listing-advanced[open] > summary {
+  margin-bottom: var(--space-m);
+  padding-bottom: var(--space-s);
+  border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+/* Daily-only scheduling fields are grouped in one section, hidden entirely for
+   standard listings (which book a single fixed date instead). */
 form:has(select[name="listing_type"] option[value="standard"]:checked)
-  > label:has([name="bookable_days"]),
-form:has(select[name="listing_type"] option[value="standard"]:checked)
-  > label:has([name="minimum_days_before"]),
-form:has(select[name="listing_type"] option[value="standard"]:checked)
-  > label:has([name="maximum_days_after"]),
-form:has(select[name="listing_type"] option[value="standard"]:checked)
-  > label:has([name="duration_days"]) {
+  .listing-section--daily {
   display: none;
 }
 
-/* Hide listing date field when listing type is "daily" */
+/* Booking duration applies to daily listings, or to any listing using
+   customisable day pricing (where it caps how many days a visitor may pick). */
+form:has(select[name="listing_type"] option[value="standard"]:checked):not(
+    :has(input[name="customisable_days"]:checked)
+  )
+  label:has([name="duration_days"]) {
+  display: none;
+}
+
+/* Hide listing date field when listing type is "daily" (dates are chosen per
+   booking instead). */
 form:has(select[name="listing_type"] option[value="daily"]:checked)
-  > label:has([name="date_date"]) {
+  label:has([name="date_date"]) {
+  display: none;
+}
+
+/* Day prices only apply when "Customisable Days" is enabled; revealed in place
+   right beneath the checkbox that controls them. */
+form:not(:has(input[name="customisable_days"]:checked)) #day-prices {
   display: none;
 }
 
 /* Hide max price field when "Allow Pay More" is not checked */
 form:not(:has(input[name="can_pay_more"]:checked))
-  > label:has([name="max_price"]) {
+  label:has([name="max_price"]) {
   display: none;
 }
 

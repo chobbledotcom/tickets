@@ -2,7 +2,7 @@
  * Admin listing page templates - detail, edit, delete
  */
 
-import { filter, joinStrings, map, pipe } from "#fp";
+import { compact, filter, joinStrings, map, pipe } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
@@ -23,7 +23,6 @@ import {
   entityToFieldValues,
   type FieldValues,
   Flash,
-  renderField,
   renderFields,
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -1091,6 +1090,191 @@ const listingFieldsWithAutofocus: Field[] = pipe(
   map((f: Field): Field => (f.name === "name" ? { ...f, autofocus: true } : f)),
 )(listingFields);
 
+// ---------------------------------------------------------------------------
+// Sectioned listing form
+//
+// The listing form is grouped into labelled <fieldset> sections plus a
+// collapsible Advanced <details> for the technical fields most owners never
+// touch. Each array below fixes the field order within its section; names
+// absent from the assembled field list (builder-only or storage-only fields,
+// or slug on the create form) are skipped. The "Booking Duration & Day Prices"
+// section is assembled inline because it interleaves the day-prices fieldset
+// and the edit-only duration-change warning.
+//
+// Conditional visibility (daily-only fields, day prices, max price) is handled
+// entirely in CSS via :has() — see the form rules in mvp.css. The day-prices
+// block sits right under the "Customisable Days" checkbox so enabling it
+// reveals the prices in place.
+// ---------------------------------------------------------------------------
+
+const BASICS_FIELDS = [
+  "name",
+  "listing_type",
+  "description",
+  "date",
+  "location",
+  "image",
+  "attachment",
+] as const;
+
+const TICKET_FIELDS = [
+  "max_attendees",
+  "max_quantity",
+  "closes_at",
+  "unit_price",
+  "can_pay_more",
+  "max_price",
+] as const;
+
+const DAILY_FIELDS = [
+  "bookable_days",
+  "minimum_days_before",
+  "maximum_days_after",
+] as const;
+
+const OPTION_FIELDS = [
+  "fields",
+  "non_transferable",
+  "purchase_only",
+  "hidden",
+] as const;
+
+const ADVANCED_FIELDS = [
+  "thank_you_url",
+  "webhook_url",
+  "months_per_unit",
+  "initial_site_months",
+  "assign_built_site",
+  "slug",
+] as const;
+
+/**
+ * Whether the Advanced section should render expanded. Open it when any of its
+ * fields already carries a value, so editors don't lose track of a configured
+ * webhook or renewal tier. Slug is deliberately excluded: it is always set, so
+ * counting it would force the section open on every edit. Builder-only fields
+ * only count when the builder is enabled (otherwise they aren't rendered).
+ */
+const advancedSectionHasValues = (
+  listing: ListingWithCount,
+  builderEnabled: boolean,
+): boolean => {
+  if (listing.thank_you_url || listing.webhook_url) return true;
+  return (
+    builderEnabled &&
+    (listing.months_per_unit > 0 ||
+      listing.initial_site_months > 0 ||
+      listing.assign_built_site)
+  );
+};
+
+/** Edit-only warning shown next to the booking-duration field: changing it
+ * rewrites end_at on every existing booking. Wired up by initDurationWarning. */
+const DurationWarning = ({
+  listing,
+}: {
+  listing: ListingWithCount;
+}): JSX.Element => (
+  <div
+    data-duration-original={listing.duration_days}
+    hidden
+    id="duration-warning"
+  >
+    <p>
+      <strong>Warning:</strong> Changing booking duration will update existing
+      bookings for this listing.
+    </p>
+    <label>
+      <input id="duration-warning-confirm" type="checkbox" />I understand
+    </label>
+  </div>
+);
+
+/**
+ * Render the body of a listing form (create, duplicate, or edit) as grouped
+ * sections. The surrounding <form>, page heading, and submit button differ per
+ * page and stay in the individual page functions.
+ */
+const ListingFormSections = ({
+  fields,
+  values,
+  groups,
+  selectedGroupId,
+  dayPricesListing,
+  durationWarning,
+  imagePreview,
+  advancedOpen,
+}: {
+  fields: Field[];
+  values: FieldValues;
+  groups: Group[];
+  selectedGroupId: number;
+  /** Listing whose duration sizes the day-price rows (absent on create). */
+  dayPricesListing?: ListingWithCount;
+  /** Pre-rendered edit-only duration-change warning ("" on create/duplicate). */
+  durationWarning: string;
+  /** Pre-rendered edit-only current-image preview ("" otherwise). */
+  imagePreview: string;
+  advancedOpen: boolean;
+}): JSX.Element => {
+  const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
+  const sec = (names: readonly string[]): string =>
+    renderFields(compact(names.map((n) => fieldMap.get(n))), values);
+  return (
+    <>
+      <fieldset class="listing-section">
+        <legend>Basics</legend>
+        <div class="stack">
+          <Raw html={sec(BASICS_FIELDS)} />
+          {imagePreview && <Raw html={imagePreview} />}
+          <ListingGroupSelect
+            groups={groups}
+            selectedGroupId={selectedGroupId}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset class="listing-section">
+        <legend>Tickets &amp; Pricing</legend>
+        <div class="stack">
+          <Raw html={sec(TICKET_FIELDS)} />
+        </div>
+      </fieldset>
+
+      <fieldset class="listing-section listing-section--daily">
+        <legend>Daily Scheduling</legend>
+        <div class="stack">
+          <Raw html={sec(DAILY_FIELDS)} />
+        </div>
+      </fieldset>
+
+      <fieldset class="listing-section">
+        <legend>Booking Duration &amp; Day Prices</legend>
+        <div class="stack">
+          <Raw html={sec(["duration_days"])} />
+          {durationWarning && <Raw html={durationWarning} />}
+          <Raw html={sec(["customisable_days"])} />
+          <Raw html={renderDayPricesFieldset(dayPricesListing)} />
+        </div>
+      </fieldset>
+
+      <fieldset class="listing-section">
+        <legend>Options &amp; Visibility</legend>
+        <div class="stack">
+          <Raw html={sec(OPTION_FIELDS)} />
+        </div>
+      </fieldset>
+
+      <details class="listing-advanced" open={advancedOpen}>
+        <summary>Advanced settings</summary>
+        <div class="stack">
+          <Raw html={sec(ADVANCED_FIELDS)} />
+        </div>
+      </details>
+    </>
+  );
+};
+
 /**
  * Admin listing create page
  */
@@ -1115,9 +1299,15 @@ export const adminListingNewPage = (
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
         <h1>Add Listing</h1>
         <Flash error={error} />
-        <Raw html={renderFields(fields)} />
-        <Raw html={renderDayPricesFieldset()} />
-        <ListingGroupSelect groups={groups} selectedGroupId={0} />
+        <ListingFormSections
+          advancedOpen={!!error}
+          durationWarning=""
+          fields={fields}
+          groups={groups}
+          imagePreview=""
+          selectedGroupId={0}
+          values={{}}
+        />
         <SubmitButton icon="plus">Create Listing</SubmitButton>
       </CsrfForm>
     </Layout>,
@@ -1154,11 +1344,15 @@ export const adminDuplicateListingPage = (
         </p>
       </div>
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
-        <Raw html={renderFields(dupFields, values)} />
-        <Raw html={renderDayPricesFieldset(listing)} />
-        <ListingGroupSelect
+        <ListingFormSections
+          advancedOpen={advancedSectionHasValues(listing, builderEnabled)}
+          dayPricesListing={listing}
+          durationWarning=""
+          fields={dupFields}
           groups={groups}
+          imagePreview=""
           selectedGroupId={listing.group_id}
+          values={values}
         />
         <SubmitButton icon="plus">Create Listing</SubmitButton>
       </CsrfForm>
@@ -1177,13 +1371,21 @@ export const adminListingEditPage = (
 ): string => {
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
+  // Slug is editable only here (auto-generated on create), so it lives in the
+  // edit form's field list rather than the shared definitions.
   const fields = [
     ...listingFields,
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
     ...(storageEnabled ? [imageField, attachmentField] : []),
+    slugField,
   ];
+  const imagePreview =
+    storageEnabled && listing.image_url
+      ? renderListingImage(listing, "listing-image-full")
+      : "";
+  const durationWarning = String(<DurationWarning listing={listing} />);
   return String(
     <Layout title={`Edit: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
@@ -1193,29 +1395,18 @@ export const adminListingEditPage = (
         enctype="multipart/form-data"
         id="listing-edit-form"
       >
-        <Raw html={renderFields(fields, listingToFieldValues(listing))} />
-        <Raw html={renderDayPricesFieldset(listing)} />
-        <ListingGroupSelect
+        <ListingFormSections
+          advancedOpen={
+            advancedSectionHasValues(listing, builderEnabled) || !!error
+          }
+          dayPricesListing={listing}
+          durationWarning={durationWarning}
+          fields={fields}
           groups={groups}
+          imagePreview={imagePreview}
           selectedGroupId={listing.group_id}
+          values={listingToFieldValues(listing)}
         />
-        <Raw html={renderField(slugField, String(listing.slug))} />
-        {storageEnabled && listing.image_url && (
-          <Raw html={renderListingImage(listing, "listing-image-full")} />
-        )}
-        <div
-          data-duration-original={listing.duration_days}
-          hidden
-          id="duration-warning"
-        >
-          <p>
-            <strong>Warning:</strong> Changing booking duration will update
-            existing bookings for this listing.
-          </p>
-          <label>
-            <input id="duration-warning-confirm" type="checkbox" />I understand
-          </label>
-        </div>
         <SubmitButton icon="save" id="listing-edit-submit">
           Save Changes
         </SubmitButton>
