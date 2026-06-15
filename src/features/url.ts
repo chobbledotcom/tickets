@@ -2,25 +2,14 @@
  * URL, cookie, and request parsing utilities
  */
 
+import { getCookies } from "@std/http/cookie";
 import type { ServerContext } from "#routes/types.ts";
 
 /**
  * Parse cookies from request
  */
-export const parseCookies = (request: Request): Map<string, string> => {
-  const header = request.headers.get("cookie");
-  if (!header) return new Map<string, string>();
-
-  const jar = new Map<string, string>();
-  for (const part of header.split(";")) {
-    const eqIdx = part.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = part.slice(0, eqIdx).trim();
-    const value = part.slice(eqIdx + 1).trim();
-    if (key && value) jar.set(key, value);
-  }
-  return jar;
-};
+export const parseCookies = (request: Request): Map<string, string> =>
+  new Map(Object.entries(getCookies(request.headers)) as [string, string][]);
 
 /**
  * Get client IP from request

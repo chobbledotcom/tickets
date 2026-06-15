@@ -167,9 +167,9 @@ const expandDailyRange = (date: string, durationDays: number): string[] => {
 
 /** Half-open [startAt, endAt) span covering a set of YYYY-MM-DD days. */
 const daySpan = (days: string[]): { startAt: string; endAt: string } => {
-  const sorted = [...days].sort();
+  const sorted = days.toSorted();
   return {
-    endAt: dateToRange(sorted[sorted.length - 1]!).endAt,
+    endAt: dateToRange(sorted.at(-1)!).endAt,
     startAt: `${sorted[0]!}T00:00:00Z`,
   };
 };

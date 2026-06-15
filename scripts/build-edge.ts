@@ -4,6 +4,8 @@
  * Secrets are read at runtime via Bunny's native environment variables
  */
 
+import { denoPlugins } from "@luca/esbuild-deno-loader";
+import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
 import { buildStaticAssets } from "./build-static-assets.ts";
@@ -62,12 +64,6 @@ for (const [filename] of ASSET_DEFS) {
     `./src/ui/static/${filename}`,
   );
 }
-
-// Subpath overrides: use platform-specific entry points for certain packages
-const EDGE_SUBPATHS: Record<string, string> = {
-  "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
-  "@libsql/client": "/web",
-};
 
 /**
  * Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
@@ -157,149 +153,6 @@ const inlineAssetsPlugin: Plugin = {
   },
 };
 
-// --- Deno npm cache resolver for bundled packages ---
-
-/** Discover Deno's npm cache path via `deno info --json` */
-const getDenoNpmCache = (): string => {
-  const result = new Deno.Command(Deno.execPath(), {
-    args: ["info", "--json"],
-    stdout: "piped",
-  }).outputSync();
-  const info = JSON.parse(new TextDecoder().decode(result.stdout));
-  return `${info.npmCache}/registry.npmjs.org`;
-};
-
-const NPM_CACHE = getDenoNpmCache();
-
-/** Condition priority for resolving package.json exports (matches platform: "browser") */
-const CONDITIONS = ["browser", "import", "default"];
-
-/** Resolve a package.json "exports" entry to a file path */
-const resolveExport = (
-  entry: string | Record<string, unknown>,
-): string | null => {
-  if (typeof entry === "string") return entry;
-  for (const cond of CONDITIONS) {
-    const val = entry[cond];
-    if (val) return resolveExport(val as string | Record<string, unknown>);
-  }
-  return null;
-};
-
-/** Find a package in Deno's npm cache, returning its root directory */
-const findPackageDir = (name: string): string => {
-  const scopedDir = `${NPM_CACHE}/${name}`;
-  for (const entry of Deno.readDirSync(scopedDir)) {
-    if (entry.isDirectory) return `${scopedDir}/${entry.name}`;
-  }
-  throw new Error(`Package ${name} not found in npm cache`);
-};
-
-/** Check if a file exists */
-const exists = (path: string): boolean => {
-  try {
-    Deno.statSync(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/** Resolve a file path, trying .js/.json extensions and /index.js for extensionless CJS entries */
-const resolveFile = (path: string): string =>
-  [path, `${path}.js`, `${path}.json`, `${path}/index.js`].find(exists) ?? path;
-
-/** Split a bare specifier into package name and subpath */
-const parseSpecifier = (
-  specifier: string,
-): { pkgName: string; subpath: string } => {
-  const nameSegments = specifier.startsWith("@") ? 2 : 1;
-  const idx = specifier.split("/", nameSegments).join("/").length;
-  return {
-    pkgName: specifier.slice(0, idx === specifier.length ? undefined : idx),
-    subpath: idx < specifier.length ? specifier.slice(idx + 1) : "",
-  };
-};
-
-/** Try to resolve via the package.json exports map */
-const resolveViaExports = (
-  pkgDir: string,
-  pkgJson: Record<string, unknown>,
-  subpath: string,
-): string | null => {
-  if (!pkgJson.exports) return null;
-  const key = subpath ? `./${subpath}` : ".";
-  // Handle both subpath exports ({ ".": { ... } }) and top-level condition
-  // exports ({ "browser": { ... }, "default": { ... } }) used by packages like stripe
-  const exportEntry =
-    pkgJson.exports[key] ??
-    (!subpath && !("." in pkgJson.exports) ? pkgJson.exports : undefined);
-  if (!exportEntry) return null;
-  const resolved = resolveExport(exportEntry);
-  return resolved ? resolveFile(`${pkgDir}/${resolved}`) : null;
-};
-
-/** Fallback resolution: browser → module → main → index.js */
-const resolveViaFallback = (
-  pkgDir: string,
-  pkgJson: Record<string, unknown>,
-): string => {
-  if (typeof pkgJson.browser === "string") {
-    return resolveFile(`${pkgDir}/${pkgJson.browser}`);
-  }
-  const entry = pkgJson.module ?? pkgJson.main;
-  if (!entry) return resolveFile(`${pkgDir}/index`);
-  // When browser is an object it's a module replacement map
-  if (typeof pkgJson.browser === "object" && pkgJson.browser !== null) {
-    const mapped = pkgJson.browser[entry];
-    if (typeof mapped === "string") return resolveFile(`${pkgDir}/${mapped}`);
-  }
-  return resolveFile(`${pkgDir}/${entry}`);
-};
-
-/** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
-const resolveNpmSpecifier = (specifier: string): string | null => {
-  const { pkgName, subpath } = parseSpecifier(specifier);
-
-  let pkgDir: string;
-  try {
-    pkgDir = findPackageDir(pkgName);
-  } catch {
-    return null;
-  }
-
-  const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
-
-  const fromExports = resolveViaExports(pkgDir, pkgJson, subpath);
-  if (fromExports) return fromExports;
-
-  return subpath ? null : resolveViaFallback(pkgDir, pkgJson);
-};
-
-/** Plugin to resolve npm packages from Deno's npm cache */
-const denoNpmResolverPlugin: Plugin = {
-  name: "deno-npm-resolver",
-  setup(build) {
-    // Redirect packages that need platform-specific entry points
-    for (const [pkg, subpath] of Object.entries(EDGE_SUBPATHS)) {
-      const filter = new RegExp(
-        `^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-      );
-      build.onResolve({ filter }, () => {
-        const resolved = resolveNpmSpecifier(`${pkg}${subpath}`);
-        return resolved ? { path: resolved } : undefined;
-      });
-    }
-
-    // Resolve all bare specifiers from Deno's npm cache
-    build.onResolve({ filter: /^[^./]/ }, (args) => {
-      if (args.path.startsWith("node:")) return undefined;
-      const resolved = resolveNpmSpecifier(args.path);
-      return resolved ? { path: resolved } : undefined;
-    });
-  },
-};
-
 // Externalize all Node.js built-in modules (per Bunny docs)
 import { builtinModules } from "node:module";
 
@@ -360,8 +213,10 @@ await esbuild.build({
   platform: "browser",
   plugins: [
     shimBareNodeCryptoPlugin,
-    denoNpmResolverPlugin,
     inlineAssetsPlugin,
+    ...denoPlugins({
+      configPath: fromFileUrl(new URL("../deno.json", import.meta.url)),
+    }),
   ],
 });
 

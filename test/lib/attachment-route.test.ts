@@ -34,7 +34,7 @@ describe("getMimeType", () => {
   });
 
   test("returns application/octet-stream for unknown extension", () => {
-    expect(getMimeType("file.xyz")).toBe("application/octet-stream");
+    expect(getMimeType("file.unknownext")).toBe("application/octet-stream");
   });
 
   test("returns application/octet-stream for no extension", () => {

@@ -165,7 +165,7 @@ const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   form.append("text", msg.text);
   if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
   for (const a of msg.attachments ?? []) {
-    const bytes = Uint8Array.from(atob(a.content), (c) => c.charCodeAt(0));
+    const bytes = Uint8Array.fromBase64(a.content);
     form.append(
       "attachment",
       new Blob([bytes], { type: a.contentType }),

@@ -25,10 +25,7 @@ export type GoogleWalletCredentials = {
 
 /** Base64url-encode a Uint8Array (no padding) */
 const base64url = (data: Uint8Array): string =>
-  btoa(String.fromCharCode(...data))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  data.toBase64({ alphabet: "base64url", omitPadding: true });
 
 /** Base64url-encode a UTF-8 string */
 const base64urlStr = (str: string): string =>
@@ -40,7 +37,7 @@ const pemToBytes = (pem: string): Uint8Array => {
     .replace(/-----BEGIN [A-Z ]+-----/g, "")
     .replace(/-----END [A-Z ]+-----/g, "")
     .replace(/\s/g, "");
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  return Uint8Array.fromBase64(b64);
 };
 
 /** Import a PEM RSA private key for RS256 signing */
