@@ -9,7 +9,7 @@ import { assert } from "@std/assert";
 
 export const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
-// Go up from src/test-utils to project root
+// Go up from test/test-utils to project root
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const BIN_DIR = join(currentDir, "..", "..", ".bin");
 export const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");

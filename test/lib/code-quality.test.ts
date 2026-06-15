@@ -32,15 +32,6 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 /**
- * Test utility files (relative to src/). Test utilities now live under
- * test/test-utils/, not src/, so the src-only rules (in-memory state,
- * test-only exports) no longer encounter them, and the universal rules
- * (aliasing, module-level let, .then(), redundant args) deliberately DO scan
- * them — test code is held to the same standard. Hence this list is empty.
- */
-const TEST_UTILITY_FILES: string[] = [];
-
-/**
  * src/ files allowed to hold module-level Map/Set state (the in-memory-state
  * rule is src-only; test code may use Maps/Sets freely).
  */
@@ -452,14 +443,12 @@ describe("code quality", () => {
      * - Config getters that are never actually called in production
      *
      * Excluded from checking:
-     * - Test utility modules (test-utils/*) - explicitly for testing
      * - Library modules (fp/*) - reusable utilities, may not all be used yet
      * - JSX runtime modules (shared/jsx/*) - used implicitly by JSX compiler
      * - Index files that only re-export (shared/db/index.ts) - aggregation modules
+     *
+     * (Test utilities live under test/, so this src-only rule never sees them.)
      */
-
-    /** Files explicitly for testing */
-    const TEST_UTILITY_PATHS = TEST_UTILITY_FILES;
 
     /** Library/infrastructure modules - okay to have unused exports */
     const LIBRARY_PATHS = [
@@ -474,7 +463,6 @@ describe("code quality", () => {
       "shared/db/index.ts",
       "shared/rest/index.ts",
       "templates/index.ts",
-      "test-utils.ts",
     ];
 
     /**
@@ -656,11 +644,6 @@ describe("code quality", () => {
       // Check .ts files
       for (const file of srcFiles) {
         if (file === sourceFile) continue;
-
-        const relativePath = getRelativePath(file);
-        // Skip test utilities - imports there don't count as production usage
-        if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
-
         if (importPattern.test(srcContents.get(file)!)) {
           return true;
         }
@@ -692,7 +675,6 @@ describe("code quality", () => {
 
     /** Check if a file should be skipped (test utils, libraries, aggregation modules) */
     const shouldSkipFile = (relativePath: string): boolean =>
-      TEST_UTILITY_PATHS.includes(relativePath) ||
       LIBRARY_PATHS.includes(relativePath) ||
       AGGREGATION_MODULES.includes(relativePath);
 
