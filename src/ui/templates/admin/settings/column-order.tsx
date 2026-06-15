@@ -43,13 +43,15 @@ export const ListingColumnOrderForm = (
     action="/admin/settings/listing-column-order"
     id="settings-listing-column-order"
   >
-    <h2>Listing Table Columns</h2>
-    <p>
-      Control which columns appear on the Listings table and in what order. Use
-      Liquid-style tags separated by commas. See the{" "}
-      <a href="/admin/guide#column-order">Column Order guide</a> for full
-      details including custom date and currency formatting.
-    </p>
+    <div class="prose">
+      <h2>Listing Table Columns</h2>
+      <p>
+        Control which columns appear on the Listings table and in what order.
+        Use Liquid-style tags separated by commas. See the{" "}
+        <a href="/admin/guide#column-order">Column Order guide</a> for full
+        details including custom date and currency formatting.
+      </p>
+    </div>
     <label>
       Column order
       <input
@@ -74,14 +76,16 @@ export const AttendeeColumnOrderForm = (
     action="/admin/settings/attendee-column-order"
     id="settings-attendee-column-order"
   >
-    <h2>Attendee Table Columns</h2>
-    <p>
-      Control which columns appear on Attendee tables and in what order. Use
-      Liquid-style tags separated by commas. Columns referencing absent data
-      (e.g. email when no attendees have one) are hidden automatically. See the{" "}
-      <a href="/admin/guide#column-order">Column Order guide</a> for full
-      details including custom date and currency formatting.
-    </p>
+    <div class="prose">
+      <h2>Attendee Table Columns</h2>
+      <p>
+        Control which columns appear on Attendee tables and in what order. Use
+        Liquid-style tags separated by commas. Columns referencing absent data
+        (e.g. email when no attendees have one) are hidden automatically. See
+        the <a href="/admin/guide#column-order">Column Order guide</a> for full
+        details including custom date and currency formatting.
+      </p>
+    </div>
     <label>
       Column order
       <input

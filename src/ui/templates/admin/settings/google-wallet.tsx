@@ -9,18 +9,20 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/google-wallet" id="settings-google-wallet">
-    <h2>Google Wallet</h2>
-    <p>
-      Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
-      button on ticket pages. Requires a Google Cloud service account with the
-      Google Wallet API enabled.{" "}
-      <a href="/admin/guide#google-wallet">Setup guide</a>.
-      {s.hostGoogleWalletLabel && !s.googleWalletConfigured
-        ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
-        : s.hostGoogleWalletLabel && s.googleWalletConfigured
-          ? ` Overriding: ${s.hostGoogleWalletLabel}.`
-          : ""}
-    </p>
+    <div class="prose">
+      <h2>Google Wallet</h2>
+      <p>
+        Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
+        button on ticket pages. Requires a Google Cloud service account with the
+        Google Wallet API enabled.{" "}
+        <a href="/admin/guide#google-wallet">Setup guide</a>.
+        {s.hostGoogleWalletLabel && !s.googleWalletConfigured
+          ? ` Currently using: ${s.hostGoogleWalletLabel}. Override below or leave empty to keep using host config.`
+          : s.hostGoogleWalletLabel && s.googleWalletConfigured
+            ? ` Overriding: ${s.hostGoogleWalletLabel}.`
+            : ""}
+      </p>
+    </div>
     <label>
       Issuer ID
       <input

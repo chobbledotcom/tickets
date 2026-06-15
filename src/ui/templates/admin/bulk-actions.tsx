@@ -49,11 +49,13 @@ export const adminBulkActionsPage = (
       <p>
         <a href={`/admin/groups/${group.id}`}>&larr; {group.name}</a>
       </p>
-      <h1>Bulk Actions</h1>
-      <p>
-        Apply an operation across all {listings.length} listing
-        {listings.length === 1 ? "" : "s"} in <strong>{group.name}</strong>.
-      </p>
+      <div class="prose">
+        <h1>Bulk Actions</h1>
+        <p>
+          Apply an operation across all {listings.length} listing
+          {listings.length === 1 ? "" : "s"} in <strong>{group.name}</strong>.
+        </p>
+      </div>
 
       <ul>
         <li>
@@ -139,13 +141,15 @@ export const adminDuplicateGroupPage = (
           &larr; Bulk Actions
         </a>
       </p>
-      <h1>Duplicate Group</h1>
-      <p>
-        Creating a new group based on <strong>{group.name}</strong>. Each
-        listing in the group will be duplicated into the new group with the same
-        settings. Use the fields below to apply a name replacement and/or a date
-        shift across all duplicates.
-      </p>
+      <div class="prose">
+        <h1>Duplicate Group</h1>
+        <p>
+          Creating a new group based on <strong>{group.name}</strong>. Each
+          listing in the group will be duplicated into the new group with the
+          same settings. Use the fields below to apply a name replacement and/or
+          a date shift across all duplicates.
+        </p>
+      </div>
       <Flash error={error} />
 
       <CsrfForm

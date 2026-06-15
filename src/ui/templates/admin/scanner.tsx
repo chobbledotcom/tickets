@@ -30,11 +30,13 @@ export const adminScannerPage = (
       title={`Scanner: ${listing.name}`}
     >
       <AdminNav active="/admin/" session={session} />
-      <h1>Scanner</h1>
-      <p class="actions">
-        <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
-        <GuideLink href="/admin/guide#checkin">Scanner help</GuideLink>
-      </p>
+      <div class="prose">
+        <h1>Scanner</h1>
+        <p class="actions">
+          <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
+          <GuideLink href="/admin/guide#checkin">Scanner help</GuideLink>
+        </p>
+      </div>
 
       <article>
         <div id="scanner-container">

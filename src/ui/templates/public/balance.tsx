@@ -18,8 +18,10 @@ export const balancePaymentPage = (
 ): string =>
   String(
     <Layout title="Pay your balance">
-      <h1>Pay your balance</h1>
-      <p>Here's a summary of your booking. No personal details are shown.</p>
+      <div class="prose">
+        <h1>Pay your balance</h1>
+        <p>Here's a summary of your booking. No personal details are shown.</p>
+      </div>
       <table>
         <thead>
           <tr>
@@ -54,8 +56,10 @@ export const balancePaymentPage = (
 export const balanceSettledPage = (): string =>
   String(
     <Layout title="Nothing to pay">
-      <h1>Nothing to pay</h1>
-      <p>This booking has no outstanding balance. Thank you!</p>
+      <div class="prose">
+        <h1>Nothing to pay</h1>
+        <p>This booking has no outstanding balance. Thank you!</p>
+      </div>
     </Layout>,
   );
 
@@ -63,10 +67,12 @@ export const balanceSettledPage = (): string =>
 export const balanceInvalidPage = (): string =>
   String(
     <Layout title="Link not valid">
-      <h1>This payment link is not valid</h1>
-      <p>
-        The link may have expired or been mistyped. Please ask the organiser for
-        a new one.
-      </p>
+      <div class="prose">
+        <h1>This payment link is not valid</h1>
+        <p>
+          The link may have expired or been mistyped. Please ask the organiser
+          for a new one.
+        </p>
+      </div>
     </Layout>,
   );

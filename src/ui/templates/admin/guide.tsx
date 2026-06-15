@@ -94,12 +94,14 @@ export const adminGuidePage = (
     <Layout bodyClass="guide" title="Guide">
       <AdminNav active="/admin/guide" session={adminSession} />
 
-      <h2>Guide</h2>
+      <div class="prose">
+        <h2>Guide</h2>
 
-      <p class="search-hint">
-        Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
-        on Mac) to search this page.
-      </p>
+        <p class="search-hint">
+          Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
+          on Mac) to search this page.
+        </p>
+      </div>
 
       <Section title="Getting Started">
         <Q q="How do I create a listing?">

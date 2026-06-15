@@ -9,8 +9,10 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const CountryForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/country" id="settings-country">
-    <h2>Your Country</h2>
-    <p>Sets your timezone, currency, and phone prefix.</p>
+    <div class="prose">
+      <h2>Your Country</h2>
+      <p>Sets your timezone, currency, and phone prefix.</p>
+    </div>
     <label>
       Country
       <select name="country" required>

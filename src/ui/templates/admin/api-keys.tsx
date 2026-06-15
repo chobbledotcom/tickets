@@ -181,11 +181,13 @@ export const adminApiDocsPage = (
       <UsersSubNav />
 
       <div class="stack-md column">
-        <h3>Authentication</h3>
-        <p>
-          Admin API endpoints require authentication via API key or session
-          cookie:
-        </p>
+        <div class="prose">
+          <h3>Authentication</h3>
+          <p>
+            Admin API endpoints require authentication via API key or session
+            cookie:
+          </p>
+        </div>
         <pre>
           <code>Authorization: Bearer YOUR_API_KEY</code>
         </pre>
@@ -196,16 +198,20 @@ export const adminApiDocsPage = (
       </div>
 
       <div class="stack-md column">
-        <h3>Public API</h3>
-        <p>No API key required. All endpoints support CORS.</p>
+        <div class="prose">
+          <h3>Public API</h3>
+          <p>No API key required. All endpoints support CORS.</p>
+        </div>
         <Raw html={EndpointList({ endpoints: publicEndpoints })} />
       </div>
 
       <div class="stack-md column">
-        <h3>Admin API</h3>
-        <p>
-          Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
-        </p>
+        <div class="prose">
+          <h3>Admin API</h3>
+          <p>
+            Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
+          </p>
+        </div>
         <Raw html={EndpointList({ endpoints: adminEndpoints })} />
       </div>
     </Layout>,

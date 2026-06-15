@@ -22,7 +22,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -50,23 +50,25 @@ export const adminDeleteAttendeePage = (
           <strong>Warning:</strong> This will permanently remove this attendee
           from the listing and delete any associated payment records.
         </p>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        <p>
-          <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
-        </p>
-        <p>
-          To delete this attendee, type their name "{attendee.name}" into the
-          box below:
-        </p>
+        <div class="prose">
+          <h2>Attendee Details</h2>
+          <p>
+            <strong>Name:</strong> {attendee.name}
+          </p>
+          <p>
+            <strong>Email:</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>Quantity:</strong> {attendee.quantity}
+          </p>
+          <p>
+            <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
+          </p>
+          <p>
+            To delete this attendee, type their name "{attendee.name}" into the
+            box below:
+          </p>
+        </div>
       </ConfirmForm>
     </Layout>,
   );
@@ -96,28 +98,31 @@ export const adminRefundAttendeePage = (
           <strong>Warning:</strong> This will issue a full refund for this
           attendee's payment. The attendee will remain registered.
         </p>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        {Number.parseInt(attendee.price_paid, 10) > 0 && (
+        <div class="prose">
+          <h2>Attendee Details</h2>
           <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
+            <strong>Name:</strong> {attendee.name}
           </p>
-        )}
-        <p>
-          <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
-        </p>
-        <p>
-          To refund this attendee, type their name "{attendee.name}" into the
-          box below:
-        </p>
+          <p>
+            <strong>Email:</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>Quantity:</strong> {attendee.quantity}
+          </p>
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
+            <p>
+              <strong>Amount Paid:</strong>{" "}
+              {formatCurrency(attendee.price_paid)}
+            </p>
+          )}
+          <p>
+            <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
+          </p>
+          <p>
+            To refund this attendee, type their name "{attendee.name}" into the
+            box below:
+          </p>
+        </div>
       </ConfirmForm>
     </Layout>,
   );
@@ -169,39 +174,41 @@ export const PaymentDetails = ({
 
   return String(
     <article>
-      <h3>Payment Details</h3>
-      <p>
-        <strong>Payment ID:</strong>{" "}
-        {dashboardUrl ? (
-          <a href={dashboardUrl} rel="noopener" target="_blank">
-            {attendee.payment_id}
-          </a>
-        ) : (
-          attendee.payment_id
-        )}
-      </p>
-      {pricePaid > 0 && (
+      <div class="prose">
+        <h3>Payment Details</h3>
         <p>
-          <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
+          <strong>Payment ID:</strong>{" "}
+          {dashboardUrl ? (
+            <a href={dashboardUrl} rel="noopener" target="_blank">
+              {attendee.payment_id}
+            </a>
+          ) : (
+            attendee.payment_id
+          )}
         </p>
-      )}
-      <p>
-        <strong>Refund Status:</strong>{" "}
-        {isRefunded ? (
-          <span class="badge-alert">Refunded</span>
-        ) : (
-          "Not refunded"
+        {pricePaid > 0 && (
+          <p>
+            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
+          </p>
         )}
-      </p>
-      {attendee.remaining_balance > 0 && (
         <p>
-          <strong>Balance outstanding:</strong>{" "}
-          {formatCurrency(attendee.remaining_balance)} —{" "}
-          <a href={`/admin/attendees/${attendee.id}/balance`}>
-            view balance &amp; payment link
-          </a>
+          <strong>Refund Status:</strong>{" "}
+          {isRefunded ? (
+            <span class="badge-alert">Refunded</span>
+          ) : (
+            "Not refunded"
+          )}
         </p>
-      )}
+        {attendee.remaining_balance > 0 && (
+          <p>
+            <strong>Balance outstanding:</strong>{" "}
+            {formatCurrency(attendee.remaining_balance)} —{" "}
+            <a href={`/admin/attendees/${attendee.id}/balance`}>
+              view balance &amp; payment link
+            </a>
+          </p>
+        )}
+      </div>
       <CsrfForm
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
         class="inline"
@@ -479,7 +486,9 @@ export const adminMergeAttendeePage = (
 
       <h2>Merge Attendee</h2>
       <p>
-        <a href={`/admin/attendees/${target.id}`}>← Back to {target.name}</a>
+        <BackButton href={`/admin/attendees/${target.id}`}>
+          Back to {target.name}
+        </BackButton>
       </p>
 
       {/* Token search form */}
@@ -506,11 +515,13 @@ export const adminMergeAttendeePage = (
 
       {source && mergeDiff && (
         <div>
-          <h3>Merge Preview</h3>
-          <p>
-            Choose which value to keep for each field. Resolve any conflicts
-            below. The source attendee will then be deleted.
-          </p>
+          <div class="prose">
+            <h3>Merge Preview</h3>
+            <p>
+              Choose which value to keep for each field. Resolve any conflicts
+              below. The source attendee will then be deleted.
+            </p>
+          </div>
 
           <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
             <input
@@ -605,28 +616,31 @@ export const adminResendNotificationPage = (
           <strong>Note:</strong> This will re-send the registration notification
           for this attendee.
         </p>
-        <h2>Attendee Details</h2>
-        <p>
-          <strong>Name:</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>Email:</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>Quantity:</strong> {attendee.quantity}
-        </p>
-        {Number.parseInt(attendee.price_paid, 10) > 0 && (
+        <div class="prose">
+          <h2>Attendee Details</h2>
           <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
+            <strong>Name:</strong> {attendee.name}
           </p>
-        )}
-        <p>
-          <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
-        </p>
-        <p>
-          To re-send the notification, type their name "{attendee.name}" into
-          the box below:
-        </p>
+          <p>
+            <strong>Email:</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>Quantity:</strong> {attendee.quantity}
+          </p>
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
+            <p>
+              <strong>Amount Paid:</strong>{" "}
+              {formatCurrency(attendee.price_paid)}
+            </p>
+          )}
+          <p>
+            <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
+          </p>
+          <p>
+            To re-send the notification, type their name "{attendee.name}" into
+            the box below:
+          </p>
+        </div>
       </ConfirmForm>
     </Layout>,
   );
