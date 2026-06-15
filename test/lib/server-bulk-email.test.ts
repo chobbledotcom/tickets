@@ -230,6 +230,42 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expect(html).toContain("alice@example.com, bob@example.com");
     });
 
+    test("BCCs several recipients from the owner's business email", async () => {
+      useResend();
+      settings.setForTest({ business_email: "owner@example.com" });
+      const listing = await seedListingWithAttendees();
+      await adminFormPost("/admin/emails/preview", {
+        body: "Hello",
+        listing_id: String(listing.id),
+        subject: "Big news",
+      });
+      const html = await awaitTestRequest("/admin/emails/preview", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain("everyone in BCC");
+      expect(html).toContain("Open a BCC draft to 2 recipients");
+      expect(html).toContain("mailto:owner%40example.com?bcc=");
+    });
+
+    test("addresses a lone recipient directly instead of using BCC", async () => {
+      useResend();
+      // A business email is set but must be ignored for a single recipient.
+      settings.setForTest({ business_email: "owner@example.com" });
+      const listing = await seedSingleAttendeeListing();
+      await adminFormPost("/admin/emails/preview", {
+        body: "Hello",
+        listing_id: String(listing.id),
+        subject: "Big news",
+      });
+      const html = await awaitTestRequest("/admin/emails/preview", {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain("Open a draft to 1 recipient");
+      expect(html).toContain("addressed straight to your one recipient");
+      expect(html).toContain("mailto:alice%40example.com?");
+      expect(html).not.toContain("BCC");
+    });
+
     test("omits the address list when there are no recipients", async () => {
       useResend();
       settings.setForTest({

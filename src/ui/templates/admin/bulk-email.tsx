@@ -226,9 +226,8 @@ export const bulkEmailPreviewPage = (
   state: BulkEmailPreviewState,
 ): string => {
   const { draft } = state;
-  const recipients = `${state.sendableCount} recipient${
-    state.sendableCount === 1 ? "" : "s"
-  }`;
+  const single = state.sendableCount === 1;
+  const recipients = `${state.sendableCount} recipient${single ? "" : "s"}`;
   return String(
     <Layout title="Preview bulk email">
       <AdminNav active={NAV_ACTIVE} session={session} />
@@ -312,13 +311,18 @@ export const bulkEmailPreviewPage = (
       <div class="prose">
         <h2>Or send from your own email app</h2>
         <p>
-          This opens your email app with everyone in BCC. It needs no provider
-          setup, but sending lots of mail this way, especially marketing, is a
-          quick way to get your account rate-limited or blocked. It's best for
-          small, genuinely transactional messages.
+          {single
+            ? "This opens your email app with the message addressed straight to your one recipient."
+            : "This opens your email app with everyone in BCC."}{" "}
+          It needs no provider setup, but sending lots of mail this way,
+          especially marketing, is a quick way to get your account rate-limited
+          or blocked. It's best for small, genuinely transactional messages.
         </p>
         <p>
-          <a href={state.mailtoLink}>Open a BCC draft to {recipients}</a>
+          <a href={state.mailtoLink}>
+            {single ? "Open a draft to " : "Open a BCC draft to "}
+            {recipients}
+          </a>
         </p>
       </div>
 

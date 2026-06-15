@@ -272,8 +272,12 @@ export const summarizeProviderResponse = (
 // ── mailto fallback ─────────────────────────────────────────────────
 
 /**
- * Build a `mailto:` link that BCCs every recipient with the subject and body
- * prefilled. Addresses go in BCC so recipients can't see each other. Used as a
+ * Build a `mailto:` link with the subject and body prefilled.
+ *
+ * A lone recipient is addressed directly in the `To:` field — there's no one
+ * to hide them from, so no BCC. Multiple recipients go in BCC so they can't
+ * see each other, and the draft is addressed to the owner's own
+ * `businessEmail` (when set) so the `To:` field isn't left empty. Used as a
  * fallback for admins without a configured (bulk-capable) email provider, and
  * offered alongside provider sending in all cases.
  */
@@ -281,9 +285,14 @@ export const buildMailtoLink = (
   emails: string[],
   subject: string,
   body: string,
+  businessEmail = "",
 ): string => {
   const parts: string[] = [];
-  if (emails.length > 0) {
+  let to = "";
+  if (emails.length === 1) {
+    to = emails[0]!;
+  } else if (emails.length > 1) {
+    to = businessEmail;
     parts.push(`bcc=${emails.map((e) => encodeURIComponent(e)).join(",")}`);
   }
   if (subject) parts.push(`subject=${encodeURIComponent(subject)}`);
@@ -293,5 +302,5 @@ export const buildMailtoLink = (
     const normalizedBody = body.replace(/\r\n?/g, "\n");
     parts.push(`body=${encodeURIComponent(normalizedBody)}`);
   }
-  return `mailto:?${parts.join("&")}`;
+  return `mailto:${encodeURIComponent(to)}?${parts.join("&")}`;
 };

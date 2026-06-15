@@ -205,7 +205,12 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
       contactSummary: contactFrequencySummary(counts),
       disabledReason,
       draft,
-      mailtoLink: buildMailtoLink(sendable, draft.subject, draft.body),
+      mailtoLink: buildMailtoLink(
+        sendable,
+        draft.subject,
+        draft.body,
+        settings.businessEmail,
+      ),
       providerLabel:
         canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
       recipientCount: recipients.length,
