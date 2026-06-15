@@ -10,7 +10,7 @@ import {
   Flash,
   renderFields,
 } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -150,7 +150,7 @@ export const adminHolidayDeletePage = (
           <Raw
             html={t("holidays.delete.confirm", {
               end: holiday.end_date,
-              name: holiday.name,
+              name: escapeHtml(holiday.name),
               start: holiday.start_date,
             })}
           />

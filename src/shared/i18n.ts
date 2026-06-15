@@ -34,7 +34,11 @@ const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
   const msg = locales[locale]?.[key] ?? locales["en"]?.[key];
   if (msg === undefined) return null;
 
-  const fmt = new IntlMessageFormat(msg, locale);
+  // ignoreTag: treat <tags> in messages as literal text (locale values may
+  // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
+  const fmt = new IntlMessageFormat(msg, locale, undefined, {
+    ignoreTag: true,
+  });
   cache.set(cacheKey, fmt);
   return fmt;
 };

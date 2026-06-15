@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -50,7 +51,7 @@ const activityLogRows = (entries: ActivityLogEntry[]): string =>
         map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
         joinStrings,
       )(entries)
-    : '<tr><td colspan="2">No activity recorded yet</td></tr>';
+    : `<tr><td colspan="2">${t("admin.log.no_activity")}</td></tr>`;
 
 /**
  * The Time/Activity log table, scrollable on narrow screens. Shared by the
@@ -66,8 +67,8 @@ export const ActivityLogTable = ({
     <table>
       <thead>
         <tr>
-          <th>Time</th>
-          <th>Activity</th>
+          <th>{t("admin.log.col.time")}</th>
+          <th>{t("admin.log.col.activity")}</th>
         </tr>
       </thead>
       <tbody>
@@ -86,7 +87,7 @@ export const adminListingActivityLogPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title={`Log: ${listing.name}`}>
+    <Layout title={`${t("admin.log.heading")}: ${listing.name}`}>
       <AdminNav active="/admin/log" session={session} />
       <p class="actions">
         <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
@@ -107,7 +108,7 @@ export const adminGlobalActivityLogPage = (
   session: AdminSession,
 ): string =>
   String(
-    <Layout title="Log">
+    <Layout title={t("admin.log.heading")}>
       <AdminNav active="/admin/log" session={session} />
       <p class="actions">
         <GuideLink href="/admin/guide#activity-log">
@@ -115,6 +116,6 @@ export const adminGlobalActivityLogPage = (
         </GuideLink>
       </p>
       <ActivityLogTable entries={entries} />
-      {truncated && <p>Showing the most recent 200 entries.</p>}
+      {truncated && <p>{t("admin.log.recent_entries")}</p>}
     </Layout>,
   );

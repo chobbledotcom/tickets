@@ -9,6 +9,7 @@
  * The resulting URL format: https://pay.google.com/gp/v/save/{jwt}
  */
 
+import { t } from "#i18n";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { startOfHour } from "#shared/dates.ts";
@@ -115,7 +116,7 @@ export const buildListingTicketObject = (
   if (data.attendeeDate) {
     textModules.push({
       body: data.attendeeDate,
-      header: "BOOKING DATE",
+      header: t("fields.wallet.google.booking_date_label"),
       id: "booking-date",
     });
   }
@@ -123,7 +124,7 @@ export const buildListingTicketObject = (
   if (data.quantity > 1) {
     textModules.push({
       body: String(data.quantity),
-      header: "QTY",
+      header: t("fields.wallet.google.qty_label"),
       id: "qty",
     });
   }
@@ -133,7 +134,7 @@ export const buildListingTicketObject = (
       data.pricePaid / 10 ** getDecimalPlaces(data.currencyCode);
     textModules.push({
       body: `${majorUnits} ${data.currencyCode}`,
-      header: "PRICE",
+      header: t("fields.wallet.google.price_label"),
       id: "price",
     });
   }
