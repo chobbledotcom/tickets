@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
   assertJson,
   createDailyTestListing,
@@ -39,6 +40,16 @@ const apiRequest = (
 /** Parse JSON response */
 const jsonBody = (response: Response): Promise<Record<string, unknown>> =>
   response.json();
+
+/** Shape of the public booking endpoint's JSON response (wrapped under `booking`) */
+type BookResponseBody = {
+  error?: string;
+  booking?: {
+    ticketToken?: string;
+    ticketUrl?: string;
+    checkoutUrl?: string;
+  };
+};
 
 /** Assert CORS headers are present */
 const expectCorsHeaders = (response: Response): void => {
@@ -76,14 +87,14 @@ describeWithEnv("Public API", { db: true }, () => {
       email: "alice@test.com",
       name: "Alice",
     },
-  ): Promise<{ response: Response; body: Record<string, unknown> }> => {
+  ): Promise<{ response: Response; body: BookResponseBody }> => {
     const response = await handleRequest(
       apiRequest(`/api/listings/${slug}/book`, {
         body: bookingBody,
         method: "POST",
       }),
     );
-    const body = await jsonBody(response);
+    const body = (await jsonBody(response)) as BookResponseBody;
     return { body, response };
   };
 
@@ -374,10 +385,29 @@ describeWithEnv("Public API", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.ticketToken).toBeDefined();
-      expect(body.ticketUrl).toBeDefined();
-      expect(typeof body.ticketUrl).toBe("string");
+      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.ticketUrl).toBeDefined();
+      expect(typeof body.booking?.ticketUrl).toBe("string");
       expectCorsHeaders(response);
+    });
+
+    test("rate-limits booking after too many attempts from one IP", async () => {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      // All test requests share the "direct" fallback IP, so the per-IP counter
+      // fills up. The first MAX_BOOKING_ATTEMPTS succeed; the next is blocked.
+      for (let i = 0; i < MAX_BOOKING_ATTEMPTS; i++) {
+        const { response } = await bookListing(listing.slug, {
+          email: `booker${i}@test.com`,
+          name: `Booker ${i}`,
+        });
+        expect(response.status).toBe(200);
+      }
+      const { response, body } = await bookListing(listing.slug, {
+        email: "blocked@test.com",
+        name: "Blocked",
+      });
+      expect(response.status).toBe(429);
+      expect(body.error).toMatch(/too many/i);
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -468,7 +498,7 @@ describeWithEnv("Public API", { db: true }, () => {
         quantity: 3,
       });
       expect(response.status).toBe(200);
-      expect(body.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("caps quantity at max_quantity", async () => {
@@ -504,8 +534,8 @@ describeWithEnv("Public API", { db: true }, () => {
       });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.checkoutUrl).toBeDefined();
-      expect(typeof body.checkoutUrl).toBe("string");
+      expect(body.booking?.checkoutUrl).toBeDefined();
+      expect(typeof body.booking?.checkoutUrl).toBe("string");
     });
 
     test("returns 409 for paid listing when sold out", async () => {
@@ -522,16 +552,17 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(409);
     });
 
-    test("returns 500 when payment provider not configured for paid listing", async () => {
-      // Don't call setupStripe — no provider configured
+    test("books a paid listing as free when no payment provider is configured", async () => {
+      // Don't call setupStripe — unit_price > 0 but payments are disabled, so
+      // the booking falls through to the free path instead of attempting
+      // checkout, issuing a ticket directly.
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { response } = await bookListing(listing.slug);
-      // Without payment provider, unit_price > 0 but isPaymentsEnabled returns false
-      // so it falls through to free path
-      expect([200, 500].includes(response.status)).toBe(true);
+      const { response, body } = await bookListing(listing.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("books daily listing with valid date", async () => {
@@ -548,7 +579,7 @@ describeWithEnv("Public API", { db: true }, () => {
         name: "Alice",
       });
       expect(response.status).toBe(200);
-      expect(body.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("returns 400 for daily listing without date", async () => {
@@ -637,7 +668,7 @@ describeWithEnv("Public API", { db: true }, () => {
         name: "Alice",
       });
       expect(response.status).toBe(200);
-      expect(body.checkoutUrl).toBeDefined();
+      expect(body.booking?.checkoutUrl).toBeDefined();
     });
 
     test("allows omitting price for pay-what-you-want listing with zero base price", async () => {
@@ -647,7 +678,7 @@ describeWithEnv("Public API", { db: true }, () => {
       });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("requires price for pay-more listing with non-zero unit price", async () => {
@@ -668,7 +699,7 @@ describeWithEnv("Public API", { db: true }, () => {
         quantity: "abc",
       });
       expect(response.status).toBe(200);
-      expect(body.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("handles booking when email not in listing fields", async () => {
@@ -681,7 +712,7 @@ describeWithEnv("Public API", { db: true }, () => {
         phone: "1234567890",
       });
       expect(response.status).toBe(200);
-      expect(body.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("returns 500 when checkout session returns null", async () => {

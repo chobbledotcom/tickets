@@ -1060,8 +1060,8 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           method: "POST",
         }),
         200,
-        (body: { ticketToken?: string }) => {
-          expect(body.ticketToken).toBeDefined();
+        (body: { booking?: { ticketToken?: string } }) => {
+          expect(body.booking?.ticketToken).toBeDefined();
         },
       );
 

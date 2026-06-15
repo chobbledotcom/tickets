@@ -9,6 +9,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
+import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   getPrivateKeyFromSession,
@@ -16,6 +17,10 @@ import {
 } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
+import {
+  isApiKeyRateLimited,
+  recordApiKeyAttempt,
+} from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -131,8 +136,21 @@ export const getAuthenticatedApiKey = async (
   const token = getBearerToken(request);
   if (!token) return null;
 
+  // Throttle brute-force guessing per IP. Only failed lookups are counted, so a
+  // client with a valid key is never locked out; once an IP is locked, even a
+  // correct token is rejected until the lockout expires.
+  const ip = getRequestClientIp();
+  if (await isApiKeyRateLimited(ip)) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "API key authentication rate limited",
+    });
+    return null;
+  }
+
   const apiKeyRow = await getApiKeyByToken(token);
   if (!apiKeyRow) {
+    await recordApiKeyAttempt(ip);
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
       detail: "Bearer token does not match any API key",
@@ -236,6 +254,17 @@ export const ADMIN_API: AuthPolicy<"json"> = {
   body: "json",
 };
 /**
+ * Owner-only JSON API: like ADMIN_API but restricted to the owner role, for
+ * resources whose web management is owner-only (e.g. holidays). Keeps the JSON
+ * API authorization aligned with the UI so a manager cannot perform via the API
+ * what the dashboard denies them.
+ */
+export const OWNER_API: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  role: "owner",
+};
+/**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
  * the session lifetime, so a logged-in admin can keep the scanner page open for
  * a whole listing without check-ins failing on CSRF expiry.
@@ -323,16 +352,14 @@ export const sessionPage = authPage(requireSessionOr);
 
 /** Shared auth failure response factories (avoids jscpd duplication) */
 const htmlForbidden = () => htmlResponse("Forbidden", 403);
-const jsonForbidden = () =>
-  jsonResponse({ message: "Forbidden", status: "error" }, 403);
+const jsonForbidden = () => jsonResponse({ error: "Forbidden" }, 403);
 
 /** Auth failure responses keyed by reason, with html and json variants side-by-side. */
 const AUTH_FAILURES = {
   forbidden: { html: htmlForbidden, json: jsonForbidden },
   "invalid-api-key": {
     html: htmlForbidden,
-    json: () =>
-      jsonResponse({ message: "Invalid API key", status: "error" }, 401),
+    json: () => jsonResponse({ error: "Invalid API key" }, 401),
   },
   "invalid-csrf": {
     html: () => htmlResponse("Invalid CSRF token", 403),
@@ -340,8 +367,7 @@ const AUTH_FAILURES = {
   },
   "not-authenticated": {
     html: () => redirectResponse("/admin"),
-    json: () =>
-      jsonResponse({ message: "Not authenticated", status: "error" }, 401),
+    json: () => jsonResponse({ error: "Not authenticated" }, 401),
   },
 } satisfies Record<string, Record<"html" | "json", () => Response>>;
 
@@ -363,10 +389,7 @@ const parseJsonBody = async (
 
   if (!contentType.includes("application/json")) {
     if (bodyRequired) {
-      return jsonResponse(
-        { message: "Invalid request body", status: "error" },
-        400,
-      );
+      return jsonResponse({ error: "Invalid request body" }, 400);
     }
     return {};
   }
@@ -378,16 +401,10 @@ const parseJsonBody = async (
       code: ErrorCode.VALIDATION_FORM,
       detail: "Malformed JSON body",
     });
-    return jsonResponse(
-      { message: "Invalid request body", status: "error" },
-      400,
-    );
+    return jsonResponse({ error: "Invalid request body" }, 400);
   }
   if (!isRecord(parsed)) {
-    return jsonResponse(
-      { message: "Invalid request body", status: "error" },
-      400,
-    );
+    return jsonResponse({ error: "Invalid request body" }, 400);
   }
   return parsed;
 };

@@ -12,6 +12,16 @@ import {
   toAdminListing,
   type UpdateListingBody,
 } from "#routes/admin/api.ts";
+import type {
+  CreateGroupBody,
+  DeleteGroupBody,
+  UpdateGroupBody,
+} from "#routes/admin/api-groups.ts";
+import type {
+  CreateHolidayBody,
+  DeleteHolidayBody,
+  UpdateHolidayBody,
+} from "#routes/admin/api-holidays.ts";
 import {
   API_EXAMPLE_LISTING,
   API_EXAMPLE_PUBLIC_LISTING,
@@ -28,15 +38,22 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing = toAdminListing(
 
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
+  can_pay_more: true,
   date: "Sat 20 Aug 2025, 10:00 AM",
   description:
     "A hands-on workshop covering watercolours and sketching techniques.",
   fields: "email",
+  hidden: false,
   listing_type: "standard",
   location: "Village Hall",
   max_attendees: 20,
+  max_price: 3000,
+  max_quantity: 4,
   name: "Summer Workshop",
+  non_transferable: true,
+  thank_you_url: "https://example.com/thanks",
   unit_price: 1500,
+  webhook_url: "https://example.com/webhook",
 } satisfies CreateListingBody;
 
 /** Example update request body */
@@ -50,6 +67,62 @@ const ADMIN_API_UPDATE_BODY = {
 const ADMIN_API_DELETE_BODY = {
   confirm_identifier: "Summer Workshop",
 } satisfies DeleteListingBody;
+
+// =============================================================================
+// Group examples
+// =============================================================================
+
+/** Example group response (slug_index stripped, as the API returns it) */
+const ADMIN_API_EXAMPLE_GROUP = {
+  description: "Workshops running through the summer.",
+  hidden: false,
+  id: 3,
+  max_attendees: 50,
+  name: "Summer Series",
+  slug: "summer-series",
+  terms_and_conditions: "",
+};
+
+const ADMIN_API_GROUP_CREATE_BODY = {
+  description: "Workshops running through the summer.",
+  max_attendees: 50,
+  name: "Summer Series",
+} satisfies CreateGroupBody;
+
+const ADMIN_API_GROUP_UPDATE_BODY = {
+  hidden: true,
+  name: "Summer Series (Updated)",
+} satisfies UpdateGroupBody;
+
+const ADMIN_API_GROUP_DELETE_BODY = {
+  confirm_identifier: "Summer Series",
+} satisfies DeleteGroupBody;
+
+// =============================================================================
+// Holiday examples (owner only)
+// =============================================================================
+
+/** Example holiday response */
+const ADMIN_API_EXAMPLE_HOLIDAY = {
+  end_date: "2025-12-26",
+  id: 5,
+  name: "Christmas",
+  start_date: "2025-12-25",
+};
+
+const ADMIN_API_HOLIDAY_CREATE_BODY = {
+  end_date: "2025-12-26",
+  name: "Christmas",
+  start_date: "2025-12-25",
+} satisfies CreateHolidayBody;
+
+const ADMIN_API_HOLIDAY_UPDATE_BODY = {
+  name: "Christmas Break",
+} satisfies UpdateHolidayBody;
+
+const ADMIN_API_HOLIDAY_DELETE_BODY = {
+  confirm_identifier: "Christmas",
+} satisfies DeleteHolidayBody;
 
 // =============================================================================
 // Endpoint documentation entries
@@ -100,7 +173,9 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       name: "Alice Smith",
       quantity: 2,
     }),
-    response: json({ ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" }),
+    response: json({
+      booking: { ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" },
+    }),
   },
 ];
 
@@ -152,5 +227,73 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     method: "POST",
     path: "/api/admin/listings/:listingId/reactivate",
     response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
+  },
+  // Groups (any admin)
+  {
+    description: "List all groups",
+    method: "GET",
+    path: "/api/admin/groups",
+    response: json({ groups: [ADMIN_API_EXAMPLE_GROUP] }),
+  },
+  {
+    description: "Get a single group by ID",
+    method: "GET",
+    path: "/api/admin/groups/:groupId",
+    response: json({ group: ADMIN_API_EXAMPLE_GROUP }),
+  },
+  {
+    description: "Create a new group",
+    method: "POST",
+    path: "/api/admin/groups",
+    request: json(ADMIN_API_GROUP_CREATE_BODY),
+    response: json({ group: ADMIN_API_EXAMPLE_GROUP }),
+  },
+  {
+    description: "Update a group (all fields optional)",
+    method: "PUT",
+    path: "/api/admin/groups/:groupId",
+    request: json(ADMIN_API_GROUP_UPDATE_BODY),
+    response: json({ group: ADMIN_API_EXAMPLE_GROUP }),
+  },
+  {
+    description: "Delete a group (requires name confirmation)",
+    method: "DELETE",
+    path: "/api/admin/groups/:groupId",
+    request: json(ADMIN_API_GROUP_DELETE_BODY),
+    response: json({ status: "ok" }),
+  },
+  // Holidays (owner only)
+  {
+    description: "List all holidays (owner only)",
+    method: "GET",
+    path: "/api/admin/holidays",
+    response: json({ holidays: [ADMIN_API_EXAMPLE_HOLIDAY] }),
+  },
+  {
+    description: "Get a single holiday by ID (owner only)",
+    method: "GET",
+    path: "/api/admin/holidays/:holidayId",
+    response: json({ holiday: ADMIN_API_EXAMPLE_HOLIDAY }),
+  },
+  {
+    description: "Create a holiday (owner only)",
+    method: "POST",
+    path: "/api/admin/holidays",
+    request: json(ADMIN_API_HOLIDAY_CREATE_BODY),
+    response: json({ holiday: ADMIN_API_EXAMPLE_HOLIDAY }),
+  },
+  {
+    description: "Update a holiday (owner only, all fields optional)",
+    method: "PUT",
+    path: "/api/admin/holidays/:holidayId",
+    request: json(ADMIN_API_HOLIDAY_UPDATE_BODY),
+    response: json({ holiday: ADMIN_API_EXAMPLE_HOLIDAY }),
+  },
+  {
+    description: "Delete a holiday (owner only, requires name confirmation)",
+    method: "DELETE",
+    path: "/api/admin/holidays/:holidayId",
+    request: json(ADMIN_API_HOLIDAY_DELETE_BODY),
+    response: json({ status: "ok" }),
   },
 ];

@@ -94,11 +94,9 @@ describe("endpoint docs", () => {
     const documented = ADMIN_API_ENDPOINTS.map(
       (e: EndpointDoc) => `${e.method} ${e.path}`,
     );
-    // Derive expected routes from the actual adminApiRoutes export,
-    // filtered to listing routes (the only ones currently documented)
-    const expected = Object.keys(adminApiRoutes).filter((k) =>
-      k.includes("/listings"),
-    );
+    // Every registered admin API route (listings, groups, holidays) must be
+    // documented — no filter, so newly added routes fail until documented.
+    const expected = Object.keys(adminApiRoutes);
     expect(documented.sort()).toEqual(expected.sort());
   });
 });

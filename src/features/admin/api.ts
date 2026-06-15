@@ -69,6 +69,9 @@ export type CreateListingBody = {
   duration_days?: number;
   non_transferable?: boolean;
   can_pay_more?: boolean;
+  customisable_days?: boolean;
+  /** Day count → price (minor units), e.g. { "1": 1000, "2": 1800 }. */
+  day_prices?: Record<number, number>;
   hidden?: boolean;
 };
 
@@ -119,8 +122,26 @@ const optionalFields: FieldMapping[] = [
   ["duration_days", "durationDays", "number"],
   ["non_transferable", "nonTransferable", "boolean"],
   ["can_pay_more", "canPayMore", "boolean"],
+  ["customisable_days", "customisableDays", "boolean"],
   ["hidden", "hidden", "boolean"],
 ];
+
+/**
+ * Parse a day_prices object from a JSON body into DayPrices. Keeps only
+ * positive-integer day counts mapped to numeric prices; everything else is
+ * dropped so validateCustomisableDays sees a clean structure.
+ */
+const parseDayPrices = (raw: unknown): Record<number, number> => {
+  if (typeof raw !== "object" || raw === null) return {};
+  const result: Record<number, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const day = Number(key);
+    if (Number.isInteger(day) && day >= 1 && typeof value === "number") {
+      result[day] = value;
+    }
+  }
+  return result;
+};
 
 /** Check whether a value matches the expected field type */
 const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
@@ -190,6 +211,7 @@ export const bodyToCreateInput = async (
   return {
     input: {
       ...pickTypedFields(body, optionalFields),
+      dayPrices: parseDayPrices(body.day_prices),
       maxAttendees: body.max_attendees,
       maxPrice: typeof body.max_price === "number" ? body.max_price : 0,
       name: body.name.trim(),
@@ -227,6 +249,10 @@ export const bodyToUpdateInput = async (
     input: {
       ...existingToDefaults(existing),
       ...pickTypedFields(body, optionalFields),
+      dayPrices:
+        body.day_prices !== undefined
+          ? parseDayPrices(body.day_prices)
+          : existing.day_prices,
       maxAttendees,
       maxPrice:
         typeof body.max_price === "number"

@@ -25,6 +25,7 @@ import {
   type DayPrices,
   isPaidListing,
 } from "#shared/types.ts";
+import { isSafeWebhookUrl } from "#shared/url-safety.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -129,6 +130,16 @@ export const sendWebhook = async (
   payload: WebhookPayload,
   listingId?: number,
 ): Promise<void> => {
+  // Defense-in-depth against SSRF: never fetch an internal/non-https URL, even
+  // if one was stored before write-time validation existed.
+  if (!isSafeWebhookUrl(webhookUrl)) {
+    logError({
+      code: ErrorCode.WEBHOOK_SEND,
+      detail: "Refused to send webhook to an unsafe URL",
+      listingId,
+    });
+    return;
+  }
   try {
     const { ok, status } = await fetchText(webhookUrl, {
       body: JSON.stringify(payload),
