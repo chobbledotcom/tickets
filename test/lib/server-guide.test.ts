@@ -149,7 +149,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains listing image, duplicate, and deactivate info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "image to an listing",
+        "image to a listing",
         "Duplicate",
         "Deactivate",
       );
@@ -218,7 +218,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains hidden listings info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "hide an listing",
+        "hide a listing",
         "Hidden Listing",
         "noindex, nofollow",
       );
