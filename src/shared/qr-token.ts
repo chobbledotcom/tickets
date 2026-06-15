@@ -9,13 +9,13 @@
  * HMAC input: "qr-book:{slug}:{payloadB64url}"
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
-  base64ToBase64Url,
-  constantTimeEqual,
-  fromBase64,
-  toBase64,
-} from "#shared/crypto/utils.ts";
+  buildSignedToken,
+  decodeTokenPayload,
+  encodeTokenPayload,
+  isTokenObject,
+  verifySignedToken,
+} from "#shared/crypto/signed-token.ts";
 import { nowMs } from "#shared/now.ts";
 
 const PREFIX = "qr1.";
@@ -38,43 +38,20 @@ export type QrBookPayload = {
   e: number;
 };
 
-/** Encode bytes to base64url (no padding) */
-const bytesToBase64Url = (bytes: Uint8Array): string =>
-  base64ToBase64Url(toBase64(bytes));
-
-/** Decode a base64url string to bytes */
-const base64UrlToBytes = (s: string): Uint8Array => {
-  const padLen = (4 - (s.length % 4)) % 4;
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(padLen);
-  return fromBase64(b64);
-};
-
-/** Encode payload JSON as base64url */
-const encodePayload = (payload: QrBookPayload): string => {
-  const json = JSON.stringify(payload);
-  return bytesToBase64Url(new TextEncoder().encode(json));
-};
-
 /** Decode payload JSON from base64url. Returns null on any decode failure. */
 const decodePayload = (encoded: string): QrBookPayload | null => {
-  try {
-    const bytes = base64UrlToBytes(encoded);
-    const parsed = JSON.parse(new TextDecoder().decode(bytes));
-    if (
-      parsed === null ||
-      typeof parsed !== "object" ||
-      typeof parsed.n !== "string" ||
-      typeof parsed.v !== "number" ||
-      typeof parsed.q !== "number" ||
-      typeof parsed.d !== "string" ||
-      typeof parsed.e !== "number"
-    ) {
-      return null;
-    }
-    return parsed as QrBookPayload;
-  } catch {
+  const parsed = decodeTokenPayload(encoded);
+  if (
+    !isTokenObject(parsed) ||
+    typeof parsed.n !== "string" ||
+    typeof parsed.v !== "number" ||
+    typeof parsed.q !== "number" ||
+    typeof parsed.d !== "string" ||
+    typeof parsed.e !== "number"
+  ) {
     return null;
   }
+  return parsed as unknown as QrBookPayload;
 };
 
 /** Build the domain-separated HMAC input for a token */
@@ -106,14 +83,12 @@ export const buildQrBookPayload = (input: {
  * Sign a QR booking payload for the given listing slug.
  * Returns the encoded token "qr1.{payload}.{hmac}".
  */
-export const signQrBookToken = async (
+export const signQrBookToken = (
   slug: string,
   payload: QrBookPayload,
 ): Promise<string> => {
-  const encoded = encodePayload(payload);
-  const message = buildMessage(slug, encoded);
-  const hmac = base64ToBase64Url(await hmacHash(message));
-  return `${PREFIX}${encoded}.${hmac}`;
+  const encoded = encodeTokenPayload(payload);
+  return buildSignedToken(PREFIX, encoded, buildMessage(slug, encoded));
 };
 
 /**
@@ -125,18 +100,10 @@ export const verifyQrBookToken = async (
   slug: string,
   token: string,
 ): Promise<QrBookPayload | null> => {
-  if (!token.startsWith(PREFIX)) return null;
-  const rest = token.slice(PREFIX.length);
-  const dotIndex = rest.indexOf(".");
-  if (dotIndex <= 0 || dotIndex === rest.length - 1) return null;
-
-  const encoded = rest.slice(0, dotIndex);
-  const providedHmac = rest.slice(dotIndex + 1);
-
-  const expected = base64ToBase64Url(
-    await hmacHash(buildMessage(slug, encoded)),
+  const encoded = await verifySignedToken(PREFIX, token, (e) =>
+    buildMessage(slug, e),
   );
-  if (!constantTimeEqual(expected, providedHmac)) return null;
+  if (encoded === null) return null;
 
   const payload = decodePayload(encoded);
   if (!payload) return null;

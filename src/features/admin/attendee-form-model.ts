@@ -13,6 +13,7 @@
  */
 
 import { filter, map, pipe } from "#fp";
+import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
 import type {
   DesiredListingLine,
@@ -39,6 +40,8 @@ export const LINE_QUANTITY_PREFIX = "line_quantity_";
 export const LINE_DATE_PREFIX = "line_date_";
 export const LINE_KEY_PREFIX = "line_key_";
 export const LINE_COUNT_FIELD = "line_count";
+export const STATUS_FIELD = "status_id";
+export const REMAINING_BALANCE_FIELD = "remaining_balance";
 
 export const ACTION_FIELD = "action";
 export const SAVE_ACTION = "save";
@@ -79,6 +82,10 @@ export type ParsedAttendeeForm = {
   phone: string;
   address: string;
   special_instructions: string;
+  /** Selected attendee status id, or null for "no status". */
+  statusId: number | null;
+  /** Outstanding balance in minor units (order-level, plaintext). */
+  remainingBalance: number;
   lines: AttendeeFormLine[];
   action: FormAction;
   returnUrl: string;
@@ -226,6 +233,7 @@ export const parseAttendeeForm = (
     parseAttendeeLine(form, i, listingsById, existingByKey),
   )(indices);
 
+  const statusIdRaw = form.getOptionalInt(STATUS_FIELD);
   return {
     action: parseAction(form),
     address: form.getString("address"),
@@ -233,9 +241,17 @@ export const parseAttendeeForm = (
     lines,
     name: form.getString("name"),
     phone: form.getString("phone"),
+    remainingBalance: parseMoneyMinor(form.getString(REMAINING_BALANCE_FIELD)),
     returnUrl: form.getString("return_url"),
     special_instructions: form.getString("special_instructions"),
+    statusId: statusIdRaw !== null && statusIdRaw > 0 ? statusIdRaw : null,
   };
+};
+
+/** Parse a money field (major units) to clamped minor units; blank/invalid → 0. */
+const parseMoneyMinor = (raw: string): number => {
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? toMinorUnits(parsed) : 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -462,7 +478,9 @@ export const toCreateInput = (
   email: string;
   name: string;
   phone: string;
+  remainingBalance: number;
   special_instructions: string;
+  statusId: number | null;
 } => {
   const bookings: ListingBooking[] = pipe(
     filter(isFillableLine),
@@ -485,7 +503,9 @@ export const toCreateInput = (
     email: parsed.email,
     name: parsed.name,
     phone: parsed.phone,
+    remainingBalance: parsed.remainingBalance,
     special_instructions: parsed.special_instructions,
+    statusId: parsed.statusId,
   };
 };
 
@@ -513,3 +533,52 @@ export const toDesiredLines = (
       };
     }),
   )(parsed.lines);
+
+/** A status/balance mismatch surfaced on the attendee form. */
+export type BalanceNotice = { tone: "warning" | "info"; message: string };
+
+/**
+ * Flag a mismatch between an attendee's status and their balance, or null when
+ * the two agree. Three situations warrant a notice:
+ *   - a paid status that still owes money (a contradiction → warning);
+ *   - a reservation with no recorded balance while part of the order is still
+ *     unpaid (the balance looks lost → warning);
+ *   - a reservation that's fully paid yet still sitting in a reservation status
+ *     (a softer nudge to move it on → info).
+ *
+ * A reservation that still owes a balance is the normal mid-reservation state,
+ * and a balance on any other status is treated as deliberate — both stay quiet.
+ */
+export const attendeeBalanceNotice = (
+  status: { is_paid_default: boolean; is_reservation: boolean } | null,
+  remainingBalance: number,
+  fullPrice: number,
+  amountPaid: number,
+): BalanceNotice | null => {
+  if (!status) return null;
+  if (status.is_paid_default) {
+    return remainingBalance > 0
+      ? {
+          message: `This attendee is in a paid status but still owes ${formatCurrency(remainingBalance)}.`,
+          tone: "warning",
+        }
+      : null;
+  }
+  if (status.is_reservation && remainingBalance <= 0) {
+    const owed = fullPrice - amountPaid;
+    if (owed > 0) {
+      return {
+        message: `This reservation has no balance recorded, but ${formatCurrency(owed)} of the order is still unpaid.`,
+        tone: "warning",
+      };
+    }
+    if (fullPrice > 0) {
+      return {
+        message:
+          "This reservation is fully paid — consider moving it to a paid status.",
+        tone: "info",
+      };
+    }
+  }
+  return null;
+};

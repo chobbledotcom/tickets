@@ -11,7 +11,7 @@
  */
 
 import { map } from "#fp";
-import { itemsSubtotal } from "#shared/booking-fee.ts";
+import { chargeUnitAmount, feeSubtotalFor } from "#shared/booking-fee.ts";
 import { settings } from "#shared/db/settings.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -582,7 +582,7 @@ export const squareApi: {
     const lineItems: SquareLineItem[] = map(
       (item: CheckoutIntent["items"][number]) => ({
         basePriceMoney: {
-          amount: BigInt(item.unitPrice),
+          amount: BigInt(chargeUnitAmount(intent, item)),
           currency: prep.config.currency,
         },
         name: `Ticket: ${item.name}`,
@@ -594,7 +594,7 @@ export const squareApi: {
     return submitPaymentLink(
       prep,
       lineItems,
-      itemsSubtotal(intent.items),
+      feeSubtotalFor(intent),
       intent,
       baseUrl,
       "Payment link",

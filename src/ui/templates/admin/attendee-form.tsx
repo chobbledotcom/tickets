@@ -15,6 +15,7 @@ import {
   ADD_LINE_ACTION,
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
+  type BalanceNotice,
   type DailyDefaults,
   LINE_COUNT_FIELD,
   LINE_DATE_PREFIX,
@@ -22,10 +23,14 @@ import {
   LINE_KEY_PREFIX,
   LINE_QUANTITY_PREFIX,
   type ParsedAttendeeForm,
+  REMAINING_BALANCE_FIELD,
   REMOVE_LINE_ACTION_PREFIX,
   SAVE_ACTION,
+  STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import { toMajorUnits } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
+import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -50,6 +55,10 @@ export type AttendeeFormTemplateData = {
   attendee: Attendee | null;
   /** All selectable listings (active + any currently-selected inactive listings). */
   allListings: ListingWithCount[];
+  /** All attendee statuses, for the status dropdown. */
+  statuses: AttendeeStatus[];
+  /** Status/balance mismatch notice, or null when they agree. */
+  balanceNotice: BalanceNotice | null;
   /** Available dates per daily listing id (for the date picker). */
   availableDatesByListing: Record<number, string[]>;
   /** Daily-line defaults computed from existing bookings. */
@@ -316,6 +325,60 @@ const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
 };
 
 /**
+ * Status dropdown, outstanding-balance editor, and a status/balance mismatch
+ * notice (precomputed by the route): a warning for a paid status that still
+ * owes or a reservation that's lost its balance, and a softer info nudge for a
+ * fully-paid reservation. A reservation that still owes is the normal state and
+ * shows nothing.
+ */
+const StatusAndBalanceFields = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element => {
+  const { statusId, remainingBalance } = data.parsed;
+  return (
+    <>
+      <h3>Status &amp; Balance</h3>
+      {data.balanceNotice && (
+        <output class={data.balanceNotice.tone}>
+          {data.balanceNotice.message}
+        </output>
+      )}
+      <label for={STATUS_FIELD}>
+        Status
+        <select id={STATUS_FIELD} name={STATUS_FIELD}>
+          <option selected={statusId === null} value="">
+            — No status —
+          </option>
+          {data.statuses.map((s) => (
+            <option selected={s.id === statusId} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label for={REMAINING_BALANCE_FIELD}>
+        Outstanding balance
+        <input
+          id={REMAINING_BALANCE_FIELD}
+          inputmode="decimal"
+          min="0"
+          name={REMAINING_BALANCE_FIELD}
+          step="0.01"
+          type="number"
+          value={toMajorUnits(remainingBalance)}
+        />
+        <small>
+          What the attendee still owes. Set to 0 when fully paid; the public
+          payment link clears it automatically when they pay.
+        </small>
+      </label>
+    </>
+  );
+};
+
+/**
  * Render the unified attendee form page (create or edit).
  *
  * The single CsrfForm wraps every input including the line editor, so the
@@ -415,6 +478,8 @@ export const attendeeFormPage = (
             {data.parsed.special_instructions || ""}
           </textarea>
         </label>
+
+        <StatusAndBalanceFields data={data} />
 
         {data.questions && data.questions.length > 0 && (
           <>

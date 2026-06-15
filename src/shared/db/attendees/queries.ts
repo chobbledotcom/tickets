@@ -16,7 +16,8 @@ import type { Attendee } from "#shared/types.ts";
  * Attendee columns for JOIN queries — only the columns actually used at runtime.
  * All PII is read from the encrypted pii_blob; per-listing status lives on listing_attendees.
  */
-const ATTENDEE_COLS = "a.id, a.created, a.ticket_token_index, a.pii_blob";
+const ATTENDEE_COLS =
+  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance";
 
 /** Columns sourced from listing_attendees (per-listing data) */
 const EA_COLS =
@@ -195,9 +196,11 @@ export const getAttendeesByTokens = async (
     created: string;
     ticket_token_index: string;
     pii_blob: string;
+    status_id: number | null;
+    remaining_balance: number;
   };
   const attendeeRows = await queryAll<AttendeeBase>(
-    `SELECT id, created, ticket_token_index, pii_blob
+    `SELECT id, created, ticket_token_index, pii_blob, status_id, remaining_balance
      FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
        tokenIndexes,
      )})`,
@@ -214,7 +217,9 @@ export const getAttendeesByTokens = async (
     ListingAttendeeRow & { attendee_id: number }
   >(
     `SELECT attendee_id, listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
-     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
+     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(
+       attendeeIds,
+     )})
      ORDER BY start_at, listing_id`,
     attendeeIds,
   );
@@ -244,6 +249,8 @@ export const getAttendeesByTokens = async (
       created: row.created,
       id: row.id,
       pii_blob: row.pii_blob,
+      remaining_balance: row.remaining_balance,
+      status_id: row.status_id,
       ticket_token: "", // populated after decryption by caller
       ticket_token_index: row.ticket_token_index,
     });

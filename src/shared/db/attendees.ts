@@ -84,6 +84,7 @@ export {
   incrementAttachmentDownloads,
   markRefunded,
   recomputeListingBookingRanges,
+  updateAttendeeOrder,
   updateAttendeePII,
   updateCheckedIn,
 } from "#shared/db/attendees/update.ts";

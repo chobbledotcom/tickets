@@ -3,9 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   ADD_LINE_ACTION,
   type AttendeeFormLine,
+  attendeeBalanceNotice,
   bookingDurationDays,
   parseAttendeeForm,
   resolveDailyDefaults,
+  toCreateInput,
   trimTrailingBlankLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
@@ -103,6 +105,58 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines[0]!.key).toBe("5|");
     expect(parsed.lines[0]!.listing).toBeNull();
     expect(parsed.action.kind).toBe("save");
+  });
+
+  test("reads a selected status id", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ line_count: "1", name: "X", status_id: "4" }),
+      new Map(),
+    );
+    expect(parsed.statusId).toBe(4);
+  });
+
+  test("treats a blank status id as no status", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ line_count: "1", name: "X", status_id: "" }),
+      new Map(),
+    );
+    expect(parsed.statusId).toBeNull();
+  });
+
+  test("treats a non-positive status id as no status", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ line_count: "1", name: "X", status_id: "0" }),
+      new Map(),
+    );
+    expect(parsed.statusId).toBeNull();
+  });
+
+  test("treats blank, zero and negative balances as nothing owed", () => {
+    for (const value of ["", "0", "-5"]) {
+      const parsed = parseAttendeeForm(
+        makeForm({ line_count: "1", name: "X", remaining_balance: value }),
+        new Map(),
+      );
+      expect(parsed.remainingBalance).toBe(0);
+    }
+  });
+
+  test("toCreateInput carries the status id and balance through", () => {
+    const input = toCreateInput({
+      action: { kind: "save" },
+      address: "",
+      email: "",
+      lines: [blankLine()],
+      name: "X",
+      phone: "",
+      remainingBalance: 1500,
+      returnUrl: "",
+      special_instructions: "",
+      statusId: 7,
+    });
+    expect(input.statusId).toBe(7);
+    expect(input.remainingBalance).toBe(1500);
+    expect(input.bookings).toHaveLength(0);
   });
 
   test("resolves listing references against the provided map", () => {
@@ -676,7 +730,54 @@ function parsedBase() {
     email: "",
     name: "Test",
     phone: "",
+    remainingBalance: 0,
     returnUrl: "",
     special_instructions: "",
+    statusId: null,
   };
 }
+
+describe("attendeeBalanceNotice", () => {
+  const paid = { is_paid_default: true, is_reservation: false };
+  const reservation = { is_paid_default: false, is_reservation: true };
+  const other = { is_paid_default: false, is_reservation: false };
+
+  test("is silent when there is no status", () => {
+    expect(attendeeBalanceNotice(null, 500, 1000, 100)).toBeNull();
+  });
+
+  test("warns when a paid status still owes money", () => {
+    const notice = attendeeBalanceNotice(paid, 500, 1000, 500);
+    expect(notice?.tone).toBe("warning");
+    expect(notice?.message).toContain("paid status");
+  });
+
+  test("is silent when a paid status owes nothing", () => {
+    expect(attendeeBalanceNotice(paid, 0, 1000, 1000)).toBeNull();
+  });
+
+  test("is silent for a reservation that still owes a balance", () => {
+    expect(attendeeBalanceNotice(reservation, 900, 1000, 100)).toBeNull();
+  });
+
+  test("warns when a reservation has no balance but is still unpaid", () => {
+    // £10 order, only the £1 deposit paid, balance wrongly cleared to £0.
+    const notice = attendeeBalanceNotice(reservation, 0, 1000, 100);
+    expect(notice?.tone).toBe("warning");
+    expect(notice?.message).toContain("still unpaid");
+  });
+
+  test("nudges (info) when a reservation is fully paid", () => {
+    const notice = attendeeBalanceNotice(reservation, 0, 1000, 1000);
+    expect(notice?.tone).toBe("info");
+    expect(notice?.message).toContain("moving it to a paid status");
+  });
+
+  test("is silent for a free reservation with no balance", () => {
+    expect(attendeeBalanceNotice(reservation, 0, 0, 0)).toBeNull();
+  });
+
+  test("is silent for a balance on a neither-paid-nor-reservation status", () => {
+    expect(attendeeBalanceNotice(other, 500, 1000, 500)).toBeNull();
+  });
+});

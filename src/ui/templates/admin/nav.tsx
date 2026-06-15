@@ -127,6 +127,9 @@ export const SettingsSubNav = (): JSX.Element => (
         <a href="/admin/settings">Settings</a>
       </li>
       <li>
+        <a href="/admin/settings/statuses">Statuses</a>
+      </li>
+      <li>
         <a href="/admin/settings-advanced">Advanced</a>
       </li>
       <li>

@@ -20,12 +20,14 @@ describe("adminListingActivityLogPage", () => {
     const listing = testListingWithCount();
     const entries = [
       {
+        attendee_id: null,
         created: "2024-01-15T10:30:00Z",
         id: 1,
         listing_id: 1,
         message: "Ticket reserved",
       },
       {
+        attendee_id: null,
         created: "2024-01-15T11:00:00Z",
         id: 2,
         listing_id: 1,
@@ -49,6 +51,7 @@ describe("adminGlobalActivityLogPage", () => {
   test("renders global activity log with entries", () => {
     const entries = [
       {
+        attendee_id: null,
         created: "2024-01-15T10:30:00Z",
         id: 1,
         listing_id: null,
@@ -68,6 +71,7 @@ describe("adminGlobalActivityLogPage", () => {
   test("shows truncation message when truncated", () => {
     const entries = [
       {
+        attendee_id: null,
         created: "2024-01-15T10:30:00Z",
         id: 1,
         listing_id: null,
@@ -81,6 +85,7 @@ describe("adminGlobalActivityLogPage", () => {
   test("does not show truncation message when not truncated", () => {
     const entries = [
       {
+        attendee_id: null,
         created: "2024-01-15T10:30:00Z",
         id: 1,
         listing_id: null,
@@ -94,6 +99,7 @@ describe("adminGlobalActivityLogPage", () => {
   test("prefixes Square signature errors with a link to re-do settings", () => {
     const entries = [
       {
+        attendee_id: null,
         created: "2024-01-15T10:30:00Z",
         id: 1,
         listing_id: null,
@@ -113,6 +119,7 @@ describe("adminGlobalActivityLogPage", () => {
   test("does not add the Square settings link to unrelated messages", () => {
     const entries = [
       {
+        attendee_id: null,
         created: "2024-01-15T10:30:00Z",
         id: 1,
         listing_id: null,

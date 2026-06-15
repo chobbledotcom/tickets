@@ -193,6 +193,15 @@ export const PaymentDetails = ({
           "Not refunded"
         )}
       </p>
+      {attendee.remaining_balance > 0 && (
+        <p>
+          <strong>Balance outstanding:</strong>{" "}
+          {formatCurrency(attendee.remaining_balance)} —{" "}
+          <a href={`/admin/attendees/${attendee.id}/balance`}>
+            view balance &amp; payment link
+          </a>
+        </p>
+      )}
       <CsrfForm
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
         class="inline"

@@ -378,6 +378,77 @@ describeWithEnv(
           createSpy.restore();
         }
       });
+
+      test("charges the deposit per ticket but the fee on the full order", async () => {
+        const { settings: s } = await import("#shared/db/settings.ts");
+        await s.update.bookingFee("5");
+        await settings.update.stripe.secretKey("sk_test_mock");
+        const client = await getStripeClient();
+        if (!client) throw new Error("Expected client");
+
+        const createSpy = stub(client.checkout.sessions, "create", () =>
+          Promise.resolve({
+            id: "cs_dep",
+            object: "checkout.session",
+            url: "https://checkout.stripe.com/dep",
+          } as never),
+        );
+
+        try {
+          const listing = testListing({ unit_price: 1000 });
+          const intent = {
+            address: "",
+            date: null,
+            email: "jane@example.com",
+            items: [
+              {
+                listingId: listing.id,
+                name: listing.name,
+                quantity: 2,
+                slug: listing.slug,
+                unitPrice: listing.unit_price,
+              },
+            ],
+            name: "Jane",
+            phone: "",
+            // Public-default reservation charges a 10% deposit up front.
+            reservationAmount: "10%",
+            special_instructions: "",
+          };
+
+          await createCheckoutSession(intent, "http://localhost:3000");
+
+          const params = createSpy.calls[0]!.args[0] as unknown as {
+            line_items: {
+              price_data: {
+                product_data: { name: string };
+                unit_amount: number;
+              };
+              quantity: number;
+            }[];
+            metadata: { items: string; reservation_amount: string };
+          };
+          const ticketItem = params.line_items.find((li) =>
+            li.price_data.product_data.name.startsWith("Ticket:"),
+          );
+          const feeItem = params.line_items.find(
+            (li) => li.price_data.product_data.name === "Booking fee",
+          );
+          // Ticket line is charged the per-unit deposit (10% of £10.00 = £1.00).
+          expect(ticketItem!.price_data.unit_amount).toBe(100);
+          expect(ticketItem!.quantity).toBe(2);
+          // Fee is still 5% of the full £20.00 order, not of the deposit.
+          expect(feeItem!.price_data.unit_amount).toBe(100);
+          // Metadata records the FULL line price + the snapshot so the webhook
+          // can re-derive the deposit and compute the outstanding balance.
+          expect(JSON.parse(params.metadata.items)).toEqual([
+            { e: listing.id, p: 2000, q: 2 },
+          ]);
+          expect(params.metadata.reservation_amount).toBe("10%");
+        } finally {
+          createSpy.restore();
+        }
+      });
     });
 
     describe("refundPayment", () => {

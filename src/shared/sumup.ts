@@ -17,7 +17,11 @@
 
 import type { CheckoutSuccess, Currency } from "@sumup/sdk";
 import { SumUp } from "@sumup/sdk";
-import { getBookingFeeAmount, itemsSubtotal } from "#shared/booking-fee.ts";
+import {
+  chargeSubtotal,
+  feeSubtotalFor,
+  getBookingFeeAmount,
+} from "#shared/booking-fee.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -152,8 +156,8 @@ export const sumupApi: {
     const reference = crypto.randomUUID();
     await storeSumupCheckout(reference, await buildItemsMetadata(intent));
 
-    const subtotal = itemsSubtotal(intent.items);
-    const totalMinor = subtotal + getBookingFeeAmount(subtotal);
+    const subtotal = chargeSubtotal(intent);
+    const totalMinor = subtotal + getBookingFeeAmount(feeSubtotalFor(intent));
 
     return withClient(async (client) => {
       const checkout = await client.checkouts.create({

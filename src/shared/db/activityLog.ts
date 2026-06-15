@@ -16,6 +16,7 @@ import type { Listing, ListingWithCount } from "#shared/types.ts";
 export interface ActivityLogEntry {
   created: string;
   listing_id: number | null;
+  attendee_id: number | null;
   id: number;
   message: string;
 }
@@ -23,6 +24,7 @@ export interface ActivityLogEntry {
 /** Activity log input for create */
 export type ActivityLogInput = {
   listingId?: number | null;
+  attendeeId?: number | null;
   message: string;
 };
 
@@ -35,6 +37,7 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
     name: "activity_log",
     primaryKey: "id",
     schema: {
+      attendee_id: col.simple<number | null>(),
       created: col.withDefault(() => nowIso()),
       id: col.generated<number>(),
       listing_id: col.simple<number | null>(),
@@ -51,16 +54,25 @@ const toListingId = (listing?: ListingRef | null): number | null =>
   listing == null ? null : typeof listing === "number" ? listing : listing.id;
 
 /**
- * Log an activity
+ * Log an activity. Optionally associate it with a listing and/or attendee so
+ * admin views can filter the log by either.
  */
 export const logActivity = (
   message: string,
   listing?: ListingRef | null,
+  attendeeId?: number | null,
 ): Promise<ActivityLogEntry> =>
   activityLogTable.insert({
+    attendeeId: attendeeId ?? null,
     listingId: toListingId(listing),
     message,
   });
+
+/** Decrypt the messages of a batch of raw activity log rows. */
+const decryptLogRows = (
+  rows: ActivityLogEntry[],
+): Promise<ActivityLogEntry[]> =>
+  Promise.all(rows.map((row) => activityLogTable.fromDb(row)));
 
 /** Query activity log with optional listing filter, decrypts messages */
 const queryActivityLog = async (
@@ -69,11 +81,12 @@ const queryActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   const whereClause = listingId !== null ? "WHERE listing_id = ?" : "";
   const args = listingId !== null ? [listingId, limit] : [limit];
-  const rows = await queryAll<ActivityLogEntry>(
-    `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
-    args,
+  return decryptLogRows(
+    await queryAll<ActivityLogEntry>(
+      `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
+      args,
+    ),
   );
-  return Promise.all(rows.map((row) => activityLogTable.fromDb(row)));
 };
 
 /**
@@ -89,6 +102,22 @@ export const getListingActivityLog = (
  */
 export const getAllActivityLog = (limit = 100): Promise<ActivityLogEntry[]> =>
   queryActivityLog(null, limit);
+
+/**
+ * Get activity log entries for a specific attendee (most recent first),
+ * decrypting messages.
+ */
+export const getAttendeeActivityLog = async (
+  attendeeId: number,
+  limit = 100,
+): Promise<ActivityLogEntry[]> => {
+  return decryptLogRows(
+    await queryAll<ActivityLogEntry>(
+      "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY created DESC, id DESC LIMIT ?",
+      [attendeeId, limit],
+    ),
+  );
+};
 
 /** Result type for listing + activity log batch query */
 export type ListingWithActivityLog = {
@@ -132,9 +161,8 @@ export const getListingWithActivityLog = async (
     attendee_count: listingRow.attendee_count,
   };
 
-  const logRows = resultRows<ActivityLogEntry>(results[1]!);
-  const entries = await Promise.all(
-    logRows.map((row) => activityLogTable.fromDb(row)),
+  const entries = await decryptLogRows(
+    resultRows<ActivityLogEntry>(results[1]!),
   );
 
   return { entries, listing };

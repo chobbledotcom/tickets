@@ -810,6 +810,25 @@ describe("ticketViewPage listing date and location", () => {
     expect(html).not.toContain("ticket-card-date");
   });
 
+  test("shows a single booking date for a one-day daily booking", () => {
+    const cards = [
+      {
+        entry: {
+          attendee: testAttendee({ date: "2026-06-15" }),
+          listing: testListingWithCount({
+            duration_days: 1,
+            listing_type: "daily",
+          }),
+        },
+        token,
+      },
+    ];
+    const html = ticketViewPage(cards);
+    // Duration 1 → a single day, not a range.
+    expect(html).toContain("Booking Date: Monday 15 June 2026");
+    expect(html).not.toContain("15–");
+  });
+
   test("shows location when entry has non-empty location", () => {
     const cards = [
       {

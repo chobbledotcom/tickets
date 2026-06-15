@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import {
+  attendeeStatusesTable,
+  getPaidDefaultStatus,
+} from "#shared/db/attendee-statuses.ts";
+import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { attendeesApi, createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   answersTable,
@@ -998,6 +1003,117 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
       const bobAnswers = (await getAttendeeAnswersBatch([bob])).get(bob) ?? [];
       expect(bobAnswers).toEqual([a2.id]);
+    });
+  });
+
+  describe("status & balance", () => {
+    /** Create an attendee with one £10 line, paying `pricePaid` of it. */
+    const seedAttendee = async (
+      statusId: number | null,
+      remainingBalance: number,
+      pricePaid = 100,
+    ): Promise<number> => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 1000,
+      });
+      const created = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, pricePaid, quantity: 1 }],
+        email: "r@example.com",
+        name: "Reserver",
+        remainingBalance,
+        statusId,
+      });
+      if (!created.success) throw new Error("setup failed");
+      return created.attendees[0]!.id;
+    };
+
+    const newReservation = () =>
+      attendeeStatusesTable.insert({
+        isReservation: true,
+        name: "Reserved",
+        reservationAmount: "10%",
+      });
+
+    const getEdit = async (id: number): Promise<string> => {
+      const response = await awaitTestRequest(`/admin/attendees/${id}`, {
+        cookie: await testCookie(),
+      });
+      return expectHtmlResponse(response, 200, "Status &amp; Balance");
+    };
+
+    test("edit persists an updated status and outstanding balance", async () => {
+      const reservation = await newReservation();
+      const id = await seedAttendee(null, 0);
+      const form = await buildAttendeeEditForm(id, {
+        extra: {
+          remaining_balance: "15.00",
+          status_id: String(reservation.id),
+        },
+        name: "Reserver",
+      });
+      const { response } = await adminFormPost(`/admin/attendees/${id}`, form);
+      expect([302, 303]).toContain(response.status);
+
+      const state = await getAttendeeBalanceState(id);
+      expect(state?.statusId).toBe(reservation.id);
+      // £15.00 in minor units (GBP).
+      expect(state?.remainingBalance).toBe(1500);
+    });
+
+    test("edit can clear the status and the balance", async () => {
+      const paid = await getPaidDefaultStatus();
+      const id = await seedAttendee(paid!.id, 1500);
+      const form = await buildAttendeeEditForm(id, {
+        extra: { remaining_balance: "0", status_id: "" },
+        name: "Reserver",
+      });
+      await adminFormPost(`/admin/attendees/${id}`, form);
+
+      const state = await getAttendeeBalanceState(id);
+      expect(state?.statusId).toBeNull();
+      expect(state?.remainingBalance).toBe(0);
+    });
+
+    test("edit page warns when a paid status still owes a balance", async () => {
+      const paid = await getPaidDefaultStatus();
+      const id = await seedAttendee(paid!.id, 1500);
+      const html = await getEdit(id);
+      expect(html).toContain("paid status but still owes");
+    });
+
+    test("edit page warns when a reservation has lost its balance", async () => {
+      // £1 deposit paid on the £10 order, but the balance was cleared to £0.
+      const reservation = await newReservation();
+      const id = await seedAttendee(reservation.id, 0);
+      const html = await getEdit(id);
+      expect(html).toContain("still unpaid");
+    });
+
+    test("edit page nudges to move a fully-paid reservation on", async () => {
+      const reservation = await newReservation();
+      const id = await seedAttendee(reservation.id, 0, 1000); // paid in full
+      const html = await getEdit(id);
+      expect(html).toContain("consider moving it to a paid status");
+      expect(html).toContain('class="info"');
+    });
+
+    test("edit page stays quiet for a reservation that still owes a balance", async () => {
+      const reservation = await newReservation();
+      const id = await seedAttendee(reservation.id, 900);
+      const html = await getEdit(id);
+      // Field pre-filled, but no notice — this is the normal mid-reservation state.
+      expect(html).toContain('value="9.00"');
+      expect(html).not.toContain("still unpaid");
+      expect(html).not.toContain("consider moving");
+    });
+
+    test("edit page stays quiet when nothing is owed", async () => {
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).toContain('name="remaining_balance"');
+      expect(html).not.toContain("still unpaid");
+      expect(html).not.toContain("paid status but still owes");
     });
   });
 });
