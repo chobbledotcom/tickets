@@ -715,6 +715,21 @@ textarea[name="special_instructions"] {
   }
 }
 
+/* On admin pages, textareas grow to fit their content via field-sizing rather
+   than the fixed aspect-ratios above (width stays 100% so they only grow
+   vertically). Tidy bounds keep an empty field a few lines tall and stop very
+   long content from running off the page — past the cap it scrolls. Public
+   ticket forms keep the aspect-ratio sizing. Guarded by @supports so browsers
+   without field-sizing fall back to that sizing. */
+@supports (field-sizing: content) {
+  body:has(#main-nav) textarea {
+    field-sizing: content;
+    aspect-ratio: auto;
+    min-block-size: 3lh;
+    max-block-size: 30lh;
+  }
+}
+
 input[readonly],
 textarea[readonly] {
   background-color: var(--color-bg-secondary);
