@@ -7,10 +7,14 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import {
+  decryptListingWithCount,
+  LISTING_COUNT_GROUP_BY,
+  LISTING_COUNT_SELECT,
+} from "#shared/db/listings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
-import type { Listing, ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
 /** Activity log entry */
 export interface ActivityLogEntry {
@@ -140,11 +144,7 @@ export const getListingWithActivityLog = async (
   const results = await queryBatch([
     {
       args: [listingId],
-      sql: `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-            FROM listings e
-            LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
-            WHERE e.id = ?
-            GROUP BY e.id`,
+      sql: `${LISTING_COUNT_SELECT} WHERE e.id = ? ${LISTING_COUNT_GROUP_BY}`,
     },
     {
       args: [listingId, limit],
@@ -152,18 +152,10 @@ export const getListingWithActivityLog = async (
     },
   ]);
 
-  const listingRows = resultRows<Listing & { attendee_count: number }>(
-    results[0]!,
-  );
-  const listingRow = listingRows[0];
+  const listingRow = resultRows<ListingWithCount>(results[0]!)[0];
   if (!listingRow) return null;
 
-  // Decrypt listing fields
-  const decryptedListing = await listingsTable.fromDb(listingRow);
-  const listing: ListingWithCount = {
-    ...decryptedListing,
-    attendee_count: listingRow.attendee_count,
-  };
+  const listing = await decryptListingWithCount(listingRow);
 
   const entries = await decryptLogRows(
     resultRows<ActivityLogEntry>(results[1]!),

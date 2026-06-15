@@ -13,6 +13,7 @@
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -330,6 +331,10 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   // The markers now come from the backup and may predate the current schema;
   // drop the "ready" cache so the next initDb re-checks and migrates if needed.
   invalidateInitDbCache();
+  // The listings cache persists across requests (unlike the per-request group /
+  // user caches), so a restore that wholesale-replaces the data would otherwise
+  // keep serving the pre-restore snapshot until its TTL. Clear it.
+  invalidateListingsCache();
 };
 
 /**

@@ -2,8 +2,9 @@
  * Listings table operations
  */
 
-import type { ResultSet } from "@libsql/client";
-import { filter as fpFilter, reduce, sort, unique } from "#fp";
+import type { InValue, ResultSet } from "@libsql/client";
+import { mapParallel, reduce, sort, unique } from "#fp";
+import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -25,7 +26,8 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { cachedTable, col } from "#shared/db/table.ts";
+import { createListingsCache } from "#shared/db/listings-cache.ts";
+import { col, withCacheInvalidation } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -189,28 +191,88 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
-const listingsCache = cachedTable({
-  fetchAll: () => queryListingsWithCounts(),
-  name: "listings",
-  table: rawListingsTable,
-});
+/** SELECT projecting each listing plus its booked-quantity count. Callers
+ * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the
+ * cache's fetchers and by the filtered group / ungrouped / activity-log queries
+ * so the count semantics (SUM of quantity, 0 when unbooked) live in one place. */
+export const LISTING_COUNT_SELECT = `SELECT e.*, COALESCE(SUM(ea.quantity), 0) AS attendee_count
+     FROM listings e
+     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id`;
 
-/** Listings table with CRUD operations — writes auto-invalidate the cache */
-export const listingsTable = listingsCache.table;
+/** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. */
+export const LISTING_COUNT_GROUP_BY = "GROUP BY e.id";
 
-/** Find a cached listing by ID */
-const findCachedListingById = async (
-  id: number,
-): Promise<ListingWithCount | null> => {
-  const listings = await listingsCache.getAll();
-  return listings.find((e) => e.id === id) ?? null;
+/**
+ * Decrypt a listing row and attach its attendee count — the single
+ * decrypt-and-attach used by the cache and every other listings-with-count
+ * query. The count is read from the row's `attendee_count`, which every caller
+ * supplies: the LISTING_COUNT_SELECT column (a COALESCE, so always a number) or,
+ * for the batch listing+attendees helpers that compute it separately, a value
+ * spread onto the row first. Takes exactly one argument so it is safe to use
+ * directly as an Array.map / mapParallel callback — a second positional
+ * parameter would capture the map index.
+ */
+export const decryptListingWithCount = async (
+  row: ListingWithCount,
+): Promise<ListingWithCount> => {
+  const listing = await rawListingsTable.fromDb(row);
+  return { ...listing, attendee_count: row.attendee_count };
 };
 
 /**
- * Get a single listing by ID (from cache)
+ * Run a LISTING_COUNT_SELECT query (optional WHERE), decrypting every row in
+ * newest-first order. The one place the listings-with-count query is built —
+ * the cache's whole-list/batch fetchers and the group / ungrouped listing
+ * queries all go through here.
+ */
+export const queryListingsWithCounts = async (
+  whereClause = "",
+  args: InValue[] = [],
+): Promise<ListingWithCount[]> => {
+  const rows = await queryAll<ListingWithCount>(
+    `${LISTING_COUNT_SELECT} ${whereClause} ${LISTING_COUNT_GROUP_BY} ORDER BY e.created DESC, e.id DESC`,
+    args,
+  );
+  return mapParallel(decryptListingWithCount)(rows);
+};
+
+/** Fetch a single listing with its count by a WHERE on the listings row. */
+const queryOneListingWithCount = async (
+  where: string,
+  args: InValue[],
+): Promise<ListingWithCount | null> =>
+  (await queryListingsWithCounts(`WHERE ${where}`, args))[0] ?? null;
+
+/**
+ * Listings cache: single-record reads (by id / slug) load and decrypt only the
+ * one listing they need; getAll/getByType load the whole set. Writes through
+ * {@link listingsTable} (and the explicit invalidate calls in the attendee
+ * write paths) clear it.
+ */
+const listingsCache = createListingsCache({
+  fetchAll: () => queryListingsWithCounts(),
+  fetchById: (id) => queryOneListingWithCount("e.id = ?", [id]),
+  fetchBySlugIndex: (slugIndex) =>
+    queryOneListingWithCount("e.slug_index = ?", [slugIndex]),
+  fetchBySlugIndexes: (slugIndexes) =>
+    queryListingsWithCounts(
+      `WHERE e.slug_index IN (${inPlaceholders(slugIndexes)})`,
+      slugIndexes,
+    ),
+});
+
+registerCache(() => ({ entries: listingsCache.size(), name: "listings" }));
+
+/** Listings table with CRUD operations — writes auto-invalidate the cache */
+export const listingsTable = withCacheInvalidation(rawListingsTable, () =>
+  listingsCache.invalidate(),
+);
+
+/**
+ * Get a single listing by ID (from cache; fetches just this listing on a miss).
  */
 export const getListing = (id: number): Promise<Listing | null> =>
-  findCachedListingById(id);
+  listingsCache.getById(id);
 
 /**
  * Check if a slug is already in use (optionally excluding a specific listing ID)
@@ -262,15 +324,6 @@ export const deleteListing = async (listingId: number): Promise<void> => {
   invalidateListingsCache();
 };
 
-/** Decrypt listing fields and attach an attendee count */
-const decryptAndAttachCount = async (
-  row: Listing,
-  attendeeCount: number,
-): Promise<ListingWithCount> => {
-  const listing = await listingsTable.fromDb(row);
-  return { ...listing, attendee_count: attendeeCount };
-};
-
 /** Extract listing row from batch result, returning null if not found */
 const extractListingRow = (result: ResultSet): Listing | null =>
   resultRows<Listing>(result)[0] ?? null;
@@ -283,23 +336,11 @@ const withBatchListing = async <T>(
 ): Promise<T | null> => {
   const listingRow = extractListingRow(listingResult);
   if (!listingRow) return null;
-  return build(await decryptAndAttachCount(listingRow, getCount()));
-};
-
-/** Query listings with attendee counts, optionally filtered by a WHERE clause */
-const queryListingsWithCounts = async (
-  whereClause = "",
-): Promise<ListingWithCount[]> => {
-  const rows = await queryAll<ListingWithCount>(
-    `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-     FROM listings e
-     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
-     ${whereClause}
-     GROUP BY e.id
-     ORDER BY e.created DESC, e.id DESC`,
-  );
-  return Promise.all(
-    rows.map((row) => decryptAndAttachCount(row, row.attendee_count)),
+  return build(
+    await decryptListingWithCount({
+      ...listingRow,
+      attendee_count: getCount(),
+    }),
   );
 };
 
@@ -319,18 +360,15 @@ export const getAllListings = (): Promise<ListingWithCount[]> =>
  */
 export const getListingWithCount = (
   id: number,
-): Promise<ListingWithCount | null> => findCachedListingById(id);
+): Promise<ListingWithCount | null> => listingsCache.getById(id);
 
 /**
  * Get listing with attendee count by slug (from cache)
  */
 export const getListingWithCountBySlug = async (
   slug: string,
-): Promise<ListingWithCount | null> => {
-  const slugIndex = await computeSlugIndex(slug);
-  const listings = await listingsCache.getAll();
-  return listings.find((e) => e.slug_index === slugIndex) ?? null;
-};
+): Promise<ListingWithCount | null> =>
+  listingsCache.getBySlugIndex(await computeSlugIndex(slug));
 
 /** Result type for combined listing + attendees query */
 export type ListingWithAttendees = {
@@ -367,26 +405,18 @@ export const getListingWithAttendeesRaw = async (
   );
 };
 
-/** Get cached listings filtered by listing_type */
-const getCachedListingsByType = async (
-  type: ListingType,
-): Promise<ListingWithCount[]> => {
-  const listings = await listingsCache.getAll();
-  return fpFilter((e: ListingWithCount) => e.listing_type === type)(listings);
-};
-
 /**
  * Get all daily listings with attendee counts (from cache).
  */
 export const getAllDailyListings = (): Promise<ListingWithCount[]> =>
-  getCachedListingsByType("daily");
+  listingsCache.getByType("daily");
 
 /**
  * Get all standard listings with attendee counts (from cache).
  * Used by the calendar view to include one-time listings on their scheduled date.
  */
 export const getAllStandardListings = (): Promise<ListingWithCount[]> =>
-  getCachedListingsByType("standard");
+  listingsCache.getByType("standard");
 
 /**
  * Get distinct attendee dates for daily listings.
@@ -503,16 +533,6 @@ export const getListingsBySlugsBatch = async (
   slugs: string[],
 ): Promise<(ListingWithCount | null)[]> => {
   if (slugs.length === 0) return [];
-
-  // Compute slug indices for all slugs
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
-
-  const listings = await listingsCache.getAll();
-  const listingBySlugIndex = new Map<string, ListingWithCount>();
-  for (const listing of listings) {
-    listingBySlugIndex.set(listing.slug_index, listing);
-  }
-
-  // Return listings in the same order as input slugs
-  return slugIndices.map((index) => listingBySlugIndex.get(index) ?? null);
+  return listingsCache.getBySlugIndexes(slugIndices);
 };
