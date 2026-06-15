@@ -2,16 +2,19 @@
  * Site Theme form for settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const ThemeForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm action="/admin/settings/theme" id="settings-theme">
-    <div class="prose">
-      <h2>Site Theme</h2>
+  <SettingsSection
+    action="/admin/settings/theme"
+    description={
       <p>Choose between light and dark themes for the site interface.</p>
-    </div>
+    }
+    id="settings-theme"
+    submitLabel="Save Theme"
+    title="Site Theme"
+  >
     <fieldset class="radios">
       <label>
         <input
@@ -32,6 +35,5 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
         Dark
       </label>
     </fieldset>
-    <SubmitButton icon="save">Save Theme</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

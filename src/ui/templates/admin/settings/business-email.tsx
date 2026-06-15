@@ -2,22 +2,22 @@
  * Business Email form for settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/business-email"
-    id="settings-business-email"
-  >
-    <div class="prose">
-      <h2>Business Email</h2>
+    description={
       <p>
         This email will be included in webhook notifications and used as the
         reply-to address for automated emails.
       </p>
-    </div>
+    }
+    id="settings-business-email"
+    submitLabel="Save Business Email"
+    title="Business Email"
+  >
     <label>
       Business Email
       <input
@@ -28,6 +28,5 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
         value={s.businessEmail}
       />
     </label>
-    <SubmitButton icon="save">Save Business Email</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

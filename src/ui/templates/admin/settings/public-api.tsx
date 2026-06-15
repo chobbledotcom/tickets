@@ -2,23 +2,23 @@
  * Public API toggle form for advanced settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/show-public-api"
-    id="settings-show-public-api"
-  >
-    <div class="prose">
-      <h2>Enable public API?</h2>
+    description={
       <p>
         Exposes a JSON API for listing listings, checking availability, and
         creating bookings. See the <a href="/admin/guide#api">API guide</a> for
         details.
       </p>
-    </div>
+    }
+    id="settings-show-public-api"
+    submitLabel="Save"
+    title="Enable public API?"
+  >
     <fieldset class="radios">
       <label>
         <input
@@ -39,6 +39,5 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
         No
       </label>
     </fieldset>
-    <SubmitButton icon="save">Save</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

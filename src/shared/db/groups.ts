@@ -10,12 +10,10 @@ import {
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
-  registerCache,
 } from "#shared/db/common-schema.ts";
 import { invalidateListingsCache, listingsTable } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
-import { col, withCacheInvalidation } from "#shared/db/table.ts";
-import { requestCache } from "#shared/request-cache.ts";
+import { cachedTable, col } from "#shared/db/table.ts";
 import type {
   Group,
   Listing,
@@ -53,22 +51,19 @@ const queryGroups = queryAndMap<Group, Group>((row) =>
   rawGroupsTable.fromDb(row),
 );
 
-const groupsCache = requestCache(() =>
-  queryGroups("SELECT * FROM groups ORDER BY id ASC"),
-);
+const groupsCache = cachedTable({
+  fetchAll: () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
+  name: "groups",
+  table: rawGroupsTable,
+});
 
-registerCache(() => ({ entries: groupsCache.size(), name: "groups" }));
+/** Groups table with CRUD operations — writes auto-invalidate the cache */
+export const groupsTable = groupsCache.table;
 
 /** Invalidate the groups cache (for testing or after writes). */
 export const invalidateGroupsCache = (): void => {
   groupsCache.invalidate();
 };
-
-/** Groups table with CRUD operations — writes auto-invalidate the cache */
-export const groupsTable = withCacheInvalidation(
-  rawGroupsTable,
-  invalidateGroupsCache,
-);
 
 /**
  * Get all groups, decrypted, ordered by id (from cache)

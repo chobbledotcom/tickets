@@ -2,19 +2,22 @@
  * Embed Hosts form for settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
-    <div class="prose">
-      <h2>Only allow embedding on these hosts</h2>
+  <SettingsSection
+    action="/admin/settings/embed-hosts"
+    description={
       <p>
         Restrict which websites can embed your booking forms in an iframe. Leave
         blank to allow embedding from any site.
       </p>
-    </div>
+    }
+    id="settings-embed-hosts"
+    submitLabel="Save Embed Hosts"
+    title="Only allow embedding on these hosts"
+  >
     <label>
       Hosts (comma-separated)
       <input
@@ -31,6 +34,5 @@ export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
         the booking page are always allowed.
       </small>
     </p>
-    <SubmitButton icon="save">Save Embed Hosts</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

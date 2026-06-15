@@ -3,12 +3,10 @@
  */
 
 import { filter } from "#fp";
-import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
-import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
-import { requestCache } from "#shared/request-cache.ts";
+import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Holiday } from "#shared/types.ts";
 
@@ -36,22 +34,20 @@ const queryHolidays = queryAndMap<Holiday, Holiday>((row) =>
   rawHolidaysTable.fromDb(row),
 );
 
-const holidaysCache = requestCache(() =>
-  queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
-);
+const holidaysCache = cachedTable({
+  fetchAll: () =>
+    queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
+  name: "holidays",
+  table: rawHolidaysTable,
+});
 
-registerCache(() => ({ entries: holidaysCache.size(), name: "holidays" }));
+/** Holidays table with CRUD operations — writes auto-invalidate the cache */
+export const holidaysTable = holidaysCache.table;
 
 /** Invalidate the holidays cache (for testing or after writes). */
 export const invalidateHolidaysCache = (): void => {
   holidaysCache.invalidate();
 };
-
-/** Holidays table with CRUD operations — writes auto-invalidate the cache */
-export const holidaysTable = withCacheInvalidation(
-  rawHolidaysTable,
-  invalidateHolidaysCache,
-);
 
 /**
  * Get all holidays, decrypted, ordered by start_date (from cache)

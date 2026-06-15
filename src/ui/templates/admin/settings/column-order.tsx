@@ -15,9 +15,8 @@ import {
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 const listingDefault = buildDefaultTemplate(LISTING_DEFAULT_ORDER);
 const attendeeDefault = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
@@ -39,19 +38,20 @@ const AvailableTags = ({
 export const ListingColumnOrderForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/listing-column-order"
-    id="settings-listing-column-order"
-  >
-    <div class="prose">
-      <h2>Listing Table Columns</h2>
+    description={
       <p>
         Control which columns appear on the Listings table and in what order.
         Use Liquid-style tags separated by commas. See the{" "}
         <a href="/admin/guide#column-order">Column Order guide</a> for full
         details including custom date and currency formatting.
       </p>
-    </div>
+    }
+    id="settings-listing-column-order"
+    submitLabel="Save Listing Columns"
+    title="Listing Table Columns"
+  >
     <label>
       Column order
       <input
@@ -65,19 +65,15 @@ export const ListingColumnOrderForm = (
     <p>
       <AvailableTags columns={LISTING_TABLE_COLUMNS} />
     </p>
-    <SubmitButton icon="save">Save Listing Columns</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );
 
 export const AttendeeColumnOrderForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/attendee-column-order"
-    id="settings-attendee-column-order"
-  >
-    <div class="prose">
-      <h2>Attendee Table Columns</h2>
+    description={
       <p>
         Control which columns appear on Attendee tables and in what order. Use
         Liquid-style tags separated by commas. Columns referencing absent data
@@ -85,7 +81,11 @@ export const AttendeeColumnOrderForm = (
         the <a href="/admin/guide#column-order">Column Order guide</a> for full
         details including custom date and currency formatting.
       </p>
-    </div>
+    }
+    id="settings-attendee-column-order"
+    submitLabel="Save Attendee Columns"
+    title="Attendee Table Columns"
+  >
     <label>
       Column order
       <input
@@ -99,6 +99,5 @@ export const AttendeeColumnOrderForm = (
     <p>
       <AvailableTags columns={ATTENDEE_TABLE_COLUMNS} />
     </p>
-    <SubmitButton icon="save">Save Attendee Columns</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

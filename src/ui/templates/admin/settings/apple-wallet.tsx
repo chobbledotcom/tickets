@@ -3,14 +3,13 @@
  */
 
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
-  <CsrfForm action="/admin/settings/apple-wallet" id="settings-apple-wallet">
-    <div class="prose">
-      <h2>Apple Wallet</h2>
+  <SettingsSection
+    action="/admin/settings/apple-wallet"
+    description={
       <p>
         Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
         Wallet&rdquo; button on ticket pages.{" "}
@@ -21,7 +20,11 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
             ? ` Overriding: ${s.hostAppleWalletLabel}.`
             : ""}
       </p>
-    </div>
+    }
+    id="settings-apple-wallet"
+    submitLabel="Save Apple Wallet Settings"
+    title="Apple Wallet"
+  >
     <label>
       Pass Type ID
       <input
@@ -72,6 +75,5 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
         {s.appleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>
     </label>
-    <SubmitButton icon="save">Save Apple Wallet Settings</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

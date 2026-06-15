@@ -7,6 +7,7 @@ import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
   s.storageEnabled ? (
@@ -26,18 +27,19 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
           </CsrfForm>
         </div>
       )}
-      <CsrfForm
+      <SettingsSection
         action="/admin/settings/header-image"
-        enctype="multipart/form-data"
-        id="settings-header-image"
-      >
-        <div class="prose">
-          <h2>Header Image</h2>
+        description={
           <p>
             An optional image displayed at the top of every page. JPEG, PNG,
             GIF, or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
           </p>
-        </div>
+        }
+        enctype="multipart/form-data"
+        id="settings-header-image"
+        submitLabel="Upload"
+        title="Header Image"
+      >
         <label>
           {s.headerImageUrl ? "Replace Image" : "Upload Image"}
           <input
@@ -46,7 +48,6 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
             type="file"
           />
         </label>
-        <SubmitButton icon="save">Upload</SubmitButton>
-      </CsrfForm>
+      </SettingsSection>
     </div>
   ) : null;
