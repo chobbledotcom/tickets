@@ -4,22 +4,25 @@
  * When ADMIN_EMAIL_ADDRESS is configured (the same env var that powers the
  * superuser recovery system) the admin area gains a Support page: the platform
  * host's SUPPORT_PAGE_TEXT (markdown) plus a message form that delivers to the
- * host. The form reuses the contact-form delivery pipeline but targets the
- * admin address and needs no Botpoison. For a short, configurable window after
- * a submission the page nags about repeat sends to discourage duplicates.
+ * host. The site operator is the only sender, so there's no submitter email to
+ * collect — the message is sent from the host's own address, with the site's
+ * business email as both the Reply-To and the "From:" shown to the host. For a
+ * short, configurable window after a submission the page nags about repeat
+ * sends to discourage duplicates.
  */
 
+import { getEffectiveDomain } from "#shared/config.ts";
 import { formatTimeAgo } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import {
-  buildMessageHtml,
-  buildMessageText,
-  deliverInboundMessage,
+  deliverMessage,
+  resolveMessageEmailConfig,
 } from "#shared/inbound-message.ts";
 import { SUPPORT_FORM_NAG_DAYS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { getAdminEmailAddress } from "#shared/superuser.ts";
+import { parseEmail } from "#shared/validation/email.ts";
 
 /**
  * The SUPPORT_PAGE_TEXT markdown the host configured, with literal `\n`
@@ -37,49 +40,36 @@ export const isSupportEnabled = (): boolean => getAdminEmailAddress() !== null;
 
 /**
  * Whether the support form can be shown and accept submissions: the feature is
- * enabled and a business email is set. Mirrors the public contact form's
- * delivery requirement (the from address falls back to the business email).
+ * enabled and a business email is set. The business email is the address the
+ * host replies to, and (like the contact form) the from address falls back to
+ * it when no dedicated sending address is configured.
  */
 export const isSupportFormActive = (): boolean =>
   isSupportEnabled() && settings.businessEmail !== "";
-
-/** Warning when the submitter claimed an address on the support inbox's host. */
-const SPOOF_RECIPIENT_WARNING =
-  "It looks like this sender entered an email address on the support inbox's own host. They may be attempting to spoof it.";
-
-/** Warning when the submitter claimed an address on the site's sending host. */
-const SPOOF_FROM_WARNING =
-  "It looks like this sender entered an email address on this site's sending email host. They may be attempting to spoof the host.";
-
-/** Intro line for the support-notification body. */
-const supportIntro = (domain: string): string =>
-  `You have received a support message from the Chobble Tickets site ${domain}.`;
 
 /** Subject line for support messages — identifies the originating site. */
 export const supportSubject = (domain: string): string =>
   `Support message from Chobble Tickets site ${domain}`;
 
 /**
- * Deliver a support message to ADMIN_EMAIL_ADDRESS. Returns false when the
- * feature is disabled or delivery fails.
+ * Deliver a support message to ADMIN_EMAIL_ADDRESS. The site operator is the
+ * sender, so we use the site's business email as Reply-To and the displayed
+ * "From:", while the envelope sender stays the host's configured address.
+ * Returns false when the feature isn't fully configured or delivery fails.
  */
-export const sendSupportMessage = (
-  email: string,
-  message: string,
-): Promise<boolean> => {
-  const adminEmail = getAdminEmailAddress();
-  if (!adminEmail) return Promise.resolve(false);
-  return deliverInboundMessage({
-    buildBody: (ctx) => ({
-      html: buildMessageHtml(ctx, supportIntro(ctx.domain)),
-      subject: supportSubject(ctx.domain),
-      text: buildMessageText(ctx, supportIntro(ctx.domain)),
-    }),
-    email,
-    message,
-    recipient: adminEmail,
-    spoofsFromWarning: SPOOF_FROM_WARNING,
-    spoofsRecipientWarning: SPOOF_RECIPIENT_WARNING,
+export const sendSupportMessage = async (message: string): Promise<boolean> => {
+  const to = getAdminEmailAddress();
+  const businessEmail = parseEmail(settings.businessEmail);
+  if (!to || !businessEmail) return false;
+  const config = await resolveMessageEmailConfig();
+  if (!config) return false;
+  const domain = getEffectiveDomain();
+  return deliverMessage(config, {
+    body: { fromLabel: businessEmail, message },
+    intro: `You have received a support message from the Chobble Tickets site ${domain}.`,
+    replyTo: businessEmail,
+    subject: supportSubject(domain),
+    to,
   });
 };
 

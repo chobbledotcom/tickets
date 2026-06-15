@@ -162,6 +162,7 @@ describe("sendSupportMessage", () => {
 
   beforeEach(() => {
     restoreEnv = setTestEnv(ADMIN_ENV);
+    settings.setForTest({ business_email: "owner@example.com" });
     setHostEmailConfigForTest({
       apiKey: "host-key",
       fromAddress: validEmail("sender@sending.test"),
@@ -175,6 +176,7 @@ describe("sendSupportMessage", () => {
     fetchStub = undefined;
     resetHostEmailConfig();
     resetEffectiveDomain();
+    settings.clearTestOverrides();
     restoreEnv?.();
     restoreEnv = undefined;
   });
@@ -193,11 +195,25 @@ describe("sendSupportMessage", () => {
     restoreEnv?.();
     restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: undefined });
     stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendSupportMessage("owner@example.com", "Help")).toBe(false);
+    expect(await sendSupportMessage("Help")).toBe(false);
     expect(fetchStub?.calls.length).toBe(0);
   });
 
-  test("delivers to the admin address with the support subject", async () => {
+  test("returns false and sends nothing when no business email is set", async () => {
+    settings.setForTest({ business_email: "" });
+    stubFetch(() => Promise.reject(new Error("should not be called")));
+    expect(await sendSupportMessage("Help")).toBe(false);
+    expect(fetchStub?.calls.length).toBe(0);
+  });
+
+  test("returns false when no email provider is configured", async () => {
+    setHostEmailConfigForTest(null);
+    stubFetch(() => Promise.reject(new Error("should not be called")));
+    expect(await sendSupportMessage("Help")).toBe(false);
+    expect(fetchStub?.calls.length).toBe(0);
+  });
+
+  test("delivers to the admin address, from the site's business email", async () => {
     const captured = { body: {} as Record<string, unknown>, url: "" };
     stubFetch((url, init) => {
       captured.url = url;
@@ -205,39 +221,25 @@ describe("sendSupportMessage", () => {
       return Promise.resolve(new Response(null, { status: 200 }));
     });
 
-    const result = await sendSupportMessage(
-      "owner@external.test",
-      "Please help",
-    );
+    const result = await sendSupportMessage("Please help");
 
     expect(result).toBe(true);
     expect(captured.url).toBe("https://api.resend.com/emails");
+    // Recipient is the host; envelope from is the host's address; the site's
+    // business email is the Reply-To and the displayed "From:".
     expect(captured.body.to).toEqual(["host@support.test"]);
-    expect(captured.body.reply_to).toBe("owner@external.test");
+    expect(captured.body.from).toBe("sender@sending.test");
+    expect(captured.body.reply_to).toBe("owner@example.com");
     expect(captured.body.subject).toBe(
       "Support message from Chobble Tickets site tickets.example.com",
     );
     expect(String(captured.body.text)).toContain("Please help");
     expect(String(captured.body.text)).toContain("tickets.example.com");
+    expect(String(captured.body.html)).toContain("owner@example.com");
   });
 
   test("returns false when the email provider responds with an error", async () => {
     stubFetch(() => Promise.resolve(new Response("nope", { status: 500 })));
-    expect(await sendSupportMessage("owner@external.test", "Help")).toBe(false);
-  });
-
-  test("flags a submitter who shares the support inbox host", async () => {
-    const captured = { body: {} as Record<string, unknown> };
-    stubFetch((_url, init) => {
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
-
-    const result = await sendSupportMessage("imposter@support.test", "Hi");
-
-    expect(result).toBe(true);
-    // Reply-To falls back to the sending address; body warns about spoofing.
-    expect(captured.body.reply_to).toBe("sender@sending.test");
-    expect(String(captured.body.html)).toContain("spoof");
+    expect(await sendSupportMessage("Help")).toBe(false);
   });
 });

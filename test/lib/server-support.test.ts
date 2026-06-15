@@ -89,13 +89,16 @@ describeWithEnv(
         expect(html).toContain("Set a business email");
       });
 
-      test("shows the message form when a business email is set", async () => {
+      test("shows the message form with the business email pre-filled read-only", async () => {
         await settings.update.businessEmail("owner@example.com");
         const { response } = await adminGet("/admin/support");
         const html = await response.text();
         expect(html).toContain('action="/admin/support"');
-        expect(html).toContain('name="email"');
         expect(html).toContain('name="message"');
+        // Email box is pre-filled with the business email and not editable.
+        expect(html).toContain('name="email"');
+        expect(html).toContain('value="owner@example.com"');
+        expect(html).toContain("readonly");
       });
 
       test("shows the Support link in the admin nav", async () => {
@@ -119,22 +122,35 @@ describeWithEnv(
     });
 
     describe("POST /admin/support", () => {
-      test("delivers to the admin address and flashes success", async () => {
+      test("delivers to the host and replies to the site's business email", async () => {
         await configureEmail();
         const mock = installSupportFetch();
         try {
           const { response } = await adminFormPost("/admin/support", {
-            email: "me@external.test",
             message: "Please help me",
           });
           expectRedirect(response, "/admin/support");
           expectFlash(response, "Your message has been sent");
           const emailCall = mock.emailCall();
           expect(emailCall?.body?.to).toEqual(["host@support.test"]);
-          expect(emailCall?.body?.reply_to).toBe("me@external.test");
+          expect(emailCall?.body?.reply_to).toBe("owner@example.com");
           expect(String(emailCall?.body?.subject)).toContain(
             "Support message from Chobble Tickets site",
           );
+        } finally {
+          mock.restore();
+        }
+      });
+
+      test("ignores any submitted email and sends from the business email", async () => {
+        await configureEmail();
+        const mock = installSupportFetch();
+        try {
+          await adminFormPost("/admin/support", {
+            email: "attacker@evil.test",
+            message: "Please help me",
+          });
+          expect(mock.emailCall()?.body?.reply_to).toBe("owner@example.com");
         } finally {
           mock.restore();
         }
@@ -144,10 +160,7 @@ describeWithEnv(
         await configureEmail();
         const mock = installSupportFetch();
         try {
-          await adminFormPost("/admin/support", {
-            email: "me@external.test",
-            message: "Please help me",
-          });
+          await adminFormPost("/admin/support", { message: "Please help me" });
           expect(settings.supportFormLastSubmitted).not.toBe("");
           const { response } = await adminGet("/admin/support");
           const html = await response.text();
@@ -157,20 +170,9 @@ describeWithEnv(
         }
       });
 
-      test("rejects an invalid email", async () => {
-        await settings.update.businessEmail("owner@example.com");
-        const { response } = await adminFormPost("/admin/support", {
-          email: "not-an-email",
-          message: "Help",
-        });
-        expectRedirect(response, "/admin/support");
-        expectFlash(response, "Please enter a valid email address.", false);
-      });
-
       test("rejects an empty message", async () => {
         await settings.update.businessEmail("owner@example.com");
         const { response } = await adminFormPost("/admin/support", {
-          email: "owner@example.com",
           message: "   ",
         });
         expectRedirect(response, "/admin/support");
@@ -180,7 +182,6 @@ describeWithEnv(
       test("rejects a message that exceeds the maximum length", async () => {
         await settings.update.businessEmail("owner@example.com");
         const { response } = await adminFormPost("/admin/support", {
-          email: "owner@example.com",
           message: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
         });
         expectRedirect(response, "/admin/support");
@@ -196,7 +197,6 @@ describeWithEnv(
         const mock = installSupportFetch({ status: 500 });
         try {
           const { response } = await adminFormPost("/admin/support", {
-            email: "me@external.test",
             message: "Please help me",
           });
           expectRedirect(response, "/admin/support");
@@ -212,7 +212,6 @@ describeWithEnv(
 
       test("404s when the form is not active (no business email)", async () => {
         const { response } = await adminFormPost("/admin/support", {
-          email: "me@external.test",
           message: "Help",
         });
         expect(response.status).toBe(404);
@@ -221,11 +220,7 @@ describeWithEnv(
       test("requires a CSRF token", async () => {
         const cookie = await testCookie();
         const response = await handleRequest(
-          mockFormRequest(
-            "/admin/support",
-            { email: "me@external.test", message: "Help" },
-            cookie,
-          ),
+          mockFormRequest("/admin/support", { message: "Help" }, cookie),
         );
         expect(response.status).toBe(403);
         await expect(response.text()).resolves.toContain("Invalid CSRF token");
@@ -235,7 +230,7 @@ describeWithEnv(
         const managerCookie = await createTestManagerSession();
         const response = await awaitTestRequest("/admin/support", {
           cookie: managerCookie,
-          data: { email: "me@external.test", message: "Help" },
+          data: { message: "Help" },
           method: "POST",
         });
         expect(response.status).toBe(403);
@@ -252,7 +247,6 @@ describeWithEnv("server (admin support, disabled)", { db: true }, () => {
 
   test("POST 404s when ADMIN_EMAIL_ADDRESS is unset", async () => {
     const { response } = await adminFormPost("/admin/support", {
-      email: "me@external.test",
       message: "Help",
     });
     expect(response.status).toBe(404);

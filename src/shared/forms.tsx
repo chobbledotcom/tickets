@@ -578,29 +578,6 @@ export const setFormError = (formId: string, message: string): void => {
  * When `id` is provided, the form gets an id attribute (also usable as an anchor).
  * Shows a success or error message when the form's id matches the current state.
  */
-/**
- * Email + message + submit fields shared by the public contact form and the
- * admin support form. Extracted so the two render identical inputs; each caller
- * supplies only the surrounding <form> and its heading.
- */
-export const MessageFields = (): JSX.Element => (
-  <>
-    <label>
-      Your email address
-      <input autocomplete="email" name="email" required type="email" />
-    </label>
-    <label>
-      Message
-      <textarea
-        maxlength={MAX_TEXTAREA_LENGTH}
-        name="message"
-        required
-      ></textarea>
-    </label>
-    <button type="submit">Send message</button>
-  </>
-);
-
 export const CsrfForm = ({
   action,
   children,
@@ -622,6 +599,36 @@ export const CsrfForm = ({
     )}
     {children}
   </form>
+);
+
+/**
+ * Email + message + submit fields shared by the public contact form and the
+ * admin support form, so the two render identical inputs.
+ *
+ * Pass `email` to pre-fill a read-only address (the support form, which always
+ * sends from the site's own business email and ignores any submitted value);
+ * omit it for an editable, required input (the public contact form).
+ */
+export const MessageFields = ({ email }: { email?: string }): JSX.Element => (
+  <>
+    <label>
+      Your email address
+      {email === undefined ? (
+        <input autocomplete="email" name="email" required type="email" />
+      ) : (
+        <input name="email" readonly type="email" value={email} />
+      )}
+    </label>
+    <label>
+      Message
+      <textarea
+        maxlength={MAX_TEXTAREA_LENGTH}
+        name="message"
+        required
+      ></textarea>
+    </label>
+    <button type="submit">Send message</button>
+  </>
 );
 
 /**

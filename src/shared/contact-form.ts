@@ -10,17 +10,22 @@
  * submissions are verified server-side. Without it the form still works, ready
  * for a different spam-protection provider to be added in future.
  *
- * The actual delivery (provider resolution, anti-spoof Reply-To, sending) lives
- * in #shared/inbound-message.ts and is shared with the admin support form.
+ * Delivery shares the building blocks in #shared/inbound-message.ts; the
+ * contact-specific policy (deliver to the business email, reply to the
+ * submitter, with anti-spoof handling) lives here.
  */
 
-import { getBotpoisonPublicKey } from "#shared/config.ts";
+import { getBotpoisonPublicKey, getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  buildMessageHtml,
-  buildMessageText,
-  deliverInboundMessage,
+  deliverMessage,
+  resolveMessageEmailConfig,
 } from "#shared/inbound-message.ts";
+import {
+  emailHost,
+  parseEmail,
+  type ValidEmail,
+} from "#shared/validation/email.ts";
 
 /**
  * Whether the public contact form should be rendered and accept submissions:
@@ -43,28 +48,52 @@ const SPOOF_BUSINESS_WARNING =
 const SPOOF_FROM_WARNING =
   "It looks like this sender entered an email address on this site's sending email host. They may be attempting to spoof the host.";
 
-/** Intro line for the owner-notification body. */
-const contactIntro = (domain: string): string =>
-  `You have received a message via the ${domain} contact form.`;
+/**
+ * Choose the Reply-To for a contact submission. Normally it's the submitter so
+ * the owner can reply directly. But when the submitter claims an address on a
+ * host we trust (the owner's business host, or the site's own sending host) a
+ * Reply-To of that address makes the message look self-sent and receiving
+ * mailboxes munge the visible sender — so fall back to the from address and
+ * flag it with a warning.
+ */
+const chooseReplyTo = (
+  submitter: ValidEmail,
+  business: ValidEmail,
+  from: ValidEmail,
+): { replyTo: ValidEmail; warning: string | null } => {
+  const host = emailHost(submitter);
+  if (host === emailHost(business)) {
+    return { replyTo: from, warning: SPOOF_BUSINESS_WARNING };
+  }
+  if (host === emailHost(from)) {
+    return { replyTo: from, warning: SPOOF_FROM_WARNING };
+  }
+  return { replyTo: submitter, warning: null };
+};
 
 /**
- * Send a contact-form message to the site's business email.
- * The submitter's address is set as Reply-To so the owner can reply directly.
- * Returns true when the provider accepted the message.
+ * Send a contact-form message to the site's business email. The submitter is
+ * already validated (a ValidEmail); they are set as Reply-To unless anti-spoof
+ * handling redirects it. Returns true when the provider accepted the message.
  */
-export const sendContactMessage = (
-  email: string,
+export const sendContactMessage = async (
+  submitter: ValidEmail,
   message: string,
-): Promise<boolean> =>
-  deliverInboundMessage({
-    buildBody: (ctx) => ({
-      html: buildMessageHtml(ctx, contactIntro(ctx.domain)),
-      subject: `Contact form message from ${ctx.email}`,
-      text: buildMessageText(ctx, contactIntro(ctx.domain)),
-    }),
-    email,
-    message,
-    recipient: settings.businessEmail,
-    spoofsFromWarning: SPOOF_FROM_WARNING,
-    spoofsRecipientWarning: SPOOF_BUSINESS_WARNING,
+): Promise<boolean> => {
+  const config = await resolveMessageEmailConfig();
+  if (!config) return false;
+  const business = parseEmail(settings.businessEmail);
+  if (!business) return false;
+  const { replyTo, warning } = chooseReplyTo(
+    submitter,
+    business,
+    config.fromAddress,
+  );
+  return deliverMessage(config, {
+    body: { fromLabel: submitter, message, warning },
+    intro: `You have received a message via the ${getEffectiveDomain()} contact form.`,
+    replyTo,
+    subject: `Contact form message from ${submitter}`,
+    to: business,
   });
+};

@@ -417,10 +417,13 @@ export const daysAgo = (utcIso: string): number | null => {
   return Math.round((todayMs - listingMs) / (1000 * 60 * 60 * 24));
 };
 
+const RELATIVE_TIME = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
 /**
  * Human "time ago" label for a past ISO timestamp, relative to `nowMsValue`
- * (epoch ms). Returns e.g. "just now", "5 minutes ago", "3 hours ago",
- * "2 days ago". Returns null for an unparseable or future timestamp.
+ * (epoch ms), via Intl.RelativeTimeFormat in the largest whole unit that
+ * applies — e.g. "now", "5 minutes ago", "yesterday", "2 days ago". Returns
+ * null for an unparseable or future timestamp.
  */
 export const formatTimeAgo = (
   iso: string,
@@ -428,15 +431,15 @@ export const formatTimeAgo = (
 ): string | null => {
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return null;
-  const diffMs = nowMsValue - then;
-  if (diffMs < 0) return null;
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const seconds = Math.floor((nowMsValue - then) / 1000);
+  if (seconds < 0) return null;
+  const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
   const days = Math.floor(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
+  if (days >= 1) return RELATIVE_TIME.format(-days, "day");
+  if (hours >= 1) return RELATIVE_TIME.format(-hours, "hour");
+  if (minutes >= 1) return RELATIVE_TIME.format(-minutes, "minute");
+  return RELATIVE_TIME.format(-seconds, "second");
 };
 
 /**

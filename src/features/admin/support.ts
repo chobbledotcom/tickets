@@ -8,6 +8,7 @@
  */
 
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { requireMessageField } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -15,12 +16,10 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  MESSAGE_SEND_FAILED,
-  readMessageSubmission,
-} from "#shared/inbound-message.ts";
+import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
   getSupportPageText,
   isSupportEnabled,
@@ -40,6 +39,7 @@ const handleSupportGet = (request: Request): Promise<Response> =>
     const flash = getFlash();
     return htmlResponse(
       adminSupportPage({
+        businessEmail: settings.businessEmail,
         error: flash.error,
         formActive: isSupportFormActive(),
         nagLabel: supportNagLabel(),
@@ -50,13 +50,15 @@ const handleSupportGet = (request: Request): Promise<Response> =>
     );
   });
 
-/** Validate, deliver to the host, then record the submission for the nag. 404s
- * when the form is not active so the endpoint only exists when configured. */
+/** Validate the message, deliver to the host (from the site's business email),
+ * then record the submission for the nag. 404s when the form is not active so
+ * the endpoint only exists when configured. The submitter's address isn't read:
+ * support always comes from the site's own business email. */
 const submitSupportMessage = async (form: FormParams): Promise<Response> => {
   if (!isSupportFormActive()) return notFoundResponse();
-  const submission = readMessageSubmission(form);
-  if (!submission.ok) return errorRedirect(SUPPORT_PATH, submission.error);
-  const sent = await sendSupportMessage(submission.email, submission.message);
+  const message = requireMessageField(form, SUPPORT_PATH);
+  if (message instanceof Response) return message;
+  const sent = await sendSupportMessage(message);
   if (!sent) return errorRedirect(SUPPORT_PATH, MESSAGE_SEND_FAILED);
   await recordSupportSubmission();
   return redirect(SUPPORT_PATH, "Your message has been sent", true);

@@ -726,8 +726,14 @@ describeWithEnv("dates", { db: true }, () => {
       expect(formatTimeAgo("2026-06-15T12:00:01.000Z", base)).toBeNull();
     });
 
-    test("returns 'just now' under a minute", () => {
-      expect(formatTimeAgo("2026-06-15T11:59:30.000Z", base)).toBe("just now");
+    test("labels a sub-minute span in seconds", () => {
+      expect(formatTimeAgo("2026-06-15T11:59:30.000Z", base)).toBe(
+        "30 seconds ago",
+      );
+    });
+
+    test("uses 'now' at zero elapsed", () => {
+      expect(formatTimeAgo("2026-06-15T12:00:00.000Z", base)).toBe("now");
     });
 
     test("uses singular minute at exactly one minute", () => {
@@ -754,8 +760,8 @@ describeWithEnv("dates", { db: true }, () => {
       );
     });
 
-    test("uses singular day at exactly one day", () => {
-      expect(formatTimeAgo("2026-06-14T12:00:00.000Z", base)).toBe("1 day ago");
+    test("uses 'yesterday' at exactly one day", () => {
+      expect(formatTimeAgo("2026-06-14T12:00:00.000Z", base)).toBe("yesterday");
     });
 
     test("pluralises days", () => {

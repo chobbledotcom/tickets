@@ -2,7 +2,7 @@
  * Public pages - home, listings, terms, contact
  */
 
-import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
+import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -21,12 +21,10 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  MESSAGE_SEND_FAILED,
-  readMessageSubmission,
-} from "#shared/inbound-message.ts";
+import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
+import { parseEmail } from "#shared/validation/email.ts";
 import {
   contactPage,
   homepagePage,
@@ -118,9 +116,12 @@ export const handlePublicContact = (
 const processContactSubmission = async (
   form: FormParams,
 ): Promise<Response> => {
-  const submission = readMessageSubmission(form);
-  if (!submission.ok) return errorRedirect("/contact", submission.error);
-  const { email, message } = submission;
+  const submitter = parseEmail(form.getString("email"));
+  if (!submitter) {
+    return errorRedirect("/contact", "Please enter a valid email address.");
+  }
+  const message = requireMessageField(form, "/contact");
+  if (message instanceof Response) return message;
 
   // Botpoison is an optional spam-protection layer: when configured the
   // submission must pass verification; otherwise it is accepted as-is.
@@ -136,7 +137,7 @@ const processContactSubmission = async (
     }
   }
 
-  const sent = await sendContactMessage(email, message);
+  const sent = await sendContactMessage(submitter, message);
   if (!sent) return errorRedirect("/contact", MESSAGE_SEND_FAILED);
   return redirect("/contact", "Message sent", true);
 };
