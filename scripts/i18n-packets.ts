@@ -32,12 +32,14 @@ const MAP: Record<string, string> = {
   "src/routes/admin/users.ts": "src/features/admin/users.ts",
   "src/routes/join.ts": "src/features/join.ts",
   "src/routes/setup.ts": "src/features/setup.ts",
-  "src/templates/admin/activityLog.tsx": "src/ui/templates/admin/activityLog.tsx",
+  "src/templates/admin/activityLog.tsx":
+    "src/ui/templates/admin/activityLog.tsx",
   "src/templates/admin/api-keys.tsx": "src/ui/templates/admin/api-keys.tsx",
   "src/templates/admin/attendees.tsx": "src/ui/templates/admin/attendees.tsx",
   "src/templates/admin/calendar.tsx": "src/ui/templates/admin/calendar.tsx",
   "src/templates/admin/dashboard.tsx": "src/ui/templates/admin/dashboard.tsx",
-  "src/templates/admin/database-reset.tsx": "src/ui/templates/admin/database-reset.tsx",
+  "src/templates/admin/database-reset.tsx":
+    "src/ui/templates/admin/database-reset.tsx",
   "src/templates/admin/debug.tsx": "src/ui/templates/admin/debug.tsx",
   "src/templates/admin/footer.tsx": "src/ui/templates/admin/footer.tsx",
   "src/templates/admin/groups.tsx": "src/ui/templates/admin/groups.tsx",
@@ -48,7 +50,8 @@ const MAP: Record<string, string> = {
   "src/templates/admin/questions.tsx": "src/ui/templates/admin/questions.tsx",
   "src/templates/admin/scanner.tsx": "src/ui/templates/admin/scanner.tsx",
   "src/templates/admin/sessions.tsx": "src/ui/templates/admin/sessions.tsx",
-  "src/templates/admin/settings-advanced.tsx": "src/ui/templates/admin/settings-advanced.tsx",
+  "src/templates/admin/settings-advanced.tsx":
+    "src/ui/templates/admin/settings-advanced.tsx",
   "src/templates/admin/settings.tsx": "src/ui/templates/admin/settings.tsx",
   "src/templates/admin/site.tsx": "src/ui/templates/admin/site.tsx",
   "src/templates/admin/users.tsx": "src/ui/templates/admin/users.tsx",
@@ -64,13 +67,16 @@ const MAP: Record<string, string> = {
 
 const sh = (cmd: string, args: string[]): string =>
   new TextDecoder().decode(
-    new Deno.Command(cmd, { args, stdout: "piped", stderr: "null" })
-      .outputSync().stdout,
+    new Deno.Command(cmd, {
+      args,
+      stderr: "null",
+      stdout: "piped",
+    }).outputSync().stdout,
   );
 
 const T_CALL = /(?<![A-Za-z0-9_$])t\(\s*(["'`])([^"'`]+)\1/g;
 const mb = sh("git", ["merge-base", "origin/main", OLD_BRANCH]).trim();
-const slug = (p: string) => p.replace(/[\/.]/g, "__");
+const slug = (p: string) => p.replace(/[/.]/g, "__");
 
 const requested = Deno.args.length ? Deno.args : Object.keys(MAP);
 Deno.mkdirSync(".i18n-work", { recursive: true });
@@ -83,8 +89,7 @@ for (const oldPath of requested) {
   }
   const guide = sh("git", ["diff", mb, OLD_BRANCH, "--", oldPath]);
   const keys = [...new Set([...guide.matchAll(T_CALL)].map((m) => m[2]))];
-  const verify =
-    `deno run --allow-read --allow-run scripts/verify-i18n.ts --expect=${keys.join(",")} ${newPath}`;
+  const verify = `deno run --allow-read --allow-run scripts/verify-i18n.ts --expect=${keys.join(",")} ${newPath}`;
 
   const packet = `# i18n packet: ${newPath}
 
@@ -108,5 +113,7 @@ ${guide.trimEnd()}
 \`\`\`
 `;
   Deno.writeTextFileSync(`.i18n-work/${slug(newPath)}.md`, packet);
-  console.log(`${newPath}\t${keys.length} keys\t.i18n-work/${slug(newPath)}.md`);
+  console.log(
+    `${newPath}\t${keys.length} keys\t.i18n-work/${slug(newPath)}.md`,
+  );
 }

@@ -4,6 +4,7 @@
  */
 
 import { once, reduce } from "#fp";
+import { parseAcceptLanguage, runWithLocale } from "#i18n";
 import { SessionKeyError } from "#routes/auth.ts";
 import {
   applySecurityHeaders,
@@ -60,7 +61,6 @@ import {
   logRequest,
   runWithRequestId,
 } from "#shared/logger.ts";
-import { parseAcceptLanguage, runWithLocale } from "#i18n";
 import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
@@ -639,7 +639,7 @@ export const handleRequest = async (
         runWithQueryLogContext(() =>
           runWithFlashContext(() =>
             runWithSessionContext(() =>
-              processRequest(effectiveRequest, server)
+              processRequest(effectiveRequest, server),
             ),
           ),
         ),
