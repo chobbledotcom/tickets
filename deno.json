@@ -19,9 +19,9 @@
   },
   "imports": {
     "#fp": "./src/fp.ts",
-    "#test-utils": "./src/test-utils.ts",
+    "#test-utils": "./test/test-utils.ts",
     "#shared/test-overrides": "./src/shared/test-overrides.ts",
-    "#test-utils/": "./src/test-utils/",
+    "#test-utils/": "./test/test-utils/",
     "#jsx/jsx-runtime": "./src/shared/jsx/jsx-runtime.ts",
     "#jsx/jsx-dev-runtime": "./src/shared/jsx/jsx-runtime.ts",
     "#jsx/": "./src/shared/jsx/",

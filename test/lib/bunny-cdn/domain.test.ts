@@ -687,9 +687,10 @@ describeWithEnv("delay", {}, () => {
   test("resolves after the specified time", async () => {
     using time = new FakeTime();
     let resolved = false;
-    bunnyCdnApi.delay(1000).then(() => {
+    void (async () => {
+      await bunnyCdnApi.delay(1000);
       resolved = true;
-    });
+    })();
     time.tick(500);
     await time.runMicrotasks();
     expect(resolved).toBe(false);
