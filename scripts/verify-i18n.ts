@@ -30,8 +30,8 @@ type Result = { file: string; hardFail: boolean; lines: string[] };
 const sh = (cmd: string, args: string[]): string => {
   const { stdout, success } = new Deno.Command(cmd, {
     args,
-    stdout: "piped",
     stderr: "null",
+    stdout: "piped",
   }).outputSync();
   return success ? new TextDecoder().decode(stdout) : "";
 };
@@ -42,14 +42,6 @@ const isTImport = (l: string): boolean =>
 
 /** Does a param-less t() call still remain (i.e. an unreversible ICU/param call)? */
 const HAS_T_CALL = /(?<![A-Za-z0-9_$])t\(/;
-
-/**
- * Canonicalise a line for comparison: unify string delimiters (a "..." literal
- * often must become a `...` template to embed ${t()}, which is a syntax change,
- * not an English change) and collapse whitespace.
- */
-const norm = (l: string): string =>
-  l.replace(/[`'"]/g, '"').replace(/\s+/g, " ").trim();
 
 const usedKeys = (src: string): string[] =>
   [...src.matchAll(T_CALL)].map((m) => m[2]);
@@ -77,7 +69,8 @@ const untranslateLine = (line: string): string =>
 const leftoverLiterals = (src: string): string[] => {
   const hits: string[] = [];
   const lines = src.split("\n");
-  const ATTR = /\b(placeholder|title|aria-label|alt|label)\s*=\s*(["'])([^"'{][^"']*)\2/g;
+  const ATTR =
+    /\b(placeholder|title|aria-label|alt|label)\s*=\s*(["'])([^"'{][^"']*)\2/g;
   // JSX text node: >Word(s)< — capitalised, contains a lowercase letter. Single
   // words count (e.g. button labels like "Login"); {expr} children are excluded
   // because they start with "{", not a letter.
@@ -106,7 +99,9 @@ const check = (file: string, expect: string[]): Result => {
   const missing = [...new Set(keys.filter((k) => !(k in messages)))];
   if (missing.length) {
     hardFail = true;
-    lines.push(`  [A] FAIL ${missing.length} unknown key(s): ${missing.join(", ")}`);
+    lines.push(
+      `  [A] FAIL ${missing.length} unknown key(s): ${missing.join(", ")}`,
+    );
   } else {
     lines.push(`  [A] ok    ${keys.length} t() call(s), all keys resolve`);
   }
@@ -117,51 +112,68 @@ const check = (file: string, expect: string[]): Result => {
     if (absent.length) {
       // Soft: main may have removed UI the old branch translated, orphaning a
       // key. Never re-add deleted elements to satisfy this — treat as residue.
-      lines.push(`  [D] warn  ${absent.length}/${expect.length} expected key(s) not used here (wire if the string exists; else orphaned — main removed it): ${absent.join(", ")}`);
+      lines.push(
+        `  [D] warn  ${absent.length}/${expect.length} expected key(s) not used here (wire if the string exists; else orphaned — main removed it): ${absent.join(", ")}`,
+      );
     } else {
       lines.push(`  [D] ok    all ${expect.length} expected key(s) present`);
     }
   }
 
-  // B. English-preserving: every wired line, un-translated, must reproduce a
-  // line removed from origin/main. Works off the diff so only changed lines are
-  // checked; ICU/param calls can't be reversed textually and are reported, not
-  // failed.
-  const diff = sh("git", ["diff", "--no-color", "-U0", "origin/main", "--", file]);
+  // B. English-preserving: for each diff hunk, the added lines (un-translated)
+  // must reproduce the removed lines. Compared per-hunk as a whitespace-collapsed
+  // block so JSX reflow (biome splitting one line into several) doesn't matter;
+  // hunks whose added side still contains an ICU/param call are reported, not
+  // failed (those aren't textually reversible).
+  const diff = sh("git", [
+    "diff",
+    "--no-color",
+    "-U0",
+    "origin/main",
+    "--",
+    file,
+  ]);
   if (!diff.trim()) {
-    lines.push(`  [B] skip  no changes vs origin/main`);
+    lines.push("  [B] skip  no changes vs origin/main");
   } else {
-    const removed = new Map<string, number>();
-    const added: string[] = [];
+    // Collapse all whitespace away (JSX trims whitespace around {expr}/elements,
+    // so source spacing isn't rendered) and unify string delimiters.
+    const nb = (s: string): string =>
+      s.replace(/[`'"]/g, '"').replace(/\s+/g, "");
+    type Hunk = { added: string[]; removed: string[] };
+    const hunks: Hunk[] = [];
+    let cur: Hunk | null = null;
     for (const l of diff.split("\n")) {
-      if (l.startsWith("+++") || l.startsWith("---") || l.startsWith("@@")) continue;
-      if (l.startsWith("+")) added.push(l.slice(1));
-      else if (l.startsWith("-")) {
-        const n = norm(l.slice(1));
-        removed.set(n, (removed.get(n) ?? 0) + 1);
-      }
+      if (l.startsWith("+++") || l.startsWith("---")) continue;
+      if (l.startsWith("@@")) {
+        cur = { added: [], removed: [] };
+        hunks.push(cur);
+      } else if (l.startsWith("+")) cur?.added.push(l.slice(1));
+      else if (l.startsWith("-")) cur?.removed.push(l.slice(1));
     }
     const mismatches: string[] = [];
     let paramUnverified = 0;
-    for (const a of added) {
-      if (isTImport(a)) continue;
-      const u = untranslateLine(a);
+    for (const h of hunks) {
+      const added = h.added.filter((a) => !isTImport(a));
+      if (!added.length && !h.removed.length) continue; // bare t-import hunk
+      const u = untranslateLine(added.join(" "));
       if (HAS_T_CALL.test(u)) {
         paramUnverified++; // ICU/param call — not textually reversible
         continue;
       }
-      const n = norm(u);
-      const count = removed.get(n) ?? 0;
-      if (count > 0) removed.set(n, count - 1);
-      else mismatches.push(a.trim());
+      if (nb(u) !== nb(h.removed.join(" "))) {
+        mismatches.push(added.join(" ").trim().slice(0, 100));
+      }
     }
     if (mismatches.length) {
       hardFail = true;
-      lines.push(`  [B] FAIL ${mismatches.length} wired line(s) don't reproduce origin English (wrong key or stray edit):`);
+      lines.push(
+        `  [B] FAIL ${mismatches.length} wired hunk(s) don't reproduce origin English (wrong key or stray edit):`,
+      );
       for (const m of mismatches.slice(0, 8)) lines.push(`        + ${m}`);
     } else {
       const note = paramUnverified
-        ? ` (${paramUnverified} ICU/param line(s) not auto-checked — eyeball)`
+        ? ` (${paramUnverified} ICU/param hunk(s) not auto-checked — eyeball)`
         : "";
       lines.push(`  [B] ok    English preserved${note}`);
     }
@@ -172,9 +184,10 @@ const check = (file: string, expect: string[]): Result => {
   if (leftover.length) {
     lines.push(`  [C] warn  ${leftover.length} possible un-wired string(s):`);
     lines.push(...leftover.slice(0, 25));
-    if (leftover.length > 25) lines.push(`  ... and ${leftover.length - 25} more`);
+    if (leftover.length > 25)
+      lines.push(`  ... and ${leftover.length - 25} more`);
   } else {
-    lines.push(`  [C] ok    no obvious leftover literals`);
+    lines.push("  [C] ok    no obvious leftover literals");
   }
 
   return { file, hardFail, lines };

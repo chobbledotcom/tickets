@@ -1,6 +1,7 @@
 {
   "holidays.heading": "Holidays",
   "holidays.add_holiday": "Add Holiday",
+  "holidays.guide_link": "Holidays guide",
   "holidays.no_holidays": "No holidays configured.",
   "holidays.col.name": "Name",
   "holidays.col.start_date": "Start Date",
@@ -18,9 +19,9 @@
   "holidays.edit.submit": "Save Changes",
 
   "holidays.delete.heading": "Delete Holiday",
-  "holidays.delete.confirm": "Are you sure you want to delete the holiday {name} ({start} to {end})?",
-  "holidays.delete.confirm_prompt": "Type the holiday name to confirm:",
-  "holidays.delete.confirm_label": "Holiday Name",
+  "holidays.delete.confirm": "Are you sure you want to delete the holiday <strong>{name}</strong> ({start} to {end})?",
+  "holidays.delete.confirm_prompt": "Type the holiday name \"{name}\" to confirm:",
+  "holidays.delete.confirm_label": "Holiday name",
   "holidays.delete.submit": "Delete Holiday",
 
   "holidays.fields.name": "Holiday Name",
