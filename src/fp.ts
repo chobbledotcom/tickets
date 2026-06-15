@@ -85,7 +85,7 @@ export const reduce =
 export const sort =
   <T>(comparator: (a: T, b: T) => number) =>
   (array: T[]): T[] =>
-    [...array].sort(comparator);
+    array.toSorted(comparator);
 
 /**
  * Remove duplicate values (by reference/value equality)

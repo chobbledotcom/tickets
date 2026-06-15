@@ -431,9 +431,7 @@ export const uploadAttachment = (
 /** Read directory entries, returning empty array if the directory doesn't exist */
 const readDirSafe = async (dir: string): Promise<Deno.DirEntry[]> => {
   try {
-    const entries: Deno.DirEntry[] = [];
-    for await (const entry of Deno.readDir(dir)) entries.push(entry);
-    return entries;
+    return await Array.fromAsync(Deno.readDir(dir));
   } catch {
     return [];
   }
