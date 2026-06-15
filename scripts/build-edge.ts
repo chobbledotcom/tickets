@@ -208,6 +208,8 @@ await esbuild.build({
   entryPoints: ["./src/edge.ts"],
   external: nodeExternals,
   format: "esm",
+  jsx: "automatic",
+  jsxImportSource: "#jsx",
   minify: true,
   outdir: "./dist",
   platform: "browser",
@@ -222,6 +224,17 @@ await esbuild.build({
 
 // esbuild.build() throws on failure, so if we reach here the output file exists
 const content = await Deno.readTextFile("./dist/edge.js");
+
+// Guard: the app renders with a custom JSX runtime (#jsx), never React. If
+// esbuild ever falls back to the classic JSX transform, the bundle references
+// an undefined `React` and every page 500s at runtime ("React is not defined").
+// Tests don't catch this (they run TSX under Deno), so assert on the bundle.
+if (content.includes("React.createElement")) {
+  console.error(
+    "Edge bundle contains React.createElement — JSX automatic runtime is misconfigured (expected jsx: 'automatic', jsxImportSource: '#jsx')",
+  );
+  Deno.exit(1);
+}
 
 // Bunny Edge Scripting has a 10MB script size limit
 const BUNNY_MAX_SCRIPT_SIZE = 10_000_000;
