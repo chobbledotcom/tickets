@@ -31,6 +31,7 @@ import {
   type ListingType,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 
 // ---------------------------------------------------------------------------
@@ -653,14 +654,8 @@ export const initialSiteMonthsField: Field = {
 };
 
 /** Validate date format (YYYY-MM-DD) */
-export const validateDate = (value: string): string | null => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return "Please enter a valid date (YYYY-MM-DD)";
-  }
-  const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return "Please enter a valid date";
-  return null;
-};
+export const validateDate = (value: string): string | null =>
+  isIsoDate(value) ? null : "Please enter a valid date (YYYY-MM-DD)";
 
 /**
  * Holiday form field definitions

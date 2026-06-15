@@ -24,12 +24,12 @@ import { decryptAttendees } from "#shared/db/attendees.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {
   const date = new URL(request.url).searchParams.get("date");
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  return date;
+  return date && isIsoDate(date) ? date : null;
 };
 
 /** Extract and validate ?cal= month parameter (YYYY-MM). Returns null if absent or invalid. */
