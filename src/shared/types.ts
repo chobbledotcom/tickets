@@ -195,6 +195,10 @@ export interface Attendee extends ContactInfo {
   price_paid: string;
   quantity: number;
   refunded: boolean;
+  /** Remaining balance owed in minor units (plaintext); 0 when fully paid. */
+  remaining_balance: number;
+  /** Owner-defined status id (plaintext); null for legacy/default. */
+  status_id: number | null;
   ticket_token: string;
   ticket_token_index: string;
 }

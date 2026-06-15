@@ -12,6 +12,7 @@ import { getBaseUrl } from "#routes/url.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getAvailableDates } from "#shared/dates.ts";
+import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
@@ -216,7 +217,11 @@ export const processFreeReservation = async (
 > => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date);
-  const result = await createAttendeeAtomic({ ...contact, bookings });
+  const result = await createAttendeeAtomic({
+    ...contact,
+    bookings,
+    statusId: await getPublicStatusId(),
+  });
 
   const check = await ensureAllBookings(result, bookings.length);
   if (!check.ok) {

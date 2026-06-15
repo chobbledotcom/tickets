@@ -1874,6 +1874,35 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Refunded");
     });
 
+    test("shows both badges for a checked-in and refunded booking", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      const { markRefunded, updateCheckedIn } = await import(
+        "#shared/db/attendees.ts"
+      );
+      const result = await bookAttendee(listing, {
+        email: "both@example.com",
+        name: "Both Badges",
+        paymentId: "pi_both_123",
+        pricePaid: 1000,
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      await updateCheckedIn(result.attendees[0]!.id, listing.id, true);
+      await markRefunded(result.attendees[0]!.id, listing.id);
+      const response = await awaitTestRequest(
+        `/admin/attendees/${result.attendees[0]!.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      // Both badges render, separated by the space between them.
+      expect(html).toContain("Checked in");
+      expect(html).toContain("Refunded");
+    });
+
     test("shows success message when flash cookie present", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(

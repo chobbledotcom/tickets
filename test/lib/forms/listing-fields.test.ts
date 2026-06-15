@@ -214,6 +214,16 @@ describe("listingFields — webhook_url", () => {
       }),
     );
   });
+
+  test("accepts a public IPv6 with a short first group", () => {
+    // "ab::1" has a 2-char first group, which is too short to fall in the
+    // fe80::/10 or fc00::/7 private ranges (both 4 hex digits), so it must be
+    // treated as public rather than rejected.
+    expectValid(
+      listingFields,
+      listingForm({ webhook_url: "https://[ab::1]/webhook" }),
+    );
+  });
 });
 
 describe("listingFields — pricing", () => {

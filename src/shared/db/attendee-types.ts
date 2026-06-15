@@ -36,6 +36,8 @@ export type BuildAttendeeInput = ContactInfo & {
   ticketToken: string;
   ticketTokenIndex: string;
   date: string | null;
+  remainingBalance: number;
+  statusId: number | null;
 };
 
 /** Result of atomic attendee creation */
@@ -57,6 +59,10 @@ export type ListingBooking = {
 export type AttendeeInput = ContactFields & {
   paymentId?: string;
   bookings: ListingBooking[];
+  /** Order-level remaining balance in minor units (plaintext). Defaults to 0. */
+  remainingBalance?: number;
+  /** Owner-defined status id assigned to the new attendee. */
+  statusId?: number | null;
 };
 
 /** Row from listing_attendees — per-listing booking data */
@@ -79,6 +85,10 @@ export type AttendeeWithBookings = {
   ticket_token: string;
   ticket_token_index: string;
   pii_blob: string;
+  /** Order-level remaining balance in minor units (plaintext). */
+  remaining_balance: number;
+  /** Owner-defined status id (plaintext); null for legacy/default. */
+  status_id: number | null;
   /** Per-listing bookings, sorted by start_at then listing_id */
   bookings: ListingAttendeeRow[];
 };

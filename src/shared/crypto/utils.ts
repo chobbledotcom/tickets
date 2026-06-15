@@ -50,7 +50,7 @@ export const base64ToBase64Url = (b64: string): string =>
 /**
  * Convert Uint8Array to base64url string (no padding)
  */
-const toBase64Url = (bytes: Uint8Array): string =>
+export const toBase64Url = (bytes: Uint8Array): string =>
   base64ToBase64Url(toBase64(bytes));
 
 /**
@@ -63,6 +63,16 @@ export const fromBase64 = (base64: string): Uint8Array => {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+};
+
+/**
+ * Convert a base64url string (no padding) back to a Uint8Array — the inverse
+ * of toBase64Url. Re-pads and restores the standard base64 alphabet first.
+ */
+export const fromBase64Url = (s: string): Uint8Array => {
+  const padLen = (4 - (s.length % 4)) % 4;
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(padLen);
+  return fromBase64(b64);
 };
 
 /**

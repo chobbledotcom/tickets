@@ -43,6 +43,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
@@ -54,6 +55,7 @@ import {
   getAttendee,
   type ListingAttendeeRow,
   loadExistingLines,
+  updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
 import {
   type EmailStats,
@@ -148,8 +150,10 @@ const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
   lines: [emptyLine(todayInTz(settings.timezone), null)],
   name: "",
   phone: "",
+  remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
+  statusId: null,
 });
 
 /** Build the edit-mode form shell from a loaded attendee + its bookings. */
@@ -186,8 +190,10 @@ const buildEditFormFromAttendee = (
     lines,
     name: attendee.name,
     phone: attendee.phone || "",
+    remainingBalance: attendee.remaining_balance,
     returnUrl: "",
     special_instructions: attendee.special_instructions || "",
+    statusId: attendee.status_id,
   };
 };
 
@@ -210,6 +216,7 @@ const buildTemplateData = async (
   const holidays = await getActiveHolidays();
   const availableDatesByListing = buildAvailableDates(allListings, holidays);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
+  const statuses = await getAllAttendeeStatuses();
   return {
     allListings,
     attendee,
@@ -224,6 +231,7 @@ const buildTemplateData = async (
     questions: opts.questions,
     returnUrl: opts.returnUrl,
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
+    statuses,
     todayIso: todayInTz(settings.timezone),
   };
 };
@@ -618,6 +626,14 @@ const applyEdit = async (
     }
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
+
+  // Status + outstanding balance are plaintext, operator-editable columns;
+  // persist them once the line/PII edit has committed.
+  await updateAttendeeOrder(
+    attendeeId,
+    parsed.statusId,
+    parsed.remainingBalance,
+  );
 
   // Save question answers (atomic delete + insert) when the listing has any.
   if (questions.length > 0) {

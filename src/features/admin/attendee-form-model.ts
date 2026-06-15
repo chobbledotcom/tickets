@@ -13,6 +13,7 @@
  */
 
 import { filter, map, pipe } from "#fp";
+import { toMinorUnits } from "#shared/currency.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
 import type {
   DesiredListingLine,
@@ -39,6 +40,8 @@ export const LINE_QUANTITY_PREFIX = "line_quantity_";
 export const LINE_DATE_PREFIX = "line_date_";
 export const LINE_KEY_PREFIX = "line_key_";
 export const LINE_COUNT_FIELD = "line_count";
+export const STATUS_FIELD = "status_id";
+export const REMAINING_BALANCE_FIELD = "remaining_balance";
 
 export const ACTION_FIELD = "action";
 export const SAVE_ACTION = "save";
@@ -79,6 +82,10 @@ export type ParsedAttendeeForm = {
   phone: string;
   address: string;
   special_instructions: string;
+  /** Selected attendee status id, or null for "no status". */
+  statusId: number | null;
+  /** Outstanding balance in minor units (order-level, plaintext). */
+  remainingBalance: number;
   lines: AttendeeFormLine[];
   action: FormAction;
   returnUrl: string;
@@ -226,6 +233,7 @@ export const parseAttendeeForm = (
     parseAttendeeLine(form, i, listingsById, existingByKey),
   )(indices);
 
+  const statusIdRaw = form.getOptionalInt(STATUS_FIELD);
   return {
     action: parseAction(form),
     address: form.getString("address"),
@@ -233,9 +241,17 @@ export const parseAttendeeForm = (
     lines,
     name: form.getString("name"),
     phone: form.getString("phone"),
+    remainingBalance: parseMoneyMinor(form.getString(REMAINING_BALANCE_FIELD)),
     returnUrl: form.getString("return_url"),
     special_instructions: form.getString("special_instructions"),
+    statusId: statusIdRaw !== null && statusIdRaw > 0 ? statusIdRaw : null,
   };
+};
+
+/** Parse a money field (major units) to clamped minor units; blank/invalid → 0. */
+const parseMoneyMinor = (raw: string): number => {
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? toMinorUnits(parsed) : 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -462,7 +478,9 @@ export const toCreateInput = (
   email: string;
   name: string;
   phone: string;
+  remainingBalance: number;
   special_instructions: string;
+  statusId: number | null;
 } => {
   const bookings: ListingBooking[] = pipe(
     filter(isFillableLine),
@@ -485,7 +503,9 @@ export const toCreateInput = (
     email: parsed.email,
     name: parsed.name,
     phone: parsed.phone,
+    remainingBalance: parsed.remainingBalance,
     special_instructions: parsed.special_instructions,
+    statusId: parsed.statusId,
   };
 };
 

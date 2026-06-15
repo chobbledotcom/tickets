@@ -6,6 +6,7 @@ import {
   bookingDurationDays,
   parseAttendeeForm,
   resolveDailyDefaults,
+  toCreateInput,
   trimTrailingBlankLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
@@ -103,6 +104,58 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines[0]!.key).toBe("5|");
     expect(parsed.lines[0]!.listing).toBeNull();
     expect(parsed.action.kind).toBe("save");
+  });
+
+  test("reads a selected status id", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ line_count: "1", name: "X", status_id: "4" }),
+      new Map(),
+    );
+    expect(parsed.statusId).toBe(4);
+  });
+
+  test("treats a blank status id as no status", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ line_count: "1", name: "X", status_id: "" }),
+      new Map(),
+    );
+    expect(parsed.statusId).toBeNull();
+  });
+
+  test("treats a non-positive status id as no status", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ line_count: "1", name: "X", status_id: "0" }),
+      new Map(),
+    );
+    expect(parsed.statusId).toBeNull();
+  });
+
+  test("treats blank, zero and negative balances as nothing owed", () => {
+    for (const value of ["", "0", "-5"]) {
+      const parsed = parseAttendeeForm(
+        makeForm({ line_count: "1", name: "X", remaining_balance: value }),
+        new Map(),
+      );
+      expect(parsed.remainingBalance).toBe(0);
+    }
+  });
+
+  test("toCreateInput carries the status id and balance through", () => {
+    const input = toCreateInput({
+      action: { kind: "save" },
+      address: "",
+      email: "",
+      lines: [blankLine()],
+      name: "X",
+      phone: "",
+      remainingBalance: 1500,
+      returnUrl: "",
+      special_instructions: "",
+      statusId: 7,
+    });
+    expect(input.statusId).toBe(7);
+    expect(input.remainingBalance).toBe(1500);
+    expect(input.bookings).toHaveLength(0);
   });
 
   test("resolves listing references against the provided map", () => {
@@ -676,7 +729,9 @@ function parsedBase() {
     email: "",
     name: "Test",
     phone: "",
+    remainingBalance: 0,
     returnUrl: "",
     special_instructions: "",
+    statusId: null,
   };
 }

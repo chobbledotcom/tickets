@@ -14,6 +14,7 @@ import {
   insert,
   queryAll,
 } from "#shared/db/client.ts";
+import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 
 // ---------------------------------------------------------------------------
@@ -638,26 +639,10 @@ export const getNextAnswerSortOrder = async (
  * so callers only need the ids. A no-op visually when both share a value
  * (e.g. legacy rows still at 0 before the id backfill). Callers pass two
  * existing question ids (the move handler takes them from the rendered list). */
-export const swapQuestionOrder = async (
+export const swapQuestionOrder = (
   questionId1: number,
   questionId2: number,
-): Promise<void> => {
-  const rows = await queryAll<{ id: number; sort_order: number }>(
-    "SELECT id, sort_order FROM questions WHERE id IN (?, ?)",
-    [questionId1, questionId2],
-  );
-  const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
-  await executeBatch([
-    {
-      args: [orderById.get(questionId2)!, questionId1],
-      sql: "UPDATE questions SET sort_order = ? WHERE id = ?",
-    },
-    {
-      args: [orderById.get(questionId1)!, questionId2],
-      sql: "UPDATE questions SET sort_order = ? WHERE id = ?",
-    },
-  ]);
-};
+): Promise<void> => swapSortOrder("questions", questionId1, questionId2);
 
 /** Assign a freshly-created question the next global sort_order (max + 1).
  * Always >= 1 so new questions never collide with the one-time id-backfill of
