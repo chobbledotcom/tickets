@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
 import { isContactFormActive } from "#shared/contact-form.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
@@ -46,10 +47,10 @@ const PublicNav = ({
   <nav>
     <ul>
       <li>
-        <a href="/">Home</a>
+        <a href="/">{t("nav.public.home")}</a>
       </li>
       <li>
-        <a href="/listings">Listings</a>
+        <a href="/listings">{t("nav.public.listings")}</a>
       </li>
       {hasTerms && (
         <li>
@@ -58,7 +59,7 @@ const PublicNav = ({
       )}
       {hasContact && (
         <li>
-          <a href="/contact">Contact</a>
+          <a href="/contact">{t("nav.public.contact")}</a>
         </li>
       )}
     </ul>
@@ -85,9 +86,9 @@ export const publicSitePage = (
   content?: string | null,
 ): string => {
   const titles: Record<PublicPageType, string> = {
-    contact: "Contact",
-    home: "Home",
-    terms: "Terms & Conditions",
+    contact: t("public.contact"),
+    home: t("public.home"),
+    terms: t("public.terms_and_conditions"),
   };
   const pageTitle = websiteTitle
     ? `${titles[pageType]} - ${websiteTitle}`
@@ -102,13 +103,13 @@ export const publicSitePage = (
           <Raw html={renderMarkdown(content)} />
         ) : (
           <p>
-            <em>No content.</em>
+            <em>{t("public.no_content")}</em>
           </p>
         )}
       </div>
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -253,11 +254,11 @@ export const homepagePage = (
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...navFlags()} />
         <p>
-          <em>No listings listed.</em>
+          <em>{t("public.no_listings_listed")}</em>
         </p>
         <footer class="homepage-footer">
           <p>
-            <a href="/admin/login">Login</a>
+            <a href="/admin/login">{t("common.login")}</a>
           </p>
         </footer>
       </Layout>,
@@ -276,12 +277,12 @@ export const homepagePage = (
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
-      <h2>All bookable listings</h2>
+      <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={groupListings} />
       <Raw html={listingListings} />
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -408,8 +409,10 @@ const renderPayMoreInput = (
   const maxPrice = listing.max_price;
   const rangeHint =
     minPrice > 0
-      ? `Price per ticket (${formatCurrency(minPrice)} minimum)`
-      : `Price per ticket (optional, up to ${formatCurrency(maxPrice)})`;
+      ? t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
+      : t("public.ticket.your_price_optional", {
+          max: formatCurrency(maxPrice),
+        });
   const defaultValue =
     prefillMinor !== undefined && prefillMinor >= minPrice
       ? prefillMinor
@@ -465,8 +468,8 @@ export const renderQuestions = (
  */
 export const notFoundPage = (): string =>
   String(
-    <Layout title="Not Found">
-      <h1>Not Found</h1>
+    <Layout title={t("public.not_found.title")}>
+      <h1>{t("public.not_found.heading")}</h1>
     </Layout>,
   );
 
@@ -775,10 +778,10 @@ const unavailableMessage = (
   allClosed: boolean,
   isSingleListing: boolean,
 ): string => {
-  if (isReadOnly() || allClosed) return "Registration closed.";
+  if (isReadOnly() || allClosed) return t("public.ticket.registration_closed");
   return isSingleListing
-    ? "Sorry, this listing is full."
-    : "Sorry, all listings are sold out.";
+    ? t("public.ticket.listing_full")
+    : t("public.multi.all_sold_out");
 };
 
 /** Header block shown above the form with listing/group details */
@@ -879,7 +882,7 @@ const TicketPageForm = ({
         <Raw html={listingRows} />
       ) : (
         <fieldset class="ticket-listings">
-          <legend>Select Tickets</legend>
+          <legend>{t("public.multi.select_tickets")}</legend>
           <Raw html={listingRows} />
         </fieldset>
       )}

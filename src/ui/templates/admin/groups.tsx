@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
   LISTING_DEFAULT_ORDER,
@@ -51,26 +52,26 @@ export const adminGroupsPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title="Groups">
+    <Layout title={t("groups.heading")}>
       <AdminNav active="/admin/groups" session={session} />
       <Flash success={successMessage} />
       {!isReadOnly() && (
         <p class="actions">
           <ActionButton href="/admin/groups/new" icon="plus">
-            Add Group
+            {t("groups.add_group")}
           </ActionButton>
         </p>
       )}
       {groups.length === 0 ? (
-        <p>No groups configured.</p>
+        <p>{t("groups.no_groups")}</p>
       ) : (
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Actions</th>
+                <th>{t("groups.col.name")}</th>
+                <th>{t("groups.col.slug")}</th>
+                <th>{t("groups.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -83,10 +84,14 @@ export const adminGroupsPage = (
                   <td>
                     {!isReadOnly() && (
                       <>
-                        <a href={`/admin/groups/${g.id}/edit`}>Edit</a>{" "}
+                        <a href={`/admin/groups/${g.id}/edit`}>
+                          {t("groups.edit")}
+                        </a>{" "}
                       </>
                     )}
-                    <a href={`/admin/groups/${g.id}/delete`}>Delete</a>
+                    <a href={`/admin/groups/${g.id}/delete`}>
+                      {t("groups.delete")}
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -116,13 +121,13 @@ export const adminGroupNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Add Group">
+    <Layout title={t("groups.add.heading")}>
       <AdminNav active="/admin/groups" session={session} />
       <CsrfForm action="/admin/groups">
-        <h1>Add Group</h1>
+        <h1>{t("groups.add.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
-        <SubmitButton icon="plus">Create Group</SubmitButton>
+        <SubmitButton icon="plus">{t("groups.add.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -136,13 +141,13 @@ export const adminGroupEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Edit Group">
+    <Layout title={t("groups.edit.heading")}>
       <AdminNav active="/admin/groups" session={session} />
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
-        <h1>Edit Group</h1>
+        <h1>{t("groups.edit.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
-        <SubmitButton icon="save">Save Changes</SubmitButton>
+        <SubmitButton icon="save">{t("groups.edit.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -156,20 +161,22 @@ export const adminGroupDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Group">
+    <Layout title={t("groups.delete.heading")}>
       <AdminNav active="/admin/groups" session={session} />
       <ConfirmForm
         action={`/admin/groups/${group.id}/delete`}
-        buttonText="Delete Group"
+        buttonText={t("groups.delete.submit")}
         danger={false}
         label="Group name"
         name={group.name}
       >
-        <h1>Delete Group</h1>
+        <h1>{t("groups.delete.heading")}</h1>
         <Flash error={error} />
         <p>
-          Are you sure you want to delete the group{" "}
-          <strong>{group.name}</strong> ({group.slug})?
+          {t("groups.delete.confirm", {
+            name: `<strong>${group.name}</strong>`,
+            slug: group.slug,
+          })}
         </p>
         <p>
           Listings in this group will not be deleted -- they will be moved out
@@ -266,7 +273,7 @@ export const adminGroupDetailPage = (
           map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
           joinStrings,
         )(listings)
-      : `<tr><td colspan="${columnKeys.length}">No listings in this group</td></tr>`;
+      : `<tr><td colspan="${columnKeys.length}">${t("groups.detail.no_listings")}</td></tr>`;
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -292,7 +299,9 @@ export const adminGroupDetailPage = (
           {!isReadOnly() && (
             <>
               <li>
-                <a href={`/admin/groups/${group.id}/edit`}>Edit Group</a>
+                <a href={`/admin/groups/${group.id}/edit`}>
+                  {t("groups.detail.edit_group")}
+                </a>
               </li>
               <li>
                 <a href={`/admin/groups/${group.id}/bulk-actions`}>
@@ -303,7 +312,7 @@ export const adminGroupDetailPage = (
           )}
           <li>
             <a class="danger" href={`/admin/groups/${group.id}/delete`}>
-              Delete Group
+              {t("groups.detail.delete_group")}
             </a>
           </li>
         </ul>
@@ -317,20 +326,26 @@ export const adminGroupDetailPage = (
                 <th colspan="2">{group.name}</th>
               </tr>
               <tr>
-                <th>Public URL</th>
+                <th>{t("groups.detail.public_url")}</th>
                 <td>
                   <a href={ticketUrl}>
                     {`${allowedDomain}/ticket/${group.slug}`}
                   </a>
                   <small>
                     {" "}
-                    (<a href={`/ticket/${group.slug}/qr`}>QR Code</a>)
+                    (
+                    <a href={`/ticket/${group.slug}/qr`}>
+                      {t("groups.detail.qr_code")}
+                    </a>
+                    )
                   </small>
                 </td>
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-script-${group.id}`}>Embed Script</label>
+                  <label for={`embed-script-${group.id}`}>
+                    {t("groups.detail.embed_script")}
+                  </label>
                 </th>
                 <td>
                   <input
@@ -344,7 +359,9 @@ export const adminGroupDetailPage = (
               </tr>
               <tr>
                 <th>
-                  <label for={`embed-iframe-${group.id}`}>Embed Iframe</label>
+                  <label for={`embed-iframe-${group.id}`}>
+                    {t("groups.detail.embed_iframe")}
+                  </label>
                 </th>
                 <td>
                   <input
@@ -369,13 +386,13 @@ export const adminGroupDetailPage = (
         </div>
       </article>
 
-      <h2>Listings</h2>
+      <h2>{t("groups.detail.listings_heading")}</h2>
       <div class="table-scroll">
         <Raw html={renderListingTable(columnKeys, listingRows)} />
       </div>
 
       <article>
-        <h2 id="attendees">Attendees</h2>
+        <h2 id="attendees">{t("groups.detail.attendees_heading")}</h2>
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({
@@ -393,7 +410,7 @@ export const adminGroupDetailPage = (
 
       {!isReadOnly() && ungroupedListings.length > 0 && (
         <>
-          <h2>Add Listings to Group</h2>
+          <h2>{t("groups.detail.add_listings")}</h2>
           <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
             <fieldset class="checkboxes">
               {ungroupedListings.map((e) => (
@@ -407,7 +424,9 @@ export const adminGroupDetailPage = (
                 </label>
               ))}
             </fieldset>
-            <SubmitButton icon="plus">Add Selected Listings</SubmitButton>
+            <SubmitButton icon="plus">
+              {t("groups.detail.add_listings_submit")}
+            </SubmitButton>
           </CsrfForm>
         </>
       )}
