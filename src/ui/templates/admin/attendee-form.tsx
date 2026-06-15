@@ -18,9 +18,11 @@ import {
   type DailyDefaults,
   LINE_COUNT_FIELD,
   LINE_DATE_PREFIX,
+  LINE_DAY_COUNT_PREFIX,
   LINE_EVENT_ID_PREFIX,
   LINE_KEY_PREFIX,
   LINE_QUANTITY_PREFIX,
+  lineDayCount,
   type ParsedAttendeeForm,
   REMOVE_LINE_ACTION_PREFIX,
   SAVE_ACTION,
@@ -30,10 +32,11 @@ import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type {
-  AdminSession,
-  Attendee,
-  ListingWithCount,
+import {
+  type AdminSession,
+  type Attendee,
+  availableDayCounts,
+  type ListingWithCount,
 } from "#shared/types.ts";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -52,6 +55,9 @@ export type AttendeeFormTemplateData = {
   allListings: ListingWithCount[];
   /** Available dates per daily listing id (for the date picker). */
   availableDatesByListing: Record<number, string[]>;
+  /** Offered day counts per customisable daily listing id (for the day-count
+   * selector). */
+  customisableByListing: Record<number, number[]>;
   /** Daily-line defaults computed from existing bookings. */
   dailyDefaults: DailyDefaults;
   /** Attendee-level error (e.g. "Name is required"). */
@@ -104,6 +110,14 @@ const LineRow = ({
   // server validates it conditionally so it is never required at the HTML
   // level. Blank lines default to daily so a newly-added row shows the picker.
   const isDaily = !line.listing || line.listing.listing_type === "daily";
+  const isCustomisable = Boolean(
+    line.listing?.customisable_days && line.listing.listing_type === "daily",
+  );
+  const dayCounts =
+    line.listing && line.listing.customisable_days
+      ? availableDayCounts(line.listing)
+      : [];
+  const selectedDayCount = isCustomisable ? lineDayCount(line) : 0;
   const removeLabel = line.existingBooking ? "Remove" : "Drop";
   return (
     <tr data-line-row>
@@ -134,6 +148,18 @@ const LineRow = ({
           type="date"
           value={line.date}
         />
+        <select
+          aria-label={`Number of days for line ${index + 1}`}
+          data-line-day-count
+          hidden={!isCustomisable}
+          name={`${LINE_DAY_COUNT_PREFIX}${index}`}
+        >
+          {dayCounts.map((n) => (
+            <option selected={n === selectedDayCount} value={n}>
+              {n} day{n === 1 ? "" : "s"}
+            </option>
+          ))}
+        </select>
       </td>
       <td>
         <input
@@ -287,13 +313,15 @@ const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
     listingsByType[listing.id] = listing.listing_type;
   }
   const listingTypesJson = JSON.stringify(listingsByType);
-  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-listing-types='${escapeHtml(listingTypesJson)}'></script>
+  const customisableJson = JSON.stringify(data.customisableByListing);
+  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-listing-types='${escapeHtml(listingTypesJson)}' data-customisable='${escapeHtml(customisableJson)}'></script>
   <script>
     (function () {
       var dataEl = document.getElementById('attendee-form-data');
       if (!dataEl) return;
       var availableDates = JSON.parse(dataEl.getAttribute('data-available-dates') || '{}');
       var listingTypes = JSON.parse(dataEl.getAttribute('data-listing-types') || '{}');
+      var customisable = JSON.parse(dataEl.getAttribute('data-customisable') || '{}');
       function updateRow(row) {
         var select = row.querySelector('[data-line-event]');
         var dateInput = row.querySelector('[data-line-date]');
@@ -304,6 +332,18 @@ const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
         if (isDaily && !dateInput.value) {
           var dates = availableDates[listingId] || [];
           if (dates.length) dateInput.value = dates[0];
+        }
+        var daySelect = row.querySelector('[data-line-day-count]');
+        if (daySelect) {
+          var counts = customisable[listingId];
+          var isCustomisable = isDaily && counts && counts.length;
+          daySelect.hidden = !isCustomisable;
+          if (isCustomisable) {
+            var prev = daySelect.value;
+            daySelect.innerHTML = counts.map(function (n) {
+              return '<option value="' + n + '"' + (String(n) === prev ? ' selected' : '') + '>' + n + (n === 1 ? ' day' : ' days') + '</option>';
+            }).join('');
+          }
         }
       }
       document.querySelectorAll('[data-line-row]').forEach(function (row) {

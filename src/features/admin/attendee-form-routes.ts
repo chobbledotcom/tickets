@@ -72,7 +72,12 @@ import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { Attendee, Holiday, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  availableDayCounts,
+  type Holiday,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
@@ -117,7 +122,26 @@ const buildAvailableDates = (
   const result: Record<number, string[]> = {};
   for (const listing of listings) {
     if (listing.listing_type === "daily") {
-      result[listing.id] = getAvailableDates(listing, holidays);
+      // Customisable listings offer every individually-bookable start (the
+      // chosen span is validated separately), so compute for a single day.
+      result[listing.id] = getAvailableDates(
+        listing,
+        holidays,
+        listing.customisable_days ? 1 : undefined,
+      );
+    }
+  }
+  return result;
+};
+
+/** Offered day counts per customisable daily listing, for the day-count picker. */
+const buildCustomisableDayCounts = (
+  listings: ListingWithCount[],
+): Record<number, number[]> => {
+  const result: Record<number, number[]> = {};
+  for (const listing of listings) {
+    if (listing.customisable_days && listing.listing_type === "daily") {
+      result[listing.id] = availableDayCounts(listing);
     }
   }
   return result;
@@ -131,6 +155,7 @@ const emptyLine = (
   inheritedDate: string | null,
 ): AttendeeFormLine => ({
   date: inheritedDate ?? defaultNewDailyDate(todayIso),
+  dayCount: null,
   error: null,
   existingBooking: null,
   key: "",
@@ -162,6 +187,7 @@ const buildEditFormFromAttendee = (
     const listing = listingsById.get(booking.listing_id) ?? null;
     return {
       date: booking.start_at?.slice(0, 10) ?? "",
+      dayCount: null,
       error: null,
       existingBooking: booking,
       key,
@@ -209,12 +235,14 @@ const buildTemplateData = async (
   const allListings = await getListingsForSelector(parsed);
   const holidays = await getActiveHolidays();
   const availableDatesByListing = buildAvailableDates(allListings, holidays);
+  const customisableByListing = buildCustomisableDayCounts(allListings);
   const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
   return {
     allListings,
     attendee,
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
+    customisableByListing,
     dailyDefaults,
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
