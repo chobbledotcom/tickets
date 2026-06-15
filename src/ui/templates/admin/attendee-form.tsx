@@ -27,6 +27,7 @@ import {
   type ParsedAttendeeForm,
   REMAINING_BALANCE_FIELD,
   REMOVE_LINE_ACTION_PREFIX,
+  resolveStatusId,
   SAVE_ACTION,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
@@ -439,6 +440,12 @@ const StatusAndBalanceFields = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
   const { statusId, remainingBalance } = data.parsed;
+  // An attendee always resolves to a concrete status: their own when set,
+  // otherwise the public default (the status new bookings start in). There is
+  // no "no status" choice — with multiple statuses we fall back to the default,
+  // and with a single status the field isn't shown at all. The save path uses
+  // the same resolver so a blank submission can't clear the status either.
+  const selectedId = resolveStatusId(statusId, data.statuses);
   return (
     <>
       <h3>Status &amp; Balance</h3>
@@ -447,19 +454,22 @@ const StatusAndBalanceFields = ({
           {data.balanceNotice.message}
         </output>
       )}
-      <label for={STATUS_FIELD}>
-        Status
-        <select id={STATUS_FIELD} name={STATUS_FIELD}>
-          <option selected={statusId === null} value="">
-            — No status —
-          </option>
-          {data.statuses.map((s) => (
-            <option selected={s.id === statusId} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {data.statuses.length <= 1 ? (
+        // A lone status carries no information (mirrors the status heading), so
+        // keep it off the form but still submit it so a save never clears it.
+        <input name={STATUS_FIELD} type="hidden" value={selectedId} />
+      ) : (
+        <label for={STATUS_FIELD}>
+          Status
+          <select id={STATUS_FIELD} name={STATUS_FIELD}>
+            {data.statuses.map((s) => (
+              <option selected={s.id === selectedId} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label for={REMAINING_BALANCE_FIELD}>
         Outstanding balance
         <input

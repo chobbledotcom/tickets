@@ -27,6 +27,7 @@ import {
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveDailyDefaults,
+  resolveStatusId,
   toCreateInput,
   toDesiredLines,
   trimTrailingBlankLines,
@@ -509,7 +510,15 @@ const handleSubmitInner = async (
 
   const allListings = await getAllListings();
   const listingsById = listingsByIdMap(allListings);
-  const parsed = parseAttendeeForm(form, listingsById, existingByKey);
+  // Coerce a missing/blank status (only reachable from a hand-crafted POST,
+  // since the form offers no "no status" choice) back to the public default
+  // rather than clearing it — the same resolver the template pre-selects with.
+  const statuses = await getAllAttendeeStatuses();
+  const rawParsed = parseAttendeeForm(form, listingsById, existingByKey);
+  const parsed: ParsedAttendeeForm = {
+    ...rawParsed,
+    statusId: resolveStatusId(rawParsed.statusId, statuses),
+  };
   const renderOpts = {
     questions,
     returnUrl: parsed.returnUrl,
