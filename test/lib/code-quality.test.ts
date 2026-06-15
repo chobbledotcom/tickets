@@ -34,6 +34,7 @@ const FORBIDDEN_PATTERNS = [
  * Test utility files - excluded from all code quality checks
  */
 const TEST_UTILITY_FILES = [
+  "test-utils/api-schemas.ts",
   "test-utils/internal.ts",
   "test-utils/db.ts",
   "test-utils/email.ts",

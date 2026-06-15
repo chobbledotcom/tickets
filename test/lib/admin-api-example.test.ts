@@ -6,8 +6,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import { adminApiRoutes, toAdminListing } from "#routes/admin/api.ts";
-import { apiRoutes, toPublicListing } from "#routes/api/index.ts";
+import { apiRoutes } from "#routes/api/index.ts";
 import {
   ADMIN_API_ENDPOINTS,
   ADMIN_API_EXAMPLE_ADMIN_LISTING,
@@ -15,6 +16,7 @@ import {
   type EndpointDoc,
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
+import { PublicListingSchema } from "#test-utils";
 
 describe("admin API example", () => {
   test("toAdminListing output matches the documented example", () => {
@@ -52,15 +54,11 @@ describe("endpoint docs", () => {
       (e: EndpointDoc) => e.method === "GET" && e.path === "/api/listings",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realPublicListing = toPublicListing(
-      ADMIN_API_EXAMPLE_LISTING,
-      false,
-      undefined,
-      undefined,
-    );
-    const realKeys = Object.keys(realPublicListing).sort();
-    const exampleKeys = Object.keys(parsed.listings[0]).sort();
-    expect(exampleKeys).toEqual(realKeys);
+    // strictObject validates both the keys and the field types of the
+    // documented example — a stronger check than the previous key-set compare.
+    expect(() =>
+      v.parse(PublicListingSchema, parsed.listings[0]),
+    ).not.toThrow();
   });
 
   test("admin listing list response uses AdminListing shape", () => {

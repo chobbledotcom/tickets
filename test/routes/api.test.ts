@@ -12,6 +12,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  PublicListingSchema,
   setupStripe,
 } from "#test-utils";
 
@@ -43,38 +44,6 @@ const jsonBody = (response: Response): Promise<Record<string, unknown>> =>
 const expectCorsHeaders = (response: Response): void => {
   expect(response.headers.get("access-control-allow-origin")).toBe("*");
 };
-
-/**
- * Shape of a public listing as returned by the JSON API (mirrors the
- * production `PublicListing` type). `strictObject` rejects any unexpected key,
- * so a leaked internal field (id, max_attendees, hidden, …) fails the parse —
- * which is what the "does not expose internal fields" test relies on. JSON
- * object keys are strings, so `dayPrices` is keyed by string here.
- */
-const PublicListingSchema = v.strictObject({
-  ...v.entriesFromList(
-    ["description", "fields", "listingType", "name", "slug"],
-    v.string(),
-  ),
-  ...v.entriesFromList(["maxPrice", "maxPurchasable", "unitPrice"], v.number()),
-  ...v.entriesFromList(
-    [
-      "canPayMore",
-      "customisableDays",
-      "isClosed",
-      "isSoldOut",
-      "nonTransferable",
-      "purchaseOnly",
-    ],
-    v.boolean(),
-  ),
-  ...v.entriesFromList(
-    ["date", "imageUrl", "location"],
-    v.nullable(v.string()),
-  ),
-  availableDates: v.optional(v.array(v.string())),
-  dayPrices: v.optional(v.record(v.string(), v.number())),
-});
 
 describeWithEnv("Public API", { db: true }, () => {
   beforeEach(async () => {
