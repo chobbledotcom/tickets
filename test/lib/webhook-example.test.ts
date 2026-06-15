@@ -80,6 +80,8 @@ describe("webhook example", () => {
     listing: {
       attendee_count: 10,
       can_pay_more: false,
+      customisable_days: false,
+      day_prices: {},
       id: 1,
       max_attendees: 100,
       months_per_unit: 0,

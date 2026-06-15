@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   availableDayCounts,
   dayPriceFor,
+  isPaidListing,
   parseDayPrices,
 } from "#shared/types.ts";
 import { testListing } from "#test-utils";
@@ -95,5 +96,41 @@ describe("dayPriceFor", () => {
         1,
       ),
     ).toBeNull();
+  });
+});
+
+describe("isPaidListing", () => {
+  test("is true for a flat-priced or pay-more listing", () => {
+    expect(isPaidListing(testListing({ unit_price: 500 }))).toBe(true);
+    expect(
+      isPaidListing(testListing({ can_pay_more: true, unit_price: 0 })),
+    ).toBe(true);
+  });
+
+  test("is true for a customisable listing with any non-zero day price", () => {
+    const listing = testListing({
+      customisable_days: true,
+      day_prices: { 1: 0, 2: 1800 },
+      unit_price: 0,
+    });
+    expect(isPaidListing(listing)).toBe(true);
+  });
+
+  test("is false for a free customisable listing (all day prices zero)", () => {
+    const listing = testListing({
+      customisable_days: true,
+      day_prices: { 1: 0, 2: 0 },
+      unit_price: 0,
+    });
+    expect(isPaidListing(listing)).toBe(false);
+  });
+
+  test("ignores day prices when the listing isn't customisable", () => {
+    const listing = testListing({
+      customisable_days: false,
+      day_prices: { 1: 1000 },
+      unit_price: 0,
+    });
+    expect(isPaidListing(listing)).toBe(false);
   });
 });

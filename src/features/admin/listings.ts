@@ -571,12 +571,17 @@ const reconcileDurationChange = async (
     id: number;
     name: string;
     listing_type: string;
+    customisable_days: boolean;
     duration_days: number;
     group_id: number;
   },
   previousDurationDays: number,
 ): Promise<string> => {
   if (row.listing_type !== "daily") return "";
+  // For customisable-days listings each booking has its own visitor-chosen
+  // span, so `duration_days` is only the maximum offered to new bookings —
+  // never rewrite existing bookings' stored ranges from it.
+  if (row.customisable_days) return "";
   if (row.duration_days === previousDurationDays) return "";
 
   await recomputeListingBookingRanges(row.id, row.duration_days);

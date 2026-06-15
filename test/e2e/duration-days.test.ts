@@ -866,6 +866,34 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       );
     });
 
+    test("editing a customisable listing's max duration leaves existing booking ranges untouched", async () => {
+      const listing = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 5,
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+      });
+      // The visitor chose a 2-day span; that's their booking, not the maximum.
+      await bookAttendee(listing, { date: "2026-09-10", durationDays: 2 });
+      const before = await rawListingRange(listing.id);
+
+      await updateTestListing(listing.id, { durationDays: 4 });
+
+      const fresh = await getListing(listing.id);
+      expect(fresh?.duration_days).toBe(4);
+      // The maximum changed, but the existing booking's stored range is intact —
+      // customisable bookings are never rewritten from the listing duration.
+      const after = await rawListingRange(listing.id);
+      expect(after!.end_at).toBe(before!.end_at);
+      const messages = (await getListingActivityLog(listing.id)).map(
+        (l: { message: string }) => l.message,
+      );
+      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
+        false,
+      );
+    });
+
     test("changing duration on a standard listing does not reconcile or log a duration change", async () => {
       const { listing } = await setupListingAndLogin({ maxAttendees: 100 });
 

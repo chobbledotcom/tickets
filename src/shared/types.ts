@@ -122,10 +122,18 @@ const LISTING_TYPES: readonly ListingType[] = ["standard", "daily"];
 /** Type guard: check if an arbitrary string is a valid ListingType */
 export const isListingType = createTypeGuard(LISTING_TYPES);
 
-/** Whether an listing can accept payments (has a price or allows pay-what-you-want) */
+/** Whether an listing can accept payments: a flat price, pay-what-you-want, or
+ * a customisable-days listing with at least one non-zero day-count price. */
 export const isPaidListing = (
-  listing: Pick<Listing, "unit_price" | "can_pay_more">,
-): boolean => listing.unit_price > 0 || listing.can_pay_more;
+  listing: Pick<
+    Listing,
+    "unit_price" | "can_pay_more" | "customisable_days" | "day_prices"
+  >,
+): boolean =>
+  listing.unit_price > 0 ||
+  listing.can_pay_more ||
+  (listing.customisable_days &&
+    Object.values(listing.day_prices).some((price) => price > 0));
 
 /** Upper bound on multi-day booking duration. Each day in a booking range
  * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
