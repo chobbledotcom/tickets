@@ -205,11 +205,13 @@ article > * {
   margin-bottom: 0;
 }
 
-/* Outlines a rendered email body so it reads as a preview, not page content. */
+/* Outlines a rendered email body so it reads as a preview, not page content.
+   Constrained to a typical email column width so it reads like a real email. */
 .email-preview {
   border: 1px dashed var(--color-text-secondary);
   border-radius: var(--border-radius);
   padding: var(--space-m);
+  max-width: 40rem;
 }
 
 hr {
