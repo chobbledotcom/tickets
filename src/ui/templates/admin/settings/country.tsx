@@ -3,16 +3,16 @@
  */
 
 import { COUNTRIES, type CountryData } from "#shared/countries.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const CountryForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm action="/admin/settings/country" id="settings-country">
-    <div class="prose">
-      <h2>Your Country</h2>
-      <p>Sets your timezone, currency, and phone prefix.</p>
-    </div>
+  <SettingsSection
+    action="/admin/settings/country"
+    description={<p>Sets your timezone, currency, and phone prefix.</p>}
+    submitLabel="Save Country"
+    title="Your Country"
+  >
     <label>
       Country
       <select name="country" required>
@@ -25,6 +25,5 @@ export const CountryForm = (s: SettingsPageState): JSX.Element => (
         )}
       </select>
     </label>
-    <SubmitButton icon="save">Save Country</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

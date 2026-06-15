@@ -4,13 +4,11 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
-import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
+import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
-import { requestCache } from "#shared/request-cache.ts";
 
 /** Encrypted site-data blob version */
 export const SITE_DATA_BLOB_VERSION = 1;
@@ -164,16 +162,12 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
   };
 };
 
-const builtSitesCache = requestCache(() =>
-  queryAndDecrypt("SELECT * FROM built_sites ORDER BY created DESC"),
-);
-
-registerCache(() => ({ entries: builtSitesCache.size(), name: "built_sites" }));
-
-/** Invalidate the built sites cache */
-export const invalidateBuiltSitesCache = (): void => {
-  builtSitesCache.invalidate();
-};
+const builtSitesCache = cachedTable({
+  fetchAll: () =>
+    queryAndDecrypt("SELECT * FROM built_sites ORDER BY created DESC"),
+  name: "built_sites",
+  table: rawBuiltSitesTable,
+});
 
 /** Query and decrypt built site rows */
 const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
@@ -187,10 +181,7 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
 };
 
 /** Raw table with cache invalidation on writes */
-export const builtSitesTable = withCacheInvalidation(
-  rawBuiltSitesTable,
-  invalidateBuiltSitesCache,
-);
+export const builtSitesTable = builtSitesCache.table;
 
 /**
  * CRUD-compatible table adapter that presents BuiltSite (with individual fields)

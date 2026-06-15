@@ -3,14 +3,13 @@
  */
 
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
-  <CsrfForm action="/admin/settings/google-wallet" id="settings-google-wallet">
-    <div class="prose">
-      <h2>Google Wallet</h2>
+  <SettingsSection
+    action="/admin/settings/google-wallet"
+    description={
       <p>
         Configure Google Wallet to show an &ldquo;Add to Google Wallet&rdquo;
         button on ticket pages. Requires a Google Cloud service account with the
@@ -22,7 +21,10 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
             ? ` Overriding: ${s.hostGoogleWalletLabel}.`
             : ""}
       </p>
-    </div>
+    }
+    submitLabel="Save Google Wallet Settings"
+    title="Google Wallet"
+  >
     <label>
       Issuer ID
       <input
@@ -53,6 +55,5 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
         {s.googleWalletConfigured ? MASK_SENTINEL : ""}
       </textarea>
     </label>
-    <SubmitButton icon="save">Save Google Wallet Settings</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

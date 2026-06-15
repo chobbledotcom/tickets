@@ -2,20 +2,16 @@
  * Confirmation Email Template form for advanced settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 
 export const ConfirmationEmailTemplateForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/email-templates/confirmation"
-    id="settings-email-tpl-confirmation"
-  >
-    <div class="prose">
-      <h2>Confirmation Email Template</h2>
+    description={
       <p>
         Customise the registration confirmation email sent to attendees (
         <a href="/admin/guide#email-templates">template guide</a>). Uses{" "}
@@ -24,7 +20,11 @@ export const ConfirmationEmailTemplateForm = (
         </a>{" "}
         template syntax. Leave blank to use the default template.
       </p>
-    </div>
+    }
+    id="settings-email-tpl-confirmation"
+    submitLabel="Save Confirmation Template"
+    title="Confirmation Email Template"
+  >
     <details>
       <summary>Available variables</summary>
       <table>
@@ -155,6 +155,5 @@ export const ConfirmationEmailTemplateForm = (
       <small>Edit default template</small>
     </a>
     <br />
-    <SubmitButton icon="save">Save Confirmation Template</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

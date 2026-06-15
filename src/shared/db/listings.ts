@@ -24,12 +24,10 @@ import {
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
-  registerCache,
 } from "#shared/db/common-schema.ts";
-import { col, withCacheInvalidation } from "#shared/db/table.ts";
+import { cachedTable, col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { requestCache } from "#shared/request-cache.ts";
 import {
   type Attendee,
   type DayPrices,
@@ -191,9 +189,14 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
-export const listingsTable = withCacheInvalidation(rawListingsTable, () =>
-  invalidateListingsCache(),
-);
+const listingsCache = cachedTable({
+  fetchAll: () => queryListingsWithCounts(),
+  name: "listings",
+  table: rawListingsTable,
+});
+
+/** Listings table with CRUD operations — writes auto-invalidate the cache */
+export const listingsTable = listingsCache.table;
 
 /** Find a cached listing by ID */
 const findCachedListingById = async (
@@ -299,10 +302,6 @@ const queryListingsWithCounts = async (
     rows.map((row) => decryptAndAttachCount(row, row.attendee_count)),
   );
 };
-
-const listingsCache = requestCache(() => queryListingsWithCounts());
-
-registerCache(() => ({ entries: listingsCache.size(), name: "listings" }));
 
 /** Invalidate the listings cache (for testing or after writes). */
 export const invalidateListingsCache = (): void => {

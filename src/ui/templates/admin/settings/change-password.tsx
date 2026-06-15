@@ -2,18 +2,21 @@
  * Change Password form for settings
  */
 
-import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { changePasswordFields } from "#templates/fields.ts";
 
 export const ChangePasswordForm = (): JSX.Element => (
-  <CsrfForm action="/admin/settings" id="settings-password">
-    <div class="prose">
-      <h2>Change Password</h2>
+  <SettingsSection
+    action="/admin/settings"
+    description={
       <p>Changing your password will log you out of all sessions.</p>
-    </div>
+    }
+    id="settings-password"
+    submitLabel="Change Password"
+    title="Change Password"
+  >
     <Raw html={renderFields(changePasswordFields)} />
-    <SubmitButton icon="save">Change Password</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

@@ -2,19 +2,21 @@
  * Terms and Conditions form for settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 
 export const TermsForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm action="/admin/settings/terms" id="settings-terms">
-    <div class="prose">
-      <h2>Terms and Conditions</h2>
+  <SettingsSection
+    action="/admin/settings/terms"
+    description={
       <p>If set, users must agree to these terms before reserving tickets.</p>
-    </div>
+    }
+    submitLabel="Save Terms"
+    title="Terms and Conditions"
+  >
     <label>
       Terms and Conditions
       <p>
@@ -31,6 +33,5 @@ export const TermsForm = (s: SettingsPageState): JSX.Element => (
         {s.termsAndConditions}
       </textarea>
     </label>
-    <SubmitButton icon="save">Save Terms</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

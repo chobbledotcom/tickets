@@ -7,19 +7,23 @@ import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const EmailNotificationsForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element => (
   <>
-    <CsrfForm action="/admin/settings/email" id="settings-email">
-      <div class="prose">
-        <h2>Email Notifications</h2>
+    <SettingsSection
+      action="/admin/settings/email"
+      description={
         <p>
           Send confirmation emails to attendees and admin notifications when
           registrations come in. <a href="/admin/guide#email">Setup guide</a>.
         </p>
-      </div>
+      }
+      submitLabel="Save Email Settings"
+      title="Email Notifications"
+    >
       <label>
         Email Provider
         <select name="email_provider">
@@ -53,8 +57,7 @@ export const EmailNotificationsForm = (
           value={s.emailFromAddress}
         />
       </label>
-      <SubmitButton icon="save">Save Email Settings</SubmitButton>
-    </CsrfForm>
+    </SettingsSection>
     {s.emailProvider && (
       <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
         <SubmitButton class="secondary" icon="arrow-right">
