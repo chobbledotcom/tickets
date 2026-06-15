@@ -236,6 +236,17 @@ export const ADMIN_API: AuthPolicy<"json"> = {
   body: "json",
 };
 /**
+ * Owner-only JSON API: like ADMIN_API but restricted to the owner role, for
+ * resources whose web management is owner-only (e.g. holidays). Keeps the JSON
+ * API authorization aligned with the UI so a manager cannot perform via the API
+ * what the dashboard denies them.
+ */
+export const OWNER_API: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  role: "owner",
+};
+/**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
  * the session lifetime, so a logged-in admin can keep the scanner page open for
  * a whole listing without check-ins failing on CSRF expiry.

@@ -11,6 +11,7 @@ import {
   assertJson,
   createTestGroup,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   mockRequest,
   requestAsSession,
@@ -433,6 +434,24 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.error).toBe("Group not found");
         },
       );
+    });
+  });
+
+  // Groups are managed by any admin in the dashboard (createCrudHandlers), so a
+  // manager must retain group access via the JSON API — unlike owner-only
+  // holidays. Guards against accidentally over-restricting the group API.
+  describe("manager authorization", () => {
+    test("allows a manager to list groups", async () => {
+      await createTestGroup({ name: "Manager-visible" });
+      const res = await handleRequest(
+        requestAsSession("/api/admin/groups", {
+          cookie: await createTestManagerSession(),
+          csrfToken: await testCsrfToken(),
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.groups.length).toBe(1);
     });
   });
 });
