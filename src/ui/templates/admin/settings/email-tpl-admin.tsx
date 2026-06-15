@@ -2,27 +2,27 @@
  * Admin Notification Email Template form for advanced settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 
 export const AdminEmailTemplateForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/email-templates/admin"
-    id="settings-email-tpl-admin"
-  >
-    <div class="prose">
-      <h2>Admin Notification Email Template</h2>
+    description={
       <p>
         Customise the notification email sent to the business email when a
         registration comes in (
         <a href="/admin/guide#email-templates">template guide</a>). Leave blank
         to use the default template.
       </p>
-    </div>
+    }
+    id="settings-email-tpl-admin"
+    submitLabel="Save Admin Notification Template"
+    title="Admin Notification Email Template"
+  >
     <label>
       Subject
       <input
@@ -64,6 +64,5 @@ export const AdminEmailTemplateForm = (
       <small>Edit default template</small>
     </a>
     <br />
-    <SubmitButton icon="save">Save Admin Notification Template</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

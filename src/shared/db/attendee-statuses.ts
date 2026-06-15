@@ -8,12 +8,10 @@
  * the human-readable `name` is encrypted at rest.
  */
 
-import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
 import { queryAndMap, swapSortOrder } from "#shared/db/query.ts";
-import { col, defineTable, withCacheInvalidation } from "#shared/db/table.ts";
-import { requestCache } from "#shared/request-cache.ts";
+import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
 export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";
@@ -61,27 +59,22 @@ const queryStatuses = queryAndMap<AttendeeStatus, AttendeeStatus>((row) =>
   rawAttendeeStatusesTable.fromDb(row),
 );
 
-const statusesCache = requestCache(() =>
-  queryStatuses(
-    "SELECT * FROM attendee_statuses ORDER BY sort_order ASC, id ASC",
-  ),
-);
-
-registerCache(() => ({
-  entries: statusesCache.size(),
+const statusesCache = cachedTable({
+  fetchAll: () =>
+    queryStatuses(
+      "SELECT * FROM attendee_statuses ORDER BY sort_order ASC, id ASC",
+    ),
   name: "attendee_statuses",
-}));
+  table: rawAttendeeStatusesTable,
+});
+
+/** Attendee statuses table — writes auto-invalidate the cache. */
+export const attendeeStatusesTable = statusesCache.table;
 
 /** Invalidate the statuses cache (for testing or after writes). */
 export const invalidateAttendeeStatusesCache = (): void => {
   statusesCache.invalidate();
 };
-
-/** Attendee statuses table — writes auto-invalidate the cache. */
-export const attendeeStatusesTable = withCacheInvalidation(
-  rawAttendeeStatusesTable,
-  invalidateAttendeeStatusesCache,
-);
 
 /** Get all statuses, decrypted, ordered by sort_order then id (from cache). */
 export const getAllAttendeeStatuses = (): Promise<AttendeeStatus[]> =>

@@ -2,22 +2,21 @@
  * Show Public Site form for settings
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm
+  <SettingsSection
     action="/admin/settings/show-public-site"
-    id="settings-show-public-site"
-  >
-    <div class="prose">
-      <h2>Show public site?</h2>
+    description={
       <p>
         When enabled, the homepage will show a public website with navigation
         for Home, Listings, T&amp;Cs and Contact pages.
       </p>
-    </div>
+    }
+    submitLabel="Save"
+    title="Show public site?"
+  >
     <fieldset class="radios">
       <label>
         <input
@@ -38,6 +37,5 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
         No
       </label>
     </fieldset>
-    <SubmitButton icon="save">Save</SubmitButton>
-  </CsrfForm>
+  </SettingsSection>
 );

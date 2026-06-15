@@ -10,7 +10,9 @@
 
 import type { InValue } from "@libsql/client";
 import { compact, filter, mapParallel, reduce } from "#fp";
+import { registerCache } from "#shared/cache-registry.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import { requestCache } from "#shared/request-cache.ts";
 
 /**
  * Column definition for a table
@@ -402,6 +404,38 @@ export const withCacheInvalidation = <Row, Input>(
     return result;
   },
 });
+
+/**
+ * Bundle a request-scoped cache around a table.
+ *
+ * Wires together the three pieces every cached table used to repeat by hand:
+ *  - a {@link requestCache} over `fetchAll` (the decrypted/mapped rows),
+ *  - registration with the cache-stats registry under `name`, and
+ *  - a `table` wrapped via {@link withCacheInvalidation} so writes clear it.
+ *
+ * `fetchAll` may resolve a richer row type than the table's own `Row`
+ * (e.g. listings cached with attendee counts), captured by `Cached`.
+ */
+export const cachedTable = <Row, Input, Cached = Row>(config: {
+  fetchAll: () => Promise<Cached[]>;
+  name: string;
+  table: Table<Row, Input>;
+}): {
+  getAll: () => Promise<Cached[]>;
+  invalidate: () => void;
+  table: Table<Row, Input>;
+} => {
+  const cache = requestCache(config.fetchAll);
+  registerCache(() => ({ entries: cache.size(), name: config.name }));
+  const invalidate = (): void => {
+    cache.invalidate();
+  };
+  return {
+    getAll: () => cache.getAll(),
+    invalidate,
+    table: withCacheInvalidation(config.table, invalidate),
+  };
+};
 
 /** Transform function type for column read/write */
 type ColumnTransform<T> = (v: T) => Promise<T> | T;

@@ -535,6 +535,11 @@ describe("code quality", () => {
       "features/utils.ts:withCookie",
       // Reset cache registry between tests
       "shared/cache-registry.ts:resetCacheRegistry",
+      // Request-cache invalidators kept for test cleanup only; in production
+      // writes auto-invalidate through cachedTable's wrapped table, so these
+      // have no production caller (groups/holidays have no raw-SQL writers).
+      "shared/db/groups.ts:invalidateGroupsCache",
+      "shared/db/holidays.ts:invalidateHolidaysCache",
       // Reset cached effective domain between tests
       "shared/config.ts:resetEffectiveDomain",
       "shared/config.ts:setEffectiveDomainForTest",
