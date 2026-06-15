@@ -35,8 +35,10 @@ export {
   AUDIENCES,
   type Audience,
   type AudienceId,
+  AudienceIdSchema,
   audienceById,
   type BulkEmailTarget,
+  BulkEmailTargetSchema,
   type ComposeControl,
   type ComposeCopy,
   DEFAULT_AUDIENCE_ID,
@@ -95,12 +97,12 @@ export type BulkEmailDraft = {
   readonly target: BulkEmailTarget;
 };
 
-const isBulkEmailDraft = (v: unknown): v is BulkEmailDraft =>
-  isRecord(v) &&
-  typeof v.subject === "string" &&
-  typeof v.body === "string" &&
-  typeof v.marketing === "boolean" &&
-  isBulkEmailTarget(v.target);
+const isBulkEmailDraft = (val: unknown): val is BulkEmailDraft =>
+  isRecord(val) &&
+  typeof val.subject === "string" &&
+  typeof val.body === "string" &&
+  typeof val.marketing === "boolean" &&
+  isBulkEmailTarget(val.target);
 
 /** Serialize a draft for storage in settings. */
 export const serializeDraft = (draft: BulkEmailDraft): string =>

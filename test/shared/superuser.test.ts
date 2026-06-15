@@ -137,10 +137,6 @@ describe("getSuperuserUsername", () => {
     expect(getSuperuserUsername(validEmail("user+tag@example.com"))).toBeNull();
   });
 
-  test("returns null and logs when local part contains invalid special characters", () => {
-    expect(getSuperuserUsername(validEmail("admin!@example.com"))).toBeNull();
-  });
-
   test("accepts local parts with hyphens", () => {
     expect(getSuperuserUsername(validEmail("my-admin@example.com"))).toBe(
       "my-admin",

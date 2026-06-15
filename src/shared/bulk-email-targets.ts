@@ -10,6 +10,7 @@
  * templates change.
  */
 
+import * as v from "valibot";
 import { filter, firstMatch, map } from "#fp";
 import {
   getAllAttendeePiiBlobs,
@@ -18,18 +19,16 @@ import {
 } from "#shared/db/attendees/queries.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  createTypeGuard,
-  isRecord,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
 
 /** Named recipient groups selectable from the Emails page. */
 export const AUDIENCE_IDS = ["active", "upcoming", "all"] as const;
-export type AudienceId = (typeof AUDIENCE_IDS)[number];
-export const isAudienceId = createTypeGuard(AUDIENCE_IDS);
+export const AudienceIdSchema = v.picklist(AUDIENCE_IDS);
+export type AudienceId = v.InferOutput<typeof AudienceIdSchema>;
+export const isAudienceId = (s: string): s is AudienceId =>
+  v.is(AudienceIdSchema, s);
 
 export type Audience = {
   readonly id: AudienceId;
@@ -67,24 +66,45 @@ export const audienceById = (id: AudienceId): Audience =>
 
 // ── Target type ─────────────────────────────────────────────────────
 
+// Per-kind valibot schemas — each target kind's single source of truth for its
+// shape. The individual `*Target` types are inferred from them, and the union
+// guard (`isBulkEmailTarget`) is a variant composed from all three.
+
 /** A named audience, chosen from the Emails page. */
-export type AudienceTarget = {
-  readonly kind: "audience";
-  readonly audience: AudienceId;
-};
+const audienceTargetSchema = v.object({
+  audience: AudienceIdSchema,
+  kind: v.literal("audience"),
+});
 /** One listing, from that listing's admin page. */
-export type ListingTarget = {
-  readonly kind: "listing";
-  readonly listingId: number;
-};
-/** One attendee, from that attendee's edit page (by ticket token). */
-export type AttendeeTarget = {
-  readonly kind: "attendee";
-  readonly token: string;
-};
+const listingTargetSchema = v.object({
+  kind: v.literal("listing"),
+  listingId: v.pipe(v.number(), v.integer()),
+});
+/** One attendee, from that attendee's edit page (by non-empty ticket token). */
+const attendeeTargetSchema = v.object({
+  kind: v.literal("attendee"),
+  token: v.pipe(v.string(), v.nonEmpty()),
+});
+
+export type AudienceTarget = v.InferOutput<typeof audienceTargetSchema>;
+export type ListingTarget = v.InferOutput<typeof listingTargetSchema>;
+export type AttendeeTarget = v.InferOutput<typeof attendeeTargetSchema>;
 
 /** What a bulk email is aimed at. */
 export type BulkEmailTarget = AudienceTarget | ListingTarget | AttendeeTarget;
+
+/** Runtime schema for a target — a variant over the per-kind schemas above.
+ * Drives {@link isBulkEmailTarget} and is exported so later validation tiers
+ * can compose it (e.g. into a draft schema). */
+export const BulkEmailTargetSchema = v.variant("kind", [
+  audienceTargetSchema,
+  listingTargetSchema,
+  attendeeTargetSchema,
+]);
+
+/** Runtime guard for a deserialised target (drafts are stored as JSON). */
+export const isBulkEmailTarget = (val: unknown): val is BulkEmailTarget =>
+  v.is(BulkEmailTargetSchema, val);
 
 /** Human label (+ optional description) for the compose/preview pages. */
 export type TargetDescription = {
@@ -143,8 +163,6 @@ type TargetSpec<T extends BulkEmailTarget> = {
   readonly composeControl: (target: T) => ComposeControl;
   /** Heading + intro for the compose page. */
   readonly composeCopy: ComposeCopy;
-  /** Validate a deserialised (JSON) target's shape. */
-  readonly isValid: (raw: Record<string, unknown>) => boolean;
   /** Encrypted PII blobs for this target's recipients. */
   readonly loadPiiBlobs: (target: T, now: number) => Promise<string[]>;
   /** Human label (+ optional description) for the compose/preview pages. */
@@ -216,8 +234,6 @@ const audienceSpec: TargetSpec<AudienceTarget> = {
   },
   fromForm: (form) => audienceTargetFrom(form.getString("audience")),
   fromQuery: (params) => audienceTargetFrom(params.get("audience")),
-  isValid: (raw) =>
-    typeof raw.audience === "string" && isAudienceId(raw.audience),
   loadPiiBlobs: async (target, now) =>
     target.audience === "all"
       ? getAllAttendeePiiBlobs()
@@ -264,8 +280,6 @@ const listingSpec: TargetSpec<ListingTarget> = {
     const raw = params.get("listing");
     return raw ? listingTargetFromRaw(raw) : undefined;
   },
-  isValid: (raw) =>
-    typeof raw.listingId === "number" && Number.isInteger(raw.listingId),
   loadPiiBlobs: (target) => getAttendeePiiBlobsForListings([target.listingId]),
   logListingId: (target) => target.listingId,
   singleRecipient: false,
@@ -296,7 +310,6 @@ const attendeeSpec: TargetSpec<AttendeeTarget> = {
     const token = params.get("attendee");
     return token ? { kind: "attendee", token } : undefined;
   },
-  isValid: (raw) => typeof raw.token === "string" && raw.token !== "",
   loadPiiBlobs: async (target) => {
     const blob = await getAttendeePiiBlobForToken(target.token);
     return blob ? [blob] : [];
@@ -356,15 +369,6 @@ export const targetIsSingleRecipient = (target: BulkEmailTarget): boolean =>
 /** Listing id to attribute a send to in the activity log, or null. */
 export const targetLogListingId = (target: BulkEmailTarget): number | null =>
   specOf(target).logListingId(target);
-
-/** Runtime guard for a deserialised target (drafts are stored as JSON). */
-export const isBulkEmailTarget = (v: unknown): v is BulkEmailTarget => {
-  if (!isRecord(v) || typeof v.kind !== "string") return false;
-  const spec = (REGISTRY as Record<string, TargetSpec<BulkEmailTarget>>)[
-    v.kind
-  ];
-  return spec !== undefined && spec.isValid(v);
-};
 
 // Parsers in match-precedence order: specific targets first, the audience
 // (which always yields a default) as the catch-all. Each parser widens to
