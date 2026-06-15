@@ -3,6 +3,7 @@
  */
 
 import { map } from "#fp";
+import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -19,11 +20,11 @@ export const adminQuestionsPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Custom Questions">
+    <Layout title={t("questions.title")}>
       <AdminNav active="/admin/questions" session={session} />
 
       <div class="prose">
-        <h1>Custom Questions</h1>
+        <h1>{t("questions.heading")}</h1>
         <p class="actions">
           <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
         </p>
@@ -37,7 +38,7 @@ export const adminQuestionsPage = (
 
       {questions.length === 0 ? (
         <p>
-          <em>No custom questions yet.</em>
+          <em>{t("questions.no_questions")}</em>
         </p>
       ) : (
         <ul class="question-list">
@@ -94,21 +95,23 @@ export const adminQuestionPage = (
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <Raw html={questionTextForm.render({ text: question.text })} />
-        <SubmitButton icon="save">Update</SubmitButton>
+        <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
       </CsrfForm>
 
-      <h2>Answer Options</h2>
+      <h2>{t("questions.edit.answers_heading")}</h2>
       <CsrfForm
         action={`/admin/questions/${question.id}/answers`}
         id="add-answer"
       >
         <Raw html={answerTextForm.render()} />
-        <SubmitButton icon="plus">Add Answer</SubmitButton>
+        <SubmitButton icon="plus">
+          {t("questions.edit.add_answer")}
+        </SubmitButton>
       </CsrfForm>
 
       {question.answers.length === 0 ? (
         <p>
-          <em>No answers yet. Add at least 2 answer options.</em>
+          <em>{t("questions.edit.no_answers")}</em>
         </p>
       ) : (
         <ul class="answer-list">
@@ -142,7 +145,7 @@ export const adminQuestionPage = (
                 class="danger small"
                 href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
               >
-                Delete
+                {t("questions.edit.delete_answer")}
               </a>
             </li>
           ))}
@@ -178,7 +181,7 @@ export const adminQuestionPage = (
 
       <p>
         <a class="danger" href={`/admin/questions/${question.id}/delete`}>
-          Delete Question
+          {t("questions.delete.link")}
         </a>
       </p>
     </Layout>,
@@ -191,25 +194,19 @@ export const adminQuestionDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Question">
+    <Layout title={t("questions.delete.heading")}>
       <AdminNav active="/admin/questions" session={session} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
-        buttonText="Delete Question"
-        label="Question text"
+        buttonText={t("questions.delete.submit")}
+        label={t("questions.delete.confirm_label")}
         name={question.text}
       >
-        <h1>Delete Question</h1>
+        <h1>{t("questions.delete.heading")}</h1>
         <Flash error={error} />
-        <p>
-          This will permanently delete the question, all its answers, and all
-          attendee responses.
-        </p>
-        <p>
-          To delete this question, type its text "{question.text}" into the box
-          below:
-        </p>
+        <p>{t("questions.delete.warning")}</p>
+        <p>{t("questions.delete.confirm_prompt", { text: question.text })}</p>
       </ConfirmForm>
     </Layout>,
   );
@@ -222,24 +219,25 @@ export const adminAnswerDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Answer">
+    <Layout title={t("questions.delete_answer.title")}>
       <AdminNav active="/admin/questions" session={session} />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
-        buttonText="Delete Answer"
-        label="Answer text"
+        buttonText={t("questions.delete_answer.submit")}
+        label={t("questions.delete_answer.confirm_label")}
         name={answer.text}
       >
-        <h1>Delete Answer</h1>
+        <h1>{t("questions.delete_answer.heading")}</h1>
         <Flash error={error} />
         <p>
-          This will permanently delete the answer "{answer.text}" from the
-          question "{question.text}" and remove all attendee responses for it.
+          {t("questions.delete_answer.warning", {
+            answerText: answer.text,
+            questionText: question.text,
+          })}
         </p>
         <p>
-          To delete this answer, type its text "{answer.text}" into the box
-          below:
+          {t("questions.delete_answer.confirm_prompt", { text: answer.text })}
         </p>
       </ConfirmForm>
     </Layout>,
@@ -257,7 +255,7 @@ export const adminListingQuestionsPage = (
     <Layout title={`Questions: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
 
-      <h1>Questions for {listing.name}</h1>
+      <h1>{t("questions.listing.heading", { listing: listing.name })}</h1>
       <Flash error={error} />
 
       {allQuestions.length === 0 ? (
@@ -288,11 +286,11 @@ export const adminListingQuestionsPage = (
               </label>
             ))(allQuestions)}
           </fieldset>
-          <SubmitButton icon="save">Save</SubmitButton>
+          <SubmitButton icon="save">{t("questions.listing.save")}</SubmitButton>
         </CsrfForm>
       )}
       <p>
-        <a href="/admin/questions">Manage Questions</a>
+        <a href="/admin/questions">{t("questions.listing.manage")}</a>
       </p>
     </Layout>,
   );

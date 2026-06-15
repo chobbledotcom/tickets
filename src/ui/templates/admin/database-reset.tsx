@@ -3,6 +3,7 @@
  * The ResetDatabaseForm component is reused in admin settings.
  */
 
+import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -24,7 +25,7 @@ export const ResetDatabaseForm = ({
   id?: string;
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
-    <h2>Reset Database</h2>
+    <h2>{t("settings.advanced.database_reset.heading")}</h2>
     <article>
       <aside>
         <p>
@@ -33,11 +34,13 @@ export const ResetDatabaseForm = ({
         </p>
       </aside>
     </article>
-    <p>To reset the database, type the following phrase into the box below:</p>
+    <p>{t("settings.advanced.database_reset.confirm_intro")}</p>
     <p>
       <strong>"{RESET_DATABASE_PHRASE}"</strong>
     </p>
-    <label for="confirm_phrase">Confirmation phrase</label>
+    <label for="confirm_phrase">
+      {t("settings.advanced.database_reset.confirm_label")}
+    </label>
     <input
       autocomplete="off"
       id="confirm_phrase"
@@ -46,7 +49,7 @@ export const ResetDatabaseForm = ({
       type="text"
     />
     <SubmitButton class="danger" icon="trash-2">
-      Reset Database
+      {t("settings.advanced.database_reset.submit")}
     </SubmitButton>
   </CsrfForm>
 );
@@ -56,11 +59,13 @@ export const ResetDatabaseForm = ({
  */
 export const demoResetPage = (error?: string): string =>
   String(
-    <Layout title="Reset Database">
+    <Layout title={t("settings.advanced.database_reset.heading")}>
       <Flash error={error} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
-        <BackButton href="/admin">Back to login</BackButton>
+        <BackButton href="/admin">
+          {t("settings.advanced.database_reset.back_to_login")}
+        </BackButton>
       </p>
     </Layout>,
   );

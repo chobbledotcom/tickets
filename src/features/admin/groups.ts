@@ -3,6 +3,7 @@
  */
 
 import { map } from "#fp";
+import { t } from "#i18n";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireSessionOr } from "#routes/auth.ts";
@@ -60,7 +61,7 @@ export const validateGroupSlug = async (
   id?: number,
 ): Promise<string | null> => {
   const taken = await isGroupSlugTaken(input.slug, id);
-  return taken ? "Slug is already in use" : null;
+  return taken ? t("error.slug_in_use_group") : null;
 };
 
 /** Shared fields from group form values */
@@ -245,7 +246,11 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
       `${listingIds.length} listing(s) added to group '${group.name}'`,
     );
   }
-  return redirect(`/admin/groups/${group.id}`, "Listings added to group", true);
+  return redirect(
+    `/admin/groups/${group.id}`,
+    t("success.listings_added_to_group"),
+    true,
+  );
 });
 
 /** Group routes */

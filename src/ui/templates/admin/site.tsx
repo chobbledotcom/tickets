@@ -2,6 +2,7 @@
  * Admin site page editor templates
  */
 
+import { t } from "#i18n";
 import { siteContactForm, siteHomeForm } from "#routes/admin/site.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -15,10 +16,10 @@ const SiteSubNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/admin/site">Homepage</a>
+        <a href="/admin/site">{t("site.sub_nav.homepage")}</a>
       </li>
       <li>
-        <a href="/admin/site/contact">Contact</a>
+        <a href="/admin/site/contact">{t("site.sub_nav.contact")}</a>
       </li>
     </ul>
   </nav>
@@ -41,7 +42,7 @@ export const adminSiteHomePage = (
 
       <Flash error={error} success={success} />
 
-      <h2>Home Page</h2>
+      <h2>{t("site.home.heading")}</h2>
 
       <CsrfForm action="/admin/site">
         <Raw
@@ -50,7 +51,7 @@ export const adminSiteHomePage = (
             website_title: websiteTitle,
           })}
         />
-        <SubmitButton icon="save">Save</SubmitButton>
+        <SubmitButton icon="save">{t("site.home.save")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -136,7 +137,7 @@ export const adminSiteContactPage = (
 
       <Flash error={error} success={success} />
 
-      <h2>Contact Page</h2>
+      <h2>{t("site.contact.heading")}</h2>
 
       <CsrfForm action="/admin/site/contact">
         <Raw
@@ -144,7 +145,7 @@ export const adminSiteContactPage = (
             contact_page_text: contactPageText,
           })}
         />
-        <SubmitButton icon="save">Save</SubmitButton>
+        <SubmitButton icon="save">{t("site.contact.save")}</SubmitButton>
       </CsrfForm>
 
       <ContactFormToggle
