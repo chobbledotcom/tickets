@@ -32,13 +32,7 @@ export const getRandomBytes = (length: number): Uint8Array => {
 /**
  * Convert Uint8Array to base64 string
  */
-export const toBase64 = (bytes: Uint8Array): string => {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
-};
+export const toBase64 = (bytes: Uint8Array): string => bytes.toBase64();
 
 /**
  * Convert standard base64 to base64url (no padding).
@@ -51,29 +45,20 @@ export const base64ToBase64Url = (b64: string): string =>
  * Convert Uint8Array to base64url string (no padding)
  */
 export const toBase64Url = (bytes: Uint8Array): string =>
-  base64ToBase64Url(toBase64(bytes));
+  bytes.toBase64({ alphabet: "base64url", omitPadding: true });
 
 /**
  * Convert base64 string to Uint8Array
  */
-export const fromBase64 = (base64: string): Uint8Array => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-};
+export const fromBase64 = (base64: string): Uint8Array =>
+  Uint8Array.fromBase64(base64);
 
 /**
  * Convert a base64url string (no padding) back to a Uint8Array — the inverse
- * of toBase64Url. Re-pads and restores the standard base64 alphabet first.
+ * of toBase64Url.
  */
-export const fromBase64Url = (s: string): Uint8Array => {
-  const padLen = (4 - (s.length % 4)) % 4;
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(padLen);
-  return fromBase64(b64);
-};
+export const fromBase64Url = (s: string): Uint8Array =>
+  Uint8Array.fromBase64(s, { alphabet: "base64url" });
 
 /**
  * Generate a cryptographically secure random token
@@ -88,13 +73,7 @@ export const generateSecureToken = (): string => {
 /**
  * Convert bytes to uppercase hex string
  */
-const toUpperHex = (bytes: Uint8Array): string => {
-  let hex = "";
-  for (const byte of bytes) {
-    hex += byte.toString(16).padStart(2, "0");
-  }
-  return hex.toUpperCase();
-};
+const toUpperHex = (bytes: Uint8Array): string => bytes.toHex().toUpperCase();
 
 /**
  * Generate a 5-byte uppercase hex ticket token for public ticket URLs
