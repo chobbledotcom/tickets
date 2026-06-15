@@ -43,8 +43,13 @@ const isTImport = (l: string): boolean =>
 /** Does a param-less t() call still remain (i.e. an unreversible ICU/param call)? */
 const HAS_T_CALL = /(?<![A-Za-z0-9_$])t\(/;
 
-/** Collapse whitespace for line comparison. */
-const norm = (l: string): string => l.replace(/\s+/g, " ").trim();
+/**
+ * Canonicalise a line for comparison: unify string delimiters (a "..." literal
+ * often must become a `...` template to embed ${t()}, which is a syntax change,
+ * not an English change) and collapse whitespace.
+ */
+const norm = (l: string): string =>
+  l.replace(/[`'"]/g, '"').replace(/\s+/g, " ").trim();
 
 const usedKeys = (src: string): string[] =>
   [...src.matchAll(T_CALL)].map((m) => m[2]);
@@ -61,7 +66,7 @@ const untranslateLine = (line: string): string =>
     .replace(/=\s*\{\s*t\((["'`])([^"'`]+)\1\)\s*\}/g, (m, _q, k) =>
       k in messages ? `=${JSON.stringify(messages[k])}` : m,
     )
-    .replace(/\{\s*t\((["'`])([^"'`]+)\1\)\s*\}/g, (m, _q, k) =>
+    .replace(/\$?\{\s*t\((["'`])([^"'`]+)\1\)\s*\}/g, (m, _q, k) =>
       k in messages ? messages[k] : m,
     )
     .replace(T_CALL_NOARGS, (m, _q, k) =>
