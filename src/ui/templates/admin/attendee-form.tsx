@@ -27,6 +27,7 @@ import {
   type ParsedAttendeeForm,
   REMAINING_BALANCE_FIELD,
   REMOVE_LINE_ACTION_PREFIX,
+  resolveStatusId,
   SAVE_ACTION,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
@@ -407,9 +408,9 @@ const StatusAndBalanceFields = ({
   // An attendee always resolves to a concrete status: their own when set,
   // otherwise the public default (the status new bookings start in). There is
   // no "no status" choice — with multiple statuses we fall back to the default,
-  // and with a single status the field isn't shown at all.
-  const defaultStatus = data.statuses.find((s) => s.is_public_default)!;
-  const selectedId = statusId ?? defaultStatus.id;
+  // and with a single status the field isn't shown at all. The save path uses
+  // the same resolver so a blank submission can't clear the status either.
+  const selectedId = resolveStatusId(statusId, data.statuses);
   return (
     <>
       <h3>Status &amp; Balance</h3>

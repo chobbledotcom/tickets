@@ -19,6 +19,7 @@ import {
   getAvailableDates,
   isBookingRangeValid,
 } from "#shared/dates.ts";
+import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -267,6 +268,19 @@ const parseMoneyMinor = (raw: string): number => {
   const parsed = Number.parseFloat(raw);
   return Number.isFinite(parsed) && parsed > 0 ? toMinorUnits(parsed) : 0;
 };
+
+/**
+ * Resolve the status an attendee resolves to: their submitted choice, or the
+ * public default (the status new bookings start in) when none was given. The
+ * form offers no "no status" choice, so a missing/blank value — only reachable
+ * from a hand-crafted POST — is coerced back to the default rather than
+ * clearing it. Shared by the template (to pre-select) and the save path (to
+ * persist) so both agree. A public default always exists once any status does.
+ */
+export const resolveStatusId = (
+  statusId: number | null,
+  statuses: AttendeeStatus[],
+): number => statusId ?? statuses.find((s) => s.is_public_default)!.id;
 
 // ---------------------------------------------------------------------------
 // Validation

@@ -8,12 +8,14 @@ import {
   lineDayCount,
   parseAttendeeForm,
   resolveDailyDefaults,
+  resolveStatusId,
   toCreateInput,
   toDesiredLines,
   trimTrailingBlankLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import { addDays } from "#shared/dates.ts";
+import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
@@ -134,6 +136,29 @@ describe("parseAttendeeForm", () => {
       new Map(),
     );
     expect(parsed.statusId).toBeNull();
+  });
+
+  const makeStatus = (
+    id: number,
+    isPublicDefault: boolean,
+  ): AttendeeStatus => ({
+    id,
+    is_paid_default: false,
+    is_public_default: isPublicDefault,
+    is_reservation: false,
+    name: `Status ${id}`,
+    reservation_amount: "0",
+    sort_order: id,
+  });
+
+  test("resolveStatusId keeps an explicitly chosen status", () => {
+    const statuses = [makeStatus(1, true), makeStatus(2, false)];
+    expect(resolveStatusId(2, statuses)).toBe(2);
+  });
+
+  test("resolveStatusId falls back to the public default when none is given", () => {
+    const statuses = [makeStatus(1, false), makeStatus(2, true)];
+    expect(resolveStatusId(null, statuses)).toBe(2);
   });
 
   test("treats blank, zero and negative balances as nothing owed", () => {

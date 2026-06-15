@@ -1088,9 +1088,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(state?.remainingBalance).toBe(1500);
     });
 
-    test("edit can clear the status and the balance", async () => {
-      const paid = await getPaidDefaultStatus();
-      const id = await seedAttendee(paid!.id, 1500);
+    test("edit coerces a blank status back to the public default, not null", async () => {
+      // The form offers no "no status" choice, so a blank status_id (only
+      // reachable from a hand-crafted POST) must not clear the attendee — it
+      // falls back to the public default instead.
+      const reservation = await newReservation(); // a second, non-default status
+      const publicDefault = await getPaidDefaultStatus(); // the seed is also public default
+      const id = await seedAttendee(reservation.id, 1500);
       const form = await buildAttendeeEditForm(id, {
         extra: { remaining_balance: "0", status_id: "" },
         name: "Reserver",
@@ -1098,7 +1102,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       await adminFormPost(`/admin/attendees/${id}`, form);
 
       const state = await getAttendeeBalanceState(id);
-      expect(state?.statusId).toBeNull();
+      expect(state?.statusId).toBe(publicDefault!.id);
       expect(state?.remainingBalance).toBe(0);
     });
 
