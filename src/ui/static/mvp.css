@@ -178,6 +178,10 @@ main {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
+  /* Fluid horizontal padding: stays at the small --space-m floor on mobile,
+     eases through ~lg across tablet widths, and caps at the --space-xl
+     ceiling on desktop. Vertical padding stays as set by the base rule. */
+  padding-inline: clamp(var(--space-m), 4.5vw, var(--space-xl));
 }
 
 /* Stack reset: gap controls spacing, not browser default margins */
