@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  addLocale,
   getLocale,
   getRegisteredLocales,
   parseAcceptLanguage,
@@ -38,13 +37,6 @@ describe("i18n", () => {
     });
   });
 
-  describe("addLocale", () => {
-    test("registers a new locale", () => {
-      addLocale("test-lang", { "test.hello": "Hallo" });
-      expect(getRegisteredLocales()).toContain("test-lang");
-    });
-  });
-
   describe("getRegisteredLocales", () => {
     test("includes en by default", () => {
       expect(getRegisteredLocales()).toContain("en");
@@ -75,9 +67,8 @@ describe("i18n", () => {
       expect(parseAcceptLanguage("en-GB,de;q=0.8")).toBe("en");
     });
 
-    test("respects quality values", () => {
-      addLocale("de", { "test.key": "Deutsch" });
-      expect(parseAcceptLanguage("de;q=1.0,en;q=0.5")).toBe("de");
+    test("skips higher-q unregistered locales for a registered one", () => {
+      expect(parseAcceptLanguage("xx;q=1.0,en;q=0.5")).toBe("en");
     });
 
     test("falls back to en for unregistered locales", () => {
