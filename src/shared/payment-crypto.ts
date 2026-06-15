@@ -35,10 +35,8 @@ export const computeHmacSha256 = async (
 
 /** Convert ArrayBuffer to hex string */
 export const hmacToHex = (buf: ArrayBuffer): string =>
-  Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  new Uint8Array(buf).toHex();
 
 /** Convert ArrayBuffer to base64 string */
 export const hmacToBase64 = (buf: ArrayBuffer): string =>
-  btoa(String.fromCharCode(...new Uint8Array(buf)));
+  new Uint8Array(buf).toBase64();

@@ -4,8 +4,7 @@
  * resized with Lanczos resampling and composited onto white background.
  */
 
-const decode = (b64: string): Uint8Array =>
-  Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+const decode = (b64: string): Uint8Array => Uint8Array.fromBase64(b64);
 
 /** 29x29 icon (standard resolution) */
 const ICON_1X_B64 =
