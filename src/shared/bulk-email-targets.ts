@@ -377,22 +377,21 @@ const FORM_PARSERS: ReadonlyArray<
   (form: FormParams) => Parsed<BulkEmailTarget>
 > = [attendeeSpec.fromForm, listingSpec.fromForm, audienceSpec.fromForm];
 
+/** Run an ordered set of parsers over a source, returning the first claimed
+ * target (or null if the only claim was an invalid one — `firstMatch` treats
+ * `null` as a match, `undefined` as "try the next"). */
+const firstTarget = async <S>(
+  parsers: ReadonlyArray<(source: S) => Parsed<BulkEmailTarget>>,
+  source: S,
+): Promise<BulkEmailTarget | null> =>
+  (await firstMatch(parsers.map((parse) => () => parse(source)))) ?? null;
+
 /** Resolve a compose-page target from query params, or null if it's gone. */
-export const targetFromQuery = async (
+export const targetFromQuery = (
   params: URLSearchParams,
-): Promise<BulkEmailTarget | null> => {
-  const outcome = await firstMatch(
-    QUERY_PARSERS.map((parse) => () => parse(params)),
-  );
-  return outcome ?? null;
-};
+): Promise<BulkEmailTarget | null> => firstTarget(QUERY_PARSERS, params);
 
 /** Resolve a target from posted form fields, or null if a named target is gone. */
-export const targetFromForm = async (
+export const targetFromForm = (
   form: FormParams,
-): Promise<BulkEmailTarget | null> => {
-  const outcome = await firstMatch(
-    FORM_PARSERS.map((parse) => () => parse(form)),
-  );
-  return outcome ?? null;
-};
+): Promise<BulkEmailTarget | null> => firstTarget(FORM_PARSERS, form);
