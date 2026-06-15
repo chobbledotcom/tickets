@@ -2,6 +2,7 @@
  * Admin user management routes - owner only
  */
 
+import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   type AuthSession,
@@ -133,10 +134,10 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
     const { username, admin_level: adminLevel } = values;
 
     if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-      return errorRedirect("/admin/user/new", "Invalid role");
+      return errorRedirect("/admin/user/new", t("error.invalid_role"));
     }
     if (await isUsernameTaken(username)) {
-      return errorRedirect("/admin/user/new", "Username is already taken");
+      return errorRedirect("/admin/user/new", t("error.username_taken"));
     }
 
     const inviteCode = generateSecureToken();
@@ -149,7 +150,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
     await logActivity(`User '${username}' invited as ${adminLevel}`);
     return redirect(
       `/admin/users?invite=${encodeURIComponent(inviteLink)}`,
-      "User invited",
+      t("success.user_invited"),
       true,
     );
   },
@@ -172,7 +173,7 @@ const withUserAction = (
     const errorPage: UserErrorPageFn = (error, status) =>
       usersErrorResponse(session, error, status);
     const user = await getUserById(userId);
-    if (!user) return errorPage("User not found", 404);
+    if (!user) return errorPage(t("error.user_not_found"), 404);
     return handler(user, session, errorPage);
   });
 
@@ -187,17 +188,17 @@ const handleUserActivate: UserActionHandler = async (
   // User must have a password set
   const userHasPassword = await hasPassword(user);
   if (!userHasPassword) {
-    return errorPage("User has not set their password yet", 400);
+    return errorPage(t("error.user_no_password"), 400);
   }
 
   // User must not already have a data key
   if (user.wrapped_data_key) {
-    return errorPage("User is already activated", 400);
+    return errorPage(t("error.user_already_activated"), 400);
   }
 
   // Get the data key from the current session
   if (!session.wrappedDataKey) {
-    return errorPage("Cannot activate: session lacks data key", 500);
+    return errorPage(t("error.session_lacks_key"), 500);
   }
 
   const dataKey = await unwrapKeyWithToken(
@@ -213,7 +214,7 @@ const handleUserActivate: UserActionHandler = async (
 
   const username = await decryptUsername(user);
   await logActivity(`User '${username}' activated`);
-  return redirect("/admin/users", "User activated successfully", true);
+  return redirect("/admin/users", t("success.user_activated"), true);
 };
 
 /** Confirmed-delete handlers for users */
@@ -230,14 +231,14 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
     await logActivity(`User '${displayUser.username}' deleted`);
   },
   onNotFound: (_id, session) =>
-    usersErrorResponse(session, "User not found", 404),
+    usersErrorResponse(session, t("error.user_not_found"), 404),
   path: "/admin/users/:id/delete",
   preValidate: (id, session) =>
     id === session.userId
-      ? usersErrorResponse(session, "Cannot delete your own account", 400)
+      ? usersErrorResponse(session, t("error.cannot_delete_self"), 400)
       : null,
   render: (displayUser, session) => adminUserDeletePage(displayUser, session),
-  successMessage: "User deleted successfully",
+  successMessage: t("success.user_deleted"),
   successRedirect: "/admin/users",
 });
 

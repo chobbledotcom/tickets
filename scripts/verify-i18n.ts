@@ -137,9 +137,14 @@ const check = (file: string, expect: string[]): Result => {
     lines.push("  [B] skip  no changes vs origin/main");
   } else {
     // Collapse all whitespace away (JSX trims whitespace around {expr}/elements,
-    // so source spacing isn't rendered) and unify string delimiters.
+    // so source spacing isn't rendered), unify string delimiters, and drop
+    // trailing commas before a closing bracket (code structure, not English —
+    // e.g. wiring can collapse a multi-line call and lose its trailing comma).
     const nb = (s: string): string =>
-      s.replace(/[`'"]/g, '"').replace(/\s+/g, "");
+      s
+        .replace(/[`'"]/g, '"')
+        .replace(/\s+/g, "")
+        .replace(/,(?=[)\]}])/g, "");
     type Hunk = { added: string[]; removed: string[] };
     const hunks: Hunk[] = [];
     let cur: Hunk | null = null;
