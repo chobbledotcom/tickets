@@ -6,6 +6,8 @@
  * Each download increments the attendee's attachment_downloads counter.
  */
 
+import { typeByExtension } from "@std/media-types";
+import { extname } from "@std/path";
 import { notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -21,38 +23,10 @@ import {
   isStorageEnabled,
 } from "#shared/storage.ts";
 
-/** Common MIME types by file extension */
-const EXT_MIME_MAP: Record<string, string> = {
-  ".csv": "text/csv",
-  ".doc": "application/msword",
-  ".docx":
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".gif": "image/gif",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".ppt": "application/vnd.ms-powerpoint",
-  ".pptx":
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain",
-  ".wav": "audio/wav",
-  ".webp": "image/webp",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".zip": "application/zip",
-};
-
 /** Get MIME type from a filename's extension, defaulting to octet-stream */
-export const getMimeType = (filename: string): string => {
-  const dotIndex = filename.lastIndexOf(".");
-  if (dotIndex === -1) return "application/octet-stream";
-  const ext = filename.slice(dotIndex).toLowerCase();
-  return EXT_MIME_MAP[ext] ?? "application/octet-stream";
-};
+export const getMimeType = (filename: string): string =>
+  typeByExtension(extname(filename).slice(1).toLowerCase()) ??
+  "application/octet-stream";
 
 /** Return a 403 forbidden response */
 const forbiddenResponse = (): Response =>
