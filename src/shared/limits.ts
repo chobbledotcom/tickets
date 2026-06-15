@@ -241,11 +241,12 @@ export const FORM_STASH_MAX_BYTES = readLimit(
 );
 
 /**
- * Maximum number of stashed form bodies retained at once (default: 200).
- * The oldest entries are evicted past this cap so a burst of failed
- * submissions can't grow the stash without bound.
+ * Maximum number of stashed form bodies retained at once (default: 100).
+ * The oldest entries are evicted past this cap, so even a sustained burst of
+ * failed submissions caps the stash at MAX_ENTRIES × MAX_BYTES (~3.2 MB) per
+ * isolate; over-budget entries just fall back to the cookie-only flash.
  */
-export const FORM_STASH_MAX_ENTRIES = readLimit("FORM_STASH_MAX_ENTRIES", 200);
+export const FORM_STASH_MAX_ENTRIES = readLimit("FORM_STASH_MAX_ENTRIES", 100);
 
 // ---------------------------------------------------------------------------
 // Metadata for debug page display
@@ -496,7 +497,7 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
   },
   {
     current: FORM_STASH_MAX_ENTRIES,
-    defaultValue: 200,
+    defaultValue: 100,
     envKey: "FORM_STASH_MAX_ENTRIES",
     label: "Form re-fill stash max entries",
     unit: "entries",

@@ -142,6 +142,18 @@ describe("redirect form re-fill stash", () => {
     expect(flashTokenOf(response)).toBeUndefined();
   });
 
+  test("fail strips secret fields (password, keys, tokens) from the stash", () => {
+    setSavedFormData(
+      new FormParams(
+        "name=Bob&password=hunter2&stripe_secret_key=sk_live_x&api_key=abc&webhook_token=zzz",
+      ),
+    );
+    const token = flashTokenOf(fail("/admin/settings", "Invalid key"));
+    expect(token).toBeDefined();
+    // Only the non-secret field survives for re-filling.
+    expect(takeForm(token!)).toBe("name=Bob");
+  });
+
   test("fail skips a submission larger than the size cap", () => {
     setSavedFormData(new FormParams(`bio=${"x".repeat(FORM_STASH_MAX_BYTES)}`));
     expect(flashTokenOf(fail("/admin/groups/new", "Too big"))).toBeUndefined();
