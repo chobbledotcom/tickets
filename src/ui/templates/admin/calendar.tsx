@@ -22,7 +22,6 @@ import { Layout } from "#templates/layout.tsx";
 
 /** Attendee row with listing context for display */
 export type CalendarAttendeeRow = Attendee & {
-  durationDays: number;
   listingName: string;
   listingDate: string;
   listingLocation: string;

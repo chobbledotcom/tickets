@@ -11,7 +11,6 @@ import type { Attendee } from "#shared/types.ts";
 
 /** Attendee with associated listing info for calendar CSV */
 export type CalendarAttendee = Attendee & {
-  durationDays: number;
   listingName: string;
   listingDate: string;
   listingLocation: string;
@@ -111,12 +110,16 @@ export type CsvQuestionData = {
   attendeeAnswerMap: Map<number, number[]>;
 };
 
-/** Format the booking date for CSV: "YYYY-MM-DD" for single-day,
- * "YYYY-MM-DD to YYYY-MM-DD" for multi-day. */
-const csvDateRange = (date: string | null, durationDays: number): string => {
+/** Format a booking's date for CSV from its stored range: "YYYY-MM-DD" for a
+ * single day, "YYYY-MM-DD to YYYY-MM-DD" for multi-day. `endDate` is the
+ * exclusive end (the day after the last booked day), so the inclusive last day
+ * is `endDate - 1`. Using the per-booking range keeps customisable-days
+ * bookings — whose spans vary — correct. */
+const csvDateRange = (date: string | null, endDate: string | null): string => {
   if (!date) return "";
-  if (durationDays <= 1) return date;
-  return `${date} to ${addDays(date, durationDays - 1)}`;
+  if (!endDate) return date;
+  const lastDay = addDays(endDate, -1);
+  return lastDay > date ? `${date} to ${lastDay}` : date;
 };
 
 /**
@@ -131,7 +134,6 @@ export const generateAttendeesCsv = (
   includeDate = false,
   listingInfo?: CsvListingInfo,
   questionData?: CsvQuestionData,
-  durationDays = 1,
 ): string => {
   const showListingDate = !!listingInfo?.listingDate;
   const showListingLocation = !!listingInfo?.listingLocation;
@@ -157,7 +159,7 @@ export const generateAttendeesCsv = (
     headerParts.join(","),
     (a: Attendee, domain) => [
       ...(includeDate
-        ? [escapeCsvValue(csvDateRange(a.date, durationDays))]
+        ? [escapeCsvValue(csvDateRange(a.date, a.end_date))]
         : []),
       ...listingInfoCols(
         showListingDate,
@@ -194,7 +196,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
         a.listingDate,
         a.listingLocation,
       ),
-      escapeCsvValue(csvDateRange(a.date, a.durationDays)),
+      escapeCsvValue(csvDateRange(a.date, a.end_date)),
       ...attendeeCols(a, domain),
     ],
     attendees,

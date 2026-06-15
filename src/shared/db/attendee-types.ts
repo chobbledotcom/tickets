@@ -36,6 +36,7 @@ export type BuildAttendeeInput = ContactInfo & {
   ticketToken: string;
   ticketTokenIndex: string;
   date: string | null;
+  durationDays?: number;
 };
 
 /** Result of atomic attendee creation */

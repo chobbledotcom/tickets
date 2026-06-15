@@ -677,7 +677,6 @@ const handleAdminListingExport: TypedRouteHandler<
           listingLocation: listing.location,
         },
         questionData,
-        listing.duration_days,
       );
       const sanitizedName = listing.name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = dateFilter

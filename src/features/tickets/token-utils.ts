@@ -129,6 +129,7 @@ const buildAttendeeView = (
   created: base.created,
   date: booking.start_at ? booking.start_at.slice(0, 10) : null,
   email: "",
+  end_date: booking.end_at ? booking.end_at.slice(0, 10) : null,
   id: base.id,
   listing_id: booking.listing_id,
   name: "",

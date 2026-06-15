@@ -21,7 +21,6 @@ const calendarAttendee = (
 ): CalendarAttendeeRow => ({
   ...testAttendee(),
   date: "2026-03-15",
-  durationDays: 1,
   listingDate: "",
   listingId: 1,
   listingLocation: "",
@@ -457,10 +456,11 @@ describe("generateCalendarCsv", () => {
   });
 
   test("shows an inclusive date range for multi-day bookings", () => {
-    const attendees = [calendarAttendee({ durationDays: 3 })];
+    // end_date is the exclusive end (the 18th), so the booking occupies the
+    // 15th through the 17th.
+    const attendees = [calendarAttendee({ end_date: "2026-03-18" })];
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
-    // 3-day booking starting 2026-03-15 occupies the 15th through the 17th.
     expect(lines[1]).toMatch(/^Daily Listing,2026-03-15 to 2026-03-17,/);
   });
 

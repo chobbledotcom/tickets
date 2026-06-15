@@ -123,7 +123,6 @@ const buildCalendarAttendees = (
     const listing = listingById.get(a.listing_id)!;
     return {
       ...a,
-      durationDays: listing.duration_days,
       listingDate: listing.date,
       listingId: listing.id,
       listingLocation: listing.location,

@@ -267,6 +267,12 @@ export interface Attendee extends ContactInfo {
   checked_in: boolean;
   created: string;
   date: string | null;
+  /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
+   * booked day), derived from `listing_attendees.end_at`. Null for date-less
+   * (standard) bookings. Lets render paths show each booking's true span — which
+   * varies per booking on customisable-days listings — instead of assuming the
+   * listing's duration. */
+  end_date: string | null;
   listing_id: number;
   id: number;
   payment_id: string;

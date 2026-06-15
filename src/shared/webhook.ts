@@ -71,6 +71,9 @@ export type WebhookAttendee = ContactInfo & {
   price_paid: string;
   ticket_token: string;
   date: string | null;
+  /** Exclusive end of the booked range (YYYY-MM-DD), or null for date-less
+   * bookings. Used to render the true span of multi-day/customisable bookings. */
+  end_date: string | null;
 };
 
 /** Registration entry: listing + attendee pair */
