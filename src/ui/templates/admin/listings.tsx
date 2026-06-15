@@ -5,6 +5,7 @@
 import { filter, joinStrings, map, pipe } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
+import { targetQuery } from "#shared/bulk-email.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
   formatDateLabel,
@@ -301,7 +302,10 @@ const ListingActionNav = ({
           <li>
             <MaybeButtonLink
               disabled={!hasEmailableAttendees}
-              href={`/admin/emails?listing=${listing.id}`}
+              href={`/admin/emails${targetQuery({
+                kind: "listing",
+                listingId: listing.id,
+              })}`}
               title={
                 hasEmailableAttendees
                   ? undefined

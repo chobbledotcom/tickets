@@ -94,6 +94,32 @@ export type TargetDescription = {
   readonly audienceDescription?: string;
 };
 
+/**
+ * How the compose form lets the owner see/adjust a target. The view renders
+ * this generically — a `select` chooser (you can change the value) or a `fixed`
+ * target (hidden inputs that round-trip a pre-chosen value, shown as a label).
+ * A new target kind just declares one of these; the template never branches on
+ * the kind.
+ */
+export type ComposeControl =
+  | {
+      readonly mode: "select";
+      readonly label: string;
+      readonly name: string;
+      readonly selected: string;
+      readonly options: readonly {
+        readonly value: string;
+        readonly label: string;
+      }[];
+    }
+  | {
+      readonly mode: "fixed";
+      readonly fields: ReadonlyArray<readonly [name: string, value: string]>;
+    };
+
+/** Static heading + intro shown when composing to a kind of target. */
+export type ComposeCopy = { readonly heading: string; readonly intro: string };
+
 // ── Spec interface ──────────────────────────────────────────────────
 
 /**
@@ -113,10 +139,10 @@ type TargetSpec<T extends BulkEmailTarget> = {
   readonly fromForm: (form: FormParams) => Parsed<T>;
   /** Serialise back to a `?…` compose-page query string. */
   readonly toQuery: (target: T) => string;
-  /** Hidden form fields that round-trip the target through preview/send. */
-  readonly hiddenFields: (
-    target: T,
-  ) => ReadonlyArray<readonly [name: string, value: string]>;
+  /** How the compose form shows/edits this target. */
+  readonly composeControl: (target: T) => ComposeControl;
+  /** Heading + intro for the compose page. */
+  readonly composeCopy: ComposeCopy;
   /** Validate a deserialised (JSON) target's shape. */
   readonly isValid: (raw: Record<string, unknown>) => boolean;
   /** Encrypted PII blobs for this target's recipients. */
@@ -164,8 +190,23 @@ const audienceTargetFrom = (raw: string | null): AudienceTarget => ({
   kind: "audience",
 });
 
+/** Compose copy shared by the bulk (audience / listing) targets. */
+const BULK_COMPOSE_COPY: ComposeCopy = {
+  heading: "Send a bulk email",
+  intro:
+    "Email your attendees about an upcoming listing or other news. Choose who receives it, write your message in Markdown, then preview before sending.",
+};
+
 const audienceSpec: TargetSpec<AudienceTarget> = {
   allowEmpty: true,
+  composeControl: (target) => ({
+    label: "Audience",
+    mode: "select",
+    name: "audience",
+    options: AUDIENCES.map((a) => ({ label: a.label, value: a.id })),
+    selected: target.audience,
+  }),
+  composeCopy: BULK_COMPOSE_COPY,
   describe: (target) => {
     const audience = audienceById(target.audience);
     return {
@@ -175,7 +216,6 @@ const audienceSpec: TargetSpec<AudienceTarget> = {
   },
   fromForm: (form) => audienceTargetFrom(form.getString("audience")),
   fromQuery: (params) => audienceTargetFrom(params.get("audience")),
-  hiddenFields: () => [],
   isValid: (raw) =>
     typeof raw.audience === "string" && isAudienceId(raw.audience),
   loadPiiBlobs: async (target, now) =>
@@ -203,6 +243,11 @@ const listingTargetFromRaw = async (
 
 const listingSpec: TargetSpec<ListingTarget> = {
   allowEmpty: false,
+  composeControl: (target) => ({
+    fields: [["listing_id", String(target.listingId)]],
+    mode: "fixed",
+  }),
+  composeCopy: BULK_COMPOSE_COPY,
   describe: async (target) => {
     const listing = await getListingWithCount(target.listingId);
     return {
@@ -219,7 +264,6 @@ const listingSpec: TargetSpec<ListingTarget> = {
     const raw = params.get("listing");
     return raw ? listingTargetFromRaw(raw) : undefined;
   },
-  hiddenFields: (target) => [["listing_id", String(target.listingId)]],
   isValid: (raw) =>
     typeof raw.listingId === "number" && Number.isInteger(raw.listingId),
   loadPiiBlobs: (target) => getAttendeePiiBlobsForListings([target.listingId]),
@@ -232,6 +276,15 @@ const listingSpec: TargetSpec<ListingTarget> = {
 
 const attendeeSpec: TargetSpec<AttendeeTarget> = {
   allowEmpty: false,
+  composeControl: (target) => ({
+    fields: [["attendee", target.token]],
+    mode: "fixed",
+  }),
+  composeCopy: {
+    heading: "Email an attendee",
+    intro:
+      "Send a one-off email to this attendee. Write your message in Markdown, then preview before sending.",
+  },
   describe: (_target, recipients) => ({
     targetLabel: recipients[0] ?? "the selected attendee",
   }),
@@ -243,7 +296,6 @@ const attendeeSpec: TargetSpec<AttendeeTarget> = {
     const token = params.get("attendee");
     return token ? { kind: "attendee", token } : undefined;
   },
-  hiddenFields: (target) => [["attendee", target.token]],
   isValid: (raw) => typeof raw.token === "string" && raw.token !== "",
   loadPiiBlobs: async (target) => {
     const blob = await getAttendeePiiBlobForToken(target.token);
@@ -272,11 +324,13 @@ const specOf = <T extends BulkEmailTarget>(target: T): TargetSpec<T> =>
 export const targetQuery = (target: BulkEmailTarget): string =>
   specOf(target).toQuery(target);
 
-/** Hidden form fields that round-trip a fixed target through preview/send. */
-export const targetHiddenFields = (
-  target: BulkEmailTarget,
-): ReadonlyArray<readonly [name: string, value: string]> =>
-  specOf(target).hiddenFields(target);
+/** How the compose form should show/edit this target (selector or fixed). */
+export const targetComposeControl = (target: BulkEmailTarget): ComposeControl =>
+  specOf(target).composeControl(target);
+
+/** Heading + intro for composing to this kind of target. */
+export const targetComposeCopy = (target: BulkEmailTarget): ComposeCopy =>
+  specOf(target).composeCopy;
 
 /** Encrypted PII blobs for whichever attendees a target covers. */
 export const loadTargetPiiBlobs = (

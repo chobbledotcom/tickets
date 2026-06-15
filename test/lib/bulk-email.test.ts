@@ -18,7 +18,7 @@ import {
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
-  targetHiddenFields,
+  targetComposeControl,
   targetQuery,
   unsubscribeUrl,
   validateDraftInput,
@@ -87,18 +87,29 @@ describe("bulk-email audiences and targets", () => {
     expect(isBulkEmailTarget("nope")).toBe(false);
   });
 
-  test("targetHiddenFields round-trips fixed targets, none for audiences", () => {
-    // Audiences are chosen via a dropdown, so they contribute no hidden fields;
-    // listing/attendee targets carry their identifier through preview → send.
-    expect(
-      targetHiddenFields({ audience: "active", kind: "audience" }),
-    ).toEqual([]);
-    expect(targetHiddenFields({ kind: "listing", listingId: 7 })).toEqual([
-      ["listing_id", "7"],
-    ]);
-    expect(targetHiddenFields({ kind: "attendee", token: "tok" })).toEqual([
-      ["attendee", "tok"],
-    ]);
+  test("targetComposeControl drives the recipient control per kind", () => {
+    // Audiences render a dropdown chooser; fixed targets carry hidden fields
+    // that round-trip the chosen value through preview → send.
+    const audience = targetComposeControl({
+      audience: "active",
+      kind: "audience",
+    });
+    expect(audience.mode).toBe("select");
+    if (audience.mode === "select") {
+      expect(audience.name).toBe("audience");
+      expect(audience.selected).toBe("active");
+      expect(audience.options.map((o) => o.value)).toEqual(
+        AUDIENCES.map((a) => a.id),
+      );
+    }
+    expect(targetComposeControl({ kind: "listing", listingId: 7 })).toEqual({
+      fields: [["listing_id", "7"]],
+      mode: "fixed",
+    });
+    expect(targetComposeControl({ kind: "attendee", token: "tok" })).toEqual({
+      fields: [["attendee", "tok"]],
+      mode: "fixed",
+    });
   });
 });
 

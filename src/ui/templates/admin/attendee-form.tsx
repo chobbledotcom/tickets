@@ -30,6 +30,7 @@ import {
   SAVE_ACTION,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
@@ -294,9 +295,10 @@ const EmailHistory = ({
           <MaybeButtonLink
             class="btn"
             disabled={!hasEmail}
-            href={`/admin/emails?attendee=${encodeURIComponent(
-              attendee.ticket_token,
-            )}`}
+            href={`/admin/emails${targetQuery({
+              kind: "attendee",
+              token: attendee.ticket_token,
+            })}`}
             title={
               hasEmail
                 ? undefined

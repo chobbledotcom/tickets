@@ -33,6 +33,8 @@ import {
   serializeDraft,
   summarizeProviderResponse,
   targetAllowsEmpty,
+  targetComposeControl,
+  targetComposeCopy,
   targetFromForm,
   targetFromQuery,
   targetIsSingleRecipient,
@@ -146,11 +148,12 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
   return htmlResponse(
     bulkEmailComposePage(session, {
       canBulkSend,
+      control: targetComposeControl(target),
+      copy: targetComposeCopy(target),
       disabledReason,
       draft: parseDraft(settings.bulkEmailDraft),
       recipientCount: recipients.length,
       single: targetIsSingleRecipient(target),
-      target,
       targetLabel,
     }),
   );

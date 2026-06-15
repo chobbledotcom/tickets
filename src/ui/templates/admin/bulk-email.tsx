@@ -3,11 +3,10 @@
  */
 
 import {
-  AUDIENCES,
   type BulkEmailDraft,
-  type BulkEmailTarget,
+  type ComposeControl,
+  type ComposeCopy,
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
-  targetHiddenFields,
   targetQuery,
 } from "#shared/bulk-email.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -25,7 +24,10 @@ const NAV_ACTIVE = "/admin/emails";
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
 
 export type BulkEmailComposeState = {
-  target: BulkEmailTarget;
+  /** How to render the recipient control (spec-driven: selector or fixed). */
+  control: ComposeControl;
+  /** Heading + intro for this kind of target (spec-driven). */
+  copy: ComposeCopy;
   /** Human label for a fixed target (listing name / attendee address); unused
    * for the audience selector. */
   targetLabel: string;
@@ -40,25 +42,28 @@ export type BulkEmailComposeState = {
 };
 
 /**
- * The recipient control at the top of the compose form. The audience target is
- * a chooser (a dropdown you can change); every other (fixed) target round-trips
- * via spec-declared hidden fields and shows its label. New fixed-target kinds
- * need no change here.
+ * The recipient control at the top of the compose form, rendered from the
+ * target's spec-declared {@link ComposeControl}: a `select` chooser (you can
+ * change the value) or a `fixed` target (hidden inputs + a label). The template
+ * never branches on the target's kind, so a new kind needs no change here.
  */
 const TargetField = ({
   state,
 }: {
   state: BulkEmailComposeState;
 }): JSX.Element => {
-  if (state.target.kind === "audience") {
-    const selected = state.target.audience;
+  const { control } = state;
+  if (control.mode === "select") {
     return (
       <label>
-        Audience
-        <select name="audience">
-          {AUDIENCES.map((a) => (
-            <option selected={selected === a.id} value={a.id}>
-              {a.label}
+        {control.label}
+        <select name={control.name}>
+          {control.options.map((option) => (
+            <option
+              selected={option.value === control.selected}
+              value={option.value}
+            >
+              {option.label}
             </option>
           ))}
         </select>
@@ -67,7 +72,7 @@ const TargetField = ({
   }
   return (
     <>
-      {targetHiddenFields(state.target).map(([name, value]) => (
+      {control.fields.map(([name, value]) => (
         <input name={name} type="hidden" value={value} />
       ))}
       <p>
@@ -86,19 +91,15 @@ export const bulkEmailComposePage = (
   session: AdminSession,
   state: BulkEmailComposeState,
 ): string => {
-  const { draft, single } = state;
+  const { copy, draft, single } = state;
   return String(
-    <Layout title={single ? "Email an attendee" : "Send a bulk email"}>
+    <Layout title={copy.heading}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <Flash />
 
       <div class="prose">
-        <h1>{single ? "Email an attendee" : "Send a bulk email"}</h1>
-        <p>
-          {single
-            ? "Send a one-off email to this attendee. Write your message in Markdown, then preview before sending."
-            : "Email your attendees about an upcoming listing or other news. Choose who receives it, write your message in Markdown, then preview before sending."}
-        </p>
+        <h1>{copy.heading}</h1>
+        <p>{copy.intro}</p>
       </div>
 
       {!state.canBulkSend && (
