@@ -141,10 +141,9 @@ const LineRow = ({
   const isCustomisable = Boolean(
     line.listing?.customisable_days && line.listing.listing_type === "daily",
   );
-  const dayCounts =
-    line.listing && line.listing.customisable_days
-      ? availableDayCounts(line.listing)
-      : [];
+  const dayCounts = line.listing?.customisable_days
+    ? availableDayCounts(line.listing)
+    : [];
   const selectedDayCount = isCustomisable ? lineDayCount(line) : 0;
   const removeLabel = line.existingBooking ? "Remove" : "Drop";
   return (
@@ -493,28 +492,23 @@ const StatusAndBalanceFields = ({
 };
 
 /**
- * Render the unified attendee form page (create or edit).
- *
- * The single CsrfForm wraps every input including the line editor, so the
- * add-line / remove-line / save buttons are all submitters of the same
- * form. The server distinguishes them by the `action` value.
+ * The editable attendee form: contact details, optional custom questions, and
+ * the listing-line editor, all inside one CsrfForm. Status & Balance sit right
+ * after the name and before the contact fields, per the agreed field order.
+ * The add-line / remove-line / save buttons are all submitters of this one
+ * form; the server distinguishes them by the `action` value.
  */
-export const attendeeFormPage = (
-  data: AttendeeFormTemplateData,
-  session: AdminSession,
-): string => {
+const AttendeeEditForm = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element => {
+  const isEdit = data.mode === "edit";
   const formAction =
     data.mode === "create"
       ? "/admin/attendees/new"
       : `/admin/attendees/${data.attendee!.id}`;
-  const isEdit = data.mode === "edit";
-  const a = data.attendee;
-
-  // The whole editable form. Status & Balance sit right after the name and
-  // before the contact fields, per the agreed field order. In edit mode the
-  // read-only summary above is the primary view, so the form is tucked into a
-  // collapsed disclosure (see below); in create mode it is the page.
-  const editForm = (
+  return (
     <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
       <Flash error={data.flashError} success={data.flashSuccess} />
       {data.returnUrl && (
@@ -622,6 +616,25 @@ export const attendeeFormPage = (
       </p>
     </CsrfForm>
   );
+};
+
+/**
+ * Render the unified attendee form page (create or edit).
+ *
+ * The single CsrfForm wraps every input including the line editor, so the
+ * add-line / remove-line / save buttons are all submitters of the same
+ * form. The server distinguishes them by the `action` value.
+ */
+export const attendeeFormPage = (
+  data: AttendeeFormTemplateData,
+  session: AdminSession,
+): string => {
+  const isEdit = data.mode === "edit";
+  const a = data.attendee;
+
+  // In edit mode the read-only summary above is the primary view, so the form
+  // is tucked into a collapsed disclosure (below); in create mode it is the page.
+  const editForm = <AttendeeEditForm data={data} />;
 
   return String(
     <Layout title={pageTitle(data)}>
