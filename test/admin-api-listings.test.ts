@@ -40,7 +40,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       await assertJson(apiRequest("/api/admin/listings/99999"), 404, (body) => {
-        expect(body.message).toBe("Listing not found");
+        expect(body.error).toBe("Listing not found");
       });
     });
 
@@ -175,7 +175,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -188,9 +188,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
-            "max_attendees is required and must be >= 1",
-          );
+          expect(body.error).toBe("max_attendees is required and must be >= 1");
         },
       );
     });
@@ -218,7 +216,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("Maximum price");
+          expect(body.error).toContain("Maximum price");
         },
       );
     });
@@ -235,7 +233,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Selected group does not exist");
+          expect(body.error).toBe("Selected group does not exist");
         },
       );
     });
@@ -297,7 +295,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name cannot be empty");
+          expect(body.error).toBe("name cannot be empty");
         },
       );
     });
@@ -314,9 +312,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
-            "Slug is already in use by another listing",
-          );
+          expect(body.error).toBe("Slug is already in use by another listing");
         },
       );
     });
@@ -368,7 +364,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("Listing name does not match");
+          expect(body.error).toContain("Listing name does not match");
         },
       );
     });
@@ -439,7 +435,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Listing is already deactivated");
+          expect(body.error).toBe("Listing is already deactivated");
         },
       );
     });
@@ -490,7 +486,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Listing is already active");
+          expect(body.error).toBe("Listing is already active");
         },
       );
     });
@@ -537,7 +533,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -656,7 +652,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("max_attendees must be >= 1");
+          expect(body.error).toBe("max_attendees must be >= 1");
         },
       );
     });
@@ -675,7 +671,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("Maximum price");
+          expect(body.error).toContain("Maximum price");
         },
       );
     });
@@ -786,7 +782,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("same type");
+          expect(body.error).toContain("same type");
         },
       );
     });
@@ -840,7 +836,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Selected group does not exist");
+          expect(body.error).toBe("Selected group does not exist");
         },
       );
     });
@@ -869,7 +865,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("same type");
+          expect(body.error).toContain("same type");
         },
       );
     });

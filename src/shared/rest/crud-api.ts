@@ -48,7 +48,7 @@ export type ParseResult<Input> =
 
 /** JSON error response for API endpoints */
 export const apiErrorResponse = (message: string, status = 400): Response =>
-  jsonResponse({ message, status: "error" }, status);
+  jsonResponse({ error: message }, status);
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =

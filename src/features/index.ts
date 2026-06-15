@@ -236,7 +236,7 @@ const readOnlyGuard = (path: string, method: string): Response | null => {
 
   // Block all JSON API mutations (POST/PUT/DELETE on /api/*)
   if (path.startsWith("/api/") && method !== "GET" && method !== "OPTIONS") {
-    return jsonResponse({ error: true, message: READ_ONLY_MESSAGE }, 403);
+    return jsonResponse({ error: READ_ONLY_MESSAGE }, 403);
   }
 
   // Block GET pages for create/edit forms

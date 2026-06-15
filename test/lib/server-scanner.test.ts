@@ -545,7 +545,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
         "not valid json{{{",
       );
       await assertJson(Promise.resolve(response), 400, (result) => {
-        expect(result.message).toBe("Invalid request body");
+        expect(result.error).toBe("Invalid request body");
       });
     });
 
@@ -562,7 +562,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
 
       const { response } = await setupLoginAndScan({ token: "some-token" });
       await assertJson(Promise.resolve(response), 500, (result) => {
-        expect(result.message).toBe("Decryption unavailable");
+        expect(result.error).toBe("Decryption unavailable");
       });
     });
 

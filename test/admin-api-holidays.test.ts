@@ -55,7 +55,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("returns 404 for non-existent holiday", async () => {
       await assertJson(apiRequest("/api/admin/holidays/99999"), 404, (body) => {
-        expect(body.message).toBe("Holiday not found");
+        expect(body.error).toBe("Holiday not found");
       });
     });
 
@@ -108,7 +108,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -121,7 +121,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("start_date is required");
+          expect(body.error).toBe("start_date is required");
         },
       );
     });
@@ -134,7 +134,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("end_date is required");
+          expect(body.error).toBe("end_date is required");
         },
       );
     });
@@ -151,7 +151,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
+          expect(body.error).toBe(
             "End date must be on or after the start date",
           );
         },
@@ -205,7 +205,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Holiday not found");
+          expect(body.error).toBe("Holiday not found");
         },
       );
     });
@@ -220,7 +220,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name cannot be empty");
+          expect(body.error).toBe("name cannot be empty");
         },
       );
     });
@@ -238,7 +238,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
+          expect(body.error).toBe(
             "End date must be on or after the start date",
           );
         },
@@ -275,7 +275,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("does not match");
+          expect(body.error).toContain("does not match");
         },
       );
 
@@ -292,7 +292,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Holiday not found");
+          expect(body.error).toBe("Holiday not found");
         },
       );
     });

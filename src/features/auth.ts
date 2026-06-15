@@ -323,16 +323,14 @@ export const sessionPage = authPage(requireSessionOr);
 
 /** Shared auth failure response factories (avoids jscpd duplication) */
 const htmlForbidden = () => htmlResponse("Forbidden", 403);
-const jsonForbidden = () =>
-  jsonResponse({ message: "Forbidden", status: "error" }, 403);
+const jsonForbidden = () => jsonResponse({ error: "Forbidden" }, 403);
 
 /** Auth failure responses keyed by reason, with html and json variants side-by-side. */
 const AUTH_FAILURES = {
   forbidden: { html: htmlForbidden, json: jsonForbidden },
   "invalid-api-key": {
     html: htmlForbidden,
-    json: () =>
-      jsonResponse({ message: "Invalid API key", status: "error" }, 401),
+    json: () => jsonResponse({ error: "Invalid API key" }, 401),
   },
   "invalid-csrf": {
     html: () => htmlResponse("Invalid CSRF token", 403),
@@ -340,8 +338,7 @@ const AUTH_FAILURES = {
   },
   "not-authenticated": {
     html: () => redirectResponse("/admin"),
-    json: () =>
-      jsonResponse({ message: "Not authenticated", status: "error" }, 401),
+    json: () => jsonResponse({ error: "Not authenticated" }, 401),
   },
 } satisfies Record<string, Record<"html" | "json", () => Response>>;
 
@@ -363,10 +360,7 @@ const parseJsonBody = async (
 
   if (!contentType.includes("application/json")) {
     if (bodyRequired) {
-      return jsonResponse(
-        { message: "Invalid request body", status: "error" },
-        400,
-      );
+      return jsonResponse({ error: "Invalid request body" }, 400);
     }
     return {};
   }
@@ -378,16 +372,10 @@ const parseJsonBody = async (
       code: ErrorCode.VALIDATION_FORM,
       detail: "Malformed JSON body",
     });
-    return jsonResponse(
-      { message: "Invalid request body", status: "error" },
-      400,
-    );
+    return jsonResponse({ error: "Invalid request body" }, 400);
   }
   if (!isRecord(parsed)) {
-    return jsonResponse(
-      { message: "Invalid request body", status: "error" },
-      400,
-    );
+    return jsonResponse({ error: "Invalid request body" }, 400);
   }
   return parsed;
 };

@@ -244,11 +244,13 @@ const bookingResultToResponse = (
   switch (result.type) {
     case "success":
       return apiResponse({
-        ticketToken: result.attendee.ticket_token,
-        ticketUrl: `/t/${result.attendee.ticket_token}`,
+        booking: {
+          ticketToken: result.attendee.ticket_token,
+          ticketUrl: `/t/${result.attendee.ticket_token}`,
+        },
       });
     case "checkout":
-      return apiResponse({ checkoutUrl: result.checkoutUrl });
+      return apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
     case "sold_out":
       return apiResponse({ error: "Sorry, not enough spots available" }, 409);
     case "checkout_failed":

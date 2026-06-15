@@ -63,7 +63,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("returns 404 for non-existent group", async () => {
       await assertJson(apiRequest("/api/admin/groups/99999"), 404, (body) => {
-        expect(body.message).toBe("Group not found");
+        expect(body.error).toBe("Group not found");
       });
     });
 
@@ -174,7 +174,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -327,7 +327,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Group not found");
+          expect(body.error).toBe("Group not found");
         },
       );
     });
@@ -342,7 +342,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name cannot be empty");
+          expect(body.error).toBe("name cannot be empty");
         },
       );
     });
@@ -358,7 +358,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Slug is already in use");
+          expect(body.error).toBe("Slug is already in use");
         },
       );
     });
@@ -414,7 +414,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("does not match");
+          expect(body.error).toContain("does not match");
         },
       );
 
@@ -430,7 +430,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Group not found");
+          expect(body.error).toBe("Group not found");
         },
       );
     });

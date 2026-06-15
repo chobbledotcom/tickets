@@ -100,7 +100,9 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       name: "Alice Smith",
       quantity: 2,
     }),
-    response: json({ ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" }),
+    response: json({
+      booking: { ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" },
+    }),
   },
 ];
 

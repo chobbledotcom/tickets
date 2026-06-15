@@ -58,8 +58,7 @@ describeWithEnv(
       );
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error).toBe(true);
-      expect(body.message).toBe("This site is in read-only mode");
+      expect(body.error).toBe("This site is in read-only mode");
     });
 
     test("PUT /api/admin/listings/1 returns 403 JSON", async () => {
@@ -68,7 +67,7 @@ describeWithEnv(
       );
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error).toBe(true);
+      expect(body.error).toBe("This site is in read-only mode");
     });
 
     test("DELETE /api/admin/listings/1 returns 403 JSON", async () => {
@@ -84,7 +83,7 @@ describeWithEnv(
       );
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error).toBe(true);
+      expect(body.error).toBe("This site is in read-only mode");
     });
 
     test("GET /api/admin/listings is allowed", async () => {

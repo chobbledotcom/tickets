@@ -36,28 +36,28 @@ describe("authFailure", () => {
       const res = authFailure("json", "not-authenticated");
       expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body).toEqual({ message: "Not authenticated", status: "error" });
+      expect(body).toEqual({ error: "Not authenticated" });
     });
 
     test("forbidden returns 403 JSON error", async () => {
       const res = authFailure("json", "forbidden");
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body).toEqual({ message: "Forbidden", status: "error" });
+      expect(body).toEqual({ error: "Forbidden" });
     });
 
     test("invalid-csrf returns 403 JSON Forbidden", async () => {
       const res = authFailure("json", "invalid-csrf");
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body).toEqual({ message: "Forbidden", status: "error" });
+      expect(body).toEqual({ error: "Forbidden" });
     });
 
     test("invalid-api-key returns 401 JSON error", async () => {
       const res = authFailure("json", "invalid-api-key");
       expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body).toEqual({ message: "Invalid API key", status: "error" });
+      expect(body).toEqual({ error: "Invalid API key" });
     });
   });
 });

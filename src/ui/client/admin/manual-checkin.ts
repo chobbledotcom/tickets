@@ -157,6 +157,7 @@ export const initManualCheckin = (): void => {
       status?: string;
       name?: string;
       message?: string;
+      error?: string;
       quantity?: unknown;
     },
     token: string,
@@ -175,7 +176,7 @@ export const initManualCheckin = (): void => {
     } else if (result.status === "not_found") {
       showCheckinStatus("Ticket not found", "error");
     } else {
-      showCheckinStatus(result.message ?? "Error", "error");
+      showCheckinStatus(result.error ?? result.message ?? "Error", "error");
     }
   };
 
