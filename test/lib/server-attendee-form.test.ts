@@ -1163,5 +1163,38 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const html = await getEdit(id);
       expect(html).not.toContain("<h2>Status:");
     });
+
+    test("edit page status select offers no 'no status' option", async () => {
+      const reservation = await newReservation(); // a second status, so the select is shown
+      const id = await seedAttendee(reservation.id, 0);
+      const html = await getEdit(id);
+      // The empty placeholder choice is gone entirely.
+      expect(html).not.toContain("No status");
+      // The status select itself has no empty-value option any more.
+      expect(html).not.toContain(
+        '<select id="status_id" name="status_id"><option selected value="">',
+      );
+    });
+
+    test("edit page pre-selects the public default when the attendee has no status", async () => {
+      await newReservation(); // a second status, so the select is shown
+      const defaultStatus = await getPaidDefaultStatus(); // also the public default seed
+      const id = await seedAttendee(null, 0); // attendee has no status
+      const html = await getEdit(id);
+      expect(hasSelectedOption(html, String(defaultStatus!.id))).toBe(true);
+    });
+
+    test("edit page submits the lone status as a hidden field (no dropdown)", async () => {
+      const only = await getPaidDefaultStatus(); // the single seeded status
+      const id = await seedAttendee(only!.id, 0);
+      const html = await getEdit(id);
+      // No status dropdown is rendered for a single-status site...
+      expect(html).not.toContain('<select id="status_id"');
+      expect(html).not.toContain("No status");
+      // ...but the status is still submitted so a save can't clear it.
+      expect(html).toContain(
+        `<input name="status_id" type="hidden" value="${only!.id}">`,
+      );
+    });
   });
 });
