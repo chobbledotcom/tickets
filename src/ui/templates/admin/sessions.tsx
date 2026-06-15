@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -22,7 +23,7 @@ const SessionRow = ({
     <tr>
       <td>{session.token.slice(0, 8)}...</td>
       <td>{formatDatetimeShort(new Date(session.expires).toISOString())}</td>
-      <td>{isCurrent ? <mark>Current</mark> : ""}</td>
+      <td>{isCurrent ? <mark>{t("sessions.current")}</mark> : ""}</td>
     </tr>,
   );
 
@@ -43,14 +44,14 @@ export const adminSessionsPage = (
           ),
           joinStrings,
         )(sessions)
-      : '<tr><td colspan="3">No sessions</td></tr>';
+      : `<tr><td colspan="3">${t("sessions.no_sessions")}</td></tr>`;
 
   const otherSessionCount = sessions.filter(
     (s) => s.token !== currentToken,
   ).length;
 
   return String(
-    <Layout title="Sessions">
+    <Layout title={t("sessions.title")}>
       <AdminNav active="/admin/users" session={adminSession} />
       <UsersSubNav />
 
@@ -64,9 +65,9 @@ export const adminSessionsPage = (
         <table>
           <thead>
             <tr>
-              <th>Token</th>
-              <th>Expires</th>
-              <th>Status</th>
+              <th>{t("sessions.col.token")}</th>
+              <th>{t("sessions.col.expires")}</th>
+              <th>{t("sessions.col.status")}</th>
             </tr>
           </thead>
           <tbody>
@@ -81,7 +82,7 @@ export const adminSessionsPage = (
 
           <CsrfForm action="/admin/sessions" class="one-button">
             <SubmitButton class="danger" icon="log-out">
-              Log out of all other sessions ({otherSessionCount})
+              {t("sessions.logout_others", { count: otherSessionCount })}
             </SubmitButton>
           </CsrfForm>
         </>
