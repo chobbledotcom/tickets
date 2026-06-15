@@ -31,11 +31,13 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
         enctype="multipart/form-data"
         id="settings-header-image"
       >
-        <h2>Header Image</h2>
-        <p>
-          An optional image displayed at the top of every page. JPEG, PNG, GIF,
-          or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
-        </p>
+        <div class="prose">
+          <h2>Header Image</h2>
+          <p>
+            An optional image displayed at the top of every page. JPEG, PNG,
+            GIF, or WebP — max {formatBytes(MAX_IMAGE_SIZE)}.
+          </p>
+        </div>
         <label>
           {s.headerImageUrl ? "Replace Image" : "Upload Image"}
           <input

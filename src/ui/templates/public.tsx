@@ -477,14 +477,16 @@ export const notFoundPage = (): string =>
 export const qrBookErrorPage = (slug: string): string =>
   String(
     <Layout title="QR code expired">
-      <h1>QR code expired or invalid</h1>
-      <p>
-        This QR code has expired or the link has been tampered with. Ask the
-        organiser to generate a new one, or use the normal booking page below.
-      </p>
-      <p>
-        <a href={`/ticket/${escapeHtml(slug)}`}>Go to booking page</a>
-      </p>
+      <div class="prose">
+        <h1>QR code expired or invalid</h1>
+        <p>
+          This QR code has expired or the link has been tampered with. Ask the
+          organiser to generate a new one, or use the normal booking page below.
+        </p>
+        <p>
+          <a href={`/ticket/${escapeHtml(slug)}`}>Go to booking page</a>
+        </p>
+      </div>
     </Layout>,
   );
 
@@ -494,11 +496,13 @@ export const qrBookErrorPage = (slug: string): string =>
 export const rateLimitedPage = (): string =>
   String(
     <Layout title="Too Many Requests">
-      <h1>Too Many Requests</h1>
-      <p>
-        You've hit too many invalid ticket links. Please wait a few minutes and
-        try again.
-      </p>
+      <div class="prose">
+        <h1>Too Many Requests</h1>
+        <p>
+          You've hit too many invalid ticket links. Please wait a few minutes
+          and try again.
+        </p>
+      </div>
     </Layout>,
   );
 
@@ -524,18 +528,20 @@ ${ERROR_DIALOG_STYLE}`;
 export const temporaryErrorPage = (): string =>
   String(
     <Layout headExtra={TEMPORARY_ERROR_HEAD} title="Temporary Error">
-      <h1>Temporary Error</h1>
-      <p>
-        Something went wrong loading this page. Retrying automatically&hellip;
-      </p>
-      <p>
-        <small>
-          Check{" "}
-          <strong>
-            <a href="https://status.bunny.net/">status.bunny.net</a>
-          </strong>
-        </small>
-      </p>
+      <div class="prose">
+        <h1>Temporary Error</h1>
+        <p>
+          Something went wrong loading this page. Retrying automatically&hellip;
+        </p>
+        <p>
+          <small>
+            Check{" "}
+            <strong>
+              <a href="https://status.bunny.net/">status.bunny.net</a>
+            </strong>
+          </small>
+        </p>
+      </div>
     </Layout>,
   );
 
@@ -552,11 +558,13 @@ ${ERROR_DIALOG_STYLE}`;
 export const migrationInProgressPage = (): string =>
   String(
     <Layout headExtra={MIGRATION_IN_PROGRESS_HEAD} title="Update In Progress">
-      <h1>Update In Progress</h1>
-      <p>
-        We&rsquo;re backing up and updating the database. This usually only
-        takes a few seconds. This page will reload automatically&hellip;
-      </p>
+      <div class="prose">
+        <h1>Update In Progress</h1>
+        <p>
+          We&rsquo;re backing up and updating the database. This usually only
+          takes a few seconds. This page will reload automatically&hellip;
+        </p>
+      </div>
     </Layout>,
   );
 
@@ -568,8 +576,10 @@ export const migrationInProgressPage = (): string =>
 export const siteNotActivatedPage = (): string =>
   String(
     <Layout headExtra={ERROR_DIALOG_STYLE} title="Not Activated">
-      <h1>Not Activated</h1>
-      <p>This site has not been activated yet.</p>
+      <div class="prose">
+        <h1>Not Activated</h1>
+        <p>This site has not been activated yet.</p>
+      </div>
     </Layout>,
   );
 

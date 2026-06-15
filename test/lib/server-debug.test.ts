@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
+import { getRuntimeInfo } from "#shared/runtime.ts";
 import {
   adminDebugPage,
   type DebugPageState,
@@ -19,6 +21,87 @@ import {
   generateGoogleTestCreds,
   generateTestCerts,
 } from "#test-utils/crypto.ts";
+
+/** Build a complete DebugPageState, overriding only the fields a test cares about. */
+const makeDebugState = (
+  overrides: Partial<DebugPageState> = {},
+): DebugPageState => ({
+  appleWallet: {
+    certValidation: {
+      signingCert: "Not set",
+      signingKey: "Not set",
+      wwdrCert: "Not set",
+    },
+    dbConfigured: false,
+    envConfigured: false,
+    passTypeId: "",
+    source: "",
+  },
+  availability: {
+    cutoff: "",
+    renewalConfigured: false,
+    serverTime: "1970-01-01T00:00:00.000Z",
+    state: "active",
+  },
+  build: { commit: "", timestamp: "" },
+  bunny: {
+    cdnEnabled: false,
+    cdnHostname: "",
+    customDomain: "",
+    dnsEnabled: false,
+    registeredSubdomain: "",
+    storageBackend: "none",
+    subdomainSuffix: "",
+  },
+  database: { hostConfigured: false, schemaHash: "", schemaInSync: false },
+  domain: "localhost",
+  email: {
+    apiKeyConfigured: false,
+    fromAddress: "",
+    hostProvider: "",
+    provider: "",
+  },
+  googleWallet: {
+    dbConfigured: false,
+    envConfigured: false,
+    issuerId: "",
+    privateKeyValid: "Not set",
+    source: "",
+  },
+  limits: [],
+  ntfy: { configured: false },
+  payment: {
+    keyConfigured: false,
+    mode: "",
+    provider: "",
+    webhookConfigured: false,
+  },
+  prune: { logins: "Never", payments: "Never", sessions: "Never" },
+  runtime: {
+    arch: "",
+    denoVersion: "",
+    nodeCompatVersion: "",
+    os: "",
+    runtime: "unknown",
+    typescriptVersion: "",
+    userAgent: "",
+    v8Version: "",
+  },
+  site: {
+    bookingFee: "0",
+    contactForm: false,
+    country: "",
+    currency: "",
+    publicApi: false,
+    publicSite: false,
+    spamProtection: false,
+    timezone: "",
+  },
+  theme: "light",
+  ...overrides,
+});
+
+const ownerSession = { adminLevel: "owner" as const };
 
 describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {
@@ -39,6 +122,26 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Build section", async () => {
       await assertAdminHtml("/admin/debug", "Build", "Timestamp", "Commit");
+    });
+
+    test("shows Runtime section with version rows", async () => {
+      await assertAdminHtml(
+        "/admin/debug",
+        "Runtime",
+        "Host runtime",
+        "Deno version",
+        "V8 version",
+        "TypeScript version",
+        "Node compatibility",
+        "OS / architecture",
+        "User agent",
+      );
+    });
+
+    test("shows the actual Deno version it is running on", async () => {
+      const { denoVersion } = getRuntimeInfo();
+      const html = await assertAdminHtml("/admin/debug", "Deno version");
+      expect(html).toContain(denoVersion);
     });
 
     test("shows Apple Wallet section", async () => {
@@ -135,6 +238,25 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       });
       await assertAdminHtml("/admin/debug", "stripe", "Configured");
     });
+
+    test("shows Test mode for a test-prefixed key without leaking it", async () => {
+      await settings.update.paymentProvider("stripe");
+      await settings.update.stripe.secretKey("sk_test_fake");
+      const html = await assertAdminHtml("/admin/debug", "Mode", "Test");
+      expect(html).not.toContain("sk_test_fake");
+    });
+
+    test("shows Live mode for a live-prefixed key", async () => {
+      await settings.update.paymentProvider("stripe");
+      await settings.update.stripe.secretKey("sk_live_fake");
+      const html = await assertAdminHtml("/admin/debug", "Live");
+      expect(html).not.toContain("sk_live_fake");
+    });
+
+    test("shows an em dash for mode when no key is set", async () => {
+      await settings.update.paymentProvider("stripe");
+      await assertAdminHtml("/admin/debug", "stripe", "Mode", "—");
+    });
   });
 
   describe("GET /admin/debug with Square configured", () => {
@@ -142,6 +264,17 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await settings.update.paymentProvider("square");
       await settings.update.square.webhookSignatureKey("sig_fake");
       await assertAdminHtml("/admin/debug", "square");
+    });
+
+    test("shows Live mode when sandbox is disabled", async () => {
+      await settings.update.paymentProvider("square");
+      await assertAdminHtml("/admin/debug", "square", "Mode", "Live");
+    });
+
+    test("shows Sandbox mode when sandbox is enabled", async () => {
+      await settings.update.paymentProvider("square");
+      await settings.update.square.sandbox(true);
+      await assertAdminHtml("/admin/debug", "square", "Mode", "Sandbox");
     });
   });
 
@@ -151,6 +284,12 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await settings.update.sumup.apiKey("sk_test_fake");
       await settings.update.sumup.merchantCode("MC_fake");
       await assertAdminHtml("/admin/debug", "sumup", "Configured");
+    });
+
+    test("shows Test mode for a test-prefixed SumUp key", async () => {
+      await settings.update.paymentProvider("sumup");
+      await settings.update.sumup.apiKey("sk_test_fake");
+      await assertAdminHtml("/admin/debug", "sumup", "Mode", "Test");
     });
   });
 
@@ -361,19 +500,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows registered subdomain when set", () => {
-      const state: DebugPageState = {
-        appleWallet: {
-          certValidation: {
-            signingCert: "Not set",
-            signingKey: "Not set",
-            wwdrCert: "Not set",
-          },
-          dbConfigured: false,
-          envConfigured: false,
-          passTypeId: "",
-          source: "",
-        },
-        build: { commit: "", timestamp: "" },
+      const state = makeDebugState({
         bunny: {
           cdnEnabled: false,
           cdnHostname: "",
@@ -383,35 +510,122 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           storageBackend: "none",
           subdomainSuffix: ".tickets",
         },
-        database: { hostConfigured: false },
-        domain: "localhost",
-        email: {
-          apiKeyConfigured: false,
-          fromAddress: "",
-          hostProvider: "",
-          provider: "",
-        },
-        googleWallet: {
-          dbConfigured: false,
-          envConfigured: false,
-          issuerId: "",
-          privateKeyValid: "Not set",
-          source: "",
-        },
-        limits: [],
-        ntfy: { configured: false },
-        payment: {
-          keyConfigured: false,
-          provider: "",
-          webhookConfigured: false,
-        },
-        prune: { logins: "Never", payments: "Never", sessions: "Never" },
-        theme: "light",
-      };
-      const session = { adminLevel: "owner" as const };
-      const html = adminDebugPage(session, state);
+      });
+      const html = adminDebugPage(ownerSession, state);
       expect(html).toContain("mylisting.example.com");
       expect(html).toContain(".tickets");
+    });
+  });
+
+  describe("Site section", () => {
+    test("shows site configuration rows with values from setup", async () => {
+      await assertAdminHtml(
+        "/admin/debug",
+        "Site",
+        "Public site",
+        "Public API",
+        "Contact form",
+        "Spam protection",
+        "Country",
+        "Currency",
+        "Timezone",
+        "Booking fee",
+        "GBP",
+        "UTC",
+        "0%",
+      );
+    });
+
+    test("shows Hidden/Disabled badges when features are off", async () => {
+      await assertAdminHtml("/admin/debug", "Hidden", "Disabled");
+    });
+
+    test("shows Visible/Enabled badges and the booking fee when features are on", async () => {
+      await Promise.all([
+        settings.update.showPublicSite(true),
+        settings.update.showPublicApi(true),
+        settings.update.contactFormEnabled(true),
+        settings.update.bookingFee("2.5"),
+      ]);
+      await assertAdminHtml("/admin/debug", "Visible", "Enabled", "2.5%");
+    });
+  });
+
+  describe("Site section with spam protection configured", () => {
+    let restoreEnv: () => void;
+
+    afterEach(() => restoreEnv());
+
+    test("shows spam protection as configured when Botpoison keys are set", async () => {
+      restoreEnv = setTestEnv({
+        BOTPOISON_PUBLIC_KEY: "test-public",
+        BOTPOISON_SECRET_KEY: "test-secret",
+      });
+      await assertAdminHtml("/admin/debug", "Spam protection", "Configured");
+    });
+  });
+
+  describe("Availability section", () => {
+    test("shows Active write access by default", async () => {
+      await assertAdminHtml(
+        "/admin/debug",
+        "Availability",
+        "Write access",
+        "Active",
+        "Read-only from",
+        "Renewal URL",
+        "Server time (UTC)",
+      );
+    });
+  });
+
+  describe("Availability section with read-only mode", () => {
+    let restoreEnv: () => void;
+
+    afterEach(() => restoreEnv());
+
+    test("shows Read-only state, the cutoff, and the renewal badge", async () => {
+      restoreEnv = setTestEnv({
+        READ_ONLY_FROM: "2000-01-01T00:00:00Z",
+        RENEWAL_URL: "https://example.com/renew",
+      });
+      await assertAdminHtml(
+        "/admin/debug",
+        "Read-only",
+        "2000-01-01T00:00:00Z",
+        "Configured",
+      );
+    });
+
+    test("shows Expiring soon when within the warning window", async () => {
+      const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+      restoreEnv = setTestEnv({ READ_ONLY_FROM: soon });
+      await assertAdminHtml("/admin/debug", "Expiring soon");
+    });
+  });
+
+  describe("Database schema section", () => {
+    test("shows the schema hash and an up-to-date status", async () => {
+      await assertAdminHtml(
+        "/admin/debug",
+        "Schema status",
+        "Up to date",
+        "Schema hash",
+        SCHEMA_HASH,
+      );
+    });
+
+    test("shows Out of sync and the hash when markers do not match", () => {
+      const state = makeDebugState({
+        database: {
+          hostConfigured: true,
+          schemaHash: "deadbeef",
+          schemaInSync: false,
+        },
+      });
+      const html = adminDebugPage(ownerSession, state);
+      expect(html).toContain("Out of sync");
+      expect(html).toContain("deadbeef");
     });
   });
 
@@ -438,43 +652,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows overridden indicator when current differs from default", () => {
-      const state: DebugPageState = {
-        appleWallet: {
-          certValidation: {
-            signingCert: "Not set",
-            signingKey: "Not set",
-            wwdrCert: "Not set",
-          },
-          dbConfigured: false,
-          envConfigured: false,
-          passTypeId: "",
-          source: "",
-        },
-        build: { commit: "", timestamp: "" },
-        bunny: {
-          cdnEnabled: false,
-          cdnHostname: "",
-          customDomain: "",
-          dnsEnabled: false,
-          registeredSubdomain: "",
-          storageBackend: "none",
-          subdomainSuffix: "",
-        },
-        database: { hostConfigured: false },
-        domain: "localhost",
-        email: {
-          apiKeyConfigured: false,
-          fromAddress: "",
-          hostProvider: "",
-          provider: "",
-        },
-        googleWallet: {
-          dbConfigured: false,
-          envConfigured: false,
-          issuerId: "",
-          privateKeyValid: "Not set",
-          source: "",
-        },
+      const state = makeDebugState({
         limits: [
           {
             current: 200,
@@ -484,17 +662,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
             unit: "bytes",
           },
         ],
-        ntfy: { configured: false },
-        payment: {
-          keyConfigured: false,
-          provider: "",
-          webhookConfigured: false,
-        },
-        prune: { logins: "Never", payments: "Never", sessions: "Never" },
-        theme: "light",
-      };
-      const session = { adminLevel: "owner" as const };
-      const html = adminDebugPage(session, state);
+      });
+      const html = adminDebugPage(ownerSession, state);
       expect(html).toContain("200B");
       expect(html).toContain("(overridden)");
     });

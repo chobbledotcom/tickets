@@ -178,6 +178,10 @@ main {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
+  /* Fluid horizontal padding: stays at the small --space-m floor on mobile,
+     eases through ~lg across tablet widths, and caps at the --space-xl
+     ceiling on desktop. Vertical padding stays as set by the base rule. */
+  padding-inline: clamp(var(--space-m), 4.5vw, var(--space-xl));
 }
 
 /* Stack reset: gap controls spacing, not browser default margins */
@@ -205,11 +209,13 @@ article > * {
   margin-bottom: 0;
 }
 
-/* Outlines a rendered email body so it reads as a preview, not page content. */
+/* Outlines a rendered email body so it reads as a preview, not page content.
+   Constrained to a typical email column width so it reads like a real email. */
 .email-preview {
   border: 1px dashed var(--color-text-secondary);
   border-radius: var(--border-radius);
   padding: var(--space-m);
+  max-width: 40rem;
 }
 
 hr {
@@ -519,6 +525,13 @@ input[type="submit"],
 .btn.outline {
   background-color: transparent;
   color: var(--color-link);
+}
+
+/* Compact button, e.g. for "Back to …" navigation links */
+.btn.small {
+  font-size: small;
+  font-weight: normal;
+  padding: 0.1rem var(--space-s);
 }
 
 /* Inline SVG icons from the sprite, sized to the current text */

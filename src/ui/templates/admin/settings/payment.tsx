@@ -19,8 +19,10 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
     action="/admin/settings/payment-provider"
     id="settings-payment-provider"
   >
-    <h2>Payment Provider</h2>
-    <p>Choose which payment provider to use for paid listings.</p>
+    <div class="prose">
+      <h2>Payment Provider</h2>
+      <p>Choose which payment provider to use for paid listings.</p>
+    </div>
     <fieldset class="radios">
       <label>
         <input
@@ -95,12 +97,14 @@ const ApiKeyModeNotice = ({
 export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "stripe" ? (
     <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
-      <h2>Stripe Settings</h2>
-      <p>
-        {s.stripeKeyConfigured
-          ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
-          : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
-      </p>
+      <div class="prose">
+        <h2>Stripe Settings</h2>
+        <p>
+          {s.stripeKeyConfigured
+            ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
+            : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
+        </p>
+      </div>
       {s.stripeKeyConfigured && (
         <ApiKeyModeNotice mode={s.stripeKeyMode} provider="Stripe" />
       )}
@@ -130,17 +134,19 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
 export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "square" ? (
     <CsrfForm action="/admin/settings/square" id="settings-square">
-      <h2>Square Settings</h2>
-      <p>
-        {s.squareTokenConfigured
-          ? "A Square access token is currently configured. Enter new credentials below to replace them."
-          : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
-      </p>
-      <p>
-        <small>
-          <a href="/admin/guide#payment-setup">Where do I find these?</a>
-        </small>
-      </p>
+      <div class="prose">
+        <h2>Square Settings</h2>
+        <p>
+          {s.squareTokenConfigured
+            ? "A Square access token is currently configured. Enter new credentials below to replace them."
+            : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
+        </p>
+        <p>
+          <small>
+            <a href="/admin/guide#payment-setup">Where do I find these?</a>
+          </small>
+        </p>
+      </div>
       <Raw
         html={renderFields(
           squareAccessTokenFields,
@@ -173,10 +179,12 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
       action="/admin/settings/square-webhook"
       id="settings-square-webhook"
     >
-      <h2>Square Webhook</h2>
-      <p>
-        <a href="/admin/guide#payment-setup">See the full setup guide</a>
-      </p>
+      <div class="prose">
+        <h2>Square Webhook</h2>
+        <p>
+          <a href="/admin/guide#payment-setup">See the full setup guide</a>
+        </p>
+      </div>
       <article>
         <aside>
           <p>
@@ -229,12 +237,14 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
 export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "sumup" ? (
     <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
-      <h2>SumUp Settings</h2>
-      <p>
-        {s.sumupKeyConfigured
-          ? "A SumUp API key is currently configured. Enter new credentials below to replace them."
-          : "No SumUp API key is configured. Enter your SumUp credentials to enable SumUp payments."}
-      </p>
+      <div class="prose">
+        <h2>SumUp Settings</h2>
+        <p>
+          {s.sumupKeyConfigured
+            ? "A SumUp API key is currently configured. Enter new credentials below to replace them."
+            : "No SumUp API key is configured. Enter your SumUp credentials to enable SumUp payments."}
+        </p>
+      </div>
       {s.sumupKeyConfigured && (
         <ApiKeyModeNotice mode={s.sumupKeyMode} provider="SumUp" />
       )}
@@ -264,11 +274,13 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
 export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider ? (
     <CsrfForm action="/admin/settings/booking-fee" id="settings-booking-fee">
-      <h2>Booking Fee</h2>
-      <p>
-        Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
-        disable. Max 10.
-      </p>
+      <div class="prose">
+        <h2>Booking Fee</h2>
+        <p>
+          Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
+          disable. Max 10.
+        </p>
+      </div>
       <label>
         Booking Fee (%)
         <input

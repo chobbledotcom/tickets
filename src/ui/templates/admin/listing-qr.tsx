@@ -162,19 +162,21 @@ export const adminListingQrPage = ({
     <Layout title={`QR Code: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
       <article>
-        <h1>
-          Booking QR code &mdash;{" "}
-          <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
-        </h1>
-        <p>
-          Generate a signed link that pre-fills the booking form. If name and
-          price are both set and the listing has no extra required fields{" "}
-          <span class={canDirectCheckout ? "success-text" : "danger-text"}>
-            (this <strong>{canDirectCheckout ? "is" : "is not"}</strong> the
-            case)
-          </span>
-          , the scanner is taken straight to payment.
-        </p>
+        <div class="prose">
+          <h1>
+            Booking QR code &mdash;{" "}
+            <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+          </h1>
+          <p>
+            Generate a signed link that pre-fills the booking form. If name and
+            price are both set and the listing has no extra required fields{" "}
+            <span class={canDirectCheckout ? "success-text" : "danger-text"}>
+              (this <strong>{canDirectCheckout ? "is" : "is not"}</strong> the
+              case)
+            </span>
+            , the scanner is taken straight to payment.
+          </p>
+        </div>
         <Flash error={error} />
         <CsrfForm action={formAction}>
           <label>

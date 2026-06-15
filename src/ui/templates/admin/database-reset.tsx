@@ -4,7 +4,7 @@
  */
 
 import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
@@ -60,7 +60,7 @@ export const demoResetPage = (error?: string): string =>
       <Flash error={error} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
-        <a href="/admin">Back to login</a>
+        <BackButton href="/admin">Back to login</BackButton>
       </p>
     </Layout>,
   );

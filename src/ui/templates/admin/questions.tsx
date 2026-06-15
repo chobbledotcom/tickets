@@ -22,10 +22,12 @@ export const adminQuestionsPage = (
     <Layout title="Custom Questions">
       <AdminNav active="/admin/questions" session={session} />
 
-      <h1>Custom Questions</h1>
-      <p class="actions">
-        <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
-      </p>
+      <div class="prose">
+        <h1>Custom Questions</h1>
+        <p class="actions">
+          <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
+        </p>
+      </div>
       <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">

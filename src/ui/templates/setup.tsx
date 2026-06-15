@@ -66,8 +66,10 @@ export const setupPage = (error?: string): string =>
   String(
     <Layout title="Setup">
       <CsrfForm action="/setup/">
-        <h1>Initial Setup</h1>
-        <p>Welcome! Please configure your ticket reservation system.</p>
+        <div class="prose">
+          <h1>Initial Setup</h1>
+          <p>Welcome! Please configure your ticket reservation system.</p>
+        </div>
         <Flash error={error} />
         <Raw html={renderFields(setupFields)} />
         <div class="field">

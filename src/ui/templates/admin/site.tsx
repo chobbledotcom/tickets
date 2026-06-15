@@ -92,17 +92,19 @@ const ContactFormToggle = ({
   botpoisonEnabled,
 }: ContactFormState): JSX.Element => (
   <CsrfForm action="/admin/site/contact/form">
-    <h2>Contact Form</h2>
-    <p>
-      Add a contact form to the public contact page. Visitors enter their email
-      address and a message, which is sent to your business email.
-    </p>
-    {!hasBusinessEmail && (
-      <p class="error" role="alert">
-        Set a business email on the Settings page to receive contact form
-        messages.
+    <div class="prose">
+      <h2>Contact Form</h2>
+      <p>
+        Add a contact form to the public contact page. Visitors enter their
+        email address and a message, which is sent to your business email.
       </p>
-    )}
+      {!hasBusinessEmail && (
+        <p class="error" role="alert">
+          Set a business email on the Settings page to receive contact form
+          messages.
+        </p>
+      )}
+    </div>
     <SpamProtectionNote botpoisonEnabled={botpoisonEnabled} />
     <label>
       <input

@@ -14,13 +14,15 @@ export const AdminEmailTemplateForm = (
     action="/admin/settings/email-templates/admin"
     id="settings-email-tpl-admin"
   >
-    <h2>Admin Notification Email Template</h2>
-    <p>
-      Customise the notification email sent to the business email when a
-      registration comes in (
-      <a href="/admin/guide#email-templates">template guide</a>). Leave blank to
-      use the default template.
-    </p>
+    <div class="prose">
+      <h2>Admin Notification Email Template</h2>
+      <p>
+        Customise the notification email sent to the business email when a
+        registration comes in (
+        <a href="/admin/guide#email-templates">template guide</a>). Leave blank
+        to use the default template.
+      </p>
+    </div>
     <label>
       Subject
       <input

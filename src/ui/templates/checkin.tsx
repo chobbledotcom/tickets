@@ -75,7 +75,9 @@ export const checkinAdminPage = (
 export const checkinPublicPage = (): string =>
   String(
     <Layout title="Check-in">
-      <h1>Check-in</h1>
-      <p>Please show this QR code to an listing administrator to check in.</p>
+      <div class="prose">
+        <h1>Check-in</h1>
+        <p>Please show this QR code to an listing administrator to check in.</p>
+      </div>
     </Layout>,
   );

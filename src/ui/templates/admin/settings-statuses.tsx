@@ -59,14 +59,16 @@ export const adminAttendeeStatusesPage = (
     <Layout title="Attendee Statuses">
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
-      <h1>Attendee Statuses</h1>
-      <p>
-        Statuses track where an attendee is in your workflow. The{" "}
-        <strong>public default</strong> is the status new public bookings start
-        in; if it is a <strong>reservation</strong>, bookings pay a deposit now
-        and the balance later. When a balance is paid the attendee moves to the{" "}
-        <strong>paid</strong> status.
-      </p>
+      <div class="prose">
+        <h1>Attendee Statuses</h1>
+        <p>
+          Statuses track where an attendee is in your workflow. The{" "}
+          <strong>public default</strong> is the status new public bookings
+          start in; if it is a <strong>reservation</strong>, bookings pay a
+          deposit now and the balance later. When a balance is paid the attendee
+          moves to the <strong>paid</strong> status.
+        </p>
+      </div>
       <Flash error={error} success={success} />
       <p class="actions">
         <ActionButton href={`${LIST_PATH}/new`} icon="plus">

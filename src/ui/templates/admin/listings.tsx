@@ -785,12 +785,14 @@ const AttendeesSection = ({
       : "checkin-message-out";
   return (
     <article>
-      <h2 id="attendees">Attendees</h2>
-      {checkinMessage && (
-        <p class={checkedInClass} id="message">
-          Checked {checkinMessage.name} {checkedInLabel}
-        </p>
-      )}
+      <div class="prose">
+        <h2 id="attendees">Attendees</h2>
+        {checkinMessage && (
+          <p class={checkedInClass} id="message">
+            Checked {checkinMessage.name} {checkedInLabel}
+          </p>
+        )}
+      </div>
       {isDaily && availableDates.length > 0 && (
         <Raw
           html={DateSelector({
@@ -833,8 +835,10 @@ const FailedPaymentsSection = ({
   listingId: number;
 }): JSX.Element => (
   <article>
-    <h2 id="failed-payments">Failed Payments</h2>
-    <p>{attendees.length} attendee(s) with unresolved payments</p>
+    <div class="prose">
+      <h2 id="failed-payments">Failed Payments</h2>
+      <p>{attendees.length} attendee(s) with unresolved payments</p>
+    </div>
     <div class="table-scroll">
       <Raw html={FailedPaymentsTable({ attendees, listingId })} />
     </div>
@@ -1143,10 +1147,12 @@ export const adminDuplicateListingPage = (
   return String(
     <Layout title={`Duplicate: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
-      <h2>Duplicate Listing</h2>
-      <p>
-        Creating a new listing based on <strong>{listing.name}</strong>.
-      </p>
+      <div class="prose">
+        <h2>Duplicate Listing</h2>
+        <p>
+          Creating a new listing based on <strong>{listing.name}</strong>.
+        </p>
+      </div>
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
         <Raw html={renderFields(dupFields, values)} />
         <Raw html={renderDayPricesFieldset(listing)} />

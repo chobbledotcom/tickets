@@ -16,13 +16,15 @@ export const CustomDomainForm = (
         action="/admin/settings/custom-domain"
         id="settings-custom-domain"
       >
-        <h2>Custom Domain</h2>
-        <p>
-          Set a custom domain for your tickets site.{" "}
-          <a href="/admin/guide#custom-domain">Setup guide</a>.
-          {s.bunnySubdomain &&
-            " Your host subdomain can be active at the same time as a custom domain."}
-        </p>
+        <div class="prose">
+          <h2>Custom Domain</h2>
+          <p>
+            Set a custom domain for your tickets site.{" "}
+            <a href="/admin/guide#custom-domain">Setup guide</a>.
+            {s.bunnySubdomain &&
+              " Your host subdomain can be active at the same time as a custom domain."}
+          </p>
+        </div>
         <label>
           Domain
           <input

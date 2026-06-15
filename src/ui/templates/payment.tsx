@@ -73,17 +73,19 @@ export const successPage = ({
         data-payment-result={paid ? "success" : undefined}
         data-scroll-into-view={inIframe || undefined}
       >
-        <h1>Thank you for your order.</h1>
-        {fromEmail ? (
-          <p>
-            <small>
-              <i>
-                Your ticket will be sent from {fromEmail} &mdash; please check
-                your Junk/Spam folder.
-              </i>
-            </small>
-          </p>
-        ) : null}
+        <div class="prose">
+          <h1>Thank you for your order.</h1>
+          {fromEmail ? (
+            <p>
+              <small>
+                <i>
+                  Your ticket will be sent from {fromEmail} &mdash; please check
+                  your Junk/Spam folder.
+                </i>
+              </small>
+            </p>
+          ) : null}
+        </div>
         {ticketUrl ? (
           <p>
             <a href={ticketUrl} rel="noopener" target="_blank">
@@ -114,10 +116,13 @@ export const paymentCancelPage = (
   String(
     <Layout title="Payment Cancelled">
       <div data-payment-result="cancel">
-        <h1>Payment Cancelled</h1>
-        <p>
-          Your payment was cancelled. Your ticket reservation has been removed.
-        </p>
+        <div class="prose">
+          <h1>Payment Cancelled</h1>
+          <p>
+            Your payment was cancelled. Your ticket reservation has been
+            removed.
+          </p>
+        </div>
         <p>
           <a class="btn outline" href={ticketUrl}>
             <Icon name="rotate-ccw" />

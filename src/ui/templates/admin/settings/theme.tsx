@@ -8,8 +8,10 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const ThemeForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/theme" id="settings-theme">
-    <h2>Site Theme</h2>
-    <p>Choose between light and dark themes for the site interface.</p>
+    <div class="prose">
+      <h2>Site Theme</h2>
+      <p>Choose between light and dark themes for the site interface.</p>
+    </div>
     <fieldset class="radios">
       <label>
         <input
