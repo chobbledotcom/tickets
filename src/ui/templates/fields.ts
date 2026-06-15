@@ -103,6 +103,7 @@ export type TicketFormValues = {
 export type AddAttendeeFormValues = TicketFormValues & {
   quantity: number;
   date: string;
+  day_count: string;
 };
 
 /** Typed values from login form */
@@ -973,17 +974,34 @@ const addAttendeeDateField: Field = {
   validate: validateDate,
 };
 
+/** Day-count select for adding an attendee to a customisable daily listing. */
+const addAttendeeDayCountField = (dayCounts: number[]): Field => ({
+  label: "Number of days",
+  name: "day_count",
+  options: dayCounts.map((n) => ({
+    label: `${n} day${n === 1 ? "" : "s"}`,
+    value: String(n),
+  })),
+  required: true,
+  type: "select",
+});
+
 /**
  * Get admin add-attendee form fields based on listing config.
- * Includes contact fields (name + email/phone per setting), quantity,
- * and a date field for daily listings.
+ * Includes contact fields (name + email/phone per setting), quantity, a date
+ * field for daily listings, and — for customisable daily listings — a day-count
+ * selector so the manually-added booking reserves the chosen span.
  */
 export const getAddAttendeeFields = (
   fields: ListingFields,
   isDaily: boolean,
+  dayCounts?: number[],
 ): Field[] => {
   const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
+  if (dayCounts && dayCounts.length > 0) {
+    result.push(addAttendeeDayCountField(dayCounts));
+  }
   return result;
 };
 

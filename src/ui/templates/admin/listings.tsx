@@ -833,6 +833,9 @@ const AddAttendeeSection = ({
           getAddAttendeeFields(
             listing.fields,
             listing.listing_type === "daily",
+            listing.customisable_days && listing.listing_type === "daily"
+              ? availableDayCounts(listing)
+              : undefined,
           ),
         )}
       />

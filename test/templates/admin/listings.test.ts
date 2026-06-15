@@ -138,6 +138,24 @@ describe("adminListingPage duration display", () => {
     expect(html).toContain("2 days:");
   });
 
+  test("offers a day-count selector when adding to a customisable daily listing", () => {
+    const listing = testListingWithCount({
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+      listing_type: "daily",
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain('name="day_count"');
+    expect(html).toContain("Number of days");
+  });
+
   test("notes when a customisable listing has no day prices set", () => {
     const listing = testListingWithCount({
       attendee_count: 0,

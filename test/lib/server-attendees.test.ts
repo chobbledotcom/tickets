@@ -33,6 +33,7 @@ import {
   getAttendeesRaw,
   mockFormRequest,
   mockProviderType,
+  rawListingRange,
   setupAdminTest,
   setupListingAndLogin,
   testCookie,
@@ -731,6 +732,38 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
+    });
+
+    test("adds a customisable daily attendee spanning the chosen day count", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0, 3: 0 },
+        durationDays: 3,
+        listingType: "daily",
+        maxAttendees: 100,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/attendee`,
+          {
+            csrf_token: csrfToken,
+            date: "2026-09-10",
+            day_count: "2",
+            email: "jane@example.com",
+            name: "Jane Doe",
+            quantity: "1",
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(response, `/admin/listing/${listing.id}`);
+
+      // The booking reserves the admin's chosen 2 days (10th–11th), not the
+      // listing's maximum of 3.
+      const range = await rawListingRange(listing.id);
+      expect(range!.start_at).toBe("2026-09-10T00:00:00Z");
+      expect(range!.end_at).toBe("2026-09-12T00:00:00.000Z");
     });
 
     test("adds attendee to phone listing", async () => {
