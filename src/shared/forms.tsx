@@ -7,6 +7,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { Icon } from "#templates/components/actions.tsx";
 
 const escapeHtml = (str: string): string =>
@@ -632,6 +633,25 @@ export const CsrfForm = ({
     )}
     {children}
   </form>
+);
+
+/**
+ * The message textarea and submit button shared by the public contact form and
+ * the admin support form. Each form supplies its own surrounding <form> and
+ * heading; the contact form adds its own email input above this.
+ */
+export const MessageFields = (): JSX.Element => (
+  <>
+    <label>
+      Message
+      <textarea
+        maxlength={MAX_TEXTAREA_LENGTH}
+        name="message"
+        required
+      ></textarea>
+    </label>
+    <button type="submit">Send message</button>
+  </>
 );
 
 /**

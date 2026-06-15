@@ -6,6 +6,7 @@ import {
   apiRequest,
   assertJson,
   createTestHoliday,
+  createTestManagerSession,
   describeWithEnv,
   mockRequest,
   requestAsSession,
@@ -55,7 +56,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("returns 404 for non-existent holiday", async () => {
       await assertJson(apiRequest("/api/admin/holidays/99999"), 404, (body) => {
-        expect(body.message).toBe("Holiday not found");
+        expect(body.error).toBe("Holiday not found");
       });
     });
 
@@ -108,7 +109,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -121,7 +122,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("start_date is required");
+          expect(body.error).toBe("start_date is required");
         },
       );
     });
@@ -134,7 +135,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("end_date is required");
+          expect(body.error).toBe("end_date is required");
         },
       );
     });
@@ -151,7 +152,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
+          expect(body.error).toBe(
             "End date must be on or after the start date",
           );
         },
@@ -205,7 +206,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Holiday not found");
+          expect(body.error).toBe("Holiday not found");
         },
       );
     });
@@ -220,7 +221,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name cannot be empty");
+          expect(body.error).toBe("name cannot be empty");
         },
       );
     });
@@ -238,7 +239,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
+          expect(body.error).toBe(
             "End date must be on or after the start date",
           );
         },
@@ -275,7 +276,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("does not match");
+          expect(body.error).toContain("does not match");
         },
       );
 
@@ -292,9 +293,57 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Holiday not found");
+          expect(body.error).toBe("Holiday not found");
         },
       );
+    });
+  });
+
+  // Holiday management is owner-only in the dashboard, so the JSON API must
+  // reject managers too (a cookie-authenticated manager would otherwise reach
+  // owner-gated operations through the API).
+  describe("owner-only authorization", () => {
+    const managerSession = async () => ({
+      cookie: await createTestManagerSession(),
+      csrfToken: await testCsrfToken(),
+    });
+
+    test("rejects a manager listing holidays with 403 Forbidden", async () => {
+      const res = await handleRequest(
+        requestAsSession("/api/admin/holidays", await managerSession()),
+      );
+      expect(res.status).toBe(403);
+      expect((await res.json()).error).toBe("Forbidden");
+    });
+
+    test("rejects a manager creating a holiday with 403", async () => {
+      const res = await handleRequest(
+        requestAsSession("/api/admin/holidays", await managerSession(), {
+          body: JSON.stringify({
+            end_date: "2025-12-26",
+            name: "Blocked",
+            start_date: "2025-12-25",
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(res.status).toBe(403);
+      expect(await getAllHolidays()).toEqual([]);
+    });
+
+    test("rejects a manager deleting a holiday with 403", async () => {
+      const holiday = await createTestHoliday({ name: "Locked" });
+      const res = await handleRequest(
+        requestAsSession(
+          `/api/admin/holidays/${holiday.id}`,
+          await managerSession(),
+          { method: "DELETE" },
+        ),
+      );
+      expect(res.status).toBe(403);
+      // The manager's delete was blocked, so the holiday still exists.
+      expect(await holidaysTable.findById(holiday.id)).toBeDefined();
     });
   });
 });

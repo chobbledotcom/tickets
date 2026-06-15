@@ -2539,12 +2539,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(surviving).not.toBeNull();
 
       // Target should now have both listing links
-      const targetListingLinks = await import("#shared/db/client.ts").then(
-        (m) =>
-          m.queryAll<{ listing_id: number }>(
-            "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-            [target.id],
-          ),
+      const m = await import("#shared/db/client.ts");
+      const targetListingLinks = await m.queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
+        [target.id],
       );
       const listingIds = targetListingLinks.map((r) => r.listing_id).sort();
       expect(listingIds).toEqual([listing1.id, listing2.id].sort());

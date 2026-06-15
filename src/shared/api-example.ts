@@ -87,14 +87,14 @@ export const API_AVAILABILITY_EXAMPLE_JSON: string = JSON.stringify(
 
 /** Example free booking response JSON */
 export const API_BOOK_FREE_EXAMPLE_JSON: string = JSON.stringify(
-  { ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" },
+  { booking: { ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" } },
   null,
   2,
 );
 
 /** Example paid booking response JSON */
 export const API_BOOK_PAID_EXAMPLE_JSON: string = JSON.stringify(
-  { checkoutUrl: "https://checkout.stripe.com/c/pay/cs_live_..." },
+  { booking: { checkoutUrl: "https://checkout.stripe.com/c/pay/cs_live_..." } },
   null,
   2,
 );

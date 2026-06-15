@@ -1,16 +1,25 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   adminFormPost,
   assertFormRedirect,
+  awaitTestRequest,
   createTestListing,
   describeWithEnv,
   expectFlash,
+  expectHtmlResponse,
+  expectRedirectWithFlash,
   installUrlHandler,
   invalidateTestDbCache,
+  mockFormRequest,
+  setupListingAndLogin,
+  testCookie,
+  testRequiresAuth,
   withFetchMock,
 } from "#test-utils";
 
@@ -88,6 +97,96 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       invalidateTestDbCache();
+    });
+
+    testRequiresAuth("/admin/settings/reset-database", {
+      body: {
+        confirm_phrase:
+          "The site will be fully reset and all data will be lost.",
+      },
+      method: "POST",
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+            csrf_token: "invalid-csrf-token",
+          },
+          await testCookie(),
+        ),
+      );
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
+    });
+
+    test("rejects wrong confirmation phrase", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/reset-database",
+        { confirm_phrase: "wrong phrase" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Confirmation phrase does not match"),
+        false,
+      );
+    });
+
+    test("resets database and redirects to setup on correct phrase", async () => {
+      // Create some data first
+      const { cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Test Listing",
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Should redirect to setup page with session cleared
+      expectRedirectWithFlash("/setup/", "Database reset")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toContain("Max-Age=0");
+    });
+
+    test("advanced settings page shows reset database section", async () => {
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200, "Reset Database");
+      expect(html).toContain(
+        "The site will be fully reset and all data will be lost.",
+      );
+      expect(html).toContain("confirm_phrase");
+    });
+  });
+
+  describe("POST /admin/settings/reset-database (confirm phrase)", () => {
+    test("rejects empty confirm phrase", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/reset-database",
+        { confirm_phrase: "" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Confirmation phrase does not match"),
+        false,
+      );
     });
   });
 });

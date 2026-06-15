@@ -191,15 +191,13 @@ function extractExports(filePath: string): string[] {
 console.log("Scanning codebase...\n");
 
 const srcFiles = collectFiles("src").filter(
-  (f) =>
-    !f.startsWith("src/test-utils/") &&
-    !f.startsWith("src/ui/static/") &&
-    !f.endsWith(".d.ts"),
+  (f) => !f.startsWith("src/ui/static/") && !f.endsWith(".d.ts"),
 );
-const testUtilFiles = collectFiles("src/test-utils");
+// Test utilities now live under test/ (test/test-utils/), so they are part of
+// the test file set rather than a separate src group.
 const testFiles = collectFiles("test");
 const scriptFiles = collectFiles("scripts");
-const allFiles = [...srcFiles, ...testFiles, ...testUtilFiles, ...scriptFiles];
+const allFiles = [...srcFiles, ...testFiles, ...scriptFiles];
 
 // Known entry points that are used outside the import graph
 const entryPoints = new Set([
@@ -226,7 +224,7 @@ for (const file of allFiles) {
     if (!resolved?.startsWith("src/")) continue;
 
     let target = resolved;
-    const allSrcFiles = [...srcFiles, ...testUtilFiles];
+    const allSrcFiles = srcFiles;
     if (!allSrcFiles.includes(target)) {
       if (allSrcFiles.includes(`${target}.ts`)) target = `${target}.ts`;
       else if (allSrcFiles.includes(`${target}.tsx`)) target = `${target}.tsx`;
@@ -237,7 +235,7 @@ for (const file of allFiles) {
 
     const info: ImportInfo = { file, names };
 
-    if (file.startsWith("test/") || file.startsWith("src/test-utils/")) {
+    if (file.startsWith("test/")) {
       if (!importedByTest.has(target)) importedByTest.set(target, []);
       importedByTest.get(target)!.push(info);
     } else if (file.startsWith("src/") || file.startsWith("scripts/")) {
