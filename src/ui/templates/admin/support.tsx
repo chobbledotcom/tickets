@@ -15,11 +15,22 @@ import { Layout } from "#templates/layout.tsx";
 
 /** Message form delivering to the platform host (no Botpoison). Just a message
  * box: support always comes from the site's own business email, so there's no
- * address for the operator to enter. */
-const SupportForm = (): JSX.Element => (
+ * address for the operator to enter. When the operator submitted recently, a
+ * notice sits between the box and the button to discourage repeat sends. */
+const SupportForm = ({
+  nagLabel,
+}: {
+  nagLabel: string | null;
+}): JSX.Element => (
   <CsrfForm action="/admin/support">
     <h2>Contact support</h2>
-    <MessageFields />
+    <MessageFields>
+      {nagLabel && (
+        <p>
+          You last submitted this form <strong>{nagLabel}</strong>.
+        </p>
+      )}
+    </MessageFields>
   </CsrfForm>
 );
 
@@ -50,7 +61,6 @@ export const adminSupportPage = (opts: {
           <MissingText />
         )}
       </div>
-      {opts.nagLabel && <p>You last submitted this form {opts.nagLabel}.</p>}
-      {opts.formActive && <SupportForm />}
+      {opts.formActive && <SupportForm nagLabel={opts.nagLabel} />}
     </Layout>,
   );

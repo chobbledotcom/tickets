@@ -604,9 +604,15 @@ export const CsrfForm = ({
 /**
  * The message textarea and submit button shared by the public contact form and
  * the admin support form. Each form supplies its own surrounding <form> and
- * heading; the contact form adds its own email input above this.
+ * heading; the contact form adds its own email input above this. Any `children`
+ * render between the textarea and the submit button (e.g. the support form's
+ * repeat-submit notice).
  */
-export const MessageFields = (): JSX.Element => (
+export const MessageFields = ({
+  children,
+}: {
+  children?: Child;
+}): JSX.Element => (
   <>
     <label>
       Message
@@ -616,6 +622,7 @@ export const MessageFields = (): JSX.Element => (
         required
       ></textarea>
     </label>
+    {children}
     <button type="submit">Send message</button>
   </>
 );
