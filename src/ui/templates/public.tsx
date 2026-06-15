@@ -32,16 +32,19 @@ import {
   type ListingFields,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { Icon } from "#templates/components/actions.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact links when those pages are empty */
+/** Public site navigation - hides terms/contact/quotes links when off/empty */
 const PublicNav = ({
   hasTerms,
   hasContact,
+  hasQuotes,
 }: {
   hasTerms?: boolean;
   hasContact?: boolean;
+  hasQuotes?: boolean;
 }): JSX.Element => (
   <nav>
     <ul>
@@ -51,6 +54,11 @@ const PublicNav = ({
       <li>
         <a href="/listings">Listings</a>
       </li>
+      {hasQuotes && (
+        <li>
+          <a href="/quote">Quotes</a>
+        </li>
+      )}
       {hasTerms && (
         <li>
           <a href="/terms">T&amp;Cs</a>
@@ -67,9 +75,11 @@ const PublicNav = ({
 
 /** Compute which public pages have content.
  * The Contact link also shows when the contact form is active, even if the
- * contact page has no descriptive text of its own. */
+ * contact page has no descriptive text of its own. The Quotes link shows
+ * whenever the owner has enabled the quote page. */
 const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
+  hasQuotes: settings.quoteEnabled,
   hasTerms: !!settings.terms,
 });
 
@@ -659,11 +669,12 @@ const resolveQuantity = (
 
 /** Render quantity selector for an listing row.
  *
- * Note: QR pre-fills are single-listing only and go through
- * renderSingleListingControls, so this function has no prefill parameter. */
+ * An optional per-listing `prefill` pre-selects the quantity (clamped to the
+ * available range) — used by multi-listing scenarios such as the quote cart. */
 const renderListingRow = (
   info: TicketListing,
   hideQuantity = false,
+  prefill?: TicketPrefill,
 ): string => {
   const { listing, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${listing.id}`;
@@ -694,18 +705,19 @@ const renderListingRow = (
     ? `<input type="hidden" name="${fieldName}" value="1" />`
     : `<select name="${fieldName}">${quantityOptions(
         maxPurchasable,
-        0,
+        resolveQuantity(prefill, maxPurchasable),
       )}</select>`;
 
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
+  const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
 
   return `
     <div class="ticket-row">
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
       ${renderListingDescription(listing.description)}
-      ${showPayMore ? renderPayMoreInput(listing, priceFieldName) : ""}
+      ${showPayMore ? renderPayMoreInput(listing, priceFieldName, prefilledPrice) : ""}
     </div>
   `;
 };
@@ -741,17 +753,30 @@ const renderSingleListingControls = (
 const getTicketFieldsSetting = (listings: TicketListing[]): ListingFields =>
   mergeListingFields(listings.map((e) => e.listing.fields));
 
-/** Pre-fill state derived from a signed QR booking link */
-export type QrPrefill = {
-  /** Opaque signed token re-submitted via a hidden input to verify price override */
-  token: string;
+/**
+ * Context-neutral pre-fill for the booking page: per-listing quantities (and
+ * optional price), an optional pre-filled name/date, and — only for signed QR
+ * links — a token re-submitted as a hidden field to authorise a price override.
+ *
+ * This is part of the booking-page framework: any scenario that wants to land a
+ * visitor on a booking form with some listings pre-selected builds one of these.
+ * The QR booking flow sets a single listing plus a `token`; the quote cart sets
+ * many listings (quantity 1 each) and no token.
+ */
+export type BookingPrefill = {
+  /** Per-listing pre-fill — keyed by listing id */
+  listings: Map<number, TicketPrefill>;
   /** Pre-fill name input */
   name?: string;
   /** Pre-fill date selector (for daily listings) */
   date?: string;
-  /** Per-listing pre-fill — keyed by listing id */
-  listings: Map<number, TicketPrefill>;
+  /** Opaque signed token re-submitted via a hidden input to verify a price
+   * override. Only signed QR booking links set this. */
+  token?: string;
 };
+
+/** Alias retained for the signed-QR booking flow, which always sets `token`. */
+export type QrPrefill = BookingPrefill;
 
 /** Options for the ticket page */
 export type TicketPageOptions = {
@@ -765,7 +790,7 @@ export type TicketPageOptions = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
-  qrPrefill?: QrPrefill;
+  prefill?: BookingPrefill;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
 };
@@ -839,7 +864,7 @@ const TicketPageForm = ({
   questions,
   questionListingMap,
   terms,
-  qrPrefill,
+  prefill,
 }: {
   slugs: string[];
   actionUrl?: string;
@@ -856,19 +881,19 @@ const TicketPageForm = ({
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
   terms: string | null | undefined;
-  qrPrefill?: QrPrefill;
+  prefill?: BookingPrefill;
 }): JSX.Element => {
   const fieldValues: Record<string, string> = {};
-  if (qrPrefill?.name) fieldValues.name = qrPrefill.name;
+  if (prefill?.name) fieldValues.name = prefill.name;
   return (
     <CsrfForm action={actionUrl ?? `/ticket/${slugs.join("+")}`}>
-      {qrPrefill && (
-        <input name="qr_token" type="hidden" value={qrPrefill.token} />
+      {prefill?.token && (
+        <input name="qr_token" type="hidden" value={prefill.token} />
       )}
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (
         <Raw
-          html={renderDateSelector(dates, qrPrefill?.date ?? "", durationDays)}
+          html={renderDateSelector(dates, prefill?.date ?? "", durationDays)}
         />
       )}
       {hasCustomisable && (
@@ -935,7 +960,7 @@ export const ticketPage = ({
   baseUrl,
   groupName,
   groupDescription,
-  qrPrefill,
+  prefill,
   actionUrl,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
@@ -959,14 +984,23 @@ export const ticketPage = ({
     availableListings[0]?.maxPurchasable === 1;
 
   // For single listings, render just the quantity/pay-more controls (listing details are in the header).
-  // QR pre-fills only apply to single-listing pages, so multi-listing rows ignore them.
+  // Both single- and multi-listing rows honour per-listing quantity pre-fills,
+  // so QR links (single) and the quote cart (multi) share the same machinery.
   const listingRows = isSingleListing
     ? renderSingleListingControls(
         listings[0]!,
         hideQuantity,
-        qrPrefill?.listings.get(listings[0]!.listing.id),
+        prefill?.listings.get(listings[0]!.listing.id),
       )
-    : listings.map((e) => renderListingRow(e, hideQuantity)).join("");
+    : listings
+        .map((e) =>
+          renderListingRow(
+            e,
+            hideQuantity,
+            prefill?.listings.get(e.listing.id),
+          ),
+        )
+        .join("");
 
   // Unified header. When the caller supplies group metadata (groups, renewals),
   // it takes priority over single-listing details — the caller knows best what
@@ -1011,13 +1045,106 @@ export const ticketPage = ({
           hideQuantity={hideQuantity}
           isSingleListing={isSingleListing}
           listingRows={listingRows}
-          qrPrefill={qrPrefill}
+          prefill={prefill}
           questionListingMap={questionListingMap}
           questions={questions}
           slugs={slugs}
           terms={terms}
         />
       )}
+    </Layout>,
+  );
+};
+
+/**
+ * One product card in the quote gallery. A `<label>` wraps a hidden checkbox so
+ * the whole card toggles selection with no JavaScript; CSS highlights the card
+ * via `:checked`. Sold-out / closed / read-only products render a dimmed,
+ * non-selectable card so they can't be added to a quote.
+ */
+const renderQuoteCard = (info: TicketListing): string => {
+  const { listing, isSoldOut, isClosed } = info;
+  const imageHtml = renderListingImage(listing, "quote-card-image");
+  const priceHtml =
+    listing.unit_price > 0
+      ? `<span class="quote-card-price">${
+          listing.can_pay_more ? "From " : ""
+        }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
+      : "";
+
+  if (isSoldOut || isClosed || isReadOnly()) {
+    const status = isSoldOut && !isClosed ? "Sold Out" : "Unavailable";
+    return `<div class="quote-card quote-card--unavailable">
+        ${imageHtml}
+        <span class="quote-card-body">
+          <span class="quote-card-name">${escapeHtml(listing.name)}</span>
+          <span class="quote-card-status">${status}</span>
+        </span>
+      </div>`;
+  }
+
+  const fieldName = `select_${listing.id}`;
+  return `<label class="quote-card" for="${fieldName}">
+      <input class="quote-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
+      ${imageHtml}
+      <span class="quote-card-body">
+        <span class="quote-card-name">${escapeHtml(listing.name)}</span>
+        ${priceHtml}
+      </span>
+      <span class="quote-card-tick" aria-hidden="true"></span>
+    </label>`;
+};
+
+/**
+ * Quote gallery page — a grid of "purchase only" products the visitor selects to
+ * request a quote. The whole page is one CSRF-protected form: each card is a
+ * checkbox and the floating cart is the submit button, so `POST /quote` renders
+ * the booking page with the chosen products pre-selected. Selection styling and
+ * the live item count are pure CSS (`:checked`, a counter, and `:has()`), so the
+ * page needs no JavaScript. The cart button is placed last in the DOM so its CSS
+ * counter sees every checkbox.
+ */
+export const quoteGalleryPage = (
+  listings: TicketListing[],
+  websiteTitle?: string | null,
+  introText?: string | null,
+): string => {
+  const title = websiteTitle ? `Quotes - ${websiteTitle}` : "Quotes";
+  const cards = pipe(map(renderQuoteCard), (rows: string[]) => rows.join(""))(
+    listings,
+  );
+
+  return String(
+    <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav {...navFlags()} />
+      {introText && (
+        <div class="prose">
+          <Raw html={renderMarkdown(introText)} />
+        </div>
+      )}
+      {listings.length === 0 ? (
+        <p>
+          <em>No products are available to quote right now.</em>
+        </p>
+      ) : (
+        <CsrfForm action="/quote" class="quote-gallery">
+          <fieldset class="quote-grid">
+            <legend class="visually-hidden">Select products to quote</legend>
+            <Raw html={cards} />
+          </fieldset>
+          <button class="quote-cart" type="submit">
+            <Icon name="shopping-cart" />
+            <span aria-hidden="true" class="quote-cart-count"></span>
+            <span class="quote-cart-label">Request a quote</span>
+          </button>
+        </CsrfForm>
+      )}
+      <footer class="homepage-footer">
+        <p>
+          <a href="/admin/login">Login</a>
+        </p>
+      </footer>
     </Layout>,
   );
 };

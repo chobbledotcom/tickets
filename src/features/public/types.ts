@@ -7,7 +7,7 @@ import type {
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import type { QrPrefill, TicketListing } from "#templates/public.tsx";
+import type { BookingPrefill, TicketListing } from "#templates/public.tsx";
 
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {
@@ -20,7 +20,7 @@ export type TicketCtx = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
-  qrPrefill?: QrPrefill;
+  prefill?: BookingPrefill;
   /** Override the form action and error redirect URL (e.g. `/renew/?t=...`).
    * Defaults to `/ticket/<slugs>` when unset. */
   actionUrl?: string;

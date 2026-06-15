@@ -26,7 +26,7 @@ import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
-import type { TicketListing } from "#templates/public.tsx";
+import type { BookingPrefill, TicketListing } from "#templates/public.tsx";
 import {
   buildListingAnswerMap,
   extractContact,
@@ -380,55 +380,120 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
     },
   );
 
-/** Handle ticket GET/POST orchestrator */
-export const handleTicket = async (
-  request: Request,
-  actionSlugs: string[],
-  activeListings: TicketListing[],
-  getContext: TicketContextProvider,
-  qrPrefill?: TicketCtx["qrPrefill"],
-): Promise<Response> => {
+/**
+ * Inputs to the booking-page framework: the listings to offer, a context
+ * provider that derives the fields/dates/questions/terms from them, the slugs
+ * that form the default `/ticket/<slugs>` action, and an optional per-listing
+ * pre-fill. Shared by {@link renderBookingPage} and {@link handleTicket} so the
+ * booking "request" has a single named shape across every scenario.
+ */
+export type BookingRequest = {
+  request: Request;
+  /** Slugs forming the default `/ticket/<slugs>` form action. */
+  slugs: string[];
+  listings: TicketListing[];
+  getContext: TicketContextProvider;
+  prefill?: TicketCtx["prefill"];
+};
+
+/** Build the rendering context shared by the render and submit paths: derive
+ * the booking context from the listings and mint a fresh CSRF token. */
+const buildTicketCtx = async ({
+  request,
+  slugs,
+  listings,
+  getContext,
+  prefill,
+}: BookingRequest): Promise<TicketCtx> => {
   const [sharedCtx] = await Promise.all([
-    getContext(activeListings),
+    getContext(listings),
     signCsrfToken(),
   ]);
-  const ctx: TicketCtx = {
+  return {
     baseUrl: getBaseUrl(request),
-    listings: activeListings,
-    slugs: actionSlugs,
+    listings,
+    slugs,
     ...sharedCtx,
-    qrPrefill,
+    prefill,
   };
-  const response =
-    request.method === "GET"
-      ? ticketResponse(ctx)(applyFlash(request).error)
-      : await submitTicket(request, ctx);
-  const anyHidden = activeListings.some((e) => e.listing.hidden);
-  return applyHiddenNoindex(response, anyHidden);
 };
+
+/**
+ * Spine of the booking-page framework: build the context for `args`, hand it to
+ * `respond` to produce the body (render or submit), and apply the
+ * hidden-listing noindex signal. Each scenario differs only in `respond`.
+ */
+const respondWithBooking = async (
+  args: BookingRequest,
+  respond: (ctx: TicketCtx) => Response | Promise<Response>,
+): Promise<Response> => {
+  const ctx = await buildTicketCtx(args);
+  const body = await respond(ctx);
+  return applyHiddenNoindex(
+    body,
+    args.listings.some((e) => e.listing.hidden),
+  );
+};
+
+/**
+ * Render (never submit) a booking page for the given listings. Use when a
+ * non-GET request needs to *show* the booking form rather than process it —
+ * e.g. the quote cart POSTs a product selection, and we render the booking page
+ * with those products pre-filled. The form's own `actionUrl` (via context)
+ * decides where the visitor's eventual submission goes.
+ */
+export const renderBookingPage = (args: BookingRequest): Promise<Response> =>
+  respondWithBooking(args, (ctx) =>
+    ticketResponse(ctx)(applyFlash(args.request).error),
+  );
+
+/** Handle ticket GET/POST orchestrator: render on GET, submit otherwise. */
+export const handleTicket = (args: BookingRequest): Promise<Response> =>
+  args.request.method === "GET"
+    ? renderBookingPage(args)
+    : respondWithBooking(args, (ctx) => submitTicket(args.request, ctx));
 
 /** Handle ticket page by slugs (multi-listing) */
 export const handleTicketBySlugs = (
   request: Request,
   slugs: string[],
 ): Promise<Response> =>
-  withActiveListings(slugs, (activeListings) =>
-    handleTicket(request, slugs, activeListings, getTicketContext),
+  withActiveListings(slugs, (listings) =>
+    handleTicket({ getContext: getTicketContext, listings, request, slugs }),
   );
 
-/** Curried: build capacity-aware TicketListings and hand off to handleTicket with
- * shared context. Caller supplies the listings; `group` flows into getTicketContext
- * and `overrides` win over its result (e.g. for renewal's actionUrl/siteToken). */
+/**
+ * The booking-page framework entrypoint: render a booking page for an arbitrary
+ * set of listings, letting {@link getTicketContext} derive the fields, dates,
+ * questions and terms from the listings themselves. Every booking scenario
+ * funnels through here — single listing, multi-listing, group, and the quote
+ * page — so they share one rendering and submission path.
+ *
+ * Caller supplies the listings; `group` flows into getTicketContext, `overrides`
+ * win over its result (e.g. renewal's actionUrl/siteToken, or the quote page's
+ * header + action), and `prefill` pre-selects per-listing quantities (the quote
+ * cart's selected products).
+ */
 export const renderTicketFlow =
   (
     request: Request,
     slugs: string[],
-    options: { group?: Group; overrides?: Partial<TicketSharedContext> } = {},
+    options: {
+      group?: Group;
+      overrides?: Partial<TicketSharedContext>;
+      prefill?: BookingPrefill;
+    } = {},
   ) =>
   async (listings: ListingWithCount[]): Promise<Response> => {
     const activeListings = await buildTicketListingsWithGroupCapacity(listings);
-    return handleTicket(request, slugs, activeListings, async (e) => ({
-      ...(await getTicketContext(e, options.group)),
-      ...options.overrides,
-    }));
+    return handleTicket({
+      getContext: async (e) => ({
+        ...(await getTicketContext(e, options.group)),
+        ...options.overrides,
+      }),
+      listings: activeListings,
+      prefill: options.prefill,
+      request,
+      slugs,
+    });
   };

@@ -88,6 +88,10 @@ const loadTicketRoutes = lazyExport(
   () => import("#routes/public/ticket-routes.ts"),
   "routeTicket",
 );
+const loadQuoteRoutes = lazyExport(
+  () => import("#routes/public/quote.ts"),
+  "routeQuote",
+);
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
   "routePayment",
@@ -332,6 +336,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   join: lazyRoute(loadJoinRoutes),
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
+  quote: lazyRoute(loadQuoteRoutes),
   "read-only": (_request, path, method) =>
     path === "/read-only" && method === "GET"
       ? Promise.resolve(htmlResponse(readOnlyPage()))

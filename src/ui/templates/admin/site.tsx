@@ -2,7 +2,11 @@
  * Admin site page editor templates
  */
 
-import { siteContactForm, siteHomeForm } from "#routes/admin/site.ts";
+import {
+  siteContactForm,
+  siteHomeForm,
+  siteQuoteForm,
+} from "#routes/admin/site.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -19,6 +23,9 @@ const SiteSubNav = (): JSX.Element => (
       </li>
       <li>
         <a href="/admin/site/contact">Contact</a>
+      </li>
+      <li>
+        <a href="/admin/site/quotes">Quotes</a>
       </li>
     </ul>
   </nav>
@@ -152,5 +159,83 @@ export const adminSiteContactPage = (
         enabled={contactForm.enabled}
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
+    </Layout>,
+  );
+
+/** State of the optional public quote page feature */
+interface QuotePageState {
+  /** Whether the owner has enabled the quote page */
+  enabled: boolean;
+  /** Number of active, visible, purchase-only products available to quote */
+  productCount: number;
+}
+
+/** Note about how many products will appear on the quote page (or a warning
+ * when there are none, since the page would render empty). */
+const QuoteProductsNote = ({
+  productCount,
+}: {
+  productCount: number;
+}): JSX.Element =>
+  productCount === 0 ? (
+    <p class="error" role="alert">
+      You have no purchase-only products yet. Mark a listing as “Purchase Only”
+      for it to appear on the quote page.
+    </p>
+  ) : (
+    <p>
+      <small>
+        {productCount} purchase-only{" "}
+        {productCount === 1 ? "product" : "products"} will be shown on the quote
+        page.
+      </small>
+    </p>
+  );
+
+/**
+ * Quote page editor — toggle the public `/quote` gallery on/off and edit the
+ * intro text shown above the product grid.
+ */
+export const adminSiteQuotePage = (
+  session: AdminSession,
+  introText: string,
+  state: QuotePageState,
+  error?: string,
+  success?: string,
+): string =>
+  String(
+    <Layout title="Site - Quotes">
+      <AdminNav active="/admin/site" session={session} />
+      <SiteSubNav />
+
+      <Flash error={error} success={success} />
+
+      <div class="prose">
+        <h2>Quote Page</h2>
+        <p>
+          Publish a <code>/quote</code> page that shows your purchase-only
+          products in a gallery. Visitors tick the products they want and submit
+          a quote request — a booking page pre-filled with their selection.
+        </p>
+        <QuoteProductsNote productCount={state.productCount} />
+      </div>
+
+      <CsrfForm action="/admin/site/quotes/toggle">
+        <label>
+          <input
+            checked={state.enabled}
+            name="quote_enabled"
+            type="checkbox"
+            value="true"
+          />{" "}
+          Enable quote page
+        </label>
+        <SubmitButton icon="save">Save</SubmitButton>
+      </CsrfForm>
+
+      <CsrfForm action="/admin/site/quotes">
+        <Raw html={siteQuoteForm.render({ quote_intro_text: introText })} />
+        <SubmitButton icon="save">Save</SubmitButton>
+      </CsrfForm>
     </Layout>,
   );

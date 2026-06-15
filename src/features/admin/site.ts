@@ -12,6 +12,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -23,6 +24,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
+  adminSiteQuotePage,
 } from "#templates/admin/site.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 
@@ -66,6 +68,29 @@ export const siteContactForm = defineForm({
   ] as const,
   id: "siteContact",
 });
+
+export const siteQuoteForm = defineForm({
+  fields: [
+    {
+      hintHtml: `Shown at the top of the public quote page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      id: "quote_intro_text",
+      label: "Quote Page Intro",
+      markdown: true,
+      maxlength: MAX_TEXTAREA_LENGTH,
+      name: "quote_intro_text",
+      placeholder: "Pick the products you're interested in...",
+      type: "textarea" as const,
+    },
+  ] as const,
+  id: "siteQuote",
+});
+
+/** Count active, visible, purchase-only products eligible for the quote page. */
+const countQuoteProducts = async (): Promise<number> => {
+  const listings = await getAllListings();
+  return listings.filter((e) => e.active && !e.hidden && e.purchase_only)
+    .length;
+};
 
 type PageRenderer = (
   session: AuthSession,
@@ -160,11 +185,53 @@ const handleSiteContactPost = settingsHandler({
       : null,
 });
 
+/** Handle GET /admin/site/quotes - quote page editor (owner only).
+ * Loads the live product count so the editor can warn when there is nothing to
+ * show, then renders the toggle + intro-text forms. */
+const handleSiteQuoteGet = (request: Request): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const flash = applyFlash(request);
+    const productCount = await countQuoteProducts();
+    return htmlResponse(
+      adminSiteQuotePage(
+        session,
+        settings.quoteIntroText,
+        { enabled: settings.quoteEnabled, productCount },
+        flash.error,
+        flash.success,
+      ),
+    );
+  });
+
+/** Handle POST /admin/site/quotes/toggle - enable/disable the public quote page */
+const handleSiteQuoteTogglePost = settingsToggle({
+  field: "quote_enabled",
+  label: "Quote page",
+  redirectTo: "/admin/site/quotes",
+  save: (v) => settings.update.quoteEnabled(v),
+});
+
+/** Handle POST /admin/site/quotes - save the quote page intro text */
+const handleSiteQuotePost = settingsHandler({
+  extract: (form) => form.getString("quote_intro_text"),
+  label: "Quote page",
+  log: () => "Quote page updated",
+  redirectTo: "/admin/site/quotes",
+  save: (v) => settings.update.quoteIntroText(v),
+  validate: (v) =>
+    v.length > MAX_TEXTAREA_LENGTH
+      ? `Quote intro must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      : null,
+});
+
 /** Site editor routes */
 export const siteRoutes = defineRoutes({
   "GET /admin/site": siteGetRoute(renderHomePage),
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
+  "GET /admin/site/quotes": handleSiteQuoteGet,
   "POST /admin/site": handleSiteHomePost,
   "POST /admin/site/contact": handleSiteContactPost,
   "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
+  "POST /admin/site/quotes": handleSiteQuotePost,
+  "POST /admin/site/quotes/toggle": handleSiteQuoteTogglePost,
 });

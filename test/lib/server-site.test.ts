@@ -270,6 +270,134 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/site/quotes", () => {
+    testRequiresAuth("/admin/site/quotes");
+
+    test("shows quote editor when authenticated", async () => {
+      const response = await awaitTestRequest("/admin/site/quotes", {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Quote Page",
+        "quote_enabled",
+        "Enable quote page",
+        "quote_intro_text",
+      );
+    });
+
+    test("warns when there are no purchase-only products", async () => {
+      const response = await awaitTestRequest("/admin/site/quotes", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("no purchase-only products");
+    });
+
+    test("counts purchase-only products and ignores other listings", async () => {
+      const { createTestListing } = await import("#test-utils");
+      await createTestListing({ name: "Mug", purchaseOnly: true });
+      await createTestListing({ name: "Regular Ticket" });
+      const response = await awaitTestRequest("/admin/site/quotes", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("1 purchase-only product will be shown");
+      expect(html).not.toContain("no purchase-only products");
+    });
+
+    test("pluralises the product count for multiple products", async () => {
+      const { createTestListing } = await import("#test-utils");
+      await createTestListing({ name: "Mug", purchaseOnly: true });
+      await createTestListing({ name: "Tote", purchaseOnly: true });
+      const response = await awaitTestRequest("/admin/site/quotes", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("2 purchase-only products will be shown");
+    });
+
+    test("displays existing intro text", async () => {
+      await settings.update.quoteIntroText("Pick your products");
+      const response = await awaitTestRequest("/admin/site/quotes", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("Pick your products");
+    });
+
+    test("reflects the enabled state in the checkbox", async () => {
+      await settings.update.quoteEnabled(true);
+      const response = await awaitTestRequest("/admin/site/quotes", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(hasCheckedInput(html, "quote_enabled", "true")).toBe(true);
+    });
+  });
+
+  describe("POST /admin/site/quotes", () => {
+    testRequiresAuth("/admin/site/quotes", {
+      body: { quote_intro_text: "Hi" },
+      method: "POST",
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/site/quotes",
+          { csrf_token: "invalid", quote_intro_text: "Hi" },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("saves the quote intro text", async () => {
+      const { response } = await adminFormPost("/admin/site/quotes", {
+        quote_intro_text: "Browse our range",
+      });
+      expectRedirectContaining(response, "Quote page updated");
+      expect(settings.quoteIntroText).toBe("Browse our range");
+    });
+
+    test("rejects intro text exceeding max length", async () => {
+      const { response } = await adminFormPost("/admin/site/quotes", {
+        quote_intro_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
+      expectRedirectWithFlash(
+        "/admin/site/quotes",
+        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
+        false,
+      )(response);
+    });
+  });
+
+  describe("POST /admin/site/quotes/toggle", () => {
+    testRequiresAuth("/admin/site/quotes/toggle", {
+      body: { quote_enabled: "true" },
+      method: "POST",
+    });
+
+    test("enables the quote page", async () => {
+      const { response } = await adminFormPost("/admin/site/quotes/toggle", {
+        quote_enabled: "true",
+      });
+      expectRedirect(response, "/admin/site/quotes");
+      expectFlash(response, "Quote page enabled");
+      expect(settings.quoteEnabled).toBe(true);
+    });
+
+    test("disables the quote page when the box is unchecked", async () => {
+      await settings.update.quoteEnabled(true);
+      const { response } = await adminFormPost("/admin/site/quotes/toggle", {});
+      expectRedirect(response, "/admin/site/quotes");
+      expectFlash(response, "Quote page disabled");
+      expect(settings.quoteEnabled).toBe(false);
+    });
+  });
+
   describe("site subnav", () => {
     /** Fetch a site admin page and assert it contains subnav links */
     const expectSubnav = async (path: string) => {
@@ -279,16 +407,22 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
       expect(html).toContain('href="/admin/site/contact"');
+      expect(html).toContain('href="/admin/site/quotes"');
       expect(html).toContain("Homepage");
       expect(html).toContain("Contact");
+      expect(html).toContain("Quotes");
     };
 
-    test("homepage shows subnav with Homepage and Contact links", async () => {
+    test("homepage shows subnav with Homepage, Contact and Quotes links", async () => {
       await expectSubnav("/admin/site");
     });
 
-    test("contact page shows subnav with Homepage and Contact links", async () => {
+    test("contact page shows subnav with Homepage, Contact and Quotes links", async () => {
       await expectSubnav("/admin/site/contact");
+    });
+
+    test("quote page shows subnav with Homepage, Contact and Quotes links", async () => {
+      await expectSubnav("/admin/site/quotes");
     });
   });
 
