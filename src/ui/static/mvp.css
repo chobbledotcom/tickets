@@ -521,6 +521,13 @@ input[type="submit"],
   color: var(--color-link);
 }
 
+/* Compact button, e.g. for "Back to …" navigation links */
+.btn.small {
+  font-size: small;
+  font-weight: normal;
+  padding: 0.1rem var(--space-s);
+}
+
 /* Inline SVG icons from the sprite, sized to the current text */
 .icon {
   flex: none;

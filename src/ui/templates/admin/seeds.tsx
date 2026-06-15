@@ -7,7 +7,7 @@ import { seedsForm } from "#routes/admin/seeds.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Seed data admin page */
@@ -20,18 +20,20 @@ export const adminSeedsPage = (
     <Layout title="Seed Data">
       <AdminNav active="" session={session} />
       <CsrfForm action="/admin/seeds">
-        <h1>Seed Data</h1>
-        <p>
-          Create sample listings and attendees from demo data. Useful for
-          testing and development.
-        </p>
+        <div class="prose">
+          <h1>Seed Data</h1>
+          <p>
+            Create sample listings and attendees from demo data. Useful for
+            testing and development.
+          </p>
+        </div>
         <Flash error={error} success={success} />
         <Raw html={seedsForm.render()} />
         <SubmitButton icon="plus">Create Seed Data</SubmitButton>
       </CsrfForm>
 
       <p>
-        <a href="/admin">&larr; Back to dashboard</a>
+        <BackButton href="/admin">Back to dashboard</BackButton>
       </p>
     </Layout>,
   );

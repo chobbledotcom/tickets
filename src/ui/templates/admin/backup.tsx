@@ -59,10 +59,12 @@ export const adminBackupPage = (
     <Layout title="Database Backup">
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
-      <h1>Database Backup &amp; Restore</h1>
-      <p class="actions">
-        <GuideLink href="/admin/guide#backups">Backup guide</GuideLink>
-      </p>
+      <div class="prose">
+        <h1>Database Backup &amp; Restore</h1>
+        <p class="actions">
+          <GuideLink href="/admin/guide#backups">Backup guide</GuideLink>
+        </p>
+      </div>
       <Flash error={error} success={success} />
 
       {!state.isRemote && (
@@ -84,11 +86,13 @@ export const adminBackupPage = (
       )}
 
       <section>
-        <h2>Encryption Key</h2>
-        <p>
-          You will need this key to restore a backup to a different site. Store
-          it securely — it cannot be recovered.
-        </p>
+        <div class="prose">
+          <h2>Encryption Key</h2>
+          <p>
+            You will need this key to restore a backup to a different site.
+            Store it securely — it cannot be recovered.
+          </p>
+        </div>
         <pre>
           <code>{state.encryptionKey}</code>
         </pre>
@@ -97,12 +101,14 @@ export const adminBackupPage = (
       {state.storageEnabled && (
         <>
           <section>
-            <h2>Create Backup</h2>
-            <p>
-              Creates a .zip archive containing a .sql file for each database
-              table. Backups are not encrypted (the sensitive contents are
-              already encrypted at the field level).
-            </p>
+            <div class="prose">
+              <h2>Create Backup</h2>
+              <p>
+                Creates a .zip archive containing a .sql file for each database
+                table. Backups are not encrypted (the sensitive contents are
+                already encrypted at the field level).
+              </p>
+            </div>
             <CsrfForm
               action="/admin/backup/create"
               class="no-bg"
@@ -151,11 +157,13 @@ export const adminBackupPage = (
           </section>
 
           <section>
-            <h2>Restore from Backup</h2>
-            <p>
-              <strong>Warning:</strong> Restoring will delete all current data
-              and replace it with the backup contents. This cannot be undone.
-            </p>
+            <div class="prose">
+              <h2>Restore from Backup</h2>
+              <p>
+                <strong>Warning:</strong> Restoring will delete all current data
+                and replace it with the backup contents. This cannot be undone.
+              </p>
+            </div>
             <CsrfForm
               action="/admin/backup/restore"
               enctype="multipart/form-data"

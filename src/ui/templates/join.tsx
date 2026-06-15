@@ -18,8 +18,10 @@ export const joinPage = (
   String(
     <Layout title="Set Your Password">
       <CsrfForm action={`/join/${code}`}>
-        <h1>Welcome, {username}</h1>
-        <p>Set your password to complete your account setup.</p>
+        <div class="prose">
+          <h1>Welcome, {username}</h1>
+          <p>Set your password to complete your account setup.</p>
+        </div>
         <Flash error={error} />
         <Raw html={joinForm.render()} />
         <button type="submit">Set Password</button>

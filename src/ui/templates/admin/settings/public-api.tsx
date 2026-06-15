@@ -11,12 +11,14 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
     action="/admin/settings/show-public-api"
     id="settings-show-public-api"
   >
-    <h2>Enable public API?</h2>
-    <p>
-      Exposes a JSON API for listing listings, checking availability, and
-      creating bookings. See the <a href="/admin/guide#api">API guide</a> for
-      details.
-    </p>
+    <div class="prose">
+      <h2>Enable public API?</h2>
+      <p>
+        Exposes a JSON API for listing listings, checking availability, and
+        creating bookings. See the <a href="/admin/guide#api">API guide</a> for
+        details.
+      </p>
+    </div>
     <fieldset class="radios">
       <label>
         <input

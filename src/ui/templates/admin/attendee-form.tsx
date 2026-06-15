@@ -281,11 +281,13 @@ const EmailHistory = ({
 /** Render the "Merge Attendee" section (edit mode only). */
 const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
   <article>
-    <h3>Merge Attendee</h3>
-    <p>
-      Search for another attendee by their ticket token and merge their listing
-      registrations into this attendee.
-    </p>
+    <div class="prose">
+      <h3>Merge Attendee</h3>
+      <p>
+        Search for another attendee by their ticket token and merge their
+        listing registrations into this attendee.
+      </p>
+    </div>
     <form
       action={`/admin/attendees/${attendee.id}/merge`}
       class="inline-row"

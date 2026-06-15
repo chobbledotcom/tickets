@@ -14,15 +14,17 @@ export const ConfirmationEmailTemplateForm = (
     action="/admin/settings/email-templates/confirmation"
     id="settings-email-tpl-confirmation"
   >
-    <h2>Confirmation Email Template</h2>
-    <p>
-      Customise the registration confirmation email sent to attendees (
-      <a href="/admin/guide#email-templates">template guide</a>). Uses{" "}
-      <a href="https://liquidjs.com/" rel="noopener" target="_blank">
-        Liquid
-      </a>{" "}
-      template syntax. Leave blank to use the default template.
-    </p>
+    <div class="prose">
+      <h2>Confirmation Email Template</h2>
+      <p>
+        Customise the registration confirmation email sent to attendees (
+        <a href="/admin/guide#email-templates">template guide</a>). Uses{" "}
+        <a href="https://liquidjs.com/" rel="noopener" target="_blank">
+          Liquid
+        </a>{" "}
+        template syntax. Leave blank to use the default template.
+      </p>
+    </div>
     <details>
       <summary>Available variables</summary>
       <table>

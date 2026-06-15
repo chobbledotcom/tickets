@@ -8,11 +8,13 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
-    <h2>Only allow embedding on these hosts</h2>
-    <p>
-      Restrict which websites can embed your booking forms in an iframe. Leave
-      blank to allow embedding from any site.
-    </p>
+    <div class="prose">
+      <h2>Only allow embedding on these hosts</h2>
+      <p>
+        Restrict which websites can embed your booking forms in an iframe. Leave
+        blank to allow embedding from any site.
+      </p>
+    </div>
     <label>
       Hosts (comma-separated)
       <input

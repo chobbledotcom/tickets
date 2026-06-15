@@ -11,11 +11,13 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
     action="/admin/settings/business-email"
     id="settings-business-email"
   >
-    <h2>Business Email</h2>
-    <p>
-      This email will be included in webhook notifications and used as the
-      reply-to address for automated emails.
-    </p>
+    <div class="prose">
+      <h2>Business Email</h2>
+      <p>
+        This email will be included in webhook notifications and used as the
+        reply-to address for automated emails.
+      </p>
+    </div>
     <label>
       Business Email
       <input

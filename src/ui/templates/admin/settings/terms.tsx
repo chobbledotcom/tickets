@@ -11,8 +11,10 @@ import { FORMATTING_HINT } from "#templates/fields.ts";
 
 export const TermsForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/terms" id="settings-terms">
-    <h2>Terms and Conditions</h2>
-    <p>If set, users must agree to these terms before reserving tickets.</p>
+    <div class="prose">
+      <h2>Terms and Conditions</h2>
+      <p>If set, users must agree to these terms before reserving tickets.</p>
+    </div>
     <label>
       Terms and Conditions
       <p>

@@ -9,8 +9,10 @@ import { changePasswordFields } from "#templates/fields.ts";
 
 export const ChangePasswordForm = (): JSX.Element => (
   <CsrfForm action="/admin/settings" id="settings-password">
-    <h2>Change Password</h2>
-    <p>Changing your password will log you out of all sessions.</p>
+    <div class="prose">
+      <h2>Change Password</h2>
+      <p>Changing your password will log you out of all sessions.</p>
+    </div>
     <Raw html={renderFields(changePasswordFields)} />
     <SubmitButton icon="save">Change Password</SubmitButton>
   </CsrfForm>

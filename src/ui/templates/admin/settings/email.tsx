@@ -13,11 +13,13 @@ export const EmailNotificationsForm = (
 ): JSX.Element => (
   <>
     <CsrfForm action="/admin/settings/email" id="settings-email">
-      <h2>Email Notifications</h2>
-      <p>
-        Send confirmation emails to attendees and admin notifications when
-        registrations come in. <a href="/admin/guide#email">Setup guide</a>.
-      </p>
+      <div class="prose">
+        <h2>Email Notifications</h2>
+        <p>
+          Send confirmation emails to attendees and admin notifications when
+          registrations come in. <a href="/admin/guide#email">Setup guide</a>.
+        </p>
+      </div>
       <label>
         Email Provider
         <select name="email_provider">

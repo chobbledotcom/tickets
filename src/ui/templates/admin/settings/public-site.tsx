@@ -11,11 +11,13 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
     action="/admin/settings/show-public-site"
     id="settings-show-public-site"
   >
-    <h2>Show public site?</h2>
-    <p>
-      When enabled, the homepage will show a public website with navigation for
-      Home, Listings, T&amp;Cs and Contact pages.
-    </p>
+    <div class="prose">
+      <h2>Show public site?</h2>
+      <p>
+        When enabled, the homepage will show a public website with navigation
+        for Home, Listings, T&amp;Cs and Contact pages.
+      </p>
+    </div>
     <fieldset class="radios">
       <label>
         <input

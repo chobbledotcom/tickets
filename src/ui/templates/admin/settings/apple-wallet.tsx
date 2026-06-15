@@ -9,17 +9,19 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 
 export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <CsrfForm action="/admin/settings/apple-wallet" id="settings-apple-wallet">
-    <h2>Apple Wallet</h2>
-    <p>
-      Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
-      Wallet&rdquo; button on ticket pages.{" "}
-      <a href="/admin/guide#apple-wallet">Setup guide</a>.
-      {s.hostAppleWalletLabel && !s.appleWalletConfigured
-        ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
-        : s.hostAppleWalletLabel && s.appleWalletConfigured
-          ? ` Overriding: ${s.hostAppleWalletLabel}.`
-          : ""}
-    </p>
+    <div class="prose">
+      <h2>Apple Wallet</h2>
+      <p>
+        Configure Apple Wallet pass signing to show an &ldquo;Add to Apple
+        Wallet&rdquo; button on ticket pages.{" "}
+        <a href="/admin/guide#apple-wallet">Setup guide</a>.
+        {s.hostAppleWalletLabel && !s.appleWalletConfigured
+          ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
+          : s.hostAppleWalletLabel && s.appleWalletConfigured
+            ? ` Overriding: ${s.hostAppleWalletLabel}.`
+            : ""}
+      </p>
+    </div>
     <label>
       Pass Type ID
       <input

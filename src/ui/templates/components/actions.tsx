@@ -86,6 +86,25 @@ export const SubmitButton = ({
 );
 
 /**
+ * A compact, button-styled "Back to …" navigation link. Renders a leading
+ * arrow-left icon followed by the label (e.g. "Back to attendee"). Pair the
+ * `href` with the destination and pass the label as children — omit the arrow
+ * glyph, the icon supplies it.
+ */
+export const BackButton = ({
+  href,
+  children,
+}: {
+  href: string;
+  children?: Child;
+}): SafeHtml => (
+  <a class="btn small" href={href}>
+    <Icon name="arrow-left" />
+    <span>{children}</span>
+  </a>
+);
+
+/**
  * A consistent, understated link to a help/guide section. Renders a book icon
  * followed by the label in muted text.
  */

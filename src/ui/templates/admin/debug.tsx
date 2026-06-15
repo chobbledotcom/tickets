@@ -364,11 +364,13 @@ const LimitsSection = ({
   limits: DebugPageState["limits"];
 }): JSX.Element => (
   <article>
-    <h2>Limits</h2>
-    <p>
-      Override any limit with the corresponding environment variable. Values
-      must be positive integers.
-    </p>
+    <div class="prose">
+      <h2>Limits</h2>
+      <p>
+        Override any limit with the corresponding environment variable. Values
+        must be positive integers.
+      </p>
+    </div>
     <table>
       <thead>
         <tr>
@@ -402,11 +404,14 @@ const PruneSection = ({
   prune: DebugPageState["prune"];
 }): JSX.Element => (
   <article>
-    <h2>Database pruning</h2>
-    <p>
-      Automatic cleanup of short-lived rows. Runs in the background on incoming
-      requests; frequency controlled by <code>PRUNE_INTERVAL_HOURS</code>.
-    </p>
+    <div class="prose">
+      <h2>Database pruning</h2>
+      <p>
+        Automatic cleanup of short-lived rows. Runs in the background on
+        incoming requests; frequency controlled by{" "}
+        <code>PRUNE_INTERVAL_HOURS</code>.
+      </p>
+    </div>
     <table>
       <thead>
         <tr>
@@ -444,11 +449,13 @@ export const adminDebugPage = (
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
-      <h1>Debug Info</h1>
-      <p>
-        Configuration status overview for troubleshooting. No secrets or keys
-        are shown.
-      </p>
+      <div class="prose">
+        <h1>Debug Info</h1>
+        <p>
+          Configuration status overview for troubleshooting. No secrets or keys
+          are shown.
+        </p>
+      </div>
 
       <BuildSection build={s.build} />
       <AppleWalletSection appleWallet={s.appleWallet} />

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
 import {
   ActionButton,
+  BackButton,
   GuideLink,
   Icon,
   SubmitButton,
@@ -87,6 +88,18 @@ describe("SubmitButton", () => {
       }),
     );
     expect(html).toContain('id="listing-edit-submit"');
+  });
+});
+
+describe("BackButton", () => {
+  test("renders a compact button-styled link with a back-arrow icon", () => {
+    const html = String(
+      BackButton({ children: "Back to attendee", href: "/admin/attendees/7" }),
+    );
+    expect(html).toContain('class="btn small"');
+    expect(html).toContain('href="/admin/attendees/7"');
+    expect(html).toContain(`href="${ICONS_PATH}#arrow-left"`);
+    expect(html).toContain("<span>Back to attendee</span>");
   });
 });
 
