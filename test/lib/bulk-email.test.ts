@@ -297,7 +297,33 @@ describe("summarizeProviderResponse", () => {
 });
 
 describe("mailto and unsubscribe footers", () => {
-  test("buildMailtoLink BCCs everyone with subject and body", () => {
+  test("buildMailtoLink addresses a lone recipient directly without BCC", () => {
+    // One recipient: there's no one to hide them from, so put them in To.
+    expect(buildMailtoLink(["a@b.com"], "Hi there", "Body & more")).toBe(
+      "mailto:a%40b.com?subject=Hi%20there&body=Body%20%26%20more",
+    );
+  });
+
+  test("buildMailtoLink addresses a lone recipient directly even with a business email", () => {
+    expect(buildMailtoLink(["a@b.com"], "Hi", "Body", "owner@biz.com")).toBe(
+      "mailto:a%40b.com?subject=Hi&body=Body",
+    );
+  });
+
+  test("buildMailtoLink BCCs several recipients from the business email", () => {
+    expect(
+      buildMailtoLink(
+        ["a@b.com", "c@d.com"],
+        "Hi there",
+        "Body & more",
+        "owner@biz.com",
+      ),
+    ).toBe(
+      "mailto:owner%40biz.com?bcc=a%40b.com,c%40d.com&subject=Hi%20there&body=Body%20%26%20more",
+    );
+  });
+
+  test("buildMailtoLink leaves To empty for several recipients with no business email", () => {
     expect(
       buildMailtoLink(["a@b.com", "c@d.com"], "Hi there", "Body & more"),
     ).toBe(
