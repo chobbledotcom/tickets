@@ -15,6 +15,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 42.7,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("43ms");
   });
@@ -24,6 +25,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
     expect(html).toContain("Chobble Tickets</a>");
@@ -34,6 +36,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("<details>");
     expect(html).toContain("<summary>");
@@ -46,6 +49,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("<footer");
     expect(html).toContain("</footer>");
@@ -56,6 +60,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).toContain('class="debug-footer"');
   });
@@ -68,6 +73,7 @@ describe("debugFooterHtml", () => {
         { durationMs: 3.1, sql: "SELECT * FROM users WHERE id = ?" },
       ],
       renderTimeMs: 20,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("SELECT * FROM listings");
     expect(html).toContain("5.2ms");
@@ -80,6 +86,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [{ durationMs: 1.0, sql: "SELECT '<script>' FROM t" }],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
@@ -90,6 +97,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 5,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("0 queries");
     expect(html).not.toContain("SQL queries");
@@ -103,6 +111,7 @@ describe("debugFooterHtml", () => {
         { durationMs: 15, sql: "SELECT 2" },
       ],
       renderTimeMs: 50,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("2 queries 25ms");
   });
@@ -112,6 +121,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [{ durationMs: 5, sql: "SELECT 1" }],
       renderTimeMs: 20,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("1 query 5ms");
   });
@@ -124,6 +134,7 @@ describe("debugFooterHtml", () => {
         { durationMs: 20, sql: "SELECT 2" },
       ],
       renderTimeMs: 100,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("sql 50.0ms");
     expect(html).toContain("other 50.0ms");
@@ -137,6 +148,7 @@ describe("debugFooterHtml", () => {
       ],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("Caches (2)");
     expect(html).toContain("sessions: 3");
@@ -151,6 +163,7 @@ describe("debugFooterHtml", () => {
       ],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).toContain("15 cached");
   });
@@ -160,6 +173,7 @@ describe("debugFooterHtml", () => {
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).not.toContain("Caches");
   });
@@ -169,9 +183,20 @@ describe("debugFooterHtml", () => {
       cacheStats: [{ entries: 1, name: "<script>" }],
       queries: [],
       renderTimeMs: 10,
+      uptimeSeconds: 0,
     });
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+
+  test("shows app uptime in whole seconds in the summary", () => {
+    const html = debugFooterHtml({
+      cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
+      uptimeSeconds: 1234.7,
+    });
+    expect(html).toContain("up 1235s");
   });
 });
 
@@ -189,6 +214,14 @@ describe("renderDebugFooter", () => {
       expect(html).toContain('<footer class="debug-footer">');
       expect(html).toContain("Chobble Tickets");
       expect(html).toContain("ms");
+    });
+  });
+
+  test("includes the app uptime gathered from the runtime", () => {
+    runWithQueryLogContext(() => {
+      enableQueryLog();
+      const html = renderDebugFooter();
+      expect(html).toMatch(/up \d+s/);
     });
   });
 });

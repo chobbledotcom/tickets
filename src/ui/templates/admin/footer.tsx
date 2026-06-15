@@ -10,12 +10,14 @@ import {
   isQueryLogEnabled,
   type QueryLogEntry,
 } from "#shared/db/query-log.ts";
+import { getUptimeSeconds } from "#shared/uptime.ts";
 
 /** Data passed to the footer renderer */
 export type DebugFooterData = {
   readonly renderTimeMs: number;
   readonly queries: QueryLogEntry[];
   readonly cacheStats: CacheStat[];
+  readonly uptimeSeconds: number;
 };
 
 const sumDurations = reduce(
@@ -33,7 +35,7 @@ const renderCacheStat = (stat: CacheStat): string =>
 
 /** Render the admin debug footer as an HTML string for injection before </body> */
 export const debugFooterHtml = (data: DebugFooterData): string => {
-  const { renderTimeMs, queries, cacheStats } = data;
+  const { renderTimeMs, queries, cacheStats, uptimeSeconds } = data;
   const totalSqlMs = sumDurations(queries);
   const otherMs = renderTimeMs - totalSqlMs;
   const totalCacheEntries = reduce(
@@ -49,7 +51,8 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
     ` &middot; ${queries.length} quer${queries.length === 1 ? "y" : "ies"} ${totalSqlMs.toFixed(
       0,
     )}ms` +
-    ` &middot; ${totalCacheEntries} cached</summary>` +
+    ` &middot; ${totalCacheEntries} cached` +
+    ` &middot; up ${uptimeSeconds.toFixed(0)}s</summary>` +
     `<p>Render: ${renderTimeMs.toFixed(1)}ms` +
     ` (sql ${totalSqlMs.toFixed(1)}ms + other ${otherMs.toFixed(1)}ms)</p>` +
     (queries.length > 0
@@ -85,6 +88,7 @@ export const renderDebugFooter = (): string =>
         cacheStats: getAllCacheStats(),
         queries: getQueryLog(),
         renderTimeMs: performance.now() - getQueryLogStartTime(),
+        uptimeSeconds: getUptimeSeconds(),
       })
     : "";
 
