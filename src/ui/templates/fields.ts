@@ -763,12 +763,12 @@ export const attachmentField: Field = {
 
 /** Slug field for listing/group edit pages */
 export const slugField: Field = {
-  hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
+  hint: "URL-friendly identifier (lowercase letters, numbers, hyphens, and underscores). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   label: "Slug",
   name: "slug",
-  pattern: "[a-z0-9-]+",
+  pattern: "[a-z0-9_-]+",
   required: true,
-  title: "Lowercase letters, numbers, and hyphens only",
+  title: "Lowercase letters, numbers, hyphens, and underscores only",
   type: "text",
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 };

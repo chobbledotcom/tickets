@@ -74,6 +74,9 @@ describe("slug", () => {
   });
 
   describe("validateSlug", () => {
+    const INVALID_SLUG_MESSAGE =
+      "Slug must be lowercase letters and numbers separated by single hyphens or underscores";
+
     test("returns null for valid slug", () => {
       expect(validateSlug("my-listing-123")).toBeNull();
     });
@@ -90,26 +93,36 @@ describe("slug", () => {
       expect(validateSlug("my-listing")).toBeNull();
     });
 
+    test("returns null for slug with underscores", () => {
+      expect(validateSlug("my_listing")).toBeNull();
+    });
+
     test("returns error for empty slug", () => {
       expect(validateSlug("")).toBe("Slug is required");
     });
 
     test("returns error for slug with uppercase letters", () => {
-      expect(validateSlug("My-Listing")).toBe(
-        "Slug may only contain lowercase letters, numbers, and hyphens",
-      );
+      expect(validateSlug("My-Listing")).toBe(INVALID_SLUG_MESSAGE);
     });
 
     test("returns error for slug with spaces", () => {
-      expect(validateSlug("my listing")).toBe(
-        "Slug may only contain lowercase letters, numbers, and hyphens",
-      );
+      expect(validateSlug("my listing")).toBe(INVALID_SLUG_MESSAGE);
     });
 
     test("returns error for slug with special characters", () => {
-      expect(validateSlug("my_listing!")).toBe(
-        "Slug may only contain lowercase letters, numbers, and hyphens",
-      );
+      expect(validateSlug("my-listing!")).toBe(INVALID_SLUG_MESSAGE);
+    });
+
+    test("returns error for slug with a leading hyphen", () => {
+      expect(validateSlug("-my-listing")).toBe(INVALID_SLUG_MESSAGE);
+    });
+
+    test("returns error for slug with a trailing hyphen", () => {
+      expect(validateSlug("my-listing-")).toBe(INVALID_SLUG_MESSAGE);
+    });
+
+    test("returns error for slug with consecutive separators", () => {
+      expect(validateSlug("my--listing")).toBe(INVALID_SLUG_MESSAGE);
     });
   });
 });

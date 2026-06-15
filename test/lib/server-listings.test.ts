@@ -1114,7 +1114,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        "Slug may only contain lowercase letters, numbers, and hyphens",
+        "Slug must be lowercase letters and numbers separated by single hyphens or underscores",
       );
     });
 
