@@ -11,11 +11,11 @@
  * for a different spam-protection provider to be added in future.
  */
 
-import { parseEmail, type ValidEmail } from "#shared/business-email.ts";
 import { getBotpoisonPublicKey, getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /**
  * Whether the public contact form should be rendered and accept submissions:

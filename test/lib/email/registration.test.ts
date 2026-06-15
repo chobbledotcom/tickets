@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateBusinessEmail } from "#shared/business-email.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
+import { updateBusinessEmail } from "#shared/validation/email.ts";
 import {
   describeWithEnv,
   makeTestEntry as makeEntry,

@@ -4,11 +4,6 @@
  */
 
 import { chunk, lazyRef, map } from "#fp";
-import {
-  emailHost,
-  parseEmail,
-  type ValidEmail,
-} from "#shared/business-email.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -20,6 +15,11 @@ import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
+import {
+  emailHost,
+  parseEmail,
+  type ValidEmail,
+} from "#shared/validation/email.ts";
 import type { WebhookAttendee, WebhookListing } from "#shared/webhook.ts";
 
 /** Listing data needed for registration pipeline (extends webhook listing with display + assignment fields) */

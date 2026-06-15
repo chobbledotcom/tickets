@@ -10,7 +10,7 @@
  * @module
  */
 
-export * from "#shared/business-email.ts";
 export * from "#shared/email.ts";
 export * from "#shared/email-renderer.ts";
 export * from "#shared/ntfy.ts";
+export * from "#shared/validation/email.ts";

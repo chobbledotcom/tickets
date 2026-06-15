@@ -1,11 +1,18 @@
 import { settings } from "#shared/db/settings.ts";
 
 /**
+ * Email validation — the single source of truth for what counts as a valid
+ * email address across the app, plus the branded ValidEmail type and helpers
+ * for working with one. Other value-type validators (phone, slug, …) can follow
+ * the same shape (REGEX + ValidXxx + parseXxx + isValidXxx + normalizeXxx) if a
+ * shared validation/ folder is ever warranted.
+ */
+
+/**
  * Canonical email-address format used across the app: `local@host.tld`. More
  * permissive than strict RFC 5322, but it guarantees a non-empty local part and
- * a host containing at least one dot. This is the single source of truth — all
- * email validation goes through it (see isValidBusinessEmail / parseEmail and
- * validateEmail in #templates/fields.ts).
+ * a host containing at least one dot. All email validation goes through it (see
+ * isValidEmail / parseEmail and validateEmail in #templates/fields.ts).
  */
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -20,21 +27,19 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export type ValidEmail = string & { readonly __validEmail: unique symbol };
 
-/**
- * Validates a basic email format: something@something.something
- */
-export function isValidBusinessEmail(email: string): boolean {
+/** Whether a string is a valid email (trimmed) per EMAIL_REGEX. */
+export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email.trim());
 }
 
 /**
  * Parse and normalize a candidate email, returning the branded ValidEmail when
- * it is valid or null otherwise. Use this in preference to isValidBusinessEmail
- * when the validated address needs to be carried onward in a type-safe way.
+ * it is valid or null otherwise. Use this in preference to isValidEmail when the
+ * validated address needs to be carried onward in a type-safe way.
  */
 export function parseEmail(email: string): ValidEmail | null {
-  const normalized = normalizeBusinessEmail(email);
-  return isValidBusinessEmail(normalized) ? (normalized as ValidEmail) : null;
+  const normalized = normalizeEmail(email);
+  return isValidEmail(normalized) ? (normalized as ValidEmail) : null;
 }
 
 /**
@@ -51,10 +56,8 @@ export function emailLocalPart(email: ValidEmail): string {
   return email.slice(0, email.lastIndexOf("@"));
 }
 
-/**
- * Normalizes email: trim and lowercase
- */
-export function normalizeBusinessEmail(email: string): string {
+/** Normalizes an email: trim and lowercase. */
+export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
@@ -69,9 +72,9 @@ export async function updateBusinessEmail(email: string): Promise<void> {
     return;
   }
 
-  const normalized = normalizeBusinessEmail(email);
+  const normalized = normalizeEmail(email);
 
-  if (!isValidBusinessEmail(normalized)) {
+  if (!isValidEmail(normalized)) {
     throw new Error("Invalid business email format");
   }
 

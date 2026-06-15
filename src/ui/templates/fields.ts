@@ -2,7 +2,6 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
-import { EMAIL_REGEX } from "#shared/business-email.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -31,6 +30,7 @@ import {
   type ListingType,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
+import { EMAIL_REGEX } from "#shared/validation/email.ts";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces

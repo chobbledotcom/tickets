@@ -1,8 +1,3 @@
-import {
-  emailLocalPart,
-  parseEmail,
-  type ValidEmail,
-} from "#shared/business-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
@@ -13,6 +8,11 @@ import { getEnv } from "#shared/env.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { SuperuserChoice } from "#shared/types.ts";
+import {
+  emailLocalPart,
+  parseEmail,
+  type ValidEmail,
+} from "#shared/validation/email.ts";
 import { validateUsername } from "#templates/fields.ts";
 
 export type SuperuserState =

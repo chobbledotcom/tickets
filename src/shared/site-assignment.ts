@@ -8,7 +8,6 @@ import { sort } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { parseEmail, type ValidEmail } from "#shared/business-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
@@ -31,6 +30,7 @@ import {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {

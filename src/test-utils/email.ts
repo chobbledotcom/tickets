@@ -1,4 +1,4 @@
-import { parseEmail, type ValidEmail } from "#shared/business-email.ts";
+import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /**
  * Brand a known-valid address as ValidEmail for tests. Throws when the literal

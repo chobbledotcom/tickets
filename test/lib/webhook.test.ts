@@ -222,7 +222,9 @@ describe("webhook", () => {
     });
 
     test("includes business_email when set", async () => {
-      const { updateBusinessEmail } = await import("#shared/business-email.ts");
+      const { updateBusinessEmail } = await import(
+        "#shared/validation/email.ts"
+      );
       await updateBusinessEmail("contact@example.com");
 
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");

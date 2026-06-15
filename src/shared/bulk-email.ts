@@ -9,7 +9,6 @@
  */
 
 import { compact, filter, map, pipe, sort, unique, uniqueBy } from "#fp";
-import { parseEmail } from "#shared/business-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
@@ -31,6 +30,7 @@ import {
   isRecord,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { parseEmail } from "#shared/validation/email.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
 

@@ -1,103 +1,95 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  isValidBusinessEmail,
-  normalizeBusinessEmail,
-  updateBusinessEmail,
-} from "#shared/business-email.ts";
 import { settings } from "#shared/db/settings.ts";
+import {
+  isValidEmail,
+  normalizeEmail,
+  updateBusinessEmail,
+} from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("business-email", { db: true }, () => {
-  describe("isValidBusinessEmail", () => {
+  describe("isValidEmail", () => {
     test("accepts valid email", () => {
-      expect(isValidBusinessEmail("test@example.com")).toBe(true);
+      expect(isValidEmail("test@example.com")).toBe(true);
     });
 
     test("accepts email with subdomain", () => {
-      expect(isValidBusinessEmail("contact@mail.example.com")).toBe(true);
+      expect(isValidEmail("contact@mail.example.com")).toBe(true);
     });
 
     test("accepts email with plus sign", () => {
-      expect(isValidBusinessEmail("user+tag@example.com")).toBe(true);
+      expect(isValidEmail("user+tag@example.com")).toBe(true);
     });
 
     test("accepts email with numbers", () => {
-      expect(isValidBusinessEmail("user123@example456.com")).toBe(true);
+      expect(isValidEmail("user123@example456.com")).toBe(true);
     });
 
     test("accepts email with hyphens in domain", () => {
-      expect(isValidBusinessEmail("user@my-domain.com")).toBe(true);
+      expect(isValidEmail("user@my-domain.com")).toBe(true);
     });
 
     test("accepts email with uppercase letters", () => {
-      expect(isValidBusinessEmail("User@Example.Com")).toBe(true);
+      expect(isValidEmail("User@Example.Com")).toBe(true);
     });
 
     test("accepts email with dots in local part", () => {
-      expect(isValidBusinessEmail("first.last@example.com")).toBe(true);
+      expect(isValidEmail("first.last@example.com")).toBe(true);
     });
 
     test("rejects email without @", () => {
-      expect(isValidBusinessEmail("notanemail")).toBe(false);
+      expect(isValidEmail("notanemail")).toBe(false);
     });
 
     test("rejects email without domain", () => {
-      expect(isValidBusinessEmail("test@")).toBe(false);
+      expect(isValidEmail("test@")).toBe(false);
     });
 
     test("rejects email without local part", () => {
-      expect(isValidBusinessEmail("@example.com")).toBe(false);
+      expect(isValidEmail("@example.com")).toBe(false);
     });
 
     test("rejects email without TLD", () => {
-      expect(isValidBusinessEmail("test@example")).toBe(false);
+      expect(isValidEmail("test@example")).toBe(false);
     });
 
     test("rejects empty string", () => {
-      expect(isValidBusinessEmail("")).toBe(false);
+      expect(isValidEmail("")).toBe(false);
     });
 
     test("rejects whitespace only", () => {
-      expect(isValidBusinessEmail("   ")).toBe(false);
+      expect(isValidEmail("   ")).toBe(false);
     });
 
     test("rejects email with spaces", () => {
-      expect(isValidBusinessEmail("test @example.com")).toBe(false);
+      expect(isValidEmail("test @example.com")).toBe(false);
     });
 
     test("rejects email with multiple @", () => {
-      expect(isValidBusinessEmail("test@@example.com")).toBe(false);
+      expect(isValidEmail("test@@example.com")).toBe(false);
     });
 
     test("trims whitespace before validation", () => {
-      expect(isValidBusinessEmail("  test@example.com  ")).toBe(true);
+      expect(isValidEmail("  test@example.com  ")).toBe(true);
     });
   });
 
-  describe("normalizeBusinessEmail", () => {
+  describe("normalizeEmail", () => {
     test("trims whitespace", () => {
-      expect(normalizeBusinessEmail("  test@example.com  ")).toBe(
-        "test@example.com",
-      );
+      expect(normalizeEmail("  test@example.com  ")).toBe("test@example.com");
     });
 
     test("converts to lowercase", () => {
-      expect(normalizeBusinessEmail("Test@Example.Com")).toBe(
-        "test@example.com",
-      );
+      expect(normalizeEmail("Test@Example.Com")).toBe("test@example.com");
     });
 
     test("trims and lowercases together", () => {
-      expect(normalizeBusinessEmail("  USER@EXAMPLE.COM  ")).toBe(
-        "user@example.com",
-      );
+      expect(normalizeEmail("  USER@EXAMPLE.COM  ")).toBe("user@example.com");
     });
 
     test("handles already normalized email", () => {
-      expect(normalizeBusinessEmail("user@example.com")).toBe(
-        "user@example.com",
-      );
+      expect(normalizeEmail("user@example.com")).toBe("user@example.com");
     });
   });
 
