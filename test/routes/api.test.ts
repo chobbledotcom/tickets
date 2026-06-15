@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -42,6 +43,38 @@ const jsonBody = (response: Response): Promise<Record<string, unknown>> =>
 const expectCorsHeaders = (response: Response): void => {
   expect(response.headers.get("access-control-allow-origin")).toBe("*");
 };
+
+/**
+ * Shape of a public listing as returned by the JSON API (mirrors the
+ * production `PublicListing` type). `strictObject` rejects any unexpected key,
+ * so a leaked internal field (id, max_attendees, hidden, …) fails the parse —
+ * which is what the "does not expose internal fields" test relies on. JSON
+ * object keys are strings, so `dayPrices` is keyed by string here.
+ */
+const PublicListingSchema = v.strictObject({
+  ...v.entriesFromList(
+    ["description", "fields", "listingType", "name", "slug"],
+    v.string(),
+  ),
+  ...v.entriesFromList(["maxPrice", "maxPurchasable", "unitPrice"], v.number()),
+  ...v.entriesFromList(
+    [
+      "canPayMore",
+      "customisableDays",
+      "isClosed",
+      "isSoldOut",
+      "nonTransferable",
+      "purchaseOnly",
+    ],
+    v.boolean(),
+  ),
+  ...v.entriesFromList(
+    ["date", "imageUrl", "location"],
+    v.nullable(v.string()),
+  ),
+  availableDates: v.optional(v.array(v.string())),
+  dayPrices: v.optional(v.record(v.string(), v.number())),
+});
 
 describeWithEnv("Public API", { db: true }, () => {
   beforeEach(async () => {
@@ -171,24 +204,10 @@ describeWithEnv("Public API", { db: true }, () => {
     test("does not expose internal fields", async () => {
       await createTestListing();
       const { listings } = await fetchListingsList();
-      const listing = listings[0]!;
-      // Should NOT have internal fields
-      expect(listing.id).toBeUndefined();
-      expect(listing.max_attendees).toBeUndefined();
-      expect(listing.attendee_count).toBeUndefined();
-      expect(listing.closes_at).toBeUndefined();
-      expect(listing.slug_index).toBeUndefined();
-      expect(listing.group_id).toBeUndefined();
-      expect(listing.webhook_url).toBeUndefined();
-      expect(listing.thank_you_url).toBeUndefined();
-      expect(listing.hidden).toBeUndefined();
-      expect(listing.active).toBeUndefined();
-      // Should have public fields
-      expect(listing.name).toBeDefined();
-      expect(listing.slug).toBeDefined();
-      expect(listing.isSoldOut).toBe(false);
-      expect(listing.isClosed).toBe(false);
-      expect(typeof listing.maxPurchasable).toBe("number");
+      // The strict schema requires every public field with the right type and
+      // rejects any internal one (id, max_attendees, hidden, …), so a leak —
+      // or a missing/mistyped public field — fails the parse.
+      expect(() => v.parse(PublicListingSchema, listings[0])).not.toThrow();
     });
 
     test("sets isSoldOut when listing is at capacity", async () => {
@@ -263,7 +282,7 @@ describeWithEnv("Public API", { db: true }, () => {
       });
       const { response, body } = await fetchListingBySlug(listing.slug);
       expect(response.status).toBe(200);
-      const apiListing = body.listing as Record<string, unknown>;
+      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.name).toBe("My Listing");
       expect(apiListing.description).toBe("Hello");
       expectCorsHeaders(response);
@@ -282,7 +301,7 @@ describeWithEnv("Public API", { db: true }, () => {
         durationDays: 2,
       });
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = body.listing as Record<string, unknown>;
+      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.customisableDays).toBe(true);
       expect(apiListing.dayPrices).toEqual({ 1: 1000, 2: 1800 });
     });
@@ -290,7 +309,7 @@ describeWithEnv("Public API", { db: true }, () => {
     test("omits day prices for a fixed-duration listing", async () => {
       const listing = await createTestListing({ name: "Fixed" });
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = body.listing as Record<string, unknown>;
+      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.customisableDays).toBe(false);
       expect(apiListing.dayPrices).toBeUndefined();
     });
@@ -309,16 +328,15 @@ describeWithEnv("Public API", { db: true }, () => {
       });
       const { response, body } = await fetchListingBySlug(listing.slug);
       expect(response.status).toBe(200);
-      expect((body.listing as Record<string, unknown>).name).toBe(
-        "Hidden Listing",
-      );
+      const apiListing = v.parse(PublicListingSchema, body.listing);
+      expect(apiListing.name).toBe("Hidden Listing");
     });
 
     test("includes availableDates for daily listings", async () => {
       const listing = await createDailyTestListing();
       const { response, body } = await fetchListingBySlug(listing.slug);
       expect(response.status).toBe(200);
-      const apiListing = body.listing as Record<string, unknown>;
+      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.listingType).toBe("daily");
       expect(Array.isArray(apiListing.availableDates)).toBe(true);
     });
@@ -326,7 +344,7 @@ describeWithEnv("Public API", { db: true }, () => {
     test("does not include availableDates for standard listings", async () => {
       const listing = await createTestListing();
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = body.listing as Record<string, unknown>;
+      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.availableDates).toBeUndefined();
     });
   });
@@ -551,8 +569,8 @@ describeWithEnv("Public API", { db: true }, () => {
       const listing = await createDailyTestListing();
       // Get available dates
       const { body: detail } = await fetchListingBySlug(listing.slug);
-      const dates = (detail.listing as Record<string, unknown>)
-        .availableDates as string[];
+      const dates =
+        v.parse(PublicListingSchema, detail.listing).availableDates ?? [];
       expect(dates.length).toBeGreaterThan(0);
 
       const { response, body } = await bookListing(listing.slug, {
