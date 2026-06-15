@@ -23,7 +23,7 @@ describe("i18n", () => {
     test("interpolates values using ICU MessageFormat", () => {
       // Use a key with known ICU parameters
       expect(t("admin.attendees.refund_all_confirm", { name: "Gala" })).toBe(
-        'To refund all attendees, you must type the event name "Gala" into the box below:',
+        'To refund all attendees, you must type the listing name "Gala" into the box below:',
       );
     });
 

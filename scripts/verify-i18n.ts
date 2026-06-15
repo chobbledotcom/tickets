@@ -36,10 +36,6 @@ const sh = (cmd: string, args: string[]): string => {
   return success ? new TextDecoder().decode(stdout) : "";
 };
 
-/** The added `import { t } from "#i18n";` line (ignored when comparing). */
-const isTImport = (l: string): boolean =>
-  /^\s*import\s+\{[^}]*\bt\b[^}]*\}\s+from\s+["']#i18n["'];?\s*$/.test(l);
-
 /** Does a param-less t() call still remain (i.e. an unreversible ICU/param call)? */
 const HAS_T_CALL = /(?<![A-Za-z0-9_$])t\(/;
 
@@ -136,15 +132,16 @@ const check = (file: string, expect: string[]): Result => {
   if (!diff.trim()) {
     lines.push("  [B] skip  no changes vs origin/main");
   } else {
-    // Collapse all whitespace away (JSX trims whitespace around {expr}/elements,
-    // so source spacing isn't rendered), unify string delimiters, and drop
-    // trailing commas before a closing bracket (code structure, not English —
-    // e.g. wiring can collapse a multi-line call and lose its trailing comma).
+    // Reduce a block to comparable English content: unify string delimiters,
+    // drop all whitespace (JSX trims it around {expr}/elements) and code
+    // structure (brackets/parens and trailing commas) that wiring/biome can
+    // add or remove without changing rendered English.
     const nb = (s: string): string =>
       s
         .replace(/[`'"]/g, '"')
         .replace(/\s+/g, "")
-        .replace(/,(?=[)\]}])/g, "");
+        .replace(/,(?=[)\]}])/g, "")
+        .replace(/[(){}[\]]/g, "");
     type Hunk = { added: string[]; removed: string[] };
     const hunks: Hunk[] = [];
     let cur: Hunk | null = null;
@@ -158,15 +155,19 @@ const check = (file: string, expect: string[]): Result => {
     }
     const mismatches: string[] = [];
     let paramUnverified = 0;
+    const isImport = (l: string): boolean => /^\s*import\b/.test(l);
     for (const h of hunks) {
-      const added = h.added.filter((a) => !isTImport(a));
-      if (!added.length && !h.removed.length) continue; // bare t-import hunk
+      // Import lines never hold user-facing English (and wiring adds the t
+      // import / may reorder others), so compare only non-import lines.
+      const added = h.added.filter((a) => !isImport(a));
+      const removed = h.removed.filter((r) => !isImport(r));
+      if (!added.length && !removed.length) continue; // import-only hunk
       const u = untranslateLine(added.join(" "));
       if (HAS_T_CALL.test(u)) {
         paramUnverified++; // ICU/param call — not textually reversible
         continue;
       }
-      if (nb(u) !== nb(h.removed.join(" "))) {
+      if (nb(u) !== nb(removed.join(" "))) {
         mismatches.push(added.join(" ").trim().slice(0, 100));
       }
     }
