@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { updateBusinessEmail } from "#shared/business-email.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
+import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("getEmailConfig", { db: true }, () => {

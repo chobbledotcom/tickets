@@ -30,6 +30,7 @@ import {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /** Entry with the fields needed for site assignment */
 type SiteAssignmentEntry = {
@@ -386,7 +387,7 @@ const siteSetupUrl = (siteUrl: string): string => {
 
 /** Send site assignment notification email */
 const sendSiteAssignmentEmail = async (
-  to: string,
+  to: ValidEmail,
   assignments: SiteAssignment[],
 ): Promise<void> => {
   const config = getEmailConfig() ?? getHostEmailConfig();
@@ -413,7 +414,7 @@ const sendSiteAssignmentEmail = async (
     .map((a) => `- ${a.listingName}: ${siteSetupUrl(a.siteUrl)}`)
     .join("\n");
 
-  const replyTo = settings.businessEmail || undefined;
+  const replyTo = parseEmail(settings.businessEmail) ?? undefined;
   await sendEmail(config, {
     html: `<p>${greeting}</p><p>${activationNote}</p><ul>${htmlList}</ul>`,
     replyTo,
@@ -433,6 +434,7 @@ export const assignAndNotifyBuiltSites = async (
   const assignments = await assignSitesForEntries(entries);
   if (assignments.length === 0) return;
 
-  const email = entries[0]!.attendee.email;
+  const email = parseEmail(entries[0]!.attendee.email);
+  if (!email) return;
   await sendSiteAssignmentEmail(email, assignments);
 };

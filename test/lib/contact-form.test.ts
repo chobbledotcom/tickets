@@ -147,24 +147,25 @@ describe("sendContactMessage", () => {
     });
 
     const result = await sendContactMessage(
-      "visitor@example.com",
+      "visitor@external.test",
       "Hello there",
     );
 
     expect(result).toBe(true);
     expect(captured.url).toBe("https://api.resend.com/emails");
     expect(captured.body.to).toEqual(["owner@example.com"]);
-    expect(captured.body.reply_to).toBe("visitor@example.com");
+    expect(captured.body.reply_to).toBe("visitor@external.test");
     expect(String(captured.body.text)).toContain("Hello there");
     expect(String(captured.body.text)).toContain("tickets.example.com");
     expect(String(captured.body.html)).toContain("Hello there");
+    expect(String(captured.body.html)).not.toContain("spoof");
   });
 
-  test("uses the from address as Reply-To and warns when the submitter claims the owner's own email", async () => {
+  test("warns about spoofing the owner when the submitter shares the business email host", async () => {
     settings.setForTest({
       business_email: "owner@example.com",
       email_api_key: "re_test_key",
-      email_from_address: "sender@example.com",
+      email_from_address: "sender@sending.test",
       email_provider: "resend",
     });
     const captured = { body: {} as Record<string, unknown> };
@@ -173,12 +174,40 @@ describe("sendContactMessage", () => {
       return Promise.resolve(new Response(null, { status: 200 }));
     });
 
-    const result = await sendContactMessage("OWNER@example.com", "Hi me");
+    const result = await sendContactMessage("imposter@example.com", "Hi me");
 
     expect(result).toBe(true);
-    expect(captured.body.reply_to).toBe("sender@example.com");
-    expect(String(captured.body.html)).toContain("spoof");
-    expect(String(captured.body.text)).toContain("spoof");
+    expect(captured.body.reply_to).toBe("sender@sending.test");
+    expect(String(captured.body.html)).toContain("spoof you");
+    expect(String(captured.body.text)).toContain("spoof you");
+  });
+
+  test("warns about spoofing the host when the submitter shares the sending email host", async () => {
+    settings.setForTest({
+      business_email: "owner@business.test",
+      email_api_key: "re_test_key",
+      email_from_address: "sender@sending.test",
+      email_provider: "resend",
+    });
+    const captured = { body: {} as Record<string, unknown> };
+    stubFetch((_url, init) => {
+      captured.body = JSON.parse(String(init?.body));
+      return Promise.resolve(new Response(null, { status: 200 }));
+    });
+
+    const result = await sendContactMessage("imposter@sending.test", "Hi");
+
+    expect(result).toBe(true);
+    expect(captured.body.reply_to).toBe("sender@sending.test");
+    expect(String(captured.body.html)).toContain("spoof the host");
+    expect(String(captured.body.text)).toContain("spoof the host");
+  });
+
+  test("returns false and sends nothing when the submitter address is malformed", async () => {
+    configureEmail();
+    stubFetch(() => Promise.reject(new Error("should not be called")));
+    expect(await sendContactMessage("not-an-email", "Hi")).toBe(false);
+    expect(fetchStub?.calls.length).toBe(0);
   });
 
   test("returns false when the email provider responds with an error", async () => {

@@ -25,6 +25,7 @@ import {
   describeWithEnv,
   makeTestEntry,
   setTestEnv,
+  validEmail,
 } from "#test-utils";
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
@@ -100,7 +101,7 @@ describeWithEnv(
       secretStub = stubEdgeSecretSuccess();
       setHostEmailConfigForTest({
         apiKey: "re_test",
-        fromAddress: "test@example.com",
+        fromAddress: validEmail("test@example.com"),
         provider: "resend",
       });
       await createTestListing({
@@ -302,6 +303,15 @@ describeWithEnv(
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
+
+        const sites = await getAllBuiltSites();
+        expect(sites[0]!.assignedAttendeeId).not.toBeNull();
+        expect(fetchStub.calls.length).toBe(0);
+      });
+
+      test("assigns the site but skips email when the attendee email is invalid", async () => {
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        await assignAndNotifyBuiltSites([siteEntry({ email: "not-an-email" })]);
 
         const sites = await getAllBuiltSites();
         expect(sites[0]!.assignedAttendeeId).not.toBeNull();

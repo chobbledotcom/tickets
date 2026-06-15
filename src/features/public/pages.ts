@@ -11,7 +11,6 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { BOTPOISON_FIELD, verifyBotpoisonSolution } from "#shared/botpoison.ts";
-import { isValidBusinessEmail } from "#shared/business-email.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
 import {
   contactFormPublicKey,
@@ -25,6 +24,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
+import { isValidEmail } from "#shared/validation/email.ts";
 import {
   contactPage,
   homepagePage,
@@ -116,7 +116,7 @@ const validateContactSubmission = (
   email: string,
   message: string,
 ): string | null => {
-  if (!isValidBusinessEmail(email)) {
+  if (!isValidEmail(email)) {
     return "Please enter a valid email address.";
   }
   if (!message) return "Please enter a message.";

@@ -41,7 +41,7 @@ describe("webhook example", () => {
     s.invalidateCache();
 
     // Set business email to match the example
-    const { updateBusinessEmail } = await import("#shared/business-email.ts");
+    const { updateBusinessEmail } = await import("#shared/validation/email.ts");
     await updateBusinessEmail(EXAMPLE_BUSINESS_EMAIL);
 
     // Set effective domain to match the example domain

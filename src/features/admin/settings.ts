@@ -41,10 +41,6 @@ import {
 import { errorRedirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
-import {
-  isValidBusinessEmail,
-  updateBusinessEmail,
-} from "#shared/business-email.ts";
 import { validateColumnTemplate } from "#shared/column-order.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
@@ -113,6 +109,11 @@ import {
   sendSuperuserCredentialsEmail,
 } from "#shared/superuser.ts";
 import type { Theme } from "#shared/types.ts";
+import {
+  isValidEmail,
+  parseEmail,
+  updateBusinessEmail,
+} from "#shared/validation/email.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {
@@ -538,7 +539,7 @@ const handleBusinessEmailPost = settingsClearable({
   label: "Business email",
   save: (v) => updateBusinessEmail(v),
   validate: (v) =>
-    !isValidBusinessEmail(v)
+    !isValidEmail(v)
       ? "Invalid email format. Please use format: name@domain.com"
       : null,
 });
@@ -706,7 +707,7 @@ const handleEmailPost = settingsHandler<EmailFormData>({
   validate: ({ provider, fromAddress }) => {
     if (provider === "") return null;
     if (!isEmailProvider(provider)) return "Invalid email provider";
-    if (fromAddress && !isValidBusinessEmail(fromAddress)) {
+    if (fromAddress && !isValidEmail(fromAddress)) {
       return "Invalid from-address format. Please use format: name@domain.com";
     }
     return null;
@@ -717,7 +718,7 @@ const handleEmailPost = settingsHandler<EmailFormData>({
 const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
-  const businessEmail = settings.businessEmail;
+  const businessEmail = parseEmail(settings.businessEmail);
   if (!businessEmail) {
     return errorPage("No business email set", 400, "settings-email-test");
   }

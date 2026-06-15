@@ -182,7 +182,7 @@ describeWithEnv(
             mockFormRequest("/contact", {
               _botpoison: "solved",
               csrf_token,
-              email: "visitor@example.com",
+              email: "visitor@external.test",
               message: "Hello!",
             }),
           );
@@ -191,7 +191,7 @@ describeWithEnv(
           const emailCall = mock.emailCall();
           expect(emailCall).toBeDefined();
           expect(emailCall?.body?.to).toEqual(["owner@example.com"]);
-          expect(emailCall?.body?.reply_to).toBe("visitor@example.com");
+          expect(emailCall?.body?.reply_to).toBe("visitor@external.test");
         } finally {
           mock.restore();
         }
