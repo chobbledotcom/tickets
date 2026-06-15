@@ -31,6 +31,23 @@ export type DebugPageState = {
     provider: string;
     keyConfigured: boolean;
     webhookConfigured: boolean;
+    mode: string;
+  };
+  site: {
+    publicSite: boolean;
+    publicApi: boolean;
+    contactForm: boolean;
+    spamProtection: boolean;
+    country: string;
+    currency: string;
+    timezone: string;
+    bookingFee: string;
+  };
+  availability: {
+    state: "active" | "warning" | "readonly";
+    cutoff: string;
+    renewalConfigured: boolean;
+    serverTime: string;
   };
   email: {
     provider: string;
@@ -52,6 +69,8 @@ export type DebugPageState = {
   };
   database: {
     hostConfigured: boolean;
+    schemaInSync: boolean;
+    schemaHash: string;
   };
   build: {
     timestamp: string;
@@ -73,6 +92,22 @@ const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
     <span class="badge-ok">Configured</span>
   ) : (
     <span class="badge-missing">Not configured</span>
+  );
+
+/** Badge with caller-chosen labels for a two-state (on/off) value. */
+const OnOffBadge = ({
+  on,
+  onLabel,
+  offLabel,
+}: {
+  on: boolean;
+  onLabel: string;
+  offLabel: string;
+}): JSX.Element =>
+  on ? (
+    <span class="badge-ok">{onLabel}</span>
+  ) : (
+    <span class="badge-missing">{offLabel}</span>
   );
 
 const BuildSection = ({
@@ -240,6 +275,10 @@ const PaymentsSection = ({
           <td>{payment.provider || "None"}</td>
         </tr>
         <tr>
+          <td>Mode</td>
+          <td>{payment.mode || "—"}</td>
+        </tr>
+        <tr>
           <td>API key</td>
           <td>
             <StatusBadge ok={payment.keyConfigured} />
@@ -302,6 +341,120 @@ const NtfySection = ({
           <td>
             <StatusBadge ok={ntfy.configured} />
           </td>
+        </tr>
+      </tbody>
+    </table>
+  </article>
+);
+
+const SiteSection = ({
+  site,
+}: {
+  site: DebugPageState["site"];
+}): JSX.Element => (
+  <article>
+    <h2>Site</h2>
+    <table>
+      <tbody>
+        <tr>
+          <td>Public site</td>
+          <td>
+            <OnOffBadge
+              offLabel="Hidden"
+              on={site.publicSite}
+              onLabel="Visible"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>Public API</td>
+          <td>
+            <OnOffBadge
+              offLabel="Disabled"
+              on={site.publicApi}
+              onLabel="Enabled"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>Contact form</td>
+          <td>
+            <OnOffBadge
+              offLabel="Disabled"
+              on={site.contactForm}
+              onLabel="Enabled"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>Spam protection</td>
+          <td>
+            <StatusBadge ok={site.spamProtection} />
+          </td>
+        </tr>
+        <tr>
+          <td>Country</td>
+          <td>{site.country || "—"}</td>
+        </tr>
+        <tr>
+          <td>Currency</td>
+          <td>{site.currency || "—"}</td>
+        </tr>
+        <tr>
+          <td>Timezone</td>
+          <td>{site.timezone || "—"}</td>
+        </tr>
+        <tr>
+          <td>Booking fee</td>
+          <td>{site.bookingFee}%</td>
+        </tr>
+      </tbody>
+    </table>
+  </article>
+);
+
+const AvailabilityStateBadge = ({
+  state,
+}: {
+  state: DebugPageState["availability"]["state"];
+}): JSX.Element => {
+  if (state === "readonly") {
+    return <span class="badge-missing">Read-only</span>;
+  }
+  if (state === "warning") {
+    return <span class="badge-missing">Expiring soon</span>;
+  }
+  return <span class="badge-ok">Active</span>;
+};
+
+const AvailabilitySection = ({
+  availability,
+}: {
+  availability: DebugPageState["availability"];
+}): JSX.Element => (
+  <article>
+    <h2>Availability</h2>
+    <table>
+      <tbody>
+        <tr>
+          <td>Write access</td>
+          <td>
+            <AvailabilityStateBadge state={availability.state} />
+          </td>
+        </tr>
+        <tr>
+          <td>Read-only from</td>
+          <td>{availability.cutoff || "—"}</td>
+        </tr>
+        <tr>
+          <td>Renewal URL</td>
+          <td>
+            <StatusBadge ok={availability.renewalConfigured} />
+          </td>
+        </tr>
+        <tr>
+          <td>Server time (UTC)</td>
+          <td>{availability.serverTime}</td>
         </tr>
       </tbody>
     </table>
@@ -388,6 +541,22 @@ const DatabaseDomainSection = ({
         <tr>
           <td>Effective domain</td>
           <td>{domain}</td>
+        </tr>
+        <tr>
+          <td>Schema status</td>
+          <td>
+            <OnOffBadge
+              offLabel="Out of sync"
+              on={database.schemaInSync}
+              onLabel="Up to date"
+            />
+          </td>
+        </tr>
+        <tr>
+          <td>Schema hash</td>
+          <td>
+            <code>{database.schemaHash}</code>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -506,6 +675,8 @@ export const adminDebugPage = (
 
       <BuildSection build={s.build} />
       <RuntimeSection runtime={s.runtime} />
+      <SiteSection site={s.site} />
+      <AvailabilitySection availability={s.availability} />
       <AppleWalletSection appleWallet={s.appleWallet} />
       <GoogleWalletSection googleWallet={s.googleWallet} />
       <PaymentsSection payment={s.payment} />

@@ -14,15 +14,24 @@ import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   getEffectiveDomain,
+  isBotpoisonEnabled,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
   isPaymentsEnabled,
 } from "#shared/config.ts";
+import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
-import { getEnv } from "#shared/env.ts";
+import {
+  getEnv,
+  getReadOnlyCutoffIso,
+  getRenewalUrl,
+  isReadOnly,
+  isReadOnlyWarning,
+} from "#shared/env.ts";
 import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
+import { nowIso } from "#shared/now.ts";
 import { getRuntimeInfo } from "#shared/runtime.ts";
 import { getStorageBackend } from "#shared/storage.ts";
 import {
@@ -105,6 +114,32 @@ const webhookConfiguredFor = (provider: string | null): boolean => {
   return false;
 };
 
+/** Map a `sk_test_`/`sk_live_` key mode to a display label; "" if unrecognized. */
+const paymentModeLabel = (mode: "test" | "live" | null): string =>
+  mode === "live" ? "Live" : mode === "test" ? "Test" : "";
+
+/**
+ * Resolve the active payment provider's environment (Test/Live/Sandbox) for
+ * display. Derived from the key prefix (Stripe/SumUp) or the sandbox flag
+ * (Square) — never exposes the key itself.
+ */
+const resolvePaymentMode = (provider: string | null): string => {
+  if (provider === "stripe") return paymentModeLabel(settings.stripe.keyMode);
+  if (provider === "sumup") return paymentModeLabel(settings.sumup.keyMode);
+  if (provider === "square") {
+    return settings.square.sandbox ? "Sandbox" : "Live";
+  }
+  return "";
+};
+
+/** Resolve the site's write-access state from the read-only env flags. */
+const resolveAvailabilityState =
+  (): DebugPageState["availability"]["state"] => {
+    if (isReadOnly()) return "readonly";
+    if (isReadOnlyWarning()) return "warning";
+    return "active";
+  };
+
 /** Gather debug state concurrently */
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
@@ -127,6 +162,12 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
         appleWalletEnvConfigured,
       ),
     },
+    availability: {
+      cutoff: getReadOnlyCutoffIso() ?? "",
+      renewalConfigured: getRenewalUrl() !== null,
+      serverTime: nowIso(),
+      state: resolveAvailabilityState(),
+    },
     build: {
       commit: BUILD_COMMIT,
       timestamp: BUILD_TIMESTAMP,
@@ -142,6 +183,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     },
     database: {
       hostConfigured: !!getEnv("DB_URL"),
+      schemaHash: SCHEMA_HASH,
+      schemaInSync: settings.getCachedRaw("db_schema_hash") === SCHEMA_HASH,
     },
     domain: getEffectiveDomain(),
     email: {
@@ -168,6 +211,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     },
     payment: {
       keyConfigured: isPaymentsEnabled(),
+      mode: resolvePaymentMode(paymentProvider),
       provider: paymentProvider ?? "",
       webhookConfigured: webhookConfiguredFor(paymentProvider),
     },
@@ -177,6 +221,16 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       sessions: formatLastPruned(settings.lastPrunedSessions),
     },
     runtime: getRuntimeInfo(),
+    site: {
+      bookingFee: settings.bookingFee,
+      contactForm: settings.contactFormEnabled,
+      country: settings.country,
+      currency: settings.currency,
+      publicApi: settings.showPublicApi,
+      publicSite: settings.showPublicSite,
+      spamProtection: isBotpoisonEnabled(),
+      timezone: settings.timezone,
+    },
     theme: settings.theme,
   };
 };
