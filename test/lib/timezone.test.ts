@@ -10,6 +10,7 @@ import {
   todayInTz,
   utcToLocalInput,
 } from "#shared/timezone.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 
 describe("timezone", () => {
   describe("DEFAULT_TIMEZONE", () => {
@@ -21,7 +22,10 @@ describe("timezone", () => {
   describe("todayInTz", () => {
     test("returns a YYYY-MM-DD string", () => {
       const result = todayInTz("Europe/London");
-      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      // Reuse the production calendar-date guard rather than a hand-rolled
+      // regex: it enforces the same YYYY-MM-DD shape and additionally that the
+      // value is a real calendar day, which today's date always is.
+      expect(isIsoDate(result)).toBe(true);
     });
 
     test("returns same date for same timezone", () => {
