@@ -119,9 +119,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
-        m.getTestSession(),
-      );
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -153,9 +153,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxQuantity: 5,
         name: "B",
       });
-      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
-        m.getTestSession(),
-      );
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -184,9 +184,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
-        m.getTestSession(),
-      );
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -218,9 +218,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
-        m.getTestSession(),
-      );
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -248,9 +248,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
-        m.getTestSession(),
-      );
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/attendees/new",
@@ -536,9 +536,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxQuantity: 5,
         name: "Daily Ev",
       });
-      const { cookie, csrfToken } = await import("#test-utils").then((m) =>
-        m.getTestSession(),
-      );
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const { settings } = await import("#shared/db/settings.ts");
