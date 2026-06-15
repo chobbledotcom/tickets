@@ -30,6 +30,29 @@ describe("markdown", () => {
       expect(result).toContain("<p>para2</p>");
     });
 
+    test("flows trailing-space hard breaks instead of wrapping the line", () => {
+      // Two trailing spaces before a newline are a CommonMark hard break; we
+      // collapse them to a space so stray whitespace can't break a paragraph.
+      const result = renderMarkdown("variation on  \nwe carry on");
+      expect(result).not.toContain("<br>");
+      expect(result).toContain("<p>variation on we carry on</p>");
+    });
+
+    test("flows backslash hard breaks instead of wrapping the line", () => {
+      const result = renderMarkdown("variation on\\\nwe carry on");
+      expect(result).not.toContain("<br>");
+      expect(result).toContain("<p>variation on we carry on</p>");
+    });
+
+    test("still separates paragraphs split by a blank line", () => {
+      // Collapsing hard breaks must not merge genuine paragraphs: two opening
+      // <p> tags means the blank line still produced two distinct paragraphs.
+      const result = renderMarkdown("first para  \n\nsecond para");
+      expect(result).not.toContain("<br>");
+      expect(result).toContain("<p>first para");
+      expect(result).toContain("<p>second para</p>");
+    });
+
     test("renders unordered lists", () => {
       const result = renderMarkdown("- item1\n- item2");
       expect(result).toContain("<li>item1</li>");

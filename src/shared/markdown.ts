@@ -35,6 +35,15 @@ const hasHref = (token: Token): token is Token & { href: string } =>
 
 const md = new Marked({
   renderer: {
+    // CommonMark turns a backslash or two-plus trailing spaces before a newline
+    // into a hard <br>. That lets stray trailing whitespace — from copy-paste,
+    // an editor reflowing a long line, or word-wrap — force a line break in the
+    // middle of a paragraph. Render every hard break as a plain space so authored
+    // content always flows as continuous prose. Real paragraph breaks (a blank
+    // line), lists, and headings are unaffected; code blocks never emit br.
+    br() {
+      return " ";
+    },
     html({ raw }) {
       return escapeHtml(raw);
     },
