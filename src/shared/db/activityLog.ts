@@ -81,9 +81,13 @@ const queryActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   const whereClause = listingId !== null ? "WHERE listing_id = ?" : "";
   const args = listingId !== null ? [listingId, limit] : [limit];
+  // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
+  // co-monotonic with created (newest row = highest id) but, being the rowid,
+  // it is served straight from the primary key / idx_activity_log_listing_id
+  // without a sort over the unbounded log table.
   return decryptLogRows(
     await queryAll<ActivityLogEntry>(
-      `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
+      `SELECT * FROM activity_log ${whereClause} ORDER BY id DESC LIMIT ?`,
       args,
     ),
   );
@@ -113,7 +117,7 @@ export const getAttendeeActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   return decryptLogRows(
     await queryAll<ActivityLogEntry>(
-      "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY created DESC, id DESC LIMIT ?",
+      "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?",
       [attendeeId, limit],
     ),
   );
@@ -144,7 +148,7 @@ export const getListingWithActivityLog = async (
     },
     {
       args: [listingId, limit],
-      sql: "SELECT * FROM activity_log WHERE listing_id = ? ORDER BY created DESC, id DESC LIMIT ?",
+      sql: "SELECT * FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?",
     },
   ]);
 

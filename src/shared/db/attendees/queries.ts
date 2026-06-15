@@ -51,11 +51,15 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
  * Used for the admin dashboard to show recent registrations.
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
+  // Order by a.id DESC, not a.created: id is AUTOINCREMENT so it is
+  // co-monotonic with created (newest attendee = highest id), but ordering by
+  // the rowid drives the scan off the primary key with no sort over the whole
+  // (unbounded) attendees table.
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
-     ORDER BY a.created DESC LIMIT ?`,
+     ORDER BY a.id DESC LIMIT ?`,
     [limit],
   );
 
@@ -77,10 +81,11 @@ export type AttendeesPage = {
 /**
  * Get one page of attendee+booking rows for the admin attendees browser.
  *
- * Returns one row per (attendee, listing) booking, ordered by registration
- * date — newest or oldest first — with id as a stable tiebreaker so paging is
- * deterministic. When `listingId` is given, only that listing's bookings are
- * returned; otherwise every booking across all listings is included.
+ * Returns one row per (attendee, listing) booking, ordered by attendee id —
+ * newest or oldest first. id is AUTOINCREMENT, so it is co-monotonic with the
+ * registration date but unique, making paging deterministic and index-backed
+ * (no sort over the whole attendees table). When `listingId` is given, only
+ * that listing's bookings are returned; otherwise every booking is included.
  *
  * The page size is fixed; callers pass a zero-based `page`. One extra row is
  * read to report `hasNext` without a separate count query, then trimmed off.
@@ -108,7 +113,7 @@ export const getAttendeesPage = async ({
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
      ${where}
-     ORDER BY a.created ${dir}, a.id ${dir}
+     ORDER BY a.id ${dir}
      LIMIT ? OFFSET ?`,
     args,
   );
