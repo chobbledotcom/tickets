@@ -34,6 +34,7 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 import {
   validateAddress,
   validateEmail,
@@ -286,17 +287,6 @@ export const resolveStatusId = (
 // Validation
 // ---------------------------------------------------------------------------
 
-const isValidDateString = (value: string): boolean => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  // Reject rollover typos (e.g. 2026-02-30 → Mar 2) by requiring the parsed
-  // date to serialize back to the same string, not just be non-NaN.
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return (
-    !Number.isNaN(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === value
-  );
-};
-
 /**
  * Validate the attendee block + each line independently.
  *
@@ -420,7 +410,7 @@ const validateLine = (
   const isDaily = line.listing.listing_type === "daily";
   if (isDaily) {
     if (!line.date) return "Date is required for daily listings";
-    if (!isValidDateString(line.date)) {
+    if (!isIsoDate(line.date)) {
       return "Date must be a valid YYYY-MM-DD value";
     }
     const lineError = validateDailyLine(line, line.listing, holidays);

@@ -550,11 +550,10 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(getDateFilter(request)).toBe("2024-01-15");
     });
 
-    test("getDateFilter returns null for invalid format", async () => {
+    test("getDateFilter returns null for an invalid date", async () => {
+      // Exhaustive date-format coverage lives in the isIsoDate unit test.
       const { getDateFilter } = await import("#routes/admin/actions.ts");
 
-      expect(getDateFilter(mockRequest("/test?date=01-15-2024"))).toBeNull();
-      expect(getDateFilter(mockRequest("/test?date=2024/01/15"))).toBeNull();
       expect(getDateFilter(mockRequest("/test?date=not-a-date"))).toBeNull();
     });
 
