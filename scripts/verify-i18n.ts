@@ -115,8 +115,9 @@ const check = (file: string, expect: string[]): Result => {
   if (expect.length) {
     const absent = expect.filter((k) => !keySet.has(k));
     if (absent.length) {
-      hardFail = true;
-      lines.push(`  [D] FAIL ${absent.length}/${expect.length} expected key(s) missing: ${absent.join(", ")}`);
+      // Soft: main may have removed UI the old branch translated, orphaning a
+      // key. Never re-add deleted elements to satisfy this — treat as residue.
+      lines.push(`  [D] warn  ${absent.length}/${expect.length} expected key(s) not used here (wire if the string exists; else orphaned — main removed it): ${absent.join(", ")}`);
     } else {
       lines.push(`  [D] ok    all ${expect.length} expected key(s) present`);
     }
