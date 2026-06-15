@@ -552,16 +552,17 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(409);
     });
 
-    test("returns 500 when payment provider not configured for paid listing", async () => {
-      // Don't call setupStripe — no provider configured
+    test("books a paid listing as free when no payment provider is configured", async () => {
+      // Don't call setupStripe — unit_price > 0 but payments are disabled, so
+      // the booking falls through to the free path instead of attempting
+      // checkout, issuing a ticket directly.
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { response } = await bookListing(listing.slug);
-      // Without payment provider, unit_price > 0 but isPaymentsEnabled returns false
-      // so it falls through to free path
-      expect([200, 500].includes(response.status)).toBe(true);
+      const { response, body } = await bookListing(listing.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.ticketToken).toBeDefined();
     });
 
     test("books daily listing with valid date", async () => {
