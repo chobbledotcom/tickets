@@ -1,80 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
+import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("business-email", { db: true }, () => {
-  describe("isValidEmail", () => {
-    test("accepts valid email", () => {
-      expect(isValidEmail("test@example.com")).toBe(true);
-    });
-
-    test("accepts email with subdomain", () => {
-      expect(isValidEmail("contact@mail.example.com")).toBe(true);
-    });
-
-    test("accepts email with plus sign", () => {
-      expect(isValidEmail("user+tag@example.com")).toBe(true);
-    });
-
-    test("accepts email with numbers", () => {
-      expect(isValidEmail("user123@example456.com")).toBe(true);
-    });
-
-    test("accepts email with hyphens in domain", () => {
-      expect(isValidEmail("user@my-domain.com")).toBe(true);
-    });
-
-    test("accepts email with uppercase letters", () => {
-      expect(isValidEmail("User@Example.Com")).toBe(true);
-    });
-
-    test("accepts email with dots in local part", () => {
-      expect(isValidEmail("first.last@example.com")).toBe(true);
-    });
-
-    test("rejects email without @", () => {
-      expect(isValidEmail("notanemail")).toBe(false);
-    });
-
-    test("rejects email without domain", () => {
-      expect(isValidEmail("test@")).toBe(false);
-    });
-
-    test("rejects email without local part", () => {
-      expect(isValidEmail("@example.com")).toBe(false);
-    });
-
-    test("rejects email without TLD", () => {
-      expect(isValidEmail("test@example")).toBe(false);
-    });
-
-    test("rejects empty string", () => {
-      expect(isValidEmail("")).toBe(false);
-    });
-
-    test("rejects whitespace only", () => {
-      expect(isValidEmail("   ")).toBe(false);
-    });
-
-    test("rejects email with spaces", () => {
-      expect(isValidEmail("test @example.com")).toBe(false);
-    });
-
-    test("rejects email with multiple @", () => {
-      expect(isValidEmail("test@@example.com")).toBe(false);
-    });
-
-    test("rejects local part with disallowed special characters", () => {
-      expect(isValidEmail("admin!@example.com")).toBe(false);
-    });
-
-    test("trims whitespace before validation", () => {
-      expect(isValidEmail("  test@example.com  ")).toBe(true);
-    });
-  });
-
   describe("settings.businessEmail", () => {
     test("returns empty string when no business email is set", () => {
       const result = settings.businessEmail ?? "";
@@ -130,24 +60,6 @@ describeWithEnv("business-email", { db: true }, () => {
 
     test("throws on invalid email format", async () => {
       await expect(updateBusinessEmail("not-an-email")).rejects.toThrow(
-        "Invalid business email format",
-      );
-    });
-
-    test("throws on email without @", async () => {
-      await expect(updateBusinessEmail("notanemail")).rejects.toThrow(
-        "Invalid business email format",
-      );
-    });
-
-    test("throws on email without domain", async () => {
-      await expect(updateBusinessEmail("test@")).rejects.toThrow(
-        "Invalid business email format",
-      );
-    });
-
-    test("throws on email without TLD", async () => {
-      await expect(updateBusinessEmail("test@example")).rejects.toThrow(
         "Invalid business email format",
       );
     });

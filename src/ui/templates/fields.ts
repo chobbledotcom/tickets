@@ -300,14 +300,16 @@ export const validateEmail = (value: string): string | null =>
 /**
  * Validate phone number format
  */
-export const validatePhone = (value: string): string | null => {
+const PhoneSchema = v.pipe(
+  v.string(),
   // Allow digits, spaces, hyphens, parentheses, plus sign
-  const phoneRegex = /^[+\d][\d\s\-()]{5,}$/;
-  if (!phoneRegex.test(value)) {
-    return "Please enter a valid phone number";
-  }
-  return null;
-};
+  v.regex(/^[+\d][\d\s\-()]{5,}$/),
+);
+
+export const validatePhone = (value: string): string | null =>
+  v.safeParse(PhoneSchema, value).success
+    ? null
+    : "Please enter a valid phone number";
 
 /** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
 export const validateUsername = (value: string): string | null => {

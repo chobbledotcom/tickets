@@ -6,6 +6,8 @@
  * 2 digits and 2 letters, giving ~1.15M possible combinations.
  */
 
+import * as v from "valibot";
+
 const DIGITS = "0123456789";
 const LETTERS = "abcdefgh";
 const ALPHABET = DIGITS + LETTERS;
@@ -41,16 +43,20 @@ export const generateSlug = (): string => {
 export const normalizeSlug = (input: string): string =>
   input.trim().toLowerCase().replace(/\s+/g, "-");
 
-/** Valid slug pattern: lowercase alphanumeric and hyphens only */
-const SLUG_PATTERN = /^[a-z0-9-]+$/;
+/** Valid slug schema: non-empty, lowercase alphanumeric and hyphens only */
+const SlugSchema = v.pipe(
+  v.string(),
+  v.nonEmpty("Slug is required"),
+  v.regex(
+    /^[a-z0-9-]+$/,
+    "Slug may only contain lowercase letters, numbers, and hyphens",
+  ),
+);
 
 /** Validate a normalized slug. Returns error message or null. */
 export const validateSlug = (slug: string): string | null => {
-  if (!slug) return "Slug is required";
-  if (!SLUG_PATTERN.test(slug)) {
-    return "Slug may only contain lowercase letters, numbers, and hyphens";
-  }
-  return null;
+  const result = v.safeParse(SlugSchema, slug, { abortPipeEarly: true });
+  return result.success ? null : result.issues[0].message;
 };
 
 /** Slug-with-index pair */
