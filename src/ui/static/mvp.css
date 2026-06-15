@@ -577,6 +577,20 @@ input[type="submit"][disabled]:hover {
   filter: none;
 }
 
+/* A disabled action rendered as an inert <span>. Used on its own for a plain
+ * greyed link, or layered on .btn to grey out a button-styled link. */
+.btn--disabled {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.btn.btn--disabled {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-bg-secondary);
+}
+
 form {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);

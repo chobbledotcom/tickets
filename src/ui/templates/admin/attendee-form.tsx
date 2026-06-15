@@ -45,7 +45,11 @@ import {
 } from "#shared/types.ts";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { Icon, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  Icon,
+  MaybeButtonLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Per-listing available dates (daily listings only) for client-side filtering. */
@@ -250,9 +254,10 @@ const LineEditor = ({
   </>
 );
 
-/** Render the bulk-email contact history (edit mode only, attendee has an
- * email). Shows a placeholder when the attendee has never been contacted.
- * Owners also get a link to email just this attendee, prefilled by token. */
+/** Render the bulk-email contact history (edit mode only). Shows the contact
+ * stats when the attendee has an email and has been contacted, otherwise a
+ * placeholder. Owners also get a button to email just this attendee, prefilled
+ * by token — disabled when there's no email address to send to. */
 const EmailHistory = ({
   attendee,
   emailStats,
@@ -261,39 +266,50 @@ const EmailHistory = ({
   attendee: Attendee;
   emailStats: EmailStats | null;
   isOwner: boolean;
-}): JSX.Element => (
-  <article>
-    <h3>Email History</h3>
-    {emailStats && emailStats.contactCount > 0 ? (
-      <ul>
-        <li>
-          <strong>Total messages:</strong> {emailStats.contactCount}
-        </li>
-        <li>
-          <strong>Last contacted:</strong>{" "}
-          {formatDatetimeShort(emailStats.lastContact)}
-        </li>
-        <li>
-          <strong>Last subject:</strong> {emailStats.lastSubject}
-        </li>
-      </ul>
-    ) : (
-      <p>Never contacted by bulk email.</p>
-    )}
-    {isOwner && (
-      <p>
-        <a
-          class="button"
-          href={`/admin/emails?attendee=${encodeURIComponent(
-            attendee.ticket_token,
-          )}`}
-        >
-          Send an email to this attendee
-        </a>
-      </p>
-    )}
-  </article>
-);
+}): JSX.Element => {
+  const hasEmail = Boolean(attendee.email);
+  return (
+    <article>
+      <h3>Email History</h3>
+      {!hasEmail ? (
+        <p>No email address on file.</p>
+      ) : emailStats && emailStats.contactCount > 0 ? (
+        <ul>
+          <li>
+            <strong>Total messages:</strong> {emailStats.contactCount}
+          </li>
+          <li>
+            <strong>Last contacted:</strong>{" "}
+            {formatDatetimeShort(emailStats.lastContact)}
+          </li>
+          <li>
+            <strong>Last subject:</strong> {emailStats.lastSubject}
+          </li>
+        </ul>
+      ) : (
+        <p>Never contacted by bulk email.</p>
+      )}
+      {isOwner && (
+        <p>
+          <MaybeButtonLink
+            class="btn"
+            disabled={!hasEmail}
+            href={`/admin/emails?attendee=${encodeURIComponent(
+              attendee.ticket_token,
+            )}`}
+            title={
+              hasEmail
+                ? undefined
+                : "This attendee has no email address on file"
+            }
+          >
+            Send an email to this attendee
+          </MaybeButtonLink>
+        </p>
+      )}
+    </article>
+  );
+};
 
 /** Render the "Merge Attendee" section (edit mode only). */
 const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
@@ -580,7 +596,7 @@ export const attendeeFormPage = (
         </p>
       </CsrfForm>
 
-      {isEdit && a && a.email && (
+      {isEdit && a && (
         <EmailHistory
           attendee={a}
           emailStats={data.emailStats ?? null}

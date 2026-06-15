@@ -281,6 +281,13 @@ describe("mailto and unsubscribe footers", () => {
     expect(buildMailtoLink([], "", "")).toBe("mailto:?");
   });
 
+  test("buildMailtoLink encodes line breaks as a single %0A", () => {
+    // CRLF, lone CR, and LF all collapse to %0A so clients don't show ^M.
+    expect(
+      buildMailtoLink([], "", "line one\r\nline two\rline three\nend"),
+    ).toBe("mailto:?body=line%20one%0Aline%20two%0Aline%20three%0Aend");
+  });
+
   test("unsubscribeUrl includes the hash, encoded", () => {
     setEffectiveDomainForTest("tickets.example.com");
     try {

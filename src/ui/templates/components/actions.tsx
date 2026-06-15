@@ -86,6 +86,39 @@ export const SubmitButton = ({
 );
 
 /**
+ * A link that can be disabled. When enabled, renders an `<a>` pointing at
+ * `href`. When `disabled`, renders a non-interactive `<span>` carrying
+ * `.btn--disabled` (greyed out, not clickable) so the affordance stays visible
+ * but inert — `title` should explain why. Pass `class` to layer on button
+ * styling (e.g. "btn") or omit it for a plain link.
+ */
+export const MaybeButtonLink = ({
+  href,
+  disabled = false,
+  class: className,
+  title,
+  children,
+}: {
+  href: string;
+  disabled?: boolean;
+  class?: string;
+  title?: string;
+  children?: Child;
+}): SafeHtml =>
+  disabled ? (
+    <span
+      class={[className, "btn--disabled"].filter(Boolean).join(" ")}
+      title={title}
+    >
+      {children}
+    </span>
+  ) : (
+    <a class={className} href={href} title={title}>
+      {children}
+    </a>
+  );
+
+/**
  * A consistent, understated link to a help/guide section. Renders a book icon
  * followed by the label in muted text.
  */

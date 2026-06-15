@@ -210,6 +210,13 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
     session,
     resolved.target,
   );
+  // A listing or attendee target with no emailable recipient (an unknown
+  // attendee token, or nobody with an email on file) has nothing to send to —
+  // treat it as not found rather than rendering an empty compose page. Named
+  // audiences are allowed to be empty (they may fill up later).
+  if (resolved.target.kind !== "audience" && recipients.length === 0) {
+    return notFoundResponse();
+  }
   return htmlResponse(
     bulkEmailComposePage(session, {
       attendeeEmail:

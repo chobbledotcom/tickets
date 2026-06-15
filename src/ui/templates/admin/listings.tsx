@@ -46,7 +46,10 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import {
+  MaybeButtonLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import {
   assignBuiltSiteField,
   attachmentField,
@@ -245,6 +248,9 @@ export type AdminListingPageOptions = {
   successMessage?: string;
   questionData?: TableQuestionData;
   groupContext?: GroupContext;
+  /** Whether any of the listing's attendees (across all dates) have an email
+   * address — gates the owner-only "Email" action. */
+  hasEmailableAttendees?: boolean;
 };
 
 /** Top action nav for the listing detail page */
@@ -253,11 +259,13 @@ const ListingActionNav = ({
   dateFilter,
   hasPaidListing,
   isOwner,
+  hasEmailableAttendees,
 }: {
   listing: ListingWithCount;
   dateFilter: string | null;
   hasPaidListing: boolean;
   isOwner: boolean;
+  hasEmailableAttendees: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
   return (
@@ -291,7 +299,17 @@ const ListingActionNav = ({
         )}
         {isOwner && (
           <li>
-            <a href={`/admin/emails?listing=${listing.id}`}>Email</a>
+            <MaybeButtonLink
+              disabled={!hasEmailableAttendees}
+              href={`/admin/emails?listing=${listing.id}`}
+              title={
+                hasEmailableAttendees
+                  ? undefined
+                  : "No attendees have an email address"
+              }
+            >
+              Email
+            </MaybeButtonLink>
           </li>
         )}
         <li>
@@ -886,6 +904,7 @@ export const adminListingPage = ({
   successMessage,
   questionData,
   groupContext,
+  hasEmailableAttendees = false,
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -934,6 +953,7 @@ export const adminListingPage = ({
       <AdminNav active="/admin/" session={session} />
       <ListingActionNav
         dateFilter={dateFilter}
+        hasEmailableAttendees={hasEmailableAttendees}
         hasPaidListing={hasPaidListing}
         isOwner={session.adminLevel === "owner"}
         listing={listing}

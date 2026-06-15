@@ -149,20 +149,21 @@ export const getAttendeePiiBlobsForListings = async (
 };
 
 /**
- * Get the encrypted PII blob(s) for the attendee identified by a plaintext
- * ticket token. Used to resolve a single-attendee bulk-email recipient.
- * Returns an empty array when the token matches no attendee, so a stale or
- * unknown token resolves to zero recipients rather than erroring.
+ * Get the encrypted PII blob for the attendee identified by a plaintext ticket
+ * token. Used to resolve a single-attendee bulk-email recipient. Ticket tokens
+ * are unique, so this matches at most one attendee; returns null when the token
+ * matches none, so a stale or unknown token resolves to no recipient rather
+ * than erroring.
  */
-export const getAttendeePiiBlobsForToken = async (
+export const getAttendeePiiBlobForToken = async (
   token: string,
-): Promise<string[]> => {
+): Promise<string | null> => {
   const tokenIndex = await computeTicketTokenIndex(token);
-  const rows = await queryAll<{ pii_blob: string }>(
-    "SELECT pii_blob FROM attendees WHERE ticket_token_index = ?",
+  const row = await queryOne<{ pii_blob: string }>(
+    "SELECT pii_blob FROM attendees WHERE ticket_token_index = ? LIMIT 1",
     [tokenIndex],
   );
-  return rows.map((r) => r.pii_blob);
+  return row ? row.pii_blob : null;
 };
 
 /**

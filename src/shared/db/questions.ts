@@ -144,20 +144,19 @@ const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
  * Decrypts question and answer text in parallel. */
 const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
-  const questionMap = new Map<number, { text: string; answers: Answer[] }>();
-  for (const row of rows) {
-    if (!questionMap.has(row.q_id)) {
-      questionMap.set(row.q_id, { answers: [], text: row.q_text });
-    }
+  type Group = { text: string; answers: Answer[] };
+  const questionMap = reduce((acc: Map<number, Group>, row: JoinedRow) => {
+    const group = acc.get(row.q_id) ?? { answers: [], text: row.q_text };
     if (row.a_id !== null) {
-      questionMap.get(row.q_id)!.answers.push({
+      group.answers.push({
         id: row.a_id,
         question_id: row.a_question_id!,
         sort_order: row.a_sort_order!,
         text: row.a_text!,
       });
     }
-  }
+    return acc.set(row.q_id, group);
+  }, new Map<number, Group>())(rows);
 
   const entries = [...questionMap.entries()];
   return Promise.all(

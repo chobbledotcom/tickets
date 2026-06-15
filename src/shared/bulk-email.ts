@@ -13,8 +13,8 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
   getAllAttendeePiiBlobs,
+  getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
-  getAttendeePiiBlobsForToken,
 } from "#shared/db/attendees/queries.ts";
 import { hashEmail } from "#shared/db/email-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -143,7 +143,8 @@ const loadTargetPiiBlobs = async (
     return getAttendeePiiBlobsForListings([target.listingId]);
   }
   if (target.kind === "attendee") {
-    return getAttendeePiiBlobsForToken(target.token);
+    const blob = await getAttendeePiiBlobForToken(target.token);
+    return blob ? [blob] : [];
   }
   if (target.audience === "all") {
     return getAllAttendeePiiBlobs();
@@ -382,6 +383,11 @@ export const buildMailtoLink = (
     parts.push(`bcc=${emails.map((e) => encodeURIComponent(e)).join(",")}`);
   }
   if (subject) parts.push(`subject=${encodeURIComponent(subject)}`);
-  if (body) parts.push(`body=${encodeURIComponent(body)}`);
+  if (body) {
+    // Normalise CRLF/CR to LF first so every line break encodes to a single
+    // %0A rather than %0D%0A, which some mail clients render as a stray ^M.
+    const normalizedBody = body.replace(/\r\n?/g, "\n");
+    parts.push(`body=${encodeURIComponent(normalizedBody)}`);
+  }
   return `mailto:?${parts.join("&")}`;
 };

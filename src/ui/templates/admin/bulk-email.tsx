@@ -59,7 +59,7 @@ const TargetField = ({
       <>
         <input name="attendee" type="hidden" value={state.target.token} />
         <p>
-          <strong>Recipient:</strong> {state.attendeeEmail ?? "this attendee"}
+          <strong>Recipient:</strong> {state.attendeeEmail}
         </p>
       </>
     );
@@ -160,12 +160,7 @@ export const bulkEmailComposePage = (
 
         <div class="prose">
           {isAttendee ? (
-            <p>
-              This email will go to <strong>{state.recipientCount}</strong>{" "}
-              recipient
-              {state.recipientCount === 1 ? "" : "s"}. Preview to confirm before
-              sending.
-            </p>
+            <p>Preview to confirm the message before sending.</p>
           ) : (
             <p>
               This selection currently reaches{" "}
@@ -311,9 +306,7 @@ export const bulkEmailPreviewPage = (
               </a>
             </p>
           </div>
-          <button disabled type="button">
-            Send to {recipients}
-          </button>
+          <span class="btn btn--disabled">Send to {recipients}</span>
         </>
       )}
 

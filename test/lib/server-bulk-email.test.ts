@@ -493,16 +493,40 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expect(html).toContain("alice@example.com");
       // The token round-trips through a hidden field so the POST keeps the target.
       expect(html).toContain('name="attendee"');
-      expect(html).toContain("recipient. Preview to confirm before sending.");
+      expect(html).toContain("Preview to confirm the message before sending.");
     });
 
-    test("a stale token composes to nobody with a generic label", async () => {
-      const html = await awaitTestRequest("/admin/emails?attendee=gone", {
+    test("404s for an unknown attendee token", async () => {
+      const response = await awaitTestRequest("/admin/emails?attendee=gone", {
         cookie: await testCookie(),
-      }).then((r) => r.text());
-      expect(html).toContain("Email an attendee");
-      expect(html).toContain("this attendee");
-      expect(html).toContain("<strong>0</strong> recipients");
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("404s for an attendee with no email on file", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      const { token } = await createTestAttendeeDirect(listing.id, "Nemo", "");
+      const response = await awaitTestRequest(
+        `/admin/emails?attendee=${encodeURIComponent(token)}`,
+        { cookie: await testCookie() },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("404s for a listing whose attendees have no email", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      await createTestAttendeeDirect(listing.id, "Nemo", "");
+      const response = await awaitTestRequest(
+        `/admin/emails?listing=${listing.id}`,
+        { cookie: await testCookie() },
+      );
+      expect(response.status).toBe(404);
     });
 
     test("preview falls back to a generic label for a stale token", async () => {
@@ -598,6 +622,25 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       }).then((r) => r.text());
       expect(html).not.toContain("/admin/emails?attendee=");
     });
+
+    test("the link is disabled when the attendee has no email", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Nemo",
+        "",
+      );
+      const html = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      expect(html).toContain("No email address on file.");
+      // Rendered as an inert span, not a clickable link to the email page.
+      expect(html).toContain("btn--disabled");
+      expect(html).not.toContain("/admin/emails?attendee=");
+    });
   });
 
   describe("listing page Email link", () => {
@@ -608,6 +651,20 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       }).then((r) => r.text());
       expect(html).toContain(`/admin/emails?listing=${listing.id}`);
       expect(html).toContain(">Email</a>");
+    });
+
+    test("the link is disabled when no attendee has an email", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      await createTestAttendeeDirect(listing.id, "Nemo", "");
+      const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie: await testCookie(),
+      }).then((r) => r.text());
+      // Inert span instead of a link to the email page.
+      expect(html).toContain("btn--disabled");
+      expect(html).not.toContain(`/admin/emails?listing=${listing.id}`);
     });
 
     test("managers do not see the link", async () => {
