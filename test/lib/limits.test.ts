@@ -106,6 +106,8 @@ describe("limits", () => {
         "MAX_TOKEN_404S",
         "TOKEN_WINDOW_MS",
         "TOKEN_LOCKOUT_MS",
+        "MAX_BOOKING_ATTEMPTS",
+        "BOOKING_LOCKOUT_MS",
         "PRUNE_PAYMENTS_RETENTION_DAYS",
         "PRUNE_SESSIONS_RETENTION_DAYS",
         "PRUNE_LOGINS_RETENTION_DAYS",

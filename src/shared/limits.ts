@@ -122,6 +122,19 @@ export const TOKEN_WINDOW_MS = readLimit("TOKEN_WINDOW_MS", 60 * 1000);
 export const TOKEN_LOCKOUT_MS = readLimit("TOKEN_LOCKOUT_MS", 5 * 60 * 1000);
 
 // ---------------------------------------------------------------------------
+// Booking rate limiting
+// ---------------------------------------------------------------------------
+
+/** Max booking submissions per IP before lockout (default: 10) */
+export const MAX_BOOKING_ATTEMPTS = readLimit("MAX_BOOKING_ATTEMPTS", 10);
+
+/** Lockout duration after max booking submissions in ms (default: 600000 = 10 min) */
+export const BOOKING_LOCKOUT_MS = readLimit(
+  "BOOKING_LOCKOUT_MS",
+  10 * 60 * 1000,
+);
+
+// ---------------------------------------------------------------------------
 // Database pruning
 // ---------------------------------------------------------------------------
 
@@ -345,6 +358,20 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 5 * 60 * 1000,
     envKey: "TOKEN_LOCKOUT_MS",
     label: "Token lockout duration",
+    unit: "ms",
+  },
+  {
+    current: MAX_BOOKING_ATTEMPTS,
+    defaultValue: 10,
+    envKey: "MAX_BOOKING_ATTEMPTS",
+    label: "Max booking attempts before lockout",
+    unit: "attempts",
+  },
+  {
+    current: BOOKING_LOCKOUT_MS,
+    defaultValue: 10 * 60 * 1000,
+    envKey: "BOOKING_LOCKOUT_MS",
+    label: "Booking lockout duration",
     unit: "ms",
   },
   {

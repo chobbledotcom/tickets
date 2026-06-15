@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
   assertJson,
   createDailyTestListing,
@@ -388,6 +389,25 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(body.booking?.ticketUrl).toBeDefined();
       expect(typeof body.booking?.ticketUrl).toBe("string");
       expectCorsHeaders(response);
+    });
+
+    test("rate-limits booking after too many attempts from one IP", async () => {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      // All test requests share the "direct" fallback IP, so the per-IP counter
+      // fills up. The first MAX_BOOKING_ATTEMPTS succeed; the next is blocked.
+      for (let i = 0; i < MAX_BOOKING_ATTEMPTS; i++) {
+        const { response } = await bookListing(listing.slug, {
+          email: `booker${i}@test.com`,
+          name: `Booker ${i}`,
+        });
+        expect(response.status).toBe(200);
+      }
+      const { response, body } = await bookListing(listing.slug, {
+        email: "blocked@test.com",
+        name: "Blocked",
+      });
+      expect(response.status).toBe(429);
+      expect(body.error).toMatch(/too many/i);
     });
 
     test("returns 404 for non-existent listing", async () => {
