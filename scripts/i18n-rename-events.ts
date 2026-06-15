@@ -50,4 +50,6 @@ for (const entry of Deno.readDirSync(DIR)) {
   }
 }
 
-console.log(`\n${fileCount} files, ${keyCount} keys renamed, ${valCount} values rewritten`);
+console.log(
+  `\n${fileCount} files, ${keyCount} keys renamed, ${valCount} values rewritten`,
+);
