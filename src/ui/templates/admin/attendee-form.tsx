@@ -32,6 +32,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
+import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -43,6 +44,11 @@ import {
   availableDayCounts,
   type ListingWithCount,
 } from "#shared/types.ts";
+import {
+  AttendeeAnswersTable,
+  AttendeeDetail,
+  AttendeeLogSection,
+} from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Icon, SubmitButton } from "#templates/components/actions.tsx";
@@ -75,8 +81,9 @@ export type AttendeeFormTemplateData = {
    * failure like capacity lost to a race). */
   flashError?: string;
   flashSuccess?: string;
-  /** Custom questions for the first existing listing (edit mode only). */
-  questions?: QuestionWithAnswers[];
+  /** Custom questions across the attendee's booked listings; empty in create
+   * mode and when no listing has any. */
+  questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
   /** Today's ISO date — used for the new-daily-line default. */
@@ -86,6 +93,10 @@ export type AttendeeFormTemplateData = {
   /** Bulk-email contact history for the attendee's email (edit mode only;
    * null when there is no email on file or it has never been contacted). */
   emailStats?: EmailStats | null;
+  /** Country dialling code, for the read-only phone tel/WhatsApp links. */
+  phonePrefix: string;
+  /** This attendee's activity log entries, newest first (edit mode only). */
+  activityLog: ActivityLogEntry[];
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded",
@@ -310,9 +321,23 @@ const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
 
 /** Page title for the layout. */
 const pageTitle = (data: AttendeeFormTemplateData): string =>
-  data.mode === "create"
-    ? "Add Attendee"
-    : `Edit Attendee: ${data.attendee!.name}`;
+  data.mode === "create" ? "Add Attendee" : `Attendee: ${data.attendee!.name}`;
+
+/**
+ * The attendee's current status as an `<h2>`, shown only when the site has more
+ * than one status configured (with a single status it carries no information).
+ */
+const StatusHeading = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element | null => {
+  if (data.mode !== "edit" || !data.attendee || data.statuses.length <= 1) {
+    return null;
+  }
+  const status = data.statuses.find((s) => s.id === data.attendee!.status_id);
+  return <h2>Status: {status ? status.name : "None"}</h2>;
+};
 
 /** Tiny progressive-enhancement script: hide the date field on non-daily
  * listings and populate defaults when a daily listing is first chosen. The
@@ -438,13 +463,142 @@ export const attendeeFormPage = (
   const isEdit = data.mode === "edit";
   const a = data.attendee;
 
+  // The whole editable form. Status & Balance sit right after the name and
+  // before the contact fields, per the agreed field order. In edit mode the
+  // read-only summary above is the primary view, so the form is tucked into a
+  // collapsed disclosure (see below); in create mode it is the page.
+  const editForm = (
+    <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
+      <Flash error={data.flashError} success={data.flashSuccess} />
+      {data.returnUrl && (
+        <input name="return_url" type="hidden" value={data.returnUrl} />
+      )}
+
+      {!isEdit && <h3>Attendee Details</h3>}
+
+      <label for="name">
+        Name
+        <input
+          autofocus
+          id="name"
+          name="name"
+          required
+          type="text"
+          value={data.parsed.name}
+        />
+      </label>
+
+      <StatusAndBalanceFields data={data} />
+
+      <label for="email">
+        Email
+        <input
+          id="email"
+          name="email"
+          type="email"
+          value={data.parsed.email || ""}
+        />
+      </label>
+
+      <label for="phone">
+        Phone
+        <input
+          id="phone"
+          name="phone"
+          pattern="[+\d][\d\s\-()]{5,}"
+          title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
+          type="text"
+          value={data.parsed.phone || ""}
+        />
+      </label>
+
+      <label for="address">
+        Address
+        <textarea id="address" maxlength={250} name="address" rows={3}>
+          {data.parsed.address || ""}
+        </textarea>
+      </label>
+
+      <label for="special_instructions">
+        Special Instructions
+        <textarea
+          id="special_instructions"
+          maxlength={250}
+          name="special_instructions"
+          rows={3}
+        >
+          {data.parsed.special_instructions || ""}
+        </textarea>
+      </label>
+
+      {data.questions.length > 0 && (
+        <>
+          <h3>Custom Questions</h3>
+          <EditQuestions
+            questions={data.questions}
+            selectedAnswerIds={data.selectedAnswerIds}
+          />
+        </>
+      )}
+
+      <h3>Listing Registrations</h3>
+      <LineEditor data={data} />
+      <p>
+        <button
+          formnovalidate
+          name={ACTION_FIELD}
+          type="submit"
+          value={ADD_LINE_ACTION}
+        >
+          <Icon name="plus" />
+          <span>Add Listing Line</span>
+        </button>
+      </p>
+
+      <hr />
+
+      <p class="form-actions">
+        <button
+          class="primary"
+          name={ACTION_FIELD}
+          type="submit"
+          value={SAVE_ACTION}
+        >
+          <Icon name="save" />
+          <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
+        </button>
+        {!isEdit && (
+          <a class="button" href={data.returnUrl || "/admin/"}>
+            Back without saving
+          </a>
+        )}
+      </p>
+    </CsrfForm>
+  );
+
   return String(
     <Layout title={pageTitle(data)}>
       <AdminNav active="/admin/" session={session} />
 
-      <h2>{pageTitle(data)}</h2>
+      <div class="prose">
+        <h1>{pageTitle(data)}</h1>
+        <StatusHeading data={data} />
+      </div>
+
+      {isEdit && a && (
+        <AttendeeDetail attendee={a} phonePrefix={data.phonePrefix} />
+      )}
+
+      {isEdit && (
+        <AttendeeAnswersTable
+          questions={data.questions}
+          selectedAnswerIds={data.selectedAnswerIds}
+        />
+      )}
 
       {isEdit && a && <Raw html={PaymentDetails({ attendee: a })} />}
+
+      {isEdit && <AttendeeLogSection entries={data.activityLog} />}
 
       {data.attendeeError && (
         <div class="error" role="alert">
@@ -460,110 +614,14 @@ export const attendeeFormPage = (
         </output>
       )}
 
-      <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
-        <Flash error={data.flashError} success={data.flashSuccess} />
-        {data.returnUrl && (
-          <input name="return_url" type="hidden" value={data.returnUrl} />
-        )}
-
-        <h3>Attendee Details</h3>
-
-        <label for="name">
-          Name
-          <input
-            autofocus
-            id="name"
-            name="name"
-            required
-            type="text"
-            value={data.parsed.name}
-          />
-        </label>
-
-        <label for="email">
-          Email
-          <input
-            id="email"
-            name="email"
-            type="email"
-            value={data.parsed.email || ""}
-          />
-        </label>
-
-        <label for="phone">
-          Phone
-          <input
-            id="phone"
-            name="phone"
-            pattern="[+\d][\d\s\-()]{5,}"
-            title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
-            type="text"
-            value={data.parsed.phone || ""}
-          />
-        </label>
-
-        <label for="address">
-          Address
-          <textarea id="address" maxlength={250} name="address" rows={3}>
-            {data.parsed.address || ""}
-          </textarea>
-        </label>
-
-        <label for="special_instructions">
-          Special Instructions
-          <textarea
-            id="special_instructions"
-            maxlength={250}
-            name="special_instructions"
-            rows={3}
-          >
-            {data.parsed.special_instructions || ""}
-          </textarea>
-        </label>
-
-        <StatusAndBalanceFields data={data} />
-
-        {data.questions && data.questions.length > 0 && (
-          <>
-            <h3>Custom Questions</h3>
-            <EditQuestions
-              questions={data.questions}
-              selectedAnswerIds={data.selectedAnswerIds}
-            />
-          </>
-        )}
-
-        <h3>Listing Registrations</h3>
-        <LineEditor data={data} />
-        <p>
-          <button
-            formnovalidate
-            name={ACTION_FIELD}
-            type="submit"
-            value={ADD_LINE_ACTION}
-          >
-            <Icon name="plus" />
-            <span>Add Listing Line</span>
-          </button>
-        </p>
-
-        <hr />
-
-        <p class="form-actions">
-          <button
-            class="primary"
-            name={ACTION_FIELD}
-            type="submit"
-            value={SAVE_ACTION}
-          >
-            <Icon name="save" />
-            <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
-          </button>
-          <a class="button" href={data.returnUrl || "/admin/"}>
-            Back without saving
-          </a>
-        </p>
-      </CsrfForm>
+      {isEdit ? (
+        <details>
+          <summary>Edit Attendee Details</summary>
+          {editForm}
+        </details>
+      ) : (
+        editForm
+      )}
 
       {isEdit && a && a.email && (
         <EmailHistory emailStats={data.emailStats ?? null} />
