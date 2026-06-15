@@ -30,7 +30,7 @@ export const EmailNotificationsForm = (
           <option selected={!s.emailProvider} value="">
             {s.hostEmailLabel || "None (disabled)"}
           </option>
-          {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
+          {VALID_EMAIL_PROVIDERS.map((p) => (
             <option selected={s.emailProvider === p} value={p}>
               {EMAIL_PROVIDER_LABELS[p]}
             </option>

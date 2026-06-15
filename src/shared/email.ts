@@ -3,6 +3,7 @@
  * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid, Mailgun)
  */
 
+import * as v from "valibot";
 import { chunk, lazyRef, map } from "#fp";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -232,14 +233,23 @@ const PROVIDERS = {
 /** Union of all supported email provider keys, derived from the PROVIDERS map */
 export type EmailProvider = keyof typeof PROVIDERS;
 
-/** Valid provider names, derived from the PROVIDERS map */
-export const VALID_EMAIL_PROVIDERS: ReadonlySet<EmailProvider> = new Set(
-  Object.keys(PROVIDERS) as EmailProvider[],
+/**
+ * Picklist schema for the supported email providers. Its options are derived
+ * from the PROVIDERS map so the two can never drift, and it mirrors the
+ * string-union picklists in types.ts (ContactFieldSchema, PaymentProviderSchema
+ * …) — `EmailProviderSchema.options` + `v.is` replace the previous hand-rolled
+ * Set + `.has()` guard.
+ */
+export const EmailProviderSchema = v.picklist(
+  Object.keys(PROVIDERS) as [EmailProvider, ...EmailProvider[]],
 );
+
+/** Valid provider names (the picklist options), derived from the PROVIDERS map */
+export const VALID_EMAIL_PROVIDERS = EmailProviderSchema.options;
 
 /** Type guard: checks if a string is a valid EmailProvider */
 export const isEmailProvider = (value: string): value is EmailProvider =>
-  (VALID_EMAIL_PROVIDERS as ReadonlySet<string>).has(value);
+  v.is(EmailProviderSchema, value);
 
 /** Display labels for email providers — keys must match EmailProvider */
 export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {

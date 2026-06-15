@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
@@ -459,9 +460,13 @@ describeWithEnv(
     describe("generateAttachmentFilename", () => {
       test("generates filename with UUID prefix and original name", () => {
         const filename = generateAttachmentFilename("report.pdf");
-        expect(filename).toMatch(
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-report\.pdf$/,
+        // The prefix is a real UUID (from crypto.randomUUID), validated with
+        // valibot's uuid() rather than a hand-rolled hex regex; the sanitized
+        // original name follows it.
+        expect(v.is(v.pipe(v.string(), v.uuid()), filename.slice(0, 36))).toBe(
+          true,
         );
+        expect(filename.slice(36)).toBe("-report.pdf");
       });
 
       test("sanitizes special characters in filename", () => {
