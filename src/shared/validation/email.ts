@@ -1,20 +1,37 @@
+import * as v from "valibot";
 import { settings } from "#shared/db/settings.ts";
 
 /**
  * Email validation — the single source of truth for what counts as a valid
  * email address across the app, plus the branded ValidEmail type and helpers
- * for working with one. Other value-type validators (phone, slug, …) can follow
- * the same shape (REGEX + ValidXxx + parseXxx + isValidXxx + normalizeXxx) if a
- * shared validation/ folder is ever warranted.
+ * for working with one. Format checks are delegated to valibot's `email`
+ * action; other value-type validators (phone, slug, …) can follow the same
+ * shape (schema + ValidXxx + parseXxx + isValidXxx) as the rest of the app's
+ * validation migrates to valibot.
  */
 
 /**
- * Canonical email-address format used across the app: `local@host.tld`. More
- * permissive than strict RFC 5322, but it guarantees a non-empty local part and
- * a host containing at least one dot. All email validation goes through it (see
- * isValidEmail / parseEmail and validateEmail in #templates/fields.ts).
+ * Canonical email schema used across the app: `local@host.tld`. valibot's
+ * `email` action guarantees a non-empty local part and a host containing at
+ * least one dot. The input is trimmed and lowercased before validation, and the
+ * output is branded as ValidEmail so a value can only be produced by passing
+ * validation. All email validation that needs a normalized, carry-onward value
+ * goes through this (see isValidEmail / parseEmail).
  */
-export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EmailSchema = v.pipe(
+  v.string(),
+  v.trim(),
+  v.toLowerCase(),
+  v.email(),
+  v.brand("ValidEmail"),
+);
+
+/**
+ * Format-only email schema: validates an address exactly as typed, without
+ * trimming or lowercasing. Used by field validators that check raw user input
+ * (see validateEmail in #templates/fields.ts).
+ */
+export const EmailFormatSchema = v.pipe(v.string(), v.email());
 
 /**
  * An email address that has passed validation (a non-empty host containing at
@@ -25,11 +42,11 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * such code needs no fallback for addresses that lack one. The only way to
  * obtain a value is through parseEmail, which performs the validation.
  */
-export type ValidEmail = string & { readonly __validEmail: unique symbol };
+export type ValidEmail = v.InferOutput<typeof EmailSchema>;
 
-/** Whether a string is a valid email (trimmed) per EMAIL_REGEX. */
+/** Whether a string is a valid email (trimmed) per EmailSchema. */
 export function isValidEmail(email: string): boolean {
-  return EMAIL_REGEX.test(email.trim());
+  return v.safeParse(EmailSchema, email).success;
 }
 
 /**
@@ -38,8 +55,8 @@ export function isValidEmail(email: string): boolean {
  * validated address needs to be carried onward in a type-safe way.
  */
 export function parseEmail(email: string): ValidEmail | null {
-  const normalized = normalizeEmail(email);
-  return isValidEmail(normalized) ? (normalized as ValidEmail) : null;
+  const result = v.safeParse(EmailSchema, email);
+  return result.success ? result.output : null;
 }
 
 /**
@@ -56,11 +73,6 @@ export function emailLocalPart(email: ValidEmail): string {
   return email.slice(0, email.lastIndexOf("@"));
 }
 
-/** Normalizes an email: trim and lowercase. */
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 /**
  * Updates the business email in the database.
  * Pass empty string to clear the business email.
@@ -72,11 +84,11 @@ export async function updateBusinessEmail(email: string): Promise<void> {
     return;
   }
 
-  const normalized = normalizeEmail(email);
+  const parsed = parseEmail(email);
 
-  if (!isValidEmail(normalized)) {
+  if (!parsed) {
     throw new Error("Invalid business email format");
   }
 
-  await settings.update.businessEmail(normalized);
+  await settings.update.businessEmail(parsed);
 }

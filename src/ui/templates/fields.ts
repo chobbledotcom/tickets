@@ -2,6 +2,7 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
+import * as v from "valibot";
 import { formatCurrency } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -30,7 +31,7 @@ import {
   type ListingType,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
-import { EMAIL_REGEX } from "#shared/validation/email.ts";
+import { EmailFormatSchema } from "#shared/validation/email.ts";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -292,7 +293,9 @@ const validateNonNegativePrice = (value: string): string | null => {
  * Validate email format
  */
 export const validateEmail = (value: string): string | null =>
-  EMAIL_REGEX.test(value) ? null : "Please enter a valid email address";
+  v.safeParse(EmailFormatSchema, value).success
+    ? null
+    : "Please enter a valid email address";
 
 /**
  * Validate phone number format

@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import {
-  isValidEmail,
-  normalizeEmail,
-  updateBusinessEmail,
-} from "#shared/validation/email.ts";
+import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("business-email", { db: true }, () => {
@@ -70,26 +66,12 @@ describeWithEnv("business-email", { db: true }, () => {
       expect(isValidEmail("test@@example.com")).toBe(false);
     });
 
+    test("rejects local part with disallowed special characters", () => {
+      expect(isValidEmail("admin!@example.com")).toBe(false);
+    });
+
     test("trims whitespace before validation", () => {
       expect(isValidEmail("  test@example.com  ")).toBe(true);
-    });
-  });
-
-  describe("normalizeEmail", () => {
-    test("trims whitespace", () => {
-      expect(normalizeEmail("  test@example.com  ")).toBe("test@example.com");
-    });
-
-    test("converts to lowercase", () => {
-      expect(normalizeEmail("Test@Example.Com")).toBe("test@example.com");
-    });
-
-    test("trims and lowercases together", () => {
-      expect(normalizeEmail("  USER@EXAMPLE.COM  ")).toBe("user@example.com");
-    });
-
-    test("handles already normalized email", () => {
-      expect(normalizeEmail("user@example.com")).toBe("user@example.com");
     });
   });
 
