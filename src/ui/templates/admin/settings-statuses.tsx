@@ -134,11 +134,23 @@ export const adminAttendeeStatusFormPage = (
           Name
           <input name="name" required type="text" value={status?.name ?? ""} />
         </label>
-        {checkbox(
-          "is_reservation",
-          "This is a reservation — collect a deposit now, balance later",
-          status?.is_reservation ?? false,
-        )}
+        <fieldset class="checkboxes">
+          {checkbox(
+            "is_reservation",
+            "This is a reservation — collect a deposit now, balance later",
+            status?.is_reservation ?? false,
+          )}
+          {checkbox(
+            "is_public_default",
+            "Default status for new public bookings",
+            status?.is_public_default ?? false,
+          )}
+          {checkbox(
+            "is_paid_default",
+            "Status an attendee moves to when their balance is paid",
+            status?.is_paid_default ?? false,
+          )}
+        </fieldset>
         <label>
           Reservation amount
           <input
@@ -148,16 +160,6 @@ export const adminAttendeeStatusFormPage = (
           />
           <small>{RESERVATION_AMOUNT_HINT}. Only used for reservations.</small>
         </label>
-        {checkbox(
-          "is_public_default",
-          "Default status for new public bookings",
-          status?.is_public_default ?? false,
-        )}
-        {checkbox(
-          "is_paid_default",
-          "Status an attendee moves to when their balance is paid",
-          status?.is_paid_default ?? false,
-        )}
         <SubmitButton icon={editing ? "save" : "plus"}>
           {editing ? "Save status" : "Create status"}
         </SubmitButton>
