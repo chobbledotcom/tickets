@@ -252,9 +252,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("everyone in BCC");
       expect(html).toContain("Open a BCC draft to 2 recipients");
       expect(html).toContain("mailto:owner%40example.com?bcc=");
@@ -270,9 +272,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Open a draft to 1 recipient");
       expect(html).toContain("addressed straight to your one recipient");
       expect(html).toContain("mailto:alice%40example.com?");
