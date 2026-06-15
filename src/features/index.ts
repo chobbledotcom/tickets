@@ -26,7 +26,13 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
+import {
+  getClientIp,
+  normalizePath,
+  parseCookies,
+  parseRequest,
+} from "#routes/url.ts";
+import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
   seedEffectiveDomainHost,
@@ -629,11 +635,15 @@ export const handleRequest = async (
 ): Promise<Response> => {
   const effectiveRequest = await bufferRequestIfNeeded(request);
 
-  return runWithRequestId(() =>
-    runWithRequestCache(() =>
-      runWithQueryLogContext(() =>
-        runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server)),
+  return runWithClientIp(getClientIp(request, server), () =>
+    runWithRequestId(() =>
+      runWithRequestCache(() =>
+        runWithQueryLogContext(() =>
+          runWithFlashContext(() =>
+            runWithSessionContext(() =>
+              processRequest(effectiveRequest, server),
+            ),
+          ),
         ),
       ),
     ),

@@ -9,6 +9,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
+import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   getPrivateKeyFromSession,
@@ -16,6 +17,10 @@ import {
 } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
+import {
+  isApiKeyRateLimited,
+  recordApiKeyAttempt,
+} from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -131,8 +136,21 @@ export const getAuthenticatedApiKey = async (
   const token = getBearerToken(request);
   if (!token) return null;
 
+  // Throttle brute-force guessing per IP. Only failed lookups are counted, so a
+  // client with a valid key is never locked out; once an IP is locked, even a
+  // correct token is rejected until the lockout expires.
+  const ip = getRequestClientIp();
+  if (await isApiKeyRateLimited(ip)) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "API key authentication rate limited",
+    });
+    return null;
+  }
+
   const apiKeyRow = await getApiKeyByToken(token);
   if (!apiKeyRow) {
+    await recordApiKeyAttempt(ip);
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
       detail: "Bearer token does not match any API key",

@@ -135,6 +135,16 @@ export const BOOKING_LOCKOUT_MS = readLimit(
 );
 
 // ---------------------------------------------------------------------------
+// API-key (Bearer) auth rate limiting
+// ---------------------------------------------------------------------------
+
+/** Max failed API-key auth attempts per IP before lockout (default: 20) */
+export const MAX_APIKEY_ATTEMPTS = readLimit("MAX_APIKEY_ATTEMPTS", 20);
+
+/** Lockout duration after max failed API-key attempts in ms (default: 900000 = 15 min) */
+export const APIKEY_LOCKOUT_MS = readLimit("APIKEY_LOCKOUT_MS", 15 * 60 * 1000);
+
+// ---------------------------------------------------------------------------
 // Database pruning
 // ---------------------------------------------------------------------------
 
@@ -372,6 +382,20 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 10 * 60 * 1000,
     envKey: "BOOKING_LOCKOUT_MS",
     label: "Booking lockout duration",
+    unit: "ms",
+  },
+  {
+    current: MAX_APIKEY_ATTEMPTS,
+    defaultValue: 20,
+    envKey: "MAX_APIKEY_ATTEMPTS",
+    label: "Max failed API-key attempts before lockout",
+    unit: "attempts",
+  },
+  {
+    current: APIKEY_LOCKOUT_MS,
+    defaultValue: 15 * 60 * 1000,
+    envKey: "APIKEY_LOCKOUT_MS",
+    label: "API-key lockout duration",
     unit: "ms",
   },
   {
