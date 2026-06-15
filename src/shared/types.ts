@@ -2,11 +2,7 @@
  * Types for the ticket reservation system
  */
 
-/** Create a type guard from a readonly array of string literal values */
-export const createTypeGuard =
-  <T extends string>(values: readonly T[]) =>
-  (s: string): s is T =>
-    (values as readonly string[]).includes(s);
+import * as v from "valibot";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -34,33 +30,34 @@ export type NagItem = {
   href: string;
 };
 
-export type SuperuserChoice = "" | "self-managed" | "enabled";
-
-const SUPERUSER_CHOICES: readonly SuperuserChoice[] = [
+export const SuperuserChoiceSchema = v.picklist([
   "",
   "self-managed",
   "enabled",
-];
+]);
 
-export const isSuperuserChoice = createTypeGuard(SUPERUSER_CHOICES);
+export type SuperuserChoice = v.InferOutput<typeof SuperuserChoiceSchema>;
 
-/** Individual contact field name */
-export type ContactField =
-  | "email"
-  | "phone"
-  | "address"
-  | "special_instructions";
+export const isSuperuserChoice = (s: string): s is SuperuserChoice =>
+  v.is(SuperuserChoiceSchema, s);
 
-/** All valid contact field names (runtime array matching the ContactField union) */
-export const CONTACT_FIELDS: readonly ContactField[] = [
+/** Schema for an individual contact field name */
+export const ContactFieldSchema = v.picklist([
   "email",
   "phone",
   "address",
   "special_instructions",
-];
+]);
+
+/** Individual contact field name */
+export type ContactField = v.InferOutput<typeof ContactFieldSchema>;
+
+/** All valid contact field names (runtime array matching the ContactField union) */
+export const CONTACT_FIELDS = ContactFieldSchema.options;
 
 /** Type guard: check if an arbitrary string is a valid ContactField */
-export const isContactField = createTypeGuard(CONTACT_FIELDS);
+export const isContactField = (s: string): s is ContactField =>
+  v.is(ContactFieldSchema, s);
 
 /**
  * Contact fields setting for an listing (comma-separated ContactField names, or empty for name-only).
@@ -84,43 +81,43 @@ export type ContactFields = Pick<ContactInfo, "name" | "email"> &
 /** UI theme */
 export type Theme = "light" | "dark";
 
-/** Supported payment provider identifiers */
-export type PaymentProviderType = "stripe" | "square" | "sumup";
+/** Schema for supported payment provider identifiers */
+export const PaymentProviderSchema = v.picklist(["stripe", "square", "sumup"]);
 
-/** Valid payment provider values */
-const PAYMENT_PROVIDERS: readonly PaymentProviderType[] = [
-  "stripe",
-  "square",
-  "sumup",
-];
+/** Supported payment provider identifiers */
+export type PaymentProviderType = v.InferOutput<typeof PaymentProviderSchema>;
 
 /** Type guard: check if a string is a valid PaymentProviderType */
-export const isPaymentProvider = createTypeGuard(PAYMENT_PROVIDERS);
+export const isPaymentProvider = (s: string): s is PaymentProviderType =>
+  v.is(PaymentProviderSchema, s);
 
 /** Persisted payment-provider setting: an explicit provider, "none" (admin saved
  *  payments-disabled), or absent (never saved — drives the settings nag). */
-export type PaymentProviderSetting = PaymentProviderType | "none";
-
-const PAYMENT_PROVIDER_SETTINGS: readonly PaymentProviderSetting[] = [
+export const PaymentProviderSettingSchema = v.picklist([
   "stripe",
   "square",
   "sumup",
   "none",
-];
+]);
+
+export type PaymentProviderSetting = v.InferOutput<
+  typeof PaymentProviderSettingSchema
+>;
 
 /** Type guard: check if a string is a valid PaymentProviderSetting */
-export const isPaymentProviderSetting = createTypeGuard(
-  PAYMENT_PROVIDER_SETTINGS,
-);
+export const isPaymentProviderSetting = (
+  s: string,
+): s is PaymentProviderSetting => v.is(PaymentProviderSettingSchema, s);
+
+/** Schema for a listing type: standard (one-time) or daily (date-based booking) */
+export const ListingTypeSchema = v.picklist(["standard", "daily"]);
 
 /** Listing type: standard (one-time) or daily (date-based booking) */
-export type ListingType = "standard" | "daily";
-
-/** Valid listing type values */
-const LISTING_TYPES: readonly ListingType[] = ["standard", "daily"];
+export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 
 /** Type guard: check if an arbitrary string is a valid ListingType */
-export const isListingType = createTypeGuard(LISTING_TYPES);
+export const isListingType = (s: string): s is ListingType =>
+  v.is(ListingTypeSchema, s);
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */
@@ -313,14 +310,15 @@ export interface Session {
   wrapped_data_key: string | null;
 }
 
-/** Admin role levels */
-export type AdminLevel = "owner" | "manager";
+/** Schema for admin role levels */
+export const AdminLevelSchema = v.picklist(["owner", "manager"]);
 
-/** Valid admin level values */
-const ADMIN_LEVELS: readonly AdminLevel[] = ["owner", "manager"];
+/** Admin role levels */
+export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;
 
 /** Type guard: check if a string is a valid AdminLevel */
-export const isAdminLevel = createTypeGuard(ADMIN_LEVELS);
+export const isAdminLevel = (s: string): s is AdminLevel =>
+  v.is(AdminLevelSchema, s);
 
 /** Session data needed by admin page templates */
 export type AdminSession = {

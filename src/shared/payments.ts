@@ -6,13 +6,10 @@
  * this interface so they never depend on a specific provider.
  */
 
+import * as v from "valibot";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
-import {
-  type ContactInfo,
-  createTypeGuard,
-  type PaymentProviderType,
-} from "#shared/types.ts";
+import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -121,25 +118,22 @@ export type SessionMetadata = {
   reservation_amount: string;
 };
 
-/** Valid payment status values. "failed" is a terminal non-payment (declined
- * or expired checkout) — distinct from "unpaid", which may still complete. */
-export type PaymentStatus =
-  | "paid"
-  | "unpaid"
-  | "no_payment_required"
-  | "failed";
-
-/** Runtime array of valid payment status values */
-const PAYMENT_STATUSES: readonly PaymentStatus[] = [
+/** Schema for valid payment status values. "failed" is a terminal non-payment
+ * (declined or expired checkout) — distinct from "unpaid", which may still
+ * complete. */
+export const PaymentStatusSchema = v.picklist([
   "paid",
   "unpaid",
   "no_payment_required",
   "failed",
-];
+]);
+
+/** Valid payment status value */
+export type PaymentStatus = v.InferOutput<typeof PaymentStatusSchema>;
 
 /** Type guard: check if a string is a valid PaymentStatus */
-export const isPaymentStatus: (s: string) => s is PaymentStatus =
-  createTypeGuard(PAYMENT_STATUSES);
+export const isPaymentStatus = (s: string): s is PaymentStatus =>
+  v.is(PaymentStatusSchema, s);
 
 /** A validated payment session returned after checkout completion */
 export type ValidatedPaymentSession = {
