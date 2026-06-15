@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   awaitTestRequest,
@@ -7,6 +8,7 @@ import {
   expectHtmlResponse,
   FLASH_TEST_ID,
   flashCookieHeader,
+  setTestEnv,
   testCookie,
   testRequiresAuth,
 } from "#test-utils";
@@ -96,6 +98,90 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(html).toContain('href="/admin/settings-advanced"');
       expect(html).toContain('href="/admin/backup"');
       expect(html).toContain('href="/admin/debug"');
+    });
+  });
+
+  describe("GET /admin/settings-advanced", () => {
+    testRequiresAuth("/admin/settings-advanced");
+
+    test("shows advanced settings page when authenticated", async () => {
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Advanced Settings",
+        "Enable public API?",
+      );
+    });
+
+    test("shows warning about careful changes", async () => {
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("Be careful changing settings on this page");
+    });
+
+    test("renders with a payment provider configured", async () => {
+      await settings.update.paymentProvider("square");
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(response, 200, "Advanced Settings");
+    });
+
+    test("shows breadcrumb back to settings", async () => {
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain('href="/admin/settings"');
+      expect(html).toContain("Settings");
+    });
+
+    test("each advanced settings form has an id attribute", async () => {
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain('id="settings-show-public-api"');
+      expect(html).toContain('id="settings-apple-wallet"');
+      expect(html).toContain('id="settings-email-tpl-confirmation"');
+      expect(html).toContain('id="settings-email-tpl-admin"');
+      expect(html).toContain('id="settings-email"');
+      expect(html).toContain('id="settings-reset-database"');
+    });
+
+    test("shows host email label when host email is configured", async () => {
+      const restore = setTestEnv({
+        HOST_EMAIL_API_KEY: "key-123",
+        HOST_EMAIL_FROM_ADDRESS: "noreply@example.com",
+        HOST_EMAIL_PROVIDER: "resend",
+      });
+      try {
+        const response = await awaitTestRequest("/admin/settings-advanced", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain("Host Resend (noreply@example.com)");
+        expect(html).not.toContain("None (disabled)");
+      } finally {
+        restore();
+      }
+    });
+
+    test("displays success message on the matching form when form param is provided", async () => {
+      const response = await awaitTestRequest(
+        `/admin/settings-advanced?form=settings-show-public-api&flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${await testCookie()}; ${flashCookieHeader("API enabled")}`,
+        },
+      );
+      const html = await response.text();
+      expect(html).toContain('id="settings-show-public-api"');
+      expect(html).toContain("API enabled");
     });
   });
 });
