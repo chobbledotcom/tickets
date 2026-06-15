@@ -42,8 +42,9 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
@@ -219,6 +220,10 @@ const buildEditFormFromAttendee = (
   };
 };
 
+/** How many of an attendee's activity-log entries to show on the edit page.
+ * High enough to be "all of them" for any real attendee. */
+const ATTENDEE_LOG_LIMIT = 1000;
+
 /** Build the template data for re-rendering the form. */
 const buildTemplateData = async (
   mode: "create" | "edit",
@@ -249,8 +254,15 @@ const buildTemplateData = async (
     summary?.fullPrice ?? 0,
     summary?.depositPaid ?? 0,
   );
+  // The read-only summary (detail table + activity log) is edit-only; create
+  // mode has no attendee to summarise yet.
+  const activityLog = attendee
+    ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
+    : [];
   return {
+    activityLog,
     allListings,
+    allowedDomain: getEffectiveDomain(),
     attendee,
     attendeeError: opts.attendeeError ?? null,
     availableDatesByListing,
@@ -262,7 +274,8 @@ const buildTemplateData = async (
     flashSuccess: opts.flashSuccess,
     mode,
     parsed,
-    questions: opts.questions,
+    phonePrefix: settings.phonePrefix,
+    questions: opts.questions ?? [],
     returnUrl: opts.returnUrl,
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     statuses,
@@ -615,9 +628,13 @@ const applyCreate = async (
   // input.bookings is non-empty (guarded above) and every booking comes from a
   // fillable line, so its listing id is always present — no re-scan needed.
   const firstListingId = input.bookings[0]!.listingId;
-  await logActivity(`Attendee '${parsed.name}' added manually`, firstListingId);
-
   const newId = attendees[0]!.id;
+  await logActivity(
+    `Attendee '${parsed.name}' added manually`,
+    firstListingId,
+    newId,
+  );
+
   return {
     ok: true,
     response: savedRedirect(newId, parsed.returnUrl, `Added ${parsed.name}`),
@@ -675,7 +692,11 @@ const applyEdit = async (
   }
 
   const firstListingId = desired[0]?.listingId;
-  await logActivity(`Attendee '${parsed.name}' updated`, firstListingId);
+  await logActivity(
+    `Attendee '${parsed.name}' updated`,
+    firstListingId,
+    attendeeId,
+  );
   return {
     ok: true,
     response: savedRedirect(

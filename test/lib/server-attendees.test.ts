@@ -1357,7 +1357,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         form,
       );
       // Save returns to the same form (anchored), carrying return_url through
-      // so the "Back without saving" link still points where the user came from.
+      // so a later save still round-trips the caller's origin.
       expectRedirect(
         response,
         `/admin/attendees/${attendee.id}`,

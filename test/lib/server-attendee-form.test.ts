@@ -848,7 +848,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Edit Attendee: Orphan");
+      expect(html).toContain("Attendee: Orphan");
     });
 
     test("POST edit for attendee with no bookings re-renders with no_lines error", async () => {
@@ -1141,6 +1141,27 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain('name="remaining_balance"');
       expect(html).not.toContain("still unpaid");
       expect(html).not.toContain("paid status but still owes");
+    });
+
+    test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {
+      const reservation = await newReservation();
+      const id = await seedAttendee(reservation.id, 900);
+      const html = await getEdit(id);
+      expect(html).toContain("<h2>Status: Reserved</h2>");
+    });
+
+    test("edit page status heading reads None when the attendee has no status", async () => {
+      await newReservation(); // a second status, so the heading is shown
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).toContain("<h2>Status: None</h2>");
+    });
+
+    test("edit page omits the status heading when only one status exists", async () => {
+      // Fresh installs seed a single status, which carries no information.
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).not.toContain("<h2>Status:");
     });
   });
 });
