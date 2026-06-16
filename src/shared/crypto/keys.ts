@@ -352,10 +352,12 @@ export const hybridDecrypt = async (
 };
 
 /**
- * Encrypt attendee PII using the public key from settings
- * This can be called without authentication (for public ticket forms)
+ * Encrypt a value with the site owner's public key (hybrid RSA+AES).
+ * Only the owner's password-derived private key can decrypt it. Used for
+ * attendee PII, email-preference blobs, and bulk-email drafts/templates.
+ * Can be called without authentication (e.g. from public ticket forms).
  */
-export const encryptAttendeePII = async (
+export const encryptWithOwnerKey = async (
   plaintext: string,
   publicKeyJwk: string,
 ): Promise<string> => {
@@ -398,10 +400,10 @@ export const getPrivateKeyFromSession = async (
 };
 
 /**
- * Decrypt attendee PII using the private key
- * Used in admin views after obtaining private key from session
+ * Decrypt a value encrypted with {@link encryptWithOwnerKey}, using the
+ * owner's private key (obtained from the session in admin views).
  */
-export const decryptAttendeePII = (
+export const decryptWithOwnerKey = (
   encrypted: string,
   privateKey: CryptoKey,
 ): Promise<string> => {
