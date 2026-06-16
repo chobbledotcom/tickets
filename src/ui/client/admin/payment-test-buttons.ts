@@ -110,14 +110,21 @@ export const initPaymentTestButtons = (): void => {
     "sumup-test-result",
     "/admin/settings/sumup/test",
     "sumup-test-result",
-    (data) => [
-      formatCredentialLine("API Key", data.apiKey),
-      data.merchant.configured
-        ? `Merchant: ${data.merchant.merchantCode}`
-        : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
-      data.currency.supported
-        ? `Currency: ${data.currency.code} (supported)`
-        : `Currency: ${data.currency.code} is not supported by SumUp`,
-    ],
+    (data) => {
+      const apiKeyLine = formatCredentialLine("API Key", data.apiKey);
+      // A rejected key means the merchant lookup never ran, so "Merchant: Not
+      // configured" would be misleading and the currency note is just noise.
+      // The API Key line already carries the full, actionable fix.
+      if (!data.apiKey.valid) return [apiKeyLine];
+      return [
+        apiKeyLine,
+        data.merchant.configured
+          ? `Merchant: ${data.merchant.merchantCode}`
+          : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
+        data.currency.supported
+          ? `Currency: ${data.currency.code} (supported)`
+          : `Currency: ${data.currency.code} is not supported by SumUp`,
+      ];
+    },
   );
 };
