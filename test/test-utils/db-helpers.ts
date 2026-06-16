@@ -384,13 +384,14 @@ export const createTestAttendeeDirect = async (
 };
 
 /**
- * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`)
- * that preserves the attendee's existing event-registration lines.
+ * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`).
  *
- * Reads the attendee's current `event_attendees` rows and emits one
- * `line_*_N` block per existing booking with the correct `line_key_N`. Use
- * `overrides.lines` to swap / add / drop lines, and the top-level overrides
- * for PII fields.
+ * Emits the shared `start_date` + `day_count` (seeded from the attendee's
+ * existing bookings) and one `qty_<listingId>` / `line_key_<listingId>` pair per
+ * existing booking, so a bare call preserves the attendee unchanged. Pass
+ * `overrides.lines` to set the full booked set (each `{ eventId, quantity, key }`
+ * — quantity 0 or an omitted listing un-books it), or `startDate` / `dayCount`
+ * to move the shared range.
  */
 export const buildAttendeeEditForm = async (
   attendeeId: number,
@@ -401,11 +402,12 @@ export const buildAttendeeEditForm = async (
     address?: string;
     special_instructions?: string;
     returnUrl?: string;
+    startDate?: string;
+    dayCount?: number;
     lines?: Array<{
       eventId: number;
       quantity?: number;
-      date?: string;
-      /** Omit to add as a new line; pass the existing key to update. */
+      /** Omit to book as a new line; pass the existing key to keep/move it. */
       key?: string;
     }>;
     /** Extra fields to merge in (e.g. `question_<id>`). */
@@ -413,31 +415,32 @@ export const buildAttendeeEditForm = async (
   } = {},
 ): Promise<Record<string, string>> => {
   const { loadExistingLines } = await import("#shared/db/attendees.ts");
+  const { resolveSharedDates } = await import(
+    "#routes/admin/attendee-form-model.ts"
+  );
   const existing = await loadExistingLines(attendeeId);
+  const shared = resolveSharedDates(existing.map((e) => e.booking));
   const lines =
     overrides.lines ??
     existing.map(({ key, booking }) => ({
-      date: booking.start_at?.slice(0, 10) ?? "",
       eventId: booking.listing_id,
       key,
       quantity: booking.quantity,
     }));
   const form: Record<string, string> = {
-    action: "save",
     address: overrides.address ?? "",
+    day_count: String(overrides.dayCount ?? shared.dayCount),
     email: overrides.email ?? "",
-    line_count: String(lines.length),
     name: overrides.name ?? "",
     phone: overrides.phone ?? "",
     special_instructions: overrides.special_instructions ?? "",
+    start_date: overrides.startDate ?? shared.startDate,
   };
   if (overrides.returnUrl) form.return_url = overrides.returnUrl;
-  lines.forEach((line, i) => {
-    form[`line_event_id_${i}`] = String(line.eventId);
-    form[`line_quantity_${i}`] = String(line.quantity ?? 1);
-    form[`line_date_${i}`] = line.date ?? "";
-    form[`line_key_${i}`] = line.key ?? "";
-  });
+  for (const line of lines) {
+    form[`qty_${line.eventId}`] = String(line.quantity ?? 1);
+    form[`line_key_${line.eventId}`] = line.key ?? "";
+  }
   if (overrides.extra) Object.assign(form, overrides.extra);
   return form;
 };

@@ -1,36 +1,30 @@
 /**
  * Routes for the unified add/edit attendee page.
  *
- *   GET  /admin/attendees/new      — render empty form (create mode)
+ *   GET  /admin/attendees/new      — render the create form
  *   POST /admin/attendees/new      — handle create submission
- *   GET  /admin/attendees/:id      — render form preloaded with attendee (edit mode)
+ *   GET  /admin/attendees/:id      — render the edit form, preloaded
  *   POST /admin/attendees/:id      — handle edit submission
  *
- * Create and edit share every step:
- *   1. Load available listings + (edit only) current attendee/lines.
- *   2. Parse the form into attendee + line items.
- *   3. If the operator clicked add-line / remove-line, re-render without
- *      saving (preserve all entered data).
- *   4. Otherwise validate. On failure, re-render with line-level errors.
- *   5. Run the atomic create or update.
- *   6. Redirect with a success/failure flash.
+ * The editor is a fixed table — one quantity box per bookable listing (plus any
+ * inactive listing the attendee already booked) — and one shared date range, so
+ * a submission is a single self-contained save with no add/remove-line round
+ * trips. Create can be deep-linked from the calendar availability checker with
+ * `?select_<id>=1&start_date=…` to pre-fill the chosen listings and date.
  */
 
-import { compact, filter, map, pipe, unique } from "#fp";
+import { filter, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   attendeeBalanceNotice,
-  type DailyDefaults,
-  defaultNewDailyDate,
   type ParsedAttendeeForm,
   parseAttendeeForm,
-  resolveDailyDefaults,
+  resolveSharedDates,
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
-  trimTrailingBlankLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import {
@@ -45,7 +39,6 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getBookableStartDates } from "#shared/dates.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
@@ -68,7 +61,6 @@ import {
   getEmailStats,
   hashEmail,
 } from "#shared/db/email-preferences.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   loadAttendeeQuestionData,
@@ -84,12 +76,7 @@ import {
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import {
-  type Attendee,
-  availableDayCounts,
-  type Holiday,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   type AttendeeFormTemplateData,
@@ -100,187 +87,111 @@ import {
 // Shared loaders / helpers
 // ---------------------------------------------------------------------------
 
-/** Listings selectable in the dropdown: active listings plus any currently
- * selected listings (so an inactive selected listing still renders its name). */
-const getListingsForSelector = async (
-  parsed: ParsedAttendeeForm | null,
-): Promise<ListingWithCount[]> => {
-  const allListings = await getAllListings();
-  const active = filter((l: ListingWithCount) => l.active)(allListings);
-  if (!parsed) return active;
-  const selectedIds = new Set(
-    pipe(
-      map((line: AttendeeFormLine) => line.listingId),
-      filter((id: number) => id > 0),
-    )(parsed.lines),
-  );
-  // Active and selected-inactive are disjoint (one is active, the other not),
-  // so concatenating them needs no de-duplication.
-  const selectedInactive = filter(
-    (l: ListingWithCount) => selectedIds.has(l.id) && !l.active,
-  )(allListings);
-  return [...selectedInactive, ...active];
-};
-
-/** Index listings by id for line resolution. */
+/** Index listings by id. */
 const listingsByIdMap = (
   listings: ListingWithCount[],
 ): Map<number, ListingWithCount> => new Map(listings.map((l) => [l.id, l]));
 
-/** Build the available-dates map for every daily listing in the selector. */
-const buildAvailableDates = (
-  listings: ListingWithCount[],
-  holidays: Holiday[],
-): Record<number, string[]> => {
-  const result: Record<number, string[]> = {};
-  for (const listing of listings) {
-    if (listing.listing_type === "daily") {
-      result[listing.id] = getBookableStartDates(listing, holidays);
-    }
-  }
-  return result;
+/** Listings to render rows for: every active listing, plus any inactive listing
+ * the attendee already books (so an existing inactive registration still shows
+ * its quantity and can be edited). Active first, then inactive-booked. */
+const getRenderListings = async (
+  existing: ExistingLine[],
+): Promise<ListingWithCount[]> => {
+  const all = await getAllListings();
+  const active = filter((l: ListingWithCount) => l.active)(all);
+  const bookedIds = new Set(existing.map((e) => e.booking.listing_id));
+  const inactiveBooked = filter(
+    (l: ListingWithCount) => !l.active && bookedIds.has(l.id),
+  )(all);
+  return [...active, ...inactiveBooked];
 };
 
-/** Offered day counts per customisable daily listing, for the day-count picker. */
-const buildCustomisableDayCounts = (
-  listings: ListingWithCount[],
-): Record<number, number[]> => {
-  const result: Record<number, number[]> = {};
-  for (const listing of listings) {
-    if (listing.customisable_days && listing.listing_type === "daily") {
-      result[listing.id] = availableDayCounts(listing);
-    }
+/** First (earliest) existing booking per listing. A legacy attendee with two
+ * bookings of the same listing binds the row to the earliest; the rest fall out
+ * of the desired set on save, normalising onto the one shared range. */
+const firstExistingByListingId = (
+  existing: ExistingLine[],
+): Map<number, ExistingLine> => {
+  const map = new Map<number, ExistingLine>();
+  for (const e of existing) {
+    if (!map.has(e.booking.listing_id)) map.set(e.booking.listing_id, e);
   }
-  return result;
+  return map;
 };
 
-/** A fresh, empty listing line. The daily date defaults to the attendee's
- * shared start date when the existing daily lines are uniform, otherwise to
- * tomorrow — so a daily row never starts with an empty date. */
-const emptyLine = (
-  todayIso: string,
-  inheritedDate: string | null,
-): AttendeeFormLine => ({
-  date: inheritedDate ?? defaultNewDailyDate(todayIso),
-  dayCount: null,
-  error: null,
-  existingBooking: null,
-  key: "",
-  listing: null,
-  listingId: 0,
-  quantity: 1,
-});
+/** Build one editor line per rendered listing: the existing booking's quantity
+ * and key when present, otherwise the pre-selected quantity (0 = not booked). */
+const buildFormLines = (
+  renderListings: ListingWithCount[],
+  existingByListingId: Map<number, ExistingLine>,
+  preselectedQty: Map<number, number>,
+): AttendeeFormLine[] =>
+  renderListings.map((listing) => {
+    const existing = existingByListingId.get(listing.id);
+    return {
+      error: null,
+      existingBooking: existing?.booking ?? null,
+      key: existing?.key ?? "",
+      listing,
+      listingId: listing.id,
+      quantity: existing
+        ? existing.booking.quantity
+        : (preselectedQty.get(listing.id) ?? 0),
+    };
+  });
 
-/** A blank create-mode form shell carrying the given listing lines and empty
- * contact fields — the shared shape behind both the empty form and the
- * calendar deep-link form. */
-const createFormShell = (lines: AttendeeFormLine[]): ParsedAttendeeForm => ({
-  action: { kind: "save" },
+/** Build a create-mode form: a line per active listing (quantity from any
+ * pre-selection) and the shared start date from the deep link. */
+const buildCreateForm = (
+  renderListings: ListingWithCount[],
+  preselectedQty: Map<number, number>,
+  startDate: string,
+): ParsedAttendeeForm => ({
   address: "",
+  dayCount: 1,
   email: "",
-  lines,
+  lines: buildFormLines(renderListings, new Map(), preselectedQty),
   name: "",
   phone: "",
   remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
+  startDate,
   statusId: null,
 });
 
-/** Build the empty create-mode form shell: one blank line with the
- * default daily date pre-filled (so the operator sees a concrete date). */
-const buildEmptyCreateForm = (): ParsedAttendeeForm =>
-  createFormShell([emptyLine(todayInTz(settings.timezone), null)]);
-
-/** Build a create-mode line for a listing chosen on the calendar availability
- * checker: daily listings inherit the calendar's selected date, standard
- * listings take none. */
-const prefilledLine = (
-  listing: ListingWithCount,
-  startDate: string,
-  todayIso: string,
-): AttendeeFormLine => ({
-  date:
-    listing.listing_type === "daily"
-      ? isIsoDate(startDate)
-        ? startDate
-        : defaultNewDailyDate(todayIso)
-      : "",
-  dayCount: null,
-  error: null,
-  existingBooking: null,
-  key: "",
-  listing,
-  listingId: listing.id,
-  quantity: 1,
-});
-
-/**
- * Build the create form from a `?select_<id>=1&start_date=…` deep link (the
- * calendar availability checker's "Create Attendee" button). Unknown or
- * inactive listing ids are ignored; with no resolvable selection it falls back
- * to the empty one-line form so a bare `/admin/attendees/new` still works.
- */
-const buildCreateFormFromQuery = (
-  request: Request,
-  listingsById: Map<number, ListingWithCount>,
-): ParsedAttendeeForm => {
-  const params = new URL(request.url).searchParams;
-  const startDate = params.get(START_DATE_FIELD) ?? "";
-  const todayIso = todayInTz(settings.timezone);
-  const resolved = compact(
-    parseSelectedListingIds(params).map((id) => listingsById.get(id)),
-  );
-  const lines = resolved.map((listing) =>
-    prefilledLine(listing, startDate, todayIso),
-  );
-  return lines.length === 0 ? buildEmptyCreateForm() : createFormShell(lines);
-};
-
-/** Build the edit-mode form shell from a loaded attendee + its bookings. */
+/** Build the edit-mode form from a loaded attendee + its bookings, seeding the
+ * shared range from the existing daily bookings. */
 const buildEditFormFromAttendee = (
   attendee: Attendee,
   existing: ExistingLine[],
-  listingsById: Map<number, ListingWithCount>,
-): ParsedAttendeeForm => {
-  const lines: AttendeeFormLine[] = existing.map(({ key, booking }) => {
-    const listing = listingsById.get(booking.listing_id) ?? null;
-    return {
-      date: booking.start_at?.slice(0, 10) ?? "",
-      dayCount: null,
-      error: null,
-      existingBooking: booking,
-      key,
-      listing,
-      listingId: booking.listing_id,
-      quantity: booking.quantity,
-    };
-  });
-  // Always append one blank line so the operator has somewhere to type a new
-  // registration without clicking "Add Listing Line" first. It inherits the
-  // attendee's shared daily date when the existing daily lines are uniform.
-  lines.push(
-    emptyLine(
-      todayInTz(settings.timezone),
-      resolveDailyDefaults(lines).inheritedDate,
-    ),
-  );
+  renderListings: ListingWithCount[],
+): { parsed: ParsedAttendeeForm; hasMixedTimings: boolean } => {
+  const shared = resolveSharedDates(existing.map((e) => e.booking));
   return {
-    action: { kind: "save" },
-    address: attendee.address || "",
-    email: attendee.email || "",
-    lines,
-    name: attendee.name,
-    phone: attendee.phone || "",
-    remainingBalance: attendee.remaining_balance,
-    returnUrl: "",
-    special_instructions: attendee.special_instructions || "",
-    statusId: attendee.status_id,
+    hasMixedTimings: shared.hasMixedTimings,
+    parsed: {
+      address: attendee.address || "",
+      dayCount: shared.dayCount,
+      email: attendee.email || "",
+      lines: buildFormLines(
+        renderListings,
+        firstExistingByListingId(existing),
+        new Map(),
+      ),
+      name: attendee.name,
+      phone: attendee.phone || "",
+      remainingBalance: attendee.remaining_balance,
+      returnUrl: "",
+      special_instructions: attendee.special_instructions || "",
+      startDate: shared.startDate,
+      statusId: attendee.status_id,
+    },
   };
 };
 
-/** How many of an attendee's activity-log entries to show on the edit page.
- * High enough to be "all of them" for any real attendee. */
+/** How many of an attendee's activity-log entries to show on the edit page. */
 const ATTENDEE_LOG_LIMIT = 1000;
 
 /** Build the template data for re-rendering the form. */
@@ -290,22 +201,18 @@ const buildTemplateData = async (
   attendee: Attendee | null,
   opts: {
     attendeeError?: string | null;
+    dateError?: string | null;
     flashError?: string;
     flashSuccess?: string;
+    hasMixedTimings?: boolean;
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
     emailStats?: EmailStats | null;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
-  const allListings = await getListingsForSelector(parsed);
-  const holidays = await getActiveHolidays();
-  const availableDatesByListing = buildAvailableDates(allListings, holidays);
-  const customisableByListing = buildCustomisableDayCounts(allListings);
-  const dailyDefaults: DailyDefaults = resolveDailyDefaults(parsed.lines);
   const statuses = await getAllAttendeeStatuses();
-  // Surface a status/balance mismatch. The order totals come from the saved
-  // booking (edit only); in create mode there is nothing paid yet.
+  // The order totals come from the saved booking (edit only); create has none.
   const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
   const balanceNotice = attendeeBalanceNotice(
     statuses.find((s) => s.id === parsed.statusId) ?? null,
@@ -313,24 +220,20 @@ const buildTemplateData = async (
     summary?.fullPrice ?? 0,
     summary?.depositPaid ?? 0,
   );
-  // The read-only summary (detail table + activity log) is edit-only; create
-  // mode has no attendee to summarise yet.
   const activityLog = attendee
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
   return {
     activityLog,
-    allListings,
     allowedDomain: getEffectiveDomain(),
     attendee,
     attendeeError: opts.attendeeError ?? null,
-    availableDatesByListing,
     balanceNotice,
-    customisableByListing,
-    dailyDefaults,
+    dateError: opts.dateError ?? null,
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
+    hasMixedTimings: opts.hasMixedTimings ?? false,
     mode,
     parsed,
     phonePrefix: settings.phonePrefix,
@@ -343,11 +246,7 @@ const buildTemplateData = async (
 };
 
 /** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked listings (edit mode only). Rendering and saving every
- * listing's questions — not just the first — is what keeps the save from wiping
- * answers tied to the attendee's other listings: answers are stored per
- * attendee, so the submitted set must cover every question it can have
- * answered. */
+ * attendee's booked listings (edit mode only). */
 const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
@@ -370,8 +269,7 @@ const renderForm = (
   data: AttendeeFormTemplateData,
 ): Response => htmlResponse(attendeeFormPage(data, session));
 
-/** Render a GET of the form, surfacing any post-save flash (cookie) inside the
- * form so the operator lands on it after the redirect. */
+/** Render a GET of the form, surfacing any post-save flash (cookie). */
 const renderAttendeeFormPage = (
   request: Request,
   data: AttendeeFormTemplateData,
@@ -386,18 +284,25 @@ const renderAttendeeFormPage = (
 };
 
 // ---------------------------------------------------------------------------
-// GET /admin/attendees/new  (and GET /admin/attendees/:id)
+// GET handlers
 // ---------------------------------------------------------------------------
 
-/** Handle GET /admin/attendees/new — render the empty create form. */
+/** Handle GET /admin/attendees/new — render the create form, pre-filled from a
+ * calendar deep link when present. */
 export const handleAttendeeNewGet: TypedRouteHandler<
   "GET /admin/attendees/new"
 > = (request) =>
   requireSessionOr(request, async (session) => {
-    const allListings = await getListingsForSelector(null);
-    const parsed = buildCreateFormFromQuery(
-      request,
-      listingsByIdMap(allListings),
+    const renderListings = await getRenderListings([]);
+    const params = new URL(request.url).searchParams;
+    const preselectedQty = new Map(
+      parseSelectedListingIds(params).map((id) => [id, 1]),
+    );
+    const startParam = params.get(START_DATE_FIELD) ?? "";
+    const parsed = buildCreateForm(
+      renderListings,
+      preselectedQty,
+      isIsoDate(startParam) ? startParam : "",
     );
     const data = await buildTemplateData("create", parsed, null, {
       returnUrl: getSearchParam(request, "return_url"),
@@ -412,12 +317,11 @@ export const handleAttendeeEditGet: TypedRouteHandler<
   requireSessionOr(request, async (session) => {
     const loaded = await loadAttendeeForEdit(session, attendeeId);
     if (!loaded) return notFoundResponse();
-    const allListings = await getListingsForSelector(null);
-    const listingsById = listingsByIdMap(allListings);
-    const parsed = buildEditFormFromAttendee(
+    const renderListings = await getRenderListings(loaded.existing);
+    const { parsed, hasMixedTimings } = buildEditFormFromAttendee(
       loaded.attendee,
       loaded.existing,
-      listingsById,
+      renderListings,
     );
     const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
       attendeeId,
@@ -426,6 +330,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
     const emailStats = await loadEmailStats(session, loaded.attendee);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       emailStats,
+      hasMixedTimings,
       questions,
       returnUrl: getSearchParam(request, "return_url"),
       selectedAnswerIds,
@@ -433,8 +338,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
     return renderAttendeeFormPage(request, data, session);
   });
 
-/** Read the attendee's bulk-email contact history (null when no email on
- * file). Reused by the edit page to show the "Email History" section. */
+/** Read the attendee's bulk-email contact history (null when no email). */
 const loadEmailStats = async (
   session: AuthSession,
   attendee: Attendee,
@@ -450,7 +354,6 @@ const loadAttendeeForEdit = async (
   attendeeId: number,
 ): Promise<{ attendee: Attendee; existing: ExistingLine[] } | null> => {
   const pk = await requirePrivateKey(session);
-  // PII-only load; the per-listing lines come from loadExistingLines, so no join.
   const attendee = await getAttendee(attendeeId, pk);
   if (!attendee) return null;
   const existing = await loadExistingLines(attendeeId);
@@ -499,54 +402,7 @@ const loadEditContext = async (
 // POST handlers — shared submit logic
 // ---------------------------------------------------------------------------
 
-/** Apply add-line / remove-line transformations to a parsed form.
- *
- * Both actions are pure form-state edits — nothing is written to the
- * database. Removing an existing line just drops it from the form; the actual
- * `listing_attendees` delete happens when the operator saves (the atomic update
- * diffs it out). That keeps removal part of the one logical "save the whole
- * attendee" submission, so other typed-in changes are never lost to a
- * mid-edit redirect. A newly added line inherits the attendee's shared daily
- * start date when the existing daily lines are uniform.
- *
- * Returns `{ kind: "save" }` when the action was a plain save. */
-const applyLineAction = (
-  parsed: ParsedAttendeeForm,
-  todayIso: string,
-): { kind: "rerender"; parsed: ParsedAttendeeForm } | { kind: "save" } => {
-  const action = parsed.action;
-  if (action.kind === "add_line") {
-    const inherited = resolveDailyDefaults(parsed.lines).inheritedDate;
-    return {
-      kind: "rerender",
-      parsed: {
-        ...parsed,
-        lines: [...parsed.lines, emptyLine(todayIso, inherited)],
-      },
-    };
-  }
-  if (action.kind === "remove_line") {
-    const lines = parsed.lines.filter((_, i) => i !== action.index);
-    return {
-      kind: "rerender",
-      parsed: {
-        ...parsed,
-        lines: lines.length > 0 ? lines : [emptyLine(todayIso, null)],
-      },
-    };
-  }
-  return { kind: "save" };
-};
-
-/** Common submit handler for create + edit. `attendeeId` is null in create
- * mode.
- *
- * This uses `withAuth` directly rather than the `createAuthedFormRoute` factory
- * the simpler admin forms use: a single POST here can mean add-line, remove-line,
- * or save, and the non-save actions must re-render the in-progress form without
- * validating or persisting. That preserve-and-rerender, multi-action flow does
- * not fit the factory's validate→onValid/onInvalid shape, so the control flow
- * lives here explicitly. */
+/** Common submit handler for create + edit. `attendeeId` is null in create. */
 const handleSubmit =
   (mode: "create" | "edit", attendeeId: number | null) =>
   (request: Request): Promise<Response> =>
@@ -554,8 +410,7 @@ const handleSubmit =
       handleSubmitInner(mode, attendeeId, session, form),
     );
 
-/** Inner submit logic — extracted so the create/edit wrappers can pass
- * their own identity without conditionals in the hot path. */
+/** Inner submit logic — parse, validate, then run the atomic create or edit. */
 const handleSubmitInner = async (
   mode: "create" | "edit",
   attendeeId: number | null,
@@ -564,7 +419,6 @@ const handleSubmitInner = async (
 ): Promise<Response> => {
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
-  // Load attendee + existing lines + question context (edit mode only).
   const edit =
     mode === "edit" && attendeeId !== null
       ? await loadEditContext(session, attendeeId)
@@ -572,11 +426,9 @@ const handleSubmitInner = async (
   if (edit === null) return notFoundResponse();
   const { attendee, existingByKey, questions, selectedAnswerIds } = edit;
 
-  const allListings = await getAllListings();
-  const listingsById = listingsByIdMap(allListings);
-  // Coerce a missing/blank status (only reachable from a hand-crafted POST,
-  // since the form offers no "no status" choice) back to the public default
-  // rather than clearing it — the same resolver the template pre-selects with.
+  const listingsById = listingsByIdMap(await getAllListings());
+  // Coerce a missing/blank status back to the public default (the form offers
+  // no "no status" choice) — the same resolver the template pre-selects with.
   const statuses = await getAllAttendeeStatuses();
   const rawParsed = parseAttendeeForm(form, listingsById, existingByKey);
   const parsed: ParsedAttendeeForm = {
@@ -589,26 +441,7 @@ const handleSubmitInner = async (
     selectedAnswerIds,
   };
 
-  // Step 1: line-action re-render (no save).
-  const todayIso = todayInTz(settings.timezone);
-  const lineAction = applyLineAction(parsed, todayIso);
-  if (lineAction.kind === "rerender") {
-    return renderForm(
-      session,
-      await buildTemplateData(mode, lineAction.parsed, attendee, renderOpts),
-    );
-  }
-
-  // Step 2: trim trailing blank lines so save validation doesn't fail on
-  // the placeholder row.
-  const trimmed: ParsedAttendeeForm = {
-    ...parsed,
-    lines: trimTrailingBlankLines(parsed.lines),
-  };
-
-  // Step 3: validate attendee + every line.
-  const holidays = await getActiveHolidays();
-  const result = validateParsedForm(trimmed, holidays);
+  const result = validateParsedForm(parsed);
   const dataForRerender = await buildTemplateData(
     mode,
     result.values,
@@ -616,13 +449,15 @@ const handleSubmitInner = async (
     renderOpts,
   );
   if (!result.valid) {
-    const attendeeError = result.attendeeError?.message ?? null;
-    return renderForm(session, { ...dataForRerender, attendeeError });
+    return renderForm(session, {
+      ...dataForRerender,
+      attendeeError: result.attendeeError?.message ?? null,
+      dateError: result.dateError,
+    });
   }
 
-  // Step 4: apply atomic create or edit. On a recoverable failure (capacity,
-  // encryption, no lines) re-render the submitted form in place so the
-  // operator never loses entered data, marking the failing line where known.
+  // Apply atomic create or edit. On a recoverable failure (capacity, no lines)
+  // re-render the submitted form in place so entered data is never lost.
   const outcome =
     mode === "create"
       ? await applyCreate(parsed)
@@ -631,43 +466,34 @@ const handleSubmitInner = async (
           parsed,
           attendee!,
           questions,
-          // Admin edit treats answers as optional — keep only the valid ones.
           parseQuestionAnswers({ optional: true })(form, questions).answerIds,
         );
   if (outcome.ok) return outcome.response;
-  // In-place re-render (no redirect): show the failure inside the form, the
-  // same place a saved success lands, while preserving the entered data.
   return renderForm(session, {
     ...dataForRerender,
     flashError: outcome.flashError,
   });
 };
 
-/** Outcome of an atomic create/edit attempt. A recoverable failure carries
- * the flash to show; the submit handler re-renders the submitted form in
- * place so no entered data is lost. */
+/** Outcome of an atomic create/edit attempt. */
 type SaveOutcome =
   | { ok: true; response: Response }
   | { ok: false; flashError: string };
 
-/** Shown when a submission has no usable listing lines. */
-const NO_LINES_ERROR = "Add at least one listing line before saving";
+/** Shown when a submission has no booked listing. */
+const NO_LINES_ERROR = "Book at least one listing before saving";
 
-/** Shown when capacity can't fit the submitted lines. One wording for both the
- * create and edit paths so the operator never sees two phrasings of the same
- * failure. */
+/** Shown when capacity can't fit the submitted lines. */
 const CAPACITY_SAVE_ERROR =
-  "Not enough spots available for one or more selected listings — nothing was saved. Please review your listing lines and try again.";
+  "Not enough spots available for one or more selected listings — nothing was saved. Please review the quantities and try again.";
 
-/** The edit page for an attendee, carrying the return_url through so the
- * "Back without saving" link still works after a save. */
+/** The edit page for an attendee, carrying the return_url through. */
 const attendeePath = (id: number, returnUrl: string): string =>
   returnUrl
     ? `/admin/attendees/${id}?return_url=${encodeURIComponent(returnUrl)}`
     : `/admin/attendees/${id}`;
 
-/** Redirect back to the saved attendee's own form, scrolling to it via the
- * `#attendee-form` anchor; the flash cookie then shows the success inside it. */
+/** Redirect back to the saved attendee's own form, scrolling to it. */
 const savedRedirect = (
   id: number,
   returnUrl: string,
@@ -675,9 +501,7 @@ const savedRedirect = (
 ): Response =>
   redirect(`${attendeePath(id, returnUrl)}#${ATTENDEE_FORM_ID}`, message, true);
 
-/** Run the atomic create flow. All-or-nothing: `ensureAllBookings` rolls the
- * attendee back unless every submitted line fits, so a partial booking never
- * shows a misleading success. */
+/** Run the atomic create flow. All-or-nothing via `ensureAllBookings`. */
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
 ): Promise<SaveOutcome> => {
@@ -690,14 +514,10 @@ const applyCreate = async (
   if (!check.ok) {
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
-  // ensureAllBookings guarantees full success past the ok check.
   const { attendees } = createResult as Extract<
     CreateAttendeeResult,
     { success: true }
   >;
-
-  // input.bookings is non-empty (guarded above) and every booking comes from a
-  // fillable line, so its listing id is always present — no re-scan needed.
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
   await logActivity(
@@ -705,7 +525,6 @@ const applyCreate = async (
     firstListingId,
     newId,
   );
-
   return {
     ok: true,
     response: savedRedirect(newId, parsed.returnUrl, `Added ${parsed.name}`),
@@ -720,9 +539,6 @@ const applyEdit = async (
   questions: QuestionWithAnswers[],
   answerIds: number[],
 ): Promise<SaveOutcome> => {
-  // Re-encrypt the PII blob with the (possibly) updated fields and pass it as
-  // one statement of the atomic batch. Encryption can't realistically fail
-  // (it would mean the whole app is broken), so we don't branch on it.
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
       address: parsed.address,
@@ -749,15 +565,12 @@ const applyEdit = async (
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
 
-  // Status + outstanding balance are plaintext, operator-editable columns;
-  // persist them once the line/PII edit has committed.
   await updateAttendeeOrder(
     attendeeId,
     parsed.statusId,
     parsed.remainingBalance,
   );
 
-  // Save question answers (atomic delete + insert) when the listing has any.
   if (questions.length > 0) {
     await saveAttendeeAnswers(new Map([[attendeeId, answerIds]]));
   }

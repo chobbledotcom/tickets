@@ -2322,3 +2322,18 @@ a.cal-day-selected:hover {
 .availability-table tr:has(.order-select:checked) {
   background: var(--color-secondary-accent);
 }
+
+/* Attendee form: fixed listing editor with quantity boxes + a "Show all
+   listings" toggle that reveals the not-booked rows (pure CSS). */
+.listing-editor .show-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
+  display: none;
+}

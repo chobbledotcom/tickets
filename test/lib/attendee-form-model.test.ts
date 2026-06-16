@@ -1,41 +1,32 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  ADD_LINE_ACTION,
   type AttendeeFormLine,
   attendeeBalanceNotice,
   bookingDurationDays,
-  lineDayCount,
+  isBookedLine,
+  type ParsedAttendeeForm,
   parseAttendeeForm,
-  resolveDailyDefaults,
+  resolveSharedDates,
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
-  trimTrailingBlankLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
-import { addDays } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { MAX_FORM_LINES } from "#shared/limits.ts";
-import { todayInTz } from "#shared/timezone.ts";
-import type { Holiday } from "#shared/types.ts";
 import { testListingWithCount } from "#test-utils";
 
 const makeForm = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));
 
-const blankLine = (
-  overrides: Partial<AttendeeFormLine> = {},
-): AttendeeFormLine => ({
-  date: "",
-  dayCount: null,
+const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   error: null,
   existingBooking: null,
   key: "",
-  listing: null,
-  listingId: 0,
+  listing: testListingWithCount({ id: 1, max_quantity: 5 }),
+  listingId: 1,
   quantity: 1,
   ...overrides,
 });
@@ -54,94 +45,153 @@ const bookingRow = (
   ...overrides,
 });
 
-describe("trimTrailingBlankLines", () => {
-  test("removes a single trailing blank line", () => {
-    const lines = [
-      blankLine({ listing: testListingWithCount({ id: 1 }), listingId: 1 }),
-      blankLine(),
-    ];
-    expect(trimTrailingBlankLines(lines)).toHaveLength(1);
-  });
-
-  test("removes consecutive trailing blank lines", () => {
-    const lines = [
-      blankLine({ listing: testListingWithCount({ id: 1 }), listingId: 1 }),
-      blankLine(),
-      blankLine(),
-      blankLine(),
-    ];
-    expect(trimTrailingBlankLines(lines)).toHaveLength(1);
-  });
-
-  test("preserves at least one line (the operator's blank placeholder)", () => {
-    expect(trimTrailingBlankLines([blankLine()])).toHaveLength(1);
-  });
-
-  test("does not remove blank lines in the middle", () => {
-    const filled = blankLine({
-      listing: testListingWithCount({ id: 1 }),
-      listingId: 1,
-    });
-    const lines = [filled, blankLine(), filled];
-    expect(trimTrailingBlankLines(lines)).toHaveLength(3);
-  });
+const parsedBase = (
+  overrides: Partial<ParsedAttendeeForm> = {},
+): ParsedAttendeeForm => ({
+  address: "",
+  dayCount: 1,
+  email: "",
+  lines: [],
+  name: "Test",
+  phone: "",
+  remainingBalance: 0,
+  returnUrl: "",
+  special_instructions: "",
+  startDate: "",
+  statusId: null,
+  ...overrides,
 });
 
 describe("parseAttendeeForm", () => {
-  test("reads attendee fields and a single line", () => {
-    const form = makeForm({
-      address: "1 St",
-      email: "a@b.com",
-      line_count: "1",
-      line_event_id_0: "5",
-      line_key_0: "5|",
-      line_quantity_0: "2",
-      name: "Jane",
-      phone: "555",
-      special_instructions: "VIP",
-    });
-    const parsed = parseAttendeeForm(form, new Map());
+  test("reads attendee fields, the shared range, and one qty line", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({
+        address: "1 St",
+        day_count: "3",
+        email: "a@b.com",
+        line_key_5: "5|",
+        name: "Jane",
+        phone: "555",
+        qty_5: "2",
+        special_instructions: "VIP",
+        start_date: "2026-03-02",
+      }),
+      new Map(),
+    );
     expect(parsed.name).toBe("Jane");
     expect(parsed.email).toBe("a@b.com");
-    expect(parsed.phone).toBe("555");
     expect(parsed.address).toBe("1 St");
     expect(parsed.special_instructions).toBe("VIP");
+    expect(parsed.startDate).toBe("2026-03-02");
+    expect(parsed.dayCount).toBe(3);
     expect(parsed.lines).toHaveLength(1);
     expect(parsed.lines[0]!.listingId).toBe(5);
     expect(parsed.lines[0]!.quantity).toBe(2);
     expect(parsed.lines[0]!.key).toBe("5|");
-    expect(parsed.lines[0]!.listing).toBeNull();
-    expect(parsed.action.kind).toBe("save");
   });
 
-  test("reads a selected status id", () => {
+  test("reads one line per qty_<id> field, de-duplicated", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ line_count: "1", name: "X", status_id: "4" }),
+      makeForm({ name: "X", qty_3: "1", qty_7: "0" }),
       new Map(),
     );
-    expect(parsed.statusId).toBe(4);
+    expect(parsed.lines.map((l) => l.listingId)).toEqual([3, 7]);
   });
 
-  test("treats a blank status id as no status", () => {
+  test("resolves listing references against the provided map", () => {
+    const listing = testListingWithCount({ id: 7, name: "Resolved" });
     const parsed = parseAttendeeForm(
-      makeForm({ line_count: "1", name: "X", status_id: "" }),
+      makeForm({ name: "X", qty_7: "1" }),
+      new Map([[7, listing]]),
+    );
+    expect(parsed.lines[0]!.listing?.name).toBe("Resolved");
+  });
+
+  test("ignores non-positive and non-numeric listing ids", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ name: "X", qty_0: "1", qty_4: "1", qty_abc: "1" }),
       new Map(),
     );
-    expect(parsed.statusId).toBeNull();
+    expect(parsed.lines.map((l) => l.listingId)).toEqual([4]);
   });
 
-  test("treats a non-positive status id as no status", () => {
+  test("treats empty and non-numeric quantity as null", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ line_count: "1", name: "X", status_id: "0" }),
+      makeForm({ name: "X", qty_1: "", qty_2: "abc" }),
       new Map(),
     );
-    expect(parsed.statusId).toBeNull();
+    expect(parsed.lines[0]!.quantity).toBeNull();
+    expect(parsed.lines[1]!.quantity).toBeNull();
   });
 
-  const makeStatus = (
-    id: number,
-    isPublicDefault: boolean,
-  ): AttendeeStatus => ({
+  test("clamps the day count to the valid range", () => {
+    expect(
+      parseAttendeeForm(makeForm({ day_count: "0", name: "X" }), new Map())
+        .dayCount,
+    ).toBe(1);
+    expect(
+      parseAttendeeForm(makeForm({ day_count: "9999", name: "X" }), new Map())
+        .dayCount,
+    ).toBe(90);
+    expect(parseAttendeeForm(makeForm({ name: "X" }), new Map()).dayCount).toBe(
+      1,
+    );
+    // A non-numeric value parses to no count and clamps to 1.
+    expect(
+      parseAttendeeForm(
+        makeForm({ day_count: "garbage", name: "X" }),
+        new Map(),
+      ).dayCount,
+    ).toBe(1);
+  });
+
+  test("reads a selected status id, blank and non-positive as none", () => {
+    expect(
+      parseAttendeeForm(makeForm({ name: "X", status_id: "4" }), new Map())
+        .statusId,
+    ).toBe(4);
+    expect(
+      parseAttendeeForm(makeForm({ name: "X", status_id: "" }), new Map())
+        .statusId,
+    ).toBeNull();
+    expect(
+      parseAttendeeForm(makeForm({ name: "X", status_id: "0" }), new Map())
+        .statusId,
+    ).toBeNull();
+  });
+
+  test("treats blank, zero and negative balances as nothing owed", () => {
+    for (const value of ["", "0", "-5"]) {
+      const parsed = parseAttendeeForm(
+        makeForm({ name: "X", remaining_balance: value }),
+        new Map(),
+      );
+      expect(parsed.remainingBalance).toBe(0);
+    }
+  });
+
+  test("attaches an existing booking row by key", () => {
+    const booking = bookingRow({ listing_id: 5, quantity: 3 });
+    const parsed = parseAttendeeForm(
+      makeForm({ line_key_5: "5|", name: "X", qty_5: "3" }),
+      new Map(),
+      new Map([["5|", booking]]),
+    );
+    expect(parsed.lines[0]!.existingBooking).toEqual(booking);
+  });
+});
+
+describe("isBookedLine", () => {
+  test("true only when quantity ≥ 1 and the listing resolves", () => {
+    expect(isBookedLine(line({ quantity: 2 }))).toBe(true);
+    expect(isBookedLine(line({ quantity: 0 }))).toBe(false);
+    expect(isBookedLine(line({ quantity: null }))).toBe(false);
+    expect(isBookedLine(line({ listing: null }))).toBe(false);
+  });
+});
+
+describe("resolveStatusId", () => {
+  const status = (id: number, isPublicDefault: boolean): AttendeeStatus => ({
     id,
     is_paid_default: false,
     is_public_default: isPublicDefault,
@@ -151,785 +201,318 @@ describe("parseAttendeeForm", () => {
     sort_order: id,
   });
 
-  test("resolveStatusId keeps an explicitly chosen status", () => {
-    const statuses = [makeStatus(1, true), makeStatus(2, false)];
-    expect(resolveStatusId(2, statuses)).toBe(2);
+  test("keeps an explicitly chosen status", () => {
+    expect(resolveStatusId(2, [status(1, true), status(2, false)])).toBe(2);
   });
 
-  test("resolveStatusId falls back to the public default when none is given", () => {
-    const statuses = [makeStatus(1, false), makeStatus(2, true)];
-    expect(resolveStatusId(null, statuses)).toBe(2);
-  });
-
-  test("treats blank, zero and negative balances as nothing owed", () => {
-    for (const value of ["", "0", "-5"]) {
-      const parsed = parseAttendeeForm(
-        makeForm({ line_count: "1", name: "X", remaining_balance: value }),
-        new Map(),
-      );
-      expect(parsed.remainingBalance).toBe(0);
-    }
-  });
-
-  test("toCreateInput carries the status id and balance through", () => {
-    const input = toCreateInput({
-      action: { kind: "save" },
-      address: "",
-      email: "",
-      lines: [blankLine()],
-      name: "X",
-      phone: "",
-      remainingBalance: 1500,
-      returnUrl: "",
-      special_instructions: "",
-      statusId: 7,
-    });
-    expect(input.statusId).toBe(7);
-    expect(input.remainingBalance).toBe(1500);
-    expect(input.bookings).toHaveLength(0);
-  });
-
-  test("resolves listing references against the provided map", () => {
-    const listing = testListingWithCount({ id: 7, name: "Resolved" });
-    const form = makeForm({
-      line_count: "1",
-      line_event_id_0: "7",
-      line_quantity_0: "1",
-      name: "X",
-    });
-    const parsed = parseAttendeeForm(form, new Map([[7, listing]]));
-    expect(parsed.lines[0]!.listing?.name).toBe("Resolved");
-  });
-
-  test("treats non-numeric or missing event_id as blank line (listingId 0)", () => {
-    const form = makeForm({
-      line_count: "1",
-      line_event_id_0: "not-a-number",
-      line_quantity_0: "1",
-      name: "X",
-    });
-    expect(parseAttendeeForm(form, new Map()).lines[0]!.listingId).toBe(0);
-  });
-
-  test("treats empty quantity as null", () => {
-    const form = makeForm({
-      line_count: "1",
-      line_event_id_0: "1",
-      line_quantity_0: "",
-      name: "X",
-    });
-    expect(parseAttendeeForm(form, new Map()).lines[0]!.quantity).toBeNull();
-  });
-
-  test("parses add_line and remove_line actions", () => {
-    const addForm = makeForm({
-      action: ADD_LINE_ACTION,
-      line_count: "1",
-      name: "X",
-    });
-    expect(parseAttendeeForm(addForm, new Map()).action).toEqual({
-      kind: "add_line",
-    });
-
-    const removeForm = makeForm({
-      action: "remove_line_2",
-      line_count: "3",
-      name: "X",
-    });
-    expect(parseAttendeeForm(removeForm, new Map()).action).toEqual({
-      index: 2,
-      kind: "remove_line",
-    });
-  });
-
-  test("falls back to line_count=1 on malformed input", () => {
-    const form = makeForm({ line_count: "garbage", name: "X" });
-    expect(parseAttendeeForm(form, new Map()).lines).toHaveLength(1);
-  });
-
-  test("clamps an abusive line_count to MAX_FORM_LINES", () => {
-    const form = makeForm({
-      line_count: String(MAX_FORM_LINES + 50),
-      name: "X",
-    });
-    expect(parseAttendeeForm(form, new Map()).lines).toHaveLength(
-      MAX_FORM_LINES,
-    );
-  });
-
-  test("attaches existing booking rows by key", () => {
-    const booking = bookingRow({ listing_id: 5, quantity: 3 });
-    const form = makeForm({
-      line_count: "1",
-      line_event_id_0: "5",
-      line_key_0: "5|",
-      line_quantity_0: "3",
-      name: "X",
-    });
-    const parsed = parseAttendeeForm(
-      form,
-      new Map(),
-      new Map([["5|", booking]]),
-    );
-    expect(parsed.lines[0]!.existingBooking).toEqual(booking);
+  test("falls back to the public default when none is given", () => {
+    expect(resolveStatusId(null, [status(1, false), status(2, true)])).toBe(2);
   });
 });
 
 describe("validateParsedForm", () => {
   test("fails when name is blank", () => {
-    const parsed = parseAttendeeForm(
-      makeForm({ line_count: "1", name: "" }),
-      new Map(),
-    );
-    const result = validateParsedForm(parsed, []);
+    const result = validateParsedForm(parsedBase({ name: "" }));
     expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.attendeeError?.field).toBe("name");
-    }
+    if (!result.valid) expect(result.attendeeError?.field).toBe("name");
   });
 
-  test("passes for a valid line pointing at an active listing", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "2",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
-    );
-    const result = validateParsedForm(parsed, []);
+  test("passes for a booked standard listing with no date", () => {
+    const result = validateParsedForm(parsedBase({ lines: [line()] }));
     expect(result.valid).toBe(true);
   });
 
-  test("fails when selected listing is unknown", () => {
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "999",
-        line_quantity_0: "1",
-        name: "Jane",
+  test("fails when a booked quantity exceeds the listing max", () => {
+    const result = validateParsedForm(
+      parsedBase({
+        lines: [
+          line({
+            listing: testListingWithCount({ id: 1, max_quantity: 5 }),
+            quantity: 10,
+          }),
+        ],
       }),
-      new Map(),
     );
-    const result = validateParsedForm(parsed, []);
     expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.lineErrors.get(0)).toContain("at most 5");
   });
 
-  test("fails when quantity is below 1", () => {
-    const listing = testListingWithCount({ active: true, id: 1 });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "0",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
+  test("treats a 0-quantity line as not booked, not an error", () => {
+    const result = validateParsedForm(
+      parsedBase({ lines: [line({ quantity: 0 })] }),
     );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-  });
-
-  test("fails when quantity exceeds listing max_quantity", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "10",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
-    );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-  });
-
-  test("fails when daily listing is selected but date is missing", () => {
-    const listing = testListingWithCount({
-      bookable_days: ["Monday"],
-      duration_days: 1,
-      id: 1,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 0,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
-    );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-  });
-
-  test("fails on duplicate (listing_id, date) pairs", () => {
-    const listing = testListingWithCount({ active: true, id: 1 });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "2",
-        line_event_id_0: "1",
-        line_event_id_1: "1",
-        line_quantity_0: "1",
-        line_quantity_1: "1",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
-    );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-  });
-
-  test("allows trailing blank lines (the placeholder row)", () => {
-    const listing = testListingWithCount({ active: true, id: 1 });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "2",
-        line_event_id_0: "1",
-        line_event_id_1: "",
-        line_quantity_0: "1",
-        line_quantity_1: "",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
-    );
-    const trimmed = { ...parsed, lines: trimTrailingBlankLines(parsed.lines) };
-    const result = validateParsedForm(trimmed, []);
     expect(result.valid).toBe(true);
   });
 
-  test("rejects a malformed email even though it is optional", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        email: "not-an-email",
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
+  test("ignores an unbooked line whose listing is unknown", () => {
+    const result = validateParsedForm(
+      parsedBase({ lines: [line({ listing: null, quantity: 1 })] }),
     );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.attendeeError?.field).toBe("email");
+    expect(result.valid).toBe(true);
   });
 
-  test("rejects a malformed phone even though it is optional", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-        phone: "not a phone",
+  test("allows keeping a booked inactive listing", () => {
+    const result = validateParsedForm(
+      parsedBase({
+        lines: [
+          line({ listing: testListingWithCount({ active: false, id: 1 }) }),
+        ],
       }),
-      new Map([[1, listing]]),
     );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.attendeeError?.field).toBe("phone");
+    expect(result.valid).toBe(true);
   });
 
-  test("rejects an address that exceeds the length cap", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        address: "x".repeat(251),
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
+  test("fails when a daily listing is booked but the start date is missing", () => {
+    const result = validateParsedForm(
+      parsedBase({
+        lines: [
+          line({
+            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+          }),
+        ],
+        startDate: "",
       }),
-      new Map([[1, listing]]),
     );
-    const result = validateParsedForm(parsed, []);
     expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.attendeeError?.field).toBe("address");
+    if (!result.valid) expect(result.dateError).toContain("start date");
   });
 
-  test("rejects special instructions that exceed the length cap", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-        special_instructions: "x".repeat(251),
+  test("passes a booked daily listing with a valid start date", () => {
+    const result = validateParsedForm(
+      parsedBase({
+        lines: [
+          line({
+            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+          }),
+        ],
+        startDate: "2026-03-02",
       }),
-      new Map([[1, listing]]),
     );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.attendeeError?.field).toBe("special_instructions");
-    }
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects a malformed email, phone, address and instructions", () => {
+    expect(
+      validateParsedForm(parsedBase({ email: "nope", lines: [line()] })).valid,
+    ).toBe(false);
+    expect(
+      validateParsedForm(parsedBase({ lines: [line()], phone: "not a phone" }))
+        .valid,
+    ).toBe(false);
+    expect(
+      validateParsedForm(
+        parsedBase({ address: "x".repeat(251), lines: [line()] }),
+      ).valid,
+    ).toBe(false);
+    expect(
+      validateParsedForm(
+        parsedBase({ lines: [line()], special_instructions: "x".repeat(251) }),
+      ).valid,
+    ).toBe(false);
   });
 
   test("accepts well-formed optional email and phone", () => {
-    const listing = testListingWithCount({
-      active: true,
-      id: 1,
-      max_quantity: 5,
-    });
-    const parsed = parseAttendeeForm(
-      makeForm({
+    const result = validateParsedForm(
+      parsedBase({
         email: "jane@example.com",
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
+        lines: [line()],
         phone: "+1 (555) 123-4567",
       }),
-      new Map([[1, listing]]),
     );
-    const result = validateParsedForm(parsed, []);
     expect(result.valid).toBe(true);
   });
+});
 
-  test("ignores inactive listing when validation runs", () => {
-    const listing = testListingWithCount({ active: false, id: 1 });
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, listing]]),
+describe("toCreateInput", () => {
+  test("carries the status id and balance through", () => {
+    const input = toCreateInput(
+      parsedBase({ remainingBalance: 1500, statusId: 7 }),
     );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-  });
-});
-
-describe("resolveDailyDefaults", () => {
-  test("returns empty defaults when no existing daily bookings", () => {
-    const result = resolveDailyDefaults([blankLine()]);
-    expect(result.hasMixedTimings).toBe(false);
-    expect(result.inheritedDate).toBeNull();
-    expect(result.inheritedDurationDays).toBeNull();
+    expect(input.statusId).toBe(7);
+    expect(input.remainingBalance).toBe(1500);
+    expect(input.bookings).toHaveLength(0);
   });
 
-  test("inherits uniform daily bookings (same start date + duration)", () => {
-    const listing = testListingWithCount({
-      id: 1,
-      listing_type: "daily",
-    });
-    const booking = bookingRow({
-      end_at: "2026-06-15T00:00:00.000Z",
-      listing_id: 1,
-      start_at: "2026-06-14T00:00:00Z",
-    });
-    const line = blankLine({
-      existingBooking: booking,
-      key: "1|2026-06-14T00:00:00Z",
-      listing,
-      listingId: 1,
-    });
-    const result = resolveDailyDefaults([line]);
-    expect(result.hasMixedTimings).toBe(false);
-    expect(result.inheritedDate).toBe("2026-06-14");
-    expect(result.inheritedDurationDays).toBe(1);
-  });
-
-  test("flags mixed daily timings (different start dates)", () => {
-    const listing = testListingWithCount({
-      id: 1,
-      listing_type: "daily",
-    });
-    const lineA = blankLine({
-      existingBooking: bookingRow({
-        end_at: "2026-06-15T00:00:00.000Z",
-        listing_id: 1,
-        start_at: "2026-06-14T00:00:00Z",
+  test("books daily listings on the shared range and standard with no date", () => {
+    const input = toCreateInput(
+      parsedBase({
+        dayCount: 3,
+        lines: [
+          line({
+            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+            listingId: 1,
+            quantity: 2,
+          }),
+          line({
+            listing: testListingWithCount({ id: 2, listing_type: "standard" }),
+            listingId: 2,
+            quantity: 1,
+          }),
+          line({ listingId: 3, quantity: 0 }),
+        ],
+        startDate: "2026-03-02",
       }),
-      key: "1|2026-06-14T00:00:00Z",
-      listing,
-      listingId: 1,
-    });
-    const lineB = blankLine({
-      existingBooking: bookingRow({
-        end_at: "2026-07-02T00:00:00.000Z",
-        listing_id: 1,
-        start_at: "2026-07-01T00:00:00Z",
-      }),
-      key: "1|2026-07-01T00:00:00Z",
-      listing,
-      listingId: 1,
-    });
-    const result = resolveDailyDefaults([lineA, lineB]);
-    expect(result.hasMixedTimings).toBe(true);
-    expect(result.inheritedDate).toBeNull();
-  });
-
-  test("flags mixed daily timings (different durations)", () => {
-    const listing = testListingWithCount({
-      id: 1,
-      listing_type: "daily",
-    });
-    const lineA = blankLine({
-      existingBooking: bookingRow({
-        end_at: "2026-06-15T00:00:00.000Z",
-        listing_id: 1,
-        start_at: "2026-06-14T00:00:00Z",
-      }),
-      key: "1|2026-06-14T00:00:00Z",
-      listing,
-      listingId: 1,
-    });
-    const lineB = blankLine({
-      existingBooking: bookingRow({
-        end_at: "2026-06-17T00:00:00.000Z",
-        listing_id: 1,
-        start_at: "2026-06-14T00:00:00Z",
-      }),
-      key: "1|2026-06-14T00:00:00Z",
-      listing,
-      listingId: 1,
-    });
-    const result = resolveDailyDefaults([lineA, lineB]);
-    expect(result.hasMixedTimings).toBe(true);
-  });
-
-  test("ignores standard-listing bookings when computing daily defaults", () => {
-    const standardListing = testListingWithCount({
-      id: 1,
-      listing_type: "standard",
-    });
-    const line = blankLine({
-      existingBooking: bookingRow({ listing_id: 1 }),
-      listing: standardListing,
-      listingId: 1,
-    });
-    const result = resolveDailyDefaults([line]);
-    expect(result.hasMixedTimings).toBe(false);
-    expect(result.inheritedDate).toBeNull();
-  });
-});
-
-describe("parseAttendeeForm quantity edge cases", () => {
-  test("converts non-numeric quantity string to null", () => {
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_event_id_0: "1",
-        line_quantity_0: "abc",
-        name: "Test",
-      }),
-      new Map(),
     );
-    expect(parsed.lines[0]!.quantity).toBeNull();
-  });
-});
-
-describe("validateLine daily date checks", () => {
-  test("rejects an invalid date string for a daily listing", () => {
-    const dailyListing = {
-      ...testListingWithCount({ listing_type: "daily" }),
-      bookableDays: ["2026-06-15"],
-      duration_days: 1,
-    };
-    const holidays: Holiday[] = [];
-    const line = blankLine({
-      date: "not-a-date",
-      listing: dailyListing,
-      listingId: dailyListing.id,
+    expect(input.bookings).toHaveLength(2);
+    expect(input.bookings[0]).toEqual({
+      date: "2026-03-02",
+      durationDays: 3,
+      listingId: 1,
+      quantity: 2,
+    });
+    expect(input.bookings[1]).toEqual({
+      date: null,
+      durationDays: undefined,
+      listingId: 2,
       quantity: 1,
     });
-    const result = validateParsedForm(
-      { ...parsedBase(), lines: [line] },
-      holidays,
-    );
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.lineErrors.get(0)).toBe(
-        "Date must be a valid YYYY-MM-DD value",
-      );
-    }
   });
+});
 
-  test("rejects a daily date that is not in allowed bookable days", () => {
-    const dailyListing = {
-      ...testListingWithCount({
-        bookable_days: [],
-        listing_type: "daily",
+describe("toDesiredLines", () => {
+  test("marks existing lines as updates and new lines as inserts", () => {
+    const desired = toDesiredLines(
+      parsedBase({
+        dayCount: 2,
+        lines: [
+          line({
+            existingBooking: bookingRow({ listing_id: 1 }),
+            key: "1|2026-03-01T00:00:00Z",
+            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+            listingId: 1,
+            quantity: 1,
+          }),
+          line({
+            listing: testListingWithCount({ id: 2, listing_type: "daily" }),
+            listingId: 2,
+            quantity: 1,
+          }),
+        ],
+        startDate: "2026-03-05",
       }),
-      duration_days: 1,
-    };
-    const holidays: Holiday[] = [];
-    const line = blankLine({
-      date: "2026-06-20",
-      listing: dailyListing,
-      listingId: dailyListing.id,
+    );
+    // The existing line keeps its old key (so the date move is an UPDATE)…
+    expect(desired[0]).toEqual({
+      date: "2026-03-05",
+      durationDays: 2,
+      exists: true,
+      key: "1|2026-03-01T00:00:00Z",
+      listingId: 1,
       quantity: 1,
     });
-    const result = validateParsedForm(
-      { ...parsedBase(), lines: [line] },
-      holidays,
+    // …the new line is an INSERT.
+    expect(desired[1]!.exists).toBe(false);
+    expect(desired[1]!.key).toBe("");
+  });
+
+  test("excludes unbooked lines", () => {
+    const desired = toDesiredLines(
+      parsedBase({ lines: [line({ quantity: 0 })] }),
     );
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.lineErrors.get(0)).toBe(
-        "Date is not bookable for this listing",
-      );
-    }
+    expect(desired).toHaveLength(0);
+  });
+});
+
+describe("resolveSharedDates", () => {
+  const addDaysIso = (date: string, n: number): string => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const daily = (start: string, durationDays: number): ListingAttendeeRow =>
+    bookingRow({
+      end_at: `${addDaysIso(start, durationDays)}T00:00:00.000Z`,
+      start_at: `${start}T00:00:00Z`,
+    });
+
+  test("returns empty defaults when there are no dated bookings", () => {
+    const result = resolveSharedDates([bookingRow({ start_at: null })]);
+    expect(result).toEqual({
+      dayCount: 1,
+      hasMixedTimings: false,
+      startDate: "",
+    });
+  });
+
+  test("returns the shared range when bookings agree", () => {
+    const result = resolveSharedDates([
+      daily("2026-06-14", 1),
+      daily("2026-06-14", 1),
+    ]);
+    expect(result.hasMixedTimings).toBe(false);
+    expect(result.startDate).toBe("2026-06-14");
+    expect(result.dayCount).toBe(1);
+  });
+
+  test("flags mixed start dates, seeding earliest start + longest length", () => {
+    const result = resolveSharedDates([
+      daily("2026-07-01", 1),
+      daily("2026-06-14", 3),
+    ]);
+    expect(result.hasMixedTimings).toBe(true);
+    expect(result.startDate).toBe("2026-06-14");
+    expect(result.dayCount).toBe(3);
+  });
+
+  test("flags mixed durations", () => {
+    const result = resolveSharedDates([
+      daily("2026-06-14", 1),
+      daily("2026-06-14", 3),
+    ]);
+    expect(result.hasMixedTimings).toBe(true);
+  });
+
+  test("ignores a booking with no end date", () => {
+    const result = resolveSharedDates([
+      bookingRow({ end_at: null, start_at: "2026-06-14T00:00:00Z" }),
+    ]);
+    expect(result.startDate).toBe("");
+  });
+
+  test("falls back to length 1 for a dated but zero-length booking", () => {
+    // Both endpoints present (so it passes the filter) but the range is empty,
+    // so the per-booking duration is null and defaults to 1.
+    const result = resolveSharedDates([daily("2026-06-14", 0)]);
+    expect(result.startDate).toBe("2026-06-14");
+    expect(result.dayCount).toBe(1);
+    expect(result.hasMixedTimings).toBe(false);
   });
 });
 
 describe("bookingDurationDays", () => {
-  test("returns null when start_at is missing", () => {
-    const row = bookingRow({ end_at: "2026-06-14", start_at: null });
-    expect(bookingDurationDays(row)).toBeNull();
+  test("returns null when a range endpoint is missing or invalid", () => {
+    expect(
+      bookingDurationDays(bookingRow({ end_at: "x", start_at: null })),
+    ).toBeNull();
+    expect(
+      bookingDurationDays(bookingRow({ end_at: null, start_at: "x" })),
+    ).toBeNull();
+    expect(
+      bookingDurationDays(bookingRow({ end_at: "bad", start_at: "bad" })),
+    ).toBeNull();
   });
 
-  test("returns null when end_at is missing", () => {
-    const row = bookingRow({ end_at: null, start_at: "2026-06-14" });
-    expect(bookingDurationDays(row)).toBeNull();
+  test("returns null for a zero-length range", () => {
+    expect(
+      bookingDurationDays(
+        bookingRow({
+          end_at: "2026-06-14T00:00:00Z",
+          start_at: "2026-06-14T00:00:00Z",
+        }),
+      ),
+    ).toBeNull();
   });
 
-  test("returns null for invalid date strings", () => {
-    const row = bookingRow({ end_at: "also-invalid", start_at: "invalid" });
-    expect(bookingDurationDays(row)).toBeNull();
-  });
-
-  test("returns null when computed duration is less than 1 day", () => {
-    const row = bookingRow({
-      end_at: "2026-06-14T00:00:00Z",
-      start_at: "2026-06-14T00:00:00Z",
-    });
-    expect(bookingDurationDays(row)).toBeNull();
-  });
-});
-
-describe("resolveDailyDefaults fallback", () => {
-  test("falls back to duration 1 when existing daily booking has invalid duration", () => {
-    const dailyListing = testListingWithCount({ listing_type: "daily" });
-    const line = blankLine({
-      existingBooking: bookingRow({
-        end_at: null,
-        listing_id: dailyListing.id,
-        start_at: "2026-06-14",
-      }),
-      listing: dailyListing,
-      listingId: dailyListing.id,
-    });
-    const result = resolveDailyDefaults([line]);
-    expect(result.hasMixedTimings).toBe(false);
-    expect(result.inheritedDate).toBe("2026-06-14");
-    expect(result.inheritedDurationDays).toBe(1);
-  });
-});
-
-function parsedBase() {
-  return {
-    action: { kind: "save" } as const,
-    address: "",
-    email: "",
-    name: "Test",
-    phone: "",
-    remainingBalance: 0,
-    returnUrl: "",
-    special_instructions: "",
-    statusId: null,
-  };
-}
-
-describe("customisable day count (edit)", () => {
-  const custDaily = (overrides = {}) =>
-    testListingWithCount({
-      active: true,
-      customisable_days: true,
-      day_prices: { 1: 0, 2: 0 },
-      duration_days: 2,
-      id: 1,
-      listing_type: "daily",
-      max_quantity: 5,
-      ...overrides,
-    });
-
-  const futureDate = () => addDays(todayInTz("UTC"), 30);
-
-  test("accepts a line whose chosen day count is offered", () => {
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_date_0: futureDate(),
-        line_day_count_0: "2",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, custDaily()]]),
-    );
-    expect(validateParsedForm(parsed, []).valid).toBe(true);
-  });
-
-  test("rejects a day count the listing does not offer", () => {
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_date_0: futureDate(),
-        line_day_count_0: "5",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([
-        [1, custDaily({ day_prices: { 1: 0, 2: 0 }, duration_days: 5 })],
-      ]),
-    );
-    const result = validateParsedForm(parsed, []);
-    expect(result.valid).toBe(false);
-  });
-
-  test("rejects a chosen span that overlaps a holiday", () => {
-    const date = futureDate();
-    const holiday: Holiday = {
-      end_date: addDays(date, 1),
-      id: 1,
-      name: "H",
-      start_date: addDays(date, 1),
-    };
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_date_0: date,
-        line_day_count_0: "2",
-        line_event_id_0: "1",
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, custDaily()]]),
-    );
-    expect(validateParsedForm(parsed, [holiday]).valid).toBe(false);
-  });
-
-  test("preserves an existing booking's span when no count is submitted", () => {
-    const key = "1|2026-09-10T00:00:00Z";
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_date_0: "2026-09-10",
-        line_event_id_0: "1",
-        line_key_0: key,
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, custDaily({ duration_days: 5 })]]),
-      new Map([
-        [
-          key,
-          bookingRow({
-            // A stored 2-day span (10th → exclusive 12th).
-            end_at: "2026-09-12T00:00:00.000Z",
-            listing_id: 1,
-            start_at: "2026-09-10T00:00:00Z",
-          }),
-        ],
-      ]),
-    );
-    expect(toDesiredLines(parsed)[0]!.durationDays).toBe(2);
-  });
-
-  test("uses the submitted count over the existing span", () => {
-    const key = "1|2026-09-10T00:00:00Z";
-    const parsed = parseAttendeeForm(
-      makeForm({
-        line_count: "1",
-        line_date_0: "2026-09-10",
-        line_day_count_0: "1",
-        line_event_id_0: "1",
-        line_key_0: key,
-        line_quantity_0: "1",
-        name: "Jane",
-      }),
-      new Map([[1, custDaily({ duration_days: 5 })]]),
-      new Map([
-        [
-          key,
-          bookingRow({
-            end_at: "2026-09-12T00:00:00.000Z",
-            listing_id: 1,
-            start_at: "2026-09-10T00:00:00Z",
-          }),
-        ],
-      ]),
-    );
-    expect(toDesiredLines(parsed)[0]!.durationDays).toBe(1);
-  });
-});
-
-describe("lineDayCount", () => {
-  const cust = testListingWithCount({
-    customisable_days: true,
-    day_prices: { 1: 0, 2: 0, 3: 0 },
-    duration_days: 3,
-    id: 1,
-  });
-
-  test("uses the chosen count when submitted", () => {
-    expect(lineDayCount(blankLine({ dayCount: 2, listing: cust }))).toBe(2);
-  });
-
-  test("falls back to the existing booking's span", () => {
-    const line = blankLine({
-      dayCount: null,
-      existingBooking: bookingRow({
-        end_at: "2026-09-13T00:00:00.000Z",
-        start_at: "2026-09-10T00:00:00Z",
-      }),
-      listing: cust,
-    });
-    expect(lineDayCount(line)).toBe(3);
-  });
-
-  test("defaults to 1 with no chosen count and no existing booking", () => {
-    expect(lineDayCount(blankLine({ dayCount: null, listing: cust }))).toBe(1);
-  });
-
-  test("defaults to 1 when the existing range is degenerate", () => {
-    const line = blankLine({
-      dayCount: null,
-      existingBooking: bookingRow({
-        end_at: "2026-09-10T00:00:00Z",
-        start_at: "2026-09-10T00:00:00Z",
-      }),
-      listing: cust,
-    });
-    expect(lineDayCount(line)).toBe(1);
+  test("counts whole days for a real range", () => {
+    expect(
+      bookingDurationDays(
+        bookingRow({
+          end_at: "2026-06-17T00:00:00Z",
+          start_at: "2026-06-14T00:00:00Z",
+        }),
+      ),
+    ).toBe(3);
   });
 });
 
@@ -957,7 +540,6 @@ describe("attendeeBalanceNotice", () => {
   });
 
   test("warns when a reservation has no balance but is still unpaid", () => {
-    // £10 order, only the £1 deposit paid, balance wrongly cleared to £0.
     const notice = attendeeBalanceNotice(reservation, 0, 1000, 100);
     expect(notice?.tone).toBe("warning");
     expect(notice?.message).toContain("still unpaid");

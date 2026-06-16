@@ -1,50 +1,50 @@
 /**
  * Unified add/edit attendee page template.
  *
- * Renders the same form shape for both `/admin/attendees/new` (create) and
- * `/admin/attendees/:id` (edit). The line-item editor is a plain HTML
- * table — add/remove line controls are submit buttons that re-render the
- * form server-side, so the page works without JavaScript. A small inline
- * script progressively enhances date-field visibility (hide on non-daily
- * listings) but is not required for the form to function.
+ * Renders the same form for `/admin/attendees/new` (create) and
+ * `/admin/attendees/:id` (edit). An attendee has ONE shared date range — a
+ * start date plus a length — applied to every daily listing they book. The
+ * listing editor is a fixed table with one quantity box per bookable listing
+ * (plus any inactive listing the attendee already booked); quantity ≥ 1 books
+ * it, 0 leaves it out, so there are no add/remove-line buttons. Not-booked rows
+ * are hidden behind a "Show all listings" toggle (pure CSS). The form works
+ * without JavaScript.
  */
 
 import { compact } from "#fp";
 import {
-  ACTION_FIELD,
-  ADD_LINE_ACTION,
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   type BalanceNotice,
-  type DailyDefaults,
-  LINE_COUNT_FIELD,
-  LINE_DATE_PREFIX,
-  LINE_DAY_COUNT_PREFIX,
-  LINE_EVENT_ID_PREFIX,
+  DAY_COUNT_FIELD,
+  isBookedLine,
   LINE_KEY_PREFIX,
-  LINE_QUANTITY_PREFIX,
-  lineDayCount,
   type ParsedAttendeeForm,
+  QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
-  REMOVE_LINE_ACTION_PREFIX,
   resolveStatusId,
-  SAVE_ACTION,
+  SHOW_ALL_FIELD,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
-import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
+import {
+  addDays,
+  formatDateLabel,
+  formatDateRangeLabel,
+  formatDatetimeShort,
+} from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { EmailStats } from "#shared/db/email-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
   type Attendee,
-  availableDayCounts,
-  type ListingWithCount,
+  MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 import {
   AttendeeAnswersTable,
@@ -58,58 +58,49 @@ import {
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { Layout } from "#templates/layout.tsx";
 
-/** Per-listing available dates (daily listings only) for client-side filtering. */
+/** Template data for the unified attendee form. */
 export type AttendeeFormTemplateData = {
   /** "create" or "edit". */
   mode: "create" | "edit";
-  /** Parsed form values (lines + attendee fields). */
+  /** Parsed form values (shared range + one line per rendered listing). */
   parsed: ParsedAttendeeForm;
-  /** Attendee being edited (edit mode only; create mode passes a shell). */
+  /** Attendee being edited (edit mode only; create mode passes null). */
   attendee: Attendee | null;
-  /** All selectable listings (active + any currently-selected inactive listings). */
-  allListings: ListingWithCount[];
   /** All attendee statuses, for the status dropdown. */
   statuses: AttendeeStatus[];
   /** Status/balance mismatch notice, or null when they agree. */
   balanceNotice: BalanceNotice | null;
-  /** Available dates per daily listing id (for the date picker). */
-  availableDatesByListing: Record<number, string[]>;
-  /** Offered day counts per customisable daily listing id (for the day-count
-   * selector). */
-  customisableByListing: Record<number, number[]>;
-  /** Daily-line defaults computed from existing bookings. */
-  dailyDefaults: DailyDefaults;
+  /** True when the attendee's existing daily bookings disagree on date/length —
+   * saving normalises them onto the one shared range. */
+  hasMixedTimings: boolean;
   /** Attendee-level error (e.g. "Name is required"). */
   attendeeError: string | null;
-  /** Save outcome shown inside the form (success after a save, or a recoverable
-   * failure like capacity lost to a race). */
+  /** Shared-date error (e.g. missing start date for a booked daily listing). */
+  dateError: string | null;
+  /** Save outcome shown inside the form. */
   flashError?: string;
   flashSuccess?: string;
-  /** Custom questions across the attendee's booked listings; empty in create
-   * mode and when no listing has any. */
+  /** Custom questions across the attendee's booked listings. */
   questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
-  /** Today's ISO date — used for the new-daily-line default. */
+  /** Today's ISO date. */
   todayIso: string;
   /** Optional return URL the caller came from. */
   returnUrl?: string;
-  /** Bulk-email contact history for the attendee's email (edit mode only;
-   * null when there is no email on file or it has never been contacted). */
+  /** Bulk-email contact history (edit mode only). */
   emailStats?: EmailStats | null;
   /** Public site domain, for the read-only ticket link (edit mode). */
   allowedDomain: string;
-  /** Country dialling code, for the read-only phone tel/WhatsApp links. */
+  /** Country dialling code, for the read-only phone links. */
   phonePrefix: string;
   /** This attendee's activity log entries, newest first (edit mode only). */
   activityLog: ActivityLogEntry[];
 };
 
-/** Status badges for an existing booking — "Checked in" and/or "Refunded",
- * space-separated. Renders nothing when the booking is absent or has neither
- * status, so a plain booking never leaves a stray node behind. */
+/** Status badges for an existing booking — "Checked in" and/or "Refunded". */
 const bookingStatusBadges = (
   booking: AttendeeFormLine["existingBooking"],
 ): JSX.Element | null => {
@@ -124,79 +115,39 @@ const bookingStatusBadges = (
   ) : null;
 };
 
-/** One row of the line-item editor — one listing registration. */
-const LineRow = ({
-  line,
-  index,
-  allListings,
-}: {
-  line: AttendeeFormLine;
-  index: number;
-  allListings: ListingWithCount[];
-}): JSX.Element => {
-  // The date field is hidden when a listing is picked and is non-daily; the
-  // server validates it conditionally so it is never required at the HTML
-  // level. Blank lines default to daily so a newly-added row shows the picker.
-  const isDaily = !line.listing || line.listing.listing_type === "daily";
-  const isCustomisable = Boolean(
-    line.listing?.customisable_days && line.listing.listing_type === "daily",
-  );
-  const dayCounts = line.listing?.customisable_days
-    ? availableDayCounts(line.listing)
-    : [];
-  const selectedDayCount = isCustomisable ? lineDayCount(line) : 0;
-  const removeLabel = line.existingBooking ? "Remove" : "Drop";
+/** One row of the listing editor — a listing and its quantity box. */
+const ListingRow = ({ line }: { line: AttendeeFormLine }): JSX.Element => {
+  const listing = line.listing!;
+  const booked = isBookedLine(line) || Boolean(line.existingBooking);
+  const isDaily = listing.listing_type === "daily";
   return (
-    <tr data-line-row>
+    <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
-        <select
-          aria-label={`Listing for line ${index + 1}`}
-          data-line-event
-          name={`${LINE_EVENT_ID_PREFIX}${index}`}
-        >
-          <option selected={line.listingId === 0} value="">
-            Select listing…
-          </option>
-          {allListings.map((listing) => (
-            <option selected={listing.id === line.listingId} value={listing.id}>
-              {listing.name}
-              {listing.active ? "" : " (inactive)"}
-            </option>
-          ))}
-        </select>
+        <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        {listing.active ? "" : <span class="muted small"> (inactive)</span>}
         {bookingStatusBadges(line.existingBooking)}
       </td>
       <td>
-        <input
-          aria-label={`Date for line ${index + 1}`}
-          data-line-date
-          hidden={!isDaily}
-          name={`${LINE_DATE_PREFIX}${index}`}
-          type="date"
-          value={line.date}
-        />
-        <select
-          aria-label={`Number of days for line ${index + 1}`}
-          data-line-day-count
-          hidden={!isCustomisable}
-          name={`${LINE_DAY_COUNT_PREFIX}${index}`}
-        >
-          {dayCounts.map((n) => (
-            <option selected={n === selectedDayCount} value={n}>
-              {n} day{n === 1 ? "" : "s"}
-            </option>
-          ))}
-        </select>
+        {isDaily ? (
+          <span class="muted small">Shared dates</span>
+        ) : (
+          <span class="muted small">Fixed date</span>
+        )}
       </td>
       <td>
         <input
-          aria-label={`Quantity for line ${index + 1}`}
-          max={line.listing ? line.listing.max_quantity : undefined}
-          min="1"
-          name={`${LINE_QUANTITY_PREFIX}${index}`}
+          aria-label={`Quantity for ${listing.name}`}
+          max={listing.max_quantity}
+          min="0"
+          name={`${QTY_PREFIX}${listing.id}`}
           style="width:5em"
           type="number"
-          value={line.quantity === null ? "" : String(line.quantity)}
+          value={line.quantity === null ? "0" : String(line.quantity)}
+        />
+        <input
+          name={`${LINE_KEY_PREFIX}${listing.id}`}
+          type="hidden"
+          value={line.key}
         />
       </td>
       <td>
@@ -214,64 +165,96 @@ const LineRow = ({
           </div>
         ) : null}
       </td>
-      <td style="white-space:nowrap">
-        <input
-          name={`${LINE_KEY_PREFIX}${index}`}
-          type="hidden"
-          value={line.key}
-        />
-        <button
-          class="link-button danger"
-          formnovalidate
-          name={ACTION_FIELD}
-          type="submit"
-          value={`${REMOVE_LINE_ACTION_PREFIX}${index}`}
-        >
-          {removeLabel}
-        </button>
-      </td>
     </tr>
   );
 };
 
-/** The repeatable line-item editor plus the hidden line-count field the parser
- * loops over. */
-const LineEditor = ({
+/** The fixed listing editor: one quantity box per listing, with a "Show all
+ * listings" toggle that reveals the not-booked rows (pure CSS). */
+const ListingEditor = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
 }): JSX.Element => (
-  <>
+  <div class="listing-editor">
+    <label class="show-all">
+      <input class="show-all-toggle" name={SHOW_ALL_FIELD} type="checkbox" />
+      Show all listings
+    </label>
     <div class="table-scroll">
       <table class="line-editor">
         <thead>
           <tr>
             <th>Listing</th>
-            <th>Date</th>
+            <th>Dates</th>
             <th>Qty</th>
             <th></th>
-            <th style="width:1%"></th>
           </tr>
         </thead>
         <tbody>
-          {data.parsed.lines.map((line, index) => (
-            <LineRow allListings={data.allListings} index={index} line={line} />
+          {data.parsed.lines.map((line) => (
+            <ListingRow line={line} />
           ))}
         </tbody>
       </table>
     </div>
-    <input
-      name={LINE_COUNT_FIELD}
-      type="hidden"
-      value={data.parsed.lines.length}
-    />
+  </div>
+);
+
+/** Option list for the day-count select: 1…horizon, each labelled with the
+ * resulting end date when a start date is known. */
+const dayCountOptions = (
+  startDate: string,
+  selected: number,
+): JSX.Element[] => {
+  const options: JSX.Element[] = [];
+  for (let n = 1; n <= MAX_DURATION_DAYS; n++) {
+    const label = startDate
+      ? `${n} day${n === 1 ? "" : "s"}: ${formatDateLabel(addDays(startDate, n - 1))}`
+      : `${n} day${n === 1 ? "" : "s"}`;
+    options.push(
+      <option selected={n === selected} value={n}>
+        {label}
+      </option>,
+    );
+  }
+  return options;
+};
+
+/** Shared start date + length for every daily listing. The length is a select
+ * of day counts (the end date is derived, never edited directly). */
+const SharedDateFields = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element => (
+  <>
+    <h3>Dates</h3>
+    {data.dateError && (
+      <output class="error" role="alert">
+        {data.dateError}
+      </output>
+    )}
+    <label for={START_DATE_FIELD}>
+      Start date
+      <input
+        id={START_DATE_FIELD}
+        name={START_DATE_FIELD}
+        required={data.mode === "create"}
+        type="date"
+        value={data.parsed.startDate}
+      />
+    </label>
+    <label for={DAY_COUNT_FIELD}>
+      Length
+      <select id={DAY_COUNT_FIELD} name={DAY_COUNT_FIELD}>
+        {dayCountOptions(data.parsed.startDate, data.parsed.dayCount)}
+      </select>
+    </label>
   </>
 );
 
-/** Render the bulk-email contact history (edit mode only). Shows the contact
- * stats when the attendee has an email and has been contacted, otherwise a
- * placeholder. Owners also get a button to email just this attendee, prefilled
- * by token — disabled when there's no email address to send to. */
+/** Render the bulk-email contact history (edit mode only). */
 const EmailHistory = ({
   attendee,
   emailStats,
@@ -358,12 +341,11 @@ const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
 
 /** Page title for the layout. */
 const pageTitle = (data: AttendeeFormTemplateData): string =>
-  data.mode === "create" ? "Add Attendee" : `Attendee: ${data.attendee!.name}`;
+  data.mode === "create"
+    ? "Add new attendee"
+    : `Attendee: ${data.attendee!.name}`;
 
-/**
- * The attendee's current status as an `<h2>`, shown only when the site has more
- * than one status configured (with a single status it carries no information).
- */
+/** The attendee's current status as an `<h2>`, shown only with >1 status. */
 const StatusHeading = ({
   data,
 }: {
@@ -376,64 +358,9 @@ const StatusHeading = ({
   return <h2>Status: {status ? status.name : "None"}</h2>;
 };
 
-/** Tiny progressive-enhancement script: hide the date field on non-daily
- * listings and populate defaults when a daily listing is first chosen. The
- * form is fully usable without it — the server validates conditionally. */
-const renderEnhancementScript = (data: AttendeeFormTemplateData): string => {
-  const availableDatesJson = JSON.stringify(data.availableDatesByListing);
-  const listingsByType: Record<number, "daily" | "standard"> = {};
-  for (const listing of data.allListings) {
-    listingsByType[listing.id] = listing.listing_type;
-  }
-  const listingTypesJson = JSON.stringify(listingsByType);
-  const customisableJson = JSON.stringify(data.customisableByListing);
-  return `<script type="application/json" id="attendee-form-data" data-available-dates='${escapeHtml(availableDatesJson)}' data-listing-types='${escapeHtml(listingTypesJson)}' data-customisable='${escapeHtml(customisableJson)}'></script>
-  <script>
-    (function () {
-      var dataEl = document.getElementById('attendee-form-data');
-      if (!dataEl) return;
-      var availableDates = JSON.parse(dataEl.getAttribute('data-available-dates') || '{}');
-      var listingTypes = JSON.parse(dataEl.getAttribute('data-listing-types') || '{}');
-      var customisable = JSON.parse(dataEl.getAttribute('data-customisable') || '{}');
-      function updateRow(row) {
-        var select = row.querySelector('[data-line-event]');
-        var dateInput = row.querySelector('[data-line-date]');
-        if (!select || !dateInput) return;
-        var listingId = Number(select.value);
-        var isDaily = listingTypes[listingId] === 'daily';
-        dateInput.hidden = !isDaily;
-        if (isDaily && !dateInput.value) {
-          var dates = availableDates[listingId] || [];
-          if (dates.length) dateInput.value = dates[0];
-        }
-        var daySelect = row.querySelector('[data-line-day-count]');
-        if (daySelect) {
-          var counts = customisable[listingId];
-          var isCustomisable = isDaily && counts && counts.length;
-          daySelect.hidden = !isCustomisable;
-          if (isCustomisable) {
-            var prev = daySelect.value;
-            daySelect.innerHTML = counts.map(function (n) {
-              return '<option value="' + n + '"' + (String(n) === prev ? ' selected' : '') + '>' + n + (n === 1 ? ' day' : ' days') + '</option>';
-            }).join('');
-          }
-        }
-      }
-      document.querySelectorAll('[data-line-row]').forEach(function (row) {
-        var select = row.querySelector('[data-line-event]');
-        if (select) select.addEventListener('change', function () { updateRow(row); });
-        updateRow(row);
-      });
-    })();
-  </script>`;
-};
-
 /**
  * Status dropdown, outstanding-balance editor, and a status/balance mismatch
- * notice (precomputed by the route): a warning for a paid status that still
- * owes or a reservation that's lost its balance, and a softer info nudge for a
- * fully-paid reservation. A reservation that still owes is the normal state and
- * shows nothing.
+ * notice (precomputed by the route).
  */
 const StatusAndBalanceFields = ({
   data,
@@ -441,11 +368,6 @@ const StatusAndBalanceFields = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
   const { statusId, remainingBalance } = data.parsed;
-  // An attendee always resolves to a concrete status: their own when set,
-  // otherwise the public default (the status new bookings start in). There is
-  // no "no status" choice — with multiple statuses we fall back to the default,
-  // and with a single status the field isn't shown at all. The save path uses
-  // the same resolver so a blank submission can't clear the status either.
   const selectedId = resolveStatusId(statusId, data.statuses);
   return (
     <>
@@ -456,8 +378,6 @@ const StatusAndBalanceFields = ({
         </output>
       )}
       {data.statuses.length <= 1 ? (
-        // A lone status carries no information (mirrors the status heading), so
-        // keep it off the form but still submit it so a save never clears it.
         <input name={STATUS_FIELD} type="hidden" value={selectedId} />
       ) : (
         <label for={STATUS_FIELD}>
@@ -492,11 +412,8 @@ const StatusAndBalanceFields = ({
 };
 
 /**
- * The editable attendee form: contact details, optional custom questions, and
- * the listing-line editor, all inside one CsrfForm. Status & Balance sit right
- * after the name and before the contact fields, per the agreed field order.
- * The add-line / remove-line / save buttons are all submitters of this one
- * form; the server distinguishes them by the `action` value.
+ * The editable attendee form: contact details, the shared date range, optional
+ * custom questions, and the listing editor — all inside one CsrfForm.
  */
 const AttendeeEditForm = ({
   data,
@@ -582,29 +499,21 @@ const AttendeeEditForm = ({
         </>
       )}
 
+      <SharedDateFields data={data} />
+
       <h3>Listing Registrations</h3>
-      <LineEditor data={data} />
-      <p>
-        <button
-          formnovalidate
-          name={ACTION_FIELD}
-          type="submit"
-          value={ADD_LINE_ACTION}
-        >
-          <Icon name="plus" />
-          <span>Add Listing Line</span>
-        </button>
-      </p>
+      {data.hasMixedTimings && (
+        <output class="warning">
+          This attendee's existing daily listings have different start dates or
+          lengths. Saving will put them all on the one date range above.
+        </output>
+      )}
+      <ListingEditor data={data} />
 
       <hr />
 
       <p class="form-actions">
-        <button
-          class="primary"
-          name={ACTION_FIELD}
-          type="submit"
-          value={SAVE_ACTION}
-        >
+        <button class="primary" type="submit">
           <Icon name="save" />
           <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
         </button>
@@ -619,11 +528,9 @@ const AttendeeEditForm = ({
 };
 
 /**
- * Render the unified attendee form page (create or edit).
- *
- * The single CsrfForm wraps every input including the line editor, so the
- * add-line / remove-line / save buttons are all submitters of the same
- * form. The server distinguishes them by the `action` value.
+ * Render the unified attendee form page (create or edit). In edit mode the
+ * read-only summary is the primary view and the form sits in a collapsed
+ * disclosure; in create mode the form is the page.
  */
 export const attendeeFormPage = (
   data: AttendeeFormTemplateData,
@@ -631,9 +538,6 @@ export const attendeeFormPage = (
 ): string => {
   const isEdit = data.mode === "edit";
   const a = data.attendee;
-
-  // In edit mode the read-only summary above is the primary view, so the form
-  // is tucked into a collapsed disclosure (below); in create mode it is the page.
   const editForm = <AttendeeEditForm data={data} />;
 
   return String(
@@ -670,14 +574,6 @@ export const attendeeFormPage = (
         </div>
       )}
 
-      {data.dailyDefaults.hasMixedTimings && (
-        <output class="warning">
-          This attendee's existing daily listings have different start dates or
-          durations. You can still add daily lines, but they won't inherit a
-          shared default — pick the date explicitly for each new line.
-        </output>
-      )}
-
       {isEdit ? (
         <details>
           <summary>Edit Attendee Details</summary>
@@ -696,8 +592,6 @@ export const attendeeFormPage = (
       )}
 
       {isEdit && a && <MergeSection attendee={a} />}
-
-      <Raw html={renderEnhancementScript(data)} />
     </Layout>,
   );
 };
