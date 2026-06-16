@@ -767,7 +767,12 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
   describe("draft helpers", () => {
     test("a malformed stored draft is treated as absent", async () => {
-      settings.setForTest({ bulk_email_draft: "{garbage" });
+      await settings.setForTest({
+        bulk_email_draft: await encryptAttendeePII(
+          "{not valid draft json",
+          settings.publicKey,
+        ),
+      });
       const response = await awaitTestRequest("/admin/emails/preview", {
         cookie: await testCookie(),
       });
@@ -790,6 +795,113 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         200,
         "Stored subject",
       );
+    });
+  });
+
+  describe("email templates", () => {
+    const seedTemplate = async (subject: string, body: string) => {
+      const { insertEmailTemplate } = await import(
+        "#shared/db/email-templates.ts"
+      );
+      const { encryptAttendeePII: enc } = await import(
+        "#shared/crypto/keys.ts"
+      );
+      const encSubject = await enc(subject, settings.publicKey);
+      const encBody = await enc(body, settings.publicKey);
+      return insertEmailTemplate(encSubject, encBody);
+    };
+
+    test("compose page lists saved templates", async () => {
+      await seedTemplate("My Newsletter", "Hello everyone");
+      const html = await (
+        await awaitTestRequest("/admin/emails?audience=active", {
+          cookie: await testCookie(),
+        })
+      ).text();
+      expect(html).toContain("Load a template");
+      expect(html).toContain("My Newsletter");
+    });
+
+    test("?template=N pre-fills subject and body from the template", async () => {
+      const id = await seedTemplate("Pre-fill Subject", "Pre-fill body");
+      const html = await (
+        await awaitTestRequest(`/admin/emails?audience=active&template=${id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
+      expect(html).toContain("Pre-fill Subject");
+      expect(html).toContain("Pre-fill body");
+    });
+
+    test("?template=N for an unknown id still renders the compose page", async () => {
+      expectHtmlResponse(
+        await awaitTestRequest("/admin/emails?audience=active&template=9999", {
+          cookie: await testCookie(),
+        }),
+        200,
+      );
+    });
+
+    test("POST /admin/emails/templates saves a new template and redirects", async () => {
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Template body",
+        subject: "Template subject",
+      });
+      expectRedirectWithFlash(response, "Template saved.");
+      const redirectUrl = response.headers.get("location") ?? "";
+      expect(redirectUrl).toContain("template=");
+    });
+
+    test("POST /admin/emails/templates rejects an empty subject", async () => {
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Template body",
+        subject: "",
+      });
+      expectRedirectWithFlash(response, "Subject is required");
+    });
+
+    test("POST /admin/emails/templates updates an existing template", async () => {
+      const id = await seedTemplate("Old subject", "Old body");
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Updated body",
+        subject: "Updated subject",
+        template_id: String(id),
+        update_existing: "1",
+      });
+      expectRedirectWithFlash(response, "Template updated.");
+      const redirectUrl = response.headers.get("location") ?? "";
+      expect(redirectUrl).toContain(`template=${id}`);
+    });
+
+    test("POST /admin/emails/templates update returns 404 for missing template", async () => {
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Body",
+        subject: "Subject",
+        template_id: "9999",
+        update_existing: "1",
+      });
+      expectRedirectWithFlash(response, "That template no longer exists.");
+    });
+
+    test("POST /admin/emails/templates/:id/delete removes the template", async () => {
+      const id = await seedTemplate("To delete", "Body");
+      const { response } = await adminFormPost(
+        `/admin/emails/templates/${id}/delete`,
+        {},
+      );
+      expectRedirectWithFlash(response, "Template deleted.");
+    });
+
+    test("POST /admin/emails/templates/:id/delete 404s for unknown template", async () => {
+      const { response } = await adminFormPost(
+        "/admin/emails/templates/9999/delete",
+        {},
+      );
+      expect(response.status).toBe(404);
     });
   });
 

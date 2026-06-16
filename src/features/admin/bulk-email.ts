@@ -1,10 +1,16 @@
 /**
- * Bulk email routes — compose, preview, and send. Owner-only.
+ * Bulk email routes — compose, preview, send, and template management.
+ * Owner-only.
  *
  * Flow: compose (GET) → preview (POST saves a draft, redirects) → preview
  * (GET renders the saved draft) → send (POST). The draft is persisted in
  * settings so the preview redirect can carry a Markdown body too large for a
  * flash cookie, and so the send step re-reads exactly what was previewed.
+ *
+ * Templates: saved reusable subject/body pairs encrypted with the owner
+ * keypair. The compose page lists them in a <details> block; clicking one
+ * reloads the compose page with ?template=N to pre-fill the fields. The save
+ * button (formaction="/admin/emails/templates") creates or updates a template.
  */
 
 import { requirePrivateKey } from "#routes/admin/actions.ts";
@@ -15,6 +21,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import { ownerFormById } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -50,6 +57,14 @@ import {
   hashEmail,
   recordContacts,
 } from "#shared/db/email-preferences.ts";
+import {
+  countEmailTemplates,
+  deleteEmailTemplate,
+  getAllRawEmailTemplates,
+  getRawEmailTemplate,
+  insertEmailTemplate,
+  updateEmailTemplate,
+} from "#shared/db/email-templates.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   EMAIL_PROVIDER_LABELS,
@@ -57,6 +72,7 @@ import {
   getEmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
+import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { ok } from "#shared/response.ts";
 import {
@@ -111,11 +127,7 @@ const parseSavedDraft = async (
 ): Promise<ReturnType<typeof parseDraft>> => {
   const raw = settings.bulkEmailDraft;
   if (!raw) return null;
-  try {
-    return parseDraft(await decryptAttendeePII(raw, privateKey));
-  } catch {
-    return null;
-  }
+  return parseDraft(await decryptAttendeePII(raw, privateKey));
 };
 
 /** Serialize and encrypt a draft using the owner's public key. */
@@ -154,9 +166,23 @@ const partitionRecipients = async (
   return { sendable, skipped };
 };
 
+/** Decrypt all template subjects for listing in the compose page. */
+const decryptTemplateSubjects = async (
+  privateKey: CryptoKey,
+): Promise<{ id: number; subject: string }[]> => {
+  const raw = await getAllRawEmailTemplates();
+  return Promise.all(
+    raw.map(async (t) => ({
+      id: t.id,
+      subject: await decryptAttendeePII(t.subject, privateKey),
+    })),
+  );
+};
+
 /** GET /admin/emails — compose form. */
 const handleComposeGet = ownerEmailPage(async (request, session) => {
-  const target = await targetFromQuery(new URL(request.url).searchParams);
+  const params = new URL(request.url).searchParams;
+  const target = await targetFromQuery(params);
   if (!target) return notFoundResponse();
   const { recipients, privateKey, canBulkSend, disabledReason } =
     await loadSendContext(session, target);
@@ -168,16 +194,37 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
     return notFoundResponse();
   }
   const { targetLabel } = await describeTarget(target, recipients);
+  const templates = await decryptTemplateSubjects(privateKey);
+
+  const templateParam = params.get("template");
+  const selectedTemplateId = templateParam ? Number(templateParam) : null;
+  let draft = await parseSavedDraft(privateKey);
+
+  if (selectedTemplateId !== null) {
+    const raw = await getRawEmailTemplate(selectedTemplateId);
+    if (raw) {
+      draft = {
+        body: await decryptAttendeePII(raw.body, privateKey),
+        marketing: draft?.marketing ?? false,
+        subject: await decryptAttendeePII(raw.subject, privateKey),
+        target,
+      };
+    }
+  }
+
   return htmlResponse(
     bulkEmailComposePage(session, {
       canBulkSend,
       control: targetComposeControl(target),
       copy: targetComposeCopy(target),
       disabledReason,
-      draft: await parseSavedDraft(privateKey),
+      draft,
       recipientCount: recipients.length,
+      selectedTemplateId,
       single: targetIsSingleRecipient(target),
       targetLabel,
+      templateLinkBase: `${COMPOSE_PATH}${targetQuery(target)}`,
+      templates,
     }),
   );
 });
@@ -306,9 +353,75 @@ const handleSendPost = (request: Request): Promise<Response> =>
     );
   });
 
+/** POST /admin/emails/templates — save or update a template. */
+const handleTemplateSavePost = (request: Request): Promise<Response> =>
+  withAuth(request, OWNER_FORM, async (_session, form) => {
+    const target = await targetFromForm(form);
+    if (!target) {
+      return errorRedirect(COMPOSE_PATH, "That listing no longer exists.");
+    }
+    const validation = validateDraftInput({
+      body: form.getString("body"),
+      marketing: form.get("marketing") === "1",
+      subject: form.getString("subject"),
+      target,
+    });
+    if (!validation.valid) {
+      return errorRedirect(
+        `${COMPOSE_PATH}${targetQuery(target)}`,
+        validation.error,
+        "bulk-email",
+      );
+    }
+    const { subject, body } = validation.draft;
+    const encSubject = await encryptAttendeePII(subject, settings.publicKey);
+    const encBody = await encryptAttendeePII(body, settings.publicKey);
+    const updateExisting = form.get("update_existing") === "1";
+    const templateIdParam = form.get("template_id");
+    const templateId = templateIdParam ? Number(templateIdParam) : null;
+
+    if (updateExisting && templateId !== null) {
+      const existing = await getRawEmailTemplate(templateId);
+      if (!existing) {
+        return errorRedirect(
+          `${COMPOSE_PATH}${targetQuery(target)}`,
+          "That template no longer exists.",
+        );
+      }
+      await updateEmailTemplate(templateId, encSubject, encBody);
+      return ok(
+        `${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`,
+        "Template updated.",
+      );
+    }
+
+    const count = await countEmailTemplates();
+    if (count >= MAX_EMAIL_TEMPLATES) {
+      return errorRedirect(
+        `${COMPOSE_PATH}${targetQuery(target)}`,
+        `You've reached the limit of ${MAX_EMAIL_TEMPLATES} saved templates.`,
+      );
+    }
+    const newId = await insertEmailTemplate(encSubject, encBody);
+    return ok(
+      `${COMPOSE_PATH}${targetQuery(target)}&template=${newId}`,
+      "Template saved.",
+    );
+  });
+
+/** POST /admin/emails/templates/:id/delete — delete a template. */
+const handleTemplateDeletePost = ownerFormById(async (id) => {
+  const existing = await getRawEmailTemplate(id);
+  if (!existing) return notFoundResponse();
+  await deleteEmailTemplate(id);
+  return ok(`${COMPOSE_PATH}?audience=active`, "Template deleted.");
+});
+
 export const bulkEmailRoutes = defineRoutes({
   "GET /admin/emails": handleComposeGet,
   "GET /admin/emails/preview": handlePreviewGet,
   "POST /admin/emails/preview": handlePreviewPost,
   "POST /admin/emails/send": handleSendPost,
+  "POST /admin/emails/templates": handleTemplateSavePost,
+  "POST /admin/emails/templates/:id/delete": handleTemplateDeletePost,
 });

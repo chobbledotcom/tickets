@@ -39,6 +39,12 @@ export type BulkEmailComposeState = {
   disabledReason: string;
   /** Existing saved draft, used to repopulate the form. */
   draft: BulkEmailDraft | null;
+  /** Saved templates available to load (decrypted subjects). */
+  templates: { id: number; subject: string }[];
+  /** Which template is currently loaded (null = using a saved draft). */
+  selectedTemplateId: number | null;
+  /** Base URL for template load links (includes target query params). */
+  templateLinkBase: string;
 };
 
 /**
@@ -91,7 +97,7 @@ export const bulkEmailComposePage = (
   session: AdminSession,
   state: BulkEmailComposeState,
 ): string => {
-  const { copy, draft, single } = state;
+  const { copy, draft, single, templateLinkBase } = state;
   return String(
     <Layout title={copy.heading}>
       <AdminNav active={NAV_ACTIVE} session={session} />
@@ -115,6 +121,32 @@ export const bulkEmailComposePage = (
             </a>
           </p>
         </div>
+      )}
+
+      {state.templates.length > 0 && (
+        <details>
+          <summary>Load a template</summary>
+          <div class="prose">
+            <ul>
+              {state.templates.map((t) => (
+                <li>
+                  <a href={`${templateLinkBase}&template=${t.id}`}>
+                    {t.subject}
+                  </a>
+                  {state.selectedTemplateId === t.id && " (loaded)"}{" "}
+                  <CsrfForm
+                    action={`/admin/emails/templates/${t.id}/delete`}
+                    class="inline"
+                  >
+                    <button class="link-button danger small" type="submit">
+                      Delete
+                    </button>
+                  </CsrfForm>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
       )}
 
       <CsrfForm action="/admin/emails/preview" id="bulk-email">
@@ -172,6 +204,38 @@ export const bulkEmailComposePage = (
         </div>
 
         <button type="submit">Preview</button>
+
+        {state.templates.length > 0 && (
+          <fieldset class="checkboxes">
+            <label>
+              <input name="update_existing" type="checkbox" value="1" /> Update
+              existing template
+            </label>
+          </fieldset>
+        )}
+
+        {state.templates.length > 0 && (
+          <div class="template-update-fields">
+            <label>
+              Template to update
+              <select name="template_id">
+                {state.templates.map((t) => (
+                  <option
+                    selected={t.id === state.selectedTemplateId}
+                    value={String(t.id)}
+                  >
+                    {t.subject}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
+        <button formaction="/admin/emails/templates" type="submit">
+          <span class="save-as-new">Save as new template</span>
+          <span class="save-update">Update template</span>
+        </button>
       </CsrfForm>
     </Layout>,
   );

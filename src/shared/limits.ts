@@ -195,6 +195,13 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
 // ---------------------------------------------------------------------------
+// Email templates
+// ---------------------------------------------------------------------------
+
+/** Maximum number of saved email templates (default: 1000) */
+export const MAX_EMAIL_TEMPLATES = readLimit("MAX_EMAIL_TEMPLATES", 1000);
+
+// ---------------------------------------------------------------------------
 // Support form
 // ---------------------------------------------------------------------------
 
@@ -508,5 +515,12 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "SUPPORT_FORM_NAG_DAYS",
     label: "Support form repeat-submit notice",
     unit: "days",
+  },
+  {
+    current: MAX_EMAIL_TEMPLATES,
+    defaultValue: 1000,
+    envKey: "MAX_EMAIL_TEMPLATES",
+    label: "Max saved email templates",
+    unit: "templates",
   },
 ];

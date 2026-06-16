@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -532,6 +532,21 @@ const SCHEMA: [name: string, table: Table][] = [
         ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
         ["created", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    // Reusable email templates — subject and body stored as owner-keypair-
+    // encrypted blobs so the operator cannot read content without the owner's
+    // password. Encryption/decryption is handled at the route layer (same
+    // approach as bulk_email_draft in settings).
+    "email_templates",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["subject", "TEXT NOT NULL"],
+        ["body", "TEXT NOT NULL"],
       ],
     },
   ],
@@ -1049,6 +1064,15 @@ const MIGRATIONS: Migration[] = [
     description:
       "Add logistics_agents table, uses_logistics flag on listings, split_logistics_agents on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow",
     id: "2026-06-16_logistics_agents",
+    up: async () => {
+      await applySchemaChanges();
+    },
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add email_templates table for owner-keypair-encrypted reusable email subjects and bodies",
+    id: "2026-06-16_email_templates",
     up: async () => {
       await applySchemaChanges();
     },
