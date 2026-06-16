@@ -6,7 +6,7 @@ import {
 } from "#routes/auth.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
 import { notFoundResponse } from "#routes/response.ts";
-import { CSRF_INVALID_FORM_MESSAGE } from "#shared/csrf.ts";
+import { csrfInvalidFormMessage } from "#shared/csrf.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
 
@@ -166,7 +166,7 @@ export const createFormRoute =
   ) =>
   async (request: Request, params: TParams): Promise<Response> => {
     const csrf = await requireCsrfForm(request, () =>
-      config.onInvalid({ error: CSRF_INVALID_FORM_MESSAGE, params }),
+      config.onInvalid({ error: csrfInvalidFormMessage(), params }),
     );
     if (!csrf.ok) return csrf.response;
 

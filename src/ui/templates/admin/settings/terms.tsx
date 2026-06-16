@@ -2,6 +2,7 @@
  * Terms and Conditions form for settings
  */
 
+import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
@@ -11,11 +12,9 @@ import { FORMATTING_HINT } from "#templates/fields.ts";
 export const TermsForm = (s: SettingsPageState): JSX.Element => (
   <SettingsSection
     action="/admin/settings/terms"
-    description={
-      <p>If set, users must agree to these terms before reserving tickets.</p>
-    }
-    submitLabel="Save Terms"
-    title="Terms and Conditions"
+    description={<p>{t("settings.terms_hint")}</p>}
+    submitLabel={t("settings.save_terms")}
+    title={t("settings.terms")}
   >
     <label>
       Terms and Conditions
@@ -28,7 +27,7 @@ export const TermsForm = (s: SettingsPageState): JSX.Element => (
         data-markdown-preview
         maxlength={MAX_TEXTAREA_LENGTH}
         name="terms_and_conditions"
-        placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
+        placeholder={t("settings.terms_placeholder")}
       >
         {s.termsAndConditions}
       </textarea>

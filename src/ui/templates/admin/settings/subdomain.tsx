@@ -2,7 +2,8 @@
  * Host Subdomain form for advanced settings
  */
 
-import type { SafeHtml } from "#jsx/jsx-runtime";
+import { t } from "#i18n";
+import { Raw, type SafeHtml } from "#jsx/jsx-runtime";
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
@@ -11,10 +12,7 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 const SubdomainIntroProse = (): SafeHtml => (
   <div class="prose">
     <p>
-      You can choose a prettier domain name for your tickets site. Enter a
-      subdomain into the box below to preview the full URL &mdash; you can
-      change your mind before saving, but once set this cannot be changed.{" "}
-      <a href="/admin/guide#host-subdomain">Learn more</a>.
+      <Raw html={t("settings.subdomain.intro")} />
     </p>
   </div>
 );
@@ -24,14 +22,14 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
     return (
       <>
         <p>
-          Your site is available at{" "}
+          {t("settings.subdomain.available_at")}{" "}
           <a href={`https://${s.bunnySubdomain}`}>
             <strong>{s.bunnySubdomain}</strong>
           </a>
-          . {!s.customDomain && "You can also set a custom domain below."}
+          . {!s.customDomain && t("settings.subdomain.also_custom")}
         </p>
         <p>
-          <small>This subdomain is permanent and cannot be changed.</small>
+          <small>{t("settings.subdomain.permanent")}</small>
         </p>
       </>
     );
@@ -41,21 +39,24 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
       <>
         <SubdomainIntroProse />
         <p>
-          <strong>{s.subdomainPreviewFullDomain}</strong> is available.
+          <strong>{s.subdomainPreviewFullDomain}</strong>{" "}
+          {t("settings.subdomain.is_available")}
         </p>
         <input name="subdomain" type="hidden" value={s.subdomainPreview} />
         <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
         <label>
-          <input name="save" type="checkbox" value="1" /> Confirm registration
-          (cannot be undone)
+          <input name="save" type="checkbox" value="1" />{" "}
+          {t("settings.subdomain.confirm_registration")}
         </label>
         <footer>
-          <SubmitButton icon="plus">Register Subdomain</SubmitButton>
+          <SubmitButton icon="plus">
+            {t("settings.subdomain.register_button")}
+          </SubmitButton>
           <a
             class="btn secondary"
             href="/admin/settings-advanced#settings-host-subdomain"
           >
-            Cancel
+            {t("common.cancel")}
           </a>
         </footer>
       </>
@@ -65,19 +66,19 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
     <>
       <SubdomainIntroProse />
       <label>
-        Subdomain
+        {t("settings.subdomain.subdomain_label")}
         <input
           autocomplete="off"
           name="subdomain"
           pattern="[a-z0-9]([a-z0-9-]{'{'}0,61{'}'}[a-z0-9])?"
-          placeholder="my-business-name"
+          placeholder={t("settings.subdomain.subdomain_placeholder")}
           type="text"
         />
         <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
       </label>
       <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
       <SubmitButton icon="search">
-        Check Availability &amp; Preview Complete Domain
+        {t("settings.subdomain.check_button")}
       </SubmitButton>
     </>
   );
@@ -91,7 +92,7 @@ export const HostSubdomainForm = (
       action="/admin/settings/host-subdomain"
       id="settings-host-subdomain"
     >
-      <h2>Host Subdomain</h2>
+      <h2>{t("settings.subdomain.heading")}</h2>
       {SubdomainFormContent(s)}
     </CsrfForm>
   ) : null;

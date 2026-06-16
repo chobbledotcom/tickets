@@ -43,6 +43,7 @@
     "npm:esbuild@0.28": "0.28.0",
     "npm:esbuild@0.28.0": "0.28.0",
     "npm:fflate@~0.8.2": "0.8.2",
+    "npm:intl-messageformat@10": "10.7.18",
     "npm:jscpd@*": "4.0.8",
     "npm:jsqr@^1.4.0": "1.4.0",
     "npm:liquidjs@^10.25.5": "10.25.7",
@@ -395,6 +396,42 @@
       "integrity": "sha512-pEl1bO9mfAmIC+tW5btTmrKaujg3zGtUmWNdCw/xs70FBjwAL3o9OEKNHvNmnyylD6ubxUERiEhdsL0xBQ9efw==",
       "os": ["win32"],
       "cpu": ["x64"]
+    },
+    "@formatjs/ecma402-abstract@2.3.6": {
+      "integrity": "sha512-HJnTFeRM2kVFVr5gr5kH1XP6K0JcJtE7Lzvtr3FS/so5f1kpsqqqxy5JF+FRaO6H2qmcMfAUIox7AJteieRtVw==",
+      "dependencies": [
+        "@formatjs/fast-memoize",
+        "@formatjs/intl-localematcher",
+        "decimal.js",
+        "tslib"
+      ]
+    },
+    "@formatjs/fast-memoize@2.2.7": {
+      "integrity": "sha512-Yabmi9nSvyOMrlSeGGWDiH7rf3a7sIwplbvo/dlz9WCIjzIQAfy1RMf4S0X3yG724n5Ghu2GmEl5NJIV6O9sZQ==",
+      "dependencies": [
+        "tslib"
+      ]
+    },
+    "@formatjs/icu-messageformat-parser@2.11.4": {
+      "integrity": "sha512-7kR78cRrPNB4fjGFZg3Rmj5aah8rQj9KPzuLsmcSn4ipLXQvC04keycTI1F7kJYDwIXtT2+7IDEto842CfZBtw==",
+      "dependencies": [
+        "@formatjs/ecma402-abstract",
+        "@formatjs/icu-skeleton-parser",
+        "tslib"
+      ]
+    },
+    "@formatjs/icu-skeleton-parser@1.8.16": {
+      "integrity": "sha512-H13E9Xl+PxBd8D5/6TVUluSpxGNvFSlN/b3coUp0e0JpuWXXnQDiavIpY3NnvSp4xhEMoXyyBvVfdFX8jglOHQ==",
+      "dependencies": [
+        "@formatjs/ecma402-abstract",
+        "tslib"
+      ]
+    },
+    "@formatjs/intl-localematcher@0.6.2": {
+      "integrity": "sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA==",
+      "dependencies": [
+        "tslib"
+      ]
     },
     "@hono/node-server@1.19.12_hono@4.12.10": {
       "integrity": "sha512-txsUW4SQ1iilgE0l9/e9VQWmELXifEFvmdA1j6WFh/aFPj99hIntrSsq/if0UWyGVkmrRPKA1wCeP+UCr1B9Uw==",
@@ -752,6 +789,9 @@
         "ms"
       ]
     },
+    "decimal.js@10.6.0": {
+      "integrity": "sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg=="
+    },
     "deepmerge@4.3.1": {
       "integrity": "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A=="
     },
@@ -990,6 +1030,15 @@
     },
     "human-signals@1.1.1": {
       "integrity": "sha512-SEQu7vl8KjNL2eoGBLF3+wAjpsNfA9XMlXAYj/3EdaNfAlxKthD1xjEQfGOUhllCGGJVNY34bRr6lPINhNjyZw=="
+    },
+    "intl-messageformat@10.7.18": {
+      "integrity": "sha512-m3Ofv/X/tV8Y3tHXLohcuVuhWKo7BBq62cqY15etqmLxg2DZ34AGGgQDeR+SCta2+zICb1NX83af0GJmbQ1++g==",
+      "dependencies": [
+        "@formatjs/ecma402-abstract",
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "tslib"
+      ]
     },
     "is-core-module@2.16.1": {
       "integrity": "sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==",
@@ -1544,6 +1593,7 @@
       "npm:auto-console-group@^1.3.0",
       "npm:esbuild@0.28",
       "npm:fflate@~0.8.2",
+      "npm:intl-messageformat@10",
       "npm:jsqr@^1.4.0",
       "npm:liquidjs@^10.25.5",
       "npm:marked@18",

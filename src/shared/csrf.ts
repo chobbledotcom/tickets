@@ -7,6 +7,7 @@
  * Instagram) where Safari/WebKit blocks third-party cookies.
  */
 
+import { t } from "#i18n";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   base64ToBase64Url,
@@ -21,9 +22,8 @@ const DEFAULT_MAX_AGE_S = 3600; // 1 hour
 /** Most recently generated CSRF token, readable synchronously by CsrfForm */
 const _tokenStore = { value: "" };
 
-/** Default message for invalid/expired CSRF form submissions */
-export const CSRF_INVALID_FORM_MESSAGE =
-  "Invalid or expired form. Please try again.";
+/** Default message for invalid/expired CSRF form submissions (request-scoped). */
+export const csrfInvalidFormMessage = (): string => t("error.csrf_invalid");
 
 /** Build the HMAC message from timestamp and nonce */
 const buildMessage = (timestamp: number, nonce: string): string =>

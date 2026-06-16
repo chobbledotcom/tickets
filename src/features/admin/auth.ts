@@ -2,6 +2,7 @@
  * Admin authentication routes - login and logout
  */
 
+import { t } from "#i18n";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
   AUTH_FORM,
@@ -32,7 +33,7 @@ import { validateForm } from "#shared/forms.tsx";
 import { nowMs } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
-import { type LoginFormValues, loginFields } from "#templates/fields.ts";
+import { getLoginFields, type LoginFormValues } from "#templates/fields.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
@@ -72,14 +73,14 @@ const handleAdminLogin = async (
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrf_token");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
-    return fail("/admin", "Invalid or expired form. Please try again.");
+    return fail("/admin", t("error.csrf_invalid"));
   }
 
   const clientIp = getClientIp(request, server);
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
-    return fail("/admin", "Too many login attempts. Please try again later.");
+    return fail("/admin", t("error.too_many_attempts"));
   }
 
   // A failed credential check should also log the user out of any existing
@@ -93,7 +94,7 @@ const handleAdminLogin = async (
     });
   };
 
-  const validation = validateForm<LoginFormValues>(form, loginFields);
+  const validation = validateForm<LoginFormValues>(form, getLoginFields());
 
   if (!validation.valid) {
     return fail("/admin", validation.error);
@@ -114,10 +115,7 @@ const handleAdminLogin = async (
 
   // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
-    return fail(
-      "/admin",
-      "Your account has not been activated yet. Please contact the site owner.",
-    );
+    return fail("/admin", t("error.account_not_activated"));
   }
 
   // Unwrap DATA_KEY using password-derived KEK

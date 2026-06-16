@@ -2,6 +2,7 @@
  * Custom Domain form for advanced settings
  */
 
+import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
@@ -17,7 +18,7 @@ export const CustomDomainForm = (
         id="settings-custom-domain"
       >
         <div class="prose">
-          <h2>Custom Domain</h2>
+          <h2>{t("settings.advanced.custom_domain")}</h2>
           <p>
             Set a custom domain for your tickets site.{" "}
             <a href="/admin/guide#custom-domain">Setup guide</a>.
@@ -26,7 +27,7 @@ export const CustomDomainForm = (
           </p>
         </div>
         <label>
-          Domain
+          {t("settings.advanced.domain_label")}
           <input
             autocomplete="off"
             name="custom_domain"
@@ -35,7 +36,9 @@ export const CustomDomainForm = (
             value={s.customDomain}
           />
         </label>
-        <SubmitButton icon="save">Save Custom Domain</SubmitButton>
+        <SubmitButton icon="save">
+          {t("settings.advanced.save_custom_domain")}
+        </SubmitButton>
         <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
       </CsrfForm>
 
@@ -65,7 +68,8 @@ export const CustomDomainForm = (
                   <strong>Type:</strong> CNAME
                 </li>
                 <li>
-                  <strong>Name:</strong> <code>{s.customDomain}</code>
+                  <strong>{t("payment.name_label")}</strong>{" "}
+                  <code>{s.customDomain}</code>
                 </li>
                 <li>
                   <strong>Value:</strong> <code>{s.cdnHostname}</code>
@@ -74,10 +78,7 @@ export const CustomDomainForm = (
                   <strong>TTL:</strong> 3600
                 </li>
               </ul>
-              <p>
-                Once the DNS record is in place, click the button below to
-                validate and enable SSL.
-              </p>
+              <p>{t("settings.advanced.domain_dns_hint")}</p>
             </aside>
           </article>
           {s.customDomainLastValidated && (
@@ -85,7 +86,9 @@ export const CustomDomainForm = (
               <small>Last validated: {s.customDomainLastValidated}</small>
             </p>
           )}
-          <SubmitButton icon="check">Validate Custom Domain</SubmitButton>
+          <SubmitButton icon="check">
+            {t("settings.advanced.validate_custom_domain")}
+          </SubmitButton>
         </CsrfForm>
       )}
     </div>

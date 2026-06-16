@@ -2,6 +2,7 @@
  * Setup routes - initial system configuration
  */
 
+import { t } from "#i18n";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -16,7 +17,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { type SetupFormValues, setupFields } from "#templates/fields.ts";
+import { getSetupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Response helper - renders setup page with current stored CSRF token */
@@ -38,7 +39,7 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
   logDebug("Setup", "Validating form data...");
   logDebug("Setup", `Form keys: ${Array.from(form.keys()).join(", ")}`);
 
-  const validation = validateForm<SetupFormValues>(form, setupFields);
+  const validation = validateForm<SetupFormValues>(form, getSetupFields());
   if (!validation.valid) {
     logDebug("Setup", `Form framework validation failed: ${validation.error}`);
     return validation;
@@ -56,22 +57,22 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
   if (acceptAgreement !== "yes") {
     logDebug("Setup", "Agreement not accepted");
     return {
-      error: "You must accept the Data Controller Agreement to continue",
+      error: t("error.agreement_required"),
       valid: false,
     };
   }
 
   if (password.length < 8) {
     logDebug("Setup", `Password too short: ${password.length}`);
-    return { error: "Password must be at least 8 characters", valid: false };
+    return { error: t("error.password_min"), valid: false };
   }
   if (password !== passwordConfirm) {
     logDebug("Setup", "Passwords do not match");
-    return { error: "Passwords do not match", valid: false };
+    return { error: t("error.passwords_mismatch"), valid: false };
   }
   if (!isValidCountry(country)) {
     logDebug("Setup", `Invalid country code: ${country}`);
-    return { error: "Please select a valid country", valid: false };
+    return { error: t("error.country_invalid"), valid: false };
   }
 
   logDebug("Setup", "Validation passed");
@@ -124,10 +125,7 @@ const handleSetupPost = async (
 
   if (!formCsrf || !(await verifySignedCsrfToken(formCsrf))) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "setup form" });
-    return errorRedirect(
-      "/setup/",
-      "Invalid or expired form. Please try again.",
-    );
+    return errorRedirect("/setup/", t("error.csrf_invalid"));
   }
 
   logDebug("Setup", "CSRF validation passed, validating form...");

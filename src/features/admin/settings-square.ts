@@ -5,6 +5,7 @@
  */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import {
   processSecretField,
   type SecretFieldResult,
@@ -49,12 +50,12 @@ export const handleAdminSquarePost = settingsHandler<SquareFormData>({
     await settings.update.paymentProvider("square");
   },
   validate: ({ token, locationId }) => {
-    if (isDemoMode()) return "Cannot configure Square in demo mode";
-    if (!locationId) return "Location ID is required";
+    if (isDemoMode()) return t("error.square_demo_mode");
+    if (!locationId) return t("error.square_location_required");
     const locationError = validateSquareLocationId(locationId);
     if (locationError) return locationError;
     if (token.action === "cleared" && !settings.square.hasToken) {
-      return "Square Access Token is required";
+      return t("error.square_token_required");
     }
     if (token.action === "provided") {
       const tokenError = validateSquareAccessToken(token.value);

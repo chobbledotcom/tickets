@@ -11,6 +11,7 @@
  * needs no server round-trips to edit the line set.
  */
 
+import { t } from "#i18n";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -265,7 +266,7 @@ const validateAttendeeBlock = (
   parsed: ParsedAttendeeForm,
 ): AttendeeFieldError | null => {
   if (!parsed.name.trim()) {
-    return { field: "name", message: "Name is required" };
+    return { field: "name", message: t("error.name_required") };
   }
   if (parsed.email) {
     const emailError = validateEmail(parsed.email);

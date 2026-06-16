@@ -3,6 +3,7 @@
  * Owner-only access enforced via settingsHandler
  */
 
+import { t } from "#i18n";
 import {
   processSecretField,
   type SecretFieldResult,
@@ -46,7 +47,7 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
   label: "Apple Wallet configuration",
   log: (d) =>
     isAllCleared(d)
-      ? "Apple Wallet configuration cleared"
+      ? t("success.apple_wallet_cleared")
       : "Apple Wallet configuration updated",
   save: async (d) => {
     if (isAllCleared(d)) {
@@ -73,8 +74,8 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
   },
   validate: (d) => {
     if (isAllCleared(d)) return null;
-    if (!d.passTypeId) return "Pass Type ID is required";
-    if (!d.teamId) return "Team ID is required";
+    if (!d.passTypeId) return t("error.apple_pass_type_id_required");
+    if (!d.teamId) return t("error.apple_team_id_required");
     if (!settings.appleWallet.hasDbConfig) {
       const requiredError = validateAppleWalletRequiredSecrets(d);
       if (requiredError) return requiredError;
@@ -87,9 +88,10 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
 const validateAppleWalletRequiredSecrets = (
   d: AppleWalletFormData,
 ): string | null => {
-  if (d.cert.action !== "provided") return "Signing certificate is required";
-  if (d.key.action !== "provided") return "Signing private key is required";
-  if (d.wwdr.action !== "provided") return "WWDR certificate is required";
+  if (d.cert.action !== "provided")
+    return t("error.apple_signing_cert_required");
+  if (d.key.action !== "provided") return t("error.apple_signing_key_required");
+  if (d.wwdr.action !== "provided") return t("error.apple_wwdr_cert_required");
   return null;
 };
 
@@ -98,13 +100,13 @@ const validateAppleWalletPemFields = (
   d: AppleWalletFormData,
 ): string | null => {
   if (d.cert.action === "provided" && !isValidPemCertificate(d.cert.value)) {
-    return "Signing certificate is not a valid PEM certificate";
+    return t("error.apple_signing_cert_invalid");
   }
   if (d.key.action === "provided" && !isValidPemPrivateKey(d.key.value)) {
-    return "Signing private key is not a valid PEM private key";
+    return t("error.apple_signing_key_invalid");
   }
   if (d.wwdr.action === "provided" && !isValidPemCertificate(d.wwdr.value)) {
-    return "WWDR certificate is not a valid PEM certificate";
+    return t("error.apple_wwdr_cert_invalid");
   }
   return null;
 };
@@ -132,7 +134,7 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
   label: "Google Wallet configuration",
   log: (d) =>
     isGoogleWalletCleared(d)
-      ? "Google Wallet configuration cleared"
+      ? t("success.google_wallet_cleared")
       : "Google Wallet configuration updated",
   save: async (d) => {
     if (isGoogleWalletCleared(d)) {
@@ -151,16 +153,16 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
   },
   validate: async (d) => {
     if (isGoogleWalletCleared(d)) return null;
-    if (!d.issuerId) return "Issuer ID is required";
-    if (!d.email) return "Service account email is required";
+    if (!d.issuerId) return t("error.google_issuer_id_required");
+    if (!d.email) return t("error.google_service_email_required");
     if (!settings.googleWallet.hasDbConfig && d.key.action !== "provided") {
-      return "Service account private key is required";
+      return t("error.google_service_key_required");
     }
     if (
       d.key.action === "provided" &&
       !(await isValidGooglePrivateKey(d.key.value))
     ) {
-      return "Service account private key is not a valid PEM private key";
+      return t("error.google_service_key_invalid");
     }
     return null;
   },

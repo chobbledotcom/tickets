@@ -1,0 +1,18 @@
+{
+  "listing_qr.title": "QR Code: {name}",
+  "listing_qr.qr_code": "QR code",
+  "listing_qr.qr_expiry_note": "Refreshes every minute. Each code expires {time} after it was generated.",
+  "listing_qr.link": "Link",
+  "listing_qr.page_title": "Booking QR code —",
+  "listing_qr.page_description_start": "Generate a signed link that pre-fills the booking form. If name and price are both set and the listing has no extra required fields",
+  "listing_qr.page_description_condition": "(this {state} the case)",
+  "listing_qr.page_description_end": ", the scanner is taken straight to payment.",
+  "listing_qr.customer_name": "Customer name",
+  "listing_qr.customer_name_help": "Optional — pre-fills the name field.",
+  "listing_qr.price": "Price",
+  "listing_qr.price_input_title": "A non-negative number (e.g. 10.00)",
+  "listing_qr.price_hint_can_pay_more": "Minimum {min}, maximum {max}",
+  "listing_qr.price_hint_fixed": "Overrides the ticket price of {price} for this booking",
+  "listing_qr.date_select_placeholder": "— Select a date —",
+  "listing_qr.generate_button": "Generate QR code"
+}

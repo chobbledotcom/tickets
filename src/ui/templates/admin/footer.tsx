@@ -3,6 +3,7 @@
  */
 
 import { reduce } from "#fp";
+import { t } from "#i18n";
 import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   getQueryLog,
@@ -45,7 +46,7 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
 
   return (
     `<footer class="debug-footer">` +
-    `<p><a href="https://github.com/chobbledotcom/tickets">Chobble Tickets</a></p>` +
+    `<p><a href="https://github.com/chobbledotcom/tickets">${t("admin.footer.chobble_tickets")}</a></p>` +
     "<details>" +
     `<summary>${renderTimeMs.toFixed(0)}ms` +
     ` &middot; ${queries.length} quer${queries.length === 1 ? "y" : "ies"} ${totalSqlMs.toFixed(
@@ -56,7 +57,7 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
     `<p>Render: ${renderTimeMs.toFixed(1)}ms` +
     ` (sql ${totalSqlMs.toFixed(1)}ms + other ${otherMs.toFixed(1)}ms)</p>` +
     (queries.length > 0
-      ? "<details><summary>SQL queries</summary><ul>" +
+      ? `<details><summary>${t("admin.footer.sql_queries")}</summary><ul>` +
         queries
           .map(
             (q) =>
@@ -68,7 +69,7 @@ export const debugFooterHtml = (data: DebugFooterData): string => {
         "</ul></details>"
       : "") +
     (cacheStats.length > 0
-      ? `<details><summary>Caches (${cacheStats.length})</summary><ul>` +
+      ? `<details><summary>${t("admin.footer.caches")} (${cacheStats.length})</summary><ul>` +
         cacheStats.map(renderCacheStat).join("") +
         "</ul></details>"
       : "") +

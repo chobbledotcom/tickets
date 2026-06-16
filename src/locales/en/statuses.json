@@ -1,0 +1,21 @@
+{
+  "statuses.attendee_statuses_page_title": "Attendee Statuses",
+  "statuses.attendee_statuses_description": "Statuses track where an attendee is in your workflow. The <strong>public default</strong> is the status new public bookings start in; if it is a <strong>reservation</strong>, bookings pay a deposit now and the balance later. When a balance is paid the attendee moves to the <strong>paid</strong> status.",
+  "statuses.badge_public_default": "Public default",
+  "statuses.badge_paid": "Paid",
+  "statuses.badge_reservation": "Reservation: {amount}",
+  "statuses.add_status_button": "Add status",
+  "statuses.order_header": "Order",
+  "statuses.flags_header": "Flags",
+  "statuses.move_up_title": "Move up",
+  "statuses.move_down_title": "Move down",
+  "statuses.form_title_edit": "Edit Attendee Status",
+  "statuses.form_title_add": "Add Attendee Status",
+  "statuses.form_reservation_checkbox": "This is a reservation — collect a deposit now, balance later",
+  "statuses.form_public_default_checkbox": "Default status for new public bookings",
+  "statuses.form_paid_default_checkbox": "Status an attendee moves to when their balance is paid",
+  "statuses.form_reservation_amount_label": "Reservation amount",
+  "statuses.form_reservation_amount_hint": ". Only used for reservations.",
+  "statuses.form_save_button": "Save status",
+  "statuses.form_create_button": "Create status"
+}

@@ -4,6 +4,7 @@
  */
 
 import { once, reduce } from "#fp";
+import { parseAcceptLanguage, runWithLocale } from "#i18n";
 import { SessionKeyError } from "#routes/auth.ts";
 import {
   applySecurityHeaders,
@@ -649,14 +650,19 @@ export const handleRequest = async (
   server?: ServerContext,
 ): Promise<Response> => {
   const effectiveRequest = await bufferRequestIfNeeded(request);
+  const locale = parseAcceptLanguage(
+    effectiveRequest.headers.get("accept-language"),
+  );
 
-  return runWithClientIp(getClientIp(request, server), () =>
-    runWithRequestId(() =>
-      runWithRequestCache(() =>
-        runWithQueryLogContext(() =>
-          runWithFlashContext(() =>
-            runWithSessionContext(() =>
-              processRequest(effectiveRequest, server),
+  return runWithLocale(locale, () =>
+    runWithClientIp(getClientIp(request, server), () =>
+      runWithRequestId(() =>
+        runWithRequestCache(() =>
+          runWithQueryLogContext(() =>
+            runWithFlashContext(() =>
+              runWithSessionContext(() =>
+                processRequest(effectiveRequest, server),
+              ),
             ),
           ),
         ),

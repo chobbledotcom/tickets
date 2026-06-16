@@ -2,23 +2,19 @@
  * Embed Hosts form for settings
  */
 
+import { t } from "#i18n";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const EmbedHostsForm = (s: SettingsPageState): JSX.Element => (
   <SettingsSection
     action="/admin/settings/embed-hosts"
-    description={
-      <p>
-        Restrict which websites can embed your booking forms in an iframe. Leave
-        blank to allow embedding from any site.
-      </p>
-    }
-    submitLabel="Save Embed Hosts"
-    title="Only allow embedding on these hosts"
+    description={<p>{t("settings.embed_hosts_hint")}</p>}
+    submitLabel={t("settings.save_embed_hosts")}
+    title={t("settings.embed_hosts")}
   >
     <label>
-      Hosts (comma-separated)
+      {t("settings.embed_hosts_label")}
       <input
         autocomplete="off"
         name="embed_hosts"
