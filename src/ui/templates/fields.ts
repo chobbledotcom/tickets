@@ -775,7 +775,7 @@ export const getSlugField = (): Field => ({
 
 /** Group selection field (validated even when rendered manually) */
 export const getGroupIdField = (): Field => ({
-  label: t("fields.listing.group"),
+  label: t("terms.group"),
   name: "group_id",
   type: "text",
 });

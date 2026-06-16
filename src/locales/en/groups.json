@@ -1,5 +1,4 @@
 {
-  "groups.heading": "Groups",
   "groups.add_group": "Add Group",
   "groups.no_groups": "No groups configured.",
   "groups.col.name": "Name",
@@ -25,14 +24,11 @@
   "groups.detail.qr_code": "QR Code",
   "groups.detail.embed_script": "Embed Script",
   "groups.detail.embed_iframe": "Embed Iframe",
-  "groups.detail.listings_heading": "Listings",
   "groups.detail.col.listing_name": "Listing Name",
   "groups.detail.col.description": "Description",
   "groups.detail.col.status": "Status",
-  "groups.detail.col.attendees": "Attendees",
   "groups.detail.col.created": "Created",
   "groups.detail.no_listings": "No listings in this group",
-  "groups.detail.attendees_heading": "Attendees",
   "groups.detail.add_listings": "Add Listings to Group",
   "groups.detail.add_listings_submit": "Add Selected Listings",
   "groups.fields.name": "Group Name",
@@ -41,6 +37,5 @@
   "groups.fields.max_attendees_hint": "Limits total attendees across all listings in this group. Leave blank for no limit. Works best when all listings in the group are the same type (daily or standard).",
   "groups.fields.terms": "Terms and Conditions (optional)",
   "groups.fields.terms_hint": "If set, overrides the global terms and conditions for this group ticket page",
-  "groups.select.label": "Group",
   "groups.select.none": "No Group"
 }

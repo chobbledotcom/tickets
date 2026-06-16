@@ -103,7 +103,7 @@ const FilterForm = ({
 }): JSX.Element => (
   <form action="/admin/attendees" class="filter-row" method="get">
     <label>
-      {t("attendees_list.listing")}
+      {t("terms.listing")}
       <select name="listing">
         <ListingOptions listings={listings} selectedId={listingId} />
       </select>
@@ -162,10 +162,10 @@ const Pagination = ({
 /** Admin attendees browser page */
 export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
   String(
-    <Layout title={t("attendees_list.attendees")}>
+    <Layout title={t("terms.attendees")}>
       <AdminNav active={NAV_ACTIVE} session={props.session} />
 
-      <h1>{t("attendees_list.attendees")}</h1>
+      <h1>{t("terms.attendees")}</h1>
 
       {props.categories.length > 1 && (
         <Raw

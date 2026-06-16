@@ -30,7 +30,7 @@ export const adminHolidaysPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title={t("holidays.heading")}>
+    <Layout title={t("terms.holidays")}>
       <AdminNav active="/admin/holidays" session={session} />
       <Flash success={successMessage} />
       <p class="actions">

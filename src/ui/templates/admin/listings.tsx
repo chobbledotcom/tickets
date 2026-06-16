@@ -300,7 +300,7 @@ const ListingActionNav = ({
         )}
         <li>
           <a href={`/admin/listing/${listing.id}/questions`}>
-            {t("listings_table.questions")}
+            {t("terms.questions")}
           </a>
         </li>
         {!readOnly && (
@@ -836,7 +836,7 @@ const AttendeesSection = ({
   return (
     <article>
       <div class="prose">
-        <h2 id="attendees">{t("listings_table.attendees")}</h2>
+        <h2 id="attendees">{t("terms.attendees")}</h2>
         {checkinMessage && (
           <p class={checkedInClass} id="message">
             {t("listings_table.checked", {

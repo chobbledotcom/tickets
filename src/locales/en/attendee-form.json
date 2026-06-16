@@ -5,7 +5,6 @@
   "attendee_form.remove": "Remove",
   "attendee_form.drop": "Drop",
   "attendee_form.day_count": "{count, plural, one {1 day} other {# days}}",
-  "attendee_form.listing_header": "Listing",
   "attendee_form.date_header": "Date",
   "attendee_form.qty_header": "Qty",
   "attendee_form.email_history": "Email History",

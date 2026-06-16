@@ -1,7 +1,6 @@
 {
   "csv.yes": "Yes",
   "csv.no": "No",
-  "csv.col.listing": "Listing",
   "csv.col.listing_date": "Listing Date",
   "csv.col.listing_location": "Listing Location",
   "csv.col.date": "Date",

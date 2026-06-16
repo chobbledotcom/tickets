@@ -104,7 +104,7 @@ export const AttendeeDetail = ({
         <Multiline text={attendee.special_instructions} />
       </DetailTableRow>
     ) : null,
-    <DetailTableRow label={t("attendee_detail.ticket")}>
+    <DetailTableRow label={t("terms.ticket")}>
       <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
         {attendee.ticket_token}
       </a>

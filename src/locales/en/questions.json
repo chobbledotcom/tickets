@@ -6,7 +6,6 @@
   "questions.new_placeholder": "e.g. What is your T-shirt size?",
   "questions.add_submit": "Add Question",
   "questions.no_questions": "No custom questions yet.",
-  "questions.edit.breadcrumb": "Questions",
   "questions.edit.text_label": "Question Text",
   "questions.edit.update": "Update",
   "questions.edit.answers_heading": "Answer Options",

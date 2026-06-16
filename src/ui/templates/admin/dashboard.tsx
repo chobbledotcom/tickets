@@ -221,7 +221,7 @@ export const adminDashboardPage = (
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
 
   return String(
-    <Layout title={t("admin.dashboard.title")}>
+    <Layout title={t("terms.listings")}>
       <AdminNav active="/admin/" session={session} />
 
       <Flash error={imageError} success={successMessage} />

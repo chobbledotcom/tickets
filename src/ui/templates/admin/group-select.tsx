@@ -18,7 +18,7 @@ export const ListingGroupSelect = ({
 
   return (
     <label>
-      {t("groups.select.label")}
+      {t("terms.group")}
       <select id="group_id" name="group_id">
         <option selected={selectedGroupId === 0} value="0">
           {t("groups.select.none")}

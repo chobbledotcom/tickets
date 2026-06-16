@@ -52,7 +52,7 @@ export const adminGroupsPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title={t("groups.heading")}>
+    <Layout title={t("terms.groups")}>
       <AdminNav active="/admin/groups" session={session} />
       <Flash success={successMessage} />
       {!isReadOnly() && (
@@ -388,13 +388,13 @@ export const adminGroupDetailPage = (
         </div>
       </article>
 
-      <h2>{t("groups.detail.listings_heading")}</h2>
+      <h2>{t("terms.listings")}</h2>
       <div class="table-scroll">
         <Raw html={renderListingTable(columnKeys, listingRows)} />
       </div>
 
       <article>
-        <h2 id="attendees">{t("groups.detail.attendees_heading")}</h2>
+        <h2 id="attendees">{t("terms.attendees")}</h2>
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({

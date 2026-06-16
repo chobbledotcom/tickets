@@ -35,6 +35,7 @@ import setup from "./setup.json" with { type: "json" };
 import site from "./site.json" with { type: "json" };
 import statuses from "./statuses.json" with { type: "json" };
 import support from "./support.json" with { type: "json" };
+import terms from "./terms.json" with { type: "json" };
 import tickets from "./tickets.json" with { type: "json" };
 import unsubscribe from "./unsubscribe.json" with { type: "json" };
 import users from "./users.json" with { type: "json" };
@@ -74,6 +75,7 @@ const en: Record<string, string> = {
   ...statuses,
   ...support,
   ...tickets,
+  ...terms,
   ...unsubscribe,
   ...users,
 };

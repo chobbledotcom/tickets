@@ -1,5 +1,4 @@
 {
-  "holidays.heading": "Holidays",
   "holidays.add_holiday": "Add Holiday",
   "holidays.guide_link": "Holidays guide",
   "holidays.no_holidays": "No holidays configured.",
@@ -9,21 +8,17 @@
   "holidays.col.actions": "Actions",
   "holidays.edit": "Edit",
   "holidays.delete": "Delete",
-
   "holidays.add.title": "Add Holiday",
   "holidays.add.heading": "Add Holiday",
   "holidays.add.submit": "Create Holiday",
-
   "holidays.edit.title": "Edit Holiday",
   "holidays.edit.heading": "Edit Holiday",
   "holidays.edit.submit": "Save Changes",
-
   "holidays.delete.heading": "Delete Holiday",
   "holidays.delete.confirm": "Are you sure you want to delete the holiday <strong>{name}</strong> ({start} to {end})?",
   "holidays.delete.confirm_prompt": "Type the holiday name \"{name}\" to confirm:",
   "holidays.delete.confirm_label": "Holiday name",
   "holidays.delete.submit": "Delete Holiday",
-
   "holidays.fields.name": "Holiday Name",
   "holidays.fields.name_placeholder": "Bank Holiday",
   "holidays.fields.start_date": "Start Date",

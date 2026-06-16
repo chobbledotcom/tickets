@@ -49,7 +49,7 @@ export const adminUsersPage = (
   opts: UsersPageOpts,
 ): string =>
   String(
-    <Layout title={t("users.title")}>
+    <Layout title={t("terms.users")}>
       <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
       <p class="actions">

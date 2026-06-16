@@ -78,11 +78,11 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
     )}
     <nav id="main-nav">
       <ul>
-        {navLink("/admin/", t("nav.listings"), active)}
+        {navLink("/admin/", t("terms.listings"), active)}
         {navLink("/admin/calendar", t("nav.calendar"), active)}
-        {navLink("/admin/attendees", t("nav.attendees"), active)}
+        {navLink("/admin/attendees", t("terms.attendees"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/users", t("nav.users"), active)}
+          navLink("/admin/users", t("terms.users"), active)}
         {session.adminLevel === "owner" &&
           settings.showPublicSite &&
           navLink("/admin/site", t("nav.site"), active)}
@@ -91,9 +91,9 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
         {session.adminLevel === "owner" &&
           navLink("/admin/settings", t("nav.settings"), active)}
         {navLink("/admin/log", t("nav.log"), active)}
-        {navLink("/admin/groups", t("nav.groups"), active)}
+        {navLink("/admin/groups", t("terms.groups"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/holidays", t("nav.holidays"), active)}
+          navLink("/admin/holidays", t("terms.holidays"), active)}
         {session.adminLevel === "owner" &&
           isBuilderEnabled() &&
           navLink("/admin/built-sites", t("nav.built_sites"), active)}
@@ -116,7 +116,7 @@ export const UsersSubNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/admin/users">{t("nav.sub.users")}</a>
+        <a href="/admin/users">{t("terms.users")}</a>
       </li>
       <li>
         <a href="/admin/sessions">{t("nav.sub.sessions")}</a>

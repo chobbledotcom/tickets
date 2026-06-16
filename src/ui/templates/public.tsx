@@ -62,7 +62,7 @@ const PublicNav = ({
         <a href="/">{t("nav.public.home")}</a>
       </li>
       <li>
-        <a href="/listings">{t("nav.public.listings")}</a>
+        <a href="/listings">{t("terms.listings")}</a>
       </li>
       {hasOrder && (
         <li>

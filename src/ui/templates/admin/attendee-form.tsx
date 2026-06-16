@@ -253,7 +253,7 @@ const LineEditor = ({
       <table class="line-editor">
         <thead>
           <tr>
-            <th>{t("attendee_form.listing_header")}</th>
+            <th>{t("terms.listing")}</th>
             <th>{t("attendee_form.date_header")}</th>
             <th>{t("attendee_form.qty_header")}</th>
             <th></th>

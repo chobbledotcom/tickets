@@ -1,14 +1,9 @@
 {
-  "nav.listings": "Listings",
   "nav.calendar": "Calendar",
-  "nav.attendees": "Attendees",
-  "nav.users": "Users",
   "nav.site": "Site",
   "nav.emails": "Emails",
   "nav.settings": "Settings",
   "nav.log": "Log",
-  "nav.groups": "Groups",
-  "nav.holidays": "Holidays",
   "nav.built_sites": "Builds",
   "nav.guide": "Guide",
   "nav.support": "Support",
@@ -17,7 +12,6 @@
   "nav.readonly.renew": "Renew now",
   "nav.readonly.expires": "Your site expires on {date}",
   "nav.readonly.expiring": "Your site is approaching its expiry",
-  "nav.sub.users": "Users",
   "nav.sub.sessions": "Sessions",
   "nav.sub.api_keys": "API Keys",
   "nav.sub.settings": "Settings",
@@ -27,7 +21,6 @@
   "nav.sub.updates": "Updates",
   "nav.sub.debug": "Debug",
   "nav.public.home": "Home",
-  "nav.public.listings": "Listings",
   "nav.public.terms": "T&amp;Cs",
   "nav.public.contact": "Contact"
 }

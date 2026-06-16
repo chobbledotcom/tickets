@@ -174,7 +174,7 @@ const buildAttendeeRow = (
       ? `${count} / ${maxCapacity} ${t("detail_rows.mdash")} ${maxCapacity - count} ${t("detail_rows.remain")}`
       : String(count);
   return {
-    key: `${t("detail_rows.attendees")}${suffix}`,
+    key: `${t("terms.attendees")}${suffix}`,
     value: wrapDanger(display, isNearCapacity(count, maxCapacity)),
   };
 };

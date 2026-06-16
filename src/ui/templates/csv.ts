@@ -200,7 +200,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
   const showListingDate = attendees.some((a) => a.listingDate !== "");
   const showListingLocation = attendees.some((a) => a.listingLocation !== "");
   const headerParts = [
-    escapeCsvValue(t("csv.col.listing")),
+    escapeCsvValue(t("terms.listing")),
     ...listingInfoHeaders(showListingDate, showListingLocation),
     escapeCsvValue(t("csv.col.date")),
     ...attendeeHeaders(),
