@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add sms_outbox table for the SMS gateway send queue, storing only end-to-end-encrypted recipient and message ciphertext";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -516,6 +516,35 @@ const SCHEMA: [name: string, table: Table][] = [
         ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
         ["created", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    // SMS gateway send queue. Stores ONLY end-to-end-encrypted values:
+    // `phone_enc` and `body_enc` are SMS Gate E2E ciphertext (decryptable only
+    // with the passphrase, which itself is stored encrypted under DATA_KEY in
+    // settings). Plaintext recipient numbers and message text never touch this
+    // table — attendee PII is decrypted transiently under the owner key and
+    // immediately re-encrypted under the E2E key before a row is written.
+    "sms_outbox",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["phone_enc", "TEXT NOT NULL"],
+        ["body_enc", "TEXT NOT NULL"],
+        ["status", "TEXT NOT NULL DEFAULT 'queued'"],
+        ["provider_id", "TEXT NOT NULL DEFAULT ''"],
+        ["error", "TEXT NOT NULL DEFAULT ''"],
+        ["attempts", "INTEGER NOT NULL DEFAULT 0"],
+        ["created", "TEXT NOT NULL"],
+        ["updated", "TEXT NOT NULL DEFAULT ''"],
+      ],
+      indexes: [
+        { columns: ["status", "created"], name: "idx_sms_outbox_status" },
+        { columns: ["attendee_id"], name: "idx_sms_outbox_attendee_id" },
       ],
     },
   ],
@@ -1027,6 +1056,16 @@ const MIGRATIONS: Migration[] = [
       "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
     id: "2026-06-15_activity_log_listing_id_index",
     up: syncIndexes,
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add sms_outbox table for the SMS gateway send queue (stores only E2E-encrypted recipient and message)",
+    id: "2026-06-16_sms_outbox",
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
     verify: verifyCurrentAppSchema,
   },
 ];
