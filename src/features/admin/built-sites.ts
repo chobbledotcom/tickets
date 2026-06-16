@@ -41,7 +41,7 @@ import {
   adminBuiltSiteNewPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { builtSiteFields } from "#templates/fields.ts";
+import { getBuiltSiteFields } from "#templates/fields.ts";
 
 /** Extract built site input from validated form values */
 const extractBuiltSiteInput = (
@@ -57,7 +57,7 @@ const extractBuiltSiteInput = (
 
 /** Built sites resource for REST create/update operations */
 const builtSitesResource = defineNamedResource({
-  fields: builtSiteFields,
+  fields: getBuiltSiteFields(),
   nameField: "name",
   table: builtSitesCrudTable,
   toInput: extractBuiltSiteInput,

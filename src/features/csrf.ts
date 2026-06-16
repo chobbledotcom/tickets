@@ -5,7 +5,7 @@
 import { errorRedirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import {
-  CSRF_INVALID_FORM_MESSAGE,
+  csrfInvalidFormMessage,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
@@ -96,7 +96,7 @@ export const withCsrfForm = async (
   handler: (form: FormParams) => Response | Promise<Response>,
 ): Promise<Response> => {
   const csrf = await requireCsrfForm(request, () =>
-    onInvalid(CSRF_INVALID_FORM_MESSAGE, 403),
+    onInvalid(csrfInvalidFormMessage(), 403),
   );
   return csrf.ok ? handler(csrf.form) : csrf.response;
 };

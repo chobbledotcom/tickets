@@ -5,6 +5,7 @@
 
 import * as v from "valibot";
 import { chunk, lazyRef, map } from "#fp";
+import { t } from "#i18n";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -599,9 +600,9 @@ export const sendTestEmail = async (
   to: ValidEmail,
 ): Promise<number | undefined> => {
   return await sendEmail(config, {
-    html: "<p>This is a test email. Your email configuration is working correctly.</p>",
-    subject: "Test email from your ticket system",
-    text: "This is a test email. Your email configuration is working correctly.",
+    html: `<p>${t("fields.email.test_body")}</p>`,
+    subject: t("fields.email.test_subject"),
+    text: t("fields.email.test_body"),
     to,
   });
 };

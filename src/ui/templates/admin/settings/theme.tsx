@@ -2,17 +2,16 @@
  * Site Theme form for settings
  */
 
+import { t } from "#i18n";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const ThemeForm = (s: SettingsPageState): JSX.Element => (
   <SettingsSection
     action="/admin/settings/theme"
-    description={
-      <p>Choose between light and dark themes for the site interface.</p>
-    }
-    submitLabel="Save Theme"
-    title="Site Theme"
+    description={<p>{t("settings.theme_hint")}</p>}
+    submitLabel={t("settings.save_theme")}
+    title={t("settings.theme")}
   >
     <fieldset class="radios">
       <label>
@@ -22,7 +21,7 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="light"
         />
-        Light
+        {t("settings.theme_light")}
       </label>
       <label>
         <input
@@ -31,7 +30,7 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="dark"
         />
-        Dark
+        {t("settings.theme_dark")}
       </label>
     </fieldset>
   </SettingsSection>

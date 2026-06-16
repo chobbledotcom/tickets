@@ -1,4 +1,6 @@
+import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
+import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 
@@ -14,19 +16,19 @@ export const SuperuserForm = (s: {
 
   return (
     <CsrfForm action="/admin/settings/superuser" id="settings-superuser">
-      <h2>Superuser Recovery</h2>
+      <h2>{t("settings.superuser.heading")}</h2>
 
       {disabled ? (
         <p>
-          Superuser {superuser.username} is already activated. You can delete
-          them from your <a href="/admin/users">users page</a>.
+          <Raw
+            html={t("settings.superuser.activated", {
+              username: escapeHtml(superuser.username),
+            })}
+          />
         </p>
       ) : (
         <>
-          <p>
-            Your attendee data is encrypted with your password, and admins
-            cannot view your password. With that in mind, please select:
-          </p>
+          <p>{t("settings.superuser.intro")}</p>
           <label class="radio-label">
             <input
               checked={superuser.choice === "self-managed"}
@@ -36,12 +38,7 @@ export const SuperuserForm = (s: {
               type="radio"
               value="self-managed"
             />
-            <span>
-              I understand that my attendee information cannot be decrypted
-              without my password, and that I am responsible for storing my
-              password securely. If I forget it, I will be locked out of my
-              attendee records.
-            </span>
+            <span>{t("settings.superuser.self_managed")}</span>
           </label>
 
           <label class="radio-label">
@@ -54,14 +51,11 @@ export const SuperuserForm = (s: {
               value="enable-superuser"
             />
             <span>
-              I wish to enable a "super user" account on this platform for my
-              admin, {superuser.email}. This user will be able to log in,
-              decrypt attendee data, and invite a replacement owner account if I
-              lose access.
+              {t("settings.superuser.enable_super", { email: superuser.email })}
             </span>
           </label>
 
-          <SubmitButton icon="save">Save</SubmitButton>
+          <SubmitButton icon="save">{t("common.save")}</SubmitButton>
         </>
       )}
     </CsrfForm>

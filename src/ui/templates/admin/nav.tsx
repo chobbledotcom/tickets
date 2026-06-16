@@ -2,6 +2,7 @@
  * Shared admin navigation component
  */
 
+import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -25,19 +26,23 @@ const renderReadOnlyBanner = (
   renewalUrl: string | null,
 ): JSX.Element | null => {
   if (readOnly) {
-    const link = renewalUrl ? ` — <a href="${renewalUrl}">Renew now</a>` : "";
+    const link = renewalUrl
+      ? ` — <a href="${renewalUrl}">${t("nav.readonly.renew")}</a>`
+      : "";
     return (
       <Raw
-        html={`<div class="read-only-banner">This site is in read-only mode${link}</div>`}
+        html={`<div class="read-only-banner">${t("nav.readonly.banner")}${link}</div>`}
       />
     );
   }
   if (warning) {
-    const link = renewalUrl ? ` — <a href="${renewalUrl}">Renew now</a>` : "";
+    const link = renewalUrl
+      ? ` — <a href="${renewalUrl}">${t("nav.readonly.renew")}</a>`
+      : "";
     const dateStr = new Date(String(cutoffIso)).toLocaleDateString();
     const msg = dateStr
-      ? `Your site expires on ${dateStr}${link}`
-      : `Your site is approaching its expiry${link}`;
+      ? `${t("nav.readonly.expires", { date: dateStr })}${link}`
+      : `${t("nav.readonly.expiring")}${link}`;
     return <Raw html={`<div class="read-only-banner-warning">${msg}</div>`} />;
   }
   return null;
@@ -73,34 +78,34 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
     )}
     <nav id="main-nav">
       <ul>
-        {navLink("/admin/", "Listings", active)}
-        {navLink("/admin/calendar", "Calendar", active)}
-        {navLink("/admin/attendees", "Attendees", active)}
+        {navLink("/admin/", t("terms.listings"), active)}
+        {navLink("/admin/calendar", t("nav.calendar"), active)}
+        {navLink("/admin/attendees", t("terms.attendees"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/users", "Users", active)}
+          navLink("/admin/users", t("terms.users"), active)}
         {session.adminLevel === "owner" &&
           settings.showPublicSite &&
-          navLink("/admin/site", "Site", active)}
+          navLink("/admin/site", t("nav.site"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/emails", "Emails", active)}
+          navLink("/admin/emails", t("nav.emails"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/settings", "Settings", active)}
+          navLink("/admin/settings", t("nav.settings"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/logistics", "Logistics", active)}
-        {navLink("/admin/log", "Log", active)}
-        {navLink("/admin/groups", "Groups", active)}
+          navLink("/admin/logistics", t("nav.logistics"), active)}
+        {navLink("/admin/log", t("nav.log"), active)}
+        {navLink("/admin/groups", t("terms.groups"), active)}
         {session.adminLevel === "owner" &&
-          navLink("/admin/holidays", "Holidays", active)}
+          navLink("/admin/holidays", t("terms.holidays"), active)}
         {session.adminLevel === "owner" &&
           isBuilderEnabled() &&
-          navLink("/admin/built-sites", "Builds", active)}
-        {navLink("/admin/guide", "Guide", active)}
+          navLink("/admin/built-sites", t("nav.built_sites"), active)}
+        {navLink("/admin/guide", t("nav.guide"), active)}
         {session.adminLevel === "owner" &&
           isSupportEnabled() &&
-          navLink("/admin/support", "Support", active)}
+          navLink("/admin/support", t("nav.support"), active)}
         <li>
           <CsrfForm action="/admin/logout" class="inline">
-            <SubmitButton icon="log-out">Logout</SubmitButton>
+            <SubmitButton icon="log-out">{t("nav.logout")}</SubmitButton>
           </CsrfForm>
         </li>
       </ul>
@@ -113,13 +118,13 @@ export const UsersSubNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/admin/users">Users</a>
+        <a href="/admin/users">{t("terms.users")}</a>
       </li>
       <li>
-        <a href="/admin/sessions">Sessions</a>
+        <a href="/admin/sessions">{t("nav.sub.sessions")}</a>
       </li>
       <li>
-        <a href="/admin/api-keys">API Keys</a>
+        <a href="/admin/api-keys">{t("nav.sub.api_keys")}</a>
       </li>
     </ul>
   </nav>
@@ -130,22 +135,22 @@ export const SettingsSubNav = (): JSX.Element => (
   <nav>
     <ul>
       <li>
-        <a href="/admin/settings">Settings</a>
+        <a href="/admin/settings">{t("nav.sub.settings")}</a>
       </li>
       <li>
-        <a href="/admin/settings/statuses">Statuses</a>
+        <a href="/admin/settings/statuses">{t("nav.sub.statuses")}</a>
       </li>
       <li>
-        <a href="/admin/settings-advanced">Advanced</a>
+        <a href="/admin/settings-advanced">{t("nav.sub.advanced")}</a>
       </li>
       <li>
-        <a href="/admin/backup">Backups</a>
+        <a href="/admin/backup">{t("nav.sub.backups")}</a>
       </li>
       <li>
-        <a href="/admin/update">Updates</a>
+        <a href="/admin/update">{t("nav.sub.updates")}</a>
       </li>
       <li>
-        <a href="/admin/debug">Debug</a>
+        <a href="/admin/debug">{t("nav.sub.debug")}</a>
       </li>
     </ul>
   </nav>

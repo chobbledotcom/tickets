@@ -4,6 +4,7 @@
  * payment history.
  */
 
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
@@ -28,32 +29,39 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
   const { status, summary, remainingBalance, deposit, link, history } = view;
   const outstanding = remainingBalance > 0;
   return String(
-    <Layout title="Attendee balance">
+    <Layout title={t("attendee_balance.page_title")}>
       <AdminNav active="/admin/" session={view.session} />
       <p>
         <BackButton href={`/admin/attendees/${view.attendeeId}`}>
-          Back to attendee
+          {t("attendee_balance.back_to_attendee")}
         </BackButton>
       </p>
       <div class="prose">
-        <h1>Reservation balance</h1>
+        <h1>{t("attendee_balance.heading")}</h1>
         <p>
-          <strong>Status:</strong> {status ? status.name : "—"}
+          <strong>{t("attendee_balance.status_label")}</strong>{" "}
+          {status ? status.name : "—"}
         </p>
         <p>
-          <strong>Full order price:</strong> {formatCurrency(summary.fullPrice)}
+          <strong>{t("attendee_balance.full_order_price_label")}</strong>{" "}
+          {formatCurrency(summary.fullPrice)}
         </p>
         <p>
-          <strong>Paid so far:</strong> {formatCurrency(summary.depositPaid)}
+          <strong>{t("attendee_balance.paid_so_far_label")}</strong>{" "}
+          {formatCurrency(summary.depositPaid)}
         </p>
         {status?.is_reservation && (
           <p>
-            <strong>Reservation deposit ({status.reservation_amount}):</strong>{" "}
+            <strong>
+              {t("attendee_balance.reservation_deposit_label", {
+                amount: status.reservation_amount,
+              })}
+            </strong>{" "}
             {formatCurrency(deposit)}
           </p>
         )}
         <p>
-          <strong>Balance outstanding:</strong>{" "}
+          <strong>{t("attendee_balance.balance_outstanding_label")}</strong>{" "}
           {formatCurrency(remainingBalance)}
         </p>
       </div>
@@ -61,24 +69,20 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
       {outstanding ? (
         <article>
           <div class="prose">
-            <h2>Customer payment link</h2>
-            <p>
-              Send this secure link to the customer to collect the balance. It
-              contains no personal details and is valid for about 90 days;
-              generate a fresh one any time by reloading this page.
-            </p>
+            <h2>{t("attendee_balance.payment_link_heading")}</h2>
+            <p>{t("attendee_balance.payment_link_description")}</p>
             <p>
               <input class="copyable" readonly type="text" value={link} />
             </p>
           </div>
         </article>
       ) : (
-        <p>This booking is fully paid.</p>
+        <p>{t("attendee_balance.fully_paid_message")}</p>
       )}
 
-      <h2>History</h2>
+      <h2>{t("attendee_balance.history_heading")}</h2>
       {history.length === 0 ? (
-        <p>No payment history recorded.</p>
+        <p>{t("attendee_balance.no_history_message")}</p>
       ) : (
         <ul>
           {history.map((entry) => (

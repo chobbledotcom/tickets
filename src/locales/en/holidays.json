@@ -1,0 +1,22 @@
+{
+  "holidays.add_holiday": "Add Holiday",
+  "holidays.guide_link": "Holidays guide",
+  "holidays.no_holidays": "No holidays configured.",
+  "holidays.col.start_date": "Start Date",
+  "holidays.col.end_date": "End Date",
+  "holidays.add.title": "Add Holiday",
+  "holidays.add.heading": "Add Holiday",
+  "holidays.add.submit": "Create Holiday",
+  "holidays.edit.title": "Edit Holiday",
+  "holidays.edit.heading": "Edit Holiday",
+  "holidays.delete.heading": "Delete Holiday",
+  "holidays.delete.confirm": "Are you sure you want to delete the holiday <strong>{name}</strong> ({start} to {end})?",
+  "holidays.delete.confirm_prompt": "Type the holiday name \"{name}\" to confirm:",
+  "holidays.delete.confirm_label": "Holiday name",
+  "holidays.delete.submit": "Delete Holiday",
+  "holidays.fields.name": "Holiday Name",
+  "holidays.fields.name_placeholder": "Bank Holiday",
+  "holidays.fields.start_date": "Start Date",
+  "holidays.fields.end_date": "End Date",
+  "holidays.fields.end_date_hint": "Must be on or after the start date"
+}

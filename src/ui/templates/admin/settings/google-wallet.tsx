@@ -2,6 +2,7 @@
  * Google Wallet form for advanced settings
  */
 
+import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
@@ -22,11 +23,11 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
             : ""}
       </p>
     }
-    submitLabel="Save Google Wallet Settings"
-    title="Google Wallet"
+    submitLabel={t("settings.advanced.save_google_wallet")}
+    title={t("tickets.google_wallet")}
   >
     <label>
-      Issuer ID
+      {t("settings.advanced.google_issuer_id")}
       <input
         autocomplete="off"
         name="google_wallet_issuer_id"
@@ -36,7 +37,7 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       />
     </label>
     <label>
-      Service Account Email
+      {t("settings.advanced.google_service_email")}
       <input
         autocomplete="off"
         name="google_wallet_service_account_email"
@@ -46,7 +47,7 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       />
     </label>
     <label>
-      Service Account Private Key (PEM)
+      {t("settings.advanced.google_service_key")}
       <textarea
         name="google_wallet_service_account_key"
         placeholder="-----BEGIN PRIVATE KEY-----"

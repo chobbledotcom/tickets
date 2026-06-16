@@ -2,6 +2,7 @@
  * Admin holiday management page templates
  */
 
+import { t } from "#i18n";
 import {
   ConfirmForm,
   CsrfForm,
@@ -9,7 +10,7 @@ import {
   Flash,
   renderFields,
 } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -17,7 +18,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { holidayFields } from "#templates/fields.ts";
+import { getHolidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -29,26 +30,28 @@ export const adminHolidaysPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title="Holidays">
+    <Layout title={t("terms.holidays")}>
       <AdminNav active="/admin/holidays" session={session} />
       <Flash success={successMessage} />
       <p class="actions">
         <ActionButton href="/admin/holidays/new" icon="plus">
-          Add Holiday
+          {t("holidays.add_holiday")}
         </ActionButton>
-        <GuideLink href="/admin/guide#holidays">Holidays guide</GuideLink>
+        <GuideLink href="/admin/guide#holidays">
+          {t("holidays.guide_link")}
+        </GuideLink>
       </p>
       {holidays.length === 0 ? (
-        <p>No holidays configured.</p>
+        <p>{t("holidays.no_holidays")}</p>
       ) : (
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Actions</th>
+                <th>{t("common.name")}</th>
+                <th>{t("holidays.col.start_date")}</th>
+                <th>{t("holidays.col.end_date")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -58,8 +61,12 @@ export const adminHolidaysPage = (
                   <td>{holiday.start_date}</td>
                   <td>{holiday.end_date}</td>
                   <td>
-                    <a href={`/admin/holidays/${holiday.id}/edit`}>Edit</a>{" "}
-                    <a href={`/admin/holidays/${holiday.id}/delete`}>Delete</a>
+                    <a href={`/admin/holidays/${holiday.id}/edit`}>
+                      {t("common.edit")}
+                    </a>{" "}
+                    <a href={`/admin/holidays/${holiday.id}/delete`}>
+                      {t("common.delete")}
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -76,7 +83,7 @@ export const adminHolidaysPage = (
 export const holidayToFieldValues = (
   holiday?: Holiday,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(holiday, holidayFields, {});
+  entityToFieldValues(holiday, getHolidayFields(), {});
 
 /**
  * Admin holiday create page
@@ -86,13 +93,13 @@ export const adminHolidayNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Add Holiday">
+    <Layout title={t("holidays.add.title")}>
       <AdminNav active="/admin/holidays" session={session} />
       <CsrfForm action="/admin/holidays">
-        <h1>Add Holiday</h1>
+        <h1>{t("holidays.add.heading")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(holidayFields)} />
-        <SubmitButton icon="plus">Create Holiday</SubmitButton>
+        <Raw html={renderFields(getHolidayFields())} />
+        <SubmitButton icon="plus">{t("holidays.add.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -106,15 +113,15 @@ export const adminHolidayEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Edit Holiday">
+    <Layout title={t("holidays.edit.title")}>
       <AdminNav active="/admin/holidays" session={session} />
       <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
-        <h1>Edit Holiday</h1>
+        <h1>{t("holidays.edit.heading")}</h1>
         <Flash error={error} />
         <Raw
-          html={renderFields(holidayFields, holidayToFieldValues(holiday))}
+          html={renderFields(getHolidayFields(), holidayToFieldValues(holiday))}
         />
-        <SubmitButton icon="save">Save Changes</SubmitButton>
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -128,23 +135,27 @@ export const adminHolidayDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Holiday">
+    <Layout title={t("holidays.delete.heading")}>
       <AdminNav active="/admin/holidays" session={session} />
       <ConfirmForm
         action={`/admin/holidays/${holiday.id}/delete`}
-        buttonText="Delete Holiday"
+        buttonText={t("holidays.delete.submit")}
         danger={false}
-        label="Holiday name"
+        label={t("holidays.delete.confirm_label")}
         name={holiday.name}
       >
-        <h1>Delete Holiday</h1>
+        <h1>{t("holidays.delete.heading")}</h1>
         <Flash error={error} />
         <p>
-          Are you sure you want to delete the holiday{" "}
-          <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
-          {holiday.end_date})?
+          <Raw
+            html={t("holidays.delete.confirm", {
+              end: holiday.end_date,
+              name: escapeHtml(holiday.name),
+              start: holiday.start_date,
+            })}
+          />
         </p>
-        <p>Type the holiday name "{holiday.name}" to confirm:</p>
+        <p>{t("holidays.delete.confirm_prompt", { name: holiday.name })}</p>
       </ConfirmForm>
     </Layout>,
   );

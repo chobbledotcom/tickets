@@ -2,6 +2,7 @@
  * Admin builder page template — create new Tickets instances
  */
 
+import { t } from "#i18n";
 import { builderForm } from "#routes/admin/builder.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -20,25 +21,21 @@ export type BuiltSiteDisplay = {
 const BuilderForm = (): JSX.Element => (
   <section>
     <div class="prose">
-      <h2>Create New Site</h2>
-      <p>
-        This will create a new Tickets instance as a Bunny edge script, copy
-        host configuration, and configure the database.
-      </p>
+      <h2>{t("builder.create_new_site")}</h2>
+      <p>{t("builder.create_description")}</p>
     </div>
     <CsrfForm action="/admin/builder" id="builder-form">
       <Raw html={builderForm.render()} />
       <fieldset>
         <label>
           <input name="assignable" type="checkbox" value="1" />
-          Available for assignment
+          {t("builder.available_for_assignment")}
         </label>
-        <small>
-          Make this site available for automatic assignment when a ticket is
-          purchased
-        </small>
+        <small>{t("builder.available_for_assignment_help")}</small>
       </fieldset>
-      <SubmitButton icon="hammer">Build Site</SubmitButton>
+      <SubmitButton icon="hammer">
+        {t("builder.build_site_button")}
+      </SubmitButton>
     </CsrfForm>
   </section>
 );
@@ -51,15 +48,15 @@ const BuiltSitesTable = ({
 }): JSX.Element =>
   sites.length === 0 ? (
     <p>
-      <em>No sites have been built yet.</em>
+      <em>{t("builder.no_sites_yet")}</em>
     </p>
   ) : (
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>URL</th>
-          <th>Built</th>
+          <th>{t("common.name")}</th>
+          <th>{t("builder.table_url")}</th>
+          <th>{t("builder.table_built")}</th>
         </tr>
       </thead>
       <tbody>
@@ -85,18 +82,18 @@ export const adminBuilderPage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Site Builder">
+    <Layout title={t("builder.site_builder_title")}>
       <AdminNav active="/admin/settings" session={session} />
 
       <Flash error={error} success={success} />
 
-      <h2>Site Builder</h2>
+      <h2>{t("builder.site_builder_title")}</h2>
 
       <BuilderForm />
 
       <section>
         <div class="prose">
-          <h2>Built Sites</h2>
+          <h2>{t("builder.built_sites_title")}</h2>
         </div>
         <BuiltSitesTable sites={sites} />
       </section>

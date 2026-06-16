@@ -2,7 +2,9 @@
  * Admin update page template — check for and apply updates
  */
 
+import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -22,13 +24,14 @@ export type UpdatePageState = {
 const CurrentVersion = ({ state }: { state: UpdatePageState }): JSX.Element => (
   <section>
     <div class="prose">
-      <h2>Current Version</h2>
+      <h2>{t("update.current_version")}</h2>
       <p>
-        <strong>Built:</strong> {state.buildDate}
+        <strong>{t("update.built")}:</strong> {state.buildDate}
       </p>
       {state.buildCommit && (
         <p>
-          <strong>Commit:</strong> <code>{state.buildCommit}</code>
+          <strong>{t("update.commit")}:</strong>{" "}
+          <code>{state.buildCommit}</code>
         </p>
       )}
     </div>
@@ -38,7 +41,9 @@ const CurrentVersion = ({ state }: { state: UpdatePageState }): JSX.Element => (
 /** Check for updates form */
 const CheckForUpdates = (): JSX.Element => (
   <CsrfForm action="/admin/update/check" id="update-check">
-    <SubmitButton icon="rotate-ccw">Check for Updates</SubmitButton>
+    <SubmitButton icon="rotate-ccw">
+      {t("update.check_for_updates")}
+    </SubmitButton>
   </CsrfForm>
 );
 
@@ -50,22 +55,23 @@ const UpdateAvailable = ({
 }): JSX.Element => (
   <section>
     <div class="prose">
-      <h2>Update Available</h2>
+      <h2>{t("update.update_available")}</h2>
       <p>
-        A new version is available: <strong>{state.latestVersionName}</strong> (
-        {state.latestVersion})
+        <Raw
+          html={t("update.new_version", {
+            tag: state.latestVersion,
+            version: state.latestVersionName,
+          })}
+        />
       </p>
     </div>
     {state.bunnyConfigured ? (
       <CsrfForm action="/admin/update" class="no-bg" id="update-deploy">
-        <SubmitButton icon="rotate-ccw">Update Now</SubmitButton>
+        <SubmitButton icon="rotate-ccw">{t("update.update_now")}</SubmitButton>
       </CsrfForm>
     ) : (
       <p>
-        <em>
-          Cannot update automatically: BUNNY_API_KEY and BUNNY_SCRIPT_ID
-          environment variables are required.
-        </em>
+        <em>{t("update.cannot_update_automatically")}</em>
       </p>
     )}
   </section>
@@ -79,8 +85,8 @@ const UpToDate = ({
 }): JSX.Element => (
   <section>
     <div class="prose">
-      <h2>No Update Available</h2>
-      <p>You are running the latest version (checked: {latestVersion}).</p>
+      <h2>{t("update.no_update_available")}</h2>
+      <p>{t("update.running_latest", { version: latestVersion })}</p>
     </div>
   </section>
 );
@@ -92,12 +98,12 @@ export const adminUpdatePage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Update">
+    <Layout title={t("update.page_title")}>
       <AdminNav active="/admin/settings" session={session} />
 
       <Flash error={error} success={success} />
 
-      <h2>Software Update</h2>
+      <h2>{t("update.software_update")}</h2>
 
       <CurrentVersion state={state} />
 
@@ -110,7 +116,7 @@ export const adminUpdatePage = (
       <CheckForUpdates />
 
       <p>
-        <a href={GITHUB_RELEASES_URL}>Click here to read the release notes</a>
+        <a href={GITHUB_RELEASES_URL}>{t("update.release_notes_link")}</a>
       </p>
     </Layout>,
   );

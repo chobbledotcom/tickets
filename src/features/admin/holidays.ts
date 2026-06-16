@@ -2,6 +2,7 @@
  * Admin holiday management routes - owner only
  */
 
+import { t } from "#i18n";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import {
   getAllHolidays,
@@ -16,7 +17,7 @@ import {
   adminHolidayNewPage,
   adminHolidaysPage,
 } from "#templates/admin/holidays.tsx";
-import { holidayFields } from "#templates/fields.ts";
+import { getHolidayFields } from "#templates/fields.ts";
 
 /** Extract holiday input from validated form values */
 const extractHolidayInput = (
@@ -32,14 +33,12 @@ export const validateDateRange = (
   input: HolidayInput,
 ): Promise<string | null> =>
   Promise.resolve(
-    input.endDate < input.startDate
-      ? "End date must be on or after the start date"
-      : null,
+    input.endDate < input.startDate ? t("error.end_date_before_start") : null,
   );
 
 /** Holidays resource for REST create/update operations */
 const holidaysResource = defineNamedResource({
-  fields: holidayFields,
+  fields: getHolidayFields(),
   nameField: "name",
   table: holidaysTable,
   toInput: extractHolidayInput,

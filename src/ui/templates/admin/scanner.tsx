@@ -2,6 +2,7 @@
  * Admin QR scanner page template
  */
 
+import { t } from "#i18n";
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
@@ -31,7 +32,7 @@ export const adminScannerPage = (
     >
       <AdminNav active="/admin/" session={session} />
       <div class="prose">
-        <h1>Scanner</h1>
+        <h1>{t("admin.scanner.heading")}</h1>
         <p class="actions">
           <a href={`/admin/listing/${listing.id}`}>&larr; {listing.name}</a>
           <GuideLink href="/admin/guide#checkin">Scanner help</GuideLink>
@@ -52,7 +53,7 @@ export const adminScannerPage = (
             <div id="scanner-confirm-backdrop"></div>
             <div id="scanner-confirm-box">
               <button
-                aria-label="Close"
+                aria-label={t("common.close")}
                 id="scanner-confirm-close"
                 type="button"
               >
@@ -61,10 +62,10 @@ export const adminScannerPage = (
               <p id="scanner-confirm-message"></p>
               <div class="scanner-confirm-actions">
                 <button id="scanner-confirm-yes" type="button">
-                  Yes
+                  {t("common.yes")}
                 </button>
                 <button id="scanner-confirm-no" type="button">
-                  No
+                  {t("common.no")}
                 </button>
               </div>
             </div>
@@ -72,12 +73,12 @@ export const adminScannerPage = (
         </div>
 
         <button id="scanner-start" type="button">
-          Start Camera
+          {t("admin.scanner.start_camera")}
         </button>
       </article>
 
       <article>
-        <h2>Manual Check-in</h2>
+        <h2>{t("admin.scanner.manual_checkin")}</h2>
         <form
           action={`/admin/listing/${listing.id}/scan`}
           data-listing-id={String(listing.id)}

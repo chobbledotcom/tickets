@@ -1,0 +1,15 @@
+{
+  "update.page_title": "Update",
+  "update.current_version": "Current Version",
+  "update.built": "Built",
+  "update.commit": "Commit",
+  "update.check_for_updates": "Check for Updates",
+  "update.update_available": "Update Available",
+  "update.new_version": "A new version is available: <strong>{version}</strong> ({tag})",
+  "update.update_now": "Update Now",
+  "update.cannot_update_automatically": "Cannot update automatically: BUNNY_API_KEY and BUNNY_SCRIPT_ID environment variables are required.",
+  "update.no_update_available": "No Update Available",
+  "update.running_latest": "You are running the latest version (checked: {version}).",
+  "update.software_update": "Software Update",
+  "update.release_notes_link": "Click here to read the release notes"
+}

@@ -8,6 +8,9 @@
  * provider is configured).
  */
 
+import { t } from "#i18n";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+
 export const DomainPaymentWebhookWarning = ({
   paymentProvider,
 }: {
@@ -18,28 +21,16 @@ export const DomainPaymentWebhookWarning = ({
     <article>
       <aside role="alert">
         <p>
-          <strong>
-            Changing your domain changes your payment webhook URL.
-          </strong>{" "}
-          Your payment provider sends booking confirmations to a webhook at your
-          current domain. After you change or set your domain here, you must
-          update your webhook or new payments will stop being confirmed:
+          <strong>{t("settings.domain_warning.title")}</strong>{" "}
+          {t("settings.domain_warning.body")}
         </p>
         {paymentProvider === "square" ? (
           <p>
-            In your <strong>Square Developer Dashboard</strong>, update your
-            webhook subscription's Notification URL to the new address, then
-            paste the Signature Key back into the{" "}
-            <a href="/admin/settings#settings-square-webhook">
-              Square settings
-            </a>
-            .
+            <Raw html={t("settings.domain_warning.square")} />
           </p>
         ) : (
           <p>
-            Re-save your key on the{" "}
-            <a href="/admin/settings#settings-stripe">Stripe settings</a> page
-            to point the webhook at the new domain.
+            <Raw html={t("settings.domain_warning.stripe")} />
           </p>
         )}
       </aside>
