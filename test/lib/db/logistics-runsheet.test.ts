@@ -14,9 +14,13 @@ import { describeWithEnv } from "#test-utils/db.ts";
 const D1 = "2026-06-16";
 const D2 = "2026-06-17";
 const D3 = "2026-06-18";
+const D4 = "2026-06-19";
 
 /** Create an attendee with one booking line, then stamp its logistics agents,
- * dates and done flags directly so the run-sheet query has known input. */
+ * dates and done flags directly so the run-sheet query has known input.
+ *
+ * `endDate` is stored verbatim as the exclusive `end_at`, so the collection
+ * leg's run-sheet date is the day *before* it (the last booked day). */
 const makeBooking = async (opts: {
   startAgentId: number | null;
   endAgentId: number | null;
@@ -102,9 +106,10 @@ describeWithEnv("db getAgentRunSheet", { db: true }, () => {
   });
 
   test("yields a collection leg for the end agent on a matching date", async () => {
+    // end_at = D3 (exclusive), so the collection's run-sheet date is D2.
     const { attendeeId, listingId } = await makeBooking({
       endAgentId: van,
-      endDate: D2,
+      endDate: D3,
       endTime: "17:00",
       startAgentId: other,
       startDate: D1,
@@ -135,9 +140,10 @@ describeWithEnv("db getAgentRunSheet", { db: true }, () => {
   });
 
   test("excludes legs whose date is outside the window", async () => {
+    // Drop-off on D3 and collection on D3 (end_at = D4), both past [D1, D2].
     await makeBooking({
       endAgentId: van,
-      endDate: D3,
+      endDate: D4,
       startAgentId: van,
       startDate: D3,
     });
@@ -214,9 +220,10 @@ describeWithEnv("db setLegDone", { db: true }, () => {
   });
 
   test("marks the end leg done independently of the start leg", async () => {
+    // end_at = D2 so the collection's run-sheet date is D1, same as drop-off.
     const { attendeeId, listingId } = await makeBooking({
       endAgentId: van,
-      endDate: D1,
+      endDate: D2,
       startAgentId: van,
       startDate: D1,
     });
