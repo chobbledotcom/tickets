@@ -121,5 +121,17 @@
   "settings.advanced.database_reset.confirm_phrase": "The site will be fully reset and all data will be lost.",
   "settings.advanced.database_reset.confirm_label": "Confirmation phrase",
   "settings.advanced.database_reset.submit": "Reset Database",
-  "settings.advanced.database_reset.back_to_login": "Back to login"
+  "settings.advanced.database_reset.back_to_login": "Back to login",
+  "settings.column_order.label": "Column order",
+  "settings.column_order.available": "Available:",
+  "settings.column_order.listing_title": "Listing Table Columns",
+  "settings.column_order.listing_submit": "Save Listing Columns",
+  "settings.column_order.listing_desc": "<p>Control which columns appear on the Listings table and in what order. Use Liquid-style tags separated by commas. See the <a href=\"/admin/guide#column-order\">Column Order guide</a> for full details including custom date and currency formatting.</p>",
+  "settings.column_order.attendee_title": "Attendee Table Columns",
+  "settings.column_order.attendee_submit": "Save Attendee Columns",
+  "settings.column_order.attendee_desc": "<p>Control which columns appear on Attendee tables and in what order. Use Liquid-style tags separated by commas. Columns referencing absent data (e.g. email when no attendees have one) are hidden automatically. See the <a href=\"/admin/guide#column-order\">Column Order guide</a> for full details including custom date and currency formatting.</p>",
+  "settings.domain_warning.title": "Changing your domain changes your payment webhook URL.",
+  "settings.domain_warning.body": "Your payment provider sends booking confirmations to a webhook at your current domain. After you change or set your domain here, you must update your webhook or new payments will stop being confirmed:",
+  "settings.domain_warning.square": "In your <strong>Square Developer Dashboard</strong>, update your webhook subscription's Notification URL to the new address, then paste the Signature Key back into the <a href=\"/admin/settings#settings-square-webhook\">Square settings</a>.",
+  "settings.domain_warning.stripe": "Re-save your key on the <a href=\"/admin/settings#settings-stripe\">Stripe settings</a> page to point the webhook at the new domain."
 }

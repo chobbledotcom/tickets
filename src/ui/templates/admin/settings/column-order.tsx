@@ -6,6 +6,7 @@
  *   {{name}}, {{description}}, {{status}}, {{attendees}}, {{created}}
  */
 
+import { t } from "#i18n";
 import { buildDefaultTemplate } from "#shared/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
@@ -15,6 +16,7 @@ import {
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
@@ -28,7 +30,7 @@ const AvailableTags = ({
   columns: Record<string, { label: string }>;
 }): JSX.Element => (
   <small>
-    Available:{" "}
+    {t("settings.column_order.available")}{" "}
     {Object.keys(columns)
       .map((key) => `{{${key}}}`)
       .join(", ")}
@@ -40,19 +42,12 @@ export const ListingColumnOrderForm = (
 ): JSX.Element => (
   <SettingsSection
     action="/admin/settings/listing-column-order"
-    description={
-      <p>
-        Control which columns appear on the Listings table and in what order.
-        Use Liquid-style tags separated by commas. See the{" "}
-        <a href="/admin/guide#column-order">Column Order guide</a> for full
-        details including custom date and currency formatting.
-      </p>
-    }
-    submitLabel="Save Listing Columns"
-    title="Listing Table Columns"
+    description={<Raw html={t("settings.column_order.listing_desc")} />}
+    submitLabel={t("settings.column_order.listing_submit")}
+    title={t("settings.column_order.listing_title")}
   >
     <label>
-      Column order
+      {t("settings.column_order.label")}
       <input
         autocomplete="off"
         name="column_order"
@@ -72,20 +67,12 @@ export const AttendeeColumnOrderForm = (
 ): JSX.Element => (
   <SettingsSection
     action="/admin/settings/attendee-column-order"
-    description={
-      <p>
-        Control which columns appear on Attendee tables and in what order. Use
-        Liquid-style tags separated by commas. Columns referencing absent data
-        (e.g. email when no attendees have one) are hidden automatically. See
-        the <a href="/admin/guide#column-order">Column Order guide</a> for full
-        details including custom date and currency formatting.
-      </p>
-    }
-    submitLabel="Save Attendee Columns"
-    title="Attendee Table Columns"
+    description={<Raw html={t("settings.column_order.attendee_desc")} />}
+    submitLabel={t("settings.column_order.attendee_submit")}
+    title={t("settings.column_order.attendee_title")}
   >
     <label>
-      Column order
+      {t("settings.column_order.label")}
       <input
         autocomplete="off"
         name="column_order"
