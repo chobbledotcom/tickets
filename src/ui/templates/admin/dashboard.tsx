@@ -251,7 +251,7 @@ export const adminDashboardPage = (
           <ActionButton href="/admin/listing/new" icon="plus">
             Add Listing
           </ActionButton>
-          <ActionButton href="/admin/attendee/new" icon="plus">
+          <ActionButton href="/admin/attendees/new" icon="plus">
             Add Attendee
           </ActionButton>
         </p>
