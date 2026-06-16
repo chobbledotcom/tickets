@@ -1305,6 +1305,11 @@ fieldset {
   max-width: none;
 }
 
+.checkboxes label input,
+.radios label input {
+  margin-right: 0.5rem;
+}
+
 label.terms-agree {
   display: block;
 }
