@@ -533,7 +533,11 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       const attendees = await getAttendeesRaw(listing.id);
       const csv = generateAttendeesCsv(attendees, true);
       expect(csv).toContain("2026-06-12 to 2026-06-13");
-      expect(csv).not.toContain("2026-06-16");
+      // Guard against the *max* span (5 days → ...to 2026-06-16) appearing in
+      // the Date column. Check the full range string, not the bare end date —
+      // the Registered column is the created-at ISO timestamp, which contains
+      // today's date and would otherwise make this assertion fail on 2026-06-16.
+      expect(csv).not.toContain("2026-06-12 to 2026-06-16");
     });
 
     test("date column shows single date for 1-day bookings", async () => {
