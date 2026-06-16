@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
+import {
+  getEncryptionKeyBytes,
+  setEncryptionKeyForTest,
+} from "#shared/crypto/encryption.ts";
 import {
   computeTicketTokenIndex,
   hashPassword,
@@ -8,6 +11,7 @@ import {
   hmacHash,
   verifyPassword,
 } from "#shared/crypto/hashing.ts";
+import { toBase64 } from "#shared/crypto/utils.ts";
 import {
   describeWithEnv,
   setTestEnv,
@@ -95,6 +99,18 @@ describe("session token hashing", () => {
     expect(hash.length).toBe(44);
     expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
   });
+
+  // Migrated from Web Crypto subtle.digest to node:crypto; output must be
+  // identical so session-token lookups stored before the migration still match.
+  it("matches the Web Crypto SHA-256 digest", async () => {
+    const token = "session-token-stability-check";
+    const expected = toBase64(
+      new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)),
+      ),
+    );
+    expect(await hashSessionToken(token)).toBe(expected);
+  });
 });
 
 describeWithEnv("hmacHash", { encryptionKey: true }, () => {
@@ -143,6 +159,25 @@ describeWithEnv("hmacHash", { encryptionKey: true }, () => {
     const hash = await hmacHash("direct");
     expect(hash.length).toBe(44);
     expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
+  });
+
+  // Migrated from Web Crypto HMAC to node:crypto; output must be identical so
+  // blind indexes stored before the migration still resolve.
+  it("matches the Web Crypto HMAC-SHA256 of the same key", async () => {
+    const value = "blind-index-stability-check";
+    const key = await crypto.subtle.importKey(
+      "raw",
+      getEncryptionKeyBytes() as BufferSource,
+      { hash: "SHA-256", name: "HMAC" },
+      false,
+      ["sign"],
+    );
+    const expected = toBase64(
+      new Uint8Array(
+        await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value)),
+      ),
+    );
+    expect(await hmacHash(value)).toBe(expected);
   });
 });
 

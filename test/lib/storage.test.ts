@@ -789,6 +789,15 @@ describeWithEnv(
         expect(await decryptBytes(b)).toEqual(data);
       });
 
+      test("round-trips data larger than the node threshold (Web Crypto path)", async () => {
+        // > 64 KB routes through the Web Crypto branch instead of node:crypto
+        const original = new Uint8Array(70_000);
+        for (let i = 0; i < original.length; i++) original[i] = (i * 31) & 0xff;
+        const encrypted = await encryptBytes(original);
+        const decrypted = await decryptBytes(encrypted);
+        expect(decrypted).toEqual(original);
+      });
+
       test("throws on invalid binary format", async () => {
         const invalidData = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x01]);
         await expect(decryptBytes(invalidData)).rejects.toThrow(
