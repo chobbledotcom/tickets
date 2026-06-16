@@ -11,6 +11,7 @@ import {
   chunk as stdChunk,
   distinct as stdDistinct,
   distinctBy as stdDistinctBy,
+  mapNotNullish as stdMapNotNullish,
   sumOf as stdSumOf,
 } from "@std/collections";
 
@@ -81,6 +82,16 @@ export const flatMap =
   <T, U>(fn: (item: T) => U[]) =>
   (array: T[]): U[] =>
     array.flatMap(fn);
+
+/**
+ * Curried map that drops null/undefined results in one pass.
+ * Curried adapter over `@std/collections.mapNotNullish`.
+ * Replaces the two-step pattern: compact(map(fn)(array))
+ */
+export const mapNotNullish =
+  <T, U>(fn: (item: T) => U | null | undefined) =>
+  (array: Iterable<T>): U[] =>
+    stdMapNotNullish(array, fn);
 
 /**
  * Curried reduce

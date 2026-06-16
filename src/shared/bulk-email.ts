@@ -9,7 +9,16 @@
  * list, validates drafts, and builds the send payload + unsubscribe footer.
  */
 
-import { compact, filter, map, pipe, sort, sum, unique, uniqueBy } from "#fp";
+import {
+  filter,
+  map,
+  mapNotNullish,
+  pipe,
+  sort,
+  sum,
+  unique,
+  uniqueBy,
+} from "#fp";
 import {
   type BulkEmailTarget,
   isBulkEmailTarget,
@@ -194,7 +203,7 @@ export const buildBulkPayload = async (params: {
   // Recipients come from validated, stored addresses; parse them through the
   // canonical validator so each carries the ValidEmail type the send API
   // requires, dropping any that somehow fail rather than sending blind.
-  const validRecipients = compact(params.recipients.map(parseEmail));
+  const validRecipients = mapNotNullish(parseEmail)(params.recipients);
   if (!params.marketing) {
     return {
       html: params.bodyHtml,

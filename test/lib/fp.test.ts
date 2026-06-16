@@ -11,6 +11,7 @@ import {
   flatMap,
   lazyRef,
   map,
+  mapNotNullish,
   mapParallel,
   once,
   pipe,
@@ -171,6 +172,24 @@ describe("fp", () => {
 
     test("works with empty array", () => {
       expectEmptyPassthrough(flatMap((x: number) => [x, x]));
+    });
+  });
+
+  describe("mapNotNullish", () => {
+    test("maps and drops null/undefined results in one pass", () => {
+      const result = mapNotNullish((x: number) =>
+        x % 2 === 0 ? x * 10 : null,
+      )([1, 2, 3, 4]);
+      expect(result).toEqual([20, 40]);
+    });
+
+    test("keeps falsy-but-defined results (0, empty string, false)", () => {
+      const result = mapNotNullish((x: number) => x - 1)([1, 2]);
+      expect(result).toEqual([0, 1]);
+    });
+
+    test("works with empty array", () => {
+      expect(mapNotNullish((x: number) => x)([])).toEqual([]);
     });
   });
 

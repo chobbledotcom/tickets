@@ -12,7 +12,7 @@
  * via the opts object and iterates the ordered column definitions.
  */
 
-import { flatMap, joinStrings, map, pipe, reduce, sort } from "#fp";
+import { flatMap, joinStrings, map, pipe, sort } from "#fp";
 import {
   getHeaderText,
   renderCells,
@@ -160,13 +160,12 @@ export const sortAttendeeRows: (
 const buildAnswerTextMap = (
   questions: QuestionWithAnswers[],
 ): Map<number, string> =>
-  pipe(
-    flatMap((q: QuestionWithAnswers) => q.answers),
-    reduce((m: Map<number, string>, a: Answer) => {
-      m.set(a.id, a.text);
-      return m;
-    }, new Map()),
-  )(questions);
+  new Map(
+    pipe(
+      flatMap((q: QuestionWithAnswers) => q.answers),
+      map((a: Answer) => [a.id, a.text] as const),
+    )(questions),
+  );
 
 /** Build answer question map (answer ID → question text) */
 const buildAnswerQuestionMap = (

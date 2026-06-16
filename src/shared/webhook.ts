@@ -3,7 +3,7 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { compact, sumOf, unique } from "#fp";
+import { mapNotNullish, sumOf, unique } from "#fp";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -170,7 +170,9 @@ export const sendRegistrationWebhooks = async (
   currency: string,
 ): Promise<void> => {
   const webhookUrls = unique(
-    compact(entries.map((e) => e.listing.webhook_url || null)),
+    mapNotNullish((e: RegistrationEntry) => e.listing.webhook_url || null)(
+      entries,
+    ),
   );
   if (webhookUrls.length === 0) return;
 

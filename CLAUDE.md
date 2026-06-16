@@ -63,6 +63,7 @@ the `pipe`-based code.
 | `filter(pred)`     | Curried array filter            |
 | `map(fn)`          | Curried array map               |
 | `flatMap(fn)`      | Curried array flatMap           |
+| `mapNotNullish(fn)`| Map, dropping nullish results (std mapNotNullish) |
 | `reduce(fn, init)` | Curried array reduce            |
 | `sort(cmp)`        | Non-mutating sort               |
 | `unique(arr)`      | Remove duplicates (std distinct)   |
