@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { serializeDraft } from "#shared/bulk-email.ts";
+import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
+import { encryptAttendeePII } from "#shared/crypto/keys.ts";
 import {
   getAllActivityLog,
   getListingActivityLog,
@@ -50,6 +51,18 @@ const seedListingWithAttendees = async () => {
   await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
   return listing;
 };
+
+/**
+ * Seed a stored draft the way production does: encrypted with the owner's
+ * public key so the route's keypair-based decrypt can read it back.
+ */
+const seedDraft = async (draft: BulkEmailDraft) =>
+  settings.setForTest({
+    bulk_email_draft: await encryptAttendeePII(
+      serializeDraft(draft),
+      settings.publicKey,
+    ),
+  });
 
 describeWithEnv("server (bulk email)", { db: true }, () => {
   describe("GET /admin/emails", () => {
@@ -285,13 +298,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("omits the address list when there are no recipients", async () => {
       useResend();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Body",
-          marketing: false,
-          subject: "Subject",
-          target: { kind: "listing", listingId: 987654 },
-        }),
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "listing", listingId: 987654 },
       });
       const html = await (
         await awaitTestRequest("/admin/emails/preview", {
@@ -342,13 +353,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("labels a target whose listing has since been deleted", async () => {
       useResend();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Body",
-          marketing: false,
-          subject: "Subject",
-          target: { kind: "listing", listingId: 987654 },
-        }),
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "listing", listingId: 987654 },
       });
       const html = await (
         await awaitTestRequest("/admin/emails/preview", {
@@ -596,13 +605,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("preview falls back to a generic label for a stale token", async () => {
       useResend();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Body",
-          marketing: false,
-          subject: "Subject",
-          target: { kind: "attendee", token: "gone" },
-        }),
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "attendee", token: "gone" },
       });
       const html = await (
         await awaitTestRequest("/admin/emails/preview", {
@@ -770,13 +777,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     test("a valid stored draft renders the preview", async () => {
       useResend();
       const listing = await seedListingWithAttendees();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Stored body",
-          marketing: false,
-          subject: "Stored subject",
-          target: { kind: "listing", listingId: listing.id },
-        }),
+      await seedDraft({
+        body: "Stored body",
+        marketing: false,
+        subject: "Stored subject",
+        target: { kind: "listing", listingId: listing.id },
       });
       expectHtmlResponse(
         await awaitTestRequest("/admin/emails/preview", {
