@@ -177,10 +177,90 @@ Firebase.** Everything new is Deno/libsql in this repo.
 6. **(Optional)** inbound replies (`sms_inbox`); or migrate to self-hosted
    Private/Local mode if the free cloud proves insufficient.
 
+## API reference (cloud 3rd-party API)
+
+> Base URL: `https://api.sms-gate.app`. Auth: **HTTP Basic** (username +
+> password issued to the account). Paths confirmed from the docs; re-verify the
+> exact prefix against the OpenAPI spec during the spike.
+
+### Send a message — `POST /3rdparty/v1/messages`
+
+```jsonc
+{
+  "id": "<optional client-supplied id, for idempotency>",
+  "textMessage": { "text": "<encrypted text>" },
+  "phoneNumbers": ["<encrypted recipient>", "..."],
+  "isEncrypted": true,            // set when text + phoneNumbers are E2E-encrypted
+  "withDeliveryReport": true,
+  "ttl": 86400,                   // optional seconds-to-live
+  "simNumber": null,              // optional SIM selection
+  "priority": 0
+}
+```
+
+Response carries a message `id` and per-recipient `state`
+(`Pending → Processed → Sent → Delivered`, or `Failed`). Query later with
+`GET /3rdparty/v1/messages/{id}`.
+
+### Webhooks (status + inbound)
+
+Register: `POST /3rdparty/v1/webhooks` with `{ url, event, deviceId? }` (one
+webhook per event). Events: `sms:sent`, `sms:delivered`, `sms:failed`,
+`sms:received`, `sms:data-received`, `mms:received`, `system:ping`.
+
+Delivery envelope:
+
+```jsonc
+{ "deviceId": "...", "event": "sms:delivered", "id": "...",
+  "webhookId": "...", "payload": { /* event-specific */ } }
+```
+
+**Signature**: headers `X-Signature` (hex) and `X-Timestamp` (unix seconds);
+verify with `HMAC-SHA256(secret, rawBody + timestamp)` (the signing key is set
+in the app). Our receiver verifies this before mutating state. *(Whether inbound
+webhook fields are themselves E2E-encrypted is unconfirmed — verify in the
+spike; if so, the receiver decrypts with the passphrase.)*
+
+## End-to-end key + the v1 encryption flow
+
+A dedicated **SMS E2E passphrase** ("the E2E key") is generated once and stored
+**encrypted under `DATA_KEY`** in settings (same crypto as the Stripe/email
+secrets). The owner enters the same passphrase into the phone app. It is the
+only thing that can decrypt outbox ciphertext, so the outbox is safe at rest.
+
+Sending a text to an attendee (owner is authenticated → holds the private key):
+
+1. **Decrypt** the attendee's phone with the owner's private key
+   (`decryptAttendeeFields` / `decryptPiiBlob`, `src/shared/db/attendees/pii.ts`).
+2. **Compose** the message text.
+3. **Re-encrypt** the phone number and the message text with the E2E passphrase
+   via `encryptField` (`src/shared/sms/e2e.ts`).
+4. **Enqueue** an `sms_outbox` row containing **only** the E2E ciphertext
+   (`phone_enc`, `body_enc`) + status `queued`. Plaintext PII is never written.
+5. **Dispatch**: POST the already-encrypted payload (`isEncrypted: true`) to the
+   cloud; store the returned message id and mark `sent`. Webhooks later move it
+   to `delivered`/`failed`.
+
+This keeps the encryption-at-rest invariant intact: attendee PII is decrypted
+only transiently in memory under the owner's key, re-encrypted under the E2E
+key, and only ciphertext touches the database or the network.
+
+### Modules (v1)
+
+| Module | Role | Status |
+| ------ | ---- | ------ |
+| `src/shared/sms/e2e.ts` | SMS Gate E2E encrypt/decrypt (WebCrypto) | ✅ built + tested |
+| `src/shared/db/sms-outbox.ts` | outbox table ops (stores ciphertext only) | planned |
+| `src/shared/sms/gateway.ts` | cloud client: send + (later) webhook verify | planned |
+| settings (`sms_gateway_*`) | encrypted passphrase + Basic-auth creds | planned |
+| admin "contact" route + template | adapt the attendee email flow | planned |
+
 ## Open questions
 
-- **Free-tier limits** of `api.sms-gate.app` (messages/day, rate) — verify.
-- **Exact send path/prefix** (`/3rdparty/v1/messages` vs `/api/3rdparty/v1/...`)
-  and webhook payload/signature format — confirm against the OpenAPI spec.
-- **Passphrase rotation** UX in admin settings.
-- **Inbound SMS** in scope for v1, or defer.
+- **Free-tier limits**: confirmed by the operator as effectively unlimited "as
+  long as you don't affect deliverability" — so throttle sends to stay polite.
+- **Exact send path/prefix** and whether inbound webhook fields are encrypted —
+  confirm against the OpenAPI spec / a live test in the spike.
+- **Passphrase rotation** UX in admin settings (re-key invalidates in-flight
+  outbox rows).
+- **Inbound SMS** (`sms_inbox`) — deferred beyond v1.
