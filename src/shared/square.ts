@@ -583,9 +583,8 @@ export const squareApi: {
             currency: cur,
           },
           name: `Ticket: ${line.item.name}`,
-          note:
-            line.item.quantity > 1 ? `${line.item.quantity} Tickets` : "Ticket",
-          quantity: String(line.item.quantity),
+          note: line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
+          quantity: String(line.quantity),
         }),
       },
     );

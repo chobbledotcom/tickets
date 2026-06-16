@@ -273,14 +273,12 @@ export const stripeApi: {
             currency: cur,
             product_data: {
               description:
-                line.item.quantity > 1
-                  ? `${line.item.quantity} Tickets`
-                  : "Ticket",
+                line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
               name: `Ticket: ${line.item.name}`,
             },
             unit_amount: line.chargedUnitAmount,
           },
-          quantity: line.item.quantity,
+          quantity: line.quantity,
         }),
       },
     );

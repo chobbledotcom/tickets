@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { applyModifiers, priceCheckout } from "#shared/checkout-pricing.ts";
+import {
+  allocateDiscount,
+  applyModifiers,
+  type PricedLine,
+  priceCheckout,
+} from "#shared/checkout-pricing.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
@@ -39,6 +44,13 @@ const item = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
   quantity: 1,
   slug: "general",
   unitPrice: 1000,
+  ...overrides,
+});
+
+const line = (overrides: Partial<PricedLine> = {}): PricedLine => ({
+  chargedUnitAmount: 1000,
+  item: item(),
+  quantity: 1,
   ...overrides,
 });
 
@@ -146,65 +158,139 @@ describe("priceCheckout", () => {
   );
 
   testWithSetting(
-    "ignores a discount modifier in pricing (not yet emitted)",
-    { booking_fee: "0" },
+    "applies a discount and charges the fee on the reduced subtotal",
+    { booking_fee: "10" },
     () => {
+      // £20 order, 10% discount → £18; fee is 10% of £18 = £1.80.
       const order = priceCheckout(
         intentWith([item({ quantity: 2 })], {
           modifiers: [modifier({ kind: "percent", value: -10 })],
         }),
       );
-      expect(order.extras).toEqual([]);
-      expect(order.total).toBe(2000);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 900, item: item({ quantity: 2 }), quantity: 2 },
+      ]);
+      expect(order.fullSubtotal).toBe(1800);
+      expect(order.extras).toEqual([
+        { amount: 180, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(1980);
+    },
+  );
+
+  testWithSetting(
+    "splits a line when a discount lands unevenly across its units",
+    { booking_fee: "0" },
+    () => {
+      // £5 off £30 (3 × £10): 100 minor units over 3 units → 34/33/33.
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], {
+          modifiers: [modifier({ kind: "fixed", value: -100 })],
+        }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 967, item: item({ quantity: 3 }), quantity: 2 },
+        { chargedUnitAmount: 966, item: item({ quantity: 3 }), quantity: 1 },
+      ]);
+      // No pennies lost: 967×2 + 966 = 2900 = 3000 − 100.
+      expect(order.total).toBe(2900);
     },
   );
 });
 
 describe("applyModifiers", () => {
-  const items: CheckoutItem[] = [
-    item({ listingId: 1, quantity: 2, unitPrice: 1000 }),
-    item({ listingId: 2, quantity: 1, slug: "vip", unitPrice: 2500 }),
+  const lines: PricedLine[] = [
+    line({
+      chargedUnitAmount: 1000,
+      item: item({ listingId: 1 }),
+      quantity: 2,
+    }),
+    line({
+      chargedUnitAmount: 2500,
+      item: item({ listingId: 2, slug: "vip" }),
+      quantity: 1,
+    }),
   ];
 
   test("charges a percentage on the whole-order subtotal", () => {
     // 10% of (£20 + £25) = £4.50.
-    const { extras, modifierTotal } = applyModifiers(items, [
+    const result = applyModifiers(lines, [
       modifier({ kind: "percent", listingIds: null, value: 10 }),
     ]);
-    expect(extras).toEqual([
+    expect(result.extras).toEqual([
       { amount: 450, key: "mod:1", name: "Add-on", quantity: 1 },
     ]);
-    expect(modifierTotal).toBe(450);
+    expect(result.modifierTotal).toBe(450);
   });
 
   test("scopes a percentage to only the listed items", () => {
     // 10% of listing 1's £20 only = £2.
-    const { extras, modifierTotal } = applyModifiers(items, [
+    const result = applyModifiers(lines, [
       modifier({ kind: "percent", listingIds: [1], value: 10 }),
     ]);
-    expect(extras[0]!.amount).toBe(200);
-    expect(modifierTotal).toBe(200);
+    expect(result.extras[0]!.amount).toBe(200);
+    expect(result.modifierTotal).toBe(200);
   });
 
   test("multiplies a fixed add-on by its quantity in the total", () => {
-    const { extras, modifierTotal } = applyModifiers(items, [
+    const result = applyModifiers(lines, [
       modifier({ kind: "fixed", quantity: 3, value: 500 }),
     ]);
     // Line shows £5 × 3; the contributed total is £15.
-    expect(extras[0]).toEqual({
+    expect(result.extras[0]).toEqual({
       amount: 500,
       key: "mod:1",
       name: "Add-on",
       quantity: 3,
     });
-    expect(modifierTotal).toBe(1500);
+    expect(result.modifierTotal).toBe(1500);
   });
 
-  test("omits a modifier whose delta is not positive", () => {
-    const { extras, modifierTotal } = applyModifiers(items, [
-      modifier({ kind: "fixed", value: -500 }),
+  test("treats a zero-delta modifier as a no-op", () => {
+    const result = applyModifiers(lines, [
+      modifier({ kind: "percent", value: 0 }),
     ]);
-    expect(extras).toEqual([]);
-    expect(modifierTotal).toBe(0);
+    expect(result.extras).toEqual([]);
+    expect(result.lines).toEqual(lines);
+    expect(result.modifierTotal).toBe(0);
+  });
+
+  test("reduces only the in-scope lines for a scoped discount", () => {
+    const result = applyModifiers(lines, [
+      modifier({ kind: "percent", listingIds: [1], value: -10 }),
+    ]);
+    // £2 off listing 1's two units (£20) → £9 each; listing 2 untouched.
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 900, item: item({ listingId: 1 }), quantity: 2 },
+      {
+        chargedUnitAmount: 2500,
+        item: item({ listingId: 2, slug: "vip" }),
+        quantity: 1,
+      },
+    ]);
+    expect(result.modifierTotal).toBe(-200);
+  });
+});
+
+describe("allocateDiscount", () => {
+  test("is a no-op for a zero amount", () => {
+    expect(allocateDiscount([100, 200], 0)).toEqual([100, 200]);
+  });
+
+  test("is a no-op when there is nothing to discount", () => {
+    expect(allocateDiscount([0, 0], 50)).toEqual([0, 0]);
+  });
+
+  test("removes exactly the discount, proportionally", () => {
+    expect(allocateDiscount([1000, 1000, 2500], 450)).toEqual([900, 900, 2250]);
+  });
+
+  test("hands leftover minor units to the largest remainders", () => {
+    // 100 over three equal units: 34/33/33, the extra penny to the first.
+    expect(allocateDiscount([1000, 1000, 1000], 100)).toEqual([966, 967, 967]);
+  });
+
+  test("clamps a discount larger than the total to zero", () => {
+    expect(allocateDiscount([100, 100], 500)).toEqual([0, 0]);
   });
 });
