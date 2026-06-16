@@ -110,6 +110,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("warns the SumUp public API key is not the one to use", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Public API key",
+        "that is not the one you need",
+        "Create API key",
+      );
+    });
+
     test("contains public site section", async () => {
       await assertAdminHtml(
         "/admin/guide",
