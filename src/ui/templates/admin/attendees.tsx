@@ -2,6 +2,7 @@
  * Admin attendee page templates
  */
 
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
@@ -41,8 +42,8 @@ export const adminDeleteAttendeePage = (
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/attendee/${attendee.id}/delete`}
-        buttonText="Delete Attendee"
-        label="Attendee name"
+        buttonText={t("admin.attendees.delete_submit")}
+        label={t("admin.attendees.delete_label")}
         name={attendee.name}
         returnUrl={returnUrl}
       >
@@ -51,23 +52,20 @@ export const adminDeleteAttendeePage = (
           from the listing and delete any associated payment records.
         </p>
         <div class="prose">
-          <h2>Attendee Details</h2>
+          <h2>{t("admin.attendees.details")}</h2>
           <p>
-            <strong>Name:</strong> {attendee.name}
+            <strong>{t("admin.attendees.name")}</strong> {attendee.name}
           </p>
           <p>
-            <strong>Email:</strong> {attendee.email}
+            <strong>{t("admin.attendees.email")}</strong> {attendee.email}
           </p>
           <p>
-            <strong>Quantity:</strong> {attendee.quantity}
+            <strong>{t("admin.attendees.quantity")}</strong> {attendee.quantity}
           </p>
           <p>
             <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
           </p>
-          <p>
-            To delete this attendee, type their name "{attendee.name}" into the
-            box below:
-          </p>
+          <p>{t("admin.attendees.delete_confirm", { name: attendee.name })}</p>
         </div>
       </ConfirmForm>
     </Layout>,
@@ -89,8 +87,8 @@ export const adminRefundAttendeePage = (
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/attendee/${attendee.id}/refund`}
-        buttonText="Refund Attendee"
-        label="Attendee name"
+        buttonText={t("admin.attendees.refund_submit")}
+        label={t("admin.attendees.delete_label")}
         name={attendee.name}
         returnUrl={returnUrl}
       >
@@ -99,29 +97,26 @@ export const adminRefundAttendeePage = (
           attendee's payment. The attendee will remain registered.
         </p>
         <div class="prose">
-          <h2>Attendee Details</h2>
+          <h2>{t("admin.attendees.details")}</h2>
           <p>
-            <strong>Name:</strong> {attendee.name}
+            <strong>{t("admin.attendees.name")}</strong> {attendee.name}
           </p>
           <p>
-            <strong>Email:</strong> {attendee.email}
+            <strong>{t("admin.attendees.email")}</strong> {attendee.email}
           </p>
           <p>
-            <strong>Quantity:</strong> {attendee.quantity}
+            <strong>{t("admin.attendees.quantity")}</strong> {attendee.quantity}
           </p>
           {Number.parseInt(attendee.price_paid, 10) > 0 && (
             <p>
-              <strong>Amount Paid:</strong>{" "}
+              <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
               {formatCurrency(attendee.price_paid)}
             </p>
           )}
           <p>
             <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
           </p>
-          <p>
-            To refund this attendee, type their name "{attendee.name}" into the
-            box below:
-          </p>
+          <p>{t("admin.attendees.refund_confirm", { name: attendee.name })}</p>
         </div>
       </ConfirmForm>
     </Layout>,
@@ -143,19 +138,18 @@ export const adminRefundAllAttendeesPage = (
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/refund-all`}
-        buttonText="Refund All Attendees"
-        label="Listing name"
+        buttonText={t("admin.attendees.refund_all_submit")}
+        label={t("admin.attendees.refund_all_label")}
         name={listing.name}
       >
         <p>
-          <strong>Warning:</strong> This will issue a full refund for all{" "}
-          {refundableCount} attendee(s) with payments. Attendees will remain
-          registered.
+          <Raw
+            html={t("admin.attendees.refund_all_warning", {
+              count: refundableCount,
+            })}
+          />
         </p>
-        <p>
-          To refund all attendees, type the listing name "{listing.name}" into
-          the box below:
-        </p>
+        <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
       </ConfirmForm>
     </Layout>,
   );
@@ -175,9 +169,9 @@ export const PaymentDetails = ({
   return String(
     <article>
       <div class="prose">
-        <h3>Payment Details</h3>
+        <h3>{t("admin.attendees.payment_details")}</h3>
         <p>
-          <strong>Payment ID:</strong>{" "}
+          <strong>{t("admin.attendees.payment_id")}</strong>{" "}
           {dashboardUrl ? (
             <a href={dashboardUrl} rel="noopener" target="_blank">
               {attendee.payment_id}
@@ -188,15 +182,16 @@ export const PaymentDetails = ({
         </p>
         {pricePaid > 0 && (
           <p>
-            <strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}
+            <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
+            {formatCurrency(attendee.price_paid)}
           </p>
         )}
         <p>
-          <strong>Refund Status:</strong>{" "}
+          <strong>{t("admin.attendees.refund_status")}</strong>{" "}
           {isRefunded ? (
-            <span class="badge-alert">Refunded</span>
+            <span class="badge-alert">{t("admin.attendees.refunded")}</span>
           ) : (
-            "Not refunded"
+            t("admin.attendees.not_refunded")
           )}
         </p>
         {attendee.remaining_balance > 0 && (
@@ -213,7 +208,9 @@ export const PaymentDetails = ({
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
         class="inline"
       >
-        <SubmitButton icon="rotate-ccw">Refresh payment status</SubmitButton>
+        <SubmitButton icon="rotate-ccw">
+          {t("admin.attendees.refresh_payment")}
+        </SubmitButton>
       </CsrfForm>
     </article>,
   );
@@ -606,9 +603,9 @@ export const adminResendNotificationPage = (
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/attendee/${attendee.id}/resend-notification`}
-        buttonText="Re-send Notification"
+        buttonText={t("admin.attendees.resend_submit")}
         danger={false}
-        label="Attendee name"
+        label={t("admin.attendees.delete_label")}
         name={attendee.name}
         returnUrl={returnUrl}
       >
@@ -617,29 +614,26 @@ export const adminResendNotificationPage = (
           for this attendee.
         </p>
         <div class="prose">
-          <h2>Attendee Details</h2>
+          <h2>{t("admin.attendees.details")}</h2>
           <p>
-            <strong>Name:</strong> {attendee.name}
+            <strong>{t("admin.attendees.name")}</strong> {attendee.name}
           </p>
           <p>
-            <strong>Email:</strong> {attendee.email}
+            <strong>{t("admin.attendees.email")}</strong> {attendee.email}
           </p>
           <p>
-            <strong>Quantity:</strong> {attendee.quantity}
+            <strong>{t("admin.attendees.quantity")}</strong> {attendee.quantity}
           </p>
           {Number.parseInt(attendee.price_paid, 10) > 0 && (
             <p>
-              <strong>Amount Paid:</strong>{" "}
+              <strong>{t("admin.attendees.amount_paid")}</strong>{" "}
               {formatCurrency(attendee.price_paid)}
             </p>
           )}
           <p>
             <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
           </p>
-          <p>
-            To re-send the notification, type their name "{attendee.name}" into
-            the box below:
-          </p>
+          <p>{t("admin.attendees.resend_confirm", { name: attendee.name })}</p>
         </div>
       </ConfirmForm>
     </Layout>,

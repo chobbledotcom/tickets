@@ -2,6 +2,7 @@
  * Payment page templates - success, cancel, error pages
  */
 
+import { t } from "#i18n";
 import { getIframeMode } from "#shared/iframe.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
@@ -17,27 +18,25 @@ export const paymentPage = (
   formattedPrice: string,
 ): string =>
   String(
-    <Layout title="Payment">
-      <h1>Complete Your Payment</h1>
+    <Layout title={t("payment.title")}>
+      <h1>{t("payment.complete_your_payment")}</h1>
 
       <aside>
         <p>
-          <strong>Name:</strong> {attendee.name}
+          <strong>{t("payment.name_label")}</strong> {attendee.name}
         </p>
         <p>
-          <strong>Email:</strong> {attendee.email}
+          <strong>{t("payment.email_label")}</strong> {attendee.email}
         </p>
         <p>
-          <strong>Amount:</strong> {formattedPrice}
+          <strong>{t("payment.amount_label")}</strong> {formattedPrice}
         </p>
       </aside>
 
-      <p>
-        Click the button below to complete your payment securely via Stripe.
-      </p>
+      <p>{t("payment.stripe_instructions")}</p>
       <a class="btn" href={checkoutUrl}>
         <Icon name="credit-card" />
-        <span>Pay Now</span>
+        <span>{t("payment.pay_now")}</span>
       </a>
     </Layout>,
   );
@@ -78,10 +77,7 @@ export const successPage = ({
           {fromEmail ? (
             <p>
               <small>
-                <i>
-                  Your ticket will be sent from {fromEmail} &mdash; please check
-                  your Junk/Spam folder.
-                </i>
+                <i>{t("payment.success.email_notice", { fromEmail })}</i>
               </small>
             </p>
           ) : null}
@@ -89,15 +85,15 @@ export const successPage = ({
         {ticketUrl ? (
           <p>
             <a href={ticketUrl} rel="noopener" target="_blank">
-              Click here to view your ticket
+              {t("payment.success.view_ticket")}
             </a>
           </p>
         ) : null}
         {thankYouUrl ? (
           <>
-            <p>You will be redirected shortly...</p>
+            <p>{t("payment.success.redirecting")}</p>
             <p>
-              <a href={thankYouUrl}>Click here if you are not redirected</a>
+              <a href={thankYouUrl}>{t("payment.success.redirect_link")}</a>
             </p>
           </>
         ) : null}
@@ -114,19 +110,16 @@ export const paymentCancelPage = (
   ticketUrl: string,
 ): string =>
   String(
-    <Layout title="Payment Cancelled">
+    <Layout title={t("payment.cancel.title")}>
       <div data-payment-result="cancel">
         <div class="prose">
-          <h1>Payment Cancelled</h1>
-          <p>
-            Your payment was cancelled. Your ticket reservation has been
-            removed.
-          </p>
+          <h1>{t("payment.cancel.heading")}</h1>
+          <p>{t("payment.cancel.message")}</p>
         </div>
         <p>
           <a class="btn outline" href={ticketUrl}>
             <Icon name="rotate-ccw" />
-            <span>Try again</span>
+            <span>{t("payment.cancel.try_again")}</span>
           </a>
         </p>
       </div>
@@ -138,13 +131,13 @@ export const paymentCancelPage = (
  */
 export const paymentErrorPage = (message: string): string =>
   String(
-    <Layout title="Payment Error">
-      <h1>Payment Error</h1>
+    <Layout title={t("payment.error.title")}>
+      <h1>{t("payment.error.heading")}</h1>
       <div class="error" role="alert">
         <p>{message}</p>
       </div>
       <p>
-        <a href="/">Return to home</a>
+        <a href="/">{t("payment.error.return_home")}</a>
       </p>
     </Layout>,
   );
@@ -155,9 +148,9 @@ export const paymentErrorPage = (message: string): string =>
  */
 export const checkoutPopupPage = (checkoutUrl: string): string =>
   String(
-    <Layout bodyClass="iframe" title="Complete Payment">
+    <Layout bodyClass="iframe" title={t("payment.popup.title")}>
       <div data-checkout-popup={escapeHtml(checkoutUrl)} data-scroll-into-view>
-        <p>Payment is processed in a new window.</p>
+        <p>{t("payment.popup.instructions")}</p>
         <p>
           <a
             class="btn"
@@ -167,14 +160,14 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
             target="_blank"
           >
             <Icon name="credit-card" />
-            <span>Pay Now</span>
+            <span>{t("payment.popup.pay_now")}</span>
           </a>
         </p>
         <div data-checkout-waiting hidden>
-          <p>Completing payment in the other window...</p>
+          <p>{t("payment.popup.waiting")}</p>
           <p>
             <a href={checkoutUrl} rel="noopener" target="_blank">
-              <small>Click here if the payment window didn't open</small>
+              <small>{t("payment.popup.window_hint")}</small>
             </a>
           </p>
         </div>

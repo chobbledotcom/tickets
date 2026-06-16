@@ -251,5 +251,5 @@
   "guide.q.hosting_and_images": "Do you help with hosting and images?",
   "guide.a.hosting_and_images": "<p> Yes to both. I can set you up on your own Bunny CDN account (or another host) and handle the technical configuration. I also design listing images if you need them. Get in touch and we'll figure out exactly what you need. </p>",
   "guide.bug_report_email": "hello@chobble.com",
-  "guide.demo_mode_notice": "Demo Mode — entered text is replaced with sample data"
+  "guide.demo_mode_notice": "Demo Mode &mdash; entered text is replaced with sample data"
 }

@@ -10,6 +10,7 @@
 
 import { zipSync } from "fflate";
 import forge from "node-forge";
+import { t } from "#i18n";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { startOfHour } from "#shared/dates.ts";
 import { WALLET_ICONS } from "#shared/wallet-icons.ts";
@@ -140,7 +141,7 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
     fields.secondaryFields.push({
       dateStyle: "PKDateStyleMedium",
       key: "date",
-      label: "DATE",
+      label: t("fields.wallet.apple.date_label"),
       timeStyle: "PKDateStyleShort",
       value: data.listingDate,
     });
@@ -149,7 +150,7 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   if (data.listingLocation) {
     fields.secondaryFields.push({
       key: "location",
-      label: "LOCATION",
+      label: t("fields.wallet.apple.location_label"),
       value: data.listingLocation,
     });
   }
@@ -157,7 +158,7 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   if (data.attendeeDate) {
     fields.auxiliaryFields.push({
       key: "booking-date",
-      label: "BOOKING DATE",
+      label: t("fields.wallet.apple.booking_date_label"),
       value: data.attendeeDate,
     });
   }
@@ -165,7 +166,7 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   if (data.quantity > 1) {
     fields.auxiliaryFields.push({
       key: "qty",
-      label: "QTY",
+      label: t("fields.wallet.apple.qty_label"),
       value: data.quantity,
     });
   }
@@ -174,7 +175,7 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
     fields.auxiliaryFields.push({
       currencyCode: data.currencyCode,
       key: "price",
-      label: "PRICE",
+      label: t("fields.wallet.apple.price_label"),
       value: data.pricePaid / 10 ** getDecimalPlaces(data.currencyCode),
     });
   }

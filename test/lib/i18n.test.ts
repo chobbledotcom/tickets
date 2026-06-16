@@ -28,10 +28,10 @@ describe("i18n", () => {
     });
 
     test("handles ICU plural format", () => {
-      expect(t("admin.attendees.refund_all_warning", { count: 1 })).toContain(
+      expect(t("admin.listings.failed_payments_count", { count: 1 })).toContain(
         "1 attendee",
       );
-      expect(t("admin.attendees.refund_all_warning", { count: 5 })).toContain(
+      expect(t("admin.listings.failed_payments_count", { count: 5 })).toContain(
         "5 attendees",
       );
     });

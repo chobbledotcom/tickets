@@ -138,7 +138,7 @@ const check = (file: string, expect: string[]): Result => {
     // add or remove without changing rendered English.
     const nb = (s: string): string =>
       s
-        .replace(/[`'"]/g, '"')
+        .replace(/[`'"]/g, "")
         .replace(/\s+/g, "")
         .replace(/,(?=[)\]}])/g, "")
         .replace(/[(){}[\]]/g, "");
