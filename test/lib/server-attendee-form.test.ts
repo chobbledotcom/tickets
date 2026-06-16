@@ -55,14 +55,48 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Create Attendee",
         "Pick Me",
       );
-      // A quantity box per listing and a shared start date — no add-line button.
+      // A quantity box per listing, and no add-line button (fixed table).
       expect(html).toContain(`name="qty_${listing.id}"`);
-      expect(html).toContain('name="start_date"');
       expect(html).not.toContain("Add Listing Line");
     });
 
+    test("hides the date fields when there are no daily listings", async () => {
+      // The shared date range only affects daily listings, so a site with only
+      // standard (fixed-date) listings never sees the Dates section.
+      await createTestListing({ maxAttendees: 100, name: "Standard Only" });
+      const response = await awaitTestRequest("/admin/attendees/new", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain('name="start_date"');
+      expect(html).not.toContain('id="day_count"');
+      expect(html).not.toContain("only affects daily listings");
+    });
+
+    test("shows the optional date fields when a daily listing exists", async () => {
+      await createDailyTestListing({ name: "Daily One" });
+      const response = await awaitTestRequest("/admin/attendees/new", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain('name="start_date"');
+      expect(html).toContain('id="day_count"');
+      // The note makes clear the date is optional and daily-only.
+      expect(html).toContain("only affects daily listings");
+    });
+
+    test("omits the 'Back without saving' link", async () => {
+      // The browser back button is enough; the explicit link was removed.
+      await createTestListing({ maxAttendees: 100, name: "Pick Me" });
+      const response = await awaitTestRequest("/admin/attendees/new", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain("Back without saving");
+    });
+
     test("shows the availability notice on a dateless create form", async () => {
-      await createTestListing({ maxAttendees: 100, name: "L" });
+      await createDailyTestListing({ name: "L" });
       const response = await awaitTestRequest("/admin/attendees/new", {
         cookie: await testCookie(),
       });

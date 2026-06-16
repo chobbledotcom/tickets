@@ -320,6 +320,12 @@ const buildTemplateData = async (
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
+    // The shared date range only affects daily listings; the form's rendered
+    // lines cover every active listing plus any inactive one this attendee
+    // already books, so a daily line here is exactly when the dates matter.
+    hasDailyListings: parsed.lines.some(
+      (l) => l.listing?.listing_type === "daily",
+    ),
     hasMixedTimings: opts.hasMixedTimings ?? false,
     lineWarnings: warnings.byListing,
     mode,
