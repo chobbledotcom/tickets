@@ -2053,8 +2053,9 @@ a.cal-day-selected:hover {
   max-width: 100%;
 }
 
-/* Override dark-mode form box-shadow which would otherwise apply */
-[data-theme="dark"] .filter-row {
+/* Override dark-mode form box-shadow (base and focus) which would otherwise apply */
+[data-theme="dark"] .filter-row,
+[data-theme="dark"] .filter-row:focus-within {
   box-shadow: none;
 }
 
