@@ -933,11 +933,32 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expectFlash(response, "That template no longer exists.", false);
     });
 
-    test("POST /admin/emails/templates/:id/delete removes the template", async () => {
+    test("GET /admin/emails/templates/:id/delete shows the confirmation page with the decrypted subject", async () => {
+      const id = await seedTemplate("To delete", "Body");
+      const response = await awaitTestRequest(
+        `/admin/emails/templates/${id}/delete`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Delete template");
+      // The subject (encrypted at rest) is decrypted to confirm against.
+      expect(html).toContain("To delete");
+      expect(html).toContain('name="confirm_identifier"');
+    });
+
+    test("GET /admin/emails/templates/:id/delete 404s for unknown template", async () => {
+      const response = await awaitTestRequest(
+        "/admin/emails/templates/9999/delete",
+        { cookie: await testCookie() },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("POST /admin/emails/templates/:id/delete removes the template when the subject matches", async () => {
       const id = await seedTemplate("To delete", "Body");
       const { response } = await adminFormPost(
         `/admin/emails/templates/${id}/delete`,
-        {},
+        { confirm_identifier: "To delete" },
       );
       expectRedirectWithFlash(
         "/admin/emails?audience=active",
@@ -945,10 +966,23 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       )(response);
     });
 
+    test("POST /admin/emails/templates/:id/delete rejects a mismatched subject", async () => {
+      const id = await seedTemplate("To delete", "Body");
+      const { response } = await adminFormPost(
+        `/admin/emails/templates/${id}/delete`,
+        { confirm_identifier: "Wrong subject" },
+      );
+      expectFlash(
+        response,
+        "Template subject does not match. Please type the exact template subject to confirm deletion.",
+        false,
+      );
+    });
+
     test("POST /admin/emails/templates/:id/delete 404s for unknown template", async () => {
       const { response } = await adminFormPost(
         "/admin/emails/templates/9999/delete",
-        {},
+        { confirm_identifier: "anything" },
       );
       expect(response.status).toBe(404);
     });

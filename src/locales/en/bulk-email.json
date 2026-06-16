@@ -39,5 +39,9 @@
   "bulk_email.update_existing_checkbox": "Update existing template",
   "bulk_email.template_to_update_label": "Template to update",
   "bulk_email.save_as_new_template": "Save as new template",
-  "bulk_email.update_template_button": "Update template"
+  "bulk_email.update_template_button": "Update template",
+  "bulk_email.delete_template_heading": "Delete template",
+  "bulk_email.delete_template_intro": "Are you sure you want to delete the saved template with subject:",
+  "bulk_email.delete_template_prompt": "Type the template subject to confirm:",
+  "bulk_email.delete_template_submit": "Delete template"
 }

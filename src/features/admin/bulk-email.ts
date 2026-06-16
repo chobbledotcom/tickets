@@ -14,6 +14,7 @@
  */
 
 import { requirePrivateKey } from "#routes/admin/actions.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   type AuthSession,
   OWNER_FORM,
@@ -21,7 +22,6 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { ownerFormById } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -82,6 +82,7 @@ import { ok } from "#shared/response.ts";
 import {
   bulkEmailComposePage,
   bulkEmailPreviewPage,
+  bulkEmailTemplateDeletePage,
 } from "#templates/admin/bulk-email.tsx";
 
 const COMPOSE_PATH = "/admin/emails";
@@ -422,19 +423,42 @@ const handleTemplateSavePost = (request: Request): Promise<Response> =>
   });
 /* jscpd:ignore-end */
 
-/** POST /admin/emails/templates/:id/delete — delete a template. */
-const handleTemplateDeletePost = ownerFormById(async (id) => {
-  const existing = await getRawEmailTemplate(id);
-  if (!existing) return notFoundResponse();
-  await deleteEmailTemplate(id);
-  return ok(`${COMPOSE_PATH}?audience=active`, "Template deleted.");
-});
+/**
+ * GET/POST /admin/emails/templates/:id/delete — typed-confirmation delete,
+ * matching the round-trip flow used for other named resources. The subject is
+ * encrypted, so it's decrypted with the owner's private key both to display the
+ * confirmation page and to be the identifier the owner must re-type.
+ */
+const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
+  {
+    auth: "owner",
+    identifier: (template) => template.subject,
+    identifierLabel: "Template subject",
+    load: async (id, session) => {
+      const raw = await getRawEmailTemplate(id);
+      if (!raw) return null;
+      const privateKey = await requirePrivateKey(session);
+      return {
+        id,
+        subject: await decryptWithOwnerKey(raw.subject, privateKey),
+      };
+    },
+    onConfirm: async (_template, id) => {
+      await deleteEmailTemplate(id);
+    },
+    path: "/admin/emails/templates/:id/delete",
+    render: (template, session, error) =>
+      bulkEmailTemplateDeletePage(session, template, error),
+    successMessage: "Template deleted.",
+    successRedirect: `${COMPOSE_PATH}?audience=active`,
+  },
+);
 
 export const bulkEmailRoutes = defineRoutes({
+  ...templateDelete.routes,
   "GET /admin/emails": handleComposeGet,
   "GET /admin/emails/preview": handlePreviewGet,
   "POST /admin/emails/preview": handlePreviewPost,
   "POST /admin/emails/send": handleSendPost,
   "POST /admin/emails/templates": handleTemplateSavePost,
-  "POST /admin/emails/templates/:id/delete": handleTemplateDeletePost,
 });
