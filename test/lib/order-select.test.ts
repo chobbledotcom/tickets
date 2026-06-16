@@ -18,10 +18,11 @@ describe("parseSelectedListingIds", () => {
     expect(parseSelectedListingIds(params)).toEqual([5]);
   });
 
-  test("ignores non-numeric and non-positive ids", () => {
+  test("ignores non-numeric, partly-numeric and non-positive ids", () => {
     const params = new URLSearchParams(
-      `${SELECT_PREFIX}abc=1&${SELECT_PREFIX}0=1&${SELECT_PREFIX}-2=1&${SELECT_PREFIX}6=1`,
+      `${SELECT_PREFIX}abc=1&${SELECT_PREFIX}0=1&${SELECT_PREFIX}-2=1&${SELECT_PREFIX}5abc=1&${SELECT_PREFIX}6=1`,
     );
+    // "5abc" is rejected outright — strict id parsing, not lenient parseInt.
     expect(parseSelectedListingIds(params)).toEqual([6]);
   });
 

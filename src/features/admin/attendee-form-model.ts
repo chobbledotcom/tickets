@@ -22,6 +22,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   validateAddress,
   validateEmail,
@@ -215,8 +216,8 @@ const parseLines = (
   const seen = new Set<number>();
   for (const [field, raw] of form.entries()) {
     if (!field.startsWith(QTY_PREFIX)) continue;
-    const id = Number.parseInt(field.slice(QTY_PREFIX.length), 10);
-    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    const id = parsePositiveIntId(field.slice(QTY_PREFIX.length));
+    if (id === null || seen.has(id)) continue;
     seen.add(id);
     const key = form.getString(`${LINE_KEY_PREFIX}${id}`);
     lines.push({

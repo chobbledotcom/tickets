@@ -107,9 +107,15 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines[0]!.listing?.name).toBe("Resolved");
   });
 
-  test("ignores non-positive and non-numeric listing ids", () => {
+  test("ignores non-positive, partly-numeric and non-numeric listing ids", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", qty_0: "1", qty_4: "1", qty_abc: "1" }),
+      makeForm({
+        name: "X",
+        qty_0: "1",
+        qty_4: "1",
+        qty_5abc: "1",
+        qty_abc: "1",
+      }),
       new Map(),
     );
     expect(parsed.lines.map((l) => l.listingId)).toEqual([4]);
