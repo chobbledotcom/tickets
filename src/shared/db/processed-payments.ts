@@ -13,12 +13,28 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { getDb, insert, queryOne } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 
 export { STALE_RESERVATION_MS };
+
+/**
+ * A processed_payments row is in exactly one of three lifecycle states, encoded
+ * across two columns: **reserved** (in-progress: attendee_id NULL, no
+ * failure_data), **finalized** (success: attendee_id set), **failed** (terminal
+ * handled failure: attendee_id NULL, failure_data set). These two predicates are
+ * the single source of truth for that shape — every query/branch that
+ * distinguishes the states derives from them (or {@link isUnresolvedReservation})
+ * so the encoding can't drift between call sites.
+ */
+const UNRESOLVED_RESERVATION = "attendee_id IS NULL AND failure_data = ''";
+/** Complement of {@link UNRESOLVED_RESERVATION}: a finalized success or a
+ * recorded terminal failure. Exported for the pruner, which reaps resolved rows. */
+export const RESOLVED_OUTCOME =
+  "(attendee_id IS NOT NULL OR failure_data != '')";
 
 /** Processed payment record */
 export type ProcessedPayment = {
@@ -69,6 +85,11 @@ export const isReservationStale = (processedAt: string): boolean => {
   return nowMs() - reservedAt > STALE_RESERVATION_MS;
 };
 
+/** True when a row is an in-progress reservation with no recorded outcome — the
+ * in-memory mirror of the {@link UNRESOLVED_RESERVATION} SQL predicate. */
+export const isUnresolvedReservation = (row: ProcessedPayment): boolean =>
+  row.attendee_id === null && row.failure_data === "";
+
 /** Execute a SQL statement parameterized by a single payment session ID */
 const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   getDb().execute({ args: [sessionId], sql });
@@ -83,7 +104,7 @@ export const deleteStaleReservation = async (
 ): Promise<void> => {
   await execWithSessionId(
     sessionId,
-    "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL AND failure_data = ''",
+    `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
   );
 };
 
@@ -97,7 +118,7 @@ export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
     args: [cutoff],
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND failure_data = '' AND processed_at < ?",
+    sql: `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
   });
   return result.rowsAffected;
 };
@@ -136,8 +157,7 @@ export const reserveSession = async (
       // carrying a recorded terminal failure is never stale — it is replayed
       // by the caller instead of being deleted and re-processed.
       if (
-        existing.attendee_id === null &&
-        !existing.failure_data &&
+        isUnresolvedReservation(existing) &&
         isReservationStale(existing.processed_at)
       ) {
         await deleteStaleReservation(sessionId);
@@ -167,32 +187,62 @@ export const finalizeSession = async (
 };
 
 /**
- * Record a handled terminal failure on a reserved (not-yet-finalized) session.
- * A later redirect/webhook for the same session reads this back via
+ * Record a handled terminal failure on a still-unresolved session. A later
+ * redirect/webhook for the same session reads this back via
  * {@link parseSessionFailure} and returns the same outcome, so refunds and
- * validation never run twice. Only unfinalized rows are touched (a finalized
- * success is never clobbered); a no-op if the row was already pruned away.
+ * validation never run twice. Guarded on {@link UNRESOLVED_RESERVATION}, so it
+ * never clobbers a finalized success and never overwrites an already-recorded
+ * failure (the first outcome wins); a no-op if the row was pruned away.
  */
 export const markSessionFailed = async (
   sessionId: string,
   failure: StoredPaymentFailure,
 ): Promise<void> => {
-  const data = JSON.stringify({
-    error: failure.error,
-    refunded: failure.refunded,
-    status: failure.status,
-  });
   await getDb().execute({
-    args: [data, sessionId],
-    sql: "UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND attendee_id IS NULL",
+    args: [JSON.stringify(failure), sessionId],
+    sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
   });
 };
 
-/** Parse a stored terminal failure, or null when the row carries none. */
+/** Generic terminal failure used when stored failure_data can't be parsed. */
+const CORRUPT_FAILURE: StoredPaymentFailure = {
+  error: "This payment could not be completed. Please contact support.",
+  status: 500,
+};
+
+/**
+ * Parse a stored terminal failure, or null when the row carries none. We only
+ * ever write valid JSON (via {@link markSessionFailed}), but a corrupt value
+ * (restore, manual edit) must not crash the replay path — it degrades to a
+ * generic terminal failure so the session still resolves instead of looping.
+ */
 export const parseSessionFailure = (
   failureData: string,
-): StoredPaymentFailure | null =>
-  failureData ? (JSON.parse(failureData) as StoredPaymentFailure) : null;
+): StoredPaymentFailure | null => {
+  if (!failureData) return null;
+  try {
+    return JSON.parse(failureData) as StoredPaymentFailure;
+  } catch {
+    return CORRUPT_FAILURE;
+  }
+};
+
+/**
+ * Build the finalize UPDATE for a balance-payment session, guarded so it only
+ * applies while the attendee's balance still equals the amount being settled.
+ * Returned rather than executed so the caller can commit it in the SAME batch as
+ * the balance settle — closing the crash window between settle and finalize that
+ * would otherwise leave a paid-but-unfinalized row (which a stale-replay could
+ * then wrongly refund). Balance sessions carry no ticket tokens.
+ */
+export const balanceFinalizeStatement = (
+  sessionId: string,
+  attendeeId: number,
+  expectedAmount: number,
+): { sql: string; args: InValue[] } => ({
+  args: [attendeeId, sessionId, attendeeId, expectedAmount],
+  sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
+});
 
 /**
  * Decrypt the ticket_tokens field from a processed payment record.

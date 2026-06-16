@@ -6,6 +6,7 @@
  * context. Idempotent: a second call once the balance is cleared is a no-op.
  */
 
+import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -117,10 +118,17 @@ export type SettleBalanceResult =
  * checkout) after this checkout was created no longer matches and we refuse
  * rather than clear the wrong amount. The folded price_paid is part of the same
  * batch, conditioned on the same guard, so the two writes never half-apply.
+ *
+ * `extraStatements` are committed in the SAME transaction, ahead of the
+ * balance-clearing write — used to finalize the payment session atomically with
+ * the settle (see balanceFinalizeStatement) so a crash between the two can't
+ * leave a paid-but-unfinalized row. Each must carry its own balance guard so it
+ * no-ops on a mismatch, exactly like the settle writes.
  */
 export const settleAttendeeBalance = async (
   attendeeId: number,
   expectedAmount: number,
+  extraStatements: { sql: string; args: InValue[] }[] = [],
 ): Promise<SettleBalanceResult> => {
   const state = await getAttendeeBalanceState(attendeeId);
   if (!state) return { reason: "not_found", settled: false };
@@ -133,6 +141,7 @@ export const settleAttendeeBalance = async (
   const paid = await getPaidDefaultStatus();
 
   const results = await executeBatchWithResults([
+    ...extraStatements,
     {
       // Fold the paid amount into the earliest booking line so the recorded
       // amount-paid reconciles to the full order price. Guarded on the live
@@ -152,14 +161,15 @@ export const settleAttendeeBalance = async (
     {
       // Atomic clear: only the callback whose expectedAmount still matches the
       // live balance settles it; a second concurrent callback affects 0 rows.
+      // Always the LAST statement, so its rowsAffected is the settle verdict.
       args: [paid?.id ?? null, attendeeId, expectedAmount],
       sql: "UPDATE attendees SET remaining_balance = 0, status_id = COALESCE(?, status_id) WHERE id = ? AND remaining_balance = ?",
     },
   ]);
 
-  // results[1] is the conditional clear; 0 rows means a concurrent/stale
-  // callback changed the balance between our read and this write.
-  if (results[1]!.rowsAffected === 0)
+  // The clear is the final statement; 0 rows means a concurrent/stale callback
+  // changed the balance between our read and this write.
+  if (results[results.length - 1]!.rowsAffected === 0)
     return { reason: "amount_mismatch", settled: false };
 
   const firstListing = await queryOne<{ listing_id: number }>(

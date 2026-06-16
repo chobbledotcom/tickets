@@ -192,6 +192,41 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     }
   });
 
+  test("settles using the explicit balance_amount from metadata, not the line price", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const paid = await getPaidDefaultStatus();
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_bal_explicit",
+        metadata: {
+          balance_amount: "1500",
+          balance_attendee_id: String(attendeeId),
+          // Line price is deliberately wrong; balance_amount must take priority,
+          // so this still settles (the old items[0].p path would have mismatched).
+          items: JSON.stringify([{ e: 1, p: 9999, q: 1 }]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_bal_explicit",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_explicit"),
+      );
+      expect(response.status).toBe(200);
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(0);
+      expect(state?.statusId).toBe(paid!.id);
+    } finally {
+      session.restore();
+    }
+  });
+
   test("settles the balance even when the booking's listing has since been deleted", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);

@@ -410,6 +410,63 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         resetStripeClient,
       );
     });
+
+    test("a failed refund is left unrecorded so a retry can re-attempt it", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const { isSessionProcessed } = await import(
+        "#shared/db/processed-payments.ts"
+      );
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      await deactivateTestListing(listing.id);
+
+      await withMocks(
+        () => ({
+          // The provider's refund call fails (e.g. transiently down).
+          mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
+            Promise.resolve(false),
+          ),
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              amount_total: 1000,
+              id: "cs_refund_failed",
+              metadata: {
+                email: "john@example.com",
+                items: singleItem(listing.id, 1, 1000),
+                name: "John",
+              },
+              payment_intent: "pi_refund_failed",
+              payment_status: "paid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        }),
+        async ({ mockRefund }) => {
+          const response = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_refund_failed"),
+          );
+          expect(mockRefund.calls.length).toBe(1);
+          const html = await response.text();
+          expect(html).toContain("contact support");
+          // Crucially the failure is NOT frozen as terminal: failure_data stays
+          // empty and the row stays unfinalized, so a later retry re-validates
+          // and re-attempts the refund instead of replaying "contact support".
+          const row = await isSessionProcessed("cs_refund_failed");
+          expect(row?.failure_data).toBe("");
+          expect(row?.attendee_id).toBeNull();
+        },
+        resetStripeClient,
+      );
+    });
   });
 
   describe("GET /payment/cancel", () => {

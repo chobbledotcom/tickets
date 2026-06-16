@@ -14,7 +14,7 @@
  * would orphan the site's existing encrypted data.
  */
 
-import { collectHostSecrets } from "#shared/builder.ts";
+import { collectHostSecrets, HOST_INFRA_SECRET_KEYS } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { getEnv } from "#shared/env.ts";
@@ -33,27 +33,9 @@ export const expectedSiteSecrets = (site: BuiltSite): [string, string][] => {
   return [...base, ...collectHostSecrets()];
 };
 
-/**
- * The subset of copied host secrets (a slice of builder.ts's HOST_SECRET_KEYS)
- * that grant host-level access: account-wide Bunny control, shared storage,
- * host email sending, and wallet signing material. Built sites are trusted
- * clones on the operator's own infrastructure, so these are copied on purpose —
- * but the backfill UI flags them so the operator stays conscious that the
- * action hands the child site host-level credentials, not just per-site config.
- */
-export const HOST_INFRA_SECRET_KEYS: readonly string[] = [
-  "BUNNY_API_KEY",
-  "BUNNY_DNS_ZONE_ID",
-  "STORAGE_ZONE_NAME",
-  "STORAGE_ZONE_KEY",
-  "HOST_EMAIL_API_KEY",
-  "APPLE_WALLET_SIGNING_CERT",
-  "APPLE_WALLET_SIGNING_KEY",
-  "APPLE_WALLET_WWDR_CERT",
-  "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-];
-
-/** Pick the host-level infrastructure credential names out of a name list. */
+/** Pick the host-level infrastructure credential names out of a name list, so
+ * the backfill UI can flag that copying them grants the child host-level access.
+ * The classification lives on builder.ts's HOST_SECRETS (the single source). */
 export const hostInfraSecretNames = (names: string[]): string[] =>
   names.filter((name) => HOST_INFRA_SECRET_KEYS.includes(name));
 

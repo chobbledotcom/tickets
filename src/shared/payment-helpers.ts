@@ -194,6 +194,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "listingAnswerIds"
       | "siteTokenIndex"
       | "balanceAttendeeId"
+      | "balanceAmount"
       | "reservationAmount"
     >
   >;
@@ -213,6 +214,9 @@ export const buildMetadata = (
   ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
   ...(intent.balanceAttendeeId
     ? { balance_attendee_id: String(intent.balanceAttendeeId) }
+    : {}),
+  ...(intent.balanceAmount
+    ? { balance_amount: String(intent.balanceAmount) }
     : {}),
   ...(intent.reservationAmount
     ? { reservation_amount: intent.reservationAmount }
@@ -308,6 +312,7 @@ export const extractSessionMetadata = (
   _origin: metadata._origin || "",
   address: metadata.address || "",
   answer_ids: metadata.answer_ids || "",
+  balance_amount: metadata.balance_amount || "",
   balance_attendee_id: metadata.balance_attendee_id || "",
   date: metadata.date || "",
   day_count: metadata.day_count || "",

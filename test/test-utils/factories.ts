@@ -154,6 +154,7 @@ export const webhookMeta = (
   _origin: "localhost",
   address: "",
   answer_ids: "",
+  balance_amount: "",
   balance_attendee_id: "",
   date: "",
   day_count: "",

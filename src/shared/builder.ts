@@ -18,27 +18,49 @@ import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
 
-/** Secrets copied from the host environment (if set) */
-const HOST_SECRET_KEYS = [
-  "NTFY_URL",
-  "ADMIN_EMAIL_ADDRESS",
-  "STORAGE_ZONE_NAME",
-  "STORAGE_ZONE_KEY",
-  "HOST_EMAIL_PROVIDER",
-  "HOST_EMAIL_API_KEY",
-  "HOST_EMAIL_FROM_ADDRESS",
-  "BUNNY_API_KEY",
-  "BUNNY_DNS_ZONE_ID",
-  "BUNNY_DNS_SUBDOMAIN_SUFFIX",
-  "APPLE_WALLET_PASS_TYPE_ID",
-  "APPLE_WALLET_TEAM_ID",
-  "APPLE_WALLET_SIGNING_CERT",
-  "APPLE_WALLET_SIGNING_KEY",
-  "APPLE_WALLET_WWDR_CERT",
-  "GOOGLE_WALLET_ISSUER_ID",
-  "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL",
-  "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-] as const;
+/**
+ * Secrets copied from the host environment to every built site (when set).
+ * `hostInfra: true` tags account-/infrastructure-level credentials (the Bunny
+ * account key, shared storage, host email, wallet signing material). They are
+ * copied deliberately — built sites are trusted clones on the operator's own
+ * infrastructure — but the backfill UI surfaces them distinctly so the operator
+ * stays aware. Keeping sensitivity here, on the single source list, stops it
+ * drifting from a hand-maintained parallel list.
+ */
+type HostSecret = { name: string; hostInfra?: boolean };
+
+const HOST_SECRETS: readonly HostSecret[] = [
+  { name: "NTFY_URL" },
+  { name: "ADMIN_EMAIL_ADDRESS" },
+  { hostInfra: true, name: "STORAGE_ZONE_NAME" },
+  { hostInfra: true, name: "STORAGE_ZONE_KEY" },
+  { name: "HOST_EMAIL_PROVIDER" },
+  { hostInfra: true, name: "HOST_EMAIL_API_KEY" },
+  { name: "HOST_EMAIL_FROM_ADDRESS" },
+  { hostInfra: true, name: "BUNNY_API_KEY" },
+  { hostInfra: true, name: "BUNNY_DNS_ZONE_ID" },
+  { name: "BUNNY_DNS_SUBDOMAIN_SUFFIX" },
+  { name: "APPLE_WALLET_PASS_TYPE_ID" },
+  { name: "APPLE_WALLET_TEAM_ID" },
+  { hostInfra: true, name: "APPLE_WALLET_SIGNING_CERT" },
+  { hostInfra: true, name: "APPLE_WALLET_SIGNING_KEY" },
+  { hostInfra: true, name: "APPLE_WALLET_WWDR_CERT" },
+  { name: "GOOGLE_WALLET_ISSUER_ID" },
+  { name: "GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL" },
+  { hostInfra: true, name: "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY" },
+];
+
+/** All host secret names copied to built sites. */
+export const HOST_SECRET_KEYS: readonly string[] = HOST_SECRETS.map(
+  (s) => s.name,
+);
+
+/** The host-level infrastructure credential names among HOST_SECRET_KEYS — the
+ * high-privilege subset the backfill UI flags. Derived from the same list, so
+ * it can't drift out of sync. */
+export const HOST_INFRA_SECRET_KEYS: readonly string[] = HOST_SECRETS.filter(
+  (s) => s.hostInfra,
+).map((s) => s.name);
 
 export type BuildSiteInput = {
   siteName: string;

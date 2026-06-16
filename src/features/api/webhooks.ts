@@ -52,6 +52,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import {
+  balanceFinalizeStatement,
   clearSessionTokens,
   decryptSessionTokens,
   finalizeSession,
@@ -241,16 +242,33 @@ const refundAndLog = async (
 };
 
 /**
+ * Refund the session and return a handled-failure PaymentResult. The single
+ * refund-and-fail shape shared by post-payment failures (validation, price
+ * mismatch, balance mismatch) so the refundAndLog + 409/410 result block isn't
+ * re-spelled at each site.
+ */
+const refundAndFail = async (
+  session: ValidatedPaymentSession,
+  message: string,
+  listingId: number,
+  status: number | undefined,
+  detail?: string,
+): Promise<PaymentResult> => {
+  const refunded = await refundAndLog(session, message, listingId);
+  return { detail, error: message, refunded, status, success: false };
+};
+
+/**
  * Handle listing validation failure: skip refund for unknown listings (404)
  * since the webhook may be intended for a different instance sharing the same
  * payment provider account. For known-listing failures (inactive, closed),
  * refund so the customer gets their money back.
  */
-const validationFailure = async (
+const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   listingId: number,
-): Promise<PaymentResult> => {
+): Promise<PaymentResult> | PaymentResult => {
   if (validation.status === 404) {
     return {
       detail: `Post-payment listing not found (session=${session.id})`,
@@ -259,29 +277,22 @@ const validationFailure = async (
       success: false,
     };
   }
-  const refunded = await refundAndLog(session, validation.error, listingId);
-  return {
-    error: validation.error,
-    refunded,
-    status: validation.status,
-    success: false,
-  };
+  return refundAndFail(session, validation.error, listingId, validation.status);
 };
 
-/** Load an listing by ID or return a 404 "Listing not found" error payload. */
-const loadListingOr404 = async <Extra extends Record<string, unknown>>(
+/** Load a listing by ID or return a 404 "Listing not found" error payload. */
+const loadListingOr404 = async (
   listingId: number,
-  extra: Extra,
 ): Promise<
   | {
       ok: true;
       listing: NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>;
     }
-  | ({ ok: false; error: string; status: 404 } & Extra)
+  | { ok: false; error: string; status: 404 }
 > => {
   const listing = await getListingWithCount(listingId);
   if (!listing) {
-    return { error: "Listing not found", ok: false, status: 404, ...extra };
+    return { error: "Listing not found", ok: false, status: 404 };
   }
   return { listing, ok: true };
 };
@@ -290,7 +301,7 @@ const validateListingForPayment = async (
   listingId: number,
   includeListingName = false,
 ): Promise<ListingValidation> => {
-  const loaded = await loadListingOr404(listingId, {});
+  const loaded = await loadListingOr404(listingId);
   if (!loaded.ok) return loaded;
   const listing = loaded.listing;
   const name = includeListingName ? listing.name : undefined;
@@ -368,19 +379,18 @@ const formatPostPaymentError = capacityErrorFormatter({
 
 /** Return success result for an already-processed session.
  * Accepts a finalized payment record where attendee_id is guaranteed non-null.
- * The attendee already exists, so this is a success replay even if the listing
- * has since been deleted (e.g. a balance line for a removed listing) — a
- * missing listing simply yields no thank-you URL. */
+ * Carries the listing id (not the loaded listing): the redirect resolves it
+ * lazily only when it needs a thank-you URL, and a since-deleted listing is
+ * still a success replay because the attendee already exists. */
 const alreadyProcessedResult = async (
   listingId: number,
   existing: ProcessedPayment & { attendee_id: number },
 ): Promise<PaymentResult> => {
-  const listing = await getListingWithCount(listingId);
   const decrypted = await decryptSessionTokens(existing.ticket_tokens);
   const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     attendee: { id: existing.attendee_id },
-    listing,
+    listingId,
     success: true,
     ticketTokens,
   };
@@ -441,6 +451,9 @@ const extractIntent = (
   const parsedDayCount = Number.parseInt(metadata.day_count, 10);
   return {
     address: metadata.address,
+    balanceAmount: metadata.balance_amount
+      ? Number(metadata.balance_amount)
+      : undefined,
     balanceAttendeeId: metadata.balance_attendee_id
       ? Number(metadata.balance_attendee_id)
       : undefined,
@@ -461,24 +474,12 @@ const extractIntent = (
 };
 
 /** Log a price mismatch and refund the session */
-const priceMismatchRefund = async (
+const priceMismatchRefund = (
   session: ValidatedPaymentSession,
   detail: string,
   listingId: number,
-): Promise<PaymentResult> => {
-  const refunded = await refundAndLog(
-    session,
-    PRICE_CHANGED_MESSAGE,
-    listingId,
-  );
-  return {
-    detail,
-    error: PRICE_CHANGED_MESSAGE,
-    refunded,
-    status: 409,
-    success: false,
-  };
-};
+): Promise<PaymentResult> =>
+  refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
 
 type ValidatedItem = {
   item: BookingItem;
@@ -638,16 +639,12 @@ const createAttendeeForSession = async (
       bookingCheck.reason,
       validatedItems[0]!.listing.name,
     );
-    return {
+    return refundAndFail(
+      session,
       error,
-      refunded: await refundAndLog(
-        session,
-        error,
-        validatedItems[0]!.listing.id,
-      ),
-      status: bookingCheck.reason === "encryption_error" ? 500 : 409,
-      success: false,
-    };
+      validatedItems[0]!.listing.id,
+      bookingCheck.reason === "encryption_error" ? 500 : 409,
+    );
   }
   const created = result as Extract<typeof result, { success: true }>;
   const entries = created.attendees.map((attendee, i) => ({
@@ -674,13 +671,15 @@ const BALANCE_CHANGED_MESSAGE =
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
  *
- * The amount this checkout was created for is carried in metadata (`items[0].p`)
- * and, since balance payments add no booking fee, must equal what the provider
- * charged (`session.amountTotal`). settleAttendeeBalance then clears the balance
- * only if the live `remaining_balance` still equals that amount — so a balance
- * the owner edited, or one a concurrent/stale checkout already settled, can't be
- * cleared for the wrong figure. A mismatch refunds the payment and returns a
- * terminal failure rather than mutating the attendee.
+ * The amount this checkout was created for is carried explicitly in metadata
+ * (`balanceAmount`); since balance payments add no booking fee, the provider
+ * must have charged exactly that (`session.amountTotal`). The settle then clears
+ * the balance only if the live `remaining_balance` still equals that amount — so
+ * a balance the owner edited, or one a concurrent/stale checkout already
+ * settled, can't be cleared for the wrong figure — and finalizes the session in
+ * the SAME transaction so a crash between settle and finalize can't leave a
+ * paid-but-unfinalized row (which a later stale-replay would wrongly refund). A
+ * mismatch refunds and returns a terminal failure rather than mutating anything.
  */
 const settleBalanceSession = async (
   sessionId: string,
@@ -688,38 +687,35 @@ const settleBalanceSession = async (
   intent: BookingIntent,
 ): Promise<PaymentResult> => {
   const attendeeId = intent.balanceAttendeeId as number;
-  // extractIntent guarantees a non-empty items array; the single line is the
-  // balance, with `p` = the amount the checkout was created for.
-  const expectedAmount = intent.items[0]!.p;
+  // Prefer the explicit balanceAmount; fall back to the single line's price for
+  // sessions created before that metadata field existed.
+  const expectedAmount = intent.balanceAmount ?? intent.items[0]!.p;
   const listingId = intent.items[0]!.e;
 
-  const refundMismatch = async (detail: string): Promise<PaymentResult> => ({
-    detail,
-    error: BALANCE_CHANGED_MESSAGE,
-    refunded: await refundAndLog(session, BALANCE_CHANGED_MESSAGE, listingId),
-    status: 409,
-    success: false,
-  });
+  const fail = (detail: string): Promise<PaymentResult> =>
+    refundAndFail(session, BALANCE_CHANGED_MESSAGE, listingId, 409, detail);
 
   if (session.amountTotal !== expectedAmount) {
-    return refundMismatch(
+    return fail(
       `Balance amount mismatch (attendee ${attendeeId}): provider charged ${session.amountTotal} but checkout was for ${expectedAmount}`,
     );
   }
 
-  const settled = await settleAttendeeBalance(attendeeId, expectedAmount);
+  const settled = await settleAttendeeBalance(attendeeId, expectedAmount, [
+    balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
+  ]);
   if (!settled.settled) {
-    return refundMismatch(
+    return fail(
       `Balance not settled (${settled.reason}) for attendee ${attendeeId}; paid ${session.amountTotal}`,
     );
   }
 
-  // Settled — finalize regardless of whether the listing still exists (it is
-  // only needed for the success page's thank-you link).
-  await finalizeSession(sessionId, attendeeId, []);
+  // Settle + finalize already committed atomically above. The listing (which
+  // may since be deleted) is resolved lazily by the redirect for its thank-you
+  // link, so we carry only its id here.
   return {
     attendee: { id: attendeeId },
-    listing: await getListingWithCount(listingId),
+    listingId,
     success: true,
     ticketTokens: [],
   };
@@ -778,7 +774,7 @@ const processReservedSession = async (
 
   return {
     attendee: firstAttendee.attendee,
-    listing: firstAttendee.listing,
+    listingId: firstAttendee.listing.id,
     success: true,
     ticketTokens: [ticketToken],
   };
@@ -800,9 +796,12 @@ const processPaymentSession = async (
   // Record a handled failure as the session's terminal outcome so a later
   // redirect/webhook for the same paid session replays it (same message and
   // refund status) instead of re-refunding or getting stuck behind the lock.
+  // A refund that FAILED (refunded === false) is deliberately left unrecorded:
+  // the reservation stays retryable so a later attempt can re-issue the refund
+  // and self-heal, rather than freezing a "contact support" outcome forever.
   // The transient "another request is processing" conflict returns above and
-  // never reaches here, so it stays retryable.
-  if (!result.success) {
+  // never reaches here, so it stays retryable too.
+  if (!result.success && result.refunded !== false) {
     await markSessionFailed(sessionId, {
       error: result.error,
       refunded: result.refunded,
@@ -867,13 +866,14 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Already-processed session (no tokens available) - render directly. The
-  // listing may be absent (e.g. a settled balance for a deleted listing), in
-  // which case there is simply no thank-you URL.
-  const thankYouUrl =
-    validation.data.intent.items.length === 1
-      ? (result.listing?.thank_you_url ?? "")
-      : "";
+  // Already-processed session (no tokens available) - render directly. Resolve
+  // the listing lazily here (the only place a thank-you URL is needed) so the
+  // webhook path never loads it; a since-deleted listing simply yields no URL.
+  let thankYouUrl = "";
+  if (validation.data.intent.items.length === 1) {
+    const listing = await getListing(result.listingId);
+    thankYouUrl = listing?.thank_you_url ?? "";
+  }
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
   );

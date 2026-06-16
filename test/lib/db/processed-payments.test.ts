@@ -4,6 +4,8 @@ import { getDb, insert } from "#shared/db/client.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
+  markSessionFailed,
+  parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
@@ -68,6 +70,71 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // Session was successfully re-reserved and is now tracked
       const processed = await isSessionProcessed("sess_stale");
       expect(processed).not.toBeNull();
+    });
+
+    test("records and replays a terminal failure round-trip", async () => {
+      await reserveSession("sess_failrt");
+      await markSessionFailed("sess_failrt", {
+        error: "Sold out",
+        refunded: true,
+        status: 409,
+      });
+      const row = await isSessionProcessed("sess_failrt");
+      expect(parseSessionFailure(row!.failure_data)).toEqual({
+        error: "Sold out",
+        refunded: true,
+        status: 409,
+      });
+    });
+
+    test("does not overwrite an already-recorded failure (first outcome wins)", async () => {
+      await reserveSession("sess_failtwice");
+      await markSessionFailed("sess_failtwice", {
+        error: "First",
+        status: 410,
+      });
+      await markSessionFailed("sess_failtwice", {
+        error: "Second",
+        status: 409,
+      });
+      const row = await isSessionProcessed("sess_failtwice");
+      expect(parseSessionFailure(row!.failure_data)?.error).toBe("First");
+    });
+
+    test("never stamps a failure onto a finalized (successful) session", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await bookAttendee(listing, {
+        email: "f@example.com",
+        name: "F",
+      });
+      if (!attendee.success) throw new Error("setup failed");
+      await reserveSession("sess_finalized_nofail");
+      await finalizePaymentSession(
+        "sess_finalized_nofail",
+        attendee.attendees[0]!.id,
+      );
+
+      await markSessionFailed("sess_finalized_nofail", { error: "late fail" });
+
+      const row = await isSessionProcessed("sess_finalized_nofail");
+      // The success is preserved: attendee_id intact, no failure recorded.
+      expect(row!.attendee_id).toBe(attendee.attendees[0]!.id);
+      expect(row!.failure_data).toBe("");
+    });
+
+    test("parseSessionFailure returns null when no failure is recorded", () => {
+      expect(parseSessionFailure("")).toBeNull();
+    });
+
+    test("parseSessionFailure degrades corrupt data to a terminal failure instead of throwing", () => {
+      const result = parseSessionFailure("not valid json{");
+      // Corrupt failure_data must not crash the replay path; it resolves to a
+      // generic terminal failure (non-empty message, server-error status).
+      expect(result?.status).toBe(500);
+      expect((result?.error.length ?? 0) > 0).toBe(true);
     });
 
     test("re-throws non-unique-constraint errors", async () => {
