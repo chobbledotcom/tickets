@@ -100,12 +100,13 @@ describe("AttendeeTable", () => {
       expect(html).toContain("<th>Registered</th>");
     });
 
-    test("renders Actions column with Edit and Delete", () => {
+    test("no longer renders an Actions column (moved to the edit page)", () => {
       const html = AttendeeTable(makeOpts());
-      expect(html).toContain("/admin/attendees/1");
-      expect(html).toContain("Edit");
-      expect(html).toContain("Delete");
-      expect(html).toContain("Re-send Notification");
+      expect(html).not.toContain("<th>Actions</th>");
+      expect(html).not.toContain(">Edit<");
+      expect(html).not.toContain(">Delete<");
+      expect(html).not.toContain("Re-send Notification");
+      expect(html).not.toContain("/refund");
     });
   });
 
@@ -128,7 +129,7 @@ describe("AttendeeTable", () => {
       const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
         (m) => m[1],
       );
-      // Empty headers are for Checked In (first) and Actions (last)
+      // The single empty header is for the Checked In / status column (first)
       expect(headers).toEqual([
         "",
         "Listing",
@@ -141,7 +142,6 @@ describe("AttendeeTable", () => {
         "Qty",
         "Ticket",
         "Registered",
-        "",
       ]);
     });
   });
@@ -328,36 +328,16 @@ describe("AttendeeTable", () => {
     });
   });
 
-  describe("actions", () => {
-    test("shows Refund link when attendee has payment_id", () => {
+  describe("per-attendee actions moved to the edit page", () => {
+    test("never renders refund links, even for a payable attendee", () => {
       const rows = [
         makeRow({
           attendee: testAttendee({ payment_id: "pay_123" }),
         }),
       ];
       const html = AttendeeTable(makeOpts({ rows }));
-      expect(html).toContain("Refund");
-      expect(html).toContain("/refund");
-    });
-
-    test("hides Refund link when attendee has no payment_id", () => {
-      const rows = [
-        makeRow({
-          attendee: testAttendee({ payment_id: "" }),
-        }),
-      ];
-      const html = AttendeeTable(makeOpts({ rows }));
-      expect(html).not.toContain("Refund");
-    });
-
-    test("hides Refund link when attendee is already refunded", () => {
-      const rows = [
-        makeRow({
-          attendee: testAttendee({ payment_id: "pay_123", refunded: true }),
-        }),
-      ];
-      const html = AttendeeTable(makeOpts({ rows }));
       expect(html).not.toContain("/refund");
+      expect(html).not.toContain("/delete");
     });
   });
 
@@ -384,11 +364,6 @@ describe("AttendeeTable", () => {
   });
 
   describe("return_url", () => {
-    test("appends return_url to action links when provided", () => {
-      const html = AttendeeTable(makeOpts({ returnUrl: "/checkin/abc" }));
-      expect(html).toContain("return_url=%2Fcheckin%2Fabc");
-    });
-
     test("includes return_url as hidden form field in check-in form", () => {
       const html = AttendeeTable(makeOpts({ returnUrl: "/checkin/abc" }));
       expect(hasInputWithValue(html, "return_url", "/checkin/abc")).toBe(true);
@@ -417,27 +392,25 @@ describe("AttendeeTable", () => {
       const html = AttendeeTable(
         makeOpts({ rows: [], showDate: false, showListing: false }),
       );
-      expect(html).toContain('colspan="6"');
+      expect(html).toContain('colspan="5"');
     });
 
     test("empty row colspan includes optional visible columns", () => {
       const html = AttendeeTable(
         makeOpts({ rows: [], showDate: true, showListing: true }),
       );
-      expect(html).toContain('colspan="8"');
+      expect(html).toContain('colspan="7"');
     });
   });
 
-  describe("showActions option", () => {
-    test("hides check-in and action cells when showActions is false", () => {
-      const html = AttendeeTable(makeOpts({ showActions: false }));
+  describe("showCheckin option", () => {
+    test("hides the check-in column when showCheckin is false", () => {
+      const html = AttendeeTable(makeOpts({ showCheckin: false }));
       expect(html).not.toContain("Check in");
-      expect(html).not.toContain("Edit");
-      expect(html).not.toContain("Delete");
     });
 
-    test("retains data columns when showActions is false", () => {
-      const html = AttendeeTable(makeOpts({ showActions: false }));
+    test("retains data columns when showCheckin is false", () => {
+      const html = AttendeeTable(makeOpts({ showCheckin: false }));
       expect(html).toContain("John Doe");
       expect(html).toContain("test-token-1");
     });
@@ -447,8 +420,8 @@ describe("AttendeeTable", () => {
       expect(html).toContain("Check in");
     });
 
-    test("empty row colspan is reduced when showActions is false", () => {
-      const html = AttendeeTable(makeOpts({ rows: [], showActions: false }));
+    test("empty row colspan drops the status column when showCheckin is false", () => {
+      const html = AttendeeTable(makeOpts({ rows: [], showCheckin: false }));
       expect(html).toContain('colspan="4"');
     });
   });
@@ -718,7 +691,7 @@ describe("AttendeeTable columnTemplate", () => {
     const html = AttendeeTable(
       makeOpts({
         columnTemplate: "{{name}}, {{qty}}, {{registered}}",
-        showActions: false,
+        showCheckin: false,
       }),
     );
     const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
@@ -744,7 +717,7 @@ describe("AttendeeTable columnTemplate", () => {
       makeOpts({
         columnTemplate: "{{name}}, {{email}}, {{qty}}",
         rows,
-        showActions: false,
+        showCheckin: false,
       }),
     );
     expect(html).not.toContain("<th>Email</th>");
@@ -760,7 +733,7 @@ describe("AttendeeTable columnTemplate", () => {
       makeOpts({
         columnTemplate: "{{qty}}, {{name}}, {{email}}",
         rows,
-        showActions: false,
+        showCheckin: false,
       }),
     );
     const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
@@ -779,7 +752,7 @@ describe("AttendeeTable columnTemplate", () => {
       makeOpts({
         columnTemplate: '{{name}}, {{registered | date: "%B %d, %Y"}}',
         rows,
-        showActions: false,
+        showCheckin: false,
       }),
     );
     expect(html).toContain("April 10, 2026");
@@ -795,7 +768,7 @@ describe("AttendeeTable columnTemplate", () => {
       makeOpts({
         columnTemplate: "{{name}}, {{registered}}",
         rows,
-        showActions: false,
+        showCheckin: false,
       }),
     );
     // Default uses formatDatetimeShort (e.g. "10/04/2026 14:00"), not Liquid strftime

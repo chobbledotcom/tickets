@@ -68,7 +68,7 @@ describe("adminUserAgentsPage", () => {
 });
 
 describe("adminUsersPage agent rows", () => {
-  test("shows assigned agent names and an edit link for agent users", () => {
+  test("shows assigned agent names and links to the manage page for agent users", () => {
     const users: DisplayUser[] = [
       {
         adminLevel: "agent",
@@ -85,7 +85,9 @@ describe("adminUsersPage agent rows", () => {
       inviteLink: "",
     });
     expect(html).toContain("Van 1, Van 2");
-    expect(html).toContain('href="/admin/users/4/agents"');
+    // The edit-agents link moved to the per-user manage page.
+    expect(html).toContain('<a href="/admin/users/4">driver</a>');
+    expect(html).not.toContain('href="/admin/users/4/agents"');
   });
 
   test("shows a placeholder when an agent user has no agents", () => {

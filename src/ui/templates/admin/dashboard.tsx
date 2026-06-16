@@ -169,7 +169,7 @@ const newestAttendeesSection = (
             allowedDomain: getEffectiveDomain(),
             presorted: true,
             rows: tableRows,
-            showActions: false,
+            showCheckin: false,
             showDate: false,
             showListing: true,
           })}

@@ -196,7 +196,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
             phonePrefix: props.phonePrefix,
             presorted: true,
             rows: props.rows,
-            showActions: false,
+            showCheckin: false,
             showDate: false,
             showListing: true,
           })}

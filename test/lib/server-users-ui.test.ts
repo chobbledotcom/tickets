@@ -111,7 +111,15 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const usersResponse = await awaitTestRequest("/admin/users", { cookie });
       const html = await usersResponse.text();
       expect(html).toContain("Pending Activation");
-      expect(html).toContain("Activate");
+      // The Activate action moved off the list onto the per-user manage page.
+      expect(html).toContain('href="/admin/users/2"');
+      expect(html).not.toContain("Activate");
+
+      const manageResponse = await awaitTestRequest("/admin/users/2", {
+        cookie,
+      });
+      const manageHtml = await manageResponse.text();
+      expect(manageHtml).toContain("Activate");
     });
   });
 

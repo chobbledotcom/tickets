@@ -47,8 +47,6 @@ export type AttendeeColumnOpts = {
   phonePrefix: string;
   /** Render the status cell (check-in button or refunded badge) */
   renderStatus: (row: AttendeeTableRow) => string;
-  /** Render the actions cell (refund, edit, delete, resend links) */
-  renderActions: (row: AttendeeTableRow) => string;
   /** Answer maps for question-based columns */
   answerTextMap: Map<number, string>;
   answerQuestionMap: Map<number, string>;
@@ -66,8 +64,9 @@ export type AttendeeTableOptions = {
   returnUrl?: string;
   emptyMessage?: string;
   phonePrefix?: string;
-  /** Show check-in/check-out status and actions columns (default: true) */
-  showActions?: boolean;
+  /** Show the check-in/check-out status column (default: true). Per-attendee
+   * edit/refund/delete actions live on the attendee edit page, not the table. */
+  showCheckin?: boolean;
   /** Skip default sort and use rows as-is (default: false) */
   presorted?: boolean;
   /** Question data for the Answers column */
@@ -85,9 +84,8 @@ const computeVisibilityMap = (
   rows: AttendeeTableRow[],
   opts: AttendeeTableOptions,
 ): Record<string, boolean> => {
-  const showActions = opts.showActions !== false;
+  const showCheckin = opts.showCheckin !== false;
   return {
-    actions: showActions,
     address: rows.some((r) => !!r.attendee.address),
     answers: !!opts.questionData && opts.questionData.questions.length > 0,
     date: opts.showDate,
@@ -98,7 +96,7 @@ const computeVisibilityMap = (
     qty: true,
     registered: true,
     special_instructions: rows.some((r) => !!r.attendee.special_instructions),
-    status: showActions,
+    status: showCheckin,
     ticket: true,
   };
 };
@@ -185,10 +183,6 @@ const buildAnswerQuestionMap = (
 // Status & Actions — complex JSX renderers passed as callbacks
 // ---------------------------------------------------------------------------
 
-/** Build a return_url query suffix for action links */
-const returnSuffix = (returnUrl: string | undefined): string =>
-  returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
-
 /** Render the check-in/check-out button form */
 const CheckinButton = ({
   a,
@@ -222,10 +216,6 @@ const CheckinButton = ({
   );
 };
 
-/** Check if attendee is eligible for refund (has payment, not yet refunded) */
-const isRefundable = (row: AttendeeTableRow): boolean =>
-  !!row.attendee.payment_id && !row.attendee.refunded;
-
 /** Create the renderStatus callback for column opts */
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
@@ -243,39 +233,6 @@ const createStatusRenderer =
       listingId: row.listingId,
       returnUrl: opts.returnUrl,
     });
-  };
-
-/** Create the renderActions callback for column opts */
-const createActionsRenderer =
-  (returnUrl: string | undefined) =>
-  (row: AttendeeTableRow): string => {
-    const a = row.attendee;
-    const suffix = returnSuffix(returnUrl);
-    return String(
-      <>
-        {isRefundable(row) && (
-          <a
-            class="danger"
-            href={`/admin/listing/${row.listingId}/attendee/${a.id}/refund${suffix}`}
-          >
-            {t("admin.attendee_table.refund")}
-          </a>
-        )}
-        {isRefundable(row) && " "}
-        <a href={`/admin/attendees/${a.id}${suffix}`}>{t("common.edit")}</a>{" "}
-        <a
-          class="danger"
-          href={`/admin/listing/${row.listingId}/attendee/${a.id}/delete${suffix}`}
-        >
-          {t("common.delete")}
-        </a>{" "}
-        <a
-          href={`/admin/listing/${row.listingId}/attendee/${a.id}/resend-notification${suffix}`}
-        >
-          {t("admin.attendee_table.resend_notification")}
-        </a>
-      </>,
-    );
   };
 
 // ---------------------------------------------------------------------------
@@ -326,7 +283,6 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
     answerTextMap,
     phonePrefix: opts.phonePrefix || "44",
     questionData: opts.questionData,
-    renderActions: createActionsRenderer(opts.returnUrl),
     renderStatus: createStatusRenderer(opts),
   };
 
