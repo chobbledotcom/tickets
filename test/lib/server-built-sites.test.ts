@@ -429,13 +429,14 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
   });
 
   describe("nav link", () => {
-    test("built sites link visible when CAN_BUILD_SITES is true", async () => {
+    test("builds link visible when CAN_BUILD_SITES is true", async () => {
       Deno.env.set("CAN_BUILD_SITES", "true");
       try {
         const { response } = await adminGet("/admin/built-sites");
         const body = await response.text();
         expect(body).toContain("/admin/built-sites");
-        expect(body).toContain("Built Sites");
+        // The nav link is labelled "Builds" (the page title stays "Built Sites").
+        expect(body).toContain(">Builds<");
       } finally {
         Deno.env.delete("CAN_BUILD_SITES");
       }

@@ -164,7 +164,13 @@ describeWithEnv(
           expect(settings.supportFormLastSubmitted).not.toBe("");
           const { response } = await adminGet("/admin/support");
           const html = await response.text();
-          expect(html).toContain("You last submitted this form");
+          // Notice sits inside the form with the time value in bold.
+          expect(html).toContain("You last submitted this form <strong>");
+          // ...and it's between the message box and the submit button.
+          const body = html.slice(html.indexOf('name="message"'));
+          expect(body.indexOf("You last submitted this form")).toBeLessThan(
+            body.indexOf("Send message"),
+          );
         } finally {
           mock.restore();
         }
