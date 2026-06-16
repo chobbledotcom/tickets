@@ -379,6 +379,10 @@ export interface Group {
 
 export interface ListingWithCount extends Listing {
   attendee_count: number;
+  /** Trigger-maintained SUM(price_paid) over this listing's bookings, in minor units. */
+  income: number;
+  /** Trigger-maintained COUNT of this listing's booking rows. */
+  tickets_count: number;
 }
 
 /**

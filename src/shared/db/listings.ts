@@ -219,7 +219,12 @@ export const decryptListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
-  return { ...listing, attendee_count: row.attendee_count };
+  return {
+    ...listing,
+    attendee_count: row.attendee_count,
+    income: Number(row.income),
+    tickets_count: Number(row.tickets_count),
+  };
 };
 
 /**
@@ -321,16 +326,24 @@ export const deleteListing = async (listingId: number): Promise<void> => {
   invalidateListingsCache();
 };
 
+/** The precomputed aggregate columns every `SELECT * FROM listings` row carries. */
+type ListingAggregateColumns = {
+  booked_quantity: number;
+  income: number;
+  tickets_count: number;
+};
+
 /** Extract listing row from batch result, returning null if not found. The raw
- * `SELECT *` row carries the precomputed booked_quantity column. */
+ * `SELECT *` row carries the precomputed aggregate columns. */
 const extractListingRow = (
   result: ResultSet,
-): (Listing & { booked_quantity: number }) | null =>
-  resultRows<Listing & { booked_quantity: number }>(result)[0] ?? null;
+): (Listing & ListingAggregateColumns) | null =>
+  resultRows<Listing & ListingAggregateColumns>(result)[0] ?? null;
 
-/** Extract listing from batch result, decrypt and attach count. The count is
- * the precomputed booked_quantity column (trigger-maintained SUM of quantity),
- * so callers no longer pass or compute it. Returns null if listing not found. */
+/** Extract listing from batch result, decrypt and attach the aggregate columns.
+ * The count is the precomputed booked_quantity column (trigger-maintained SUM of
+ * quantity), so callers no longer pass or compute it. Returns null if listing
+ * not found. */
 const withBatchListing = async <T>(
   listingResult: ResultSet,
   build: (listing: ListingWithCount) => T,
