@@ -128,7 +128,7 @@ const renderTicketCard = (
 
   const nonTransferableHtml =
     listing.non_transferable && !listing.purchase_only
-      ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
+      ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
       : "";
 
   const walletHtml = renderWalletSection(

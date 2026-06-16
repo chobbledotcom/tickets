@@ -136,8 +136,15 @@ const check = (file: string, expect: string[]): Result => {
     // drop all whitespace (JSX trims it around {expr}/elements) and code
     // structure (brackets/parens and trailing commas) that wiring/biome can
     // add or remove without changing rendered English.
+    // TSX decodes HTML entities in source text to characters at compile time
+    // (e.g. &mdash; -> —), so decode them here to compare rendered English.
     const nb = (s: string): string =>
       s
+        .replace(/&mdash;/g, "—")
+        .replace(/&ndash;/g, "–")
+        .replace(/&apos;|&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, "&")
         .replace(/[`'"]/g, "")
         .replace(/\s+/g, "")
         .replace(/,(?=[)\]}])/g, "")
