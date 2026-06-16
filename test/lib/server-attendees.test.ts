@@ -1087,13 +1087,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Listing Registrations",
-        "Add Listing Line",
         "Save Attendee",
       );
       // Listing link table shows the listing
       expect(html).toContain("Edit Page Listing");
-      // Line editor has listing selector
-      expect(html).toContain("line_event_id_");
+      // The editor renders a quantity box per listing
+      expect(html).toContain("qty_");
     });
 
     test("edit page shows checked-in badge for checked-in attendee", async () => {
@@ -1120,7 +1119,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Checked in");
     });
 
-    test("edit page loads available dates for daily listings", async () => {
+    test("edit page seeds the shared start date from a daily booking", async () => {
       const listing = await createTestListing({
         listingType: "daily",
         maxAttendees: 100,
@@ -1141,9 +1140,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         response,
         200,
         "Daily Dates Listing",
-        "attendee-form-data",
       );
-      expect(html).toContain("2026-");
+      // The shared start date is seeded from the daily booking.
+      expect(html).toContain('value="2026-04-07"');
     });
 
     test("includes active listings in add-to-listing selector", async () => {
@@ -1475,13 +1474,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      await expectHtmlResponse(
-        response,
-        200,
-        "Listing 1",
-        "Listing 2",
-        "Add Listing Line",
-      );
+      await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
 
     test("shows edit form with empty email field", async () => {
@@ -1602,7 +1595,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
-      await expectHtmlResponse(response, 200, 'name="line_quantity_');
+      await expectHtmlResponse(response, 200, 'name="qty_');
     });
   });
 

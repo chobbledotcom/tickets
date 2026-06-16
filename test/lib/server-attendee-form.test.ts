@@ -20,6 +20,7 @@ import {
   awaitTestRequest,
   bookAttendee,
   buildAttendeeEditForm,
+  createDailyTestListing,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -38,26 +39,104 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   describe("GET /admin/attendees/new", () => {
     testRequiresAuth("/admin/attendees/new");
 
-    test("renders the empty create form with one blank line", async () => {
-      await createTestListing({ maxAttendees: 100, name: "Pick Me" });
+    test("renders the create form with a quantity box per listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        name: "Pick Me",
+      });
       const response = await awaitTestRequest("/admin/attendees/new", {
         cookie: await testCookie(),
       });
       const html = await expectHtmlResponse(
         response,
         200,
-        "Add Attendee",
+        "Add new attendee",
         "Listing Registrations",
         "Create Attendee",
-        "Add Listing Line",
         "Pick Me",
       );
-      // One blank line is rendered
-      expect(html).toContain('name="line_event_id_0"');
-      expect(html).toContain('name="line_count" type="hidden" value="1"');
+      // A quantity box per listing and a shared start date — no add-line button.
+      expect(html).toContain(`name="qty_${listing.id}"`);
+      expect(html).toContain('name="start_date"');
+      expect(html).not.toContain("Add Listing Line");
     });
 
-    test("offers a day-count selector for a customisable daily booking", async () => {
+    test("shows the availability notice on a dateless create form", async () => {
+      await createTestListing({ maxAttendees: 100, name: "L" });
+      const response = await awaitTestRequest("/admin/attendees/new", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Availability is inaccurate until dates have been saved",
+      );
+      // Visible (not hidden) when no date is known.
+      expect(html).toContain("data-availability-notice>");
+    });
+
+    test("hides the availability notice when a date is pre-filled", async () => {
+      const listing = await createDailyTestListing({ name: "D" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("data-availability-notice hidden>");
+    });
+
+    test("pre-fills listings selected from the calendar checker", async () => {
+      const a = await createTestListing({ maxAttendees: 100, name: "Kayak" });
+      const b = await createTestListing({ maxAttendees: 100, name: "Canoe" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${a.id}=1&select_${b.id}=1`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      // Both chosen listings start at quantity 1.
+      expect(html).toMatch(new RegExp(`name="qty_${a.id}"[^>]*value="1"`));
+      expect(html).toMatch(new RegExp(`name="qty_${b.id}"[^>]*value="1"`));
+    });
+
+    test("pre-fills the shared start date from the deep link", async () => {
+      const listing = await createDailyTestListing({ name: "Daily Pick" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toMatch(
+        new RegExp(`name="qty_${listing.id}"[^>]*value="1"`),
+      );
+      expect(html).toContain('value="2026-07-01"');
+    });
+
+    test("leaves the start date blank when the deep link omits it", async () => {
+      const listing = await createDailyTestListing({ name: "No Date Daily" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${listing.id}=1`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toMatch(
+        new RegExp(`name="qty_${listing.id}"[^>]*value="1"`),
+      );
+      expect(html).toMatch(/name="start_date"[^>]*value=""/);
+    });
+
+    test("falls back to all-zero quantities when no selection resolves", async () => {
+      const listing = await createTestListing({ maxAttendees: 100, name: "Z" });
+      const response = await awaitTestRequest(
+        "/admin/attendees/new?select_999999=1",
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toMatch(
+        new RegExp(`name="qty_${listing.id}"[^>]*value="0"`),
+      );
+    });
+
+    test("seeds the shared length from an existing multi-day booking", async () => {
       const listing = await createTestListing({
         customisableDays: true,
         dayPrices: { 1: 0, 2: 0, 3: 0 },
@@ -76,9 +155,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).toContain('name="line_day_count_0"');
-      expect(html).toContain("Number of days");
-      // The booking's current 2-day span is preselected.
+      // The shared day-count select preselects the booking's current 2-day span.
+      expect(html).toContain('id="day_count"');
       expect(hasSelectedOption(html, "2")).toBe(true);
     });
 
@@ -128,10 +206,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           {
             csrf_token: csrfToken,
             email: "jane@example.com",
-            line_count: "1",
-            line_event_id_0: String(event.id),
-            line_quantity_0: "2",
             name: "Jane Doe",
+            [`qty_${event.id}`]: "2",
           },
           cookie,
         ),
@@ -162,12 +238,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           {
             csrf_token: csrfToken,
             email: "multi@example.com",
-            line_count: "2",
-            line_event_id_0: String(event1.id),
-            line_event_id_1: String(event2.id),
-            line_quantity_0: "1",
-            line_quantity_1: "3",
             name: "Multi",
+            [`qty_${event1.id}`]: "1",
+            [`qty_${event2.id}`]: "3",
           },
           cookie,
         ),
@@ -177,70 +250,6 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const att2 = await getAttendeesRaw(event2.id);
       expect(att2.length).toBe(1);
       expect(att2[0]!.quantity).toBe(3);
-    });
-
-    test("re-renders the form without saving when 'Add Listing Line' is clicked", async () => {
-      const event = await createTestListing({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            action: "add_line",
-            csrf_token: csrfToken,
-            email: "preserve@example.com",
-            line_count: "1",
-            line_event_id_0: String(event.id),
-            line_quantity_0: "1",
-            name: "Preserved",
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      // Two lines now, the new one is blank
-      expect(html).toContain('name="line_event_id_1"');
-      // Originally entered data is preserved
-      expect(html).toContain("Preserved");
-      expect(html).toContain("preserve@example.com");
-      // No attendee was created
-      expect((await getAttendeesRaw(event.id)).length).toBe(0);
-    });
-
-    test("re-renders with one fewer line when 'Remove' is clicked", async () => {
-      const event = await createTestListing({
-        maxAttendees: 100,
-        maxQuantity: 5,
-      });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            action: "remove_line_0",
-            csrf_token: csrfToken,
-            line_count: "2",
-            line_event_id_0: String(event.id),
-            line_event_id_1: "",
-            line_quantity_0: "1",
-            line_quantity_1: "1",
-            name: "Trim",
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      // Only one line should remain
-      expect(html).not.toContain('name="line_event_id_1"');
     });
 
     test("fails validation when name is blank and re-renders with the rest preserved", async () => {
@@ -257,10 +266,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           {
             csrf_token: csrfToken,
             email: "preserve@example.com",
-            line_count: "1",
-            line_event_id_0: String(event.id),
-            line_quantity_0: "1",
             name: "",
+            [`qty_${event.id}`]: "1",
           },
           cookie,
         ),
@@ -273,32 +280,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
 
-    test("re-renders preserving entered data when capacity is exceeded", async () => {
-      const event = await createTestListing({ maxAttendees: 1 });
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "First",
-        "first@example.com",
-      );
-      const { response } = await adminFormPost("/admin/attendees/new", {
-        email: "second@example.com",
-        line_count: "1",
-        line_event_id_0: String(event.id),
-        line_quantity_0: "1",
-        name: "Second",
-      });
-      // In-place re-render (not a redirect) so the operator keeps their input.
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Not enough spots");
-      expect(html).toContain("second@example.com");
-      expect(html).toContain("Second");
-      // All-or-nothing: no second attendee was created (only "First" remains).
-      expect((await getAttendeesRaw(event.id)).length).toBe(1);
-    });
-
-    test("create rolls back entirely when one of several lines is full", async () => {
+    test("create books the open listing and overbooks the full one", async () => {
       const open = await createTestListing({ maxAttendees: 100, name: "Open" });
       const full = await createTestListing({ maxAttendees: 1, name: "Full" });
       await createTestAttendee(
@@ -308,20 +290,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "filler@example.com",
       );
       const { response } = await adminFormPost("/admin/attendees/new", {
-        line_count: "2",
-        line_event_id_0: String(open.id),
-        line_event_id_1: String(full.id),
-        line_quantity_0: "1",
-        line_quantity_1: "1",
         name: "Multi",
+        [`qty_${open.id}`]: "1",
+        [`qty_${full.id}`]: "1",
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Not enough spots");
-      // Nothing committed: the open event gained no row, the full event still
-      // has only its original filler.
-      expect((await getAttendeesRaw(open.id)).length).toBe(0);
-      expect((await getAttendeesRaw(full.id)).length).toBe(1);
+      // Admin manual add is allowed to overbook, so both bookings are created.
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(open.id)).length).toBe(1);
+      expect((await getAttendeesRaw(full.id)).length).toBe(2);
     });
   });
 
@@ -340,18 +316,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const existing = await loadExistingLines(attendee.id);
       const form = await buildAttendeeEditForm(attendee.id, {
         lines: [
-          {
-            date: "",
-            eventId: event1.id,
-            key: existing[0]!.key,
-            quantity: 1,
-          },
-          {
-            date: "",
-            eventId: event2.id,
-            key: "",
-            quantity: 1,
-          },
+          { eventId: event1.id, key: existing[0]!.key, quantity: 1 },
+          { eventId: event2.id, key: "", quantity: 1 },
         ],
         name: "Link",
       });
@@ -388,14 +354,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       )!.key;
       // Submit only event1 — event2 should be removed
       const form = await buildAttendeeEditForm(attendeeId, {
-        lines: [
-          {
-            date: "",
-            eventId: event1.id,
-            key: event1Key,
-            quantity: 1,
-          },
-        ],
+        lines: [{ eventId: event1.id, key: event1Key, quantity: 1 }],
         name: "Multi",
       });
       const { response } = await adminFormPost(
@@ -422,14 +381,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendee.id);
       const form = await buildAttendeeEditForm(attendee.id, {
-        lines: [
-          {
-            date: "",
-            eventId: event.id,
-            key: existing[0]!.key,
-            quantity: 4,
-          },
-        ],
+        lines: [{ eventId: event.id, key: existing[0]!.key, quantity: 4 }],
         name: "Qty",
       });
       const { response } = await adminFormPost(
@@ -476,7 +428,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).toContain("different start dates or durations");
+      expect(html).toContain("different start dates or lengths");
     });
 
     test("does not show the mixed-timing alert when daily bookings are uniform", async () => {
@@ -509,7 +461,166 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const html = await response.text();
-      expect(html).not.toContain("different start dates or durations");
+      expect(html).not.toContain("different start dates or lengths");
+    });
+  });
+
+  describe("over-duration warnings", () => {
+    test("warns when the range is longer than a daily listing allows", async () => {
+      const oneDay = await createDailyTestListing({
+        durationDays: 1,
+        name: "One Day",
+      });
+      const twoDay = await createDailyTestListing({
+        durationDays: 2,
+        name: "Two Day",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { date: "2026-05-01", durationDays: 3, listingId: oneDay.id },
+          { date: "2026-05-01", durationDays: 3, listingId: twoDay.id },
+        ],
+        email: "",
+        name: "Over",
+      });
+      const attendeeId = result.success ? result.attendees[0]!.id : 0;
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      // Per-listing warnings (singular + plural) and a top-of-page summary.
+      expect(html).toContain(
+        "One Day is designed for up to 1 day, but the booking spans 3.",
+      );
+      expect(html).toContain(
+        "Two Day is designed for up to 2 days, but the booking spans 3.",
+      );
+      expect(html).toContain("Please double-check");
+    });
+
+    test("no warning when the range fits the listing's duration", async () => {
+      const daily = await createDailyTestListing({
+        durationDays: 3,
+        name: "Three Day",
+      });
+      const result = await bookAttendee(daily, {
+        date: "2026-05-01",
+        durationDays: 3,
+      });
+      const attendeeId = result.success ? result.attendees[0]!.id : 0;
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain("Please double-check");
+    });
+  });
+
+  describe("admin overbooking", () => {
+    test("create may overbook a full listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        name: "Tiny",
+      });
+      await createTestAttendee(listing.id, listing.slug, "First", "f@e.com");
+      // Capacity is 1 and already full; the admin adds a second anyway.
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        name: "Second",
+        [`qty_${listing.id}`]: "1",
+      });
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(2);
+    });
+
+    test("edit may overbook by raising the quantity past capacity", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 2,
+        maxQuantity: 10,
+        name: "Cap2",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "A",
+        "a@e.com",
+      );
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const key = (await loadExistingLines(attendee.id))[0]!.key;
+      const form = await buildAttendeeEditForm(attendee.id, {
+        lines: [{ eventId: listing.id, key, quantity: 10 }],
+        name: "A",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(listing.id))[0]!.quantity).toBe(10);
+    });
+
+    test("edit may overbook by adding a full listing", async () => {
+      const home = await createTestListing({ maxAttendees: 100, name: "Home" });
+      const full = await createTestListing({ maxAttendees: 1, name: "Full" });
+      await createTestAttendee(full.id, full.slug, "Filler", "fill@e.com");
+      const attendee = await createTestAttendee(
+        home.id,
+        home.slug,
+        "B",
+        "b@e.com",
+      );
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const homeKey = (await loadExistingLines(attendee.id))[0]!.key;
+      const form = await buildAttendeeEditForm(attendee.id, {
+        lines: [
+          { eventId: home.id, key: homeKey, quantity: 1 },
+          { eventId: full.id, quantity: 1 },
+        ],
+        name: "B",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(full.id)).length).toBe(2);
+    });
+
+    test("warns on the form when a booking overbooks a listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        name: "Solo",
+      });
+      await createTestAttendee(listing.id, listing.slug, "First", "f1@e.com");
+      // Blank name forces an in-place re-render that surfaces the warning.
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        name: "",
+        [`qty_${listing.id}`]: "1",
+      });
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Solo is overbooked");
+    });
+
+    test("does not warn when an at-capacity booking is edited unchanged", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        name: "Exact",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Only",
+        "only@e.com",
+      );
+      // The booking fills the listing, but it is the attendee's own row — the
+      // self-excluding check means no overbooking warning.
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain("is overbooked");
     });
   });
 
@@ -549,15 +660,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           "/admin/attendees/new",
           {
             csrf_token: csrfToken,
+            day_count: "1",
             email: "mix@example.com",
-            line_count: "2",
-            line_date_0: "",
-            line_date_1: tomorrow,
-            line_event_id_0: String(standard.id),
-            line_event_id_1: String(daily.id),
-            line_quantity_0: "1",
-            line_quantity_1: "2",
             name: "Mix",
+            start_date: tomorrow,
+            [`qty_${standard.id}`]: "1",
+            [`qty_${daily.id}`]: "2",
           },
           cookie,
         ),
@@ -611,20 +719,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
       const form = await buildAttendeeEditForm(attendee.id, {
         lines: [
-          {
-            date: "",
-            eventId: standard.id,
-            key: existing[0]!.key,
-            quantity: 1,
-          },
-          {
-            date: tomorrow,
-            eventId: daily.id,
-            key: "",
-            quantity: 2,
-          },
+          { eventId: standard.id, key: existing[0]!.key, quantity: 1 },
+          { eventId: daily.id, key: "", quantity: 2 },
         ],
         name: "Edit Mix",
+        startDate: tomorrow,
       });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -646,13 +745,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("create re-renders with an error when no listing line is filled in", async () => {
       await createTestListing({ maxAttendees: 100 });
       const { response } = await adminFormPost("/admin/attendees/new", {
-        line_count: "1",
-        line_event_id_0: "0",
         name: "No Lines",
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Add at least one listing line");
+      expect(html).toContain("Book at least one listing");
       expect(html).toContain("No Lines");
     });
 
@@ -668,10 +765,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
           ),
         async () => {
           const { response } = await adminFormPost("/admin/attendees/new", {
-            line_count: "1",
-            line_event_id_0: String(event.id),
-            line_quantity_0: "1",
             name: "Cap",
+            [`qty_${event.id}`]: "1",
           });
           expect(response.status).toBe(200);
           expect(await response.text()).toContain("spots");
@@ -679,21 +774,19 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
     });
 
-    test("create re-renders with null quantity showing empty value", async () => {
+    test("treats a non-numeric quantity as not booked", async () => {
       const event = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 2,
       });
       const { response } = await adminFormPost("/admin/attendees/new", {
-        line_count: "1",
-        line_event_id_0: String(event.id),
-        line_quantity_0: "abc",
         name: "Valid",
+        [`qty_${event.id}`]: "abc",
       });
+      // "abc" parses to no quantity, so nothing is booked.
       expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value=""');
-      expect(html).toContain("Quantity must be at least 1");
+      expect(await response.text()).toContain("Book at least one listing");
+      expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
 
     test("create re-renders with line-level error only (no attendee error)", async () => {
@@ -702,10 +795,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxQuantity: 2,
       });
       const { response } = await adminFormPost("/admin/attendees/new", {
-        line_count: "1",
-        line_event_id_0: String(event.id),
-        line_quantity_0: "5",
         name: "Valid Name",
+        [`qty_${event.id}`]: "5",
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -720,10 +811,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const { response } = await adminFormPost("/admin/attendees/new", {
         email: "not-an-email",
-        line_count: "1",
-        line_event_id_0: String(event.id),
-        line_quantity_0: "1",
         name: "Valid Name",
+        [`qty_${event.id}`]: "1",
       });
       // Re-renders in place (200) with the field error; the browser's
       // type=email guard is bypassed by a no-JS / crafted POST, so the server
@@ -735,44 +824,19 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
 
-    test("edit remove_line drops the line from the form without deleting until save", async () => {
-      const event = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
-        "Solo",
-        "solo@example.com",
-      );
-      const form = await buildAttendeeEditForm(attendee.id, {
-        name: "Solo",
-      });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        {
-          ...form,
-          action: "remove_line_0",
-        },
-      );
-      // Removal is now a pure form-state edit — re-render, no DB write. The
-      // booking is only deleted when the operator saves.
-      expect(response.status).toBe(200);
-      expect((await getAttendeesRaw(event.id)).length).toBe(1);
-    });
-
-    test("create removing the only new blank line re-renders with a blank line", async () => {
-      await createTestListing({ maxAttendees: 100 });
+    test("create requires a start date for a booked daily listing", async () => {
+      const daily = await createDailyTestListing({ name: "Daily Needs Date" });
       const { response } = await adminFormPost("/admin/attendees/new", {
-        action: "remove_line_0",
-        line_count: "1",
-        line_event_id_0: "0",
-        name: "",
+        name: "Dateless",
+        [`qty_${daily.id}`]: "1",
       });
+      // The shared start date is missing, so the daily booking can't be saved.
       expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('name="line_event_id_0"');
+      expect(await response.text()).toContain("A start date is required");
+      expect((await getAttendeesRaw(daily.id)).length).toBe(0);
     });
 
-    test("edit with only blank lines re-renders with no_lines error", async () => {
+    test("edit that un-books every listing re-renders with the no-lines error", async () => {
       const event = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
         event.id,
@@ -780,17 +844,16 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Blank",
         "blank@example.com",
       );
+      // Set the only booked listing to quantity 0 — nothing remains booked.
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         {
-          action: "save",
-          line_count: "1",
-          line_event_id_0: "0",
           name: attendee.name,
+          [`qty_${event.id}`]: "0",
         },
       );
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("Add at least one listing line");
+      expect(await response.text()).toContain("Book at least one listing");
       // The existing booking is untouched (no_lines short-circuits the diff).
       expect((await getAttendeesRaw(event.id)).length).toBe(1);
     });
@@ -866,15 +929,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       ]);
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
-        {
-          action: "save",
-          line_count: "1",
-          line_event_id_0: "0",
-          name: "Orphan",
-        },
+        { name: "Orphan" },
       );
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("Add at least one listing line");
+      expect(await response.text()).toContain("Book at least one listing");
     });
   });
 

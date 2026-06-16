@@ -460,4 +460,32 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       startAt: "2026-04-15T00:00:00Z",
     });
   });
+
+  test("blocks overbooking by default but allows it when opted in", async () => {
+    const listing = await createTestListing({ maxAttendees: 1 });
+    const fill = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "",
+      name: "Fill",
+    });
+    expect(fill.success).toBe(true);
+
+    // Default (public/webhook): the capacity guard blocks the second booking.
+    const blocked = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "",
+      name: "Blocked",
+    });
+    expect(blocked.success).toBe(false);
+
+    // allowOverbook (admin manual add): the row is inserted anyway.
+    const over = await createAttendeeAtomic({
+      allowOverbook: true,
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "",
+      name: "Over",
+    });
+    expect(over.success).toBe(true);
+    expect((await getAttendeesRaw(listing.id)).length).toBe(2);
+  });
 });

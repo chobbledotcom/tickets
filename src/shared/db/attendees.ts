@@ -40,9 +40,12 @@ export {
   type UpdateAttendeeAtomicResult,
 } from "#shared/db/attendees/atomic-update.ts";
 export {
+  checkLinesCapacity,
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
+  getListingRemainingForRange,
+  type ListingCapacityRow,
 } from "#shared/db/attendees/capacity.ts";
 export {
   buildAttendeeInsert,

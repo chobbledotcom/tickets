@@ -22,6 +22,7 @@ import {
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { settings } from "#shared/db/settings.ts";
+import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { orderGalleryPage } from "#templates/public.tsx";
@@ -72,7 +73,9 @@ const handleOrder = async (request: Request): Promise<Response> => {
 
   const listings = await loadOrderListings();
   const params = new URL(request.url).searchParams;
-  const selected = listings.filter((e) => params.get(`select_${e.id}`) === "1");
+  const selected = listings.filter(
+    (e) => params.get(`${SELECT_PREFIX}${e.id}`) === "1",
+  );
   if (selected.length > 0) {
     return redirectResponse(await bookingUrlFor(selected));
   }

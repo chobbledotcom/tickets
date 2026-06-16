@@ -119,6 +119,7 @@ export const createAttendeeAtomicImpl = async (
     bookings,
     statusId = null,
     remainingBalance = 0,
+    allowOverbook = false,
   } = input;
   const order = { remainingBalance, statusId };
   if (bookings.length === 0) {
@@ -154,7 +155,12 @@ export const createAttendeeAtomicImpl = async (
   const attendeeIdExpr =
     "(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)";
   const bookingStatements = bookings.map((booking) => {
-    const insert = buildCapacityCheckedInsert(booking, attendeeIdExpr);
+    const insert = buildCapacityCheckedInsert(
+      booking,
+      attendeeIdExpr,
+      undefined,
+      allowOverbook,
+    );
     // Splice ticketTokenIndex after the first arg (listingId) to bind
     // the ? in the attendeeIdExpr subquery
     const combined: InValue[] = [

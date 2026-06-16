@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
 import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import {
   bookAttendee,
   createDailyTestListing,
   createTestAttendee,
@@ -124,5 +129,21 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
     // 2026-09-01 still only has 5 - 3 = 2 group spots per day.
     expect(await hasAvailableSpots(listing.id, 3, "2026-11-01", 2)).toBe(false);
     expect(await hasAvailableSpots(listing.id, 2, "2026-11-01", 2)).toBe(true);
+  });
+
+  test("checks a grouped daily listing without a query per day or group", async () => {
+    const group = await createTestGroup({ maxAttendees: 5 });
+    const listing = await createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: 5,
+    });
+    await bookAttendee(listing, { date: "2026-05-01", quantity: 1 });
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      expect(await hasAvailableSpots(listing.id, 1, "2026-05-01")).toBe(true);
+      // One capacity query (listing + group caps, all days) plus the listing
+      // lookup — not the overlap + two group reads the old code ran.
+      expect(getQueryLog().length).toBeLessThanOrEqual(2);
+    });
   });
 });

@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,
@@ -544,5 +546,86 @@ describe("admin nav Calendar link", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).toContain('href="/admin/calendar"');
     expect(html).toContain("Calendar");
+  });
+});
+
+describe("adminCalendarPage availability checker", () => {
+  const availabilityRow = (
+    overrides: Partial<AvailabilityRow> = {},
+  ): AvailabilityRow => ({
+    canPayMore: false,
+    id: 1,
+    name: "Listing",
+    remaining: 3,
+    total: 5,
+    unitPrice: 1000,
+    ...overrides,
+  });
+
+  const checkerHtml = (
+    rows: AvailabilityRow[],
+    dateFilter: string | null = null,
+  ): string =>
+    adminCalendarPage(
+      [],
+      "localhost",
+      TEST_SESSION,
+      dateFilter,
+      [],
+      "2026-03-10",
+      null,
+      undefined,
+      undefined,
+      false,
+      rows,
+    );
+
+  test("renders a closed disclosure with a selectable row per listing", () => {
+    const html = checkerHtml([
+      availabilityRow({ id: 7, name: "Kayak Hire", remaining: 3, total: 5 }),
+    ]);
+    expect(html).toContain("Check availability");
+    expect(html).toContain("data-availability-checker");
+    expect(html).toContain('href="/admin/listing/7"');
+    expect(html).toContain("Kayak Hire");
+    expect(html).toContain("3/5");
+    expect(html).toContain('name="select_7"');
+    expect(html).toContain('action="/admin/attendees/new"');
+  });
+
+  test("marks a sold-out row as danger", () => {
+    const html = checkerHtml([
+      availabilityRow({ id: 8, remaining: 0, total: 2 }),
+    ]);
+    expect(html).toContain("0/2");
+    expect(html).toContain('class="danger"');
+  });
+
+  test("shows Free, From and plain prices", () => {
+    const html = checkerHtml([
+      availabilityRow({ id: 1, unitPrice: 0 }),
+      availabilityRow({ canPayMore: true, id: 2, unitPrice: 500 }),
+      availabilityRow({ canPayMore: false, id: 3, unitPrice: 1000 }),
+    ]);
+    expect(html).toContain("Free");
+    expect(html).toContain(`From ${formatCurrency(500)}`);
+    expect(html).toContain(formatCurrency(1000));
+  });
+
+  test("includes the selected date as a hidden start_date field", () => {
+    const html = checkerHtml([availabilityRow()], "2026-03-15");
+    expect(html).toContain('name="start_date"');
+    expect(html).toContain('value="2026-03-15"');
+  });
+
+  test("omits start_date when no date is selected", () => {
+    const html = checkerHtml([availabilityRow()]);
+    expect(html).not.toContain('name="start_date"');
+  });
+
+  test("shows a fallback when there are no bookable listings", () => {
+    const html = checkerHtml([]);
+    expect(html).toContain("Check availability");
+    expect(html).toContain("No bookable listings");
   });
 });
