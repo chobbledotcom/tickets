@@ -3,7 +3,7 @@
  */
 
 import type { InValue, ResultSet } from "@libsql/client";
-import { mapParallel, reduce, sort, unique } from "#fp";
+import { mapParallel, reduce, sort, sumOf, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -296,29 +296,20 @@ export const isSlugTaken = async (
 };
 
 /**
- * Delete an listing and all its attendees in a single database round-trip.
- * Uses write batch to cascade: processed_payments → attendees → listing.
- * Reduces 3 sequential HTTP round-trips to 1.
+ * Delete a listing and its own bookings in a single database round-trip.
+ *
+ * Only the deleted listing's rows are touched: its `listing_attendees` links,
+ * its `activity_log` entries, and the listing itself. Attendees are deliberately
+ * left alone — an attendee booked onto another listing keeps that booking (and
+ * all of its answers/payments) completely untouched, and an attendee left with
+ * no bookings is simply orphaned rather than purged. This scoping guarantees
+ * that deleting one listing can never affect another listing's attendees.
  */
 export const deleteListing = async (listingId: number): Promise<void> => {
   await executeBatch([
-    // Remove listing links first
     {
       args: [listingId],
       sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
-    },
-    // Delete orphaned attendees (no remaining listing links) and their dependent data
-    {
-      args: [],
-      sql: "DELETE FROM processed_payments WHERE attendee_id NOT IN (SELECT attendee_id FROM listing_attendees)",
-    },
-    {
-      args: [],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id NOT IN (SELECT attendee_id FROM listing_attendees)",
-    },
-    {
-      args: [],
-      sql: "DELETE FROM attendees WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)",
     },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
@@ -408,7 +399,7 @@ export const getListingWithAttendeesRaw = async (
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
   return withBatchListing(
     listingResult!,
-    () => attendeesRaw.reduce((sum, a) => sum + a.quantity, 0),
+    () => sumOf((a: Attendee) => a.quantity)(attendeesRaw),
     (listing) => ({ attendeesRaw, listing }),
   );
 };

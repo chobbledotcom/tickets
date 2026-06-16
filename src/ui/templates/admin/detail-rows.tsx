@@ -2,7 +2,7 @@
  * Shared detail table rows for admin pages (listing, group, calendar)
  */
 
-import { joinStrings, map, reduce } from "#fp";
+import { joinStrings, map, reduce, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import type { Attendee } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
@@ -26,17 +26,11 @@ export const renderDetailRows = (rows: DetailRow[]): string =>
 // ---------------------------------------------------------------------------
 
 /** Sum the quantity field across a list of attendees */
-export const sumQuantity = reduce(
-  (sum: number, a: Attendee) => sum + a.quantity,
-  0,
-);
+export const sumQuantity = sumOf((a: Attendee) => a.quantity);
 
 /** Count how many people are checked in (summing quantity per registration) */
 export const countCheckedIn = (attendees: Attendee[]): number =>
-  reduce(
-    (sum: number, a: Attendee) => sum + a.quantity,
-    0,
-  )(attendees.filter((a) => a.checked_in));
+  sumQuantity(attendees.filter((a) => a.checked_in));
 
 /** Count how many attendee rows are checked in (ignoring quantity) */
 export const countCheckedInRows = (attendees: Attendee[]): number =>
@@ -44,10 +38,7 @@ export const countCheckedInRows = (attendees: Attendee[]): number =>
 
 /** Calculate total revenue in cents from attendees */
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
-  reduce(
-    (sum: number, a: Attendee) => sum + Number.parseInt(a.price_paid, 10),
-    0,
-  )(attendees);
+  sumOf((a: Attendee) => Number.parseInt(a.price_paid, 10))(attendees);
 
 // ---------------------------------------------------------------------------
 // Checked-in stats

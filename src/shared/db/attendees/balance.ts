@@ -6,7 +6,7 @@
  * context. Idempotent: a second call once the balance is cleared is a no-op.
  */
 
-import { compact, mapParallel } from "#fp";
+import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
@@ -87,10 +87,10 @@ export const getAttendeeOrderSummary = async (
   );
 
   return {
-    depositPaid: lines.reduce((sum, l) => sum + l.pricePaid, 0),
-    fullPrice: lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0),
+    depositPaid: sumOf((l: OrderLine) => l.pricePaid)(lines),
+    fullPrice: sumOf((l: OrderLine) => l.unitPrice * l.quantity)(lines),
     lines,
-    totalQuantity: lines.reduce((sum, l) => sum + l.quantity, 0),
+    totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };
 

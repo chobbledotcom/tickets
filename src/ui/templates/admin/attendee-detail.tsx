@@ -9,7 +9,7 @@
  * details/summary disclosure.
  */
 
-import { compact } from "#fp";
+import { compact, mapNotNullish } from "#fp";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -132,14 +132,12 @@ export const AttendeeAnswersTable = ({
   selectedAnswerIds: number[];
 }): JSX.Element | null => {
   const selected = new Set(selectedAnswerIds);
-  const answered = compact(
-    questions.map((q) => {
-      const picks = q.answers.filter((a) => selected.has(a.id));
-      return picks.length > 0
-        ? { answer: picks.map((a) => a.text).join(", "), question: q.text }
-        : null;
-    }),
-  );
+  const answered = mapNotNullish((q: QuestionWithAnswers) => {
+    const picks = q.answers.filter((a) => selected.has(a.id));
+    return picks.length > 0
+      ? { answer: picks.map((a) => a.text).join(", "), question: q.text }
+      : null;
+  })(questions);
   if (answered.length === 0) return null;
   return (
     <>

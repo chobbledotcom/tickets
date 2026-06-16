@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { unique } from "#fp";
+import { sum, sumOf, unique } from "#fp";
 import type {
   BookingIntent,
   ListingPriceValidation,
@@ -538,11 +538,11 @@ const reservationDeposits = (
 ): { perLine: number[]; total: number | undefined } => {
   const amount = intent.reservationAmount;
   if (!amount) return { perLine: [], total: undefined };
-  const totalQty = intent.items.reduce((sum, item) => sum + item.q, 0);
+  const totalQty = sumOf((item: BookingItem) => item.q)(intent.items);
   const perLine = intent.items.map((item) =>
     reservationDepositForLine(amount, item.p, item.q, totalQty),
   );
-  return { perLine, total: perLine.reduce((sum, d) => sum + d, 0) };
+  return { perLine, total: sum(perLine) };
 };
 
 /** Verify per-item and total prices for paid sessions. Returns null on success. */
@@ -569,7 +569,7 @@ const verifyPaidPricing = async (
   // amount is the deposit subtotal for a reservation, or the full subtotal
   // otherwise. metadata `p` always holds the full line price.
   const bookingFeePercent = getBookingFee();
-  const fullTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
   const chargedTickets = reservationDeposits(intent).total ?? fullTotal;
   const expectedTotal =
     chargedTickets + calculateBookingFee(fullTotal, bookingFeePercent);
@@ -609,7 +609,7 @@ const createAttendeeForSession = async (
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
-  const fullTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
   const remainingBalance =
     deposits.total === undefined ? 0 : fullTotal - deposits.total;
 
