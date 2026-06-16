@@ -255,23 +255,23 @@ key, and only ciphertext touches the database or the network.
 | settings keys `sms_gateway_*` | encrypted passphrase + Basic-auth creds + base URL | ✅ keys/accessors built + tested |
 | `src/features/admin/attendee-contact.ts` + template | attendee "contact" page: compose, queue, dispatch, history | ✅ built + tested |
 | "Send Text" link on the attendee table | discoverable entry point | ✅ built |
-| **Admin settings UI for the gateway** | owner sets creds + generates the E2E passphrase | ⏳ remaining |
+| Admin settings UI for the gateway | owner sets username/password/passphrase + base URL (advanced settings card, masked secrets) | ✅ built + tested |
 | Webhook receiver (`POST /api/sms/webhook`) | status reconcile + inbound (`sms:delivered/failed/received`) | ⏳ deferred (v1.1) |
 | Retry dispatch for stuck `queued` rows | external pinger or opportunistic | ⏳ deferred (v1.1) |
 
 ### Remaining before production use
 
-The send pipeline is complete and tested end to end (compose → decrypt under
-owner key → re-encrypt under E2E key → queue ciphertext → POST to cloud →
-record status). What's left to make it usable by an operator:
+v1 is feature-complete: an owner configures the gateway under **Advanced
+Settings → SMS Gateway** (username, password, end-to-end passphrase, optional
+server URL; secrets masked), enters the same passphrase in the phone app, then
+sends texts from any attendee's **Contact** page. The full path is tested:
+configure → compose → decrypt under owner key → re-encrypt under E2E key → queue
+ciphertext → POST to cloud → record status.
 
-1. **Settings page** — a small owner-only card under `/admin/settings` that
-   saves `settings.update.smsGateway{Username,Password,Passphrase,BaseUrl}` and
-   offers a "generate E2E key" button (`generateSmsPassphrase`) to display once
-   for entry into the phone app. The storage keys, accessors, and encryption are
-   already in place; this is purely the form + handler + render wiring.
-2. **(v1.1)** webhook receiver to move rows `sent → delivered/failed` and to
-   capture inbound replies, plus a retry path for rows the cloud rejected.
+**Deferred to v1.1**: a webhook receiver to move rows `sent → delivered/failed`
+and capture inbound replies, plus a retry path for rows the cloud rejected.
+(The `getQueuedSms` / `markSmsDelivered` / inbound helpers were removed for now
+under the repo's no-test-only-exports rule and return when that code is wired.)
 
 ## Open questions
 
