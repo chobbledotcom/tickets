@@ -149,6 +149,26 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
     expect(html).toContain("History line");
   });
 
+  it("GET renders history without bodies when the gateway is unconfigured", async () => {
+    await configureGateway();
+    const { contactUrl } = await setup();
+    const fetchStub = okFetch();
+    try {
+      await adminFormPost(contactUrl, { message: "Earlier message" });
+    } finally {
+      fetchStub.restore();
+    }
+    // Remove the passphrase so the gateway reads as unconfigured
+    await settings.update.smsGatewayPassphrase("");
+
+    const { response } = await adminGet(contactUrl);
+    const html = await response.text();
+    expect(html).toContain("not configured");
+    // A history row still renders (with an empty, undecryptable body)
+    expect(html).toContain("sent");
+    expect(html).not.toContain("Earlier message");
+  });
+
   it("GET shows a placeholder when history can't be decrypted", async () => {
     await configureGateway();
     const { contactUrl } = await setup();

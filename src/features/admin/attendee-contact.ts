@@ -107,7 +107,7 @@ const handleContactPost = attendeeFormAction(
       );
       return redirect(backUrl, "Text message sent", true);
     } catch (e) {
-      await markSmsFailed(id, e instanceof Error ? e.message : String(e));
+      await markSmsFailed(id, String(e));
       await logActivity(
         `Text message to attendee '${data.attendee.name}' failed to send`,
         listingId,
