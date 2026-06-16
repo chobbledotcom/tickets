@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons)";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -374,6 +374,19 @@ const SCHEMA: [name: string, table: Table][] = [
           name: "idx_groups_slug_index",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    "modifiers",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL"],
+        ["calc_kind", "TEXT NOT NULL"],
+        ["calc_value", "REAL NOT NULL"],
+        ["direction", "TEXT NOT NULL"],
       ],
     },
   ],
@@ -1027,6 +1040,15 @@ const MIGRATIONS: Migration[] = [
       "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
     id: "2026-06-15_activity_log_listing_id_index",
     up: syncIndexes,
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons)",
+    id: "2026-06-16_modifiers",
+    up: async () => {
+      await applySchemaChanges();
+    },
     verify: verifyCurrentAppSchema,
   },
 ];

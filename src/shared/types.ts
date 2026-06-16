@@ -3,6 +3,7 @@
  */
 
 import * as v from "valibot";
+import type { CalcKind, ModifierDirection } from "#shared/price-modifier.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -363,6 +364,17 @@ export interface Group {
   slug: string;
   slug_index: string;
   terms_and_conditions: string;
+}
+
+/** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
+ * is the positive magnitude the owner entered (a fixed amount in major currency
+ * units, a percentage, or a multiplier); `direction` chooses charge vs discount. */
+export interface Modifier {
+  id: number;
+  name: string;
+  calc_kind: CalcKind;
+  calc_value: number;
+  direction: ModifierDirection;
 }
 
 export interface ListingWithCount extends Listing {

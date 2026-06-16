@@ -836,6 +836,59 @@ export const groupFields: Field[] = [
   groupHiddenField,
 ];
 
+/** Form values for the modifier create/edit form. */
+export type ModifierFormValues = {
+  name: string;
+  calc_kind: string;
+  direction: string;
+  calc_value: number;
+};
+
+/** Modifier form fields (same for create and edit — no slug). */
+export const modifierFields: Field[] = [
+  {
+    label: "Name",
+    name: "name",
+    placeholder: "Early bird",
+    required: true,
+    type: "text",
+  },
+  {
+    defaultValue: "fixed",
+    label: "Type",
+    name: "calc_kind",
+    options: [
+      { label: "Fixed amount", value: "fixed" },
+      { label: "Percentage", value: "percent" },
+      { label: "Multiplier", value: "multiply" },
+    ],
+    type: "select",
+  },
+  {
+    defaultValue: "charge",
+    label: "Direction",
+    name: "direction",
+    options: [
+      { label: "Charge (adds to the price)", value: "charge" },
+      { label: "Discount (reduces the price)", value: "discount" },
+    ],
+    type: "select",
+  },
+  {
+    hint: "Fixed: an amount in your currency. Percentage: e.g. 10 for 10%. Multiplier: e.g. 1.5. Direction is ignored for multipliers (the factor sets it).",
+    inputmode: "decimal",
+    label: "Value",
+    name: "calc_value",
+    // Required, so `validateSingleField` rejects empty input before `parse`
+    // runs; `parse` therefore only ever sees a value the validator accepted.
+    parse: (value: string) => Number.parseFloat(value),
+    required: true,
+    type: "text",
+    validate: (value: string) =>
+      Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+];
+
 /** Name field shown on all ticket forms */
 const nameField: Field = {
   autocomplete: "name",
