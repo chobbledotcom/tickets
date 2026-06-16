@@ -6,12 +6,14 @@ import {
   getAllActivityLog,
   getListingActivityLog,
 } from "#shared/db/activityLog.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   getEmailStats,
   hashEmail,
   unsubscribeHash,
 } from "#shared/db/email-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
+import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -839,6 +841,50 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           cookie: await testCookie(),
         }),
         200,
+      );
+    });
+
+    test("?template=N keeps the saved draft's marketing flag while overriding subject and body", async () => {
+      const id = await seedTemplate("Template Subject", "Template body");
+      await seedDraft({
+        body: "Draft body",
+        marketing: true,
+        subject: "Draft subject",
+        target: { audience: "active", kind: "audience" },
+      });
+      const html = await (
+        await awaitTestRequest(`/admin/emails?audience=active&template=${id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
+      // The template's content replaces the draft's…
+      expect(html).toContain("Template Subject");
+      expect(html).toContain("Template body");
+      // …but the marketing flag is carried over from the saved draft.
+      expect(html).toContain(
+        'checked name="marketing" type="checkbox" value="1"',
+      );
+    });
+
+    test("POST /admin/emails/templates refuses to save when the template limit is reached", async () => {
+      // Fill the table to the cap in one statement. The limit check only counts
+      // rows, so the (opaque) content here need not be real encrypted blobs.
+      const rows = Array.from(
+        { length: MAX_EMAIL_TEMPLATES },
+        () => "('x', 'y')",
+      ).join(", ");
+      await getDb().execute(
+        `INSERT INTO email_templates (subject, body) VALUES ${rows}`,
+      );
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Body",
+        subject: "Subject",
+      });
+      expectFlash(
+        response,
+        `You've reached the limit of ${MAX_EMAIL_TEMPLATES} saved templates.`,
+        false,
       );
     });
 

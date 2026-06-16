@@ -24,7 +24,8 @@ export const countEmailTemplates = async (): Promise<number> => {
     "SELECT COUNT(*) AS n FROM email_templates",
     [],
   );
-  return row?.n ?? 0;
+  // COUNT(*) always returns exactly one row, so the result is never null.
+  return row!.n;
 };
 
 /* jscpd:ignore-start */
