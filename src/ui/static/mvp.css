@@ -834,7 +834,7 @@ textarea[readonly] {
 label {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-m);
+  gap: var(--space-s);
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
@@ -871,6 +871,15 @@ label > input[type="time"] {
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
   width: 8ch;
+  flex: 0 0 auto;
+}
+
+/* Attendee form length select: widen to 20rem. The default `label > select`
+   rule is `flex: 1`, which would stretch it to fill the row and ignore the
+   width, so opt out of growing/shrinking here for the width to take effect. */
+#attendee-form label > select[name="day_count"] {
+  width: 20rem;
+  max-width: 100%;
   flex: 0 0 auto;
 }
 
@@ -1294,6 +1303,11 @@ fieldset {
   display: inline-block;
   font-weight: normal;
   max-width: none;
+}
+
+.checkboxes label input,
+.radios label input {
+  margin-right: 0.5rem;
 }
 
 label.terms-agree {
@@ -1788,9 +1802,10 @@ button.secondary:hover,
   text-decoration: underline;
 }
 
-/* Stripe/Square test result */
+/* Stripe/Square/SumUp test result */
 .stripe-test-result,
-.square-test-result {
+.square-test-result,
+.sumup-test-result {
   white-space: pre-wrap;
 }
 
@@ -2290,6 +2305,10 @@ a.cal-day-selected:hover {
   justify-content: center;
   margin: 0;
   cursor: pointer;
+  /* Align by the box's middle, not its baseline: an empty tick box has no text
+     baseline but a ticked one does, and letting that shift the line box made the
+     row jiggle in height as it was selected/deselected. */
+  vertical-align: middle;
 }
 
 .row-select-tick {
@@ -2300,6 +2319,14 @@ a.cal-day-selected:hover {
   height: 1.4rem;
   border: 2px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
+}
+
+/* In dark mode the unchecked tick border (--color-bg-secondary) is the same
+   colour as the striped alternate rows, hiding the box until it's ticked. Use
+   the accent colour (which also fills the checked box) so the outline reads on
+   every row. */
+[data-theme="dark"] .row-select-tick {
+  border-color: var(--color-secondary);
 }
 
 .order-select:checked + .row-select-tick {
@@ -2334,6 +2361,30 @@ a.cal-day-selected:hover {
   cursor: pointer;
 }
 
-.listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
+.listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
+  .attendee-line-empty {
   display: none;
+}
+
+/* Attendee form: logistics agent selectors. The "different agents per item"
+   toggle switches (pure CSS) between one shared pair and a pair per listing. */
+.logistics-agents .split-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
+  display: none;
+}
+
+.logistics-agents:not(:has(.split-agents-toggle:checked)) .logistics-split {
+  display: none;
+}
+
+.logistics-line {
+  margin-bottom: var(--space-s);
 }

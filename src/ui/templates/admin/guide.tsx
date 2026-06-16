@@ -879,27 +879,41 @@ export const adminGuidePage = (
           <p>
             SumUp uses its Hosted Checkout, and the webhook is handled
             automatically &mdash; there's nothing to configure in the SumUp
-            dashboard. You need two values:
+            dashboard. You need two values, and{" "}
+            <strong>both must come from the same SumUp account</strong>:
           </p>
           <ol>
             <li>
               <strong>API Key</strong> &mdash; a secret API key from your SumUp
-              account, starting with <code>sk_live_</code> (real payments) or{" "}
-              <code>sk_test_</code> (testing). Create one under{" "}
-              <strong>Developers</strong> &rarr; <strong>API keys</strong> in
-              the SumUp dashboard.
+              dashboard. The developer settings are easy to miss: go to{" "}
+              <strong>Profile</strong> &rarr; <strong>Settings</strong> &rarr;{" "}
+              <strong>For Developers</strong> &rarr; <strong>Toolkit</strong>{" "}
+              &rarr; <strong>API Keys</strong>, or use this direct link:{" "}
+              <a href="https://me.sumup.com/en-gb/settings/api-keys">
+                me.sumup.com/en-gb/settings/api-keys
+              </a>
+              . That page shows a <strong>Public API key</strong> near the top
+              &mdash; <strong>that is not the one you need</strong>. Instead, in
+              the <strong>API Keys</strong> section below it, click{" "}
+              <strong>Create API key</strong>, give it a name, and copy the new
+              (private) key &mdash; it is shown only once.
             </li>
             <li>
-              <strong>Merchant Code</strong> &mdash; your SumUp merchant code
-              (e.g. <code>MC...</code>), shown in your SumUp dashboard.
+              <strong>Merchant Code</strong> &mdash; your SumUp merchant code (a
+              short identifier, usually starting with <code>M</code>), shown in
+              your SumUp dashboard under your profile/account settings.
             </li>
           </ol>
           <p>
             Paste both into the SumUp section on the{" "}
-            <a href="/admin/settings">Settings</a> page and save. As with
-            Stripe, the Settings page shows a <strong>Test mode</strong> or{" "}
-            <strong>Live mode</strong> badge based on your key prefix, and a{" "}
-            <strong>Test Connection</strong> button to verify it works.
+            <a href="/admin/settings">Settings</a> page and save, then click{" "}
+            <strong>Test Connection</strong> to verify they work. The test looks
+            up your merchant account using the API key, so if the two don't
+            belong to the same account &mdash; for example a <em>sandbox</em>{" "}
+            API key paired with your live merchant code &mdash; it reports a{" "}
+            <code>401 Unauthorized</code> error. If you see that, re-copy the
+            key in full and double-check the merchant code is the one shown in
+            the same SumUp account that created the key.
           </p>
           <p>
             SumUp only supports certain currencies. If your site currency isn't
@@ -965,10 +979,16 @@ export const adminGuidePage = (
               . Untick Sandbox mode when switching to production.
             </li>
             <li>
-              <strong>SumUp:</strong> Use an API key starting with{" "}
-              <code>sk_test_</code>. As with Stripe, the Settings page shows a{" "}
-              <strong>Test mode</strong> badge so you know which environment is
-              active. Swap to your <code>sk_live_</code> key to go live.
+              <strong>SumUp:</strong> SumUp has no separate test-key prefix.
+              Instead, create a <strong>sandbox merchant account</strong> in
+              your SumUp developer settings, then use that sandbox account's own
+              API key and merchant code (with{" "}
+              <a href="https://developer.sumup.com/online-payments/testing">
+                SumUp's test cards
+              </a>
+              ) to make test bookings. Switch to your live account's API key and
+              merchant code when you're ready for real payments &mdash; the key
+              and merchant code must always come from the same account.
             </li>
           </ul>
           <p>

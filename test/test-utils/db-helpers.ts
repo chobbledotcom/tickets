@@ -70,6 +70,7 @@ const buildCreateListingForm = (
     date_time: dateParts.time,
     description: input.description ?? "",
     duration_days: optionalNumber(input.durationDays),
+    uses_logistics: bool(input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
     fields: input.fields ?? "email",
     group_id: String(input.groupId ?? 0),
@@ -105,6 +106,9 @@ const buildUpdateBoolFields = (
     pickField(updates.nonTransferable, existing.non_transferable),
   ),
   purchase_only: bool(pickField(updates.purchaseOnly, existing.purchase_only)),
+  uses_logistics: bool(
+    pickField(updates.usesLogistics, existing.uses_logistics),
+  ),
 });
 
 const buildUpdateNumericFields = (

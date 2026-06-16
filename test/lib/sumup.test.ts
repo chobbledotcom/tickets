@@ -336,15 +336,34 @@ describe("sumup", () => {
       });
     });
 
-    test("reports an invalid key when the merchant lookup throws", async () => {
+    test("turns a 401 from the merchant lookup into actionable guidance", async () => {
       const client = makeClient({
-        merchantGet: () => Promise.reject(new Error("401 Unauthorized")),
+        merchantGet: () =>
+          Promise.reject(new Error('401: {"detail":"Unauthorized."}')),
       });
       await withClient(client, async () => {
         const result = await testSumupConnection();
         expect(result.ok).toBe(false);
         expect(result.apiKey.valid).toBe(false);
         expect(result.apiKey.error).toContain("401");
+        // The opaque SumUp body is replaced with a hint about the likely causes:
+        // the public-vs-secret key mix-up first, then the cross-account mismatch.
+        expect(result.apiKey.error).toContain("Public API key");
+        expect(result.apiKey.error).toContain("secret API key");
+        expect(result.apiKey.error).toContain("same SumUp account");
+        expect(result.apiKey.error).not.toContain("detail");
+      });
+    });
+
+    test("passes non-401 merchant lookup errors through unchanged", async () => {
+      const client = makeClient({
+        merchantGet: () => Promise.reject(new Error("503 Service Unavailable")),
+      });
+      await withClient(client, async () => {
+        const result = await testSumupConnection();
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(false);
+        expect(result.apiKey.error).toBe("503 Service Unavailable");
       });
     });
   });

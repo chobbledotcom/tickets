@@ -1,141 +1,13 @@
 #!/usr/bin/env -S deno run --allow-all
 /**
- * Test runner script that ensures stripe-mock is running before tests
+ * Full test runner: builds static assets and starts stripe-mock (via the
+ * shared test harness), runs the whole suite, and—with --coverage—enforces
+ * 100% line and branch coverage. Generated static assets are cleaned up by the
+ * harness once the run completes.
  */
 
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { buildStaticAssets } from "./build-static-assets.ts";
-
-const STRIPE_MOCK_VERSION = "0.188.0";
-const STRIPE_MOCK_PORT = 12111;
-const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const BIN_DIR = join(projectRoot, ".bin");
-const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
-
-/** Check if stripe-mock is running */
-const isStripeMockRunning = async (): Promise<boolean> => {
-  try {
-    const conn = await Deno.connect({
-      hostname: "127.0.0.1",
-      port: STRIPE_MOCK_PORT,
-    });
-    conn.close();
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/** Download stripe-mock if needed */
-const downloadStripeMock = async (): Promise<void> => {
-  try {
-    await Deno.stat(STRIPE_MOCK_PATH);
-    return;
-  } catch {
-    // Download needed
-  }
-
-  console.log("Downloading stripe-mock...");
-  await Deno.mkdir(BIN_DIR, { recursive: true });
-
-  const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
-  const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
-  const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
-
-  const curlCmd = new Deno.Command("curl", {
-    args: ["-sL", url, "-o", "-"],
-    stderr: "null",
-    stdout: "piped",
-  });
-  const curlResult = await curlCmd.output();
-  if (!curlResult.success) {
-    throw new Error("Failed to download stripe-mock");
-  }
-
-  const tarPath = join(BIN_DIR, "stripe-mock.tar.gz");
-  await Deno.writeFile(tarPath, curlResult.stdout);
-
-  await new Deno.Command("tar", {
-    args: ["-xzf", tarPath, "-C", BIN_DIR],
-  }).output();
-
-  await new Deno.Command("chmod", {
-    args: ["+x", STRIPE_MOCK_PATH],
-  }).output();
-
-  await Deno.remove(tarPath);
-  console.log("stripe-mock downloaded");
-};
-
-/** Start stripe-mock and return the process */
-const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
-  if (await isStripeMockRunning()) {
-    console.log("stripe-mock already running on port", STRIPE_MOCK_PORT);
-    return null;
-  }
-
-  await downloadStripeMock();
-
-  console.log("Starting stripe-mock on port", STRIPE_MOCK_PORT);
-  const cmd = new Deno.Command(STRIPE_MOCK_PATH, {
-    args: ["-http-port", String(STRIPE_MOCK_PORT)],
-    stderr: "null",
-    stdout: "null",
-  });
-  const process = cmd.spawn();
-
-  // Wait for it to be ready
-  for (let i = 0; i < 30; i++) {
-    if (await isStripeMockRunning()) {
-      console.log("stripe-mock started");
-      return process;
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-
-  throw new Error("stripe-mock failed to start");
-};
-
-/** Build the deno test CLI args */
-const buildDenoTestArgs = (useCoverage: boolean): string[] => {
-  const args = [
-    "test",
-    "--no-check",
-    "--allow-net",
-    "--allow-env",
-    "--allow-read",
-    "--allow-write",
-    "--allow-run",
-    "--allow-sys",
-    "--allow-ffi",
-    "--parallel",
-  ];
-  if (useCoverage) args.push("--coverage=coverage");
-  args.push("test/");
-  return args;
-};
-
-/** Run deno test and return the exit code */
-const runTests = async (useCoverage: boolean): Promise<number> => {
-  console.log("Running tests...");
-  const testCmd = new Deno.Command(Deno.execPath(), {
-    args: buildDenoTestArgs(useCoverage),
-    cwd: projectRoot,
-    env: {
-      ...Deno.env.toObject(),
-      NO_PROXY: "localhost,127.0.0.1,::1",
-      no_proxy: "localhost,127.0.0.1,::1",
-      STRIPE_MOCK_HOST: "localhost",
-      STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
-    },
-    stderr: "inherit",
-    stdin: "inherit",
-    stdout: "inherit",
-  });
-  const result = await testCmd.output();
-  return result.code;
-};
+import { join } from "node:path";
+import { projectRoot, runTests, withTestHarness } from "./test-harness.ts";
 
 /** Extract uncovered line numbers from DA: entries in an lcov record */
 const extractUncoveredLines = (record: string): number[] => {
@@ -296,21 +168,12 @@ const checkCoverage = async (): Promise<void> => {
   reportCoverageFailures(lineFailures, branchFailures);
 };
 
-/** Main: start stripe-mock, run tests, cleanup */
+/** Main: run the whole suite inside the harness, then enforce coverage */
 const main = async (): Promise<void> => {
-  await buildStaticAssets({ stop: true });
-  const stripeMockProcess = await startStripeMock();
-
-  Deno.env.set("STRIPE_MOCK_HOST", "localhost");
-  Deno.env.set("STRIPE_MOCK_PORT", String(STRIPE_MOCK_PORT));
-
   const useCoverage = Deno.args.includes("--coverage");
-  const exitCode = await runTests(useCoverage);
-
-  if (stripeMockProcess) {
-    console.log("Stopping stripe-mock...");
-    stripeMockProcess.kill();
-  }
+  const exitCode = await withTestHarness(() =>
+    runTests(["test/"], useCoverage),
+  );
 
   if (exitCode !== 0) Deno.exit(exitCode);
   if (useCoverage) await checkCoverage();

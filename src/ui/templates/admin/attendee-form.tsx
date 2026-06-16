@@ -6,9 +6,11 @@
  * start date plus a length — applied to every daily listing they book. The
  * listing editor is a fixed table with one quantity box per bookable listing
  * (plus any inactive listing the attendee already booked); quantity ≥ 1 books
- * it, 0 leaves it out, so there are no add/remove-line buttons. Not-booked rows
- * are hidden behind a "Show all listings" toggle (pure CSS). The form works
- * without JavaScript.
+ * it, 0 leaves it out, so there are no add/remove-line buttons. When something
+ * is already booked (an edit, or a create pre-filled from the calendar) the
+ * not-booked rows hide behind a "Show all listings" toggle (pure CSS); a bare
+ * create form has nothing booked, so it drops the toggle and shows every
+ * listing. The form works without JavaScript.
  */
 
 import { compact } from "#fp";
@@ -26,6 +28,14 @@ import {
   SHOW_ALL_FIELD,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import {
+  type AttendeeLogisticsData,
+  endAgentField,
+  endTimeField,
+  SPLIT_AGENTS_FIELD,
+  startAgentField,
+  startTimeField,
+} from "#routes/admin/attendee-logistics.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
@@ -75,6 +85,10 @@ export type AttendeeFormTemplateData = {
   /** True when the attendee's existing daily bookings disagree on date/length —
    * saving normalises them onto the one shared range. */
   hasMixedTimings: boolean;
+  /** True when at least one daily listing is in play (active, or already booked
+   * by this attendee). The shared date range only affects daily listings, so the
+   * whole Dates section is hidden when this is false. */
+  hasDailyListings: boolean;
   /** Attendee-level error (e.g. "Name is required"). */
   attendeeError: string | null;
   /** Shared-date error (e.g. missing start date for a booked daily listing). */
@@ -102,6 +116,8 @@ export type AttendeeFormTemplateData = {
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
+  /** Logistics selectors data, or undefined when logistics doesn't apply. */
+  logistics?: AttendeeLogisticsData;
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded". */
@@ -184,40 +200,196 @@ const ListingRow = ({
   );
 };
 
-/** The fixed listing editor: one quantity box per listing, with a "Show all
- * listings" toggle that reveals the not-booked rows (pure CSS). */
+/** The fixed listing editor: one quantity box per listing. When at least one
+ * line is already booked — an edit, or a create deep-linked from the calendar
+ * with pre-selected listings — the not-booked rows tuck behind an un-ticked
+ * "Show all listings" toggle (pure CSS). A bare create form has nothing booked,
+ * so every row would hide behind that toggle; there we drop it and show every
+ * listing instead. */
 const ListingEditor = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element => (
-  <div class="listing-editor">
-    <label class="show-all">
-      <input class="show-all-toggle" name={SHOW_ALL_FIELD} type="checkbox" />
-      Show all listings
-    </label>
-    <div class="table-scroll">
-      <table class="line-editor">
-        <thead>
-          <tr>
-            <th>Listing</th>
-            <th>Dates</th>
-            <th>Qty</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.parsed.lines.map((line) => (
-            <ListingRow
-              line={line}
-              warnings={data.lineWarnings.get(line.listingId) ?? []}
-            />
-          ))}
-        </tbody>
-      </table>
+}): JSX.Element => {
+  const hasBookedLines = data.parsed.lines.some(
+    (line) => isBookedLine(line) || Boolean(line.existingBooking),
+  );
+  return (
+    <div
+      class={
+        hasBookedLines ? "listing-editor" : "listing-editor show-all-listings"
+      }
+    >
+      {hasBookedLines && (
+        <label class="show-all">
+          <input
+            class="show-all-toggle"
+            name={SHOW_ALL_FIELD}
+            type="checkbox"
+          />
+          Show all listings
+        </label>
+      )}
+      <div class="table-scroll">
+        <table class="line-editor">
+          <thead>
+            <tr>
+              <th>Listing</th>
+              <th>Dates</th>
+              <th>Qty</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.parsed.lines.map((line) => (
+              <ListingRow
+                line={line}
+                warnings={data.lineWarnings.get(line.listingId) ?? []}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  );
+};
+
+/** A single agent dropdown with a "none" option, pre-selecting `selected`. */
+const AgentSelect = ({
+  name,
+  label,
+  agents,
+  selected,
+}: {
+  name: string;
+  label: string;
+  agents: AttendeeLogisticsData["agents"];
+  selected: number | null;
+}): JSX.Element => (
+  <label>
+    {label}
+    <select name={name}>
+      <option selected={selected === null} value="">
+        — None —
+      </option>
+      {agents.map((agent) => (
+        <option selected={agent.id === selected} value={agent.id}>
+          {agent.name}
+        </option>
+      ))}
+    </select>
+  </label>
 );
+
+/** A short time-of-day input (logistics metadata only; never availability). */
+const TimeInput = ({
+  name,
+  label,
+  value,
+}: {
+  name: string;
+  label: string;
+  value: string;
+}): JSX.Element => (
+  <label>
+    {label}
+    <input name={name} type="time" value={value} />
+  </label>
+);
+
+/** One leg (start or end): an agent select plus its time, for the single
+ * shared fields (listingId omitted) or a specific listing (split mode). */
+const LogisticsLeg = ({
+  agents,
+  leg,
+  assignment,
+  listingId,
+}: {
+  agents: AttendeeLogisticsData["agents"];
+  leg: "start" | "end";
+  assignment: AttendeeLogisticsData["single"];
+  listingId?: number;
+}): JSX.Element => {
+  const isStart = leg === "start";
+  const agentField = isStart ? startAgentField : endAgentField;
+  const timeField = isStart ? startTimeField : endTimeField;
+  const label = isStart ? "Start" : "End";
+  return (
+    <div class="logistics-leg">
+      <AgentSelect
+        agents={agents}
+        label={`${label} agent`}
+        name={agentField(listingId)}
+        selected={isStart ? assignment.startAgentId : assignment.endAgentId}
+      />
+      <TimeInput
+        label={`${label} time`}
+        name={timeField(listingId)}
+        value={isStart ? assignment.startTime : assignment.endTime}
+      />
+    </div>
+  );
+};
+
+/**
+ * Logistics agent + time selectors for logistics listings. A "different agents
+ * per item" checkbox switches (pure CSS) between one shared start/end pair and
+ * a pair per logistics listing. Only rendered when logistics applies.
+ */
+const LogisticsSection = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element | null => {
+  const logistics = data.logistics;
+  if (!logistics) return null;
+  return (
+    <div class="logistics-agents">
+      <h3>Logistics</h3>
+      <label class="split-agents">
+        <input
+          checked={logistics.split}
+          class="split-agents-toggle"
+          name={SPLIT_AGENTS_FIELD}
+          type="checkbox"
+          value="1"
+        />
+        Use different agents per item
+      </label>
+      <div class="logistics-single">
+        <LogisticsLeg
+          agents={logistics.agents}
+          assignment={logistics.single}
+          leg="start"
+        />
+        <LogisticsLeg
+          agents={logistics.agents}
+          assignment={logistics.single}
+          leg="end"
+        />
+      </div>
+      <div class="logistics-split">
+        {logistics.lines.map((line) => (
+          <fieldset class="logistics-line">
+            <legend>{line.name}</legend>
+            <LogisticsLeg
+              agents={logistics.agents}
+              assignment={line.assignment}
+              leg="start"
+              listingId={line.listingId}
+            />
+            <LogisticsLeg
+              agents={logistics.agents}
+              assignment={line.assignment}
+              leg="end"
+              listingId={line.listingId}
+            />
+          </fieldset>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. */
@@ -244,18 +416,27 @@ const dayCountOptions = (
  * "availability inaccurate" notice shows until a date is saved, and a small
  * progressive-enhancement script (client/admin/attendee-dates.ts) re-shows it
  * when the dates are changed and reveals the length select once a start date is
- * set. */
+ * set.
+ *
+ * The dates only apply to daily listings, so the whole section is hidden when
+ * there are none in play, and the start date is never HTML-`required` — it's
+ * optional unless a daily listing is actually booked, which the server enforces. */
 const SharedDateFields = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element => {
+}): JSX.Element | null => {
+  if (!data.hasDailyListings) return null;
   // Shown when there's no saved/known date yet (a bare create form); the PE
   // re-shows it whenever the dates are dirtied so the operator re-saves.
   const noticeHidden = !(data.mode === "create" && !data.parsed.startDate);
   return (
     <>
       <h3>Dates</h3>
+      <p class="small">
+        Optional — the date only affects daily listings. A start date is
+        required once you book a daily listing below.
+      </p>
       {data.dateError && (
         <output class="error" role="alert">
           {data.dateError}
@@ -266,7 +447,6 @@ const SharedDateFields = ({
         <input
           id={START_DATE_FIELD}
           name={START_DATE_FIELD}
-          required={data.mode === "create"}
           type="date"
           value={data.parsed.startDate}
         />
@@ -540,6 +720,8 @@ const AttendeeEditForm = ({
       )}
       <ListingEditor data={data} />
 
+      <LogisticsSection data={data} />
+
       <hr />
 
       <p class="form-actions">
@@ -547,11 +729,6 @@ const AttendeeEditForm = ({
           <Icon name="save" />
           <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
         </button>
-        {!isEdit && (
-          <a class="button" href={data.returnUrl || "/admin/"}>
-            Back without saving
-          </a>
-        )}
       </p>
     </CsrfForm>
   );

@@ -174,6 +174,8 @@ const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
     purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
     unitPrice: parseOptionalPrice(values.unit_price),
+    usesLogistics:
+      settings.hasLogistics && form.getString("uses_logistics") === "1",
     webhookUrl,
   };
 };
