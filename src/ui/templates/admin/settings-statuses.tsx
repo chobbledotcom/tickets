@@ -4,12 +4,16 @@
 
 import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
-import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  DeleteSection,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const LIST_PATH = "/admin/settings/statuses";
@@ -93,7 +97,6 @@ export const adminAttendeeStatusesPage = (
             <th>{t("statuses.order_header")}</th>
             <th>{t("common.name")}</th>
             <th>{t("statuses.flags_header")}</th>
-            <th>{t("common.actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -104,14 +107,6 @@ export const adminAttendeeStatusesPage = (
                 <a href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</a>
               </td>
               <td>{statusBadges(s)}</td>
-              <td>
-                <a href={`${LIST_PATH}/${s.id}/edit`}>{t("common.edit")}</a>{" "}
-                <CsrfForm action={`${LIST_PATH}/${s.id}/delete`} class="inline">
-                  <button class="link-button danger small" type="submit">
-                    {t("common.delete")}
-                  </button>
-                </CsrfForm>
-              </td>
             </tr>
           ))}
         </tbody>
@@ -189,6 +184,38 @@ export const adminAttendeeStatusFormPage = (
             : t("statuses.form_create_button")}
         </SubmitButton>
       </CsrfForm>
+      {editing && (
+        <DeleteSection
+          heading={t("common.delete")}
+          href={`${LIST_PATH}/${status.id}/delete`}
+        >
+          {t("statuses.delete_button")}
+        </DeleteSection>
+      )}
     </Layout>,
   );
 };
+
+/** Confirmation page for deleting an attendee status. */
+export const adminAttendeeStatusDeletePage = (
+  status: AttendeeStatus,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={t("statuses.delete_title")}>
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
+      <ConfirmForm
+        action={`${LIST_PATH}/${status.id}/delete`}
+        buttonText={t("statuses.delete_button")}
+        danger={false}
+        label={t("common.name")}
+        name={status.name}
+      >
+        <h1>{t("statuses.delete_title")}</h1>
+        <Flash error={error} />
+        <p>{t("statuses.delete_confirm", { name: status.name })}</p>
+      </ConfirmForm>
+    </Layout>,
+  );

@@ -725,7 +725,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       return response.text();
     };
 
-    test("shows Refund link for paid attendees on paid listings", async () => {
+    test("shows the listing-level Refund All on a paid listing", async () => {
       const listing = await createPaidListing();
       await createPaidTestAttendee(
         listing.id,
@@ -737,7 +737,9 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
         cookie: await testCookie(),
       });
-      await expectHtmlResponse(response, 200, "/refund", "Refund All");
+      // The per-attendee refund link moved to the attendee edit page; the
+      // listing page keeps the listing-wide Refund All action.
+      await expectHtmlResponse(response, 200, "Refund All");
     });
 
     const createAttendeeAndGetHtml = async (
@@ -749,7 +751,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       return getListingPageHtml(listing.id);
     };
 
-    test("does not show Refund link for free listings", async () => {
+    test("does not show Refund All for free listings", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const html = await createAttendeeAndGetHtml(
         listing,
@@ -759,19 +761,46 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       expect(html).not.toContain("Refund All");
     });
 
-    test("does not show Refund link for attendees without payment_id on paid listings", async () => {
+    test("shows the per-attendee Refund action on a paid attendee's edit page", async () => {
       const listing = await createPaidListing();
-      // Create a free attendee on a paid listing (no payment_id)
-      const html = await createAttendeeAndGetHtml(
-        listing,
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Paid User",
+        "paid@example.com",
+        "pi_edit_1",
+      );
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/refund`,
+      );
+    });
+
+    test("hides the Refund action but keeps delete/resend when the attendee has no payment", async () => {
+      const listing = await createPaidListing();
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
         "No Payment User",
         "nopay@example.com",
       );
-      // The listing nav should still show Refund All (because it's a paid listing)
-      expect(html).toContain("Refund All");
-      // But the attendee row should NOT show an individual refund link
-      // since the attendee has no payment_id
-      expect(html).not.toContain('/refund"');
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/refund`,
+      );
+      expect(html).toContain(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
+      );
+      expect(html).toContain(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/resend-notification`,
+      );
     });
   });
 });

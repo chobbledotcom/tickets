@@ -10,7 +10,7 @@ import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 type ApiKeyDisplay = {
@@ -23,17 +23,14 @@ type ApiKeyDisplay = {
 const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
   String(
     <tr>
-      <td>{apiKey.name}</td>
+      <td>
+        <a href={`/admin/api-keys/${apiKey.id}`}>{apiKey.name}</a>
+      </td>
       <td>{new Date(apiKey.created).toLocaleDateString()}</td>
       <td>
         {apiKey.lastUsed
           ? new Date(apiKey.lastUsed).toLocaleDateString()
           : t("api_keys.never")}
-      </td>
-      <td>
-        <a class="danger small" href={`/admin/api-keys/${apiKey.id}/delete`}>
-          {t("common.delete")}
-        </a>
       </td>
     </tr>,
   );
@@ -52,7 +49,7 @@ export const adminApiKeysPage = (
           map((k: ApiKeyDisplay) => ApiKeyRow({ apiKey: k })),
           joinStrings,
         )(keys)
-      : `<tr><td colspan="4">${t("api_keys.no_keys")}</td></tr>`;
+      : `<tr><td colspan="3">${t("api_keys.no_keys")}</td></tr>`;
 
   return String(
     <Layout title={t("api_keys.title")}>
@@ -85,7 +82,6 @@ export const adminApiKeysPage = (
               <th>{t("common.name")}</th>
               <th>{t("common.created")}</th>
               <th>{t("api_keys.col.last_used")}</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -104,6 +100,50 @@ export const adminApiKeysPage = (
     </Layout>,
   );
 };
+
+/**
+ * Per-key management page — the destination for the name link in the API keys
+ * table. API keys aren't editable, so this read-only summary exists mainly to
+ * host the delete action (moved off the table and behind a typed-name
+ * confirmation).
+ */
+export const adminApiKeyManagePage = (
+  apiKey: ApiKeyDisplay,
+  session: AdminSession,
+  opts: { error?: string; success?: string } = {},
+): string =>
+  String(
+    <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
+      <AdminNav active="/admin/users" session={session} />
+      <UsersSubNav />
+      <h1>{apiKey.name}</h1>
+      <Flash error={opts.error} success={opts.success} />
+      <div class="table-scroll">
+        <table class="listing-details-table">
+          <tbody>
+            <tr>
+              <th>{t("common.created")}</th>
+              <td>{new Date(apiKey.created).toLocaleDateString()}</td>
+            </tr>
+            <tr>
+              <th>{t("api_keys.col.last_used")}</th>
+              <td>
+                {apiKey.lastUsed
+                  ? new Date(apiKey.lastUsed).toLocaleDateString()
+                  : t("api_keys.never")}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <DeleteSection
+        heading={t("common.delete")}
+        href={`/admin/api-keys/${apiKey.id}/delete`}
+      >
+        {t("api_keys.delete_submit")}
+      </DeleteSection>
+    </Layout>,
+  );
 
 /**
  * Admin API key delete confirmation page

@@ -87,6 +87,42 @@ describe("LISTING_TABLE_COLUMNS cell renderers", () => {
     ).toBe("5 / 20");
   });
 
+  test("tickets cell shows the tickets_count value", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.tickets!.cell(
+        testListingWithCount({ tickets_count: 7 }),
+        u,
+      ),
+    ).toBe("7");
+  });
+
+  test("tickets rawValue returns tickets_count", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.tickets!.rawValue!(
+        testListingWithCount({ tickets_count: 7 }),
+        u,
+      ),
+    ).toBe(7);
+  });
+
+  test("revenue cell formats income as currency", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.revenue!.cell(
+        testListingWithCount({ income: 7500 }),
+        u,
+      ),
+    ).toContain("75");
+  });
+
+  test("revenue rawValue returns income", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.revenue!.rawValue!(
+        testListingWithCount({ income: 7500 }),
+        u,
+      ),
+    ).toBe(7500);
+  });
+
   test("renewal cell renders label with months when months_per_unit > 0", () => {
     expect(
       LISTING_TABLE_COLUMNS.renewal!.cell(
@@ -121,7 +157,6 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     answerQuestionMap: new Map(),
     answerTextMap: new Map(),
     phonePrefix: "44",
-    renderActions: () => "",
     renderStatus: () => "",
   };
   const makeRow = (

@@ -116,6 +116,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         startDate: "2026-12-25",
       });
       const { response } = await adminGet("/admin/holidays");
+      // The name links to the edit page; delete now lives on that edit page,
+      // not inline in the list table.
       await expectHtmlResponse(
         response,
         200,
@@ -123,7 +125,6 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         "2026-12-25",
         "2026-12-26",
         `/admin/holidays/${holiday.id}/edit`,
-        `/admin/holidays/${holiday.id}/delete`,
       );
     });
   });
@@ -264,6 +265,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         "Christmas",
         "2026-12-25",
         "2026-12-26",
+        // Delete moved off the list table onto the edit page.
+        `/admin/holidays/${holiday.id}/delete`,
       );
     });
 

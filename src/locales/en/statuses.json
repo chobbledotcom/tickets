@@ -17,5 +17,8 @@
   "statuses.form_reservation_amount_label": "Reservation amount",
   "statuses.form_reservation_amount_hint": ". Only used for reservations.",
   "statuses.form_save_button": "Save status",
-  "statuses.form_create_button": "Create status"
+  "statuses.form_create_button": "Create status",
+  "statuses.delete_button": "Delete status",
+  "statuses.delete_title": "Delete Attendee Status",
+  "statuses.delete_confirm": "Type the status name \"{name}\" to confirm deletion:"
 }

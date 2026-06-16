@@ -32,6 +32,7 @@ import {
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { getFlash } from "#shared/flash-context.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
@@ -75,6 +76,7 @@ const bookingsForDate = (
         listingId: leg.listingId,
         listingName: lookups.listingNameById.get(leg.listingId)!,
         phone: attendee.phone,
+        ticketToken: attendee.ticket_token,
       };
       byBooking.set(key, booking);
     }
@@ -138,12 +140,13 @@ const loadLegLookups = async (
 /** Handle GET /admin/deliveries — render the run sheet. Agents are sent here as
  * their only page; staff (owner/manager) reach it from the Calendar submenu. */
 const handleDeliveriesGet = anyUserPage(async (session) => {
+  const flash = getFlash();
   const agentIds = await getUserAgentIds(session.userId);
   if (agentIds.length === 0) {
     return agentDeliveriesPage(
       [],
       settings.phonePrefix,
-      { noAgents: true },
+      { error: flash.error, noAgents: true, success: flash.success },
       session,
     );
   }
@@ -158,7 +161,7 @@ const handleDeliveriesGet = anyUserPage(async (session) => {
   return agentDeliveriesPage(
     groups,
     settings.phonePrefix,
-    { noAgents: false },
+    { error: flash.error, noAgents: false, success: flash.success },
     session,
   );
 });

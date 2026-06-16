@@ -45,6 +45,7 @@ import type { LogisticsAgent, User } from "#shared/types.ts";
 import {
   adminUserAgentsPage,
   adminUserDeletePage,
+  adminUserManagePage,
   adminUserNewPage,
   adminUsersPage,
   type DisplayUser,
@@ -66,6 +67,13 @@ const VALID_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
 /** The logistics agents an owner can assign — only when logistics is enabled. */
 const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
   settings.hasLogistics ? getAllLogisticsAgents() : Promise.resolve([]);
+
+/** Map of assignable logistics-agent id → name, for resolving agent users'
+ * assignments to display names. */
+const loadAgentNameById = async (): Promise<Map<number, string>> => {
+  const agents = await loadAssignableAgents();
+  return new Map(agents.map((a) => [a.id, a.name]));
+};
 
 /** Resolve the chosen `agent_ids` from a form down to the ids that are real
  * logistics agents, dropping anything unknown. */
@@ -121,11 +129,10 @@ const renderUsersPage = async (
   session: AuthSession,
   opts: UsersPageOpts,
 ): Promise<string> => {
-  const [users, agents] = await Promise.all([
+  const [users, agentNameById] = await Promise.all([
     getAllUsers(),
-    loadAssignableAgents(),
+    loadAgentNameById(),
   ]);
-  const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
   const displayUsers = await Promise.all(
     users.map((user) => toDisplayUser(user, agentNameById)),
   );
@@ -163,6 +170,39 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
       }),
     );
   });
+
+/** Build a DisplayUser with its assigned logistics-agent names resolved. */
+const toDisplayUserWithAgents = async (user: User): Promise<DisplayUser> =>
+  toDisplayUser(user, await loadAgentNameById());
+
+/** Owner-guarded GET handler that loads the target user (or 404s), then renders. */
+const ownerUserPage =
+  (
+    handler: (
+      user: User,
+      session: AuthSession,
+      errorPage: UserErrorPageFn,
+    ) => Response | Promise<Response>,
+  ) =>
+  (request: Request, { id }: { id: number }): Promise<Response> =>
+    requireOwnerOr(request, (session) =>
+      withLoadedUser(session, id, (user, errorPage) =>
+        handler(user, session, errorPage),
+      ),
+    );
+
+/** Handle GET /admin/users/:id - per-user management page */
+const handleUserManageGet = ownerUserPage(async (user, session) => {
+  const displayUser = await toDisplayUserWithAgents(user);
+  const flash = getFlash();
+  return htmlResponse(
+    adminUserManagePage(displayUser, session, {
+      currentUserId: session.userId,
+      error: flash.error,
+      success: flash.success,
+    }),
+  );
+});
 
 /**
  * Handle GET /admin/user/new - show invite user form
@@ -272,15 +312,9 @@ const renderUserAgentsPage = async (
 };
 
 /** Handle GET /admin/users/:id/agents - edit an agent user's logistics agents */
-const handleUserAgentsGet: TypedRouteHandler<"GET /admin/users/:id/agents"> = (
-  request,
-  { id },
-) =>
-  requireOwnerOr(request, (session) =>
-    withLoadedUser(session, id, (user, errorPage) =>
-      renderUserAgentsPage(session, user, errorPage),
-    ),
-  );
+const handleUserAgentsGet = ownerUserPage((user, session, errorPage) =>
+  renderUserAgentsPage(session, user, errorPage),
+);
 
 /** Handle POST /admin/users/:id/agents - save an agent user's logistics agents */
 const handleUserAgentsPost: TypedRouteHandler<
@@ -398,6 +432,7 @@ export const usersRoutes = {
   ...defineRoutes({
     "GET /admin/user/new": handleUserNewGet,
     "GET /admin/users": handleUsersGet,
+    "GET /admin/users/:id": handleUserManageGet,
     "GET /admin/users/:id/agents": handleUserAgentsGet,
     "POST /admin/users": handleUsersPost,
     "POST /admin/users/:id/activate": handleUserActivatePost,

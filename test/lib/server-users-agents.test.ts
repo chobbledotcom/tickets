@@ -49,6 +49,25 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     expect(await getUserAgentIds(user!.id)).toEqual([]);
   });
 
+  test("the manage page lists an agent user's assigned logistics agents", async () => {
+    await settings.update.hasLogistics(true);
+    const van = await logisticsAgentsTable.insert({ name: "Van 1" });
+    const { userId } = await createTestAgentSession({
+      agentIds: [van.id],
+      token: "umanage",
+      username: "drivermanage",
+    });
+
+    const response = await awaitTestRequest(`/admin/users/${userId}`, {
+      cookie: await testCookie(),
+    });
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("drivermanage");
+    expect(html).toContain("Van 1");
+    expect(html).toContain(`/admin/users/${userId}/agents`);
+  });
+
   test("the edit-agents page renders the agent's checkboxes", async () => {
     await settings.update.hasLogistics(true);
     const van = await logisticsAgentsTable.insert({ name: "Van 1" });

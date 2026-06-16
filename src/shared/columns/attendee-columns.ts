@@ -149,12 +149,6 @@ const registered: AttendeeCol = {
   rawValue: (row) => row.attendee.created,
 };
 
-const actions = componentRenderedCol(
-  "Actions",
-  "Refund, edit, delete, and re-send notification links",
-  (row, opts) => opts.renderActions(row),
-);
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -187,7 +181,6 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
   AttendeeTableRow,
   AttendeeColumnOpts
 > = {
-  actions,
   address,
   answers,
   date,
@@ -216,5 +209,4 @@ export const ATTENDEE_DEFAULT_ORDER = [
   "qty",
   "ticket",
   "registered",
-  "actions",
 ] as const;

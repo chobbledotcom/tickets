@@ -15,6 +15,7 @@ import type { AdminSession, Holiday } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
+  DeleteSection,
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -51,23 +52,18 @@ export const adminHolidaysPage = (
                 <th>{t("common.name")}</th>
                 <th>{t("holidays.col.start_date")}</th>
                 <th>{t("holidays.col.end_date")}</th>
-                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {holidays.map((holiday) => (
                 <tr>
-                  <td>{holiday.name}</td>
-                  <td>{holiday.start_date}</td>
-                  <td>{holiday.end_date}</td>
                   <td>
                     <a href={`/admin/holidays/${holiday.id}/edit`}>
-                      {t("common.edit")}
-                    </a>{" "}
-                    <a href={`/admin/holidays/${holiday.id}/delete`}>
-                      {t("common.delete")}
+                      {holiday.name}
                     </a>
                   </td>
+                  <td>{holiday.start_date}</td>
+                  <td>{holiday.end_date}</td>
                 </tr>
               ))}
             </tbody>
@@ -123,6 +119,12 @@ export const adminHolidayEditPage = (
         />
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
+      <DeleteSection
+        heading={t("common.delete")}
+        href={`/admin/holidays/${holiday.id}/delete`}
+      >
+        {t("holidays.delete.submit")}
+      </DeleteSection>
     </Layout>,
   );
 

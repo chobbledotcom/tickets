@@ -3,6 +3,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   adminUserDeletePage,
+  adminUserManagePage,
   adminUsersPage,
   type DisplayUser,
 } from "#templates/admin/users.tsx";
@@ -16,7 +17,7 @@ beforeAll(async () => {
 });
 
 describe("adminUsersPage", () => {
-  test("renders statuses and actions for different user states", () => {
+  test("renders statuses and links each username to its manage page", () => {
     const users: DisplayUser[] = [
       {
         adminLevel: "owner",
@@ -52,10 +53,12 @@ describe("adminUsersPage", () => {
     expect(html).toContain("Active");
     expect(html).toContain("Pending Activation");
     expect(html).toContain("Invited");
-    expect(html).toContain('action="/admin/users/2/activate"');
-    expect(html).toContain('href="/admin/users/2/delete"');
-    expect(html).toContain('href="/admin/users/3/delete"');
-    expect(html).not.toContain('href="/admin/users/1/delete"');
+    // The username links to the per-user manage page; the activate/delete
+    // actions live there now, not inline in the table.
+    expect(html).toContain('<a href="/admin/users/2">pending</a>');
+    expect(html).toContain('<a href="/admin/users/3">invited</a>');
+    expect(html).not.toContain("/activate");
+    expect(html).not.toContain("/delete");
   });
 
   test("renders Invite Expired status for expired invite", () => {
@@ -107,6 +110,67 @@ describe("adminUsersPage", () => {
     expect(html).toContain("https://example.com/join/abc123");
     expect(html).toContain("Invite created");
     expect(html).toContain("Something went wrong");
+  });
+});
+
+describe("adminUserManagePage", () => {
+  const manager: DisplayUser = {
+    adminLevel: "manager",
+    hasDataKey: false,
+    hasPassword: true,
+    id: 2,
+    inviteExpired: false,
+    username: "pending",
+  };
+
+  test("shows the activate form for a pending user", () => {
+    const html = adminUserManagePage(manager, TEST_SESSION, {
+      currentUserId: 1,
+    });
+    expect(html).toContain('action="/admin/users/2/activate"');
+  });
+
+  test("shows the delete section for another user", () => {
+    const html = adminUserManagePage(manager, TEST_SESSION, {
+      currentUserId: 1,
+    });
+    expect(html).toContain('href="/admin/users/2/delete"');
+  });
+
+  test("hides the delete section for the current user", () => {
+    const html = adminUserManagePage(manager, TEST_SESSION, {
+      currentUserId: 2,
+    });
+    expect(html).not.toContain('href="/admin/users/2/delete"');
+  });
+
+  test("shows edit-agents link and assigned agent names for an agent user", () => {
+    const agent: DisplayUser = {
+      adminLevel: "agent",
+      agentNames: ["Van 1"],
+      hasDataKey: true,
+      hasPassword: true,
+      id: 4,
+      inviteExpired: false,
+      username: "driver",
+    };
+    const html = adminUserManagePage(agent, TEST_SESSION, { currentUserId: 1 });
+    expect(html).toContain('href="/admin/users/4/agents"');
+    expect(html).toContain("Van 1");
+  });
+
+  test("shows a placeholder when an agent user has no assigned agents", () => {
+    const agent: DisplayUser = {
+      adminLevel: "agent",
+      agentNames: [],
+      hasDataKey: true,
+      hasPassword: true,
+      id: 4,
+      inviteExpired: false,
+      username: "driver",
+    };
+    const html = adminUserManagePage(agent, TEST_SESSION, { currentUserId: 1 });
+    expect(html).toContain("No agents assigned");
   });
 });
 
