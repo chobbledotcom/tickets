@@ -126,34 +126,34 @@ export const ConfirmationEmailTemplateForm = (
       />
     </label>
     <label>
-      HTML Body
+      {t("settings.advanced.html_body")}
       <textarea
         data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
         id="confirmation_html"
         name="html"
-        placeholder="Leave blank to use default template"
+        placeholder={t("settings.advanced.leave_blank_default")}
         rows="8"
       >
         {s.confirmationTemplates.html}
       </textarea>
     </label>
     <a data-fill-default="confirmation_html" href="#">
-      <small>Edit default template</small>
+      <small>{t("settings.advanced.edit_default_template")}</small>
     </a>
     <label>
-      Plain Text Body
+      {t("settings.advanced.plain_text_body")}
       <textarea
         data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
         id="confirmation_text"
         name="text"
-        placeholder="Leave blank to use default template"
+        placeholder={t("settings.advanced.leave_blank_default")}
         rows="6"
       >
         {s.confirmationTemplates.text}
       </textarea>
     </label>
     <a data-fill-default="confirmation_text" href="#">
-      <small>Edit default template</small>
+      <small>{t("settings.advanced.edit_default_template")}</small>
     </a>
     <br />
   </SettingsSection>
