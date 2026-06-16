@@ -4,7 +4,6 @@
 
 import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
-import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -22,12 +21,12 @@ import {
   resultRows,
 } from "#shared/db/client.ts";
 import {
+  cachedEntityTable,
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { createListingsCache } from "#shared/db/listings-cache.ts";
-import { col, withCacheInvalidation } from "#shared/db/table.ts";
+import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -249,24 +248,27 @@ const queryOneListingWithCount = async (
  * {@link listingsTable} (and the explicit invalidate calls in the attendee
  * write paths) clear it.
  */
-const listingsCache = createListingsCache({
+const LISTINGS_CACHE_TTL_MS = 30_000;
+const listingsEntity = cachedEntityTable<
+  Listing,
+  ListingInput,
+  ListingWithCount
+>("listings", rawListingsTable, {
   fetchAll: () => queryListingsWithCounts(),
   fetchById: (id) => queryOneListingWithCount("e.id = ?", [id]),
-  fetchBySlugIndex: (slugIndex) =>
-    queryOneListingWithCount("e.slug_index = ?", [slugIndex]),
-  fetchBySlugIndexes: (slugIndexes) =>
+  fetchByKeys: (slugIndexes) =>
     queryListingsWithCounts(
       `WHERE e.slug_index IN (${inPlaceholders(slugIndexes)})`,
       slugIndexes,
     ),
+  idOf: (e) => e.id,
+  keyOf: (e) => e.slug_index,
+  ttlMs: LISTINGS_CACHE_TTL_MS,
 });
-
-registerCache(() => ({ entries: listingsCache.size(), name: "listings" }));
+const listingsCache = listingsEntity.cache;
 
 /** Listings table with CRUD operations — writes auto-invalidate the cache */
-export const listingsTable = withCacheInvalidation(rawListingsTable, () =>
-  listingsCache.invalidate(),
-);
+export const listingsTable = listingsEntity.table;
 
 /**
  * Get a single listing by ID (from cache; fetches just this listing on a miss).
@@ -368,7 +370,13 @@ export const getListingWithCount = (
 export const getListingWithCountBySlug = async (
   slug: string,
 ): Promise<ListingWithCount | null> =>
-  listingsCache.getBySlugIndex(await computeSlugIndex(slug));
+  listingsCache.getByKey(await computeSlugIndex(slug));
+
+/** Get all cached listings of a given type (loads the whole set once per TTL). */
+const getListingsByType = async (
+  type: ListingType,
+): Promise<ListingWithCount[]> =>
+  (await listingsCache.getAll()).filter((e) => e.listing_type === type);
 
 /** Result type for combined listing + attendees query */
 export type ListingWithAttendees = {
@@ -409,14 +417,14 @@ export const getListingWithAttendeesRaw = async (
  * Get all daily listings with attendee counts (from cache).
  */
 export const getAllDailyListings = (): Promise<ListingWithCount[]> =>
-  listingsCache.getByType("daily");
+  getListingsByType("daily");
 
 /**
  * Get all standard listings with attendee counts (from cache).
  * Used by the calendar view to include one-time listings on their scheduled date.
  */
 export const getAllStandardListings = (): Promise<ListingWithCount[]> =>
-  listingsCache.getByType("standard");
+  getListingsByType("standard");
 
 /**
  * Get distinct attendee dates for daily listings.
@@ -534,5 +542,5 @@ export const getListingsBySlugsBatch = async (
 ): Promise<(ListingWithCount | null)[]> => {
   if (slugs.length === 0) return [];
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
-  return listingsCache.getBySlugIndexes(slugIndices);
+  return listingsCache.getByKeys(slugIndices);
 };
