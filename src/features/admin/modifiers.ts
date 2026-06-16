@@ -3,6 +3,7 @@
  */
 
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import {
   getAllModifiers,
   type ModifierInput,
@@ -34,6 +35,7 @@ const extractModifierInput = (values: ModifierFormValues): ModifierInput => ({
   calcKind: values.calc_kind as CalcKind,
   calcValue: values.calc_value,
   direction: values.direction as ModifierDirection,
+  minSubtotal: toMinorUnits(values.min_subtotal),
   name: values.name,
 });
 

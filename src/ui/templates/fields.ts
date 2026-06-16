@@ -876,6 +876,7 @@ export type ModifierFormValues = {
   calc_kind: string;
   direction: string;
   calc_value: number;
+  min_subtotal: number;
   active: string;
 };
 
@@ -921,6 +922,23 @@ export const modifierFields: Field[] = [
     type: "text",
     validate: (value: string) =>
       Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+  {
+    hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
+    inputmode: "decimal",
+    label: "Minimum order (optional)",
+    name: "min_subtotal",
+    // Optional: blank means no minimum (0). A provided value must be a
+    // non-negative number; `validateSingleField` only runs `validate` when the
+    // field is non-empty, and `parse` maps blank to 0.
+    parse: (value: string) => (value ? Number.parseFloat(value) : 0),
+    type: "text",
+    validate: (value: string) => {
+      const n = Number.parseFloat(value);
+      return Number.isFinite(n) && n >= 0
+        ? null
+        : "Minimum order must be a positive number";
+    },
   },
   {
     label: "Status",

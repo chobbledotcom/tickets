@@ -3,6 +3,7 @@
  */
 
 import { t } from "#i18n";
+import { toMajorUnits } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   booleanToCheckbox,
@@ -44,7 +45,11 @@ export const modifierToFieldValues = (
   entityToFieldValues(
     modifier,
     modifierFields,
-    { active: (m) => booleanToCheckbox(m.active) },
+    {
+      active: (m) => booleanToCheckbox(m.active),
+      min_subtotal: (m) =>
+        m.min_subtotal ? Number(toMajorUnits(m.min_subtotal)) : "",
+    },
     modifier ? undefined : { active: "1" },
   );
 

@@ -29,6 +29,7 @@ export type ModifierInput = {
   calcValue: number;
   direction: ModifierDirection;
   active?: boolean;
+  minSubtotal?: number;
 };
 
 /** Modifiers table with CRUD operations. Name is encrypted at rest, matching

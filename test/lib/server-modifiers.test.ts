@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { toMinorUnits } from "#shared/currency.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
@@ -111,6 +112,31 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.direction).toBe("charge");
     });
 
+    test("stores the minimum order in minor units", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_subtotal: "50" }),
+      );
+      expect((await lastModifier()).min_subtotal).toBe(toMinorUnits(50));
+    });
+
+    test("defaults the minimum order to zero when blank", async () => {
+      await adminFormPost("/admin/modifiers", createData());
+      expect((await lastModifier()).min_subtotal).toBe(0);
+    });
+
+    test("rejects a negative minimum order", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_subtotal: "-5" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum order must be a positive number",
+        false,
+      )(response);
+    });
+
     test("rejects a non-numeric value", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",
@@ -190,6 +216,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, "Edit Modifier", "Editable");
+    });
+
+    test("shows the minimum order in major units on the edit form", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_subtotal: "50" }),
+      );
+      const { id } = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      await expectHtmlResponse(response, 200, 'value="50"');
     });
 
     test("returns 404 for a missing modifier", async () => {
