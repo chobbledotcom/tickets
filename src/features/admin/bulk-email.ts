@@ -119,12 +119,15 @@ const parseSavedDraft = async (
 };
 
 /** Serialize and encrypt a draft using the owner's public key. */
-const saveDraft = (
+const saveDraft = async (
   draft: Parameters<typeof serializeDraft>[0],
-): Promise<void> =>
-  encryptAttendeePII(serializeDraft(draft), settings.publicKey).then(
-    (encrypted) => settings.update.bulkEmailDraft(encrypted),
+): Promise<void> => {
+  const encrypted = await encryptAttendeePII(
+    serializeDraft(draft),
+    settings.publicKey,
   );
+  await settings.update.bulkEmailDraft(encrypted);
+};
 
 /** Wrap an owner-only page builder: gate on owner, apply flash, then build. */
 const ownerEmailPage =
