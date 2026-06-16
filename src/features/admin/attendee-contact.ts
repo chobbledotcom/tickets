@@ -1,24 +1,20 @@
 /**
  * Admin attendee "contact" routes — send a text message to an attendee via the
- * SMS gateway send queue.
+ * SMS gateway.
  *
  * The attendee's phone number is decrypted transiently under the owner's
  * session key, immediately re-encrypted under the SMS Gate E2E key, and only
- * that ciphertext is queued or transmitted — plaintext PII is never persisted.
+ * that ciphertext is transmitted — plaintext PII is never persisted. The
+ * conversation history lives in the (encrypted) activity log; the sms_messages
+ * table only maps gateway ids to attendees for status webhooks.
  */
 
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
-import {
-  enqueueSms,
-  getSmsOutboxForAttendee,
-  markSmsFailed,
-  markSmsSent,
-} from "#shared/db/sms-outbox.ts";
-import { decryptField } from "#shared/sms/e2e.ts";
+import { recordSmsMessage } from "#shared/db/sms-messages.ts";
 import {
   buildMessagePayload,
   getSmsGatewayConfig,
@@ -34,34 +30,19 @@ import {
   attendeeGetRoute,
 } from "./attendees-route-helpers.ts";
 
-/** Decrypt a stored body for display, falling back to a placeholder. */
-const decryptBody = async (
-  bodyEnc: string,
-  passphrase: string,
-): Promise<string> => {
-  try {
-    return await decryptField(bodyEnc, passphrase);
-  } catch {
-    return "(unable to decrypt)";
-  }
-};
+/** SMS-related activity-log entries all start with this. */
+const SMS_LOG_PREFIX = "Text message";
 
 /** GET /admin/listing/:listingId/attendee/:attendeeId/contact */
 const handleContactGet = attendeeGetRoute(async (data, session, request) => {
   const flash = applyFlash(request);
-  const config = getSmsGatewayConfig();
-  const rows = await getSmsOutboxForAttendee(data.attendee.id);
-  const history: SmsHistoryItem[] = await Promise.all(
-    rows.map(async (r) => ({
-      body: config ? await decryptBody(r.body_enc, config.passphrase) : "",
-      created: r.created,
-      id: r.id,
-      status: r.status,
-    })),
-  );
+  const entries = await getAttendeeActivityLog(data.attendee.id);
+  const history: SmsHistoryItem[] = entries
+    .filter((e) => e.message.startsWith(SMS_LOG_PREFIX))
+    .map((e) => ({ created: e.created, message: e.message }));
   return htmlResponse(
     attendeeContactPage(data, session, history, {
-      configured: config !== null,
+      configured: getSmsGatewayConfig() !== null,
       error: flash.error,
       success: flash.success,
     }),
@@ -94,36 +75,28 @@ const handleContactPost = attendeeFormAction(
       await computePhoneIndex(phone),
     );
 
-    // Encrypt once; the same ciphertext is both stored and transmitted.
     const payload = await buildMessagePayload(
       phone,
       message,
       config.passphrase,
     );
-    const { id } = await enqueueSms({
-      attendeeId,
-      bodyEnc: payload.textMessage.text,
-      listingId,
-      phoneEnc: payload.phoneNumbers[0]!,
-    });
 
     try {
       const { providerId } = await sendEncryptedMessage(config, payload);
-      await markSmsSent(id, providerId);
+      await recordSmsMessage({ attendeeId, listingId, providerId });
       await logActivity(
-        `Text message sent to attendee '${data.attendee.name}'`,
+        `${SMS_LOG_PREFIX} sent to ${data.attendee.name}: ${message}`,
         listingId,
         attendeeId,
       );
       return redirect(backUrl, "Text message sent", true);
     } catch (e) {
-      await markSmsFailed(id, String(e));
       await logActivity(
-        `Text message to attendee '${data.attendee.name}' failed to send: ${String(e)}`,
+        `${SMS_LOG_PREFIX} to ${data.attendee.name} failed to send: ${String(e)}`,
         listingId,
         attendeeId,
       );
-      return redirect(backUrl, "Message queued but failed to send", false);
+      return redirect(backUrl, "Message failed to send", false);
     }
   },
 );

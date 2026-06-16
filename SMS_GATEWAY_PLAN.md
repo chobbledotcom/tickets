@@ -250,7 +250,7 @@ key, and only ciphertext touches the database or the network.
 | Module | Role | Status |
 | ------ | ---- | ------ |
 | `src/shared/sms/e2e.ts` | SMS Gate E2E encrypt/decrypt (WebCrypto) | ✅ built + tested |
-| `src/shared/db/sms-outbox.ts` + migration | outbox queue (stores ciphertext only) | ✅ built + tested |
+| `src/shared/db/sms-messages.ts` + migration | PII-free id→attendee map for status webhooks (content lives in the activity log; rows deleted on terminal status + pruned by age) | ✅ built + tested |
 | `src/shared/sms/gateway.ts` | cloud client: encrypt + send, parse id | ✅ built + tested |
 | settings keys `sms_gateway_*` | encrypted passphrase + Basic-auth creds + base URL | ✅ keys/accessors built + tested |
 | `src/features/admin/attendee-contact.ts` + template | attendee "contact" page: compose, queue, dispatch, history | ✅ built + tested |
@@ -268,10 +268,11 @@ sends texts from any attendee's **Contact** page. The full path is tested:
 configure → compose → decrypt under owner key → re-encrypt under E2E key → queue
 ciphertext → POST to cloud → record status.
 
-**Deferred to v1.1**: a webhook receiver to move rows `sent → delivered/failed`
-and capture inbound replies, plus a retry path for rows the cloud rejected.
-(The `getQueuedSms` / `markSmsDelivered` / inbound helpers were removed for now
-under the repo's no-test-only-exports rule and return when that code is wired.)
+The webhook (`POST /sms/webhook`, HMAC-verified, valibot-parsed) records
+delivery/failure against the attendee and captures inbound replies — matched to
+an attendee via the lazily-stored `attendees.phone_index`. All events land in
+the encrypted activity log (the sole durable record); the `sms_messages` table
+holds no message content and is self-pruning.
 
 ## Open questions
 

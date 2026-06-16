@@ -17,13 +17,17 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { findAttendeeIdByPhoneIndex } from "#shared/db/attendee-phone-index.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  getSmsByProviderId,
-  markSmsDelivered,
-  markSmsFailed,
-  type SmsOutboxRow,
-} from "#shared/db/sms-outbox.ts";
+  deleteSmsMessage,
+  getSmsMessageByProviderId,
+  pruneSmsMessagesBefore,
+  type SmsMessageRow,
+} from "#shared/db/sms-messages.ts";
+import { nowMs } from "#shared/now.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
+
+/** How long to keep id→attendee rows as a backstop for missed webhooks. */
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const EnvelopeSchema = v.object({
   event: v.string(),
@@ -72,12 +76,12 @@ const tryDecrypt = async (
 const str = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
-/** Run `fn` with the outbound row a status event refers to, if it exists. */
+/** Run `fn` with the row a status event refers to, if it exists. */
 const withReferencedRow = async (
   payload: Record<string, unknown>,
-  fn: (row: SmsOutboxRow) => Promise<void>,
+  fn: (row: SmsMessageRow) => Promise<void>,
 ): Promise<void> => {
-  const row = await getSmsByProviderId(
+  const row = await getSmsMessageByProviderId(
     str(payload.messageId) || str(payload.id),
   );
   if (row) await fn(row);
@@ -89,15 +93,12 @@ const handleStatus = (
   payload: Record<string, unknown>,
 ): Promise<void> =>
   withReferencedRow(payload, async (row) => {
-    const delivered = event === "sms:delivered";
-    const reason = str(payload.reason) || "unknown";
-    const note = delivered
-      ? "Text message delivered"
-      : `Text message failed: ${reason}`;
-    await (delivered
-      ? markSmsDelivered(row.id)
-      : markSmsFailed(row.id, reason));
+    const note =
+      event === "sms:delivered"
+        ? "Text message delivered"
+        : `Text message failed: ${str(payload.reason) || "unknown"}`;
     await logActivity(note, row.listing_id, row.attendee_id);
+    await deleteSmsMessage(row.id);
   });
 
 const handleReceived = async (
@@ -137,6 +138,9 @@ export const handleSmsWebhook = async (request: Request): Promise<Response> => {
   } else if (event === "sms:received") {
     await handleReceived(payload, settings.smsGatewayPassphrase);
   }
+
+  // Backstop cleanup for rows whose delivery webhook never arrived.
+  await pruneSmsMessagesBefore(new Date(nowMs() - RETENTION_MS).toISOString());
 
   return jsonResponse({ ok: true });
 };

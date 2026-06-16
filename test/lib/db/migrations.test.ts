@@ -880,10 +880,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-14_listing_customisable_days",
         "2026-06-14_attendee_statuses",
         "2026-06-15_activity_log_listing_id_index",
-        "2026-06-16_sms_outbox",
+        "2026-06-16_sms_messages",
         "2026-06-16_attendee_phone_index",
       ],
-      schemaHash: "mtqr1u",
+      schemaHash: "1ekec0n",
     });
   });
 });

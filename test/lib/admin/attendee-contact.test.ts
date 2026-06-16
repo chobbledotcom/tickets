@@ -3,7 +3,7 @@ import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getSmsOutboxForAttendee } from "#shared/db/sms-outbox.ts";
+import { getSmsMessageByProviderId } from "#shared/db/sms-messages.ts";
 import {
   adminFormPost,
   adminGet,
@@ -43,6 +43,11 @@ const okFetch = () =>
     Promise.resolve(new Response('{"id":"msg-9"}', { status: 200 })),
   );
 
+const sentLog = async (attendeeId: number) =>
+  (await getAttendeeActivityLog(attendeeId)).some((e) =>
+    e.message.includes("Text message sent"),
+  );
+
 describeWithEnv("admin attendee contact", { db: true }, () => {
   it("GET shows the compose form when configured", async () => {
     await configureGateway();
@@ -75,7 +80,7 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
     expect(html).not.toContain("Send a text message");
   });
 
-  it("POST sends a text, stores ciphertext, and marks it sent", async () => {
+  it("POST sends a text: records the id→attendee map and logs the message", async () => {
     await configureGateway();
     const { attendee, contactUrl } = await setup();
     const fetchStub = okFetch();
@@ -88,48 +93,17 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
       fetchStub.restore();
     }
 
-    const rows = await getSmsOutboxForAttendee(attendee.id);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.status).toBe("sent");
-    expect(rows[0]!.provider_id).toBe("msg-9");
-    // Stored value is ciphertext, never the plaintext message
-    expect(rows[0]!.body_enc).not.toContain("Hello Jane");
-    expect(rows[0]!.phone_enc).not.toContain(PHONE);
-  });
-
-  it("POST marks the row failed when the gateway errors", async () => {
-    await configureGateway();
-    const { attendee, contactUrl } = await setup();
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("boom", { status: 500 })),
-    );
-    try {
-      await adminFormPost(contactUrl, { message: "Hi" });
-    } finally {
-      fetchStub.restore();
-    }
-
-    const rows = await getSmsOutboxForAttendee(attendee.id);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.status).toBe("failed");
-    expect(rows[0]!.error).not.toBe("");
-  });
-
-  it("logs a successful send against the attendee", async () => {
-    await configureGateway();
-    const { attendee, contactUrl } = await setup();
-    const fetchStub = okFetch();
-    try {
-      await adminFormPost(contactUrl, { message: "Hi" });
-    } finally {
-      fetchStub.restore();
-    }
+    const row = await getSmsMessageByProviderId("msg-9");
+    expect(row).not.toBeNull();
+    expect(row!.attendee_id).toBe(attendee.id);
 
     const log = await getAttendeeActivityLog(attendee.id);
-    expect(log.some((e) => e.message.includes("Text message sent"))).toBe(true);
+    expect(
+      log.some((e) => e.message.includes("sent to Jane Doe: Hello Jane")),
+    ).toBe(true);
   });
 
-  it("logs a failed send against the attendee, with the error", async () => {
+  it("POST on a gateway error logs the failure and records no row", async () => {
     await configureGateway();
     const { attendee, contactUrl } = await setup();
     const fetchStub = stub(globalThis, "fetch", () =>
@@ -143,29 +117,30 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
 
     const log = await getAttendeeActivityLog(attendee.id);
     expect(log.some((e) => e.message.includes("failed to send"))).toBe(true);
+    expect(await sentLog(attendee.id)).toBe(false);
   });
 
-  it("POST rejects an empty message without enqueuing", async () => {
+  it("POST rejects an empty message", async () => {
     await configureGateway();
     const { attendee, contactUrl } = await setup();
     await adminFormPost(contactUrl, { message: "   " });
-    expect(await getSmsOutboxForAttendee(attendee.id)).toHaveLength(0);
+    expect(await sentLog(attendee.id)).toBe(false);
   });
 
   it("POST refuses to send when the gateway is unconfigured", async () => {
     const { attendee, contactUrl } = await setup();
     await adminFormPost(contactUrl, { message: "Hi" });
-    expect(await getSmsOutboxForAttendee(attendee.id)).toHaveLength(0);
+    expect(await sentLog(attendee.id)).toBe(false);
   });
 
   it("POST refuses when the attendee has no phone number", async () => {
     await configureGateway();
     const { attendee, contactUrl } = await setup("");
     await adminFormPost(contactUrl, { message: "Hi" });
-    expect(await getSmsOutboxForAttendee(attendee.id)).toHaveLength(0);
+    expect(await sentLog(attendee.id)).toBe(false);
   });
 
-  it("GET renders decrypted send history", async () => {
+  it("GET renders the conversation history from the activity log", async () => {
     await configureGateway();
     const { contactUrl } = await setup();
     const fetchStub = okFetch();
@@ -180,7 +155,7 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
     expect(html).toContain("History line");
   });
 
-  it("GET renders history without bodies when the gateway is unconfigured", async () => {
+  it("GET still shows history (and the warning) when unconfigured", async () => {
     await configureGateway();
     const { contactUrl } = await setup();
     const fetchStub = okFetch();
@@ -195,26 +170,6 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
     const { response } = await adminGet(contactUrl);
     const html = await response.text();
     expect(html).toContain("not configured");
-    // A history row still renders (with an empty, undecryptable body)
-    expect(html).toContain("sent");
-    expect(html).not.toContain("Earlier message");
-  });
-
-  it("GET shows a placeholder when history can't be decrypted", async () => {
-    await configureGateway();
-    const { contactUrl } = await setup();
-    const fetchStub = okFetch();
-    try {
-      await adminFormPost(contactUrl, { message: "Secret" });
-    } finally {
-      fetchStub.restore();
-    }
-    // Rotate the passphrase so the stored ciphertext no longer decrypts
-    await settings.update.smsGatewayPassphrase("a-different-passphrase");
-
-    const { response } = await adminGet(contactUrl);
-    const html = await response.text();
-    expect(html).toContain("unable to decrypt");
-    expect(html).not.toContain("Secret");
+    expect(html).toContain("Earlier message");
   });
 });

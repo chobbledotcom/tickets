@@ -3,7 +3,6 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
-import type { SmsStatus } from "#shared/db/sms-outbox.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
@@ -15,33 +14,29 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
-/** A previously-sent message, decrypted for display. */
+/** A text-message activity-log entry, shown as conversation history. */
 export type SmsHistoryItem = {
-  id: number;
-  body: string;
-  status: SmsStatus;
   created: string;
+  message: string;
 };
 
 const HistoryRow = ({ item }: { item: SmsHistoryItem }): string =>
   String(
     <tr>
       <td>{new Date(item.created).toLocaleString()}</td>
-      <td>{item.status}</td>
-      <td>{item.body}</td>
+      <td>{item.message}</td>
     </tr>,
   );
 
 const historyTable = (history: SmsHistoryItem[]): string =>
   history.length === 0
-    ? "<p>No text messages sent yet.</p>"
+    ? "<p>No text messages yet.</p>"
     : String(
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Sent</th>
-                <th>Status</th>
+                <th>When</th>
                 <th>Message</th>
               </tr>
             </thead>
@@ -104,7 +99,7 @@ export const attendeeContactPage = (
         </CsrfForm>
       )}
 
-      <h2>Sent messages</h2>
+      <h2>Message history</h2>
       <Raw html={historyTable(history)} />
     </Layout>,
   );

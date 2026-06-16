@@ -11,10 +11,9 @@ import {
 } from "#shared/db/attendee-phone-index.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  enqueueSms,
-  getSmsByProviderId,
-  markSmsSent,
-} from "#shared/db/sms-outbox.ts";
+  getSmsMessageByProviderId,
+  recordSmsMessage,
+} from "#shared/db/sms-messages.ts";
 import { encryptField } from "#shared/sms/e2e.ts";
 import {
   computePhoneIndex,
@@ -137,23 +136,21 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     expect(res.status).toBe(400);
   });
 
-  test("delivered marks the row and logs against the attendee", async () => {
+  test("delivered logs against the attendee and clears the row", async () => {
     await configure();
     const attendee = await makeAttendee();
-    const { id } = await enqueueSms({
+    await recordSmsMessage({
       attendeeId: attendee.id,
-      bodyEnc: "x",
       listingId: 1,
-      phoneEnc: "y",
+      providerId: "msg-1",
     });
-    await markSmsSent(id, "msg-1");
 
     const res = await postWebhook({
       event: "sms:delivered",
       payload: { messageId: "msg-1" },
     });
     expect(res.status).toBe(200);
-    expect((await getSmsByProviderId("msg-1"))!.status).toBe("delivered");
+    expect(await getSmsMessageByProviderId("msg-1")).toBeNull();
     const log = await getAttendeeActivityLog(attendee.id);
     expect(log.some((e) => e.message.includes("delivered"))).toBe(true);
   });
@@ -161,13 +158,11 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
   test("failed logs the reason against the attendee", async () => {
     await configure();
     const attendee = await makeAttendee();
-    const { id } = await enqueueSms({
+    await recordSmsMessage({
       attendeeId: attendee.id,
-      bodyEnc: "x",
       listingId: 1,
-      phoneEnc: "y",
+      providerId: "msg-2",
     });
-    await markSmsSent(id, "msg-2");
 
     await postWebhook({
       event: "sms:failed",
@@ -180,16 +175,14 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
   test("delivered falls back to the `id` field when messageId is absent", async () => {
     await configure();
     const attendee = await makeAttendee();
-    const { id } = await enqueueSms({
+    await recordSmsMessage({
       attendeeId: attendee.id,
-      bodyEnc: "x",
       listingId: 1,
-      phoneEnc: "y",
+      providerId: "msg-3",
     });
-    await markSmsSent(id, "msg-3");
 
     await postWebhook({ event: "sms:delivered", payload: { id: "msg-3" } });
-    expect((await getSmsByProviderId("msg-3"))!.status).toBe("delivered");
+    expect(await getSmsMessageByProviderId("msg-3")).toBeNull();
   });
 
   test("ignores non-string payload fields", async () => {
@@ -216,13 +209,11 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     ).toBe(200);
 
     const attendee = await makeAttendee();
-    const { id } = await enqueueSms({
+    await recordSmsMessage({
       attendeeId: attendee.id,
-      bodyEnc: "x",
       listingId: 1,
-      phoneEnc: "y",
+      providerId: "msg-4",
     });
-    await markSmsSent(id, "msg-4");
     await postWebhook({ event: "sms:failed", payload: { messageId: "msg-4" } });
 
     const log = await getAttendeeActivityLog(attendee.id);

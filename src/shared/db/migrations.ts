@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add sms_outbox table for the SMS gateway send queue, storing only end-to-end-encrypted recipient and message ciphertext";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log)";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -529,30 +529,23 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // SMS gateway send queue. Stores ONLY end-to-end-encrypted values:
-    // `phone_enc` and `body_enc` are SMS Gate E2E ciphertext (decryptable only
-    // with the passphrase, which itself is stored encrypted under DATA_KEY in
-    // settings). Plaintext recipient numbers and message text never touch this
-    // table — attendee PII is decrypted transiently under the owner key and
-    // immediately re-encrypted under the E2E key before a row is written.
-    "sms_outbox",
+    // Lean, PII-free map from the gateway's message id to the attendee it was
+    // sent to, so delivery/failure webhooks can be logged against the right
+    // attendee. Message content and recipient numbers live only in the
+    // (encrypted) activity log — never here. Rows are deleted on a terminal
+    // status event and pruned by age as a backstop.
+    "sms_messages",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["attendee_id", "INTEGER NOT NULL"],
         ["listing_id", "INTEGER NOT NULL"],
-        ["phone_enc", "TEXT NOT NULL"],
-        ["body_enc", "TEXT NOT NULL"],
-        ["status", "TEXT NOT NULL DEFAULT 'queued'"],
-        ["provider_id", "TEXT NOT NULL DEFAULT ''"],
-        ["error", "TEXT NOT NULL DEFAULT ''"],
-        ["attempts", "INTEGER NOT NULL DEFAULT 0"],
+        ["provider_id", "TEXT NOT NULL"],
         ["created", "TEXT NOT NULL"],
-        ["updated", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
-        { columns: ["status", "created"], name: "idx_sms_outbox_status" },
-        { columns: ["attendee_id"], name: "idx_sms_outbox_attendee_id" },
+        { columns: ["provider_id"], name: "idx_sms_messages_provider_id" },
+        { columns: ["created"], name: "idx_sms_messages_created" },
       ],
     },
   ],
@@ -1068,8 +1061,8 @@ const MIGRATIONS: Migration[] = [
   },
   {
     description:
-      "Add sms_outbox table for the SMS gateway send queue (stores only E2E-encrypted recipient and message)",
-    id: "2026-06-16_sms_outbox",
+      "Add sms_messages table mapping gateway message ids to attendees for status webhooks (PII-free; content lives in the activity log)",
+    id: "2026-06-16_sms_messages",
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
