@@ -25,10 +25,13 @@ export const PhoneLinks = ({
         <>
           {" "}
           <small>
-            <a href={links.tel}>{t("attendee_detail.tel")}</a>{" "}
+            {"("}
+            <a href={links.tel}>{t("attendee_detail.tel")}</a>
+            {" / "}
             <a href={links.whatsapp} rel="noopener" target="_blank">
               {t("attendee_detail.whatsapp")}
             </a>
+            {")"}
           </small>
         </>
       )}

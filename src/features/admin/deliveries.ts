@@ -31,6 +31,7 @@ import {
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { getFlash } from "#shared/flash-context.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
@@ -74,6 +75,7 @@ const bookingsForDate = (
         listingId: leg.listingId,
         listingName: lookups.listingNameById.get(leg.listingId)!,
         phone: attendee.phone,
+        ticketToken: attendee.ticket_token,
       };
       byBooking.set(key, booking);
     }
@@ -136,9 +138,14 @@ const loadLegLookups = async (
 
 /** Handle GET /admin/deliveries — render the agent's run sheet. */
 const handleDeliveriesGet = agentPage(async (session) => {
+  const flash = getFlash();
   const agentIds = await getUserAgentIds(session.userId);
   if (agentIds.length === 0) {
-    return agentDeliveriesPage([], settings.phonePrefix, { noAgents: true });
+    return agentDeliveriesPage([], settings.phonePrefix, {
+      error: flash.error,
+      noAgents: true,
+      success: flash.success,
+    });
   }
 
   const today = todayInTz(settings.timezone);
@@ -148,7 +155,11 @@ const handleDeliveriesGet = agentPage(async (session) => {
   const privateKey = (await getPrivateKey(session))!;
   const lookups = await loadLegLookups(legs, privateKey);
   const groups = buildGroups(legs, today, tomorrow, lookups);
-  return agentDeliveriesPage(groups, settings.phonePrefix, { noAgents: false });
+  return agentDeliveriesPage(groups, settings.phonePrefix, {
+    error: flash.error,
+    noAgents: false,
+    success: flash.success,
+  });
 });
 
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
