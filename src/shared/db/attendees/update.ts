@@ -2,7 +2,7 @@
  * Update operations for attendees and their per-listing bookings.
  */
 
-import { filter, map, pipe, reduce, unique } from "#fp";
+import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
@@ -159,7 +159,7 @@ export const checkGroupCapAfterDurationChange = async (
   });
   const base = pipe(
     filter((row: GroupRow) => row.listing_type !== "daily"),
-    reduce((sum: number, row: GroupRow) => sum + row.quantity, 0),
+    sumOf((row: GroupRow) => row.quantity),
   )(rows);
   const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
   const listingRanges = pipe(

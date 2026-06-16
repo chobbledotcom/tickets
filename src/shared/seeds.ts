@@ -3,7 +3,7 @@
  * Uses batch writes for efficient database operations.
  */
 
-import { map, reduce } from "#fp";
+import { map, sum } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -35,9 +35,6 @@ const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);
 
 /** Sample unit prices in minor units (e.g. pence/cents) for paid listings */
 const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
-
-/** Sum an array of numbers */
-const sum = reduce((acc: number, n: number) => acc + n, 0);
 
 /** Generate slugs that are unique within the batch */
 const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {

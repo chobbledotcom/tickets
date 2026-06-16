@@ -592,16 +592,12 @@ export const getAnswerCountsForQuestion = async (
      GROUP BY a.id`,
     [questionId],
   );
-  return reduce(
-    (
-      acc: Map<number, number>,
-      { answer_id, cnt }: { answer_id: number; cnt: number },
-    ) => {
-      acc.set(answer_id, cnt);
-      return acc;
-    },
-    new Map(),
-  )(rows);
+  return new Map(
+    map(
+      ({ answer_id, cnt }: { answer_id: number; cnt: number }) =>
+        [answer_id, cnt] as const,
+    )(rows),
+  );
 };
 
 /** Swap the sort_order of two answers by their IDs */

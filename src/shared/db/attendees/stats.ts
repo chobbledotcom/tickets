@@ -2,7 +2,7 @@
  * Aggregated statistics for attendees across listings.
  */
 
-import { filter, map, reduce } from "#fp";
+import { filter, map, sumOf } from "#fp";
 import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
 import { inPlaceholders, queryOne } from "#shared/db/client.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -21,10 +21,7 @@ export const getActiveListingStats = async (
     return { attendees: 0, income: 0, tickets: 0 };
   }
   const activeIds = map((e: ListingWithCount) => e.id)(active);
-  const attendees = reduce(
-    (sum: number, e: ListingWithCount) => sum + e.attendee_count,
-    0,
-  )(active);
+  const attendees = sumOf((e: ListingWithCount) => e.attendee_count)(active);
 
   const row = (await queryOne<{ tickets: number; income: number }>(
     `SELECT COUNT(*) AS tickets,

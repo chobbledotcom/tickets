@@ -2,7 +2,7 @@
  * Admin listing page templates - detail, edit, delete
  */
 
-import { compact, filter, joinStrings, map, pipe } from "#fp";
+import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
@@ -1219,7 +1219,7 @@ const ListingFormSections = ({
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
-    renderFields(compact(names.map((n) => fieldMap.get(n))), values);
+    renderFields(mapNotNullish((n: string) => fieldMap.get(n))(names), values);
   return (
     <>
       <fieldset class="listing-section">

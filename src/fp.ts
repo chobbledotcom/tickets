@@ -1,7 +1,19 @@
 /**
  * Functional programming utilities
  * Curried functions for array operations and composition
+ *
+ * Several utilities here are thin curried adapters over `@std/collections`,
+ * keeping the project's pipe-friendly calling convention while delegating the
+ * actual work to the standard library.
  */
+
+import {
+  chunk as stdChunk,
+  distinct as stdDistinct,
+  distinctBy as stdDistinctBy,
+  mapNotNullish as stdMapNotNullish,
+  sumOf as stdSumOf,
+} from "@std/collections";
 
 // --- Pipe type helpers ---
 
@@ -72,6 +84,16 @@ export const flatMap =
     array.flatMap(fn);
 
 /**
+ * Curried map that drops null/undefined results in one pass.
+ * Curried adapter over `@std/collections.mapNotNullish`.
+ * Replaces the two-step pattern: compact(map(fn)(array))
+ */
+export const mapNotNullish =
+  <T, U>(fn: (item: T) => U | null | undefined) =>
+  (array: Iterable<T>): U[] =>
+    stdMapNotNullish(array, fn);
+
+/**
  * Curried reduce
  */
 export const reduce =
@@ -88,27 +110,19 @@ export const sort =
     array.toSorted(comparator);
 
 /**
- * Remove duplicate values (by reference/value equality)
+ * Remove duplicate values (by reference/value equality), keeping first
+ * occurrences in order. Curried adapter over `@std/collections.distinct`.
  */
-export const unique = <T>(array: T[]): T[] => [...new Set(array)];
+export const unique = <T>(array: T[]): T[] => stdDistinct(array);
 
 /**
- * Remove duplicates by a key function
+ * Remove duplicates by a key function, keeping first occurrences in order.
+ * Curried adapter over `@std/collections.distinctBy`.
  */
 export const uniqueBy =
   <T>(fn: (item: T) => unknown) =>
-  (array: T[]): T[] => {
-    const seen = new Set<unknown>();
-    const result: T[] = [];
-    for (const item of array) {
-      const key = fn(item);
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push(item);
-      }
-    }
-    return result;
-  };
+  (array: T[]): T[] =>
+    stdDistinctBy(array, fn);
 
 /**
  * Remove null and undefined values from array
@@ -216,17 +230,29 @@ export const asString = (value: unknown): string =>
 export const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /**
- * Split an array into chunks of a given size
+ * Curried sum-by-selector. Adds up the numbers produced by `selector` for each
+ * item. Curried adapter over `@std/collections.sumOf`.
+ * Replaces the common pattern: reduce((acc, x) => acc + selector(x), 0)
+ */
+export const sumOf =
+  <T>(selector: (item: T) => number) =>
+  (array: Iterable<T>): number =>
+    stdSumOf(array, selector);
+
+/**
+ * Sum an array of numbers (identity selector shorthand for sumOf).
+ * Replaces the common pattern: reduce((acc, n) => acc + n, 0)
+ */
+export const sum = sumOf((n: number) => n);
+
+/**
+ * Split an array into chunks of a given size.
+ * Curried adapter over `@std/collections.chunk` (which throws for size < 1).
  */
 export const chunk =
   (size: number) =>
-  <T>(array: T[]): T[][] => {
-    const result: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      result.push(array.slice(i, i + size));
-    }
-    return result;
-  };
+  <T>(array: T[]): T[][] =>
+    stdChunk(array, size);
 
 /**
  * Map over a promise-returning function in parallel (Promise.all)

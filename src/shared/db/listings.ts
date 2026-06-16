@@ -3,7 +3,7 @@
  */
 
 import type { InValue, ResultSet } from "@libsql/client";
-import { mapParallel, reduce, sort, unique } from "#fp";
+import { mapParallel, reduce, sort, sumOf, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -399,7 +399,7 @@ export const getListingWithAttendeesRaw = async (
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
   return withBatchListing(
     listingResult!,
-    () => attendeesRaw.reduce((sum, a) => sum + a.quantity, 0),
+    () => sumOf((a: Attendee) => a.quantity)(attendeesRaw),
     (listing) => ({ attendeesRaw, listing }),
   );
 };

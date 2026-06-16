@@ -111,13 +111,9 @@ const buildCalendarAttendees = (
   listings: ListingWithCount[],
   attendees: Attendee[],
 ): CalendarAttendeeRow[] => {
-  const listingById = reduce(
-    (acc: Map<number, ListingWithCount>, e: ListingWithCount) => {
-      acc.set(e.id, e);
-      return acc;
-    },
-    new Map(),
-  )(listings);
+  const listingById = new Map(
+    map((e: ListingWithCount) => [e.id, e] as const)(listings),
+  );
 
   return map((a: Attendee): CalendarAttendeeRow => {
     const listing = listingById.get(a.listing_id)!;

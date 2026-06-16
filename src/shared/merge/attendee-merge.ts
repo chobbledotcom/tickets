@@ -222,13 +222,12 @@ const buildBookingDiffItems = (
   sourceBookings: ListingAttendeeRow[],
 ): AttendeeMergeDiffBookingItem[] => {
   // Index target bookings by key
-  const targetByKey = reduce(
-    (acc: Map<string, ListingAttendeeRow>, b: ListingAttendeeRow) => {
-      acc.set(bookingKey(b.listing_id, b.start_at), b);
-      return acc;
-    },
-    new Map(),
-  )(targetBookings);
+  const targetByKey = new Map(
+    map(
+      (b: ListingAttendeeRow) =>
+        [bookingKey(b.listing_id, b.start_at), b] as const,
+    )(targetBookings),
+  );
 
   return map((sb: ListingAttendeeRow): AttendeeMergeDiffBookingItem => {
     const key = bookingKey(sb.listing_id, sb.start_at);

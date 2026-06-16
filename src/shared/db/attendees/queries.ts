@@ -2,7 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
-import { map } from "#fp";
+import { map, unique } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
   AttendeeWithBookings,
@@ -213,7 +213,7 @@ export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(AttendeeWithBookings | null)[]> => {
   // Dedupe tokens to prevent double processing
-  const uniqueTokens = [...new Set(tokens)];
+  const uniqueTokens = unique(tokens);
   const tokenIndexes = await Promise.all(
     map((t: string) => computeTicketTokenIndex(t))(uniqueTokens),
   );
