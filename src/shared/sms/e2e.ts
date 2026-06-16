@@ -94,12 +94,12 @@ export const decryptField = async (
   if (!Number.isInteger(iterations) || iterations <= 0) {
     throw new Error("Invalid SMS E2E ciphertext: bad iteration count");
   }
-  const salt = fromBase64(saltB64);
+  const salt = fromBase64(saltB64!);
   const key = await deriveKey(passphrase, salt, iterations);
   const plaintext = await crypto.subtle.decrypt(
     { iv: salt as BufferSource, name: "AES-CBC" },
     key,
-    fromBase64(ciphertextB64) as BufferSource,
+    fromBase64(ciphertextB64!) as BufferSource,
   );
   return new TextDecoder().decode(plaintext);
 };

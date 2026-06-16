@@ -4,8 +4,8 @@ import { settings } from "#shared/db/settings.ts";
 import type { FetchResult } from "#shared/fetch.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import {
-  DEFAULT_SMS_BASE_URL,
   buildMessagePayload,
+  DEFAULT_SMS_BASE_URL,
   generateSmsPassphrase,
   getSmsGatewayConfig,
   isSmsGatewayConfigured,
@@ -24,10 +24,11 @@ const result = (over: Partial<FetchResult> = {}): FetchResult => ({
   ...over,
 });
 
-const fakeFetch = (
-  res: FetchResult,
-  onCall?: (url: string, init?: RequestInit) => void,
-): ((url: string, init?: RequestInit) => Promise<FetchResult>) =>
+const fakeFetch =
+  (
+    res: FetchResult,
+    onCall?: (url: string, init?: RequestInit) => void,
+  ): ((url: string, init?: RequestInit) => Promise<FetchResult>) =>
   (url, init) => {
     onCall?.(url, init);
     return Promise.resolve(res);
@@ -49,7 +50,11 @@ describe("sms gateway payload", () => {
   });
 
   it("buildMessagePayload encrypts the body and recipient", async () => {
-    const payload = await buildMessagePayload("+447700900123", "Hi there", PASS);
+    const payload = await buildMessagePayload(
+      "+447700900123",
+      "Hi there",
+      PASS,
+    );
 
     expect(payload.isEncrypted).toBe(true);
     expect(payload.withDeliveryReport).toBe(true);
@@ -110,21 +115,33 @@ describe("sms gateway send", () => {
       result({ ok: false, status: 401, text: "unauthorized" }),
     );
     await expect(
-      sendEncryptedMessage(config, await buildMessagePayload("+1", "x", PASS), fetchImpl),
+      sendEncryptedMessage(
+        config,
+        await buildMessagePayload("+1", "x", PASS),
+        fetchImpl,
+      ),
     ).rejects.toThrow("returned 401");
   });
 
   it("throws on a non-JSON response", async () => {
     const fetchImpl = fakeFetch(result({ text: "<html>" }));
     await expect(
-      sendEncryptedMessage(config, await buildMessagePayload("+1", "x", PASS), fetchImpl),
+      sendEncryptedMessage(
+        config,
+        await buildMessagePayload("+1", "x", PASS),
+        fetchImpl,
+      ),
     ).rejects.toThrow("non-JSON");
   });
 
   it("throws when the response has no message id", async () => {
     const fetchImpl = fakeFetch(result({ text: "{}" }));
     await expect(
-      sendEncryptedMessage(config, await buildMessagePayload("+1", "x", PASS), fetchImpl),
+      sendEncryptedMessage(
+        config,
+        await buildMessagePayload("+1", "x", PASS),
+        fetchImpl,
+      ),
     ).rejects.toThrow("missing message id");
   });
 });

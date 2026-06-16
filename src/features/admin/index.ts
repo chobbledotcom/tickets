@@ -9,6 +9,7 @@
 
 import { reduce } from "#fp";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
+import { attendeeContactRoutes } from "#routes/admin/attendee-contact.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
@@ -56,6 +57,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   listingQrRoutes,
   markdownPreviewRoutes,
   attendeesRoutes,
+  attendeeContactRoutes,
   attendeeRefundRoutes,
   usersRoutes,
   guideRoutes,

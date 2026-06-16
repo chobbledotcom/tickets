@@ -266,6 +266,9 @@ const createActionsRenderer =
           href={`/admin/listing/${row.listingId}/attendee/${a.id}/resend-notification${suffix}`}
         >
           Re-send Notification
+        </a>{" "}
+        <a href={`/admin/listing/${row.listingId}/attendee/${a.id}/contact`}>
+          Send Text
         </a>
       </>,
     );

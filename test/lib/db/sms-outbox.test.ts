@@ -101,7 +101,9 @@ describeWithEnv("db > sms_outbox", { db: true }, () => {
   });
 
   test("the new table is created by migrations (no rows initially)", async () => {
-    const result = await getDb().execute("SELECT COUNT(*) AS c FROM sms_outbox");
+    const result = await getDb().execute(
+      "SELECT COUNT(*) AS c FROM sms_outbox",
+    );
     expect(Number((result.rows[0] as { c: number }).c)).toBe(0);
   });
 

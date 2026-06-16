@@ -58,10 +58,9 @@ export const enqueueSms = async (input: {
 
 /** Fetch a single outbox row by id. */
 export const getSmsOutboxById = (id: number): Promise<SmsOutboxRow | null> =>
-  queryOne<SmsOutboxRow>(
-    `SELECT ${COLUMNS} FROM sms_outbox WHERE id = ?`,
-    [id],
-  );
+  queryOne<SmsOutboxRow>(`SELECT ${COLUMNS} FROM sms_outbox WHERE id = ?`, [
+    id,
+  ]);
 
 /** Oldest-first queued rows awaiting dispatch. */
 export const getQueuedSms = (limit = 100): Promise<SmsOutboxRow[]> =>
