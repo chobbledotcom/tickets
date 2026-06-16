@@ -38,6 +38,7 @@ import { getDb } from "#shared/db/client.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
+import type { AdminSession } from "#shared/types.ts";
 import {
   adminAttendeeStatusDeletePage,
   adminAttendeeStatusesPage,
@@ -126,18 +127,22 @@ const newGet = ownerPage((session) =>
   adminAttendeeStatusFormPage(session, { error: getFlash().error }),
 );
 
-const editGet: IdRouteHandler = (request, { id }) =>
-  requireOwnerOr(request, (session) => {
-    applyFlash(request);
-    return withEntity<AttendeeStatus>((status) =>
-      htmlResponse(
-        adminAttendeeStatusFormPage(session, {
-          error: getFlash().error,
-          status,
-        }),
-      ),
-    )(() => getAttendeeStatus(id));
-  });
+/** Owner-guarded GET that loads a status by id (or 404s) and renders a page. */
+const ownerStatusPage =
+  (
+    render: (status: AttendeeStatus, session: AdminSession) => string,
+  ): IdRouteHandler =>
+  (request, { id }) =>
+    requireOwnerOr(request, (session) => {
+      applyFlash(request);
+      return withEntity<AttendeeStatus>((status) =>
+        htmlResponse(render(status, session)),
+      )(() => getAttendeeStatus(id));
+    });
+
+const editGet = ownerStatusPage((status, session) =>
+  adminAttendeeStatusFormPage(session, { error: getFlash().error, status }),
+);
 
 const createPost = createAuthedHandler({
   auth: OWNER_FORM,
@@ -177,15 +182,9 @@ const editPost = ownerFormById(async (id, _session, form) => {
   return redirect(LIST_PATH, "Status updated", true);
 });
 
-const deleteGet: IdRouteHandler = (request, { id }) =>
-  requireOwnerOr(request, (session) => {
-    applyFlash(request);
-    return withEntity<AttendeeStatus>((status) =>
-      htmlResponse(
-        adminAttendeeStatusDeletePage(status, session, getFlash().error),
-      ),
-    )(() => getAttendeeStatus(id));
-  });
+const deleteGet = ownerStatusPage((status, session) =>
+  adminAttendeeStatusDeletePage(status, session, getFlash().error),
+);
 
 const deletePost = ownerFormById(async (id, _session, form) => {
   const status = await getAttendeeStatus(id);

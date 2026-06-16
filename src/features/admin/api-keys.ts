@@ -22,6 +22,7 @@ import {
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
 import { defineForm } from "#shared/forms.tsx";
+import type { AdminSession } from "#shared/types.ts";
 import {
   adminApiDocsPage,
   adminApiKeyManagePage,
@@ -43,12 +44,23 @@ export const apiKeyForm = defineForm({
   id: "apiKey",
 });
 
+/** Owner-guarded handler that loads the caller's API keys up front. */
+const withOwnerApiKeys = (
+  request: Request,
+  handle: (
+    session: AdminSession,
+    keys: Awaited<ReturnType<typeof getApiKeysForUser>>,
+  ) => Response | Promise<Response>,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) =>
+    handle(session, await getApiKeysForUser(session.userId)),
+  );
+
 /**
  * Handle GET /admin/api-keys
  */
 const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
-  requireOwnerOr(request, async (session) => {
-    const keys = await getApiKeysForUser(session.userId);
+  withOwnerApiKeys(request, (session, keys) => {
     const flash = applyFlash(request);
     // The API key is embedded in the flash success message after a newline
     const newLineIdx = flash.success?.indexOf("\n") ?? -1;
@@ -129,8 +141,7 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
 const handleApiKeyManageGet: TypedRouteHandler<
   "GET /admin/api-keys/:apiKeyId"
 > = (request, { apiKeyId }) =>
-  requireOwnerOr(request, async (session) => {
-    const keys = await getApiKeysForUser(session.userId);
+  withOwnerApiKeys(request, (session, keys) => {
     const apiKey = keys.find((k) => k.id === apiKeyId);
     if (!apiKey) return notFoundResponse();
     const flash = applyFlash(request);
