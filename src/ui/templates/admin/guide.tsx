@@ -892,8 +892,11 @@ export const adminGuidePage = (
               <a href="https://me.sumup.com/en-gb/settings/api-keys">
                 me.sumup.com/en-gb/settings/api-keys
               </a>
-              . Click <strong>Create API key</strong>, give it a name, and copy
-              the key &mdash; it is shown only once.
+              . That page shows a <strong>Public API key</strong> near the top
+              &mdash; <strong>that is not the one you need</strong>. Instead, in
+              the <strong>API Keys</strong> section below it, click{" "}
+              <strong>Create API key</strong>, give it a name, and copy the new
+              (private) key &mdash; it is shown only once.
             </li>
             <li>
               <strong>Merchant Code</strong> &mdash; your SumUp merchant code (a

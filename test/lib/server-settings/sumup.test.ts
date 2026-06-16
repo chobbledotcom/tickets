@@ -106,6 +106,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(html).not.toContain("sumup-test-btn");
     });
 
+    test("disables browser autocomplete on the SumUp credential fields", async () => {
+      await settings.update.paymentProvider("sumup");
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      const inputTag = (name: string): string =>
+        html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? "";
+      expect(inputTag("sumup_api_key")).toContain('autocomplete="off"');
+      expect(inputTag("sumup_merchant_code")).toContain('autocomplete="off"');
+    });
+
     test("shows the configured message and the test button", async () => {
       await adminFormPost("/admin/settings/sumup", {
         sumup_api_key: "sk_test_configured",

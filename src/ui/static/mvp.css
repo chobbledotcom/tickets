@@ -834,7 +834,7 @@ textarea[readonly] {
 label {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-m);
+  gap: var(--space-s);
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
@@ -1303,6 +1303,11 @@ fieldset {
   display: inline-block;
   font-weight: normal;
   max-width: none;
+}
+
+.checkboxes label input,
+.radios label input {
+  margin-right: 0.5rem;
 }
 
 label.terms-agree {
@@ -2356,7 +2361,8 @@ a.cal-day-selected:hover {
   cursor: pointer;
 }
 
-.listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
+.listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
+  .attendee-line-empty {
   display: none;
 }
 
