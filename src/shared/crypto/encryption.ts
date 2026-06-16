@@ -2,6 +2,7 @@
  * Symmetric AES-GCM encryption, key import, and binary encryption format
  */
 
+import { createCipheriv, createDecipheriv } from "node:crypto";
 import { lazyRef } from "#fp";
 import { getEnv } from "#shared/env.ts";
 import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
@@ -51,7 +52,7 @@ export function onEncryptionKeyChange(cb: () => void): void {
 export const setEncryptionKeyForTest = (key: string | null): void => {
   setEncryptionKeyOverride(key);
   setEncKeyResolved(null);
-  setHmacKeyResolved(null);
+  setEncKeyBytesResolved(null);
   for (const cb of keyChangeCallbacks) cb();
 };
 
@@ -72,6 +73,24 @@ export const getEncryptionKeyString = (): string => {
   decodeKeyBytes(keyString);
 
   return keyString;
+};
+
+/**
+ * Cached raw encryption-key bytes for the node:crypto fast paths.
+ * node:crypto needs the raw 32-byte key (not a CryptoKey), so the decoded bytes
+ * are cached separately from the Web Crypto CryptoKey used for large blobs.
+ */
+const [getEncKeyBytesResolved, setEncKeyBytesResolved] = lazyRef<
+  Uint8Array | undefined
+>(() => undefined);
+
+/** Raw 256-bit encryption key bytes, decoded once from DB_ENCRYPTION_KEY */
+export const getEncryptionKeyBytes = (): Uint8Array => {
+  const resolved = getEncKeyBytesResolved();
+  if (resolved) return resolved;
+  const bytes = decodeKeyBytes(getEncryptionKeyString());
+  setEncKeyBytesResolved(bytes);
+  return bytes;
 };
 
 /**
@@ -141,6 +160,62 @@ export const aesGcmDecryptRaw = (
     ciphertext as BufferSource,
   );
 
+/** GCM auth-tag length appended to ciphertext (matches the Web Crypto layout) */
+const GCM_TAG_BYTES = 16;
+
+/**
+ * Payload size at/below which node:crypto's synchronous AES-GCM beats Web Crypto
+ * (whose fixed per-call overhead dominates small inputs) while its event-loop
+ * blocking stays negligible. Larger blobs (files/backups) use Web Crypto, which
+ * is faster above this size and offloads to a threadpool instead of blocking.
+ */
+const NODE_AES_MAX_BYTES = 64 * 1024;
+
+/** Concatenate byte arrays into a single Uint8Array */
+const concatBytes = (...parts: Uint8Array[]): Uint8Array => {
+  let total = 0;
+  for (const part of parts) total += part.length;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+};
+
+/**
+ * AES-256-GCM encrypt via node:crypto (synchronous, raw key bytes).
+ * Output matches the Web Crypto layout — ciphertext with the 16-byte auth tag
+ * appended — so values stay interoperable with the Web Crypto paths.
+ */
+const nodeAesGcmEncrypt = (
+  data: Uint8Array,
+  keyBytes: Uint8Array,
+): { ciphertext: Uint8Array; iv: Uint8Array } => {
+  const iv = getRandomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", keyBytes, iv);
+  const ciphertext = concatBytes(
+    cipher.update(data),
+    cipher.final(),
+    cipher.getAuthTag(),
+  );
+  return { ciphertext, iv };
+};
+
+/** AES-256-GCM decrypt via node:crypto (synchronous, raw key bytes) */
+const nodeAesGcmDecrypt = (
+  iv: Uint8Array,
+  ciphertext: Uint8Array,
+  keyBytes: Uint8Array,
+): Uint8Array => {
+  const tag = ciphertext.subarray(ciphertext.length - GCM_TAG_BYTES);
+  const body = ciphertext.subarray(0, ciphertext.length - GCM_TAG_BYTES);
+  const decipher = createDecipheriv("aes-256-gcm", keyBytes, iv);
+  decipher.setAuthTag(tag);
+  return concatBytes(decipher.update(body), decipher.final());
+};
+
 /** Format IV + ciphertext as a prefixed base64 string */
 export const formatPrefixed = (
   prefix: string,
@@ -162,13 +237,17 @@ export const symmetricEncrypt = async (
 };
 
 /**
- * Encrypt a string value using AES-256-GCM via Web Crypto API
+ * Encrypt a string value using AES-256-GCM via node:crypto (faster than Web
+ * Crypto for the small payloads this handles; output stays interoperable).
  * Returns format: enc:1:$base64iv:$base64ciphertext
- * Note: ciphertext includes auth tag appended (Web Crypto API does this automatically)
+ * Note: ciphertext includes the GCM auth tag appended.
  */
 export const encrypt = async (plaintext: string): Promise<string> => {
-  const key = await importEncryptionKey();
-  return symmetricEncrypt(plaintext, key);
+  const { ciphertext, iv } = nodeAesGcmEncrypt(
+    new TextEncoder().encode(plaintext),
+    getEncryptionKeyBytes(),
+  );
+  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext);
 };
 
 /**
@@ -215,8 +294,13 @@ export const symmetricDecrypt = async (
  * Expects format: enc:1:$base64iv:$base64ciphertext
  */
 export const decrypt = async (encrypted: string): Promise<string> => {
-  const key = await importEncryptionKey();
-  return symmetricDecrypt(encrypted, key);
+  const { ciphertext, iv } = parseEncryptedPayload(
+    encrypted,
+    ENCRYPTION_PREFIX,
+    "encrypted data",
+  );
+  const plaintext = nodeAesGcmDecrypt(iv, ciphertext, getEncryptionKeyBytes());
+  return new TextDecoder().decode(plaintext);
 };
 
 /**
@@ -235,8 +319,13 @@ const BINARY_HEADER_SIZE = BINARY_MAGIC.length + 1 + 12; // magic + version + IV
  * Overhead is only 33 bytes (vs ~76% bloat in the legacy text format).
  */
 export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
-  const key = await importEncryptionKey();
-  const { iv, ciphertext } = await aesGcmEncryptRaw(data as BufferSource, key);
+  const { ciphertext, iv } =
+    data.length <= NODE_AES_MAX_BYTES
+      ? nodeAesGcmEncrypt(data, getEncryptionKeyBytes())
+      : await aesGcmEncryptRaw(
+          data as BufferSource,
+          await importEncryptionKey(),
+        );
   const result = new Uint8Array(BINARY_HEADER_SIZE + ciphertext.length);
   result.set(BINARY_MAGIC, 0);
   result[BINARY_MAGIC.length] = BINARY_VERSION;
@@ -269,9 +358,11 @@ export const decryptBytes = async (
   }
   const iv = encrypted.slice(BINARY_MAGIC.length + 1, BINARY_HEADER_SIZE);
   const ciphertext = encrypted.slice(BINARY_HEADER_SIZE);
+  if (ciphertext.length <= NODE_AES_MAX_BYTES) {
+    return nodeAesGcmDecrypt(iv, ciphertext, getEncryptionKeyBytes());
+  }
   const key = await importEncryptionKey();
-  const plaintext = await aesGcmDecryptRaw(iv, ciphertext, key);
-  return new Uint8Array(plaintext);
+  return new Uint8Array(await aesGcmDecryptRaw(iv, ciphertext, key));
 };
 
 /**
@@ -289,18 +380,3 @@ export const decryptWithKey = (
   encrypted: string,
   key: CryptoKey,
 ): Promise<string> => symmetricDecrypt(encrypted, key);
-
-/**
- * Cached HMAC key — avoids repeated async key imports
- */
-const [getHmacKeyResolved, setHmacKeyResolved] = lazyRef<CryptoKey | undefined>(
-  () => undefined,
-);
-
-export const importHmacKey = async (): Promise<CryptoKey> => {
-  const resolved = getHmacKeyResolved();
-  if (resolved) return resolved;
-  const key = await importKey({ hash: "SHA-256", name: "HMAC" }, ["sign"]);
-  setHmacKeyResolved(key);
-  return key;
-};
