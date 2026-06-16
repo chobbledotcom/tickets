@@ -179,6 +179,10 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
     expect(html).toContain("<code>NTFY_URL</code>");
     expect(html).toContain("<code>STORAGE_ZONE_KEY</code>");
     expect(html).toContain("Set 2 missing secret(s)");
+    // STORAGE_ZONE_KEY is host-level infrastructure, so the heads-up note names
+    // it so the operator knows backfilling grants the child host-level access.
+    expect(html).toContain("host-level infrastructure credentials");
+    expect(html).toContain("STORAGE_ZONE_KEY");
     // Live secrets are listed for insight, including ones outside the copy set.
     expect(html).toContain("Secrets currently on this site");
     expect(html).toContain("<code>DB_ENCRYPTION_KEY</code>");
@@ -199,6 +203,8 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
     );
     expect(html).not.toContain("Secrets currently on this site");
     expect(html).toContain("/admin/built-sites/9/add-secrets");
+    // NTFY_URL is not host-level infrastructure, so the heads-up note is absent.
+    expect(html).not.toContain("host-level infrastructure credentials");
   });
 
   test("confirms when every expected secret is already present", () => {

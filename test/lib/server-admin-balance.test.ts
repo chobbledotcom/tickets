@@ -61,7 +61,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
 
   test("shows a fully-paid state once the balance is settled", async () => {
     const attendeeId = await reservedAttendee();
-    await settleAttendeeBalance(attendeeId);
+    await settleAttendeeBalance(attendeeId, 1500);
     const { response } = await adminGet(
       `/admin/attendees/${attendeeId}/balance`,
     );

@@ -15,7 +15,10 @@ import {
 import { type Child, escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
-import type { SiteSecretsView } from "#shared/site-secrets.ts";
+import {
+  hostInfraSecretNames,
+  type SiteSecretsView,
+} from "#shared/site-secrets.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -349,6 +352,7 @@ const SecretsPanel = ({
       </div>
     );
   }
+  const infraMissing = hostInfraSecretNames(view.missing);
   return (
     <div class="prose">
       <p>
@@ -373,6 +377,14 @@ const SecretsPanel = ({
               </li>
             ))}
           </ul>
+          {infraMissing.length > 0 && (
+            <p role="note">
+              <strong>{t("built_sites.infra_secrets_heading")}</strong>{" "}
+              {t("built_sites.infra_secrets_note", {
+                names: infraMissing.join(", "),
+              })}
+            </p>
+          )}
           <SubmitButton icon="plus">
             {t("built_sites.set_missing_secrets", {
               count: String(view.missing.length),

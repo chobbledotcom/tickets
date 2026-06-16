@@ -498,6 +498,9 @@ describe("code quality", () => {
       "shared/db/backup.ts:BACKUP_FRESHNESS_WINDOW_MS",
       // Attendees page size used in production (same-file) but test pattern doesn't detect same-file usage
       "shared/db/attendees/queries.ts:ATTENDEES_PAGE_SIZE",
+      // Payments-retention floor guard used in production (same-file: validates
+      // PRUNE_PAYMENTS_RETENTION_DAYS at import) but test pattern doesn't detect same-file usage
+      "shared/limits.ts:assertPaymentsRetentionSafe",
       // Test helper for creating signed webhook payloads
       "shared/stripe.ts:constructTestWebhookEvent",
       // Reset cached Square client between tests

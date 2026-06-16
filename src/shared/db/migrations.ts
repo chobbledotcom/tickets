@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -334,6 +334,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER"],
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
+        ["failure_data", "TEXT NOT NULL DEFAULT ''"],
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
@@ -1222,6 +1223,9 @@ const REQ_AGENT_USERS: SchemaRequirement = {
   ],
   newTables: ["user_logistics_agents"],
 };
+const REQ_PROCESSED_PAYMENTS_FAILURE_DATA: SchemaRequirement = {
+  columns: { processed_payments: ["failure_data"] },
+};
 
 export const MIGRATIONS: Migration[] = [
   {
@@ -1336,6 +1340,15 @@ export const MIGRATIONS: Migration[] = [
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add failure_data to processed_payments so a handled payment failure (refund/sold-out/price-change) is recorded as a terminal outcome and replayed idempotently instead of leaving a stuck reservation",
+    id: "2026-06-16_processed_payments_failure_data",
+    requires: REQ_PROCESSED_PAYMENTS_FAILURE_DATA,
+    up: async () => {
+      await applySchemaChanges();
     },
   }),
 ];
