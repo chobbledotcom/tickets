@@ -1,17 +1,28 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { signCsrfToken } from "#shared/csrf.ts";
 import {
   enableQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import {
-  debugFooterHtml,
-  renderDebugFooter,
+  adminFooterHtml,
+  debugDetailsHtml,
+  markAdminFooter,
+  renderAdminFooter,
 } from "#templates/admin/footer.tsx";
+import { setupTestEncryptionKey } from "#test-utils";
 
-describe("debugFooterHtml", () => {
+beforeAll(async () => {
+  // The footer's logout form embeds the current CSRF token, which is HMAC
+  // signed with the encryption key.
+  setupTestEncryptionKey();
+  await signCsrfToken();
+});
+
+describe("debugDetailsHtml", () => {
   test("renders summary with render time", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [],
       renderTimeMs: 42.7,
@@ -20,53 +31,21 @@ describe("debugFooterHtml", () => {
     expect(html).toContain("43ms");
   });
 
-  test("links to the GitHub repo", () => {
-    const html = debugFooterHtml({
-      cacheStats: [],
-      queries: [],
-      renderTimeMs: 10,
-      uptimeSeconds: 0,
-    });
-    expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
-    expect(html).toContain("Chobble Tickets</a>");
-  });
-
   test("wraps content in a details/summary element", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
       uptimeSeconds: 0,
     });
-    expect(html).toContain("<details>");
+    expect(html).toContain("<details");
     expect(html).toContain("<summary>");
     expect(html).toContain("</summary>");
     expect(html).toContain("</details>");
   });
 
-  test("renders inside a footer element", () => {
-    const html = debugFooterHtml({
-      cacheStats: [],
-      queries: [],
-      renderTimeMs: 10,
-      uptimeSeconds: 0,
-    });
-    expect(html).toContain("<footer");
-    expect(html).toContain("</footer>");
-  });
-
-  test("uses the debug-footer CSS class", () => {
-    const html = debugFooterHtml({
-      cacheStats: [],
-      queries: [],
-      renderTimeMs: 10,
-      uptimeSeconds: 0,
-    });
-    expect(html).toContain('class="debug-footer"');
-  });
-
   test("lists each query with its duration", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [
         { durationMs: 5.2, sql: "SELECT * FROM listings" },
@@ -82,7 +61,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("escapes HTML in SQL strings", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [{ durationMs: 1.0, sql: "SELECT '<script>' FROM t" }],
       renderTimeMs: 10,
@@ -93,7 +72,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("renders empty query list gracefully", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [],
       renderTimeMs: 5,
@@ -104,7 +83,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("shows query count and total SQL time in summary", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [
         { durationMs: 10, sql: "SELECT 1" },
@@ -117,7 +96,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("shows singular query for single query", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [{ durationMs: 5, sql: "SELECT 1" }],
       renderTimeMs: 20,
@@ -127,7 +106,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("shows render time breakdown with sql vs other", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [
         { durationMs: 30, sql: "SELECT 1" },
@@ -141,7 +120,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("shows cache stats section", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [
         { entries: 3, name: "sessions" },
         { capacity: 10000, entries: 150, name: "decrypt" },
@@ -156,7 +135,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("shows total cached entries in summary", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [
         { entries: 5, name: "users" },
         { entries: 10, name: "listings" },
@@ -169,7 +148,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("omits cache section when no caches registered", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
@@ -179,7 +158,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("escapes HTML in cache names", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [{ entries: 1, name: "<script>" }],
       queries: [],
       renderTimeMs: 10,
@@ -190,7 +169,7 @@ describe("debugFooterHtml", () => {
   });
 
   test("shows app uptime in whole seconds in the summary", () => {
-    const html = debugFooterHtml({
+    const html = debugDetailsHtml({
       cacheStats: [],
       queries: [],
       renderTimeMs: 10,
@@ -200,27 +179,72 @@ describe("debugFooterHtml", () => {
   });
 });
 
-describe("renderDebugFooter", () => {
-  test("returns empty string when query logging is not active", () => {
+describe("adminFooterHtml", () => {
+  test("renders a footer with the admin-footer class", () => {
+    const html = adminFooterHtml(null);
+    expect(html).toContain('<footer class="admin-footer">');
+    expect(html).toContain("</footer>");
+  });
+
+  test("links to the GitHub repo", () => {
+    const html = adminFooterHtml(null);
+    expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
+    expect(html).toContain("Chobble Tickets</a>");
+  });
+
+  test("includes a logout form", () => {
+    const html = adminFooterHtml(null);
+    expect(html).toContain('action="/admin/logout"');
+  });
+
+  test("omits the debug menu when no debug data is supplied", () => {
+    const html = adminFooterHtml(null);
+    expect(html).not.toContain("debug-menu");
+  });
+
+  test("includes the debug menu when debug data is supplied", () => {
+    const html = adminFooterHtml({
+      cacheStats: [],
+      queries: [],
+      renderTimeMs: 12,
+      uptimeSeconds: 0,
+    });
+    expect(html).toContain("debug-menu");
+    expect(html).toContain("12ms");
+  });
+});
+
+describe("renderAdminFooter", () => {
+  test("returns empty string when the page was not flagged as admin", () => {
     runWithQueryLogContext(() => {
-      expect(renderDebugFooter()).toBe("");
+      expect(renderAdminFooter()).toBe("");
     });
   });
 
-  test("returns footer HTML when query logging is active", () => {
+  test("renders the footer with logout once flagged, with no debug menu when query logging is off", () => {
     runWithQueryLogContext(() => {
-      enableQueryLog();
-      const html = renderDebugFooter();
-      expect(html).toContain('<footer class="debug-footer">');
-      expect(html).toContain("Chobble Tickets");
-      expect(html).toContain("ms");
+      markAdminFooter();
+      const html = renderAdminFooter();
+      expect(html).toContain('<footer class="admin-footer">');
+      expect(html).toContain('action="/admin/logout"');
+      expect(html).not.toContain("debug-menu");
     });
   });
 
-  test("includes the app uptime gathered from the runtime", () => {
+  test("consumes the flag so a later render is empty", () => {
+    runWithQueryLogContext(() => {
+      markAdminFooter();
+      renderAdminFooter();
+      expect(renderAdminFooter()).toBe("");
+    });
+  });
+
+  test("includes the debug menu and uptime when query logging is active", () => {
     runWithQueryLogContext(() => {
       enableQueryLog();
-      const html = renderDebugFooter();
+      markAdminFooter();
+      const html = renderAdminFooter();
+      expect(html).toContain("debug-menu");
       expect(html).toMatch(/up \d+s/);
     });
   });

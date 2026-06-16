@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { AdminSession } from "#shared/types.ts";
 import {
   agentDeliveriesPage,
   type DeliveryBookingView,
@@ -8,6 +9,9 @@ import {
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
 import { setupTestEncryptionKey } from "#test-utils";
+
+/** Agent-class session so the page renders the agent header (no staff nav). */
+const agentSession: AdminSession = { adminLevel: "agent" };
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -37,7 +41,12 @@ const booking = (
 
 describe("agentDeliveriesPage", () => {
   test("shows a prompt when no agents are assigned", () => {
-    const html = agentDeliveriesPage([], "44", { noAgents: true });
+    const html = agentDeliveriesPage(
+      [],
+      "44",
+      { noAgents: true },
+      agentSession,
+    );
     expect(html).toContain("no logistics agents assigned");
     expect(html).toContain("/admin/logout");
   });
@@ -47,7 +56,12 @@ describe("agentDeliveriesPage", () => {
       { bookings: [], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
     ];
-    const html = agentDeliveriesPage(groups, "44", { noAgents: false });
+    const html = agentDeliveriesPage(
+      groups,
+      "44",
+      { noAgents: false },
+      agentSession,
+    );
     expect(html).toContain("No deliveries scheduled");
   });
 
@@ -56,7 +70,12 @@ describe("agentDeliveriesPage", () => {
       { bookings: [booking()], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
     ];
-    const html = agentDeliveriesPage(groups, "44", { noAgents: false });
+    const html = agentDeliveriesPage(
+      groups,
+      "44",
+      { noAgents: false },
+      agentSession,
+    );
     expect(html).toContain("Drop-off");
     expect(html).toContain("09:00");
     expect(html).toContain("Van 1");
@@ -89,7 +108,12 @@ describe("agentDeliveriesPage", () => {
       },
       { bookings: [], heading: "Tomorrow" },
     ];
-    const html = agentDeliveriesPage(groups, "44", { noAgents: false });
+    const html = agentDeliveriesPage(
+      groups,
+      "44",
+      { noAgents: false },
+      agentSession,
+    );
     expect(html).toContain("Drop-off");
     expect(html).toContain("Collection");
     // The shared booking details appear once, not once per leg.
@@ -110,7 +134,12 @@ describe("agentDeliveriesPage", () => {
       },
       { bookings: [], heading: "Tomorrow" },
     ];
-    const html = agentDeliveriesPage(groups, "44", { noAgents: false });
+    const html = agentDeliveriesPage(
+      groups,
+      "44",
+      { noAgents: false },
+      agentSession,
+    );
     expect(html).toContain("Collection");
     expect(html).toContain("Mark not done");
     expect(html).toContain("delivery-leg done");
@@ -126,15 +155,25 @@ describe("agentDeliveriesPage", () => {
       { bookings: [booking({ phone: "" })], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
     ];
-    const html = agentDeliveriesPage(groups, "44", { noAgents: false });
+    const html = agentDeliveriesPage(
+      groups,
+      "44",
+      { noAgents: false },
+      agentSession,
+    );
     expect(html).not.toContain("delivery-phone");
   });
 
   test("renders flash messages", () => {
-    const html = agentDeliveriesPage([], "44", {
-      error: "Something went wrong",
-      noAgents: true,
-    });
+    const html = agentDeliveriesPage(
+      [],
+      "44",
+      {
+        error: "Something went wrong",
+        noAgents: true,
+      },
+      agentSession,
+    );
     expect(html).toContain("Something went wrong");
   });
 });

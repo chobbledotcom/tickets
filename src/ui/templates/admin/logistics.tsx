@@ -16,7 +16,11 @@ import {
   renderFields,
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, LogisticsAgent } from "#shared/types.ts";
+import type {
+  AdminLevel,
+  AdminSession,
+  LogisticsAgent,
+} from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
@@ -142,9 +146,58 @@ export const adminLogisticsAgentNewPage = (
     </Layout>,
   );
 
-/** Admin logistics-agent edit page. */
+/** A user that can be assigned to drive a logistics agent. */
+export interface AgentUserOption {
+  id: number;
+  username: string;
+  adminLevel: AdminLevel;
+}
+
+/** Checkbox list for picking which users drive this logistics agent. Any user
+ * class can be assigned; the chosen ids submit under the repeated `user_ids`
+ * field. */
+const AgentUsersSelector = ({
+  users,
+  selected,
+}: {
+  users: AgentUserOption[];
+  selected: ReadonlySet<number>;
+}): JSX.Element => (
+  <fieldset class="checkboxes listing-section">
+    <legend>Assigned users</legend>
+    <p>
+      <small>
+        These users see this agent's deliveries and collections on the
+        deliveries page. Agent-class users can only see the deliveries page;
+        owners and managers reach it from the Calendar menu.
+      </small>
+    </p>
+    {users.length === 0 ? (
+      <p>
+        <em>No users to assign yet.</em>
+      </p>
+    ) : (
+      users.map((user) => (
+        <label>
+          <input
+            checked={selected.has(user.id) || undefined}
+            name="user_ids"
+            type="checkbox"
+            value={String(user.id)}
+          />
+          {` ${user.username} (${user.adminLevel})`}
+        </label>
+      ))
+    )}
+  </fieldset>
+);
+
+/** Admin logistics-agent edit page. Grouped into fieldsets: the agent's details
+ * and the users assigned to drive it. */
 export const adminLogisticsAgentEditPage = (
   agent: LogisticsAgent,
+  users: AgentUserOption[],
+  selectedUserIds: ReadonlySet<number>,
   session: AdminSession,
   error?: string,
 ): string =>
@@ -154,12 +207,16 @@ export const adminLogisticsAgentEditPage = (
       <CsrfForm action={`/admin/logistics/${agent.id}/edit`}>
         <h1>Edit Logistics Agent</h1>
         <Flash error={error} />
-        <Raw
-          html={renderFields(
-            logisticsAgentFields,
-            logisticsAgentToFieldValues(agent),
-          )}
-        />
+        <fieldset class="listing-section">
+          <legend>Agent details</legend>
+          <Raw
+            html={renderFields(
+              logisticsAgentFields,
+              logisticsAgentToFieldValues(agent),
+            )}
+          />
+        </fieldset>
+        <AgentUsersSelector selected={selectedUserIds} users={users} />
         <SubmitButton icon="save">Save Changes</SubmitButton>
       </CsrfForm>
     </Layout>,

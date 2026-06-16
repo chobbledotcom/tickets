@@ -254,51 +254,9 @@ const ListingEditor = ({
   );
 };
 
-/** A single agent dropdown with a "none" option, pre-selecting `selected`. */
-const AgentSelect = ({
-  name,
-  label,
-  agents,
-  selected,
-}: {
-  name: string;
-  label: string;
-  agents: AttendeeLogisticsData["agents"];
-  selected: number | null;
-}): JSX.Element => (
-  <label>
-    {label}
-    <select name={name}>
-      <option selected={selected === null} value="">
-        — None —
-      </option>
-      {agents.map((agent) => (
-        <option selected={agent.id === selected} value={agent.id}>
-          {agent.name}
-        </option>
-      ))}
-    </select>
-  </label>
-);
-
-/** A short time-of-day input (logistics metadata only; never availability). */
-const TimeInput = ({
-  name,
-  label,
-  value,
-}: {
-  name: string;
-  label: string;
-  value: string;
-}): JSX.Element => (
-  <label>
-    {label}
-    <input name={name} type="time" value={value} />
-  </label>
-);
-
-/** One leg (start or end): an agent select plus its time, for the single
- * shared fields (listingId omitted) or a specific listing (split mode). */
+/** One leg (start or end) as a single tidy row: a label, the time-of-day input
+ * (logistics metadata only; never availability) and the agent select. Used for
+ * the shared single pair (listingId omitted) or a specific listing (split). */
 const LogisticsLeg = ({
   agents,
   leg,
@@ -311,22 +269,32 @@ const LogisticsLeg = ({
   listingId?: number;
 }): JSX.Element => {
   const isStart = leg === "start";
-  const agentField = isStart ? startAgentField : endAgentField;
-  const timeField = isStart ? startTimeField : endTimeField;
-  const label = isStart ? "Start" : "End";
+  const label = isStart ? "Start time & agent:" : "End time & agent:";
+  const time = isStart ? assignment.startTime : assignment.endTime;
+  const agentId = isStart ? assignment.startAgentId : assignment.endAgentId;
   return (
     <div class="logistics-leg">
-      <AgentSelect
-        agents={agents}
-        label={`${label} agent`}
-        name={agentField(listingId)}
-        selected={isStart ? assignment.startAgentId : assignment.endAgentId}
+      <span class="logistics-leg-label">{label}</span>
+      <input
+        aria-label={isStart ? "Start time" : "End time"}
+        name={(isStart ? startTimeField : endTimeField)(listingId)}
+        type="time"
+        value={time}
       />
-      <TimeInput
-        label={`${label} time`}
-        name={timeField(listingId)}
-        value={isStart ? assignment.startTime : assignment.endTime}
-      />
+      <select
+        aria-label={isStart ? "Start agent" : "End agent"}
+        class="logistics-leg-agent"
+        name={(isStart ? startAgentField : endAgentField)(listingId)}
+      >
+        <option selected={agentId === null} value="">
+          — None —
+        </option>
+        {agents.map((agent) => (
+          <option selected={agent.id === agentId} value={agent.id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 };
@@ -334,7 +302,8 @@ const LogisticsLeg = ({
 /**
  * Logistics agent + time selectors for logistics listings. A "different agents
  * per item" checkbox switches (pure CSS) between one shared start/end pair and
- * a pair per logistics listing. Only rendered when logistics applies.
+ * a pair per logistics listing. Grouped in a fieldset/legend like the listing
+ * editor. Only rendered when logistics applies.
  */
 const LogisticsSection = ({
   data,
@@ -344,8 +313,8 @@ const LogisticsSection = ({
   const logistics = data.logistics;
   if (!logistics) return null;
   return (
-    <div class="logistics-agents">
-      <h3>Logistics</h3>
+    <fieldset class="logistics-agents listing-section">
+      <legend>Logistics</legend>
       <label class="split-agents">
         <input
           checked={logistics.split}
@@ -387,7 +356,7 @@ const LogisticsSection = ({
           </fieldset>
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 };
 

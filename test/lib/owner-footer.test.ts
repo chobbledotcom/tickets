@@ -21,7 +21,7 @@ import {
 } from "#test-utils";
 
 /** Marker that uniquely identifies the debug footer in a response. */
-const FOOTER_MARKER = '<footer class="debug-footer">';
+const FOOTER_MARKER = '<footer class="admin-footer">';
 
 describeWithEnv("admin debug footer injection", { db: true }, () => {
   test("is injected into authenticated owner admin GET responses", async () => {
@@ -79,7 +79,7 @@ describeWithEnv("admin debug footer contents", { db: true }, () => {
     const html = await assertAdminHtml("/admin/", FOOTER_MARKER);
 
     const footerMatch = html.match(
-      /<footer class="debug-footer">[\s\S]*?<\/footer>/,
+      /<footer class="admin-footer">[\s\S]*?<\/footer>/,
     );
     expect(footerMatch).not.toBeNull();
     const footer = footerMatch![0];
