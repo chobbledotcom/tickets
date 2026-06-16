@@ -42,6 +42,10 @@ import {
   targetQuery,
   validateDraftInput,
 } from "#shared/bulk-email.ts";
+import {
+  decryptAttendeePII,
+  encryptAttendeePII,
+} from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getContactCounts,
@@ -104,6 +108,25 @@ const loadSendContext = async (
 const hashAll = (emails: string[]): Promise<string[]> =>
   Promise.all(emails.map((e) => hashEmail(e)));
 
+/** Decrypt and parse the saved draft using the owner's private key. */
+const parseSavedDraft = async (
+  privateKey: CryptoKey,
+): Promise<ReturnType<typeof parseDraft>> => {
+  const raw = settings.bulkEmailDraft;
+  if (!raw) return null;
+  try {
+    return parseDraft(await decryptAttendeePII(raw, privateKey));
+  } catch {
+    return null;
+  }
+};
+
+/** Serialize and encrypt a draft using the owner's public key. */
+const saveDraft = (draft: Parameters<typeof serializeDraft>[0]): Promise<void> =>
+  encryptAttendeePII(serializeDraft(draft), settings.publicKey).then(
+    (encrypted) => settings.update.bulkEmailDraft(encrypted),
+  );
+
 /** Wrap an owner-only page builder: gate on owner, apply flash, then build. */
 const ownerEmailPage =
   (build: (request: Request, session: AuthSession) => Promise<Response>) =>
@@ -133,10 +156,8 @@ const partitionRecipients = async (
 const handleComposeGet = ownerEmailPage(async (request, session) => {
   const target = await targetFromQuery(new URL(request.url).searchParams);
   if (!target) return notFoundResponse();
-  const { recipients, canBulkSend, disabledReason } = await loadSendContext(
-    session,
-    target,
-  );
+  const { recipients, privateKey, canBulkSend, disabledReason } =
+    await loadSendContext(session, target);
   // A listing or attendee target with no emailable recipient (an unknown
   // attendee token, or nobody with an email on file) has nothing to send to —
   // treat it as not found rather than rendering an empty compose page. Named
@@ -151,7 +172,7 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
       control: targetComposeControl(target),
       copy: targetComposeCopy(target),
       disabledReason,
-      draft: parseDraft(settings.bulkEmailDraft),
+      draft: await parseSavedDraft(privateKey),
       recipientCount: recipients.length,
       single: targetIsSingleRecipient(target),
       targetLabel,
@@ -179,15 +200,16 @@ const handlePreviewPost = (request: Request): Promise<Response> =>
         "bulk-email",
       );
     }
-    await settings.update.bulkEmailDraft(serializeDraft(validation.draft));
+    await saveDraft(validation.draft);
     return ok(PREVIEW_PATH, "Review your email below before sending.");
   });
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
 const handlePreviewGet = ownerEmailPage(async (_request, session) => {
-  const draft = parseDraft(settings.bulkEmailDraft);
+  const privateKey = await requirePrivateKey(session);
+  const draft = await parseSavedDraft(privateKey);
   if (!draft) return redirectResponse(COMPOSE_PATH);
-  const { recipients, privateKey, canBulkSend, disabledReason, config } =
+  const { recipients, canBulkSend, disabledReason, config } =
     await loadSendContext(session, draft.target);
   const { sendable, skipped } = await partitionRecipients(
     recipients,
@@ -225,7 +247,7 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
 /** POST /admin/emails/send — send the saved draft via the bulk provider. */
 const handleSendPost = (request: Request): Promise<Response> =>
   withAuth(request, OWNER_FORM, async (session, _form) => {
-    const draft = parseDraft(settings.bulkEmailDraft);
+    const draft = await parseSavedDraft(await requirePrivateKey(session));
     if (!draft) {
       return errorRedirect(COMPOSE_PATH, "There's no email to send.");
     }
