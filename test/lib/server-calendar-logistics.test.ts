@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
+import { listingsTable } from "#shared/db/listings.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -30,6 +31,7 @@ describeWithEnv(
     const setup = async () => {
       settings.setForTest({ has_logistics: true });
       const listing = await createDailyTestListing();
+      await listingsTable.update(listing.id, { usesLogistics: true });
       const d = date();
       await submitTicketForm(listing.slug, {
         date: d,
@@ -54,8 +56,32 @@ describeWithEnv(
           ],
         ]),
       );
-      return { assigned, d, other };
+      return { assigned, d, listing, other };
     };
+
+    const exportCsv = async (query: string): Promise<string> => {
+      const response = await awaitTestRequest(query, {
+        cookie: await testCookie(),
+      });
+      return response.text();
+    };
+
+    test("CSV export includes the run-sheet agent columns", async () => {
+      const { d } = await setup();
+      const csv = await exportCsv(`/admin/calendar/export?date=${d}`);
+      expect(csv).toContain("Start Agent,Start Time,End Agent,End Time");
+      expect(csv).toContain("Mine");
+      expect(csv).toContain("Agent User");
+    });
+
+    test("CSV export honours the agent filter", async () => {
+      const { d, other } = await setup();
+      const csv = await exportCsv(
+        `/admin/calendar/export?date=${d}&agent=${other.id}`,
+      );
+      // Filtered to the other agent → the booking drops out entirely.
+      expect(csv).not.toContain("Agent User");
+    });
 
     test("renders the agent filter bar when agents exist", async () => {
       const { d } = await setup();

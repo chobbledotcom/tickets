@@ -82,6 +82,13 @@ export const adminCalendarPage = (
     return `/admin/calendar${query ? `?${query}` : ""}#attendees`;
   };
 
+  // The export carries the active agent filter so it matches the on-screen
+  // list — i.e. a per-agent run sheet.
+  const agentParam = agentFilterParam(agentFilter);
+  const exportHref = `/admin/calendar/export?date=${dateFilter}${
+    agentParam ? `&agent=${agentParam}` : ""
+  }`;
+
   const sharedRows =
     dateFilter && attendees.length > 0
       ? buildSharedDetailRows({
@@ -125,7 +132,7 @@ export const adminCalendarPage = (
         <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
         {dateFilter && attendees.length > 0 && (
           <p>
-            <a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a>
+            <a href={exportHref}>Export CSV</a>
           </p>
         )}
         {sharedRows.length > 0 && (
