@@ -19,7 +19,7 @@ const locales: Record<string, Messages> = { en };
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
 
 const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
-  const msg = locales[locale]?.[key] ?? locales["en"]?.[key];
+  const msg = locales[locale]?.[key] ?? locales.en?.[key];
   if (msg === undefined) return null;
 
   // ignoreTag: treat <tags> in messages as literal text (locale values may
