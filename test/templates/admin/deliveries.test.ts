@@ -32,6 +32,7 @@ const booking = (
   listingId: 9,
   listingName: "Bouncy Castle",
   phone: "07700900000",
+  ticketToken: "TOKEN123",
   ...over,
 });
 
@@ -70,6 +71,8 @@ describe("agentDeliveriesPage", () => {
     expect(html).toContain('action="/admin/deliveries/mark"');
     expect(html).toContain('value="start"');
     expect(html).toContain("Mark done");
+    // The ticket token the customer can quote is shown.
+    expect(html).toContain("<strong>Token:</strong> TOKEN123");
     // The empty Tomorrow group shows its own placeholder.
     expect(html).toContain("Nothing scheduled");
   });
@@ -130,11 +133,19 @@ describe("agentDeliveriesPage", () => {
     expect(html).not.toContain("delivery-phone");
   });
 
-  test("renders flash messages", () => {
+  test("renders an error flash message", () => {
     const html = agentDeliveriesPage([], "44", {
       error: "Something went wrong",
       noAgents: true,
     });
     expect(html).toContain("Something went wrong");
+  });
+
+  test("renders a success flash message", () => {
+    const html = agentDeliveriesPage([], "44", {
+      noAgents: true,
+      success: "Marked done",
+    });
+    expect(html).toContain("Marked done");
   });
 });

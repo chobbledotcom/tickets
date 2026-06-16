@@ -34,6 +34,8 @@ export type DeliveryBookingView = {
   attendeeName: string;
   address: string;
   phone: string;
+  /** The booking's ticket token — the id the customer can quote to confirm. */
+  ticketToken: string;
   /** The jobs (drop-off and/or collection) for this booking on this day. */
   legs: DeliveryLegView[];
 };
@@ -66,13 +68,13 @@ const LegItem = ({
   leg: DeliveryLegView;
 }): JSX.Element => (
   <li class={leg.done ? "delivery-leg done" : "delivery-leg"}>
-    <span class="delivery-kind">
+    <span>
       {leg.kind === "start"
         ? t("deliveries.dropoff")
         : t("deliveries.collection")}
       {leg.time ? ` · ${leg.time}` : ""} · {leg.agentName}
     </span>
-    <CsrfForm action="/admin/deliveries/mark" class="inline">
+    <CsrfForm action="/admin/deliveries/mark" class="delivery-mark inline">
       <input
         name="attendee_id"
         type="hidden"
@@ -85,9 +87,9 @@ const LegItem = ({
       />
       <input name="kind" type="hidden" value={leg.kind} />
       <input name="done" type="hidden" value={leg.done ? "0" : "1"} />
-      <SubmitButton icon={leg.done ? "rotate-ccw" : "check"}>
+      <button type="submit">
         {leg.done ? t("deliveries.mark_not_done") : t("deliveries.mark_done")}
-      </SubmitButton>
+      </button>
     </CsrfForm>
   </li>
 );
@@ -102,16 +104,16 @@ const BookingCard = ({
   booking: DeliveryBookingView;
   phonePrefix: string;
 }): JSX.Element => (
-  <li class="delivery-booking">
-    <ul class="delivery-details">
-      <li class="delivery-attendee">
+  <li>
+    <ul>
+      <li>
         <strong>{t("deliveries.name_label")}</strong> {booking.attendeeName}
       </li>
-      <li class="delivery-listing">
+      <li>
         <strong>{t("deliveries.listing_label")}</strong> {booking.listingName}
       </li>
       {booking.address && (
-        <li class="delivery-address">
+        <li>
           <strong>{t("deliveries.address_label")}</strong> {booking.address}
           <MapsLinks query={booking.address} />
         </li>
@@ -122,8 +124,11 @@ const BookingCard = ({
           <PhoneLinks phone={booking.phone} phonePrefix={phonePrefix} />
         </li>
       )}
-      <li class="delivery-jobs">
-        <ul class="delivery-legs">
+      <li>
+        <strong>{t("deliveries.token_label")}</strong> {booking.ticketToken}
+      </li>
+      <li>
+        <ul>
           {booking.legs.map((leg) => (
             <LegItem booking={booking} leg={leg} />
           ))}
@@ -163,18 +168,20 @@ export const agentDeliveriesPage = (
       ) : (
         groups.map((group) => (
           <section class="delivery-day">
-            <h2>{group.heading}</h2>
-            {group.bookings.length === 0 ? (
-              <p>
-                <em>{t("deliveries.nothing_scheduled")}</em>
-              </p>
-            ) : (
-              <ul class="delivery-bookings">
-                {group.bookings.map((booking) => (
-                  <BookingCard booking={booking} phonePrefix={phonePrefix} />
-                ))}
-              </ul>
-            )}
+            <div class="prose">
+              <h2>{group.heading}</h2>
+              {group.bookings.length === 0 ? (
+                <p>
+                  <em>{t("deliveries.nothing_scheduled")}</em>
+                </p>
+              ) : (
+                <ul class="delivery-bookings">
+                  {group.bookings.map((booking) => (
+                    <BookingCard booking={booking} phonePrefix={phonePrefix} />
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
         ))
       )}

@@ -9,6 +9,7 @@
   "deliveries.listing_label": "Listing:",
   "deliveries.address_label": "Address:",
   "deliveries.phone_label": "Phone:",
+  "deliveries.token_label": "Token:",
   "deliveries.mark_done": "Mark done",
   "deliveries.mark_not_done": "Mark not done",
   "deliveries.today": "Today",
