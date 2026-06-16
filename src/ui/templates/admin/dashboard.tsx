@@ -3,7 +3,6 @@
  */
 
 import { filter, joinStrings, map, pipe, reduce } from "#fp";
-import { t } from "#i18n";
 import {
   getHeaderText,
   renderCells,
@@ -76,40 +75,36 @@ const multiBookingSection = (activeListings: ListingWithCount[]): string => {
 
   return String(
     <details>
-      <summary>{t("admin.dashboard.multi_booking_link")}</summary>
-      <p>{t("admin.dashboard.multi_booking_desc")}</p>
+      <summary>Multi-booking link</summary>
+      <p>Select listings to generate a combined booking link:</p>
       <ul class="multi-booking-list">
         <Raw html={checkboxes} />
       </ul>
-      <label for="multi-booking-url">{t("admin.dashboard.booking_link")}</label>
+      <label for="multi-booking-url">Booking link</label>
       <input
         data-domain={getEffectiveDomain()}
         data-multi-booking-url
         data-select-on-click
         id="multi-booking-url"
-        placeholder={t("admin.dashboard.select_two_or_more")}
+        placeholder="Select two or more listings"
         readonly
         type="text"
       />
-      <label for="multi-booking-embed-script">
-        {t("admin.dashboard.embed_script")}
-      </label>
+      <label for="multi-booking-embed-script">Embed Script</label>
       <input
         data-multi-booking-embed-script
         data-select-on-click
         id="multi-booking-embed-script"
-        placeholder={t("admin.dashboard.select_two_or_more")}
+        placeholder="Select two or more listings"
         readonly
         type="text"
       />
-      <label for="multi-booking-embed-iframe">
-        {t("admin.dashboard.embed_iframe")}
-      </label>
+      <label for="multi-booking-embed-iframe">Embed Iframe</label>
       <input
         data-multi-booking-embed-iframe
         data-select-on-click
         id="multi-booking-embed-iframe"
-        placeholder={t("admin.dashboard.select_two_or_more")}
+        placeholder="Select two or more listings"
         readonly
         type="text"
       />
@@ -121,17 +116,16 @@ const multiBookingSection = (activeListings: ListingWithCount[]): string => {
 export const activeListingStatsSection = (stats: ActiveListingStats): string =>
   String(
     <details>
-      <summary>{t("admin.dashboard.stats_heading")}</summary>
+      <summary>Active Listing Statistics</summary>
       <ul>
         <li>
-          <strong>{t("admin.dashboard.income")}</strong>{" "}
-          {formatCurrency(stats.income)}
+          <strong>Income:</strong> {formatCurrency(stats.income)}
         </li>
         <li>
-          <strong>{t("admin.dashboard.tickets")}</strong> {stats.tickets}
+          <strong>Tickets:</strong> {stats.tickets}
         </li>
         <li>
-          <strong>{t("admin.dashboard.attendees")}</strong> {stats.attendees}
+          <strong>Attendees:</strong> {stats.attendees}
         </li>
       </ul>
     </details>,
@@ -161,7 +155,9 @@ const newestAttendeesSection = (
 
   return String(
     <details open>
-      <summary>{t("admin.dashboard.newest_attendees", { count })}</summary>
+      <summary>
+        Newest {count} Attendee{count !== 1 ? "s" : ""}
+      </summary>
       <div class="table-scroll">
         <Raw
           html={AttendeeTable({
@@ -216,12 +212,12 @@ export const adminDashboardPage = (
           map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
           joinStrings,
         )(listings)
-      : `<tr><td colspan="${columnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
+      : `<tr><td colspan="${columnKeys.length}">No listings yet</td></tr>`;
 
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
 
   return String(
-    <Layout title={t("admin.dashboard.title")}>
+    <Layout title="Listings">
       <AdminNav active="/admin/" session={session} />
 
       <Flash error={imageError} success={successMessage} />
@@ -229,7 +225,7 @@ export const adminDashboardPage = (
       {!isReadOnly() && (
         <p class="actions">
           <ActionButton href="/admin/listing/new" icon="plus">
-            {t("admin.dashboard.add_listing")}
+            Add Listing
           </ActionButton>
           <ActionButton href="/admin/attendee/new" icon="plus">
             Add Attendee
