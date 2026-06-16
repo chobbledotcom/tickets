@@ -10,8 +10,10 @@ import type { ListingWithCount } from "#shared/types.ts";
 /**
  * Get aggregated statistics for active listings.
  * Filters active listings from the provided list, computes attendees
- * (sum of quantities) from cached ListingWithCount data, and queries
- * ticket count and income (sum of price_paid) via a single aggregate.
+ * (sum of quantities) from cached ListingWithCount data, and reads ticket
+ * count and income from the listings' precomputed tickets_count / income
+ * columns (trigger-maintained), so this sums only the active listing rows
+ * by primary key instead of scanning every attendee row.
  */
 export const getActiveListingStats = async (
   listings: ListingWithCount[],
@@ -24,10 +26,10 @@ export const getActiveListingStats = async (
   const attendees = sumOf((e: ListingWithCount) => e.attendee_count)(active);
 
   const row = (await queryOne<{ tickets: number; income: number }>(
-    `SELECT COUNT(*) AS tickets,
-            COALESCE(SUM(ea.price_paid), 0) AS income
-       FROM listing_attendees ea
-      WHERE ea.listing_id IN (${inPlaceholders(activeIds)})`,
+    `SELECT COALESCE(SUM(tickets_count), 0) AS tickets,
+            COALESCE(SUM(income), 0) AS income
+       FROM listings
+      WHERE id IN (${inPlaceholders(activeIds)})`,
     activeIds,
   ))!;
   return {
