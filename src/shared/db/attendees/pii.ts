@@ -8,7 +8,10 @@
 
 import { map } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
-import { decryptAttendeePII, encryptAttendeePII } from "#shared/crypto/keys.ts";
+import {
+  decryptWithOwnerKey,
+  encryptWithOwnerKey,
+} from "#shared/crypto/keys.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
   EncryptedAttendeeData,
@@ -47,7 +50,7 @@ export const parsePiiBlob = (json: string): PiiBlob => {
 export const encryptPiiBlob = (
   blobJson: string,
   publicKeyJwk: string,
-): Promise<string> => encryptAttendeePII(blobJson, publicKeyJwk);
+): Promise<string> => encryptWithOwnerKey(blobJson, publicKeyJwk);
 
 /** Decrypt a PII blob and extract all contact fields */
 export const decryptPiiBlob = async (
@@ -63,7 +66,7 @@ export const decryptPiiBlob = async (
   payment_id: string;
   ticket_token: string;
 }> => {
-  const json = await decryptAttendeePII(encrypted, privateKey);
+  const json = await decryptWithOwnerKey(encrypted, privateKey);
   const blob = parsePiiBlob(json);
   return {
     address: blob.a,

@@ -49,7 +49,10 @@ import {
   targetQuery,
   validateDraftInput,
 } from "#shared/bulk-email.ts";
-import { decryptAttendeePII, encryptAttendeePII } from "#shared/crypto/keys.ts";
+import {
+  decryptWithOwnerKey,
+  encryptWithOwnerKey,
+} from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getContactCounts,
@@ -128,14 +131,14 @@ const parseSavedDraft = async (
 ): Promise<ReturnType<typeof parseDraft>> => {
   const raw = settings.bulkEmailDraft;
   if (!raw) return null;
-  return parseDraft(await decryptAttendeePII(raw, privateKey));
+  return parseDraft(await decryptWithOwnerKey(raw, privateKey));
 };
 
 /** Serialize and encrypt a draft using the owner's public key. */
 const saveDraft = async (
   draft: Parameters<typeof serializeDraft>[0],
 ): Promise<void> => {
-  const encrypted = await encryptAttendeePII(
+  const encrypted = await encryptWithOwnerKey(
     serializeDraft(draft),
     settings.publicKey,
   );
@@ -175,7 +178,7 @@ const decryptTemplateSubjects = async (
   return Promise.all(
     raw.map(async (t) => ({
       id: t.id,
-      subject: await decryptAttendeePII(t.subject, privateKey),
+      subject: await decryptWithOwnerKey(t.subject, privateKey),
     })),
   );
 };
@@ -205,9 +208,9 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
     const raw = await getRawEmailTemplate(selectedTemplateId);
     if (raw) {
       draft = {
-        body: await decryptAttendeePII(raw.body, privateKey),
+        body: await decryptWithOwnerKey(raw.body, privateKey),
         marketing: draft?.marketing ?? false,
-        subject: await decryptAttendeePII(raw.subject, privateKey),
+        subject: await decryptWithOwnerKey(raw.subject, privateKey),
         target,
       };
     }
@@ -383,8 +386,8 @@ const handleTemplateSavePost = (request: Request): Promise<Response> =>
     const result = await validateFormBody(form);
     if (result instanceof Response) return result;
     const { subject, body, target } = result;
-    const encSubject = await encryptAttendeePII(subject, settings.publicKey);
-    const encBody = await encryptAttendeePII(body, settings.publicKey);
+    const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
+    const encBody = await encryptWithOwnerKey(body, settings.publicKey);
     const updateExisting = form.get("update_existing") === "1";
     const templateIdParam = form.get("template_id");
     const templateId = templateIdParam ? Number(templateIdParam) : null;

@@ -242,7 +242,9 @@ export const bulkEmailComposePage = (
           <span class="save-as-new">
             {t("bulk_email.save_as_new_template")}
           </span>
-          <span class="save-update">{t("bulk_email.update_template_button")}</span>
+          <span class="save-update">
+            {t("bulk_email.update_template_button")}
+          </span>
         </button>
       </CsrfForm>
     </Layout>,

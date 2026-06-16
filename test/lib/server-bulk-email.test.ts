@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
-import { encryptAttendeePII } from "#shared/crypto/keys.ts";
+import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import {
   getAllActivityLog,
   getListingActivityLog,
@@ -60,7 +60,7 @@ const seedListingWithAttendees = async () => {
  */
 const seedDraft = async (draft: BulkEmailDraft) =>
   settings.setForTest({
-    bulk_email_draft: await encryptAttendeePII(
+    bulk_email_draft: await encryptWithOwnerKey(
       serializeDraft(draft),
       settings.publicKey,
     ),
@@ -770,7 +770,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
   describe("draft helpers", () => {
     test("a malformed stored draft is treated as absent", async () => {
       await settings.setForTest({
-        bulk_email_draft: await encryptAttendeePII(
+        bulk_email_draft: await encryptWithOwnerKey(
           "{not valid draft json",
           settings.publicKey,
         ),
@@ -805,7 +805,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       const { insertEmailTemplate } = await import(
         "#shared/db/email-templates.ts"
       );
-      const { encryptAttendeePII: enc } = await import(
+      const { encryptWithOwnerKey: enc } = await import(
         "#shared/crypto/keys.ts"
       );
       const encSubject = await enc(subject, settings.publicKey);
