@@ -881,8 +881,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-14_attendee_statuses",
         "2026-06-15_activity_log_listing_id_index",
         "2026-06-16_sms_outbox",
+        "2026-06-16_attendee_phone_index",
       ],
-      schemaHash: "losyk5",
+      schemaHash: "mtqr1u",
     });
   });
 });

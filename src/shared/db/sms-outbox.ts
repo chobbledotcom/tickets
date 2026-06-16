@@ -8,7 +8,7 @@
  * attendee PII under the owner's key and re-encrypts under the E2E key first.
  */
 
-import { getDb, insert, queryAll } from "#shared/db/client.ts";
+import { getDb, insert, queryAll, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Lifecycle of a queued message. */
@@ -56,6 +56,15 @@ export const enqueueSms = async (input: {
   return { id: Number(result.lastInsertRowid) };
 };
 
+/** Find a row by the gateway's message id (for status webhooks). */
+export const getSmsByProviderId = (
+  providerId: string,
+): Promise<SmsOutboxRow | null> =>
+  queryOne<SmsOutboxRow>(
+    `SELECT ${COLUMNS} FROM sms_outbox WHERE provider_id = ? LIMIT 1`,
+    [providerId],
+  );
+
 /** All messages for an attendee, newest first (for the contact history view). */
 export const getSmsOutboxForAttendee = (
   attendeeId: number,
@@ -84,5 +93,13 @@ export const markSmsFailed = async (
   await getDb().execute({
     args: [error, nowIso(), id],
     sql: "UPDATE sms_outbox SET status = 'failed', error = ?, attempts = attempts + 1, updated = ? WHERE id = ?",
+  });
+};
+
+/** Mark a row delivered (driven by a delivery webhook). */
+export const markSmsDelivered = async (id: number): Promise<void> => {
+  await getDb().execute({
+    args: [nowIso(), id],
+    sql: "UPDATE sms_outbox SET status = 'delivered', updated = ? WHERE id = ?",
   });
 };

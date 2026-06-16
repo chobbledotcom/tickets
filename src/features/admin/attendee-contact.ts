@@ -11,6 +11,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
 import {
   enqueueSms,
   getSmsOutboxForAttendee,
@@ -23,6 +24,7 @@ import {
   getSmsGatewayConfig,
   sendEncryptedMessage,
 } from "#shared/sms/gateway.ts";
+import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import {
   attendeeContactPage,
   type SmsHistoryItem,
@@ -84,6 +86,13 @@ const handleContactPost = attendeeFormAction(
     if (!phone) {
       return redirect(backUrl, "Attendee has no phone number on file", false);
     }
+
+    // Record a blind-index of the number so inbound replies can be matched
+    // back to this attendee (lazy, set once).
+    await setAttendeePhoneIndexIfEmpty(
+      attendeeId,
+      await computePhoneIndex(phone),
+    );
 
     // Encrypt once; the same ciphertext is both stored and transmitted.
     const payload = await buildMessagePayload(

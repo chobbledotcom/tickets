@@ -145,6 +145,10 @@ const loadApiRoutes = lazyExport(
   () => import("#routes/api/index.ts"),
   "routeApi",
 );
+const loadSmsWebhookRoutes = lazyExport(
+  () => import("#routes/api/sms-webhook.ts"),
+  "routeSmsWebhook",
+);
 
 /** Lazy-load setup routes (bound to the setup-complete check) */
 const loadSetupRoutes = once(async () =>
@@ -352,6 +356,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
   renew: lazyRoute(loadRenewalRoutes),
+  sms: lazyRoute(loadSmsWebhookRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   ticket: lazyRoute(loadTicketRoutes),
   unsubscribe: lazyRoute(loadUnsubscribeRoutes),

@@ -108,6 +108,7 @@ export const CONFIG_KEYS = {
   SMS_GATEWAY_PASSPHRASE: "sms_gateway_passphrase",
   SMS_GATEWAY_PASSWORD: "sms_gateway_password",
   SMS_GATEWAY_USERNAME: "sms_gateway_username",
+  SMS_GATEWAY_WEBHOOK_SECRET: "sms_gateway_webhook_secret",
   SQUARE_ACCESS_TOKEN: "square_access_token",
   SQUARE_LOCATION_ID: "square_location_id",
   SQUARE_SANDBOX: "square_sandbox",
@@ -246,6 +247,7 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
   CONFIG_KEYS.SMS_GATEWAY_USERNAME,
   CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
+  CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
 ] as const;
 
 /** Union of all string-setting snapshot keys. */
@@ -429,6 +431,7 @@ const STRING_ACCESSORS = {
   smsGatewayPassphrase: { key: CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE },
   smsGatewayPassword: { key: CONFIG_KEYS.SMS_GATEWAY_PASSWORD },
   smsGatewayUsername: { key: CONFIG_KEYS.SMS_GATEWAY_USERNAME },
+  smsGatewayWebhookSecret: { key: CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET },
   // readOnly: settings.update.supportFormLastSubmitted writes a timestamp
   supportFormLastSubmitted: {
     key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
@@ -855,6 +858,9 @@ const settingsBase = {
     },
     get hasPassword(): boolean {
       return snap("sms_gateway_password") !== "";
+    },
+    get hasWebhookSecret(): boolean {
+      return snap("sms_gateway_webhook_secret") !== "";
     },
   },
 

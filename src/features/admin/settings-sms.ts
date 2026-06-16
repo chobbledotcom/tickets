@@ -18,6 +18,7 @@ type SmsGatewayFormData = {
   baseUrl: string;
   password: SecretFieldResult;
   passphrase: SecretFieldResult;
+  webhookSecret: SecretFieldResult;
 };
 
 /** Accept only http(s) URLs (or empty). */
@@ -45,14 +46,16 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
     passphrase: processSecretField(form, "sms_gateway_passphrase"),
     password: processSecretField(form, "sms_gateway_password"),
     username: form.getString("sms_gateway_username").trim(),
+    webhookSecret: processSecretField(form, "sms_gateway_webhook_secret"),
   }),
   formId: "settings-sms-gateway",
   label: "SMS gateway settings",
-  save: async ({ username, baseUrl, password, passphrase }) => {
+  save: async ({ username, baseUrl, password, passphrase, webhookSecret }) => {
     await settings.update.smsGatewayUsername(username);
     await settings.update.smsGatewayBaseUrl(baseUrl);
     await saveSecret(password, settings.update.smsGatewayPassword);
     await saveSecret(passphrase, settings.update.smsGatewayPassphrase);
+    await saveSecret(webhookSecret, settings.update.smsGatewayWebhookSecret);
   },
   validate: ({ baseUrl }) =>
     baseUrl && !isHttpUrl(baseUrl) ? "Invalid server URL" : null,

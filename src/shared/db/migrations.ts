@@ -225,6 +225,10 @@ const SCHEMA: [name: string, table: Table][] = [
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
         ["status_id", "INTEGER DEFAULT NULL"],
         ["remaining_balance", "INTEGER NOT NULL DEFAULT 0"],
+        // HMAC blind-index of the attendee's phone, populated lazily the first
+        // time an admin texts them, so inbound SMS replies can be matched back
+        // to the attendee without storing the number in the clear.
+        ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
         {
@@ -235,6 +239,10 @@ const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["status_id"],
           name: "idx_attendees_status_id",
+        },
+        {
+          columns: ["phone_index"],
+          name: "idx_attendees_phone_index",
         },
       ],
     },
@@ -1062,6 +1070,16 @@ const MIGRATIONS: Migration[] = [
     description:
       "Add sms_outbox table for the SMS gateway send queue (stores only E2E-encrypted recipient and message)",
     id: "2026-06-16_sms_outbox",
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add phone_index to attendees so inbound SMS replies can be matched to an attendee",
+    id: "2026-06-16_attendee_phone_index",
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();

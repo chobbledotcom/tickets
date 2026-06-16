@@ -463,6 +463,7 @@ describe("adminAdvancedSettingsPage", () => {
     smsGatewayPassphraseConfigured: false,
     smsGatewayPasswordConfigured: false,
     smsGatewayUsername: "",
+    smsGatewayWebhookConfigured: false,
     subdomainPreview: "",
     subdomainPreviewFullDomain: "",
     theme: "light",
@@ -485,9 +486,11 @@ describe("adminAdvancedSettingsPage", () => {
       ...advancedDefaultState,
       smsGatewayPassphraseConfigured: true,
       smsGatewayPasswordConfigured: true,
+      smsGatewayWebhookConfigured: true,
     });
     expect(html).toContain('name="sms_gateway_password"');
     expect(html).toContain('name="sms_gateway_passphrase"');
+    expect(html).toContain('name="sms_gateway_webhook_secret"');
     expect(html).toContain(MASK_SENTINEL);
   });
 

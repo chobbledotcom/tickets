@@ -116,6 +116,7 @@ const getAdvancedSettingsPageState = async (
     smsGatewayPassphraseConfigured: settings.smsGateway.hasPassphrase,
     smsGatewayPasswordConfigured: settings.smsGateway.hasPassword,
     smsGatewayUsername: settings.smsGatewayUsername,
+    smsGatewayWebhookConfigured: settings.smsGateway.hasWebhookSecret,
     subdomainPreview,
     subdomainPreviewFullDomain,
     theme: settings.theme,

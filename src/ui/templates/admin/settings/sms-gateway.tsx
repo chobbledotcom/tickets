@@ -61,5 +61,20 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
         value={s.smsGatewayBaseUrl}
       />
     </label>
+    <label>
+      Webhook signing secret (optional)
+      <input
+        autocomplete="off"
+        name="sms_gateway_webhook_secret"
+        placeholder="For delivery reports + replies"
+        type="password"
+        value={s.smsGatewayWebhookConfigured ? MASK_SENTINEL : undefined}
+      />
+    </label>
+    <p class="prose">
+      To receive delivery reports and replies, set this secret to match the
+      app's webhook signing key and point the app's webhook at{" "}
+      <code>/api/sms/webhook</code> on this site.
+    </p>
   </SettingsSection>
 );

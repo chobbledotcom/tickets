@@ -62,6 +62,7 @@ export type AdvancedSettingsPageState = {
   smsGatewayBaseUrl: string;
   smsGatewayPasswordConfigured: boolean;
   smsGatewayPassphraseConfigured: boolean;
+  smsGatewayWebhookConfigured: boolean;
 };
 
 export const adminAdvancedSettingsPage = (
