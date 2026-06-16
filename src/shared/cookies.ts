@@ -40,19 +40,27 @@ const FLASH_TYPE_CHAR: Record<FlashLevel, string> = {
 };
 
 /** Build a flash cookie containing a success, error, or info message, keyed by
- * ID. `level` defaults to success/error from `succeeded`; pass it to override. */
+ * ID. `level` defaults to success/error from `succeeded`; pass it to override.
+ * `formToken` redeems the in-memory form re-fill stash on the follow-up GET; it
+ * rides in this HttpOnly, SameSite=Strict cookie rather than the URL so it
+ * can't be guessed or leaked via history/referrer. */
 export const buildFlashCookie = (
   id: string,
   message: string,
   succeeded: boolean,
   result?: string,
   level: FlashLevel = succeeded ? "success" : "error",
+  formToken?: string,
 ): string => {
   const type = FLASH_TYPE_CHAR[level];
-  const payload = JSON.stringify(
-    result ? { m: message, r: result, t: type } : { m: message, t: type },
-  );
-  const value = encodeURIComponent(payload);
+  // Keys are assigned in alphabetical order so the serialized JSON matches the
+  // sorted object literals the tests build; parsing is order-independent.
+  const obj: Record<string, string> = {};
+  if (formToken) obj.f = formToken;
+  obj.m = message;
+  if (result) obj.r = result;
+  obj.t = type;
+  const value = encodeURIComponent(JSON.stringify(obj));
   return `${flashCookieName(
     id,
   )}=${value}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=10`;
@@ -64,12 +72,14 @@ export const clearFlashCookie = (id: string): string =>
     id,
   )}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
-/** Parse a flash cookie value into type, message, and optional result */
+/** Parse a flash cookie value into type, message, optional result, and the
+ * optional form re-fill stash token. */
 export const parseFlashValue = (value: string): Flash => {
   const decoded = decodeURIComponent(value);
   const obj = JSON.parse(decoded);
   return {
     error: obj.t === "e" ? obj.m : undefined,
+    formToken: obj.f,
     info: obj.t === "i" ? obj.m : undefined,
     result: obj.r,
     success: obj.t === "s" ? obj.m : undefined,

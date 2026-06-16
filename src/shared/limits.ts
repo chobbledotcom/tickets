@@ -219,6 +219,36 @@ export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
+// Form re-fill stash
+// ---------------------------------------------------------------------------
+
+/**
+ * How long (ms) submitted form values stay in the in-memory re-fill stash
+ * (default: 15000 = 15s). Only needs to outlive a POST→redirect→GET round-trip
+ * (a few ms), but is kept slightly longer than the flash cookie's own lifetime
+ * so the values never expire before the message they accompany.
+ */
+export const FORM_STASH_TTL_MS = readLimit("FORM_STASH_TTL_MS", 15_000);
+
+/**
+ * Largest serialized form body (bytes) eligible for the re-fill stash
+ * (default: 32768 = 32KB). Larger submissions skip the stash and fall back to
+ * the cookie-only flash, bounding per-entry memory.
+ */
+export const FORM_STASH_MAX_BYTES = readLimit(
+  "FORM_STASH_MAX_BYTES",
+  32 * 1024,
+);
+
+/**
+ * Maximum number of stashed form bodies retained at once (default: 100).
+ * The oldest entries are evicted past this cap, so even a sustained burst of
+ * failed submissions caps the stash at MAX_ENTRIES × MAX_BYTES (~3.2 MB) per
+ * isolate; over-budget entries just fall back to the cookie-only flash.
+ */
+export const FORM_STASH_MAX_ENTRIES = readLimit("FORM_STASH_MAX_ENTRIES", 100);
+
+// ---------------------------------------------------------------------------
 // Metadata for debug page display
 // ---------------------------------------------------------------------------
 
@@ -450,6 +480,27 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "PRUNE_INTERVAL_HOURS",
     label: "Prune: run interval",
     unit: "hours",
+  },
+  {
+    current: FORM_STASH_TTL_MS,
+    defaultValue: 15_000,
+    envKey: "FORM_STASH_TTL_MS",
+    label: "Form re-fill stash TTL",
+    unit: "ms",
+  },
+  {
+    current: FORM_STASH_MAX_BYTES,
+    defaultValue: 32 * 1024,
+    envKey: "FORM_STASH_MAX_BYTES",
+    label: "Form re-fill stash max size",
+    unit: "bytes",
+  },
+  {
+    current: FORM_STASH_MAX_ENTRIES,
+    defaultValue: 100,
+    envKey: "FORM_STASH_MAX_ENTRIES",
+    label: "Form re-fill stash max entries",
+    unit: "entries",
   },
   {
     current: SUPPORT_FORM_NAG_DAYS,
