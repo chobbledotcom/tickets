@@ -169,6 +169,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         amount_total: 1500,
         id: "cs_balance",
         metadata: {
+          balance_amount: "1500",
           balance_attendee_id: String(attendeeId),
           items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
           name: "Balance payment",
@@ -236,6 +237,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         amount_total: 1500,
         id: "cs_bal_nolisting",
         metadata: {
+          balance_amount: "1500",
           balance_attendee_id: String(attendeeId),
           items: JSON.stringify([{ e: 98765, p: 1500, q: 1 }]),
           name: "Balance payment",
@@ -278,6 +280,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         amount_total: 1500,
         id: "cs_bal_stale",
         metadata: {
+          balance_amount: "1500",
           balance_attendee_id: String(attendeeId),
           items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
           name: "Balance payment",
@@ -320,6 +323,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         amount_total: 1000,
         id: "cs_bal_amt",
         metadata: {
+          balance_amount: "1500",
           balance_attendee_id: String(attendeeId),
           items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
           name: "Balance payment",

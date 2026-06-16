@@ -687,9 +687,9 @@ const settleBalanceSession = async (
   intent: BookingIntent,
 ): Promise<PaymentResult> => {
   const attendeeId = intent.balanceAttendeeId as number;
-  // Prefer the explicit balanceAmount; fall back to the single line's price for
-  // sessions created before that metadata field existed.
-  const expectedAmount = intent.balanceAmount ?? intent.items[0]!.p;
+  // The balance this checkout was created to clear — always set for balance
+  // sessions (see handleBalancePost).
+  const expectedAmount = intent.balanceAmount as number;
   const listingId = intent.items[0]!.e;
 
   const fail = (detail: string): Promise<PaymentResult> =>
