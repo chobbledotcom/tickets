@@ -834,7 +834,7 @@ textarea[readonly] {
 label {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-m);
+  gap: var(--space-s);
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
