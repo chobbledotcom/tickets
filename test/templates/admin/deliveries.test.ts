@@ -56,6 +56,7 @@ describe("agentDeliveriesPage", () => {
     expect(html).toContain("Alice");
     expect(html).toContain("1 Test Street");
     expect(html).toContain("tel:+447700900000");
+    expect(html).toContain("https://wa.me/447700900000");
     expect(html).toContain('action="/admin/deliveries/mark"');
     expect(html).toContain('value="start"');
     expect(html).toContain("Mark done");

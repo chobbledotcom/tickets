@@ -8,9 +8,9 @@
  */
 
 import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { phoneLinks } from "#shared/phone.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
+import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** A single drop-off or collection on the run sheet. */
@@ -46,23 +46,6 @@ const AgentHeader = (): JSX.Element => (
   </header>
 );
 
-/** The phone number with a tel: link when it normalises to a callable number. */
-const PhoneLine = ({
-  phone,
-  phonePrefix,
-}: {
-  phone: string;
-  phonePrefix: string;
-}): JSX.Element | null => {
-  if (!phone) return null;
-  const links = phoneLinks(phone, phonePrefix);
-  return (
-    <p class="delivery-phone">
-      {links ? <a href={links.tel}>{phone}</a> : phone}
-    </p>
-  );
-};
-
 /** One leg card: what to do, where, when, and a done toggle. */
 const LegCard = ({
   leg,
@@ -84,7 +67,11 @@ const LegCard = ({
         <MapsLinks query={leg.address} />
       </p>
     )}
-    <PhoneLine phone={leg.phone} phonePrefix={phonePrefix} />
+    {leg.phone && (
+      <p class="delivery-phone">
+        <PhoneLinks phone={leg.phone} phonePrefix={phonePrefix} />
+      </p>
+    )}
     <CsrfForm action="/admin/deliveries/mark" class="inline">
       <input name="attendee_id" type="hidden" value={String(leg.attendeeId)} />
       <input name="listing_id" type="hidden" value={String(leg.listingId)} />
