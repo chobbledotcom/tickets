@@ -17,7 +17,6 @@
  */
 
 import { getDb } from "#shared/db/client.ts";
-import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   PRUNE_INTERVAL_MS,
@@ -51,7 +50,10 @@ const isoAgePruner =
  * deleteAllStaleReservations in processed-payments.ts.
  */
 export const prunePayments = isoAgePruner(
-  `DELETE FROM processed_payments WHERE ${RESOLVED_OUTCOME} AND processed_at < ?`,
+  // Resolved rows only: a finalized success (attendee_id set) or a recorded
+  // terminal failure (failure_data set). Abandoned, outcome-less reservations
+  // are left for deleteAllStaleReservations.
+  "DELETE FROM processed_payments WHERE (attendee_id IS NOT NULL OR failure_data != '') AND processed_at < ?",
   PRUNE_PAYMENTS_RETENTION_MS,
 );
 

@@ -22,19 +22,12 @@ import { nowIso, nowMs } from "#shared/now.ts";
 export { STALE_RESERVATION_MS };
 
 /**
- * A processed_payments row is in exactly one of three lifecycle states, encoded
- * across two columns: **reserved** (in-progress: attendee_id NULL, no
- * failure_data), **finalized** (success: attendee_id set), **failed** (terminal
- * handled failure: attendee_id NULL, failure_data set). These two predicates are
- * the single source of truth for that shape — every query/branch that
- * distinguishes the states derives from them (or {@link isUnresolvedReservation})
- * so the encoding can't drift between call sites.
+ * A processed_payments row is in one of three lifecycle states across two
+ * columns: **reserved** (in-progress: attendee_id NULL, failure_data ''),
+ * **finalized** (success: attendee_id set), **failed** (terminal handled
+ * failure: attendee_id NULL, failure_data set). Queries spell out the relevant
+ * predicate inline; this note is the shared reference for what they mean.
  */
-const UNRESOLVED_RESERVATION = "attendee_id IS NULL AND failure_data = ''";
-/** Complement of {@link UNRESOLVED_RESERVATION}: a finalized success or a
- * recorded terminal failure. Exported for the pruner, which reaps resolved rows. */
-export const RESOLVED_OUTCOME =
-  "(attendee_id IS NOT NULL OR failure_data != '')";
 
 /** Processed payment record */
 export type ProcessedPayment = {
@@ -85,11 +78,6 @@ export const isReservationStale = (processedAt: string): boolean => {
   return nowMs() - reservedAt > STALE_RESERVATION_MS;
 };
 
-/** True when a row is an in-progress reservation with no recorded outcome — the
- * in-memory mirror of the {@link UNRESOLVED_RESERVATION} SQL predicate. */
-export const isUnresolvedReservation = (row: ProcessedPayment): boolean =>
-  row.attendee_id === null && row.failure_data === "";
-
 /** Execute a SQL statement parameterized by a single payment session ID */
 const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   getDb().execute({ args: [sessionId], sql });
@@ -104,7 +92,7 @@ export const deleteStaleReservation = async (
 ): Promise<void> => {
   await execWithSessionId(
     sessionId,
-    `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL AND failure_data = ''",
   );
 };
 
@@ -118,7 +106,7 @@ export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
     args: [cutoff],
-    sql: `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
+    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND failure_data = '' AND processed_at < ?",
   });
   return result.rowsAffected;
 };
@@ -157,7 +145,8 @@ export const reserveSession = async (
       // carrying a recorded terminal failure is never stale — it is replayed
       // by the caller instead of being deleted and re-processed.
       if (
-        isUnresolvedReservation(existing) &&
+        existing.attendee_id === null &&
+        existing.failure_data === "" &&
         isReservationStale(existing.processed_at)
       ) {
         await deleteStaleReservation(sessionId);
@@ -190,9 +179,10 @@ export const finalizeSession = async (
  * Record a handled terminal failure on a still-unresolved session. A later
  * redirect/webhook for the same session reads this back via
  * {@link parseSessionFailure} and returns the same outcome, so refunds and
- * validation never run twice. Guarded on {@link UNRESOLVED_RESERVATION}, so it
- * never clobbers a finalized success and never overwrites an already-recorded
- * failure (the first outcome wins); a no-op if the row was pruned away.
+ * validation never run twice. The `attendee_id IS NULL AND failure_data = ''`
+ * guard means it never clobbers a finalized success and never overwrites an
+ * already-recorded failure (the first outcome wins); a no-op if the row was
+ * pruned away.
  */
 export const markSessionFailed = async (
   sessionId: string,
@@ -200,7 +190,7 @@ export const markSessionFailed = async (
 ): Promise<void> => {
   await getDb().execute({
     args: [JSON.stringify(failure), sessionId],
-    sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    sql: "UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND attendee_id IS NULL AND failure_data = ''",
   });
 };
 
