@@ -2,6 +2,7 @@
  * Form parsing and CSRF utilities
  */
 
+import { errorRedirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import {
   CSRF_INVALID_FORM_MESSAGE,
@@ -15,8 +16,24 @@ import {
   setFormSuccess,
   setSavedFormData,
 } from "#shared/forms.tsx";
+import { validateMessageText } from "#shared/inbound-message.ts";
 
 export { FormParams } from "#shared/form-data.ts";
+
+/**
+ * Read and validate the shared "message" field of a contact/support form.
+ * Returns the message text, or an error redirect to `path` when it is missing
+ * or too long. The `string | Response` shape mirrors the session guards, so a
+ * caller writes `if (x instanceof Response) return x;`.
+ */
+export const requireMessageField = (
+  form: FormParams,
+  path: string,
+): string | Response => {
+  const message = form.getString("message");
+  const error = validateMessageText(message);
+  return error ? errorRedirect(path, error) : message;
+};
 
 /**
  * Parse form data from request

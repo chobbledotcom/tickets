@@ -3,6 +3,7 @@
  */
 
 import { validateDateRange } from "#routes/admin/holidays.ts";
+import { OWNER_API } from "#routes/auth.ts";
 import {
   getAllHolidays,
   type HolidayInput,
@@ -33,6 +34,9 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   getAll: getAllHolidays,
   name: "holidays",
   nameField: "name",
+  // Holiday management is owner-only in the dashboard (createOwnerCrudHandlers),
+  // so the JSON API matches: managers cannot mutate holidays via the API either.
+  policy: OWNER_API,
   singular: "Holiday",
   table: holidaysTable,
 

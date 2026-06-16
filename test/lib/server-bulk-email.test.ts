@@ -56,36 +56,42 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     testRequiresAuth("/admin/emails");
 
     test("renders the compose page for an owner", async () => {
-      await awaitTestRequest("/admin/emails", {
-        cookie: await testCookie(),
-      }).then((r) =>
-        expectHtmlResponse(r, 200, "Send a bulk email", "Audience"),
+      expectHtmlResponse(
+        await awaitTestRequest("/admin/emails", {
+          cookie: await testCookie(),
+        }),
+        200,
+        "Send a bulk email",
+        "Audience",
       );
     });
 
     test("shows the disabled notice when no own provider is configured", async () => {
-      const html = await awaitTestRequest("/admin/emails", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Heads up");
     });
 
     test("hides the disabled notice when a bulk provider is configured", async () => {
       useResend();
-      const html = await awaitTestRequest("/admin/emails", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).not.toContain("Heads up");
     });
 
     test("targets a single listing via ?listing", async () => {
       const listing = await seedListingWithAttendees();
-      const html = await awaitTestRequest(
-        `/admin/emails?listing=${listing.id}`,
-        {
+      const html = await (
+        await awaitTestRequest(`/admin/emails?listing=${listing.id}`, {
           cookie: await testCookie(),
-        },
-      ).then((r) => r.text());
+        })
+      ).text();
       expect(html).toContain("Recipients:</strong> Attendees of Gig");
     });
 
@@ -104,15 +110,21 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("falls back to the default audience for an unknown one", async () => {
-      await awaitTestRequest("/admin/emails?audience=bogus", {
-        cookie: await testCookie(),
-      }).then((r) => expectHtmlResponse(r, 200, "Send a bulk email"));
+      expectHtmlResponse(
+        await awaitTestRequest("/admin/emails?audience=bogus", {
+          cookie: await testCookie(),
+        }),
+        200,
+        "Send a bulk email",
+      );
     });
 
     test("accepts an explicit valid audience", async () => {
-      const html = await awaitTestRequest("/admin/emails?audience=upcoming", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails?audience=upcoming", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain('<option selected value="upcoming">');
     });
 
@@ -124,12 +136,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         marketing: "1",
         subject: "Saved subject",
       });
-      const html = await awaitTestRequest(
-        `/admin/emails?listing=${listing.id}`,
-        {
+      const html = await (
+        await awaitTestRequest(`/admin/emails?listing=${listing.id}`, {
           cookie: await testCookie(),
-        },
-      ).then((r) => r.text());
+        })
+      ).text();
       expect(html).toContain('value="Saved subject"');
       expect(html).toContain("checked");
       expect(html).toContain("recipient. That's everyone");
@@ -218,9 +229,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Big news");
       expect(html).toContain("<strong>world</strong>");
       expect(html).toContain("via Resend");
@@ -239,9 +252,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("everyone in BCC");
       expect(html).toContain("Open a BCC draft to 2 recipients");
       expect(html).toContain("mailto:owner%40example.com?bcc=");
@@ -257,9 +272,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Open a draft to 1 recipient");
       expect(html).toContain("addressed straight to your one recipient");
       expect(html).toContain("mailto:alice%40example.com?");
@@ -276,9 +293,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           target: { kind: "listing", listingId: 987654 },
         }),
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).not.toContain('class="recipient-emails"');
     });
 
@@ -290,9 +309,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         marketing: "1",
         subject: "Sale",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Sending is disabled");
       expect(html).toContain("Marketing email");
       expect(html).toContain("unsubscribe footer is appended");
@@ -306,9 +327,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         body: "Newsletter",
         subject: "Monthly news",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Active listing attendees");
       expect(html).toContain(
         "Everyone booked onto a listing that is currently active.",
@@ -327,9 +350,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           target: { kind: "listing", listingId: 987654 },
         }),
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Listing attendees");
     });
 
@@ -343,9 +368,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         marketing: "1",
         subject: "Sale",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("1 unsubscribed will be skipped");
     });
   });
@@ -521,10 +548,12 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("compose page targets just the one attendee", async () => {
       const { token } = await seedSoloAttendee();
-      const html = await awaitTestRequest(
-        `/admin/emails?attendee=${encodeURIComponent(token)}`,
-        { cookie: await testCookie() },
-      ).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(
+          `/admin/emails?attendee=${encodeURIComponent(token)}`,
+          { cookie: await testCookie() },
+        )
+      ).text();
       expect(html).toContain("Email an attendee");
       expect(html).toContain("alice@example.com");
       // The token round-trips through a hidden field so the POST keeps the target.
@@ -575,9 +604,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           target: { kind: "attendee", token: "gone" },
         }),
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("the selected attendee");
     });
 
@@ -589,9 +620,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         body: "Just for you",
         subject: "Hello Alice",
       });
-      const html = await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("Hello Alice");
       expect(html).toContain("alice@example.com");
       expect(html).toContain("1 recipient");
@@ -633,9 +666,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         "Alice",
         "alice@example.com",
       );
-      const html = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain(
         `/admin/emails?attendee=${encodeURIComponent(token)}`,
       );
@@ -653,9 +688,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         "alice@example.com",
       );
       const cookie = await createTestManagerSession();
-      const html = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-        cookie,
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie,
+        })
+      ).text();
       expect(html).not.toContain("/admin/emails?attendee=");
     });
 
@@ -669,9 +706,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         "Nemo",
         "",
       );
-      const html = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain("No email address on file.");
       // Rendered as an inert span, not a clickable link to the email page.
       expect(html).toContain("btn--disabled");
@@ -682,9 +721,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
   describe("listing page Email link", () => {
     test("owners see the link on the listing page", async () => {
       const listing = await seedListingWithAttendees();
-      const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(`/admin/listing/${listing.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(html).toContain(`/admin/emails?listing=${listing.id}`);
       expect(html).toContain(">Email</a>");
     });
@@ -695,9 +736,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         name: "Solo",
       });
       await createTestAttendeeDirect(listing.id, "Nemo", "");
-      const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(`/admin/listing/${listing.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       // Inert span instead of a link to the email page.
       expect(html).toContain("btn--disabled");
       expect(html).not.toContain(`/admin/emails?listing=${listing.id}`);
@@ -706,9 +749,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     test("managers do not see the link", async () => {
       const listing = await seedListingWithAttendees();
       const cookie = await createTestManagerSession();
-      const html = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie,
-      }).then((r) => r.text());
+      const html = await (
+        await awaitTestRequest(`/admin/listing/${listing.id}`, {
+          cookie,
+        })
+      ).text();
       expect(html).not.toContain("/admin/emails?listing=");
     });
   });
@@ -733,9 +778,13 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           target: { kind: "listing", listingId: listing.id },
         }),
       });
-      await awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => expectHtmlResponse(r, 200, "Stored subject"));
+      expectHtmlResponse(
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        }),
+        200,
+        "Stored subject",
+      );
     });
   });
 
@@ -748,9 +797,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Update",
       });
-      return awaitTestRequest("/admin/emails/preview", {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      return (
+        await awaitTestRequest("/admin/emails/preview", {
+          cookie: await testCookie(),
+        })
+      ).text();
     };
 
     test("preview reports never-contacted recipients", async () => {
@@ -798,9 +849,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         "alice@example.com",
       );
 
-      const before = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const before = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(before).toContain("Email History");
       expect(before).toContain("Never contacted by bulk email.");
 
@@ -811,9 +864,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       });
       await adminFormPost("/admin/emails/send", {});
 
-      const after = await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-        cookie: await testCookie(),
-      }).then((r) => r.text());
+      const after = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(after).toContain("Total messages:");
       expect(after).toContain("Newsletter");
     });

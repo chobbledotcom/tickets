@@ -678,11 +678,13 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-let envRestore: (() => void) | undefined;
+const envRestore: { current: (() => void) | undefined } = {
+  current: undefined,
+};
 
 function restoreAdminEmail(value: string | undefined): void {
-  envRestore?.();
-  envRestore = setTestEnv({ ADMIN_EMAIL_ADDRESS: value });
+  envRestore.current?.();
+  envRestore.current = setTestEnv({ ADMIN_EMAIL_ADDRESS: value });
 }
 
 function setupForEnable(email: string): void {

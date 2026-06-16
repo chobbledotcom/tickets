@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
 import {
   awaitTestRequest,
   createTestAttendeeWithToken,
@@ -16,23 +15,18 @@ import {
 } from "#test-utils";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 
-/** Reuse cached creds for all wallet configuration */
-let testCreds: GoogleWalletCredentials;
-
 /** Configure all Google Wallet settings in the database */
 const configureGoogleWallet = async () => {
-  if (!testCreds) testCreds = await generateGoogleTestCreds();
+  const creds = generateGoogleTestCreds();
   await Promise.all([
-    settings.update.googleWallet.issuerId(testCreds.issuerId),
-    settings.update.googleWallet.serviceAccountEmail(
-      testCreds.serviceAccountEmail,
-    ),
-    settings.update.googleWallet.serviceAccountKey(testCreds.serviceAccountKey),
+    settings.update.googleWallet.issuerId(creds.issuerId),
+    settings.update.googleWallet.serviceAccountEmail(creds.serviceAccountEmail),
+    settings.update.googleWallet.serviceAccountKey(creds.serviceAccountKey),
   ]);
 };
 
-const ensureCreds = async () => {
-  if (!testCreds) testCreds = await generateGoogleTestCreds();
+const ensureCreds = (): void => {
+  generateGoogleTestCreds();
 };
 
 describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
@@ -169,7 +163,8 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
           google_wallet_issuer_id: "",
           google_wallet_service_account_email:
             "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key: testCreds.serviceAccountKey,
+          google_wallet_service_account_key:
+            generateGoogleTestCreds().serviceAccountKey,
         },
         cookie,
       ),
@@ -191,7 +186,8 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
           csrf_token: csrfToken,
           google_wallet_issuer_id: "1234567890",
           google_wallet_service_account_email: "",
-          google_wallet_service_account_key: testCreds.serviceAccountKey,
+          google_wallet_service_account_key:
+            generateGoogleTestCreds().serviceAccountKey,
         },
         cookie,
       ),
@@ -262,7 +258,8 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
           google_wallet_issuer_id: "1234567890",
           google_wallet_service_account_email:
             "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key: testCreds.serviceAccountKey,
+          google_wallet_service_account_key:
+            generateGoogleTestCreds().serviceAccountKey,
         },
         cookie,
       ),
@@ -328,7 +325,8 @@ const setGoogleWalletEnvVars = async () => {
     GOOGLE_WALLET_ISSUER_ID: "9876543210",
     GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
       "env@env-project.iam.gserviceaccount.com",
-    GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: testCreds.serviceAccountKey,
+    GOOGLE_WALLET_SERVICE_ACCOUNT_KEY:
+      generateGoogleTestCreds().serviceAccountKey,
   });
 };
 

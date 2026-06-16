@@ -11,6 +11,7 @@ import {
   assertJson,
   createTestGroup,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   mockRequest,
   requestAsSession,
@@ -63,7 +64,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("returns 404 for non-existent group", async () => {
       await assertJson(apiRequest("/api/admin/groups/99999"), 404, (body) => {
-        expect(body.message).toBe("Group not found");
+        expect(body.error).toBe("Group not found");
       });
     });
 
@@ -174,7 +175,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -327,7 +328,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Group not found");
+          expect(body.error).toBe("Group not found");
         },
       );
     });
@@ -342,7 +343,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name cannot be empty");
+          expect(body.error).toBe("name cannot be empty");
         },
       );
     });
@@ -358,7 +359,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Slug is already in use");
+          expect(body.error).toBe("Slug is already in use");
         },
       );
     });
@@ -414,7 +415,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("does not match");
+          expect(body.error).toContain("does not match");
         },
       );
 
@@ -430,9 +431,27 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         404,
         (body) => {
-          expect(body.message).toBe("Group not found");
+          expect(body.error).toBe("Group not found");
         },
       );
+    });
+  });
+
+  // Groups are managed by any admin in the dashboard (createCrudHandlers), so a
+  // manager must retain group access via the JSON API — unlike owner-only
+  // holidays. Guards against accidentally over-restricting the group API.
+  describe("manager authorization", () => {
+    test("allows a manager to list groups", async () => {
+      await createTestGroup({ name: "Manager-visible" });
+      const res = await handleRequest(
+        requestAsSession("/api/admin/groups", {
+          cookie: await createTestManagerSession(),
+          csrfToken: await testCsrfToken(),
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.groups.length).toBe(1);
     });
   });
 });

@@ -122,6 +122,29 @@ export const TOKEN_WINDOW_MS = readLimit("TOKEN_WINDOW_MS", 60 * 1000);
 export const TOKEN_LOCKOUT_MS = readLimit("TOKEN_LOCKOUT_MS", 5 * 60 * 1000);
 
 // ---------------------------------------------------------------------------
+// Booking rate limiting
+// ---------------------------------------------------------------------------
+
+/** Max booking submissions per IP before lockout (default: 10) */
+export const MAX_BOOKING_ATTEMPTS = readLimit("MAX_BOOKING_ATTEMPTS", 10);
+
+/** Lockout duration after max booking submissions in ms (default: 600000 = 10 min) */
+export const BOOKING_LOCKOUT_MS = readLimit(
+  "BOOKING_LOCKOUT_MS",
+  10 * 60 * 1000,
+);
+
+// ---------------------------------------------------------------------------
+// API-key (Bearer) auth rate limiting
+// ---------------------------------------------------------------------------
+
+/** Max failed API-key auth attempts per IP before lockout (default: 20) */
+export const MAX_APIKEY_ATTEMPTS = readLimit("MAX_APIKEY_ATTEMPTS", 20);
+
+/** Lockout duration after max failed API-key attempts in ms (default: 900000 = 15 min) */
+export const APIKEY_LOCKOUT_MS = readLimit("APIKEY_LOCKOUT_MS", 15 * 60 * 1000);
+
+// ---------------------------------------------------------------------------
 // Database pruning
 // ---------------------------------------------------------------------------
 
@@ -170,6 +193,17 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
 
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
+
+// ---------------------------------------------------------------------------
+// Support form
+// ---------------------------------------------------------------------------
+
+/**
+ * Days within which a repeat admin support-form submission is discouraged
+ * (default: 7). After a submission the Support page shows a "you last submitted
+ * this form …" notice for this long, to deter duplicate messages to the host.
+ */
+export const SUPPORT_FORM_NAG_DAYS = readLimit("SUPPORT_FORM_NAG_DAYS", 7);
 
 /** Computed: prune interval in ms. */
 export const PRUNE_INTERVAL_MS = PRUNE_INTERVAL_HOURS * 60 * 60 * 1000;
@@ -348,6 +382,34 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     unit: "ms",
   },
   {
+    current: MAX_BOOKING_ATTEMPTS,
+    defaultValue: 10,
+    envKey: "MAX_BOOKING_ATTEMPTS",
+    label: "Max booking attempts before lockout",
+    unit: "attempts",
+  },
+  {
+    current: BOOKING_LOCKOUT_MS,
+    defaultValue: 10 * 60 * 1000,
+    envKey: "BOOKING_LOCKOUT_MS",
+    label: "Booking lockout duration",
+    unit: "ms",
+  },
+  {
+    current: MAX_APIKEY_ATTEMPTS,
+    defaultValue: 20,
+    envKey: "MAX_APIKEY_ATTEMPTS",
+    label: "Max failed API-key attempts before lockout",
+    unit: "attempts",
+  },
+  {
+    current: APIKEY_LOCKOUT_MS,
+    defaultValue: 15 * 60 * 1000,
+    envKey: "APIKEY_LOCKOUT_MS",
+    label: "API-key lockout duration",
+    unit: "ms",
+  },
+  {
     current: PRUNE_PAYMENTS_RETENTION_DAYS,
     defaultValue: 90,
     envKey: "PRUNE_PAYMENTS_RETENTION_DAYS",
@@ -388,5 +450,12 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "PRUNE_INTERVAL_HOURS",
     label: "Prune: run interval",
     unit: "hours",
+  },
+  {
+    current: SUPPORT_FORM_NAG_DAYS,
+    defaultValue: 7,
+    envKey: "SUPPORT_FORM_NAG_DAYS",
+    label: "Support form repeat-submit notice",
+    unit: "days",
   },
 ];
