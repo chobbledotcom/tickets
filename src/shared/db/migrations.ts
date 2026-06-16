@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -289,6 +289,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER"],
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
+        ["failure_data", "TEXT NOT NULL DEFAULT ''"],
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
@@ -1027,6 +1028,15 @@ const MIGRATIONS: Migration[] = [
       "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
     id: "2026-06-15_activity_log_listing_id_index",
     up: syncIndexes,
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add failure_data to processed_payments so a handled payment failure (refund/sold-out/price-change) is recorded as a terminal outcome and replayed idempotently instead of leaving a stuck reservation",
+    id: "2026-06-16_processed_payments_failure_data",
+    up: async () => {
+      await applySchemaChanges();
+    },
     verify: verifyCurrentAppSchema,
   },
 ];

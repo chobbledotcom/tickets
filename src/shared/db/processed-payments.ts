@@ -26,6 +26,23 @@ export type ProcessedPayment = {
   attendee_id: number | null;
   processed_at: string;
   ticket_tokens: string;
+  /** JSON-encoded {@link StoredPaymentFailure} once a session reaches a handled
+   * terminal failure (refund issued, sold out, price changed, …); "" while a
+   * row is in-progress or finalized. Lets a later redirect/webhook replay the
+   * same outcome instead of re-running refund logic. */
+  failure_data: string;
+};
+
+/**
+ * The subset of a handled payment failure we persist so a later redirect or
+ * webhook retry replays the same terminal result (user-facing message, HTTP
+ * status, and whether a refund was already issued) without re-validating the
+ * listing or re-attempting the refund.
+ */
+export type StoredPaymentFailure = {
+  error: string;
+  status?: number;
+  refunded?: boolean;
 };
 
 /** Result of session reservation attempt */
@@ -40,7 +57,7 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens FROM processed_payments WHERE payment_session_id = ?",
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
 
@@ -57,26 +74,30 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   getDb().execute({ args: [sessionId], sql });
 
 /**
- * Delete a stale reservation to allow retry
+ * Delete a stale reservation to allow retry. Only abandoned, outcome-less rows
+ * qualify — a recorded terminal failure (failure_data set) is an outcome, not
+ * an in-progress reservation, so it is left for idempotent replay.
  */
 export const deleteStaleReservation = async (
   sessionId: string,
 ): Promise<void> => {
   await execWithSessionId(
     sessionId,
-    "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+    "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL AND failure_data = ''",
   );
 };
 
 /**
- * Delete all stale reservations (unfinalized and older than STALE_RESERVATION_MS).
- * Called from admin listing views to clean up abandoned checkouts.
+ * Delete all stale reservations (unfinalized, outcome-less, and older than
+ * STALE_RESERVATION_MS). Called from admin listing views to clean up abandoned
+ * checkouts. Rows carrying a recorded terminal failure are kept so a late
+ * redirect/webhook replays the handled outcome rather than re-refunding.
  */
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
     args: [cutoff],
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
+    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND failure_data = '' AND processed_at < ?",
   });
   return result.rowsAffected;
 };
@@ -111,9 +132,12 @@ export const reserveSession = async (
       // Session already claimed - get existing record (must exist: UNIQUE error proves it)
       const existing = (await isSessionProcessed(sessionId))!;
 
-      // Check if reservation is stale (abandoned by crashed process)
+      // Check if reservation is stale (abandoned by crashed process). A row
+      // carrying a recorded terminal failure is never stale — it is replayed
+      // by the caller instead of being deleted and re-processed.
       if (
         existing.attendee_id === null &&
+        !existing.failure_data &&
         isReservationStale(existing.processed_at)
       ) {
         await deleteStaleReservation(sessionId);
@@ -141,6 +165,34 @@ export const finalizeSession = async (
     sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
   });
 };
+
+/**
+ * Record a handled terminal failure on a reserved (not-yet-finalized) session.
+ * A later redirect/webhook for the same session reads this back via
+ * {@link parseSessionFailure} and returns the same outcome, so refunds and
+ * validation never run twice. Only unfinalized rows are touched (a finalized
+ * success is never clobbered); a no-op if the row was already pruned away.
+ */
+export const markSessionFailed = async (
+  sessionId: string,
+  failure: StoredPaymentFailure,
+): Promise<void> => {
+  const data = JSON.stringify({
+    error: failure.error,
+    refunded: failure.refunded,
+    status: failure.status,
+  });
+  await getDb().execute({
+    args: [data, sessionId],
+    sql: "UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND attendee_id IS NULL",
+  });
+};
+
+/** Parse a stored terminal failure, or null when the row carries none. */
+export const parseSessionFailure = (
+  failureData: string,
+): StoredPaymentFailure | null =>
+  failureData ? (JSON.parse(failureData) as StoredPaymentFailure) : null;
 
 /**
  * Decrypt the ticket_tokens field from a processed payment record.

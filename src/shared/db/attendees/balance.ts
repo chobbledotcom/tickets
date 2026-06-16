@@ -10,7 +10,11 @@ import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { executeBatch, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  executeBatchWithResults,
+  queryAll,
+  queryOne,
+} from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 
 /** Plaintext reservation state for an attendee. */
@@ -97,38 +101,66 @@ export const getAttendeeOrderSummary = async (
 /** Result of attempting to settle a balance. */
 export type SettleBalanceResult =
   | { settled: true; amount: number; listingId: number | null }
-  | { settled: false; reason: "not_found" | "nothing_owed" };
+  | {
+      settled: false;
+      reason: "not_found" | "nothing_owed" | "amount_mismatch";
+    };
 
 /**
- * Mark a reserved attendee as paid: clear the remaining balance, move them to
- * the paid-default status, fold the balance into the booking's recorded
- * price_paid, and log the payment against the attendee.
+ * Mark a reserved attendee as paid for an exact, verified amount: clear the
+ * remaining balance, move them to the paid-default status, fold the amount into
+ * the booking's recorded price_paid, and log the payment.
+ *
+ * `expectedAmount` is the balance the paying checkout was created for. The
+ * clear is an atomic conditional update guarded on `remaining_balance =
+ * expectedAmount`, so a balance edited (or already settled by a racing/stale
+ * checkout) after this checkout was created no longer matches and we refuse
+ * rather than clear the wrong amount. The folded price_paid is part of the same
+ * batch, conditioned on the same guard, so the two writes never half-apply.
  */
 export const settleAttendeeBalance = async (
   attendeeId: number,
+  expectedAmount: number,
 ): Promise<SettleBalanceResult> => {
   const state = await getAttendeeBalanceState(attendeeId);
   if (!state) return { reason: "not_found", settled: false };
   if (state.remainingBalance <= 0)
     return { reason: "nothing_owed", settled: false };
+  // A non-zero balance that differs from expectedAmount is handled by the
+  // conditional update below (it affects 0 rows), so amount mismatch has a
+  // single guard — the atomic write — rather than a racy read-then-check.
 
-  const amount = state.remainingBalance;
   const paid = await getPaidDefaultStatus();
 
-  await executeBatch([
+  const results = await executeBatchWithResults([
     {
-      // Fold the balance into the earliest booking line so the recorded
-      // amount-paid reconciles to the full order price.
-      args: [amount, attendeeId, attendeeId],
+      // Fold the paid amount into the earliest booking line so the recorded
+      // amount-paid reconciles to the full order price. Guarded on the live
+      // balance so it can't apply if a concurrent settlement got there first.
+      args: [
+        expectedAmount,
+        attendeeId,
+        attendeeId,
+        expectedAmount,
+        attendeeId,
+      ],
       sql: `UPDATE listing_attendees SET price_paid = price_paid + ?
             WHERE attendee_id = ?
+              AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?
               AND id = (SELECT MIN(id) FROM listing_attendees WHERE attendee_id = ?)`,
     },
     {
-      args: [paid?.id ?? null, attendeeId],
-      sql: "UPDATE attendees SET remaining_balance = 0, status_id = COALESCE(?, status_id) WHERE id = ?",
+      // Atomic clear: only the callback whose expectedAmount still matches the
+      // live balance settles it; a second concurrent callback affects 0 rows.
+      args: [paid?.id ?? null, attendeeId, expectedAmount],
+      sql: "UPDATE attendees SET remaining_balance = 0, status_id = COALESCE(?, status_id) WHERE id = ? AND remaining_balance = ?",
     },
   ]);
+
+  // results[1] is the conditional clear; 0 rows means a concurrent/stale
+  // callback changed the balance between our read and this write.
+  if (results[1]!.rowsAffected === 0)
+    return { reason: "amount_mismatch", settled: false };
 
   const firstListing = await queryOne<{ listing_id: number }>(
     "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY id LIMIT 1",
@@ -137,10 +169,10 @@ export const settleAttendeeBalance = async (
   const listingId = firstListing ? firstListing.listing_id : null;
 
   await logActivity(
-    `Reservation balance paid: ${formatCurrency(amount)}`,
+    `Reservation balance paid: ${formatCurrency(expectedAmount)}`,
     listingId,
     attendeeId,
   );
 
-  return { amount, listingId, settled: true };
+  return { amount: expectedAmount, listingId, settled: true };
 };

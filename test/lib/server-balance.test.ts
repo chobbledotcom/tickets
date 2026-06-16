@@ -86,7 +86,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
 
   test("GET shows a settled message once the balance is cleared", async () => {
     const attendeeId = await createReserved(1500);
-    await settleAttendeeBalance(attendeeId);
+    await settleAttendeeBalance(attendeeId, 1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(mockRequest(`/pay/${token}`));
     const html = await response.text();
@@ -192,9 +192,10 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     }
   });
 
-  test("the webhook returns 404 if the settled listing is missing", async () => {
+  test("settles the balance even when the booking's listing has since been deleted", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
+    const paid = await getPaidDefaultStatus();
     const session = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1500,
@@ -211,12 +212,102 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       >),
     );
     try {
+      // The balance settlement is the operation that matters; a missing listing
+      // only means no thank-you URL, so the session still finalizes (no stuck
+      // unfinalized reservation after the customer has paid).
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_bal_nolisting"),
       );
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(200);
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(0);
+      expect(state?.statusId).toBe(paid!.id);
     } finally {
       session.restore();
+    }
+  });
+
+  test("refunds and does not settle when the balance changed after checkout", async () => {
+    await setupStripe();
+    // The customer's checkout was created for 1500, but the owner has since
+    // lowered the live balance to 500. The stale 1500 callback must refund and
+    // leave the balance untouched rather than clear the wrong amount.
+    const attendeeId = await createReserved(500);
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_bal_stale",
+        metadata: {
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_bal_stale",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_stale"),
+      );
+      // The stale payment is refunded, not applied.
+      expect(refund.calls[0]!.args).toEqual(["pi_bal_stale"]);
+      const html = await response.text();
+      expect(html).toContain("balance for this booking changed");
+      // The live balance is untouched — still outstanding.
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(500);
+    } finally {
+      session.restore();
+      refund.restore();
+    }
+  });
+
+  test("refunds when the provider charged a different amount than the checkout", async () => {
+    await setupStripe();
+    // Checkout line was for 1500, but the provider reports charging only 1000.
+    // The mismatch is refused before any settlement (defence in depth).
+    const attendeeId = await createReserved(1500);
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_amt" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_bal_amt",
+        metadata: {
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_bal_amt",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_amt"),
+      );
+      expect(refund.calls[0]!.args).toEqual(["pi_bal_amt"]);
+      expect(await response.text()).toContain(
+        "balance for this booking changed",
+      );
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(1500);
+    } finally {
+      session.restore();
+      refund.restore();
     }
   });
 

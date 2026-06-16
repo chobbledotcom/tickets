@@ -14,7 +14,10 @@ import {
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
-import type { SiteSecretsView } from "#shared/site-secrets.ts";
+import {
+  hostInfraSecretNames,
+  type SiteSecretsView,
+} from "#shared/site-secrets.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -333,6 +336,7 @@ const SecretsPanel = ({
       </div>
     );
   }
+  const infraMissing = hostInfraSecretNames(view.missing);
   return (
     <div class="prose">
       <p>
@@ -356,6 +360,15 @@ const SecretsPanel = ({
               </li>
             ))}
           </ul>
+          {infraMissing.length > 0 && (
+            <p role="note">
+              <strong>Heads up:</strong> some of these are host-level
+              infrastructure credentials ({infraMissing.join(", ")}). Built
+              sites run on your own infrastructure, so copying them is expected
+              — but be aware this hands the child site host-level access, not
+              just per-site config.
+            </p>
+          )}
           <SubmitButton icon="plus">
             Set {String(view.missing.length)} missing secret(s)
           </SubmitButton>

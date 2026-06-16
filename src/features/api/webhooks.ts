@@ -55,7 +55,9 @@ import {
   clearSessionTokens,
   decryptSessionTokens,
   finalizeSession,
+  markSessionFailed,
   type ProcessedPayment,
+  parseSessionFailure,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
@@ -365,21 +367,20 @@ const formatPostPaymentError = capacityErrorFormatter({
 });
 
 /** Return success result for an already-processed session.
- * Accepts a finalized payment record where attendee_id is guaranteed non-null. */
+ * Accepts a finalized payment record where attendee_id is guaranteed non-null.
+ * The attendee already exists, so this is a success replay even if the listing
+ * has since been deleted (e.g. a balance line for a removed listing) — a
+ * missing listing simply yields no thank-you URL. */
 const alreadyProcessedResult = async (
   listingId: number,
   existing: ProcessedPayment & { attendee_id: number },
 ): Promise<PaymentResult> => {
-  const loaded = await loadListingOr404(listingId, { success: false as const });
-  if (!loaded.ok) {
-    const { ok: _ok, ...rest } = loaded;
-    return rest;
-  }
+  const listing = await getListingWithCount(listingId);
   const decrypted = await decryptSessionTokens(existing.ticket_tokens);
   const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     attendee: { id: existing.attendee_id },
-    listing: loaded.listing,
+    listing,
     success: true,
     ticketTokens,
   };
@@ -496,7 +497,12 @@ const handleReservationConflict = (
       attendee_id: existing.attendee_id,
     });
   }
-  // Session reserved but not finalized — another request is processing
+  // A recorded terminal failure replays the same handled outcome (refund
+  // already issued, sold out, price changed) without re-validating or
+  // re-refunding.
+  const failure = parseSessionFailure(existing.failure_data);
+  if (failure) return { ...failure, success: false };
+  // Otherwise reserved but not finalized — another request is mid-flight.
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
     status: 409,
@@ -661,46 +667,80 @@ const createAttendeeForSession = async (
  * 2. Validate listings and create attendees atomically (with rollback on failure)
  * 3. Finalize session (records attendee ID)
  */
+/** User-facing message when the outstanding balance changed mid-payment. */
+const BALANCE_CHANGED_MESSAGE =
+  "The outstanding balance for this booking changed while you were paying.";
+
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
- * The per-item price checks are skipped (the single line is the balance, not a
- * ticket); the amount the provider actually charged is the trust boundary.
+ *
+ * The amount this checkout was created for is carried in metadata (`items[0].p`)
+ * and, since balance payments add no booking fee, must equal what the provider
+ * charged (`session.amountTotal`). settleAttendeeBalance then clears the balance
+ * only if the live `remaining_balance` still equals that amount — so a balance
+ * the owner edited, or one a concurrent/stale checkout already settled, can't be
+ * cleared for the wrong figure. A mismatch refunds the payment and returns a
+ * terminal failure rather than mutating the attendee.
  */
 const settleBalanceSession = async (
   sessionId: string,
+  session: ValidatedPaymentSession,
   intent: BookingIntent,
 ): Promise<PaymentResult> => {
   const attendeeId = intent.balanceAttendeeId as number;
-  await settleAttendeeBalance(attendeeId);
-  // extractIntent guarantees a non-empty items array.
-  const listing = await getListingWithCount(intent.items[0]!.e);
-  if (!listing) {
-    return { error: "Listing not found", status: 404, success: false };
+  // extractIntent guarantees a non-empty items array; the single line is the
+  // balance, with `p` = the amount the checkout was created for.
+  const expectedAmount = intent.items[0]!.p;
+  const listingId = intent.items[0]!.e;
+
+  const refundMismatch = async (detail: string): Promise<PaymentResult> => ({
+    detail,
+    error: BALANCE_CHANGED_MESSAGE,
+    refunded: await refundAndLog(session, BALANCE_CHANGED_MESSAGE, listingId),
+    status: 409,
+    success: false,
+  });
+
+  if (session.amountTotal !== expectedAmount) {
+    return refundMismatch(
+      `Balance amount mismatch (attendee ${attendeeId}): provider charged ${session.amountTotal} but checkout was for ${expectedAmount}`,
+    );
   }
+
+  const settled = await settleAttendeeBalance(attendeeId, expectedAmount);
+  if (!settled.settled) {
+    return refundMismatch(
+      `Balance not settled (${settled.reason}) for attendee ${attendeeId}; paid ${session.amountTotal}`,
+    );
+  }
+
+  // Settled — finalize regardless of whether the listing still exists (it is
+  // only needed for the success page's thank-you link).
   await finalizeSession(sessionId, attendeeId, []);
   return {
     attendee: { id: attendeeId },
-    listing,
+    listing: await getListingWithCount(listingId),
     success: true,
     ticketTokens: [],
   };
 };
 
-const processPaymentSession = async (
+/**
+ * Process a session we have just reserved (holding the lock). Every failure
+ * returned here is a handled terminal outcome; processPaymentSession records it
+ * so a later redirect/webhook replays the same result instead of re-running
+ * refunds or stalling behind the idempotency lock.
+ */
+const processReservedSession = async (
   sessionId: string,
   data: ValidatedSession,
   options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
-  // Phase 1: Reserve the session (claim the lock)
-  const reservation = await reserveSession(sessionId);
-  if (!reservation.reserved) {
-    return handleReservationConflict(intent, reservation.existing);
-  }
 
   // Balance payment: settle the existing attendee rather than create one.
   if (intent.balanceAttendeeId) {
-    return settleBalanceSession(sessionId, intent);
+    return settleBalanceSession(sessionId, session, intent);
   }
 
   // Phase 2: Validate listings and create attendees atomically
@@ -742,6 +782,35 @@ const processPaymentSession = async (
     success: true,
     ticketTokens: [ticketToken],
   };
+};
+
+const processPaymentSession = async (
+  sessionId: string,
+  data: ValidatedSession,
+  options?: { storeTokens?: boolean },
+): Promise<PaymentResult> => {
+  // Phase 1: Reserve the session (claim the lock)
+  const reservation = await reserveSession(sessionId);
+  if (!reservation.reserved) {
+    return handleReservationConflict(data.intent, reservation.existing);
+  }
+
+  const result = await processReservedSession(sessionId, data, options);
+
+  // Record a handled failure as the session's terminal outcome so a later
+  // redirect/webhook for the same paid session replays it (same message and
+  // refund status) instead of re-refunding or getting stuck behind the lock.
+  // The transient "another request is processing" conflict returns above and
+  // never reaches here, so it stays retryable.
+  if (!result.success) {
+    await markSessionFailed(sessionId, {
+      error: result.error,
+      refunded: result.refunded,
+      status: result.status,
+    });
+  }
+
+  return result;
 };
 
 /**
@@ -798,10 +867,12 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Already-processed session (no tokens available) - render directly
+  // Already-processed session (no tokens available) - render directly. The
+  // listing may be absent (e.g. a settled balance for a deleted listing), in
+  // which case there is simply no thank-you URL.
   const thankYouUrl =
     validation.data.intent.items.length === 1
-      ? result.listing.thank_you_url
+      ? (result.listing?.thank_you_url ?? "")
       : "";
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),

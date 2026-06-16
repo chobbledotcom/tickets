@@ -42,12 +42,15 @@ const isoAgePruner =
   };
 
 /**
- * Delete finalized processed_payments rows older than the retention window.
- * Unfinalized (attendee_id IS NULL) rows are handled by deleteAllStaleReservations
- * in processed-payments.ts — we leave them alone here.
+ * Delete resolved processed_payments rows older than the retention window: both
+ * finalized successes (attendee_id set) and recorded terminal failures
+ * (failure_data set). By the time the window elapses no provider retry can
+ * still arrive, so dropping the idempotency row is safe. Genuinely abandoned,
+ * outcome-less reservations (attendee_id NULL and no failure_data) are left for
+ * deleteAllStaleReservations in processed-payments.ts.
  */
 export const prunePayments = isoAgePruner(
-  "DELETE FROM processed_payments WHERE attendee_id IS NOT NULL AND processed_at < ?",
+  "DELETE FROM processed_payments WHERE (attendee_id IS NOT NULL OR failure_data != '') AND processed_at < ?",
   PRUNE_PAYMENTS_RETENTION_MS,
 );
 

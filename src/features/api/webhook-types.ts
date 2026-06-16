@@ -31,11 +31,14 @@ export type ListingPriceValidation =
   | { ok: true; listing: ListingWithCount; expectedPrice: number }
   | { ok: false; error: string; status?: number };
 
-/** Successful payment result with created attendee details */
+/** Successful payment result with created attendee details.
+ * `listing` is null when the booking's listing has since been deleted (e.g. a
+ * settled balance line for a removed listing) — the attendee still exists, so
+ * the outcome is a success; there is just no thank-you URL to show. */
 type PaymentSuccess = {
   success: true;
   attendee: Pick<Attendee, "id">;
-  listing: ListingWithCount;
+  listing: ListingWithCount | null;
   ticketTokens: string[];
 };
 

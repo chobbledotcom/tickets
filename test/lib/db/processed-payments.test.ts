@@ -88,6 +88,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           attendee_id INTEGER,
           processed_at TEXT NOT NULL,
           ticket_tokens TEXT NOT NULL DEFAULT '',
+          failure_data TEXT NOT NULL DEFAULT '',
           FOREIGN KEY (attendee_id) REFERENCES attendees(id)
         )
       `);
