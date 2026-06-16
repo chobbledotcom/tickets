@@ -8,6 +8,7 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { queryAll } from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
@@ -65,3 +66,27 @@ export const getAllModifiers = (): Promise<Modifier[]> =>
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>
   queryModifiers("SELECT * FROM modifiers WHERE active = 1 ORDER BY id ASC");
+
+/** Listing ids a modifier is directly linked to (scope = "listings"). */
+export const getModifierListingIds = async (
+  modifierId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ listing_id: number }>(
+    "SELECT listing_id FROM modifier_listings WHERE modifier_id = ?",
+    [modifierId],
+  );
+  return rows.map((r) => r.listing_id);
+};
+
+/** Listing ids belonging to the groups a modifier is linked to (scope = "groups"). */
+export const getModifierGroupListingIds = async (
+  modifierId: number,
+): Promise<number[]> => {
+  const rows = await queryAll<{ id: number }>(
+    `SELECT e.id FROM listings e
+       JOIN modifier_groups mg ON mg.group_id = e.group_id
+     WHERE mg.modifier_id = ?`,
+    [modifierId],
+  );
+  return rows.map((r) => r.id);
+};

@@ -9,7 +9,19 @@ import {
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
-import { describeWithEnv } from "#test-utils";
+import { createTestListing, describeWithEnv } from "#test-utils";
+
+const linkListing = (modifierId: number, listingId: number) =>
+  getDb().execute({
+    args: [modifierId, listingId],
+    sql: "INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (?, ?)",
+  });
+
+const linkGroup = (modifierId: number, groupId: number) =>
+  getDb().execute({
+    args: [modifierId, groupId],
+    sql: "INSERT INTO modifier_groups (modifier_id, group_id) VALUES (?, ?)",
+  });
 
 const item = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
   listingId: 1,
@@ -108,6 +120,47 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       const specs = await resolveModifiers([item()]);
       expect(specs.map((s) => s.name)).not.toContain("Limited");
     });
+
+    test("applies a listing-scoped modifier only alongside a linked listing", async () => {
+      const m = await insertModifier({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "VIP",
+      });
+      await patchModifier(m.id, { scope: "listings" });
+      await linkListing(m.id, 1);
+
+      const applied = await resolveModifiers([item({ listingId: 1 })]);
+      expect(applied.find((s) => s.name === "VIP")?.listingIds).toEqual([1]);
+
+      const skipped = await resolveModifiers([item({ listingId: 2 })]);
+      expect(skipped.map((s) => s.name)).not.toContain("VIP");
+    });
+
+    test("applies a group-scoped modifier to the linked group's listings", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 1000,
+      });
+      await getDb().execute({
+        args: [42, listing.id],
+        sql: "UPDATE listings SET group_id = ? WHERE id = ?",
+      });
+      const m = await insertModifier({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "GroupWide",
+      });
+      await patchModifier(m.id, { scope: "groups" });
+      await linkGroup(m.id, 42);
+
+      const applied = await resolveModifiers([item({ listingId: listing.id })]);
+      expect(applied.find((s) => s.name === "GroupWide")?.listingIds).toEqual([
+        listing.id,
+      ]);
+    });
   });
 
   describe("specsFromRefs", () => {
@@ -133,6 +186,14 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           value: toMinorUnits(5),
         },
       ]);
+    });
+
+    test("rebuilds the listing ids for a scoped reference", async () => {
+      const m = await insertModifier({ name: "Scoped" });
+      await patchModifier(m.id, { scope: "listings" });
+      await linkListing(m.id, 3);
+      const specs = await specsFromRefs([{ i: m.id, q: 1 }]);
+      expect(specs[0]?.listingIds).toEqual([3]);
     });
 
     test("drops references to modifiers that no longer resolve", async () => {

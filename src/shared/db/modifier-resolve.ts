@@ -8,10 +8,14 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
-import { mapNotNullish, sumOf } from "#fp";
+import { sumOf } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { getActiveModifiers } from "#shared/db/modifiers.ts";
+import {
+  getActiveModifiers,
+  getModifierGroupListingIds,
+  getModifierListingIds,
+} from "#shared/db/modifiers.ts";
 import type {
   CheckoutItem,
   ModifierRef,
@@ -31,58 +35,92 @@ const signedValue = (modifier: Modifier): number => {
   return modifier.direction === "discount" ? -magnitude : magnitude;
 };
 
+/** The listing ids a modifier is charged on, or null for the whole order. */
+const listingIdsFor = (modifier: Modifier): Promise<number[]> | null => {
+  if (modifier.scope === "groups")
+    return getModifierGroupListingIds(modifier.id);
+  if (modifier.scope === "listings") return getModifierListingIds(modifier.id);
+  return null;
+};
+
 /** Build the checkout spec for a modifier applied `quantity` times. */
-const toSpec = (modifier: Modifier, quantity: number): ModifierSpec => ({
+const toSpec = (
+  modifier: Modifier,
+  quantity: number,
+  listingIds: number[] | null,
+): ModifierSpec => ({
   id: modifier.id,
   kind: modifier.calc_kind,
-  listingIds: null,
+  listingIds,
   name: modifier.name,
   quantity,
   value: signedValue(modifier),
 });
 
-/** Sum of the full (pre-modifier) item prices in a cart. */
-const itemsSubtotal = (items: CheckoutItem[]): number =>
-  sumOf((i: CheckoutItem) => i.unitPrice * i.quantity)(items);
+/** Subtotal of the items a modifier is scoped to (the whole cart when its
+ * listing ids are null), used for the minimum-subtotal and "alongside" checks. */
+const inScopeSubtotal = (
+  items: CheckoutItem[],
+  listingIds: number[] | null,
+): number =>
+  sumOf((i: CheckoutItem) => i.unitPrice * i.quantity)(
+    listingIds === null
+      ? items
+      : items.filter((i) => listingIds.includes(i.listingId)),
+  );
+
+/** Resolve a modifier against a cart into a spec, or null when it does not
+ * apply (scoped to items not present, below its minimum, or out of stock). */
+const resolveOne = async (
+  modifier: Modifier,
+  items: CheckoutItem[],
+): Promise<ModifierSpec | null> => {
+  const listingIds = await listingIdsFor(modifier);
+  const base = inScopeSubtotal(items, listingIds);
+  // A scoped modifier only applies alongside its listings/groups.
+  if (listingIds !== null && base === 0) return null;
+  if (base < modifier.min_subtotal) return null;
+  if (modifier.stock !== null) {
+    const used = await modifierUsedQuantities([modifier.id]);
+    if (modifier.stock - (used.get(modifier.id) ?? 0) < 1) return null;
+  }
+  return toSpec(modifier, 1, listingIds);
+};
 
 /**
- * The modifiers that automatically apply to a cart: active, whole-order, and
- * past their minimum subtotal. (Code and listing/group-scoped modifiers are
- * resolved by later layers.)
+ * The modifiers that automatically apply to a cart: active, automatic, in
+ * scope, past their minimum subtotal, and with stock remaining.
  */
 export const resolveModifiers = async (
   items: CheckoutItem[],
 ): Promise<ModifierSpec[]> => {
-  const subtotal = itemsSubtotal(items);
-  const active = await getActiveModifiers();
-  const eligible = active.filter(
-    (m) =>
-      m.trigger === "automatic" &&
-      m.scope === "all" &&
-      subtotal >= m.min_subtotal,
+  const automatic = (await getActiveModifiers()).filter(
+    (m) => m.trigger === "automatic",
   );
-  // Exclude any stock-limited modifier with nothing left (one unit per order).
-  const used = await modifierUsedQuantities(
-    eligible.filter((m) => m.stock !== null).map((m) => m.id),
+  const resolved = await Promise.all(
+    automatic.map((m) => resolveOne(m, items)),
   );
-  const inStock = (m: Modifier): boolean =>
-    m.stock === null || m.stock - (used.get(m.id) ?? 0) >= 1;
-  return eligible.filter(inStock).map((m) => toSpec(m, 1));
+  return resolved.filter((s): s is ModifierSpec => s !== null);
 };
 
 /**
  * Rebuild modifier specs from the references stored in session metadata,
- * re-fetching each modifier's current values from the database. References to
- * modifiers that have since been removed or deactivated are dropped (the
- * webhook then sees a total mismatch and refunds).
+ * re-fetching each modifier's current values (and scope) from the database.
+ * References to modifiers that have since been removed or deactivated are
+ * dropped (the webhook then sees a total mismatch and refunds).
  */
 export const specsFromRefs = async (
   refs: ModifierRef[],
 ): Promise<ModifierSpec[]> => {
   if (refs.length === 0) return [];
   const byId = new Map((await getActiveModifiers()).map((m) => [m.id, m]));
-  return mapNotNullish((ref: ModifierRef) => {
-    const modifier = byId.get(ref.i);
-    return modifier ? toSpec(modifier, ref.q) : undefined;
-  })(refs);
+  const specs = await Promise.all(
+    refs.map(async (ref) => {
+      const modifier = byId.get(ref.i);
+      return modifier
+        ? toSpec(modifier, ref.q, await listingIdsFor(modifier))
+        : null;
+    }),
+  );
+  return specs.filter((s): s is ModifierSpec => s !== null);
 };
