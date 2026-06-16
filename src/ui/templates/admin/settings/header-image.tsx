@@ -16,7 +16,7 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
       {s.headerImageUrl && (
         <div>
           <img
-            alt="Header preview"
+            alt={t("settings.header_image_preview_alt")}
             class="listing-image-preview"
             src={getImageProxyUrl(s.headerImageUrl)}
           />

@@ -152,7 +152,7 @@ export const adminQuestionPage = (
         </ul>
       )}
 
-      <h2>Assign to Listings</h2>
+      <h2>{t("questions.assign_to_listings")}</h2>
       {allListings.length === 0 ? (
         <p>
           <em>No listings yet.</em>

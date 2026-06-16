@@ -66,14 +66,14 @@ export const successPage = ({
             )}">`
           : undefined
       }
-      title="Order Successful"
+      title={t("payment.success.title")}
     >
       <div
         data-payment-result={paid ? "success" : undefined}
         data-scroll-into-view={inIframe || undefined}
       >
         <div class="prose">
-          <h1>Thank you for your order.</h1>
+          <h1>{t("payment.success.heading")}</h1>
           {fromEmail ? (
             <p>
               <small>

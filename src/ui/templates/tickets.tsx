@@ -163,7 +163,7 @@ const renderTicketCard = (
           ? ""
           : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
               token,
-            )}/svg" alt="QR code" /></div>
+            )}/svg" alt={t("listing_qr.qr_code")} /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>`
       }
       ${walletHtml}

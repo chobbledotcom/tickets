@@ -127,5 +127,11 @@
   "admin.log.recent_entries": "Showing the most recent 200 entries.",
   "admin.footer.chobble_tickets": "Chobble Tickets",
   "admin.footer.sql_queries": "SQL queries",
-  "admin.footer.caches": "Caches"
+  "admin.footer.caches": "Caches",
+  "admin.scanner.manual_checkin": "Manual Check-in",
+  "admin.seeds.title": "Seed Data",
+  "admin.seeds.heading": "Seed Data",
+  "admin.seeds.intro": "Create sample listings and attendees from demo data. Useful for testing and development.",
+  "admin.seeds.submit": "Create Seed Data",
+  "admin.seeds.back": "Back to dashboard"
 }

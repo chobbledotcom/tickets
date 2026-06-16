@@ -27,5 +27,6 @@
   "questions.delete_answer.submit": "Delete Answer",
   "questions.listing.heading": "Questions for {listing}",
   "questions.listing.no_questions": "No questions created yet. Create questions first.",
-  "questions.listing.manage": "Manage Questions"
+  "questions.listing.manage": "Manage Questions",
+  "questions.assign_to_listings": "Assign to Listings"
 }

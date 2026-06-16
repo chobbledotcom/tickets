@@ -2,6 +2,7 @@
  * Seed data page template - lets admins populate the database with sample data
  */
 
+import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { seedsForm } from "#routes/admin/seeds.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -17,23 +18,20 @@ export const adminSeedsPage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Seed Data">
+    <Layout title={t("admin.seeds.title")}>
       <AdminNav active="" session={session} />
       <CsrfForm action="/admin/seeds">
         <div class="prose">
-          <h1>Seed Data</h1>
-          <p>
-            Create sample listings and attendees from demo data. Useful for
-            testing and development.
-          </p>
+          <h1>{t("admin.seeds.heading")}</h1>
+          <p>{t("admin.seeds.intro")}</p>
         </div>
         <Flash error={error} success={success} />
         <Raw html={seedsForm.render()} />
-        <SubmitButton icon="plus">Create Seed Data</SubmitButton>
+        <SubmitButton icon="plus">{t("admin.seeds.submit")}</SubmitButton>
       </CsrfForm>
 
       <p>
-        <BackButton href="/admin">Back to dashboard</BackButton>
+        <BackButton href="/admin">{t("admin.seeds.back")}</BackButton>
       </p>
     </Layout>,
   );

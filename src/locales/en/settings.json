@@ -149,5 +149,7 @@
   "settings.superuser.activated": "Superuser {username} is already activated. You can delete them from your <a href=\"/admin/users\">users page</a>.",
   "settings.superuser.intro": "Your attendee data is encrypted with your password, and admins cannot view your password. With that in mind, please select:",
   "settings.superuser.self_managed": "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
-  "settings.superuser.enable_super": "I wish to enable a \"super user\" account on this platform for my admin, {email}. This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access."
+  "settings.superuser.enable_super": "I wish to enable a \"super user\" account on this platform for my admin, {email}. This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access.",
+  "settings.sumup.heading": "SumUp Settings",
+  "settings.header_image_preview_alt": "Header preview"
 }

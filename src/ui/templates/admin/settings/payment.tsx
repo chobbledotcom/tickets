@@ -250,7 +250,7 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "sumup" ? (
     <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
       <div class="prose">
-        <h2>SumUp Settings</h2>
+        <h2>{t("settings.sumup.heading")}</h2>
         <p>
           {s.sumupKeyConfigured
             ? "A SumUp API key is currently configured. Enter new credentials below to replace them."

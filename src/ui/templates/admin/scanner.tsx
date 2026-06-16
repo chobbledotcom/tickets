@@ -53,7 +53,7 @@ export const adminScannerPage = (
             <div id="scanner-confirm-backdrop"></div>
             <div id="scanner-confirm-box">
               <button
-                aria-label="Close"
+                aria-label={t("common.close")}
                 id="scanner-confirm-close"
                 type="button"
               >
@@ -78,7 +78,7 @@ export const adminScannerPage = (
       </article>
 
       <article>
-        <h2>Manual Check-in</h2>
+        <h2>{t("admin.scanner.manual_checkin")}</h2>
         <form
           action={`/admin/listing/${listing.id}/scan`}
           data-listing-id={String(listing.id)}

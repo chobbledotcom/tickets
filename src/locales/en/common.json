@@ -36,5 +36,6 @@
   "common.embed_iframe": "Embed Iframe",
   "common.description": "Description",
   "common.slug": "Slug",
-  "common.quantity": "Quantity"
+  "common.quantity": "Quantity",
+  "common.close": "Close"
 }
