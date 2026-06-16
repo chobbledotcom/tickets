@@ -13,6 +13,8 @@
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
 import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
+import { invalidateGroupsCache } from "#shared/db/groups.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -21,6 +23,7 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS } from "#shared/limits.ts";
 import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
@@ -330,6 +333,12 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   // The markers now come from the backup and may predate the current schema;
   // drop the "ready" cache so the next initDb re-checks and migrates if needed.
   invalidateInitDbCache();
+  // The entity caches persist across requests, so a restore that wholesale-
+  // replaces the data would otherwise keep serving the pre-restore snapshot
+  // until each cache's TTL. Clear them.
+  invalidateListingsCache();
+  invalidateGroupsCache();
+  invalidateUsersCache();
 };
 
 /**

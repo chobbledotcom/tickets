@@ -2,24 +2,26 @@
  * Groups table operations
  */
 
-import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
+  cachedEntityTable,
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { invalidateListingsCache, listingsTable } from "#shared/db/listings.ts";
+import {
+  invalidateListingsCache,
+  queryListingsWithCounts,
+} from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
-import { cachedTable, col } from "#shared/db/table.ts";
-import type {
-  Group,
-  Listing,
-  ListingType,
-  ListingWithCount,
-} from "#shared/types.ts";
+import { col } from "#shared/db/table.ts";
+import type { Group, ListingType, ListingWithCount } from "#shared/types.ts";
+
+/** Groups are few, so the cache loads the whole set and answers by-id / by-slug
+ * reads from it — same isolate-level TTL as the listings cache. */
+const GROUPS_CACHE_TTL_MS = 30_000;
 
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
@@ -51,19 +53,23 @@ const queryGroups = queryAndMap<Group, Group>((row) =>
   rawGroupsTable.fromDb(row),
 );
 
-const groupsCache = cachedTable({
-  fetchAll: () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
-  name: "groups",
-  table: rawGroupsTable,
-});
+const groupsEntity = cachedEntityTable<Group, GroupInput>(
+  "groups",
+  rawGroupsTable,
+  {
+    fetchAll: () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
+    idOf: (g) => g.id,
+    keyOf: (g) => g.slug_index,
+    ttlMs: GROUPS_CACHE_TTL_MS,
+  },
+);
+const groupsCache = groupsEntity.cache;
 
 /** Groups table with CRUD operations — writes auto-invalidate the cache */
-export const groupsTable = groupsCache.table;
+export const groupsTable = groupsEntity.table;
 
 /** Invalidate the groups cache (for testing or after writes). */
-export const invalidateGroupsCache = (): void => {
-  groupsCache.invalidate();
-};
+export const invalidateGroupsCache = (): void => groupsCache.invalidate();
 
 /**
  * Get all groups, decrypted, ordered by id (from cache)
@@ -73,12 +79,8 @@ export const getAllGroups = (): Promise<Group[]> => groupsCache.getAll();
 /**
  * Get a single group by slug_index (from cache)
  */
-export const getGroupBySlugIndex = async (
-  slugIndex: string,
-): Promise<Group | null> => {
-  const groups = await groupsCache.getAll();
-  return groups.find((g) => g.slug_index === slugIndex) ?? null;
-};
+export const getGroupBySlugIndex = (slugIndex: string): Promise<Group | null> =>
+  groupsCache.getByKey(slugIndex);
 
 /**
  * Check if a group slug is already in use.
@@ -104,37 +106,17 @@ export const isGroupSlugTaken = async (
   return groupHit.rows.length > 0;
 };
 
-/** Decrypt listing fields while preserving attendee_count */
-const decryptListingWithCount = async (
-  row: ListingWithCount,
-): Promise<ListingWithCount> => {
-  const evt = await listingsTable.fromDb(row as Listing);
-  return {
-    ...evt,
-    attendee_count: row.attendee_count,
-  };
-};
-
 /** Query listings in a group with attendee counts, optionally filtering to active only */
-const queryGroupListings = async (
+const queryGroupListings = (
   groupId: number,
   activeOnly: boolean,
-): Promise<ListingWithCount[]> => {
-  const where = activeOnly
-    ? "e.active = 1 AND e.group_id = ?"
-    : "e.group_id = ?";
-  const rows = await queryAll<ListingWithCount>(
-    `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-     FROM listings e
-     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
-     WHERE ${where}
-     GROUP BY e.id
-     ORDER BY e.created DESC, e.id DESC`,
+): Promise<ListingWithCount[]> =>
+  queryListingsWithCounts(
+    activeOnly
+      ? "WHERE e.active = 1 AND e.group_id = ?"
+      : "WHERE e.group_id = ?",
     [groupId],
   );
-
-  return mapParallel(decryptListingWithCount)(rows);
-};
 
 /**
  * Get active listings in a group with attendee counts.
@@ -184,18 +166,8 @@ export const validateGroupListingType = async (
 /**
  * Get ungrouped listings (group_id = 0) with attendee counts.
  */
-export const getUngroupedListings = async (): Promise<ListingWithCount[]> => {
-  const rows = await queryAll<ListingWithCount>(
-    `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-     FROM listings e
-     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
-     WHERE e.group_id = 0
-     GROUP BY e.id
-     ORDER BY e.created DESC, e.id DESC`,
-  );
-
-  return mapParallel(decryptListingWithCount)(rows);
-};
+export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
+  queryListingsWithCounts("WHERE e.group_id = 0");
 
 /**
  * Assign listings to a group by updating their group_id.

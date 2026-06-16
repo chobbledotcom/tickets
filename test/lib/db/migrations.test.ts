@@ -879,8 +879,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-14_email_preferences",
         "2026-06-14_listing_customisable_days",
         "2026-06-14_attendee_statuses",
+        "2026-06-15_activity_log_listing_id_index",
       ],
-      schemaHash: "1lac1px",
+      schemaHash: "yrtvj4",
     });
   });
 });
