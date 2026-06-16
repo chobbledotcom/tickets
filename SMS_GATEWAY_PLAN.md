@@ -250,10 +250,28 @@ key, and only ciphertext touches the database or the network.
 | Module | Role | Status |
 | ------ | ---- | ------ |
 | `src/shared/sms/e2e.ts` | SMS Gate E2E encrypt/decrypt (WebCrypto) | ✅ built + tested |
-| `src/shared/db/sms-outbox.ts` | outbox table ops (stores ciphertext only) | planned |
-| `src/shared/sms/gateway.ts` | cloud client: send + (later) webhook verify | planned |
-| settings (`sms_gateway_*`) | encrypted passphrase + Basic-auth creds | planned |
-| admin "contact" route + template | adapt the attendee email flow | planned |
+| `src/shared/db/sms-outbox.ts` + migration | outbox queue (stores ciphertext only) | ✅ built + tested |
+| `src/shared/sms/gateway.ts` | cloud client: encrypt + send, parse id | ✅ built + tested |
+| settings keys `sms_gateway_*` | encrypted passphrase + Basic-auth creds + base URL | ✅ keys/accessors built + tested |
+| `src/features/admin/attendee-contact.ts` + template | attendee "contact" page: compose, queue, dispatch, history | ✅ built + tested |
+| "Send Text" link on the attendee table | discoverable entry point | ✅ built |
+| **Admin settings UI for the gateway** | owner sets creds + generates the E2E passphrase | ⏳ remaining |
+| Webhook receiver (`POST /api/sms/webhook`) | status reconcile + inbound (`sms:delivered/failed/received`) | ⏳ deferred (v1.1) |
+| Retry dispatch for stuck `queued` rows | external pinger or opportunistic | ⏳ deferred (v1.1) |
+
+### Remaining before production use
+
+The send pipeline is complete and tested end to end (compose → decrypt under
+owner key → re-encrypt under E2E key → queue ciphertext → POST to cloud →
+record status). What's left to make it usable by an operator:
+
+1. **Settings page** — a small owner-only card under `/admin/settings` that
+   saves `settings.update.smsGateway{Username,Password,Passphrase,BaseUrl}` and
+   offers a "generate E2E key" button (`generateSmsPassphrase`) to display once
+   for entry into the phone app. The storage keys, accessors, and encryption are
+   already in place; this is purely the form + handler + render wiring.
+2. **(v1.1)** webhook receiver to move rows `sent → delivered/failed` and to
+   capture inbound replies, plus a retry path for rows the cloud rejected.
 
 ## Open questions
 
