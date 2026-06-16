@@ -7,6 +7,7 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { encryptedNameSchema } from "#shared/db/common-schema.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import type { DeliveryAgent } from "#shared/types.ts";
@@ -22,7 +23,7 @@ const rawDeliveryAgentsTable = defineTable<DeliveryAgent, DeliveryAgentInput>({
   primaryKey: "id",
   schema: {
     id: col.generated<number>(),
-    name: col.encrypted<string>(encrypt, decrypt),
+    ...encryptedNameSchema(encrypt, decrypt),
   },
 });
 

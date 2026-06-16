@@ -13,9 +13,9 @@
  * `?select_<id>=1&start_date=…` to pre-fill the chosen listings and date.
  */
 
+/* jscpd:ignore-start */
 import { compact, filter, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
-/* jscpd:ignore-end */
 import {
   buildAttendeeDeliveryData,
   parseDeliveryPlan,
@@ -40,7 +40,6 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-/* jscpd:ignore-start */
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -93,6 +92,8 @@ import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
+
+/* jscpd:ignore-end */
 
 // ---------------------------------------------------------------------------
 // Shared loaders / helpers
