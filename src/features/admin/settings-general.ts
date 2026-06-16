@@ -4,6 +4,7 @@
  * enforced via the settings-helpers route wrappers.
  */
 
+import { t } from "#i18n";
 import { demoResetForm } from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
@@ -44,13 +45,17 @@ export const handlePaymentProviderPost = settingsHandler({
   formId: "settings-payment-provider",
   label: "Payment provider",
   log: (v) =>
-    v === "none" ? "Payment provider disabled" : `Payment provider set to ${v}`,
+    v === "none"
+      ? t("success.payment_provider_disabled")
+      : `Payment provider set to ${v}`,
   save: (v) =>
     v === "none"
       ? settings.update.setPaymentProviderNone()
       : settings.update.paymentProvider(v as PaymentProviderType),
   validate: (v) =>
-    v !== "none" && !isPaymentProvider(v) ? "Invalid payment provider" : null,
+    v !== "none" && !isPaymentProvider(v)
+      ? t("error.invalid_payment_provider")
+      : null,
 });
 
 /**
@@ -62,8 +67,8 @@ export const handleEmbedHostsPost = settingsHandler({
   label: "Embed host restrictions",
   log: (v) =>
     v === ""
-      ? "Embed host restrictions removed"
-      : "Allowed embed hosts updated",
+      ? t("success.embed_hosts_removed")
+      : t("success.embed_hosts_updated"),
   save: (v) =>
     settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
   validate: (v) => {
@@ -83,7 +88,7 @@ export const handleTermsPost = settingsHandler({
   formId: "settings-terms",
   label: "Terms and conditions",
   log: (v) =>
-    v === "" ? "Terms and conditions removed" : "Terms and conditions updated",
+    v === "" ? t("success.terms_removed") : t("success.terms_updated"),
   save: (v) => settings.update.terms(v),
   validate: (v) =>
     v.length > MAX_TEXTAREA_LENGTH
@@ -100,9 +105,9 @@ export const handleCountryPost = settingsHandler({
   save: (v) => settings.update.country(v),
   validate: (v) =>
     v === ""
-      ? "Country is required"
+      ? t("error.country_required")
       : !isValidCountry(v)
-        ? "Please select a valid country"
+        ? t("error.country_invalid")
         : null,
 });
 
@@ -112,10 +117,7 @@ export const handleBusinessEmailPost = settingsClearable({
   formId: "settings-business-email",
   label: "Business email",
   save: (v) => updateBusinessEmail(v),
-  validate: (v) =>
-    !isValidEmail(v)
-      ? "Invalid email format. Please use format: name@domain.com"
-      : null,
+  validate: (v) => (!isValidEmail(v) ? t("error.email_format") : null),
 });
 
 /** Handle POST /admin/settings/theme - owner only */
@@ -126,7 +128,7 @@ export const handleThemePost = settingsHandler({
   log: (v) => `Theme set to ${v}`,
   save: (v) => settings.update.theme(v as Theme),
   validate: (v) =>
-    v !== "light" && v !== "dark" ? "Invalid theme selection" : null,
+    v !== "light" && v !== "dark" ? t("error.invalid_theme") : null,
 });
 
 /** Handle POST /admin/settings/show-public-site - owner only */
@@ -155,7 +157,7 @@ export const handleBookingFeePost = settingsHandler({
   save: (v) => settings.update.bookingFee(String(v)),
   validate: (v) =>
     !Number.isFinite(v) || v < 0 || v > 10
-      ? "Booking fee must be a number between 0 and 10"
+      ? t("error.booking_fee_range")
       : null,
 });
 
@@ -204,7 +206,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
     await resetDatabase();
 
     // Redirect to setup page since the database is now empty
-    return ok("/setup/", "Database reset", {
+    return ok("/setup/", t("success.database_reset"), {
       cookie: clearSessionCookie(),
     });
   },

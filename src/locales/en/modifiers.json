@@ -1,0 +1,18 @@
+{
+  "modifiers.add_modifier": "Add Modifier",
+  "modifiers.no_modifiers": "No modifiers configured.",
+  "modifiers.rule_column": "Rule",
+  "modifiers.action.charge": "Charge",
+  "modifiers.action.discount": "Discount",
+  "modifiers.rule.percent": "{action} · {value}%",
+  "modifiers.rule.fixed": "{action} · {value}",
+  "modifiers.rule.multiply": "Multiply · ×{value}",
+  "modifiers.add.heading": "Add Modifier",
+  "modifiers.add.submit": "Create Modifier",
+  "modifiers.edit.heading": "Edit Modifier",
+  "modifiers.delete.heading": "Delete Modifier",
+  "modifiers.delete.submit": "Delete Modifier",
+  "modifiers.delete.confirm": "Are you sure you want to delete the modifier {name}?",
+  "modifiers.delete.confirm_prompt": "Type the modifier name to confirm:",
+  "modifiers.name_label": "Modifier Name"
+}

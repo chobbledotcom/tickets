@@ -2,6 +2,7 @@
  * Admin price-modifier management page templates
  */
 
+import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import {
   ConfirmForm,
@@ -17,12 +18,22 @@ import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
-/** Human-readable summary of a modifier's rule, e.g. "Charge · 10%". */
+/** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 const ruleSummary = (m: Modifier): string => {
-  const action = m.direction === "discount" ? "Discount" : "Charge";
-  if (m.calc_kind === "percent") return `${action} · ${m.calc_value}%`;
-  if (m.calc_kind === "multiply") return `Multiply · ×${m.calc_value}`;
-  return `${action} · ${m.calc_value}`;
+  const value = String(m.calc_value);
+  if (m.calc_kind === "multiply")
+    return t("modifiers.rule.multiply", { value });
+  const action = t(
+    m.direction === "discount"
+      ? "modifiers.action.discount"
+      : "modifiers.action.charge",
+  );
+  return t(
+    m.calc_kind === "percent"
+      ? "modifiers.rule.percent"
+      : "modifiers.rule.fixed",
+    { action, value },
+  );
 };
 
 /** Pre-fill form values from a modifier (or blanks for the create form). */
@@ -38,25 +49,25 @@ export const adminModifiersPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title="Modifiers">
+    <Layout title={t("terms.modifiers")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <Flash success={successMessage} />
       {!isReadOnly() && (
         <p class="actions">
           <ActionButton href="/admin/modifiers/new" icon="plus">
-            Add Modifier
+            {t("modifiers.add_modifier")}
           </ActionButton>
         </p>
       )}
       {modifiers.length === 0 ? (
-        <p>No modifiers configured.</p>
+        <p>{t("modifiers.no_modifiers")}</p>
       ) : (
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Rule</th>
+                <th>{t("common.name")}</th>
+                <th>{t("modifiers.rule_column")}</th>
               </tr>
             </thead>
             <tbody>
@@ -81,13 +92,13 @@ export const adminModifierNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Add Modifier">
+    <Layout title={t("modifiers.add.heading")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action="/admin/modifiers">
-        <h1>Add Modifier</h1>
+        <h1>{t("modifiers.add.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
-        <SubmitButton icon="plus">Create Modifier</SubmitButton>
+        <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -99,19 +110,19 @@ export const adminModifierEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Edit Modifier">
+    <Layout title={t("modifiers.edit.heading")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
-        <h1>Edit Modifier</h1>
+        <h1>{t("modifiers.edit.heading")}</h1>
         <Flash error={error} />
         <Raw
           html={renderFields(modifierFields, modifierToFieldValues(modifier))}
         />
-        <SubmitButton icon="save">Save Changes</SubmitButton>
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
       <p class="actions">
         <a class="danger" href={`/admin/modifiers/${modifier.id}/delete`}>
-          Delete Modifier
+          {t("modifiers.delete.submit")}
         </a>
       </p>
     </Layout>,
@@ -124,22 +135,19 @@ export const adminModifierDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Modifier">
+    <Layout title={t("modifiers.delete.heading")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <ConfirmForm
         action={`/admin/modifiers/${modifier.id}/delete`}
-        buttonText="Delete Modifier"
+        buttonText={t("modifiers.delete.submit")}
         danger={false}
-        label="Modifier name"
+        label={t("modifiers.name_label")}
         name={modifier.name}
       >
-        <h1>Delete Modifier</h1>
+        <h1>{t("modifiers.delete.heading")}</h1>
         <Flash error={error} />
-        <p>
-          Are you sure you want to delete the modifier{" "}
-          <strong>{modifier.name}</strong>?
-        </p>
-        <p>Type the modifier name "{modifier.name}" to confirm:</p>
+        <p>{t("modifiers.delete.confirm", { name: modifier.name })}</p>
+        <p>{t("modifiers.delete.confirm_prompt")}</p>
       </ConfirmForm>
     </Layout>,
   );

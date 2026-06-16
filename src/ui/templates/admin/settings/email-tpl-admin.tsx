@@ -2,6 +2,7 @@
  * Admin Notification Email Template form for advanced settings
  */
 
+import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
@@ -20,11 +21,11 @@ export const AdminEmailTemplateForm = (
       </p>
     }
     id="settings-email-tpl-admin"
-    submitLabel="Save Admin Notification Template"
-    title="Admin Notification Email Template"
+    submitLabel={t("settings.advanced.save_admin_notification_template")}
+    title={t("settings.advanced.admin_notification_email")}
   >
     <label>
-      Subject
+      {t("settings.advanced.subject")}
       <input
         autocomplete="off"
         name="subject"
@@ -34,34 +35,34 @@ export const AdminEmailTemplateForm = (
       />
     </label>
     <label>
-      HTML Body
+      {t("settings.advanced.html_body")}
       <textarea
         data-default-tpl={DEFAULT_TEMPLATES.admin.html}
         id="admin_html"
         name="html"
-        placeholder="Leave blank to use default template"
+        placeholder={t("settings.advanced.leave_blank_default")}
         rows="8"
       >
         {s.adminTemplates.html}
       </textarea>
     </label>
     <a data-fill-default="admin_html" href="#">
-      <small>Edit default template</small>
+      <small>{t("settings.advanced.edit_default_template")}</small>
     </a>
     <label>
-      Plain Text Body
+      {t("settings.advanced.plain_text_body")}
       <textarea
         data-default-tpl={DEFAULT_TEMPLATES.admin.text}
         id="admin_text"
         name="text"
-        placeholder="Leave blank to use default template"
+        placeholder={t("settings.advanced.leave_blank_default")}
         rows="6"
       >
         {s.adminTemplates.text}
       </textarea>
     </label>
     <a data-fill-default="admin_text" href="#">
-      <small>Edit default template</small>
+      <small>{t("settings.advanced.edit_default_template")}</small>
     </a>
     <br />
   </SettingsSection>

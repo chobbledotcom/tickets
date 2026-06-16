@@ -3,6 +3,7 @@
  */
 
 import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
+import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
@@ -51,14 +52,15 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
-  assignBuiltSiteField,
-  attachmentField,
   getAddAttendeeFields,
-  imageField,
-  initialSiteMonthsField,
-  listingFields,
-  monthsPerUnitField,
-  slugField,
+  getAssignBuiltSiteField,
+  getAttachmentField,
+  getImageField,
+  getInitialSiteMonthsField,
+  getListingFields,
+  getMonthsPerUnitField,
+  getSlugField,
+  logisticsField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public.tsx";
@@ -127,7 +129,7 @@ const FailedPaymentRow = ({
           class="inline"
         >
           <button class="link-button danger" type="submit">
-            Delete
+            {t("common.delete")}
           </button>
         </CsrfForm>
       </td>
@@ -146,9 +148,9 @@ const FailedPaymentsTable = ({
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Qty</th>
-          <th>Registered</th>
+          <th>{t("common.name")}</th>
+          <th>{t("common.qty")}</th>
+          <th>{t("common.registered")}</th>
           <th></th>
         </tr>
       </thead>
@@ -214,7 +216,7 @@ const DateSelector = ({
   const options = [
     `<option value="${basePath}${suffix}#attendees"${
       !dateFilter ? " selected" : ""
-    }>All dates</option>`,
+    }>${t("listings_table.all_dates")}</option>`,
     ...dates.map(
       (d) =>
         `<option value="${basePath}${suffix}?date=${d.value}#attendees"${
@@ -222,7 +224,7 @@ const DateSelector = ({
         }>${d.label}</option>`,
     ),
   ].join("");
-  return `<select data-nav-select aria-label="Filter by date">${options}</select>`;
+  return `<select data-nav-select aria-label="${t("listings_table.filter_by_date")}">${options}</select>`;
 };
 
 /** Options for rendering the admin listing detail page */
@@ -273,28 +275,38 @@ const ListingActionNav = ({
       <ul>
         {!readOnly && (
           <li>
-            <a href={`/admin/listing/${listing.id}/edit`}>Edit</a>
+            <a href={`/admin/listing/${listing.id}/edit`}>{t("common.edit")}</a>
           </li>
         )}
         {!readOnly && (
           <li>
-            <a href={`/admin/listing/${listing.id}/duplicate`}>Duplicate</a>
+            <a href={`/admin/listing/${listing.id}/duplicate`}>
+              {t("listings_table.duplicate")}
+            </a>
           </li>
         )}
         <li>
-          <a href={`/admin/listing/${listing.id}/log`}>Log</a>
+          <a href={`/admin/listing/${listing.id}/log`}>
+            {t("listings_table.log")}
+          </a>
         </li>
         {!listing.purchase_only && (
           <li>
-            <a href={`/admin/listing/${listing.id}/scanner`}>Scanner</a>
+            <a href={`/admin/listing/${listing.id}/scanner`}>
+              {t("listings_table.scanner")}
+            </a>
           </li>
         )}
         <li>
-          <a href={`/admin/listing/${listing.id}/questions`}>Questions</a>
+          <a href={`/admin/listing/${listing.id}/questions`}>
+            {t("terms.questions")}
+          </a>
         </li>
         {!readOnly && (
           <li>
-            <a href={`/admin/listing/${listing.id}/qr`}>Booking QR</a>
+            <a href={`/admin/listing/${listing.id}/qr`}>
+              {t("listings_table.booking_qr")}
+            </a>
           </li>
         )}
         {isOwner && (
@@ -308,10 +320,10 @@ const ListingActionNav = ({
               title={
                 hasEmailableAttendees
                   ? undefined
-                  : "No attendees have an email address"
+                  : t("listings_table.no_email_attendees")
               }
             >
-              Email
+              {t("common.email")}
             </MaybeButtonLink>
           </li>
         )}
@@ -321,30 +333,32 @@ const ListingActionNav = ({
               dateFilter ? `?date=${dateFilter}` : ""
             }`}
           >
-            Export CSV
+            {t("listings_table.export_csv")}
           </a>
         </li>
         {hasPaidListing && (
           <li>
             <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
-              Refund All
+              {t("listings_table.refund_all")}
             </a>
           </li>
         )}
         {listing.active ? (
           <li>
             <a class="danger" href={`/admin/listing/${listing.id}/deactivate`}>
-              Deactivate
+              {t("listings_table.deactivate")}
             </a>
           </li>
         ) : (
           <li>
-            <a href={`/admin/listing/${listing.id}/reactivate`}>Reactivate</a>
+            <a href={`/admin/listing/${listing.id}/reactivate`}>
+              {t("listings_table.reactivate")}
+            </a>
           </li>
         )}
         <li>
           <a class="danger" href={`/admin/listing/${listing.id}/delete`}>
-            Delete
+            {t("common.delete")}
           </a>
         </li>
       </ul>
@@ -362,23 +376,24 @@ const CustomisableDaysRow = ({
   const counts = availableDayCounts(listing);
   return (
     <tr>
-      <th>Customisable Days</th>
+      <th>{t("listings_table.customisable_days")}</th>
       <td>
-        Visitors choose 1&ndash;{normalizeDurationDays(listing.duration_days)}{" "}
-        days.{" "}
+        {t("listings_table.visitors_choose_days", {
+          max_days: normalizeDurationDays(listing.duration_days),
+        })}{" "}
         {counts.length > 0 ? (
           <span>
             {counts
               .map(
                 (n) =>
-                  `${n} day${n === 1 ? "" : "s"}: ${formatCurrency(
+                  `${n} ${t(`listings_table.day_count_unit_${n === 1 ? "singular" : "plural"}`)}: ${formatCurrency(
                     dayPriceFor(listing, n)!,
                   )}`,
               )
               .join(", ")}
           </span>
         ) : (
-          <em>No day prices set</em>
+          <em>{t("listings_table.no_day_prices_set")}</em>
         )}
       </td>
     </tr>
@@ -393,22 +408,24 @@ const DailyScheduleRows = ({
 }): JSX.Element => (
   <>
     <tr>
-      <th>Bookable Days</th>
+      <th>{t("listings_table.bookable_days")}</th>
       <td>{formatBookableDays(listing.bookable_days)}</td>
     </tr>
     <tr>
-      <th>Booking Window</th>
+      <th>{t("listings_table.booking_window")}</th>
       <td>
-        {listing.minimum_days_before} to{" "}
+        {listing.minimum_days_before} {t("listings_table.to")}{" "}
         {listing.maximum_days_after === 0
-          ? "unlimited"
+          ? t("listings_table.unlimited")
           : listing.maximum_days_after}{" "}
-        days from today
+        {t("listings_table.days_from_today")}
       </td>
     </tr>
     <tr>
-      <th>Booking Duration</th>
-      <td>{listing.duration_days} day(s)</td>
+      <th>{t("listings_table.booking_duration")}</th>
+      <td>
+        {listing.duration_days} {t("listings_table.day_count_with_parens")}
+      </td>
     </tr>
   </>
 );
@@ -431,8 +448,9 @@ const AttendeeCountDisplay = ({
     const overCap = completeQuantitySum >= listing.max_attendees;
     return (
       <span class={overCap ? "danger-text" : ""}>
-        {completeQuantitySum} / {listing.max_attendees} &mdash;{" "}
-        {listing.max_attendees - completeQuantitySum} remain
+        {completeQuantitySum} / {listing.max_attendees} —{" "}
+        {listing.max_attendees - completeQuantitySum}{" "}
+        {t("listings_table.remain")}
       </span>
     );
   }
@@ -443,8 +461,8 @@ const AttendeeCountDisplay = ({
       {!isDaily && (
         <>
           {" "}
-          / {listing.max_attendees} &mdash;{" "}
-          {listing.max_attendees - adjustedCount} remain
+          / {listing.max_attendees} — {listing.max_attendees - adjustedCount}{" "}
+          {t("listings_table.remain")}
         </>
       )}
     </span>
@@ -468,7 +486,10 @@ const AttendeesSummaryRow = ({
   completeQuantitySum: number;
 }): JSX.Element => (
   <tr>
-    <th>Listing Attendees{dailySuffix}</th>
+    <th>
+      {t("listings_table.listing_attendees")}
+      {dailySuffix}
+    </th>
     <td>
       <AttendeeCountDisplay
         adjustedCount={adjustedCount}
@@ -480,7 +501,11 @@ const AttendeesSummaryRow = ({
       {isDaily && !dateFilter && (
         <>
           {" "}
-          <small>Capacity of {listing.max_attendees} applies per date</small>
+          <small>
+            {t("listings_table.capacity_per_date", {
+              capacity: listing.max_attendees,
+            })}
+          </small>
         </>
       )}
     </td>
@@ -504,14 +529,17 @@ const GroupAttendeesRow = ({
   const nearCap = groupAttendeeCount >= group.max_attendees * 0.9;
   return (
     <tr>
-      <th>Group Attendees{dailySuffix}</th>
+      <th>
+        {t("listings_table.group_attendees")}
+        {dailySuffix}
+      </th>
       <td>
         <span class={overCap || nearCap ? "danger-text" : ""}>
-          {groupAttendeeCount} / {group.max_attendees} &mdash; {remaining}{" "}
-          remain
+          {groupAttendeeCount} / {group.max_attendees} — {remaining}{" "}
+          {t("listings_table.remain")}
         </span>{" "}
         <small>
-          across all listings in{" "}
+          {t("listings_table.across_all_listings_in")}{" "}
           <a href={`/admin/groups/${group.id}`}>{group.name}</a>
         </small>
       </td>
@@ -556,7 +584,7 @@ const ListingDetailsTable = ({
           </tr>
           {listing.date && (
             <tr>
-              <th>Listing Date</th>
+              <th>{t("listings_table.listing_date")}</th>
               <td>
                 <span>
                   <a href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}>
@@ -571,40 +599,47 @@ const ListingDetailsTable = ({
           )}
           {listing.location && (
             <tr>
-              <th>Location</th>
+              <th>{t("listings_table.location")}</th>
               <td>{listing.location}</td>
             </tr>
           )}
           <tr>
-            <th>Listing Type</th>
-            <td>{listing.listing_type === "daily" ? "Daily" : "Standard"}</td>
+            <th>{t("listings_table.listing_type")}</th>
+            <td>
+              {listing.listing_type === "daily"
+                ? t("listings_table.daily")
+                : t("listings_table.standard")}
+            </td>
           </tr>
           {listing.customisable_days && (
             <CustomisableDaysRow listing={listing} />
           )}
           {listing.months_per_unit > 0 && (
             <tr>
-              <th>Renewal</th>
-              <td>{listing.months_per_unit} month(s) per ticket</td>
+              <th>{t("listings_table.renewal")}</th>
+              <td>
+                {listing.months_per_unit}{" "}
+                {t("listings_table.months_per_ticket")}
+              </td>
             </tr>
           )}
           {listing.non_transferable && (
             <tr>
-              <th>Non-Transferable</th>
-              <td>Yes &mdash; ID verification required at entry</td>
+              <th>{t("listings_table.non_transferable")}</th>
+              <td>{t("listings_table.yes_id_verification_required")}</td>
             </tr>
           )}
           {listing.hidden && (
             <tr>
-              <th>Hidden</th>
-              <td>Yes &mdash; not shown in public listings list</td>
+              <th>{t("listings_table.hidden")}</th>
+              <td>{t("listings_table.yes_not_shown_in_public_list")}</td>
             </tr>
           )}
           {listing.listing_type === "daily" && (
             <DailyScheduleRows listing={listing} />
           )}
           <tr>
-            <th>Registration Closes</th>
+            <th>{t("listings_table.registration_closes")}</th>
             <td>
               {listing.closes_at ? (
                 <span>
@@ -614,26 +649,30 @@ const ListingDetailsTable = ({
                   </small>
                 </span>
               ) : (
-                <em>No deadline</em>
+                <em>{t("listings_table.no_deadline")}</em>
               )}
             </td>
           </tr>
           <tr>
-            <th>Public URL</th>
+            <th>{t("common.public_url")}</th>
             <td>
               <a href={ticketUrl}>
                 {`${allowedDomain}/ticket/${listing.slug}`}
               </a>
               <small>
                 {" "}
-                (<a href={`/ticket/${listing.slug}/qr`}>QR Code</a>)
+                (
+                <a href={`/ticket/${listing.slug}/qr`}>{t("common.qr_code")}</a>
+                )
               </small>
             </td>
           </tr>
           {listing.thank_you_url && (
             <tr>
               <th>
-                <label for={`thank-you-url-${listing.id}`}>Thank You URL</label>
+                <label for={`thank-you-url-${listing.id}`}>
+                  {t("listings_table.thank_you_url")}
+                </label>
               </th>
               <td>
                 <input
@@ -649,7 +688,9 @@ const ListingDetailsTable = ({
           {listing.webhook_url && (
             <tr>
               <th>
-                <label for={`webhook-url-${listing.id}`}>Webhook URL</label>
+                <label for={`webhook-url-${listing.id}`}>
+                  {t("listings_table.webhook_url")}
+                </label>
               </th>
               <td>
                 <input
@@ -664,7 +705,9 @@ const ListingDetailsTable = ({
           )}
           <tr>
             <th>
-              <label for={`embed-script-${listing.id}`}>Embed Script</label>
+              <label for={`embed-script-${listing.id}`}>
+                {t("common.embed_script")}
+              </label>
             </th>
             <td>
               <input
@@ -678,7 +721,9 @@ const ListingDetailsTable = ({
           </tr>
           <tr>
             <th>
-              <label for={`embed-iframe-${listing.id}`}>Embed Iframe</label>
+              <label for={`embed-iframe-${listing.id}`}>
+                {t("common.embed_iframe")}
+              </label>
             </th>
             <td>
               <input
@@ -727,7 +772,7 @@ const AttendeesFilterLinks = ({
       html={FilterLink({
         active: activeFilter === "all",
         href: `${basePath}${dateQs}#attendees`,
-        label: "All",
+        label: t("listings_table.all"),
       })}
     />
     {" / "}
@@ -735,7 +780,7 @@ const AttendeesFilterLinks = ({
       html={FilterLink({
         active: activeFilter === "in",
         href: `${basePath}/in${dateQs}#attendees`,
-        label: "Checked In",
+        label: t("common.checked_in"),
       })}
     />
     {" / "}
@@ -743,7 +788,7 @@ const AttendeesFilterLinks = ({
       html={FilterLink({
         active: activeFilter === "out",
         href: `${basePath}/out${dateQs}#attendees`,
-        label: "Checked Out",
+        label: t("listings_table.checked_out"),
       })}
     />
   </p>
@@ -777,7 +822,10 @@ const AttendeesSection = ({
   questionData: TableQuestionData | undefined;
   phonePrefix: string | undefined;
 }): JSX.Element => {
-  const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
+  const checkedInLabel =
+    checkinMessage?.status === "in"
+      ? t("listings_table.in")
+      : t("listings_table.out");
   const checkedInClass =
     checkinMessage?.status === "in"
       ? "checkin-message-in"
@@ -785,10 +833,13 @@ const AttendeesSection = ({
   return (
     <article>
       <div class="prose">
-        <h2 id="attendees">Attendees</h2>
+        <h2 id="attendees">{t("terms.attendees")}</h2>
         {checkinMessage && (
           <p class={checkedInClass} id="message">
-            Checked {checkinMessage.name} {checkedInLabel}
+            {t("listings_table.checked", {
+              name: checkinMessage.name,
+              status: checkedInLabel,
+            })}
           </p>
         )}
       </div>
@@ -835,8 +886,12 @@ const FailedPaymentsSection = ({
 }): JSX.Element => (
   <article>
     <div class="prose">
-      <h2 id="failed-payments">Failed Payments</h2>
-      <p>{attendees.length} attendee(s) with unresolved payments</p>
+      <h2 id="failed-payments">{t("listings_table.failed_payments")}</h2>
+      <p>
+        {t("listings_table.attendees_with_unresolved_payments", {
+          count: attendees.length,
+        })}
+      </p>
     </div>
     <div class="table-scroll">
       <Raw html={FailedPaymentsTable({ attendees, listingId })} />
@@ -851,7 +906,7 @@ const AddAttendeeSection = ({
   listing: ListingWithCount;
 }): JSX.Element => (
   <article>
-    <h2 id="add-attendee">Add Attendee</h2>
+    <h2 id="add-attendee">{t("listings_table.add_attendee")}</h2>
     <CsrfForm action={`/admin/listing/${listing.id}/attendee`}>
       <Raw
         html={renderFields(
@@ -864,7 +919,9 @@ const AddAttendeeSection = ({
           ),
         )}
       />
-      <SubmitButton icon="plus">Add Attendee</SubmitButton>
+      <SubmitButton icon="plus">
+        {t("listings_table.add_attendee")}
+      </SubmitButton>
     </CsrfForm>
   </article>
 );
@@ -956,7 +1013,7 @@ export const adminListingPage = ({
   )(filteredAttendees);
 
   return String(
-    <Layout title={`Listing: ${listing.name}`}>
+    <Layout title={t("listings_table.detail_title", { name: listing.name })}>
       <AdminNav active="/admin/" session={session} />
       <ListingActionNav
         dateFilter={dateFilter}
@@ -968,7 +1025,7 @@ export const adminListingPage = ({
       <Flash success={successMessage} />
       {!listing.active && (
         <div class="error" role="alert">
-          This listing is deactivated and cannot be booked
+          {t("listings_table.listing_deactivated_warning")}
         </div>
       )}
       <Flash error={errorMessage} />
@@ -1035,20 +1092,18 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
       const stored = prices[n];
       const value = stored !== undefined ? toMajorUnits(stored) : "";
       return (
-        `<label>${n} day${n === 1 ? "" : "s"} price` +
+        `<label>${t("listings_table.day_price_row_label", { n })}` +
         `<input type="text" inputmode="decimal" name="day_price_${n}" ` +
         `value="${escapeHtml(value)}" pattern="\\d+(\\.\\d{1,2})?" ` +
-        `placeholder="e.g. 10.00" title="A non-negative number (e.g. 10.00)" />` +
+        `placeholder="${t("listings_table.day_price_placeholder")}" title="${t("listings_table.day_price_input_title")}" />` +
         "</label>"
       );
     })
     .join("");
   return (
     `<fieldset data-day-prices id="day-prices">` +
-    "<legend>Day Prices (customisable days)</legend>" +
-    "<p><small>Set a price for each number of days you want to offer. Leave a " +
-    "row blank to not offer that length. The maximum matches the Booking " +
-    "Duration (days) above — increase it and save to add more rows.</small></p>" +
+    `<legend>${t("listings_table.day_prices_legend")}</legend>` +
+    `<p><small>${t("listings_table.day_prices_help")}</small></p>` +
     rows +
     "</fieldset>"
   );
@@ -1071,24 +1126,29 @@ const listingFieldFormatters: Partial<
   non_transferable: (e) => booleanToCheckbox(e.non_transferable),
   purchase_only: (e) => booleanToCheckbox(e.purchase_only),
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  uses_logistics: (e) => booleanToCheckbox(e.uses_logistics),
 };
 
-const allListingFields: Field[] = [
-  ...listingFields,
-  monthsPerUnitField,
-  initialSiteMonthsField,
-  assignBuiltSiteField,
+const getAllListingFields = (): Field[] => [
+  ...getListingFields(),
+  logisticsField,
+  getMonthsPerUnitField(),
+  getInitialSiteMonthsField(),
+  getAssignBuiltSiteField(),
 ];
 
 const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
-  entityToFieldValues(listing, allListingFields, listingFieldFormatters, {
+  entityToFieldValues(listing, getAllListingFields(), listingFieldFormatters, {
     slug: listing.slug,
   });
 
 /** Listing fields with autofocus on the name field */
-const listingFieldsWithAutofocus: Field[] = pipe(
-  map((f: Field): Field => (f.name === "name" ? { ...f, autofocus: true } : f)),
-)(listingFields);
+const getListingFieldsWithAutofocus = (): Field[] =>
+  pipe(
+    map(
+      (f: Field): Field => (f.name === "name" ? { ...f, autofocus: true } : f),
+    ),
+  )(getListingFields());
 
 // ---------------------------------------------------------------------------
 // Sectioned listing form
@@ -1136,6 +1196,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
+  "uses_logistics",
   "hidden",
 ] as const;
 
@@ -1181,11 +1242,12 @@ const DurationWarning = ({
     id="duration-warning"
   >
     <p>
-      <strong>Warning:</strong> Changing booking duration will update existing
-      bookings for this listing.
+      <strong>{t("listings_table.warning")}:</strong>{" "}
+      {t("listings_table.duration_warning_message")}
     </p>
     <label>
-      <input id="duration-warning-confirm" type="checkbox" />I understand
+      <input id="duration-warning-confirm" type="checkbox" />
+      {t("listings_table.i_understand")}
     </label>
   </div>
 );
@@ -1223,7 +1285,7 @@ const ListingFormSections = ({
   return (
     <>
       <fieldset class="listing-section">
-        <legend>Basics</legend>
+        <legend>{t("listings_table.basics")}</legend>
         <div class="stack">
           <Raw html={sec(BASICS_FIELDS)} />
           {imagePreview && <Raw html={imagePreview} />}
@@ -1235,21 +1297,21 @@ const ListingFormSections = ({
       </fieldset>
 
       <fieldset class="listing-section">
-        <legend>Tickets &amp; Pricing</legend>
+        <legend>{t("listings_table.tickets_pricing")}</legend>
         <div class="stack">
           <Raw html={sec(TICKET_FIELDS)} />
         </div>
       </fieldset>
 
       <fieldset class="listing-section listing-section--daily">
-        <legend>Daily Scheduling</legend>
+        <legend>{t("listings_table.daily_scheduling")}</legend>
         <div class="stack">
           <Raw html={sec(DAILY_FIELDS)} />
         </div>
       </fieldset>
 
       <fieldset class="listing-section">
-        <legend>Booking Duration &amp; Day Prices</legend>
+        <legend>{t("listings_table.booking_duration_day_prices")}</legend>
         <div class="stack">
           <Raw html={sec(["duration_days"])} />
           {durationWarning && <Raw html={durationWarning} />}
@@ -1259,14 +1321,14 @@ const ListingFormSections = ({
       </fieldset>
 
       <fieldset class="listing-section">
-        <legend>Options &amp; Visibility</legend>
+        <legend>{t("listings_table.options_visibility")}</legend>
         <div class="stack">
           <Raw html={sec(OPTION_FIELDS)} />
         </div>
       </fieldset>
 
       <details class="listing-advanced" open={advancedOpen}>
-        <summary>Advanced settings</summary>
+        <summary>{t("listings_table.advanced_settings")}</summary>
         <div class="stack">
           <Raw html={sec(ADVANCED_FIELDS)} />
         </div>
@@ -1286,18 +1348,23 @@ export const adminListingNewPage = (
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
-    ...listingFields,
+    ...getListingFields(),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
-      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      ? [
+          getMonthsPerUnitField(),
+          getInitialSiteMonthsField(),
+          getAssignBuiltSiteField(),
+        ]
       : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
+    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
   return String(
-    <Layout title="Add Listing">
+    <Layout title={t("listings_table.add_listing")}>
       <AdminNav active="/admin/" session={session} />
 
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
-        <h1>Add Listing</h1>
+        <h1>{t("listings_table.add_listing")}</h1>
         <Flash error={error} />
         <ListingFormSections
           advancedOpen={!!error}
@@ -1308,7 +1375,9 @@ export const adminListingNewPage = (
           selectedGroupId={0}
           values={{}}
         />
-        <SubmitButton icon="plus">Create Listing</SubmitButton>
+        <SubmitButton icon="plus">
+          {t("listings_table.create_listing")}
+        </SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -1327,20 +1396,31 @@ export const adminDuplicateListingPage = (
   const builderEnabled = isBuilderEnabled();
   const storageEnabled = isStorageEnabled();
   const dupFields = [
-    ...listingFieldsWithAutofocus,
+    ...getListingFieldsWithAutofocus(),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
-      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      ? [
+          getMonthsPerUnitField(),
+          getInitialSiteMonthsField(),
+          getAssignBuiltSiteField(),
+        ]
       : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
+    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
 
   return String(
-    <Layout title={`Duplicate: ${listing.name}`}>
+    <Layout
+      title={t("listings_table.duplicate_listing_title", {
+        name: listing.name,
+      })}
+    >
       <AdminNav active="/admin/" session={session} />
       <div class="prose">
-        <h2>Duplicate Listing</h2>
+        <h2>{t("listings_table.duplicate_listing")}</h2>
         <p>
-          Creating a new listing based on <strong>{listing.name}</strong>.
+          {t("listings_table.creating_new_listing_based_on", {
+            name: listing.name,
+          })}
         </p>
       </div>
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
@@ -1354,7 +1434,9 @@ export const adminDuplicateListingPage = (
           selectedGroupId={listing.group_id}
           values={values}
         />
-        <SubmitButton icon="plus">Create Listing</SubmitButton>
+        <SubmitButton icon="plus">
+          {t("listings_table.create_listing")}
+        </SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -1374,12 +1456,17 @@ export const adminListingEditPage = (
   // Slug is editable only here (auto-generated on create), so it lives in the
   // edit form's field list rather than the shared definitions.
   const fields = [
-    ...listingFields,
+    ...getListingFields(),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
-      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      ? [
+          getMonthsPerUnitField(),
+          getInitialSiteMonthsField(),
+          getAssignBuiltSiteField(),
+        ]
       : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
-    slugField,
+    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
+    getSlugField(),
   ];
   const imagePreview =
     storageEnabled && listing.image_url
@@ -1387,7 +1474,9 @@ export const adminListingEditPage = (
       : "";
   const durationWarning = String(<DurationWarning listing={listing} />);
   return String(
-    <Layout title={`Edit: ${listing.name}`}>
+    <Layout
+      title={t("listings_table.edit_listing_title", { name: listing.name })}
+    >
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
       <CsrfForm
@@ -1408,24 +1497,26 @@ export const adminListingEditPage = (
           values={listingToFieldValues(listing)}
         />
         <SubmitButton icon="save" id="listing-edit-submit">
-          Save Changes
+          {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
       {storageEnabled && listing.image_url && (
         <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
           <SubmitButton class="secondary" icon="trash-2">
-            Remove Image
+            {t("listings_table.remove_image")}
           </SubmitButton>
         </CsrfForm>
       )}
       {storageEnabled && listing.attachment_name && (
         <div class="attachment-info">
           <p>
-            Current attachment: <strong>{listing.attachment_name}</strong>
+            {t("listings_table.current_attachment", {
+              name: listing.attachment_name,
+            })}
           </p>
           <CsrfForm action={`/admin/listing/${listing.id}/attachment/delete`}>
             <SubmitButton class="secondary" icon="trash-2">
-              Remove Attachment
+              {t("listings_table.remove_attachment")}
             </SubmitButton>
           </CsrfForm>
         </div>
@@ -1443,24 +1534,26 @@ export const adminDeleteListingPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Delete: ${listing.name}`}>
+    <Layout
+      title={t("listings_table.delete_listing_title", { name: listing.name })}
+    >
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/delete`}
-        buttonText="Delete Listing"
-        label="Listing name"
+        buttonText={t("listings_table.delete_listing")}
+        label={t("listings_table.listing_name")}
         name={listing.name}
       >
         <p>
-          <strong>Warning:</strong> This will permanently delete the listing,
-          all {listing.attendee_count} attendee(s), any associated payment
-          records, and all activity log entries for this listing.
+          <strong>{t("listings_table.warning")}:</strong>{" "}
+          {t("listings_table.delete_warning_text", {
+            count: listing.attendee_count,
+          })}
         </p>
         <p>
-          To delete this listing, type its name "{listing.name}" into the box
-          below:
+          {t("listings_table.delete_confirmation_text", { name: listing.name })}
         </p>
       </ConfirmForm>
     </Layout>,
@@ -1475,28 +1568,34 @@ export const adminDeactivateListingPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Deactivate: ${listing.name}`}>
+    <Layout
+      title={t("listings_table.deactivate_listing_title", {
+        name: listing.name,
+      })}
+    >
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/deactivate`}
-        buttonText="Deactivate Listing"
-        label="Listing name"
+        buttonText={t("listings_table.deactivate_listing")}
+        label={t("listings_table.listing_name")}
         name={listing.name}
       >
         <p>
-          <strong>Warning:</strong> Deactivating this listing will:
+          <strong>{t("listings_table.warning")}:</strong>{" "}
+          {t("listings_table.deactivate_warning")}
         </p>
         <ul>
-          <li>Return a 404 error on the public ticket page</li>
-          <li>Prevent new registrations</li>
-          <li>Reject any pending payments</li>
+          <li>{t("listings_table.deactivate_effect_404")}</li>
+          <li>{t("listings_table.deactivate_effect_prevent_registrations")}</li>
+          <li>{t("listings_table.deactivate_effect_reject_payments")}</li>
         </ul>
-        <p>Existing attendees will not be affected.</p>
+        <p>{t("listings_table.existing_attendees_not_affected")}</p>
         <p>
-          To deactivate this listing, type its name "{listing.name}" into the
-          box below:
+          {t("listings_table.deactivate_confirmation_text", {
+            name: listing.name,
+          })}
         </p>
       </ConfirmForm>
     </Layout>,
@@ -1511,28 +1610,31 @@ export const adminReactivateListingPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Reactivate: ${listing.name}`}>
+    <Layout
+      title={t("listings_table.reactivate_listing_title", {
+        name: listing.name,
+      })}
+    >
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/reactivate`}
-        buttonText="Reactivate Listing"
+        buttonText={t("listings_table.reactivate_listing")}
         danger={false}
-        label="Listing name"
+        label={t("listings_table.listing_name")}
         name={listing.name}
       >
+        <p>{t("listings_table.reactivate_will_make_available")}</p>
         <p>
-          Reactivating this listing will make it available for registrations
-          again.
+          {t(
+            "listings_table.public_page_accessible_new_attendees_can_register",
+          )}
         </p>
         <p>
-          The public ticket page will be accessible and new attendees can
-          register.
-        </p>
-        <p>
-          To reactivate this listing, type its name "{listing.name}" into the
-          box below:
+          {t("listings_table.reactivate_confirmation_text", {
+            name: listing.name,
+          })}
         </p>
       </ConfirmForm>
     </Layout>,

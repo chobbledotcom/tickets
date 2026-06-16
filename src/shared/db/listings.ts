@@ -79,6 +79,7 @@ export type ListingInput = {
   durationDays?: number;
   customisableDays?: boolean;
   dayPrices?: DayPrices;
+  usesLogistics?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -187,6 +188,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
+  uses_logistics: col.boolean(false),
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 

@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
@@ -28,20 +29,19 @@ export type TicketCard = {
 };
 
 /** Pluralize ticket count */
-const ticketCount = (count: number): string =>
-  count === 1 ? "1 Ticket" : `${count} Tickets`;
+const ticketCount = (count: number): string => t("tickets.count", { count });
 
 /** Render an "Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderAppleWalletLink = (token: string): string =>
   `<a href="/wallet/${escapeHtml(
     token,
-  )}.pkpass" class="wallet-link">Apple Wallet</a>`;
+  )}.pkpass" class="wallet-link">${t("tickets.apple_wallet")}</a>`;
 
 /** Render a "Google Wallet" link for a token */
 const renderGoogleWalletLink = (token: string): string =>
   `<a href="/gwallet/${escapeHtml(
     token,
-  )}" class="wallet-link">Google Wallet</a>`;
+  )}" class="wallet-link">${t("tickets.google_wallet")}</a>`;
 
 /** Render `render(value)` when `value` is truthy, else "". Replaces the
  * `value ? `<div>${render(value)}`</div>` : ""` pattern that dominates the
@@ -84,7 +84,9 @@ const renderWalletSection = (
   ]
     .filter(Boolean)
     .join(" / ");
-  return links ? `<div class="ticket-card-wallet">Add to: ${links}</div>` : "";
+  return links
+    ? `<div class="ticket-card-wallet">${t("tickets.add_to")} ${links}</div>`
+    : "";
 };
 
 /** Render a single ticket card */
@@ -114,19 +116,19 @@ const renderTicketCard = (
   const attendeeDateHtml = optionalHtml(
     bookingDateLabel,
     (label) =>
-      `<div class="ticket-card-date">Booking Date: ${escapeHtml(label)}</div>`,
+      `<div class="ticket-card-date">${t("tickets.booking_date")} ${escapeHtml(label)}</div>`,
   );
 
   const pricePaid = Number(attendee.price_paid);
   const priceHtml = optionalHtml(
     pricePaid,
     (p) =>
-      `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(p))}</div>`,
+      `<div class="ticket-card-price">${t("tickets.price")} ${escapeHtml(formatCurrency(p))}</div>`,
   );
 
   const nonTransferableHtml =
     listing.non_transferable && !listing.purchase_only
-      ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
+      ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
       : "";
 
   const walletHtml = renderWalletSection(
@@ -139,7 +141,7 @@ const renderTicketCard = (
   const attachmentHtml = optionalHtml(
     attachmentUrl,
     (url) =>
-      `<a href="${escapeHtml(url)}" class="attachment-link">Download: ${escapeHtml(
+      `<a href="${escapeHtml(url)}" class="attachment-link">${t("tickets.download")} ${escapeHtml(
         listing.attachment_name,
       )}</a>`,
   );
@@ -153,7 +155,7 @@ const renderTicketCard = (
       ${descriptionHtml}
       ${nonTransferableHtml}
       ${attendeeDateHtml}
-      <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
+      <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
       ${priceHtml}
       ${attachmentHtml}
       ${
@@ -161,7 +163,7 @@ const renderTicketCard = (
           ? ""
           : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
               token,
-            )}/svg" alt="QR code" /></div>
+            )}/svg" alt={t("listing_qr.qr_code")} /></div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>`
       }
       ${walletHtml}
@@ -187,7 +189,7 @@ export const ticketViewPage = (
 
   const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
   const heading = allPurchaseOnly ? "Your Purchase" : ticketCount(cards.length);
-  const title = allPurchaseOnly ? "Your Purchase" : "Your Tickets";
+  const title = allPurchaseOnly ? "Your Purchase" : t("tickets.title");
 
   return String(
     <Layout title={title}>

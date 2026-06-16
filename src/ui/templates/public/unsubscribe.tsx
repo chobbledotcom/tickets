@@ -6,8 +6,10 @@
  * subscription state — link prefetchers and scanners follow GETs).
  */
 
+import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 
 export type UnsubscribeState = {
@@ -38,40 +40,35 @@ const ToggleForm = ({
 
 export const unsubscribePage = (state: UnsubscribeState): string => {
   const title = settings.websiteTitle
-    ? `Email preferences - ${settings.websiteTitle}`
-    : "Email preferences";
+    ? `${t("unsubscribe.email_preferences")} - ${settings.websiteTitle}`
+    : t("unsubscribe.email_preferences");
   return String(
     <Layout title={title}>
-      <h1>Email preferences</h1>
+      <h1>{t("unsubscribe.email_preferences")}</h1>
       <Flash error={state.error} info={state.info} success={state.success} />
       {!state.hash ? (
         <div class="prose">
-          <p>
-            This link is invalid or incomplete. Please use the unsubscribe link
-            from one of our emails.
-          </p>
+          <p>{t("unsubscribe.invalid_link")}</p>
         </div>
       ) : state.unsubscribed ? (
         <div class="prose">
           <p>
-            You're <strong>unsubscribed</strong> from our marketing emails and
-            won't receive them. You may still get essential messages about
-            listings you've booked.
+            <Raw html={t("unsubscribe.unsubscribed_message")} />
           </p>
-          <p>Changed your mind?</p>
+          <p>{t("unsubscribe.changed_mind")}</p>
           <ToggleForm
             action="resubscribe"
             hash={state.hash}
-            label="Resubscribe"
+            label={t("unsubscribe.resubscribe_button")}
           />
         </div>
       ) : (
         <div class="prose">
-          <p>You're currently subscribed to our marketing emails.</p>
+          <p>{t("unsubscribe.subscribed_message")}</p>
           <ToggleForm
             action="unsubscribe"
             hash={state.hash}
-            label="Unsubscribe"
+            label={t("unsubscribe.unsubscribe_button")}
           />
         </div>
       )}

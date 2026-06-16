@@ -11,6 +11,7 @@
  * needs no server round-trips to edit the line set.
  */
 
+import { t } from "#i18n";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -41,7 +42,9 @@ export const QTY_PREFIX = "qty_";
 /** Per-listing hidden field carrying the existing booking's line key, so an
  * edit can move/keep the right `listing_attendees` row: `line_key_<listingId>`. */
 export const LINE_KEY_PREFIX = "line_key_";
-/** Checkbox that reveals the not-booked listing rows (pure-CSS, never parsed). */
+/** Checkbox that reveals the not-booked listing rows when at least one line is
+ * already booked (pure-CSS, never parsed; omitted on a bare create form, which
+ * shows every listing). */
 export const SHOW_ALL_FIELD = "show_all";
 export const STATUS_FIELD = "status_id";
 export const REMAINING_BALANCE_FIELD = "remaining_balance";
@@ -263,7 +266,7 @@ const validateAttendeeBlock = (
   parsed: ParsedAttendeeForm,
 ): AttendeeFieldError | null => {
   if (!parsed.name.trim()) {
-    return { field: "name", message: "Name is required" };
+    return { field: "name", message: t("error.name_required") };
   }
   if (parsed.email) {
     const emailError = validateEmail(parsed.email);

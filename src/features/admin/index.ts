@@ -32,6 +32,7 @@ import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
+import { logisticsRoutes } from "#routes/admin/settings-logistics.ts";
 import { attendeeStatusesRoutes } from "#routes/admin/settings-statuses.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
 import { supportRoutes } from "#routes/admin/support.ts";
@@ -48,6 +49,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   authRoutes,
   apiKeysRoutes,
   settingsRoutes,
+  logisticsRoutes,
   attendeeStatusesRoutes,
   debugRoutes,
   siteRoutes,

@@ -3,10 +3,16 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
+import {
+  bookingAssignmentKey,
+  type LogisticsAssignment,
+} from "#shared/db/logistics.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /** Attendee with associated listing info for calendar CSV */
@@ -38,7 +44,24 @@ const formatPrice = (pricePaid: string): string =>
 
 /** Format checked_in value as Yes/No */
 const formatCheckedIn = (checkedIn: boolean): string =>
-  checkedIn ? "Yes" : "No";
+  checkedIn ? t("csv.yes") : t("csv.no");
+
+/** Translated, CSV-escaped standard attendee header columns. */
+const attendeeHeaders = (): string[] =>
+  [
+    t("common.name"),
+    t("common.email"),
+    t("common.phone"),
+    t("common.address"),
+    t("common.special_instructions"),
+    t("common.quantity"),
+    t("common.registered"),
+    t("csv.col.price_paid"),
+    t("csv.col.transaction_id"),
+    t("common.checked_in"),
+    t("csv.col.ticket_token"),
+    t("csv.col.ticket_url"),
+  ].map(escapeCsvValue);
 
 /** Build standard attendee CSV columns (shared by all CSV generators) */
 const attendeeCols = (a: Attendee, domain: string): string[] => [
@@ -61,8 +84,8 @@ const listingInfoHeaders = (
   showDate: boolean,
   showLocation: boolean,
 ): string[] => [
-  ...(showDate ? ["Listing Date"] : []),
-  ...(showLocation ? ["Listing Location"] : []),
+  ...(showDate ? [escapeCsvValue(t("csv.col.listing_date"))] : []),
+  ...(showLocation ? [escapeCsvValue(t("csv.col.listing_location"))] : []),
 ];
 
 /** Conditionally include Listing Date and/or Listing Location row values */
@@ -150,9 +173,9 @@ export const generateAttendeesCsv = (
 
   const questionHeaders = questions.map((q) => escapeCsvValue(q.text));
   const headerParts = [
-    ...(includeDate ? ["Date"] : []),
+    ...(includeDate ? [escapeCsvValue(t("common.date"))] : []),
     ...listingInfoHeaders(showListingDate, showListingLocation),
-    "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    ...attendeeHeaders(),
     ...questionHeaders,
   ];
   return buildCsv(
@@ -175,16 +198,68 @@ export const generateAttendeesCsv = (
 };
 
 /**
+ * Logistics run-sheet context for the calendar CSV. When provided and at least
+ * one exported booking belongs to a logistics listing, the CSV gains start/end
+ * agent + time columns and Google/Apple map links for the attendee's address.
+ */
+export type CalendarLogisticsCsv = {
+  /** Listing ids that use logistics (only these rows get the extra columns). */
+  listingIds: Set<number>;
+  /** Agent id → display name. */
+  agentNames: Map<number, string>;
+  /** `${attendeeId}|${listingId}` → that booking's assignment. */
+  assignments: Map<string, LogisticsAssignment>;
+};
+
+const LOGISTICS_HEADERS =
+  "Start Agent,Start Time,End Agent,End Time,Map (Google),Map (Apple)";
+
+/** The six logistics columns for one booking row, or six blanks when the row's
+ * listing isn't a logistics listing. */
+const logisticsCols = (
+  a: CalendarAttendee,
+  logistics: CalendarLogisticsCsv,
+): string[] => {
+  if (!logistics.listingIds.has(a.listing_id)) {
+    return ["", "", "", "", "", ""];
+  }
+  const assignment = logistics.assignments.get(
+    bookingAssignmentKey(a.id, a.listing_id),
+  );
+  const agentName = (id: number | null | undefined): string =>
+    id == null ? "" : (logistics.agentNames.get(id) ?? "");
+  const map = (url: string): string => (a.address ? url : "");
+  return [
+    escapeCsvValue(agentName(assignment?.startAgentId)),
+    escapeCsvValue(assignment?.startTime ?? ""),
+    escapeCsvValue(agentName(assignment?.endAgentId)),
+    escapeCsvValue(assignment?.endTime ?? ""),
+    escapeCsvValue(map(googleMapsUrl(a.address))),
+    escapeCsvValue(map(appleMapsUrl(a.address))),
+  ];
+};
+
+/**
  * Generate CSV content for calendar view (attendees across multiple daily listings).
  * Conditionally includes Listing Date and Listing Location columns based on data.
+ * When logistics context is supplied and any row is a logistics booking, also
+ * appends start/end agent + time columns and map links (a per-agent run sheet).
  */
-export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
+export const generateCalendarCsv = (
+  attendees: CalendarAttendee[],
+  logistics?: CalendarLogisticsCsv,
+): string => {
   const showListingDate = attendees.some((a) => a.listingDate !== "");
   const showListingLocation = attendees.some((a) => a.listingLocation !== "");
+  const showLogistics = Boolean(
+    logistics && attendees.some((a) => logistics.listingIds.has(a.listing_id)),
+  );
   const headerParts = [
-    "Listing",
+    escapeCsvValue(t("terms.listing")),
     ...listingInfoHeaders(showListingDate, showListingLocation),
-    "Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    escapeCsvValue(t("common.date")),
+    ...attendeeHeaders(),
+    ...(showLogistics ? [LOGISTICS_HEADERS] : []),
   ];
   return buildCsv(
     headerParts.join(","),
@@ -198,6 +273,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
       ),
       escapeCsvValue(csvDateRange(a.date, a.end_date)),
       ...attendeeCols(a, domain),
+      ...(showLogistics ? logisticsCols(a, logistics!) : []),
     ],
     attendees,
   );
