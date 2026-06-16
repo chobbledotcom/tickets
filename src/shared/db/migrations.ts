@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -168,6 +168,33 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
+    // Many-to-many link between agent users and the logistics agents
+    // (vans/crews) they drive. One user may cover several agents and one
+    // agent may be driven by several users. No FKs (see note on
+    // listing_attendees); application logic + the indexes keep it consistent,
+    // and both deleteUser and logistics-agent deletion prune their rows.
+    "user_logistics_agents",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["user_id", "INTEGER NOT NULL"],
+        ["agent_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["user_id", "agent_id"],
+          name: "idx_user_logistics_agents_unique",
+          unique: true,
+        },
+        {
+          columns: ["agent_id"],
+          name: "idx_user_logistics_agents_agent_id",
+        },
+      ],
+    },
+  ],
+
+  [
     "login_attempts",
     {
       columns: [
@@ -270,6 +297,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["end_agent_id", "INTEGER DEFAULT NULL"],
         ["start_time", "TEXT NOT NULL DEFAULT ''"],
         ["end_time", "TEXT NOT NULL DEFAULT ''"],
+        ["start_done", "INTEGER NOT NULL DEFAULT 0"],
+        ["end_done", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -1180,6 +1209,14 @@ const REQ_LOGISTICS: SchemaRequirement = {
 const REQ_EMAIL_TEMPLATES: SchemaRequirement = {
   newTables: ["email_templates"],
 };
+const REQ_AGENT_USERS: SchemaRequirement = {
+  columns: { listing_attendees: ["start_done", "end_done"] },
+  indexes: [
+    "idx_user_logistics_agents_unique",
+    "idx_user_logistics_agents_agent_id",
+  ],
+  newTables: ["user_logistics_agents"],
+};
 
 export const MIGRATIONS: Migration[] = [
   {
@@ -1284,6 +1321,16 @@ export const MIGRATIONS: Migration[] = [
     requires: REQ_EMAIL_TEMPLATES,
     up: async () => {
       await applySchemaChanges();
+    },
+  }),
+  additive({
+    description:
+      "Add user_logistics_agents table (agent users ↔ logistics agents) and start_done/end_done flags on listing_attendees for the delivery-agent run sheet",
+    id: "2026-06-16_agent_users",
+    requires: REQ_AGENT_USERS,
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
     },
   }),
 ];

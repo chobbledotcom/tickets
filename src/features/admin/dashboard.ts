@@ -5,7 +5,7 @@
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -47,6 +47,10 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
+      // Delivery agents have no dashboard — send them to their run sheet.
+      if (session.adminLevel === "agent") {
+        return redirectResponse("/admin/deliveries");
+      }
       const { error: imageError, success: successMessage } = getFlash();
       const [listings, holidays, newestRaw, privateKey] = await Promise.all([
         getAllListings(),

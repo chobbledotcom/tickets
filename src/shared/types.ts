@@ -268,6 +268,15 @@ export interface LogisticsAgent {
   name: string;
 }
 
+/** A link between an agent user and a logistics agent (van/crew) they drive.
+ * Many-to-many: a user may cover several agents and an agent may have several
+ * users. */
+export interface UserLogisticsAgent {
+  id: number;
+  user_id: number;
+  agent_id: number;
+}
+
 export interface Attendee extends ContactInfo {
   attachment_downloads: number;
   checked_in: boolean;
@@ -322,8 +331,17 @@ export interface Session {
   wrapped_data_key: string | null;
 }
 
-/** Schema for admin role levels */
-export const AdminLevelSchema = v.picklist(["owner", "manager"]);
+/** Schema for admin role levels.
+ *
+ * - `owner`/`manager` are staff who share full back-office access (gated
+ *   per-page; managers are denied a subset).
+ * - `agent` is a restricted delivery-driver login that can only ever reach its
+ *   own logistics run sheet (`/admin/deliveries`). Auth gates exclude agents
+ *   from every staff page by default — see `sessionRoleAllowed` in auth.ts. */
+export const AdminLevelSchema = v.picklist(["owner", "manager", "agent"]);
+
+/** Admin role levels that are back-office staff (not delivery agents). */
+export const STAFF_ADMIN_LEVELS = ["owner", "manager"] as const;
 
 /** Admin role levels */
 export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;
@@ -339,7 +357,7 @@ export type AdminSession = {
 };
 
 export interface User {
-  admin_level: string; // encrypted "owner" or "manager"
+  admin_level: string; // encrypted "owner", "manager" or "agent"
   id: number;
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
