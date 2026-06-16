@@ -1,16 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { serializeDraft } from "#shared/bulk-email.ts";
+import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
+import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import {
   getAllActivityLog,
   getListingActivityLog,
 } from "#shared/db/activityLog.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   getEmailStats,
   hashEmail,
   unsubscribeHash,
 } from "#shared/db/email-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
+import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -50,6 +53,18 @@ const seedListingWithAttendees = async () => {
   await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
   return listing;
 };
+
+/**
+ * Seed a stored draft the way production does: encrypted with the owner's
+ * public key so the route's keypair-based decrypt can read it back.
+ */
+const seedDraft = async (draft: BulkEmailDraft) =>
+  settings.setForTest({
+    bulk_email_draft: await encryptWithOwnerKey(
+      serializeDraft(draft),
+      settings.publicKey,
+    ),
+  });
 
 describeWithEnv("server (bulk email)", { db: true }, () => {
   describe("GET /admin/emails", () => {
@@ -285,13 +300,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("omits the address list when there are no recipients", async () => {
       useResend();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Body",
-          marketing: false,
-          subject: "Subject",
-          target: { kind: "listing", listingId: 987654 },
-        }),
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "listing", listingId: 987654 },
       });
       const html = await (
         await awaitTestRequest("/admin/emails/preview", {
@@ -342,13 +355,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("labels a target whose listing has since been deleted", async () => {
       useResend();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Body",
-          marketing: false,
-          subject: "Subject",
-          target: { kind: "listing", listingId: 987654 },
-        }),
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "listing", listingId: 987654 },
       });
       const html = await (
         await awaitTestRequest("/admin/emails/preview", {
@@ -596,13 +607,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("preview falls back to a generic label for a stale token", async () => {
       useResend();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Body",
-          marketing: false,
-          subject: "Subject",
-          target: { kind: "attendee", token: "gone" },
-        }),
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "attendee", token: "gone" },
       });
       const html = await (
         await awaitTestRequest("/admin/emails/preview", {
@@ -760,7 +769,12 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
   describe("draft helpers", () => {
     test("a malformed stored draft is treated as absent", async () => {
-      settings.setForTest({ bulk_email_draft: "{garbage" });
+      await settings.setForTest({
+        bulk_email_draft: await encryptWithOwnerKey(
+          "{not valid draft json",
+          settings.publicKey,
+        ),
+      });
       const response = await awaitTestRequest("/admin/emails/preview", {
         cookie: await testCookie(),
       });
@@ -770,13 +784,11 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     test("a valid stored draft renders the preview", async () => {
       useResend();
       const listing = await seedListingWithAttendees();
-      settings.setForTest({
-        bulk_email_draft: serializeDraft({
-          body: "Stored body",
-          marketing: false,
-          subject: "Stored subject",
-          target: { kind: "listing", listingId: listing.id },
-        }),
+      await seedDraft({
+        body: "Stored body",
+        marketing: false,
+        subject: "Stored subject",
+        target: { kind: "listing", listingId: listing.id },
       });
       expectHtmlResponse(
         await awaitTestRequest("/admin/emails/preview", {
@@ -785,6 +797,160 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         200,
         "Stored subject",
       );
+    });
+  });
+
+  describe("email templates", () => {
+    const seedTemplate = async (subject: string, body: string) => {
+      const { insertEmailTemplate } = await import(
+        "#shared/db/email-templates.ts"
+      );
+      const { encryptWithOwnerKey: enc } = await import(
+        "#shared/crypto/keys.ts"
+      );
+      const encSubject = await enc(subject, settings.publicKey);
+      const encBody = await enc(body, settings.publicKey);
+      return insertEmailTemplate(encSubject, encBody);
+    };
+
+    test("compose page lists saved templates", async () => {
+      await seedTemplate("My Newsletter", "Hello everyone");
+      const html = await (
+        await awaitTestRequest("/admin/emails?audience=active", {
+          cookie: await testCookie(),
+        })
+      ).text();
+      expect(html).toContain("Load a template");
+      expect(html).toContain("My Newsletter");
+    });
+
+    test("?template=N pre-fills subject and body from the template", async () => {
+      const id = await seedTemplate("Pre-fill Subject", "Pre-fill body");
+      const html = await (
+        await awaitTestRequest(`/admin/emails?audience=active&template=${id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
+      expect(html).toContain("Pre-fill Subject");
+      expect(html).toContain("Pre-fill body");
+    });
+
+    test("?template=N for an unknown id still renders the compose page", async () => {
+      expectHtmlResponse(
+        await awaitTestRequest("/admin/emails?audience=active&template=9999", {
+          cookie: await testCookie(),
+        }),
+        200,
+      );
+    });
+
+    test("?template=N keeps the saved draft's marketing flag while overriding subject and body", async () => {
+      const id = await seedTemplate("Template Subject", "Template body");
+      await seedDraft({
+        body: "Draft body",
+        marketing: true,
+        subject: "Draft subject",
+        target: { audience: "active", kind: "audience" },
+      });
+      const html = await (
+        await awaitTestRequest(`/admin/emails?audience=active&template=${id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
+      // The template's content replaces the draft's…
+      expect(html).toContain("Template Subject");
+      expect(html).toContain("Template body");
+      // …but the marketing flag is carried over from the saved draft.
+      expect(html).toContain(
+        'checked name="marketing" type="checkbox" value="1"',
+      );
+    });
+
+    test("POST /admin/emails/templates refuses to save when the template limit is reached", async () => {
+      // Fill the table to the cap in one statement. The limit check only counts
+      // rows, so the (opaque) content here need not be real encrypted blobs.
+      const rows = Array.from(
+        { length: MAX_EMAIL_TEMPLATES },
+        () => "('x', 'y')",
+      ).join(", ");
+      await getDb().execute(
+        `INSERT INTO email_templates (subject, body) VALUES ${rows}`,
+      );
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Body",
+        subject: "Subject",
+      });
+      expectFlash(
+        response,
+        `You've reached the limit of ${MAX_EMAIL_TEMPLATES} saved templates.`,
+        false,
+      );
+    });
+
+    test("POST /admin/emails/templates saves a new template and redirects", async () => {
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Template body",
+        subject: "Template subject",
+      });
+      const redirectUrl = expectRedirect(response);
+      expect(redirectUrl).toContain("template=");
+      expectFlash(response, "Template saved.");
+    });
+
+    test("POST /admin/emails/templates rejects an empty subject", async () => {
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Template body",
+        subject: "",
+      });
+      expectFlash(response, "Subject is required", false);
+    });
+
+    test("POST /admin/emails/templates updates an existing template", async () => {
+      const id = await seedTemplate("Old subject", "Old body");
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Updated body",
+        subject: "Updated subject",
+        template_id: String(id),
+        update_existing: "1",
+      });
+      const redirectUrl = expectRedirect(response);
+      expect(redirectUrl).toContain(`template=${id}`);
+      expectFlash(response, "Template updated.");
+    });
+
+    test("POST /admin/emails/templates update returns 404 for missing template", async () => {
+      const { response } = await adminFormPost("/admin/emails/templates", {
+        audience: "active",
+        body: "Body",
+        subject: "Subject",
+        template_id: "9999",
+        update_existing: "1",
+      });
+      expectFlash(response, "That template no longer exists.", false);
+    });
+
+    test("POST /admin/emails/templates/:id/delete removes the template", async () => {
+      const id = await seedTemplate("To delete", "Body");
+      const { response } = await adminFormPost(
+        `/admin/emails/templates/${id}/delete`,
+        {},
+      );
+      expectRedirectWithFlash(
+        "/admin/emails?audience=active",
+        "Template deleted.",
+      )(response);
+    });
+
+    test("POST /admin/emails/templates/:id/delete 404s for unknown template", async () => {
+      const { response } = await adminFormPost(
+        "/admin/emails/templates/9999/delete",
+        {},
+      );
+      expect(response.status).toBe(404);
     });
   });
 
