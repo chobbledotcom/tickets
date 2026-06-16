@@ -98,6 +98,10 @@ export type AttendeeFormTemplateData = {
   phonePrefix: string;
   /** This attendee's activity log entries, newest first (edit mode only). */
   activityLog: ActivityLogEntry[];
+  /** Overbooking / over-duration warnings per listing id (booked lines only). */
+  lineWarnings: Map<number, string[]>;
+  /** All warnings flattened, for the top-of-page summary. */
+  topWarnings: string[];
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded". */
@@ -116,7 +120,13 @@ const bookingStatusBadges = (
 };
 
 /** One row of the listing editor — a listing and its quantity box. */
-const ListingRow = ({ line }: { line: AttendeeFormLine }): JSX.Element => {
+const ListingRow = ({
+  line,
+  warnings,
+}: {
+  line: AttendeeFormLine;
+  warnings: string[];
+}): JSX.Element => {
   const listing = line.listing!;
   const booked = isBookedLine(line) || Boolean(line.existingBooking);
   const isDaily = listing.listing_type === "daily";
@@ -164,6 +174,11 @@ const ListingRow = ({ line }: { line: AttendeeFormLine }): JSX.Element => {
             {line.error}
           </div>
         ) : null}
+        {warnings.map((w) => (
+          <div class="warning small" role="alert">
+            {w}
+          </div>
+        ))}
       </td>
     </tr>
   );
@@ -193,7 +208,10 @@ const ListingEditor = ({
         </thead>
         <tbody>
           {data.parsed.lines.map((line) => (
-            <ListingRow line={line} />
+            <ListingRow
+              line={line}
+              warnings={data.lineWarnings.get(line.listingId) ?? []}
+            />
           ))}
         </tbody>
       </table>
@@ -560,6 +578,17 @@ export const attendeeFormPage = (
         <h1>{pageTitle(data)}</h1>
         <StatusHeading data={data} />
       </div>
+
+      {data.topWarnings.length > 0 && (
+        <output class="warning" role="alert">
+          <strong>Please double-check:</strong>
+          <ul>
+            {data.topWarnings.map((w) => (
+              <li>{w}</li>
+            ))}
+          </ul>
+        </output>
+      )}
 
       {isEdit && a && (
         <AttendeeDetail

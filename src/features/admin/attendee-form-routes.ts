@@ -19,6 +19,7 @@ import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   attendeeBalanceNotice,
+  isBookedLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveSharedDates,
@@ -194,6 +195,31 @@ const buildEditFormFromAttendee = (
 /** How many of an attendee's activity-log entries to show on the edit page. */
 const ATTENDEE_LOG_LIMIT = 1000;
 
+/**
+ * Over-duration warnings for the booked lines: a daily listing is designed for
+ * a fixed number of days, but every daily listing shares one range, so a longer
+ * range than a listing allows is permitted — with a warning, not an error.
+ */
+const computeWarnings = (
+  parsed: ParsedAttendeeForm,
+): { byListing: Map<number, string[]>; top: string[] } => {
+  const byListing = new Map<number, string[]>();
+  const top: string[] = [];
+  for (const line of parsed.lines.filter(isBookedLine)) {
+    const listing = line.listing!;
+    if (
+      listing.listing_type === "daily" &&
+      parsed.dayCount > listing.duration_days
+    ) {
+      const max = listing.duration_days;
+      const msg = `${listing.name} is designed for up to ${max} day${max === 1 ? "" : "s"}, but the booking spans ${parsed.dayCount}.`;
+      byListing.set(listing.id, [msg]);
+      top.push(msg);
+    }
+  }
+  return { byListing, top };
+};
+
 /** Build the template data for re-rendering the form. */
 const buildTemplateData = async (
   mode: "create" | "edit",
@@ -223,6 +249,7 @@ const buildTemplateData = async (
   const activityLog = attendee
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
+  const warnings = computeWarnings(parsed);
   return {
     activityLog,
     allowedDomain: getEffectiveDomain(),
@@ -234,6 +261,7 @@ const buildTemplateData = async (
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
     hasMixedTimings: opts.hasMixedTimings ?? false,
+    lineWarnings: warnings.byListing,
     mode,
     parsed,
     phonePrefix: settings.phonePrefix,
@@ -242,6 +270,7 @@ const buildTemplateData = async (
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     statuses,
     todayIso: todayInTz(settings.timezone),
+    topWarnings: warnings.top,
   };
 };
 

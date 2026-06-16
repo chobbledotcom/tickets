@@ -491,6 +491,59 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
+  describe("over-duration warnings", () => {
+    test("warns when the range is longer than a daily listing allows", async () => {
+      const oneDay = await createDailyTestListing({
+        durationDays: 1,
+        name: "One Day",
+      });
+      const twoDay = await createDailyTestListing({
+        durationDays: 2,
+        name: "Two Day",
+      });
+      const result = await createAttendeeAtomic({
+        bookings: [
+          { date: "2026-05-01", durationDays: 3, listingId: oneDay.id },
+          { date: "2026-05-01", durationDays: 3, listingId: twoDay.id },
+        ],
+        email: "",
+        name: "Over",
+      });
+      const attendeeId = result.success ? result.attendees[0]!.id : 0;
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      // Per-listing warnings (singular + plural) and a top-of-page summary.
+      expect(html).toContain(
+        "One Day is designed for up to 1 day, but the booking spans 3.",
+      );
+      expect(html).toContain(
+        "Two Day is designed for up to 2 days, but the booking spans 3.",
+      );
+      expect(html).toContain("Please double-check");
+    });
+
+    test("no warning when the range fits the listing's duration", async () => {
+      const daily = await createDailyTestListing({
+        durationDays: 3,
+        name: "Three Day",
+      });
+      const result = await bookAttendee(daily, {
+        date: "2026-05-01",
+        durationDays: 3,
+      });
+      const attendeeId = result.success ? result.attendees[0]!.id : 0;
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain("Please double-check");
+    });
+  });
+
   describe("integration: mixed single-day and multi-day on one attendee", () => {
     test("creates an attendee with both a standard and a daily line", async () => {
       const standard = await createTestListing({
