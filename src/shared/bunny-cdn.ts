@@ -39,26 +39,34 @@ interface EdgeScriptResponse {
 }
 
 /**
+ * GET a Bunny API endpoint with AccessKey auth and parse the JSON body, or
+ * surface a Bunny API error. Shared by the edge-script, secrets, and DNS reads.
+ */
+const bunnyGetJson = async <T>(
+  path: string,
+  label: string,
+): Promise<
+  { ok: true; data: T } | { ok: false; error: string; errorKey?: string }
+> => {
+  const response = await fetchText(`${BUNNY_API_BASE}${path}`, {
+    headers: { AccessKey: getBunnyApiKey() },
+  });
+  if (!response.ok) return parseBunnyError(response, label);
+  return { data: JSON.parse(response.text) as T, ok: true };
+};
+
+/**
  * Fetch the edge script details from the Bunny API using BUNNY_SCRIPT_ID.
  * Returns the DefaultHostname and LinkedPullZones.
  */
-const getEdgeScriptImpl = async (): Promise<
+const getEdgeScriptImpl = (): Promise<
   | { ok: true; data: EdgeScriptResponse }
   | { ok: false; error: string; errorKey?: string }
-> => {
-  const scriptId = getBunnyScriptId();
-  const response = await fetchText(
-    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}`,
-    { headers: { AccessKey: getBunnyApiKey() } },
+> =>
+  bunnyGetJson<EdgeScriptResponse>(
+    `/compute/script/${encodeURIComponent(getBunnyScriptId())}`,
+    "Get edge script",
   );
-
-  if (!response.ok) {
-    return parseBunnyError(response, "Get edge script");
-  }
-
-  const data: EdgeScriptResponse = JSON.parse(response.text);
-  return { data, ok: true };
-};
 
 /** Map edge script data to a result, returning early on API error. */
 const withEdgeScript = async <T>(
@@ -237,17 +245,11 @@ const DNS_RECORD_TYPE_CNAME = 2;
 const getDnsZoneImpl = async (): Promise<
   { ok: true; zone: BunnyDnsZone } | { ok: false; error: string }
 > => {
-  const zoneId = getBunnyDnsZoneId();
-  const response = await fetchText(`${BUNNY_API_BASE}/dnszone/${zoneId}`, {
-    headers: { AccessKey: getBunnyApiKey() },
-  });
-
-  if (!response.ok) {
-    return parseBunnyError(response, "Get DNS zone");
-  }
-
-  const zone: BunnyDnsZone = JSON.parse(response.text);
-  return { ok: true, zone };
+  const result = await bunnyGetJson<BunnyDnsZone>(
+    `/dnszone/${getBunnyDnsZoneId()}`,
+    "Get DNS zone",
+  );
+  return result.ok ? { ok: true, zone: result.data } : result;
 };
 
 /**
@@ -524,15 +526,12 @@ type ListSecretsResult =
 const listEdgeScriptSecretsImpl = async (
   scriptId: number | string,
 ): Promise<ListSecretsResult> => {
-  const response = await fetchText(
-    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}/secrets`,
-    { headers: { AccessKey: getBunnyApiKey() } },
+  const result = await bunnyGetJson<ListEdgeScriptSecretsResponse>(
+    `/compute/script/${encodeURIComponent(scriptId)}/secrets`,
+    "List secrets",
   );
-  if (!response.ok) {
-    return parseBunnyError(response, "List secrets");
-  }
-  const data: ListEdgeScriptSecretsResponse = JSON.parse(response.text);
-  return { ok: true, secrets: data.Secrets ?? [] };
+  if (!result.ok) return result;
+  return { ok: true, secrets: result.data.Secrets ?? [] };
 };
 
 /**

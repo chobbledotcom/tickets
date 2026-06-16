@@ -85,23 +85,49 @@ const listSecretNames = async (
   }
 };
 
+type ResolvedSiteSecrets = {
+  scriptId: number;
+  names: string[];
+  present: Set<string>;
+};
+
+/**
+ * Resolve a site's precondition and live secret list into a single context,
+ * shared by the read (status) and write (backfill) paths.
+ */
+const resolveSiteSecrets = async (
+  site: BuiltSite,
+): Promise<
+  { ok: true; data: ResolvedSiteSecrets } | { ok: false; error: string }
+> => {
+  const pre = secretsPrecondition(site);
+  if (!pre.ok) return pre;
+  const listed = await listSecretNames(pre.scriptId);
+  if (!listed.ok) return listed;
+  return {
+    data: {
+      names: listed.names,
+      present: new Set(listed.names),
+      scriptId: pre.scriptId,
+    },
+    ok: true,
+  };
+};
+
 /** Inspect a site's live secrets and diff them against the expected set. */
 export const loadSiteSecretsStatus = async (
   site: BuiltSite,
 ): Promise<SiteSecretsView> => {
-  const pre = secretsPrecondition(site);
-  if (!pre.ok) return pre;
+  const resolved = await resolveSiteSecrets(site);
+  if (!resolved.ok) return resolved;
 
-  const listed = await listSecretNames(pre.scriptId);
-  if (!listed.ok) return listed;
-
-  const present = new Set(listed.names);
+  const { names, present } = resolved.data;
   const expected = expectedSiteSecrets(site).map(([name]) => name);
   return {
     expected,
     missing: expected.filter((name) => !present.has(name)),
     ok: true,
-    present: listed.names,
+    present: names,
   };
 };
 
@@ -117,25 +143,18 @@ export type AddMissingSecretsResult =
 export const addMissingSiteSecrets = async (
   site: BuiltSite,
 ): Promise<AddMissingSecretsResult> => {
-  const pre = secretsPrecondition(site);
-  if (!pre.ok) return pre;
-
   // Re-verify against the live list in case more secrets exist by now.
-  const listed = await listSecretNames(pre.scriptId);
-  if (!listed.ok) return listed;
-  const present = new Set(listed.names);
+  const resolved = await resolveSiteSecrets(site);
+  if (!resolved.ok) return resolved;
 
+  const { present, scriptId } = resolved.data;
   const toAdd = expectedSiteSecrets(site).filter(
     ([name]) => !present.has(name),
   );
   const added: string[] = [];
   const errors: string[] = [];
   for (const [name, value] of toAdd) {
-    const result = await bunnyCdnApi.setEdgeScriptSecret(
-      pre.scriptId,
-      name,
-      value,
-    );
+    const result = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
     if (result.ok) added.push(name);
     else errors.push(result.error);
   }
