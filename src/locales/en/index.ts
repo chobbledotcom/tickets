@@ -12,6 +12,7 @@ import builder from "./builder.json" with { type: "json" };
 import bulkActions from "./bulk-actions.json" with { type: "json" };
 import bulkEmail from "./bulk-email.json" with { type: "json" };
 import common from "./common.json" with { type: "json" };
+import csv from "./csv.json" with { type: "json" };
 import datePicker from "./date-picker.json" with { type: "json" };
 import debug from "./debug.json" with { type: "json" };
 import detailRows from "./detail-rows.json" with { type: "json" };
@@ -49,6 +50,7 @@ const en: Record<string, string> = {
   ...bulkActions,
   ...bulkEmail,
   ...common,
+  ...csv,
   ...datePicker,
   ...debug,
   ...detailRows,
