@@ -2,8 +2,8 @@
  * Admin update page template — check for and apply updates
  */
 
+import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { t } from "#shared/i18n.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
