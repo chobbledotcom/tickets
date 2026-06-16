@@ -4,13 +4,13 @@
 
 import { map, pipe } from "#fp";
 import { formatDateLabel } from "#shared/dates.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AgentFilter,
   agentFilterParam,
   renderAgentFilter,
-} from "#shared/delivery-filter.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee, DeliveryAgent } from "#shared/types.ts";
+} from "#shared/logistics-filter.ts";
+import type { AdminSession, Attendee, LogisticsAgent } from "#shared/types.ts";
 import {
   AvailabilityChecker,
   type AvailabilityRow,
@@ -52,7 +52,7 @@ export const adminCalendarPage = (
   questionData?: TableQuestionData,
   hasPaidListing = false,
   availabilityRows: AvailabilityRow[] = [],
-  agents: DeliveryAgent[] = [],
+  agents: LogisticsAgent[] = [],
   agentFilter: AgentFilter = "all",
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(

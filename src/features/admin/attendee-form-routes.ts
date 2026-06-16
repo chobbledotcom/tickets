@@ -17,10 +17,6 @@
 import { compact, filter, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
-  buildAttendeeDeliveryData,
-  parseDeliveryPlan,
-} from "#routes/admin/attendee-delivery.ts";
-import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   attendeeBalanceNotice,
@@ -33,6 +29,10 @@ import {
   toDesiredLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import {
+  buildAttendeeLogisticsData,
+  parseLogisticsPlan,
+} from "#routes/admin/attendee-logistics.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -62,16 +62,16 @@ import {
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
 import {
-  type DeliveryAssignment,
-  setDeliveryAssignments,
-} from "#shared/db/delivery.ts";
-import { getAllDeliveryAgents } from "#shared/db/delivery-agents.ts";
-import {
   type EmailStats,
   getEmailStats,
   hashEmail,
 } from "#shared/db/email-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import {
+  type LogisticsAssignment,
+  setLogisticsAssignments,
+} from "#shared/db/logistics.ts";
+import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import {
   loadAttendeeQuestionData,
   parseQuestionAnswers,
@@ -320,7 +320,7 @@ const buildTemplateData = async (
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
   const warnings = await computeWarnings(parsed, attendee?.id);
-  const delivery = await buildAttendeeDeliveryData(parsed.lines, attendee);
+  const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);
   return {
     activityLog,
     allowedDomain: getEffectiveDomain(),
@@ -328,12 +328,12 @@ const buildTemplateData = async (
     attendeeError: opts.attendeeError ?? null,
     balanceNotice,
     dateError: opts.dateError ?? null,
-    delivery,
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
     hasMixedTimings: opts.hasMixedTimings ?? false,
     lineWarnings: warnings.byListing,
+    logistics,
     mode,
     parsed,
     phonePrefix: settings.phonePrefix,
@@ -557,13 +557,13 @@ const handleSubmitInner = async (
     });
   }
 
-  // The delivery plan is read from the submitted agent selects (only when the
+  // The logistics plan is read from the submitted agent selects (only when the
   // feature is on); it is applied after the booking rows exist.
-  const deliveryPlan = settings.hasDelivery
-    ? parseDeliveryPlan(
+  const logisticsPlan = settings.hasLogistics
+    ? parseLogisticsPlan(
         form,
         parsed.lines,
-        new Set((await getAllDeliveryAgents()).map((a) => a.id)),
+        new Set((await getAllLogisticsAgents()).map((a) => a.id)),
       )
     : null;
 
@@ -571,14 +571,14 @@ const handleSubmitInner = async (
   // re-render the submitted form in place so entered data is never lost.
   const outcome =
     mode === "create"
-      ? await applyCreate(parsed, deliveryPlan)
+      ? await applyCreate(parsed, logisticsPlan)
       : await applyEdit(
           attendeeId!,
           parsed,
           attendee!,
           questions,
           parseQuestionAnswers({ optional: true })(form, questions).answerIds,
-          deliveryPlan,
+          logisticsPlan,
         );
   if (outcome.ok) return outcome.response;
   return renderForm(session, {
@@ -613,25 +613,25 @@ const savedRedirect = (
 ): Response =>
   redirect(`${attendeePath(id, returnUrl)}#${ATTENDEE_FORM_ID}`, message, true);
 
-/** The submitted delivery assignment plan, or null when delivery is off. */
-type DeliveryPlan = {
+/** The submitted logistics assignment plan, or null when logistics is off. */
+type LogisticsPlan = {
   split: boolean;
-  perListing: Map<number, DeliveryAssignment>;
+  perListing: Map<number, LogisticsAssignment>;
 } | null;
 
-/** Persist the delivery assignment plan against a saved attendee. */
-const applyDeliveryPlan = (
+/** Persist the logistics assignment plan against a saved attendee. */
+const applyLogisticsPlan = (
   attendeeId: number,
-  plan: DeliveryPlan,
+  plan: LogisticsPlan,
 ): Promise<void> =>
   plan
-    ? setDeliveryAssignments(attendeeId, plan.split, plan.perListing)
+    ? setLogisticsAssignments(attendeeId, plan.split, plan.perListing)
     : Promise.resolve();
 
 /** Run the atomic create flow. All-or-nothing via `ensureAllBookings`. */
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
-  deliveryPlan: DeliveryPlan,
+  logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
@@ -652,7 +652,7 @@ const applyCreate = async (
   >;
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
-  await applyDeliveryPlan(newId, deliveryPlan);
+  await applyLogisticsPlan(newId, logisticsPlan);
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
     firstListingId,
@@ -671,7 +671,7 @@ const applyEdit = async (
   attendee: Attendee,
   questions: QuestionWithAnswers[],
   answerIds: number[],
-  deliveryPlan: DeliveryPlan,
+  logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
@@ -707,7 +707,7 @@ const applyEdit = async (
     parsed.remainingBalance,
   );
 
-  await applyDeliveryPlan(attendeeId, deliveryPlan);
+  await applyLogisticsPlan(attendeeId, logisticsPlan);
 
   if (questions.length > 0) {
     await saveAttendeeAnswers(new Map([[attendeeId, answerIds]]));

@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a delivery_agents table plus a delivered flag on listings, a split_delivery_agents flag on attendees, and drop_off_agent_id/collection_agent_id on listing_attendees for the equipment-hire delivery flow";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id on listing_attendees for the equipment-hire logistics flow";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -109,7 +109,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
         ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
         ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
-        ["delivered", "INTEGER NOT NULL DEFAULT 0"],
+        ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -122,7 +122,7 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    "delivery_agents",
+    "logistics_agents",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
@@ -236,7 +236,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
         ["status_id", "INTEGER DEFAULT NULL"],
         ["remaining_balance", "INTEGER NOT NULL DEFAULT 0"],
-        ["split_delivery_agents", "INTEGER NOT NULL DEFAULT 0"],
+        ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -266,8 +266,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["refunded", "INTEGER NOT NULL DEFAULT 0"],
         ["price_paid", "INTEGER NOT NULL DEFAULT 0"],
         ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
-        ["drop_off_agent_id", "INTEGER DEFAULT NULL"],
-        ["collection_agent_id", "INTEGER DEFAULT NULL"],
+        ["start_agent_id", "INTEGER DEFAULT NULL"],
+        ["end_agent_id", "INTEGER DEFAULT NULL"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -1045,8 +1045,8 @@ const MIGRATIONS: Migration[] = [
   },
   {
     description:
-      "Add delivery_agents table, delivered flag on listings, split_delivery_agents on attendees, and drop_off_agent_id/collection_agent_id on listing_attendees for the equipment-hire delivery flow",
-    id: "2026-06-16_delivery_agents",
+      "Add logistics_agents table, uses_logistics flag on listings, split_logistics_agents on attendees, and start_agent_id/end_agent_id on listing_attendees for the equipment-hire logistics flow",
+    id: "2026-06-16_logistics_agents",
     up: async () => {
       await applySchemaChanges();
     },

@@ -2338,9 +2338,9 @@ a.cal-day-selected:hover {
   display: none;
 }
 
-/* Attendee form: delivery agent selectors. The "different agents per item"
+/* Attendee form: logistics agent selectors. The "different agents per item"
    toggle switches (pure CSS) between one shared pair and a pair per listing. */
-.delivery-agents .split-agents {
+.logistics-agents .split-agents {
   display: inline-flex;
   align-items: center;
   gap: var(--space-s);
@@ -2349,14 +2349,14 @@ a.cal-day-selected:hover {
   cursor: pointer;
 }
 
-.delivery-agents:has(.split-agents-toggle:checked) .delivery-single {
+.logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
   display: none;
 }
 
-.delivery-agents:not(:has(.split-agents-toggle:checked)) .delivery-split {
+.logistics-agents:not(:has(.split-agents-toggle:checked)) .logistics-split {
   display: none;
 }
 
-.delivery-line {
+.logistics-line {
   margin-bottom: var(--space-s);
 }

@@ -53,11 +53,11 @@ import {
 import {
   assignBuiltSiteField,
   attachmentField,
-  deliveredField,
   getAddAttendeeFields,
   imageField,
   initialSiteMonthsField,
   listingFields,
+  logisticsField,
   monthsPerUnitField,
   slugField,
 } from "#templates/fields.ts";
@@ -1064,7 +1064,6 @@ const listingFieldFormatters: Partial<
   closes_at: (e) => formatDatetimeLocal(e.closes_at),
   customisable_days: (e) => booleanToCheckbox(e.customisable_days),
   date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
-  delivered: (e) => booleanToCheckbox(e.delivered),
   hidden: (e) => booleanToCheckbox(e.hidden),
   initial_site_months: (e) =>
     e.initial_site_months ? String(e.initial_site_months) : "",
@@ -1073,11 +1072,12 @@ const listingFieldFormatters: Partial<
   non_transferable: (e) => booleanToCheckbox(e.non_transferable),
   purchase_only: (e) => booleanToCheckbox(e.purchase_only),
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  uses_logistics: (e) => booleanToCheckbox(e.uses_logistics),
 };
 
 const allListingFields: Field[] = [
   ...listingFields,
-  deliveredField,
+  logisticsField,
   monthsPerUnitField,
   initialSiteMonthsField,
   assignBuiltSiteField,
@@ -1139,7 +1139,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
-  "delivered",
+  "uses_logistics",
   "hidden",
 ] as const;
 
@@ -1291,7 +1291,7 @@ export const adminListingNewPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...listingFields,
-    ...(settings.hasDelivery ? [deliveredField] : []),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1333,7 +1333,7 @@ export const adminDuplicateListingPage = (
   const storageEnabled = isStorageEnabled();
   const dupFields = [
     ...listingFieldsWithAutofocus,
-    ...(settings.hasDelivery ? [deliveredField] : []),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1381,7 +1381,7 @@ export const adminListingEditPage = (
   // edit form's field list rather than the shared definitions.
   const fields = [
     ...listingFields,
-    ...(settings.hasDelivery ? [deliveredField] : []),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),

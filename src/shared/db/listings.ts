@@ -79,7 +79,7 @@ export type ListingInput = {
   durationDays?: number;
   customisableDays?: boolean;
   dayPrices?: DayPrices;
-  delivered?: boolean;
+  usesLogistics?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -169,7 +169,6 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
     read: (v) => parseDayPrices(JSON.parse(v as string)),
     write: (v) => JSON.stringify(parseDayPrices(v)),
   }),
-  delivered: col.boolean(false),
   description: col.encryptedText(encrypt, decrypt),
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
@@ -189,6 +188,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
+  uses_logistics: col.boolean(false),
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 

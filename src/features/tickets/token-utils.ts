@@ -141,7 +141,7 @@ const buildAttendeeView = (
   refunded: booking.refunded === 1,
   remaining_balance: base.remaining_balance,
   special_instructions: "",
-  split_delivery_agents: false,
+  split_logistics_agents: false,
   status_id: base.status_id,
   ticket_token: base.ticket_token,
   ticket_token_index: base.ticket_token_index,

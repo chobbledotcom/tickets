@@ -6,16 +6,16 @@ import {
   assignmentMatchesAgentFilter,
   parseAgentFilter,
   renderAgentFilter,
-} from "#shared/delivery-filter.ts";
-import type { DeliveryAgent } from "#shared/types.ts";
+} from "#shared/logistics-filter.ts";
+import type { LogisticsAgent } from "#shared/types.ts";
 
-const agents: DeliveryAgent[] = [
+const agents: LogisticsAgent[] = [
   { id: 1, name: "Van 1" },
   { id: 2, name: "Van 2" },
 ];
 const agentIds = new Set([1, 2]);
 
-describe("delivery-filter parseAgentFilter", () => {
+describe("logistics-filter parseAgentFilter", () => {
   test("defaults to all for null/blank/unknown values", () => {
     expect(parseAgentFilter(null, agentIds)).toBe("all");
     expect(parseAgentFilter("", agentIds)).toBe("all");
@@ -32,7 +32,7 @@ describe("delivery-filter parseAgentFilter", () => {
   });
 });
 
-describe("delivery-filter agentFilterParam", () => {
+describe("logistics-filter agentFilterParam", () => {
   test("all yields an empty (omitted) param", () => {
     expect(agentFilterParam("all")).toBe("");
   });
@@ -43,7 +43,7 @@ describe("delivery-filter agentFilterParam", () => {
   });
 });
 
-describe("delivery-filter assignmentMatchesAgentFilter", () => {
+describe("logistics-filter assignmentMatchesAgentFilter", () => {
   test("all matches everything", () => {
     expect(assignmentMatchesAgentFilter("all", null, null)).toBe(true);
     expect(assignmentMatchesAgentFilter("all", 1, 2)).toBe(true);
@@ -62,7 +62,7 @@ describe("delivery-filter assignmentMatchesAgentFilter", () => {
   });
 });
 
-describe("delivery-filter renderAgentFilter", () => {
+describe("logistics-filter renderAgentFilter", () => {
   const href = (f: AgentFilter): string => `/x?agent=${agentFilterParam(f)}`;
 
   test("renders All / None / each agent with the active one bold", () => {

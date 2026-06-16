@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import {
-  buildAttendeeDeliveryData,
-  collectionAgentField,
-  dropOffAgentField,
-  parseDeliveryPlan,
-  SPLIT_AGENTS_FIELD,
-} from "#routes/admin/attendee-delivery.ts";
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
-import { getDeliveryAssignments } from "#shared/db/delivery.ts";
-import { deliveryAgentsTable } from "#shared/db/delivery-agents.ts";
+import {
+  buildAttendeeLogisticsData,
+  endAgentField,
+  parseLogisticsPlan,
+  SPLIT_AGENTS_FIELD,
+  startAgentField,
+} from "#routes/admin/attendee-logistics.ts";
 import { listingsTable } from "#shared/db/listings.ts";
+import { getLogisticsAssignments } from "#shared/db/logistics.ts";
+import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
@@ -34,123 +34,123 @@ const bookedLine = (
   error: null,
   existingBooking: null,
   key: "",
-  listing: testListingWithCount({ delivered, id }),
+  listing: testListingWithCount({ id, uses_logistics: delivered }),
   listingId: id,
   quantity,
 });
 
-describe("attendee-delivery field names", () => {
+describe("attendee-logistics field names", () => {
   test("single vs split field names", () => {
-    expect(dropOffAgentField()).toBe("delivery_drop_off");
-    expect(dropOffAgentField(7)).toBe("delivery_drop_off_7");
-    expect(collectionAgentField()).toBe("delivery_collection");
-    expect(collectionAgentField(7)).toBe("delivery_collection_7");
+    expect(startAgentField()).toBe("logistics_start");
+    expect(startAgentField(7)).toBe("logistics_start_7");
+    expect(endAgentField()).toBe("logistics_end");
+    expect(endAgentField(7)).toBe("logistics_end_7");
   });
 });
 
-describe("parseDeliveryPlan", () => {
+describe("parseLogisticsPlan", () => {
   const agentIds = new Set([1, 2]);
 
   test("single mode applies the one pair to every delivered booked line", () => {
     const form = new FormParams();
-    form.set(dropOffAgentField(), "1");
-    form.set(collectionAgentField(), "2");
-    const plan = parseDeliveryPlan(
+    form.set(startAgentField(), "1");
+    form.set(endAgentField(), "2");
+    const plan = parseLogisticsPlan(
       form,
       [bookedLine(10, true), bookedLine(11, true)],
       agentIds,
     );
     expect(plan.split).toBe(false);
     expect(plan.perListing.get(10)).toEqual({
-      collectionAgentId: 2,
-      dropOffAgentId: 1,
+      endAgentId: 2,
+      startAgentId: 1,
     });
     expect(plan.perListing.get(11)).toEqual({
-      collectionAgentId: 2,
-      dropOffAgentId: 1,
+      endAgentId: 2,
+      startAgentId: 1,
     });
   });
 
   test("split mode reads per-listing fields", () => {
     const form = new FormParams();
     form.set(SPLIT_AGENTS_FIELD, "1");
-    form.set(dropOffAgentField(10), "1");
-    form.set(collectionAgentField(10), "2");
-    const plan = parseDeliveryPlan(form, [bookedLine(10, true)], agentIds);
+    form.set(startAgentField(10), "1");
+    form.set(endAgentField(10), "2");
+    const plan = parseLogisticsPlan(form, [bookedLine(10, true)], agentIds);
     expect(plan.split).toBe(true);
     expect(plan.perListing.get(10)).toEqual({
-      collectionAgentId: 2,
-      dropOffAgentId: 1,
+      endAgentId: 2,
+      startAgentId: 1,
     });
   });
 
   test("unknown agent ids and non-delivered/unbooked lines are dropped", () => {
     const form = new FormParams();
-    form.set(dropOffAgentField(), "999"); // not a known agent
-    const plan = parseDeliveryPlan(
+    form.set(startAgentField(), "999"); // not a known agent
+    const plan = parseLogisticsPlan(
       form,
       [bookedLine(10, true), bookedLine(11, false), bookedLine(12, true, 0)],
       agentIds,
     );
     expect([...plan.perListing.keys()]).toEqual([10]);
     expect(plan.perListing.get(10)).toEqual({
-      collectionAgentId: null,
-      dropOffAgentId: null,
+      endAgentId: null,
+      startAgentId: null,
     });
   });
 });
 
-describeWithEnv("buildAttendeeDeliveryData", { db: true }, () => {
-  test("undefined when delivery is disabled", async () => {
-    settings.setForTest({ has_delivery: false });
+describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
+  test("undefined when logistics is disabled", async () => {
+    settings.setForTest({ has_logistics: false });
     expect(
-      await buildAttendeeDeliveryData([bookedLine(1, true)], null),
+      await buildAttendeeLogisticsData([bookedLine(1, true)], null),
     ).toBeUndefined();
   });
 
   test("undefined when no delivered listing is booked", async () => {
-    settings.setForTest({ has_delivery: true });
-    await deliveryAgentsTable.insert({ name: "Van" });
+    settings.setForTest({ has_logistics: true });
+    await logisticsAgentsTable.insert({ name: "Van" });
     expect(
-      await buildAttendeeDeliveryData([bookedLine(1, false)], null),
+      await buildAttendeeLogisticsData([bookedLine(1, false)], null),
     ).toBeUndefined();
   });
 
   test("undefined when there are no agents", async () => {
-    settings.setForTest({ has_delivery: true });
+    settings.setForTest({ has_logistics: true });
     expect(
-      await buildAttendeeDeliveryData([bookedLine(1, true)], null),
+      await buildAttendeeLogisticsData([bookedLine(1, true)], null),
     ).toBeUndefined();
   });
 
   test("returns agents and an empty single pair for a create form", async () => {
-    settings.setForTest({ has_delivery: true });
-    await deliveryAgentsTable.insert({ name: "Van" });
-    const data = await buildAttendeeDeliveryData([bookedLine(5, true)], null);
+    settings.setForTest({ has_logistics: true });
+    await logisticsAgentsTable.insert({ name: "Van" });
+    const data = await buildAttendeeLogisticsData([bookedLine(5, true)], null);
     expect(data!.agents.map((a) => a.name)).toEqual(["Van"]);
     expect(data!.split).toBe(false);
     expect(data!.single).toEqual({
-      collectionAgentId: null,
-      dropOffAgentId: null,
+      endAgentId: null,
+      startAgentId: null,
     });
     expect(data!.lines.map((l) => l.listingId)).toEqual([5]);
   });
 });
 
-describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
+describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
   const enableDeliveredListing = async () => {
-    settings.setForTest({ has_delivery: true });
+    settings.setForTest({ has_logistics: true });
     const listing = await createTestListing({
       maxAttendees: 100,
       maxQuantity: 5,
     });
-    await listingsTable.update(listing.id, { delivered: true });
-    const drop = await deliveryAgentsTable.insert({ name: "Drop Van" });
-    const coll = await deliveryAgentsTable.insert({ name: "Coll Van" });
+    await listingsTable.update(listing.id, { usesLogistics: true });
+    const drop = await logisticsAgentsTable.insert({ name: "Drop Van" });
+    const coll = await logisticsAgentsTable.insert({ name: "Coll Van" });
     return { coll, drop, listing };
   };
 
-  test("new form renders the delivery selectors for a delivered listing", async () => {
+  test("new form renders the logistics selectors for a delivered listing", async () => {
     const { listing } = await enableDeliveredListing();
     const { cookie } = await getTestSession();
     const response = await awaitTestRequest(
@@ -158,12 +158,12 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
       { cookie },
     );
     const html = await response.text();
-    expect(html).toContain(">Delivery<");
-    expect(html).toContain('name="delivery_drop_off"');
-    expect(html).toContain('name="delivery_collection"');
+    expect(html).toContain(">Logistics<");
+    expect(html).toContain('name="logistics_start"');
+    expect(html).toContain('name="logistics_end"');
     expect(html).toContain(`name="${SPLIT_AGENTS_FIELD}"`);
     // Per-listing (split mode) selectors are rendered too.
-    expect(html).toContain(`name="${dropOffAgentField(listing.id)}"`);
+    expect(html).toContain(`name="${startAgentField(listing.id)}"`);
     expect(html).toContain("Drop Van");
   });
 
@@ -175,8 +175,8 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
         "/admin/attendees/new",
         {
           csrf_token: csrfToken,
-          [collectionAgentField()]: String(coll.id),
-          [dropOffAgentField()]: String(drop.id),
+          [endAgentField()]: String(coll.id),
+          [startAgentField()]: String(drop.id),
           name: "Jane",
           [`qty_${listing.id}`]: "1",
         },
@@ -185,15 +185,15 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
     );
     expect(response.status).toBe(302);
     const attendees = await getAttendeesRaw(listing.id);
-    const assignments = await getDeliveryAssignments(attendees[0]!.id);
+    const assignments = await getLogisticsAssignments(attendees[0]!.id);
     expect(assignments.get(listing.id)).toEqual({
-      collectionAgentId: coll.id,
-      dropOffAgentId: drop.id,
+      endAgentId: coll.id,
+      startAgentId: drop.id,
     });
   });
 
-  test("no delivery write happens when the feature is off", async () => {
-    settings.setForTest({ has_delivery: false });
+  test("no logistics write happens when the feature is off", async () => {
+    settings.setForTest({ has_logistics: false });
     const listing = await createTestListing({ maxAttendees: 100 });
     const { cookie, csrfToken } = await getTestSession();
     const response = await handleRequest(
@@ -201,7 +201,7 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
         "/admin/attendees/new",
         {
           csrf_token: csrfToken,
-          name: "NoDelivery",
+          name: "NoLogistics",
           [`qty_${listing.id}`]: "1",
         },
         cookie,
@@ -209,10 +209,10 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
     );
     expect(response.status).toBe(302);
     const attendees = await getAttendeesRaw(listing.id);
-    const assignments = await getDeliveryAssignments(attendees[0]!.id);
+    const assignments = await getLogisticsAssignments(attendees[0]!.id);
     expect(assignments.get(listing.id)).toEqual({
-      collectionAgentId: null,
-      dropOffAgentId: null,
+      endAgentId: null,
+      startAgentId: null,
     });
   });
 
@@ -224,7 +224,7 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
         "/admin/attendees/new",
         {
           csrf_token: csrfToken,
-          [dropOffAgentField()]: String(drop.id),
+          [startAgentField()]: String(drop.id),
           name: "Jane",
           [`qty_${listing.id}`]: "1",
         },
@@ -237,9 +237,9 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
       mockFormRequest(
         `/admin/attendees/${attendeeId}`,
         {
-          [collectionAgentField(listing.id)]: String(coll.id),
+          [endAgentField(listing.id)]: String(coll.id),
           csrf_token: csrfToken,
-          [dropOffAgentField(listing.id)]: String(coll.id),
+          [startAgentField(listing.id)]: String(coll.id),
           name: "Jane",
           [`qty_${listing.id}`]: "1",
           [SPLIT_AGENTS_FIELD]: "1",
@@ -249,10 +249,10 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
     );
     expect(editResponse.status).toBe(302);
 
-    const assignments = await getDeliveryAssignments(attendeeId);
+    const assignments = await getLogisticsAssignments(attendeeId);
     expect(assignments.get(listing.id)).toEqual({
-      collectionAgentId: coll.id,
-      dropOffAgentId: coll.id,
+      endAgentId: coll.id,
+      startAgentId: coll.id,
     });
   });
 
@@ -264,8 +264,8 @@ describeWithEnv("attendee form delivery (HTTP)", { db: true }, () => {
         "/admin/attendees/new",
         {
           csrf_token: csrfToken,
-          [collectionAgentField()]: String(coll.id),
-          [dropOffAgentField()]: String(drop.id),
+          [endAgentField()]: String(coll.id),
+          [startAgentField()]: String(drop.id),
           name: "Jane",
           [`qty_${listing.id}`]: "1",
         },

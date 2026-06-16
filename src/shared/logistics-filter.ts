@@ -1,12 +1,12 @@
 /**
- * The calendar's "by delivery agent" filter: the filter value, parsing a raw
+ * The calendar's "by logistics agent" filter: the filter value, parsing a raw
  * query param into it, matching a booking's assignment against it, and the
  * rendered "Agent: All / None / Van 1 / …" bar. Mirrors the listing-type filter
  * so the calendar drives the same kind of control.
  */
 
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
-import type { DeliveryAgent } from "#shared/types.ts";
+import type { LogisticsAgent } from "#shared/types.ts";
 
 /** Filter value: "all", "none" (no agent assigned), or a specific agent id. */
 export type AgentFilter = "all" | "none" | number;
@@ -32,13 +32,12 @@ export const agentFilterParam = (filter: AgentFilter): string =>
  */
 export const assignmentMatchesAgentFilter = (
   filter: AgentFilter,
-  dropOffAgentId: number | null,
-  collectionAgentId: number | null,
+  startAgentId: number | null,
+  endAgentId: number | null,
 ): boolean => {
   if (filter === "all") return true;
-  if (filter === "none")
-    return dropOffAgentId === null && collectionAgentId === null;
-  return dropOffAgentId === filter || collectionAgentId === filter;
+  if (filter === "none") return startAgentId === null && endAgentId === null;
+  return startAgentId === filter || endAgentId === filter;
 };
 
 /**
@@ -47,7 +46,7 @@ export const assignmentMatchesAgentFilter = (
  */
 export const renderAgentFilter = (
   active: AgentFilter,
-  agents: readonly DeliveryAgent[],
+  agents: readonly LogisticsAgent[],
   hrefFor: (f: AgentFilter) => string,
 ): string => {
   const options: { filter: AgentFilter; label: string }[] = [

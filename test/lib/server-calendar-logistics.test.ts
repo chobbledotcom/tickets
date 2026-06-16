@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { setDeliveryAssignments } from "#shared/db/delivery.ts";
-import { deliveryAgentsTable } from "#shared/db/delivery-agents.ts";
+import { setLogisticsAssignments } from "#shared/db/logistics.ts";
+import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -24,11 +24,11 @@ const calendarHtml = async (query: string): Promise<string> => {
 };
 
 describeWithEnv(
-  "admin calendar delivery filter",
+  "admin calendar logistics filter",
   { db: true, env: { NTFY_URL: undefined } },
   () => {
     const setup = async () => {
-      settings.setForTest({ has_delivery: true });
+      settings.setForTest({ has_logistics: true });
       const listing = await createDailyTestListing();
       const d = date();
       await submitTicketForm(listing.slug, {
@@ -36,17 +36,14 @@ describeWithEnv(
         email: "a@test.com",
         name: "Agent User",
       });
-      const assigned = await deliveryAgentsTable.insert({ name: "Mine" });
-      const other = await deliveryAgentsTable.insert({ name: "Other" });
+      const assigned = await logisticsAgentsTable.insert({ name: "Mine" });
+      const other = await logisticsAgentsTable.insert({ name: "Other" });
       const attendees = await getAttendeesRaw(listing.id);
-      await setDeliveryAssignments(
+      await setLogisticsAssignments(
         attendees[0]!.id,
         false,
         new Map([
-          [
-            listing.id,
-            { collectionAgentId: null, dropOffAgentId: assigned.id },
-          ],
+          [listing.id, { endAgentId: null, startAgentId: assigned.id }],
         ]),
       );
       return { assigned, d, other };
@@ -91,9 +88,9 @@ describeWithEnv(
       expect(html).not.toContain("Agent User");
     });
 
-    test("no filter bar when delivery is disabled", async () => {
+    test("no filter bar when logistics is disabled", async () => {
       const { d } = await setup();
-      settings.setForTest({ has_delivery: false });
+      settings.setForTest({ has_logistics: false });
       const html = await calendarHtml(`/admin/calendar?date=${d}`);
       expect(html).not.toContain("Agent:");
     });

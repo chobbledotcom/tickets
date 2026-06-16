@@ -24,11 +24,6 @@ import {
   decryptAttendees,
   getListingRemainingForRange,
 } from "#shared/db/attendees.ts";
-import {
-  bookingAssignmentKey,
-  getDeliveryAssignmentsForAttendees,
-} from "#shared/db/delivery.ts";
-import { getAllDeliveryAgents } from "#shared/db/delivery-agents.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getAllDailyListings,
@@ -37,13 +32,18 @@ import {
   getDailyListingAttendeeDates,
   getDailyListingAttendeesByDate,
 } from "#shared/db/listings.ts";
+import {
+  bookingAssignmentKey,
+  getLogisticsAssignmentsForAttendees,
+} from "#shared/db/logistics.ts";
+import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   type AgentFilter,
   assignmentMatchesAgentFilter,
   parseAgentFilter,
-} from "#shared/delivery-filter.ts";
+} from "#shared/logistics-filter.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   type Attendee,
@@ -149,7 +149,7 @@ const filterAttendeesByAgent = async (
   agentFilter: AgentFilter,
 ): Promise<CalendarAttendeeRow[]> => {
   if (agentFilter === "all") return attendees;
-  const assignments = await getDeliveryAssignmentsForAttendees(
+  const assignments = await getLogisticsAssignmentsForAttendees(
     unique(map((a: CalendarAttendeeRow) => a.id)(attendees)),
   );
   // The booking keys whose assignment matches the filter; an attendee row is
@@ -157,11 +157,7 @@ const filterAttendeesByAgent = async (
   const matching = new Set(
     assignments
       .filter((a) =>
-        assignmentMatchesAgentFilter(
-          agentFilter,
-          a.dropOffAgentId,
-          a.collectionAgentId,
-        ),
+        assignmentMatchesAgentFilter(agentFilter, a.startAgentId, a.endAgentId),
       )
       .map((a) => bookingAssignmentKey(a.attendeeId, a.listingId)),
   );
@@ -250,7 +246,7 @@ const handleAdminCalendarGet = (request: Request) =>
         loadStandardListingContext(),
       ]);
 
-    const agents = settings.hasDelivery ? await getAllDeliveryAgents() : [];
+    const agents = settings.hasLogistics ? await getAllLogisticsAgents() : [];
     const agentFilter = parseAgentFilter(
       getSearchParam(request, "agent"),
       new Set(agents.map((a) => a.id)),

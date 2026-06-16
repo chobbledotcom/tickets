@@ -13,12 +13,6 @@
 
 import { compact } from "#fp";
 import {
-  type AttendeeDeliveryData,
-  collectionAgentField,
-  dropOffAgentField,
-  SPLIT_AGENTS_FIELD,
-} from "#routes/admin/attendee-delivery.ts";
-import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   type BalanceNotice,
@@ -32,6 +26,12 @@ import {
   SHOW_ALL_FIELD,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import {
+  type AttendeeLogisticsData,
+  endAgentField,
+  SPLIT_AGENTS_FIELD,
+  startAgentField,
+} from "#routes/admin/attendee-logistics.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
@@ -108,8 +108,8 @@ export type AttendeeFormTemplateData = {
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
-  /** Delivery selectors data, or undefined when delivery doesn't apply. */
-  delivery?: AttendeeDeliveryData;
+  /** Logistics selectors data, or undefined when logistics doesn't apply. */
+  logistics?: AttendeeLogisticsData;
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded". */
@@ -236,7 +236,7 @@ const AgentSelect = ({
 }: {
   name: string;
   label: string;
-  agents: AttendeeDeliveryData["agents"];
+  agents: AttendeeLogisticsData["agents"];
   selected: number | null;
 }): JSX.Element => (
   <label>
@@ -255,23 +255,23 @@ const AgentSelect = ({
 );
 
 /**
- * Delivery agent selectors for delivered listings. A "different agents per
+ * Logistics agent selectors for delivered listings. A "different agents per
  * item" checkbox switches (pure CSS) between one shared drop-off/collection
- * pair and a pair per delivered listing. Only rendered when delivery applies.
+ * pair and a pair per delivered listing. Only rendered when logistics applies.
  */
-const DeliverySection = ({
+const LogisticsSection = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
 }): JSX.Element | null => {
-  const delivery = data.delivery;
-  if (!delivery) return null;
+  const logistics = data.logistics;
+  if (!logistics) return null;
   return (
-    <div class="delivery-agents">
-      <h3>Delivery</h3>
+    <div class="logistics-agents">
+      <h3>Logistics</h3>
       <label class="split-agents">
         <input
-          checked={delivery.split}
+          checked={logistics.split}
           class="split-agents-toggle"
           name={SPLIT_AGENTS_FIELD}
           type="checkbox"
@@ -279,35 +279,35 @@ const DeliverySection = ({
         />
         Use different agents per item
       </label>
-      <div class="delivery-single">
+      <div class="logistics-single">
         <AgentSelect
-          agents={delivery.agents}
-          label="Drop-off agent"
-          name={dropOffAgentField()}
-          selected={delivery.single.dropOffAgentId}
+          agents={logistics.agents}
+          label="Start agent"
+          name={startAgentField()}
+          selected={logistics.single.startAgentId}
         />
         <AgentSelect
-          agents={delivery.agents}
-          label="Collection agent"
-          name={collectionAgentField()}
-          selected={delivery.single.collectionAgentId}
+          agents={logistics.agents}
+          label="End agent"
+          name={endAgentField()}
+          selected={logistics.single.endAgentId}
         />
       </div>
-      <div class="delivery-split">
-        {delivery.lines.map((line) => (
-          <fieldset class="delivery-line">
+      <div class="logistics-split">
+        {logistics.lines.map((line) => (
+          <fieldset class="logistics-line">
             <legend>{line.name}</legend>
             <AgentSelect
-              agents={delivery.agents}
-              label="Drop-off agent"
-              name={dropOffAgentField(line.listingId)}
-              selected={line.assignment.dropOffAgentId}
+              agents={logistics.agents}
+              label="Start agent"
+              name={startAgentField(line.listingId)}
+              selected={line.assignment.startAgentId}
             />
             <AgentSelect
-              agents={delivery.agents}
-              label="Collection agent"
-              name={collectionAgentField(line.listingId)}
-              selected={line.assignment.collectionAgentId}
+              agents={logistics.agents}
+              label="End agent"
+              name={endAgentField(line.listingId)}
+              selected={line.assignment.endAgentId}
             />
           </fieldset>
         ))}
@@ -637,7 +637,7 @@ const AttendeeEditForm = ({
       )}
       <ListingEditor data={data} />
 
-      <DeliverySection data={data} />
+      <LogisticsSection data={data} />
 
       <hr />
 

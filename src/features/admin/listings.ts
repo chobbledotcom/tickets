@@ -155,7 +155,6 @@ const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
     customisableDays: values.customisable_days === "1",
     date: normalizeOptionalDatetime(values.date, "date") ?? "",
     dayPrices: parseDayPricesFromForm(form, durationDays),
-    delivered: settings.hasDelivery && form.getString("delivered") === "1",
     description: values.description,
     durationDays,
     fields: values.fields || "",
@@ -175,6 +174,8 @@ const extractCommonFields = (values: ListingFormValues, form: FormParams) => {
     purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
     unitPrice: parseOptionalPrice(values.unit_price),
+    usesLogistics:
+      settings.hasLogistics && form.getString("uses_logistics") === "1",
     webhookUrl,
   };
 };

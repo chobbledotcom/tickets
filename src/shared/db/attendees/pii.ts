@@ -94,7 +94,7 @@ export const decryptAttendeeFields = async (
     // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
     price_paid: String(row.price_paid),
     refunded: paidListing ? Boolean(row.refunded) : false,
-    split_delivery_agents: Boolean(row.split_delivery_agents),
+    split_logistics_agents: Boolean(row.split_logistics_agents),
   };
 };
 

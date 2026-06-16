@@ -636,15 +636,15 @@ export const listingFields: Field[] = [
 ];
 
 /**
- * "Delivered" listing toggle. Only assembled into the listing form when the
- * delivery feature is enabled (see the listing page builders); attendees of a
- * delivered listing carry drop-off and collection agents.
+ * "Needs logistics" listing toggle. Only assembled into the listing form when
+ * the logistics feature is enabled (see the listing page builders); attendees
+ * of a logistics listing carry start and end agents.
  */
-export const deliveredField: Field = {
-  hint: "Dropped off and collected from the customer's address. Attendees gain drop-off and collection agent selectors.",
-  label: "Delivered",
-  name: "delivered",
-  options: [{ label: "Delivered to the customer", value: "1" }],
+export const logisticsField: Field = {
+  hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
+  label: "Needs logistics",
+  name: "uses_logistics",
+  options: [{ label: "Assign agents to this listing's bookings", value: "1" }],
   type: "checkbox-group",
 };
 
@@ -699,9 +699,9 @@ export const holidayFields: Field[] = [
 ];
 
 /**
- * Delivery agent form field definitions
+ * Logistics agent form field definitions
  */
-export const deliveryAgentFields: Field[] = [
+export const logisticsAgentFields: Field[] = [
   {
     label: "Agent Name",
     name: "name",
