@@ -1,8 +1,22 @@
 import { expect } from "@std/expect";
-import { describe } from "@std/testing/bdd";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import { describe, it as test } from "@std/testing/bdd";
+import { applyModifiers, priceCheckout } from "#shared/checkout-pricing.ts";
+import type {
+  CheckoutIntent,
+  CheckoutItem,
+  ModifierSpec,
+} from "#shared/payments.ts";
 import { testWithSetting } from "#test-utils";
+
+const modifier = (overrides: Partial<ModifierSpec> = {}): ModifierSpec => ({
+  id: 1,
+  kind: "fixed",
+  listingIds: null,
+  name: "Add-on",
+  quantity: 1,
+  value: 500,
+  ...overrides,
+});
 
 /** Build a CheckoutIntent around the given items (and optional overrides). */
 const intentWith = (
@@ -111,4 +125,86 @@ describe("priceCheckout", () => {
       expect(order.total).toBe(4500);
     },
   );
+
+  testWithSetting(
+    "adds an additive modifier as an extra line before the fee",
+    { booking_fee: "10" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 2 })], {
+          modifiers: [modifier({ kind: "fixed", name: "Parking", value: 500 })],
+        }),
+      );
+      // Tickets 2 × £10 = £20; +£5 parking; fee is 10% of (£20 + £5) = £2.50.
+      expect(order.extras).toEqual([
+        { amount: 500, key: "mod:1", name: "Parking", quantity: 1 },
+        { amount: 250, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.fullSubtotal).toBe(2500);
+      expect(order.total).toBe(2750);
+    },
+  );
+
+  testWithSetting(
+    "ignores a discount modifier in pricing (not yet emitted)",
+    { booking_fee: "0" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 2 })], {
+          modifiers: [modifier({ kind: "percent", value: -10 })],
+        }),
+      );
+      expect(order.extras).toEqual([]);
+      expect(order.total).toBe(2000);
+    },
+  );
+});
+
+describe("applyModifiers", () => {
+  const items: CheckoutItem[] = [
+    item({ listingId: 1, quantity: 2, unitPrice: 1000 }),
+    item({ listingId: 2, quantity: 1, slug: "vip", unitPrice: 2500 }),
+  ];
+
+  test("charges a percentage on the whole-order subtotal", () => {
+    // 10% of (£20 + £25) = £4.50.
+    const { extras, modifierTotal } = applyModifiers(items, [
+      modifier({ kind: "percent", listingIds: null, value: 10 }),
+    ]);
+    expect(extras).toEqual([
+      { amount: 450, key: "mod:1", name: "Add-on", quantity: 1 },
+    ]);
+    expect(modifierTotal).toBe(450);
+  });
+
+  test("scopes a percentage to only the listed items", () => {
+    // 10% of listing 1's £20 only = £2.
+    const { extras, modifierTotal } = applyModifiers(items, [
+      modifier({ kind: "percent", listingIds: [1], value: 10 }),
+    ]);
+    expect(extras[0]!.amount).toBe(200);
+    expect(modifierTotal).toBe(200);
+  });
+
+  test("multiplies a fixed add-on by its quantity in the total", () => {
+    const { extras, modifierTotal } = applyModifiers(items, [
+      modifier({ kind: "fixed", quantity: 3, value: 500 }),
+    ]);
+    // Line shows £5 × 3; the contributed total is £15.
+    expect(extras[0]).toEqual({
+      amount: 500,
+      key: "mod:1",
+      name: "Add-on",
+      quantity: 3,
+    });
+    expect(modifierTotal).toBe(1500);
+  });
+
+  test("omits a modifier whose delta is not positive", () => {
+    const { extras, modifierTotal } = applyModifiers(items, [
+      modifier({ kind: "fixed", value: -500 }),
+    ]);
+    expect(extras).toEqual([]);
+    expect(modifierTotal).toBe(0);
+  });
 });

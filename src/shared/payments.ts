@@ -9,6 +9,7 @@
 import * as v from "valibot";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { CalcKind } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -27,6 +28,23 @@ export type CheckoutItem = {
   unitPrice: number;
   slug: string;
   name: string;
+};
+
+/**
+ * A modifier resolved for a specific checkout — the input the pricing pipeline
+ * applies. Eligibility (scope, stock, codes) is decided upstream; by the time a
+ * spec reaches pricing it is known to apply. `value` is the signed calc value
+ * (see `modifierDelta`); `listingIds` scopes which items it is charged on
+ * (`null` = the whole order); `quantity` is how many the buyer took (1 for an
+ * automatic or code modifier, more for an opt-in add-on).
+ */
+export type ModifierSpec = {
+  id: number;
+  name: string;
+  kind: CalcKind;
+  value: number;
+  listingIds: number[] | null;
+  quantity: number;
 };
 
 /** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
@@ -59,6 +77,9 @@ export type CheckoutIntent = ContactInfo & {
    * the checkout). Absent when no selected listing is customisable. */
   dayCount?: number;
   items: CheckoutItem[];
+  /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
+   * empty when none apply. Applied to the price by the checkout-pricing layer. */
+  modifiers?: ModifierSpec[];
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
   /** Plain site renewal token from /renew. Hashed before storage in provider

@@ -8,14 +8,19 @@
  * providers in lock-step and gives later pricing features one place to plug in.
  */
 
-import { sumOf } from "#fp";
+import { filter, sumOf } from "#fp";
 import {
   chargeSubtotal,
   chargeUnitAmount,
   feeSubtotalFor,
   getBookingFeeAmount,
 } from "#shared/booking-fee.ts";
-import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import type {
+  CheckoutIntent,
+  CheckoutItem,
+  ModifierSpec,
+} from "#shared/payments.ts";
+import { modifierDelta } from "#shared/price-modifier.ts";
 
 /** One ticket line plus the amount actually charged per unit (deposit-aware). */
 export type PricedLine = {
@@ -53,6 +58,56 @@ const feeExtras = (fullSubtotal: number): ExtraLine[] => {
     : [];
 };
 
+/** The result of applying modifiers: the extra lines they add, and the total
+ * those lines contribute (so the booking fee can be charged on the higher
+ * subtotal). */
+type ModifierResult = { extras: ExtraLine[]; modifierTotal: number };
+
+/** The full (pre-deposit) subtotal of the items a modifier is scoped to —
+ * the whole order when `listingIds` is null, else just the matching lines. */
+const inScopeSubtotal = (
+  items: CheckoutItem[],
+  listingIds: number[] | null,
+): number => {
+  const scoped =
+    listingIds === null
+      ? items
+      : filter((i: CheckoutItem) => listingIds.includes(i.listingId))(items);
+  return sumOf((i: CheckoutItem) => i.unitPrice * i.quantity)(scoped);
+};
+
+/**
+ * Apply resolved modifiers to a checkout's items, producing the extra charge
+ * lines they add. Each modifier reads the original (pre-modifier) in-scope
+ * subtotal, so modifiers never compound on one another.
+ *
+ * Additive modifiers (surcharges and add-ons) become positive extra lines, the
+ * same shape as the booking fee. Discounts (a non-positive delta) are not
+ * emitted here yet — reducing a charge requires allocating the discount across
+ * the ticket lines, which is handled when discount modifiers are introduced.
+ */
+export const applyModifiers = (
+  items: CheckoutItem[],
+  specs: ModifierSpec[],
+): ModifierResult => {
+  const extras: ExtraLine[] = [];
+  let modifierTotal = 0;
+  for (const spec of specs) {
+    const base = inScopeSubtotal(items, spec.listingIds);
+    const delta = modifierDelta(base, spec.kind, spec.value);
+    if (delta > 0) {
+      extras.push({
+        amount: delta,
+        key: `mod:${spec.id}`,
+        name: spec.name,
+        quantity: spec.quantity,
+      });
+      modifierTotal += delta * spec.quantity;
+    }
+  }
+  return { extras, modifierTotal };
+};
+
 /**
  * Price a checkout intent into provider-agnostic lines, extras, and total.
  * Reproduces the per-line deposit charging (`chargeUnitAmount`) and the
@@ -63,8 +118,10 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     chargedUnitAmount: chargeUnitAmount(intent, item),
     item,
   }));
-  const fullSubtotal = feeSubtotalFor(intent);
-  const extras = feeExtras(fullSubtotal);
+  const modifiers = applyModifiers(intent.items, intent.modifiers ?? []);
+  // The booking fee is charged on the full order plus any surcharges/add-ons.
+  const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
+  const extras = [...modifiers.extras, ...feeExtras(fullSubtotal)];
   return {
     extras,
     fullSubtotal,
