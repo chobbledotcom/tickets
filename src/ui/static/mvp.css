@@ -174,14 +174,18 @@ main {
   padding: var(--space-lg) var(--space-m);
 }
 
+body > footer,
 main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
   /* Fluid horizontal padding: stays at the small --space-m floor on mobile,
      eases through ~lg across tablet widths, and caps at the --space-xl
      ceiling on desktop. Vertical padding stays as set by the base rule. */
   padding-inline: clamp(var(--space-m), 4.5vw, var(--space-xl));
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
 }
 
 /* Stack reset: gap controls spacing, not browser default margins */
@@ -2034,21 +2038,37 @@ a.cal-day-selected:hover {
 
 /* Guide page */
 
-/* Attendees browser filter/sort form */
-.attendees-filter {
+/* Filter/sort form row */
+.filter-row {
   display: flex;
   flex-wrap: wrap;
+  flex-direction: row;
   align-items: flex-end;
   gap: 1rem;
   margin: 1rem 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  max-width: 100%;
 }
 
-.attendees-filter label {
+/* Override dark-mode form box-shadow (base and focus) which would otherwise apply */
+[data-theme="dark"] .filter-row,
+[data-theme="dark"] .filter-row:focus-within {
+  box-shadow: none;
+}
+
+.filter-row label {
   margin: 0;
 }
 
-.attendees-filter button {
+.filter-row button {
   margin: 0;
+}
+
+.filter-row select {
+  max-width: 15rem;
 }
 
 /* Previous/next pagination */

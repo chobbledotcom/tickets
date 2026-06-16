@@ -61,7 +61,7 @@ describeWithEnv(
             }),
           );
 
-          expect(response.status).toBe(400);
+          expect(response.status).toBe(302);
           expect(mockCreate.calls.length).toBe(0);
         } finally {
           mockCreate.restore();

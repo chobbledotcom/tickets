@@ -82,7 +82,7 @@ const FilterForm = ({
   listingId: number | null;
   sortOrder: AttendeeSort;
 }): JSX.Element => (
-  <form action="/admin/attendees" class="attendees-filter" method="get">
+  <form action="/admin/attendees" class="filter-row" method="get">
     <label>
       Listing
       <select name="listing">

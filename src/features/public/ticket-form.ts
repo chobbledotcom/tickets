@@ -4,7 +4,7 @@
 
 import { filter, map } from "#fp";
 import { capacityErrorFormatter } from "#routes/format.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
 import type {
   QuestionListingMap,
@@ -84,14 +84,14 @@ export const ticketResponse =
   (error?: string, status = 200) =>
     htmlResponse(renderTicketPage(ctx, error), status);
 
-/** Ticket form error response: re-render the booking page inline with the error
- * so everything the visitor entered is preserved (saved form data restores the
- * contact fields and the booking controls). Returns 400 to signal the failed
- * submission while keeping the form and its contents on screen. */
-export const ticketFormErrorResponse =
-  (ctx: TicketCtx) =>
-  (error: string, status = 400): Response =>
-    ticketResponse(ctx)(error, status);
+/** Ticket form error redirect (PRG). The submitted form is stashed by
+ * `redirect()` and re-filled on the follow-up GET — contact fields via
+ * renderFields, and the booking controls via their savedFormValue restores —
+ * so the visitor keeps everything they entered. */
+export const ticketFormErrorResponse = (ctx: TicketCtx) => {
+  const url = ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`;
+  return (error: string, _status = 400) => errorRedirect(url, error);
+};
 
 /** Parse quantity values from ticket form */
 export const parseQuantities = (

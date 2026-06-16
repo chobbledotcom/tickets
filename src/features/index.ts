@@ -26,7 +26,13 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
+import {
+  getClientIp,
+  normalizePath,
+  parseCookies,
+  parseRequest,
+} from "#routes/url.ts";
+import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
   seedEffectiveDomainHost,
@@ -50,7 +56,9 @@ import {
   runWithFlashContext,
   setFlashContext,
 } from "#shared/flash-context.ts";
-import { clearSavedFormData } from "#shared/forms.tsx";
+import { FormParams } from "#shared/form-data.ts";
+import { takeForm } from "#shared/form-stash.ts";
+import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import {
   createRequestTimer,
@@ -240,7 +248,7 @@ const readOnlyGuard = (path: string, method: string): Response | null => {
 
   // Block all JSON API mutations (POST/PUT/DELETE on /api/*)
   if (path.startsWith("/api/") && method !== "GET" && method !== "OPTIONS") {
-    return jsonResponse({ error: true, message: READ_ONLY_MESSAGE }, 403);
+    return jsonResponse({ error: READ_ONLY_MESSAGE }, 403);
   }
 
   // Block GET pages for create/edit forms
@@ -486,6 +494,12 @@ const applyFlashFromCookie = (request: Request): string | null => {
     : null;
   const flash = flashRaw ? parseFlashValue(flashRaw) : null;
   if (flash) setFlashContext(flash);
+  // Redeem the form re-fill stash (warm-isolate optimisation). A miss is fine:
+  // the flash message above still renders, matching the cookie-only fallback.
+  if (flash?.formToken) {
+    const stashed = takeForm(flash.formToken);
+    if (stashed) setSavedFormData(new FormParams(stashed));
+  }
   return flash ? flashId : null;
 };
 
@@ -636,11 +650,15 @@ export const handleRequest = async (
 ): Promise<Response> => {
   const effectiveRequest = await bufferRequestIfNeeded(request);
 
-  return runWithRequestId(() =>
-    runWithRequestCache(() =>
-      runWithQueryLogContext(() =>
-        runWithFlashContext(() =>
-          runWithSessionContext(() => processRequest(effectiveRequest, server)),
+  return runWithClientIp(getClientIp(request, server), () =>
+    runWithRequestId(() =>
+      runWithRequestCache(() =>
+        runWithQueryLogContext(() =>
+          runWithFlashContext(() =>
+            runWithSessionContext(() =>
+              processRequest(effectiveRequest, server),
+            ),
+          ),
         ),
       ),
     ),

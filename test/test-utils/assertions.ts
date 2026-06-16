@@ -74,22 +74,6 @@ export const assertPublicHtml = async (
   return expectHtmlResponse(response, 200, ...substrings);
 };
 
-/**
- * Assert a booking validation error: the booking page is re-rendered inline
- * (HTTP 400) with the error message shown, so the visitor keeps everything they
- * entered (quantities, date, custom prices, answers, terms, contact fields).
- * Replaces the old PRG redirect + flash assertion for ticket/order errors.
- */
-export const expectBookingError = async (
-  response: Response,
-  ...messages: string[]
-): Promise<string> => {
-  expect(response.status).toBe(400);
-  const html = await response.text();
-  for (const m of messages) expect(html).toContain(m);
-  return html;
-};
-
 export const expectHtmlResponse = async (
   response: Response,
   status: number,

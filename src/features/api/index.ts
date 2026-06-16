@@ -10,7 +10,8 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { getBaseUrl } from "#routes/url.ts";
+import type { ServerContext } from "#routes/types.ts";
+import { getBaseUrl, getClientIp } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import {
@@ -18,6 +19,10 @@ import {
   getGroupRemainingForListing,
 } from "#shared/db/attendees/capacity.ts";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
+import {
+  isBookingRateLimited,
+  recordBookingAttempt,
+} from "#shared/db/booking-attempts.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getAllListings,
@@ -166,11 +171,21 @@ const parseApiJsonBody = async (
 /** Wrap a handler that needs an active listing — handles slug lookup + 404 */
 const withActiveListing =
   (
-    handler: (request: Request, listing: ListingWithCount) => Promise<Response>,
+    handler: (
+      request: Request,
+      listing: ListingWithCount,
+      server?: ServerContext,
+    ) => Promise<Response>,
   ) =>
-  async (request: Request, { slug }: { slug: string }): Promise<Response> => {
+  async (
+    request: Request,
+    { slug }: { slug: string },
+    server?: ServerContext,
+  ): Promise<Response> => {
     const result = await findActiveListing(slug);
-    return result instanceof Response ? result : handler(request, result);
+    return result instanceof Response
+      ? result
+      : handler(request, result, server);
   };
 
 // =============================================================================
@@ -244,11 +259,13 @@ const bookingResultToResponse = (
   switch (result.type) {
     case "success":
       return apiResponse({
-        ticketToken: result.attendee.ticket_token,
-        ticketUrl: `/t/${result.attendee.ticket_token}`,
+        booking: {
+          ticketToken: result.attendee.ticket_token,
+          ticketUrl: `/t/${result.attendee.ticket_token}`,
+        },
       });
     case "checkout":
-      return apiResponse({ checkoutUrl: result.checkoutUrl });
+      return apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
     case "sold_out":
       return apiResponse({ error: "Sorry, not enough spots available" }, 409);
     case "checkout_failed":
@@ -262,8 +279,50 @@ const bookingResultToResponse = (
   }
 };
 
+/**
+ * Throttle a booking request by client IP. This endpoint is unauthenticated and
+ * creates rows, sends emails, and fires webhooks, so a flood could grief
+ * capacity and spam the owner. Returns a 429 response when over the limit, or
+ * null to proceed (counting this attempt).
+ */
+const checkBookingRateLimit = async (
+  request: Request,
+  server?: ServerContext,
+): Promise<Response | null> => {
+  const ip = getClientIp(request, server);
+  if (await isBookingRateLimited(ip)) {
+    return apiResponse(
+      { error: "Too many booking attempts. Please try again later." },
+      429,
+    );
+  }
+  await recordBookingAttempt(ip);
+  return null;
+};
+
+/**
+ * Resolve and validate the booking date for daily listings (a no-op for other
+ * listing types). Returns the submitted date, null for non-daily listings, or a
+ * 400 response when the date is missing or unavailable.
+ */
+const resolveBookingDate = async (
+  listing: ListingWithCount,
+  body: Record<string, unknown>,
+): Promise<string | null | Response> => {
+  if (listing.listing_type !== "daily") return null;
+  const submittedDate = String(body.date ?? "");
+  const availableDates = getAvailableDates(listing, await getActiveHolidays());
+  if (!submittedDate || !availableDates.includes(submittedDate)) {
+    return apiResponse({ error: "Please select a valid date" }, 400);
+  }
+  return submittedDate;
+};
+
 /** POST /api/listings/:slug/book — create a booking */
-const handleBook = withActiveListing(async (request, listing) => {
+const handleBook = withActiveListing(async (request, listing, server) => {
+  const limited = await checkBookingRateLimit(request, server);
+  if (limited) return limited;
+
   if (isRegistrationClosed(listing)) {
     return apiResponse({ error: "Registration is closed" }, 400);
   }
@@ -301,16 +360,9 @@ const handleBook = withActiveListing(async (request, listing) => {
       : Math.min(rawQuantity, listing.max_quantity);
 
   // Validate date for daily listings
-  let date: string | null = null;
-  if (listing.listing_type === "daily") {
-    const submittedDate = String(body.date ?? "");
-    const holidays = await getActiveHolidays();
-    const availableDates = getAvailableDates(listing, holidays);
-    if (!submittedDate || !availableDates.includes(submittedDate)) {
-      return apiResponse({ error: "Please select a valid date" }, 400);
-    }
-    date = submittedDate;
-  }
+  const dateResult = await resolveBookingDate(listing, body);
+  if (dateResult instanceof Response) return dateResult;
+  const date = dateResult;
 
   // Parse custom price for pay-more listings
   let customUnitPrice: number | undefined;

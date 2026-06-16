@@ -8,10 +8,9 @@
  */
 
 import forge from "node-forge";
+import { once } from "#fp";
 import type { SigningCredentials } from "#shared/apple-wallet.ts";
 import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
-
-let _testCerts: SigningCredentials | null = null;
 
 function buildTestCerts(): SigningCredentials {
   const keys = forge.pki.rsa.generateKeyPair(2048);
@@ -54,15 +53,8 @@ function buildTestCerts(): SigningCredentials {
   };
 }
 
-/** Return pre-built test certificates for Apple Wallet signing */
-export const generateTestCerts = (): SigningCredentials => {
-  if (!_testCerts) {
-    _testCerts = buildTestCerts();
-  }
-  return _testCerts;
-};
-
-let _googleTestCreds: GoogleWalletCredentials | null = null;
+/** Return pre-built test certificates for Apple Wallet signing (built once) */
+export const generateTestCerts = once(buildTestCerts);
 
 function buildGoogleTestCreds(): GoogleWalletCredentials {
   const keys = forge.pki.rsa.generateKeyPair(2048);
@@ -77,13 +69,8 @@ function buildGoogleTestCreds(): GoogleWalletCredentials {
   };
 }
 
-/** Return pre-built Google Wallet test credentials */
-export const generateGoogleTestCreds = (): GoogleWalletCredentials => {
-  if (!_googleTestCreds) {
-    _googleTestCreds = buildGoogleTestCreds();
-  }
-  return _googleTestCreds;
-};
+/** Return pre-built Google Wallet test credentials (built once) */
+export const generateGoogleTestCreds = once(buildGoogleTestCreds);
 
 export const getTestDataKey = async (): Promise<CryptoKey> => {
   const { testCookie } = await import("#test-utils/session.ts");

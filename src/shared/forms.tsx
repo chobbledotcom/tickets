@@ -7,6 +7,7 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { Icon } from "#templates/components/actions.tsx";
 
 const escapeHtml = (str: string): string =>
@@ -254,22 +255,41 @@ export const renderField = (field: Field, value: string = ""): string =>
   );
 
 /**
+ * Resolve the value to render for a single field.
+ *
+ * Precedence:
+ *   1. A non-empty caller-supplied value always wins (an entity being edited,
+ *      or a value the handler deliberately sets).
+ *   2. Otherwise saved form data — captured on CSRF failure or restored from
+ *      the re-fill stash after a redirect — is used, so a re-rendered form
+ *      shows what the user just typed rather than a blank/missing entity.
+ *   3. Otherwise the caller value (possibly empty) or the field's defaultValue.
+ *
+ * When there is no saved data this is identical to taking the caller value,
+ * then the defaultValue — so normal rendering is unaffected.
+ */
+const resolveFieldValue = (
+  field: Field,
+  explicit: string | number | null | undefined,
+): string => {
+  if (explicit != null && explicit !== "") return String(explicit);
+  const saved = getSavedValue(field);
+  if (saved !== "") return saved;
+  return String(explicit ?? field.defaultValue ?? "");
+};
+
+/**
  * Render multiple fields with values.
- * When no explicit value is provided for a field, falls back to saved form
- * data (set by requireCsrfForm on CSRF failure), then to the field's
- * defaultValue. This preserves user input automatically on CSRF errors.
+ * Each field's value is resolved via resolveFieldValue, so saved form data
+ * (CSRF-failure capture or the post-redirect re-fill stash) automatically
+ * restores user input without any changes to individual handlers or templates.
  */
 export const renderFields = (
   fields: Field[],
   values: FieldValues = {},
 ): string =>
   pipe(
-    map((f: Field) =>
-      renderField(
-        f,
-        String(values[f.name] ?? (getSavedValue(f) || f.defaultValue) ?? ""),
-      ),
-    ),
+    map((f: Field) => renderField(f, resolveFieldValue(f, values[f.name]))),
     joinStrings,
   )(fields);
 
@@ -531,10 +551,17 @@ export const clearSavedFormData = (): void => {
 };
 
 /**
- * Read a raw saved form value by name, or "" when no form was saved this
- * request. Lets non-Field booking controls (quantity selectors, the date and
- * day-count pickers, question radios, the terms checkbox) restore exactly what
- * the visitor submitted when a validation error re-renders the page inline.
+ * Get the current request's saved form data, or null when none was captured.
+ * Used by `redirect()` to stash a failed submission for re-filling after the
+ * follow-up GET.
+ */
+export const getSavedFormData = (): FormParams | null => _savedFormData.form;
+
+/**
+ * Read a raw saved form value by name, or "" when nothing was restored. Lets the
+ * non-Field booking controls (quantity selectors, the date and day-count
+ * pickers, question radios, the terms checkbox) re-fill from the form-stash
+ * after a failed booking redirect, alongside renderFields for the normal inputs.
  */
 export const savedFormValue = (name: string): string =>
   _savedFormData.form?.getString(name) ?? "";
@@ -597,7 +624,15 @@ export const CsrfForm = ({
   class?: string;
   enctype?: string;
 } & { [key: `data-${string}`]: string | boolean }): JSX.Element => (
-  <form action={appendIframeParam(action)} method="POST" {...rest}>
+  // autocomplete="off" stops the browser's own form cache from overwriting the
+  // values we restore from the re-fill stash. Fields that want native autofill
+  // (name, email, tel, …) set their own autocomplete and override this default.
+  <form
+    action={appendIframeParam(action)}
+    autocomplete="off"
+    method="POST"
+    {...rest}
+  >
     <input name="csrf_token" type="hidden" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && (
       <Flash success={_successStore.message} />
@@ -607,6 +642,32 @@ export const CsrfForm = ({
     )}
     {children}
   </form>
+);
+
+/**
+ * The message textarea and submit button shared by the public contact form and
+ * the admin support form. Each form supplies its own surrounding <form> and
+ * heading; the contact form adds its own email input above this. Any `children`
+ * render between the textarea and the submit button (e.g. the support form's
+ * repeat-submit notice).
+ */
+export const MessageFields = ({
+  children,
+}: {
+  children?: Child;
+}): JSX.Element => (
+  <>
+    <label>
+      Message
+      <textarea
+        maxlength={MAX_TEXTAREA_LENGTH}
+        name="message"
+        required
+      ></textarea>
+    </label>
+    {children}
+    <button type="submit">Send message</button>
+  </>
 );
 
 /**

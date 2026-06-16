@@ -4,7 +4,6 @@ import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import {
   buildGoogleWalletUrl,
   buildJwtPayload,
-  type GoogleWalletCredentials,
   isValidGooglePrivateKey,
   signJwt,
 } from "#shared/google-wallet.ts";
@@ -27,12 +26,9 @@ const makePassData = (
 });
 
 describe("google-wallet", () => {
-  let creds: GoogleWalletCredentials;
-
-  // Generate creds once before all tests
-  const ensureCreds = async () => {
-    if (!creds) creds = await generateGoogleTestCreds();
-  };
+  // generateGoogleTestCreds() is memoized, so one call yields the shared creds
+  // for every test.
+  const creds = generateGoogleTestCreds();
 
   describe("buildGoogleWalletUrl integration", () => {
     /** Helper to extract JWT payload from a Google Wallet save URL */
@@ -46,7 +42,6 @@ describe("google-wallet", () => {
     };
 
     test("includes class with issuer name, listing name, and correct ids", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData());
       const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.id).toBe("1234567890.ABC123-class");
@@ -55,7 +50,6 @@ describe("google-wallet", () => {
     });
 
     test("includes object with id, classId, QR barcode, and ACTIVE state", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData());
       const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.id).toBe("1234567890.ABC123");
@@ -66,28 +60,24 @@ describe("google-wallet", () => {
     });
 
     test("includes dateTime when listingDate is present", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData());
       const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.dateTime.start).toBe("2026-06-15T19:00:00Z");
     });
 
     test("omits dateTime when listingDate is empty", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData({ listingDate: "" }));
       const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.dateTime).toBeUndefined();
     });
 
     test("includes venue when listingLocation is present", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData());
       const cls = decoded.payload.listingTicketClasses[0];
       expect(cls.venue.name.defaultValue.value).toBe("Town Hall");
     });
 
     test("omits venue when listingLocation is empty", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(
         makePassData({ listingLocation: "" }),
       );
@@ -96,14 +86,12 @@ describe("google-wallet", () => {
     });
 
     test("omits textModulesData when no optional fields", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData());
       const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
     test("includes booking date when attendeeDate is present", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(
         makePassData({ attendeeDate: "2026-06-15" }),
       );
@@ -116,7 +104,6 @@ describe("google-wallet", () => {
     });
 
     test("includes quantity when greater than 1", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData({ quantity: 3 }));
       const obj = decoded.payload.listingTicketObjects[0];
       const qty = obj.textModulesData.find(
@@ -127,14 +114,12 @@ describe("google-wallet", () => {
     });
 
     test("omits quantity when equal to 1", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData({ quantity: 1 }));
       const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
     test("includes price with 2-decimal currency (GBP)", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(
         makePassData({ currencyCode: "EUR", pricePaid: 2500 }),
       );
@@ -147,14 +132,12 @@ describe("google-wallet", () => {
     });
 
     test("omits price when zero", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(makePassData({ pricePaid: 0 }));
       const obj = decoded.payload.listingTicketObjects[0];
       expect(obj.textModulesData).toBeUndefined();
     });
 
     test("formats price with 0-decimal currency (JPY)", async () => {
-      await ensureCreds();
       const decoded = await extractPayload(
         makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
       );
@@ -168,7 +151,6 @@ describe("google-wallet", () => {
 
   describe("buildJwtPayload", () => {
     test("includes required JWT claims", async () => {
-      await ensureCreds();
       const payload = buildJwtPayload(makePassData(), creds);
       expect(payload.iss).toBe("test@test-project.iam.gserviceaccount.com");
       expect(payload.aud).toBe("google");
@@ -177,7 +159,6 @@ describe("google-wallet", () => {
     });
 
     test("includes listing ticket class and object in payload", async () => {
-      await ensureCreds();
       const jwt = buildJwtPayload(makePassData(), creds);
       const inner = jwt.payload as Record<string, unknown[]>;
       expect(inner.listingTicketClasses).toHaveLength(1);
@@ -187,7 +168,6 @@ describe("google-wallet", () => {
 
   describe("signJwt", () => {
     test("produces a valid three-part JWT", async () => {
-      await ensureCreds();
       const payload = buildJwtPayload(makePassData(), creds);
       const jwt = await signJwt(payload, creds.serviceAccountKey);
       const parts = jwt.split(".");
@@ -195,7 +175,6 @@ describe("google-wallet", () => {
     });
 
     test("header indicates RS256 algorithm", async () => {
-      await ensureCreds();
       const payload = buildJwtPayload(makePassData(), creds);
       const jwt = await signJwt(payload, creds.serviceAccountKey);
       const headerJson = atob(
@@ -207,7 +186,6 @@ describe("google-wallet", () => {
     });
 
     test("payload contains the original data", async () => {
-      await ensureCreds();
       const payload = buildJwtPayload(makePassData(), creds);
       const jwt = await signJwt(payload, creds.serviceAccountKey);
       const payloadPart = jwt.split(".")[1]!;
@@ -221,7 +199,6 @@ describe("google-wallet", () => {
     });
 
     test("produces different JWTs for different serial numbers", async () => {
-      await ensureCreds();
       const a = await signJwt(
         buildJwtPayload(makePassData({ serialNumber: "AAA" }), creds),
         creds.serviceAccountKey,
@@ -236,13 +213,11 @@ describe("google-wallet", () => {
 
   describe("buildGoogleWalletUrl", () => {
     test("produces a URL starting with Google Wallet save prefix", async () => {
-      await ensureCreds();
       const url = await buildGoogleWalletUrl(makePassData(), creds);
       expect(url).toMatch(/^https:\/\/pay\.google\.com\/gp\/v\/save\//);
     });
 
     test("URL contains a valid JWT after the prefix", async () => {
-      await ensureCreds();
       const url = await buildGoogleWalletUrl(makePassData(), creds);
       const jwt = url.replace("https://pay.google.com/gp/v/save/", "");
       const parts = jwt.split(".");
@@ -252,7 +227,6 @@ describe("google-wallet", () => {
 
   describe("isValidGooglePrivateKey", () => {
     test("returns true for a valid PKCS8 PEM key", async () => {
-      await ensureCreds();
       expect(await isValidGooglePrivateKey(creds.serviceAccountKey)).toBe(true);
     });
 

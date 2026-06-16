@@ -40,7 +40,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       await assertJson(apiRequest("/api/admin/listings/99999"), 404, (body) => {
-        expect(body.message).toBe("Listing not found");
+        expect(body.error).toBe("Listing not found");
       });
     });
 
@@ -167,6 +167,45 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("rejects an unsafe (internal) webhook_url (SSRF guard)", async () => {
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            max_attendees: 10,
+            name: "SSRF Attempt",
+            webhook_url: "http://169.254.169.254/latest/meta-data",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toContain("Webhook URL");
+        },
+      );
+    });
+
+    test("creates a customisable-days listing with day_prices", async () => {
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            customisable_days: true,
+            // Mixed entries: day<1, non-integer key, and a non-numeric value
+            // are all dropped by the parser.
+            day_prices: { 0: 50, 1: 1000, 2: 1800, 3: "nope", x: 70 },
+            duration_days: 3,
+            max_attendees: 20,
+            name: "Flexible Pass",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.listing.customisable_days).toBe(true);
+          expect(body.listing.day_prices).toEqual({ 1: 1000, 2: 1800 });
+        },
+      );
+    });
+
     test("returns 400 when name is missing", async () => {
       await assertJson(
         apiRequest("/api/admin/listings", {
@@ -175,7 +214,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -188,9 +227,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
-            "max_attendees is required and must be >= 1",
-          );
+          expect(body.error).toBe("max_attendees is required and must be >= 1");
         },
       );
     });
@@ -218,7 +255,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("Maximum price");
+          expect(body.error).toContain("Maximum price");
         },
       );
     });
@@ -235,7 +272,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Selected group does not exist");
+          expect(body.error).toBe("Selected group does not exist");
         },
       );
     });
@@ -297,7 +334,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name cannot be empty");
+          expect(body.error).toBe("name cannot be empty");
         },
       );
     });
@@ -314,9 +351,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe(
-            "Slug is already in use by another listing",
-          );
+          expect(body.error).toBe("Slug is already in use by another listing");
         },
       );
     });
@@ -368,7 +403,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("Listing name does not match");
+          expect(body.error).toContain("Listing name does not match");
         },
       );
     });
@@ -439,7 +474,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Listing is already deactivated");
+          expect(body.error).toBe("Listing is already deactivated");
         },
       );
     });
@@ -490,7 +525,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Listing is already active");
+          expect(body.error).toBe("Listing is already active");
         },
       );
     });
@@ -537,7 +572,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("name is required");
+          expect(body.error).toBe("name is required");
         },
       );
     });
@@ -592,6 +627,29 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.non_transferable).toBe(true);
           expect(body.listing.can_pay_more).toBe(true);
           expect(body.listing.hidden).toBe(true);
+        },
+      );
+    });
+
+    test("updates customisable_days and day_prices", async () => {
+      const listing = await createTestListing({
+        durationDays: 2,
+        name: "To Flex",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: {
+            customisable_days: true,
+            day_prices: { 1: 500, 2: 900 },
+            duration_days: 2,
+          },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(body.listing.customisable_days).toBe(true);
+          expect(body.listing.day_prices).toEqual({ 1: 500, 2: 900 });
         },
       );
     });
@@ -656,7 +714,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("max_attendees must be >= 1");
+          expect(body.error).toBe("max_attendees must be >= 1");
         },
       );
     });
@@ -675,7 +733,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("Maximum price");
+          expect(body.error).toContain("Maximum price");
         },
       );
     });
@@ -786,7 +844,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("same type");
+          expect(body.error).toContain("same type");
         },
       );
     });
@@ -840,7 +898,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toBe("Selected group does not exist");
+          expect(body.error).toBe("Selected group does not exist");
         },
       );
     });
@@ -869,7 +927,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.message).toContain("same type");
+          expect(body.error).toContain("same type");
         },
       );
     });

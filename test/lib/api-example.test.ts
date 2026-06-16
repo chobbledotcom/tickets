@@ -60,13 +60,13 @@ describe("API example", () => {
 
   test("free booking example JSON has ticketToken and ticketUrl", () => {
     const parsed = JSON.parse(API_BOOK_FREE_EXAMPLE_JSON);
-    expect(parsed.ticketToken).toBeDefined();
-    expect(parsed.ticketUrl).toBeDefined();
+    expect(parsed.booking.ticketToken).toBeDefined();
+    expect(parsed.booking.ticketUrl).toBeDefined();
   });
 
   test("paid booking example JSON has checkoutUrl", () => {
     const parsed = JSON.parse(API_BOOK_PAID_EXAMPLE_JSON);
-    expect(parsed.checkoutUrl).toBeDefined();
+    expect(parsed.booking.checkoutUrl).toBeDefined();
   });
 
   test("booking request example JSON has required fields", () => {

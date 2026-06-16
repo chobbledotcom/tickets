@@ -7,6 +7,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { recordApiKeyAttempt } from "#shared/db/api-key-attempts.ts";
 import {
   countApiKeysForUser,
   createApiKey,
@@ -19,6 +20,7 @@ import {
 } from "#shared/db/api-keys.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { createSession } from "#shared/db/sessions.ts";
+import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import {
   assertJson,
   createTestApiKeyFull,
@@ -469,6 +471,19 @@ describeWithEnv("API Keys", { db: true }, () => {
         requestAsApiKey("/api/admin/listings", "invalid-token"),
       );
 
+      expect(response.status).toBe(401);
+    });
+
+    test("locks out Bearer auth after too many failed attempts", async () => {
+      const { apiKey } = await createTestApiKeyFull("Rate Limited");
+      // Saturate the failed-attempt limit for the test's "direct" IP. Once
+      // locked, even a valid key is rejected until the lockout expires.
+      for (let i = 0; i < MAX_APIKEY_ATTEMPTS; i++) {
+        await recordApiKeyAttempt("direct");
+      }
+      const response = await handleRequest(
+        requestAsApiKey("/api/admin/listings", apiKey),
+      );
       expect(response.status).toBe(401);
     });
 

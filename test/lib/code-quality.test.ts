@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(currentDir, "../..");
 const SRC_DIR = join(currentDir, "../../src");
 const TEST_DIR = join(currentDir, "../../test");
 
@@ -31,39 +32,19 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 /**
- * Test utility files - excluded from all code quality checks
- */
-const TEST_UTILITY_FILES = [
-  "test-utils/api-schemas.ts",
-  "test-utils/internal.ts",
-  "test-utils/db.ts",
-  "test-utils/email.ts",
-  "test-utils/env.ts",
-  "test-utils/mocks.ts",
-  "test-utils/assertions.ts",
-  "test-utils/csrf.ts",
-  "test-utils/factories.ts",
-  "test-utils/validation.ts",
-  "test-utils/session.ts",
-  "test-utils/db-helpers.ts",
-  "test-utils/settings.ts",
-  "test-utils/crypto.ts",
-  "test-utils/stripe-mock.ts",
-  "test-utils/test-browser.ts",
-  "test-utils/test-compat.ts",
-];
-
-/**
- * Files that are allowed to have in-memory state (e.g., test utilities, caches)
+ * src/ files allowed to hold module-level Map/Set state (the in-memory-state
+ * rule is src-only; test code may use Maps/Sets freely).
  */
 const ALLOWED_FILES_STATE = [
-  ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
   "shared/db/sessions.ts",
   // Settings test overrides Map for injecting test values into the snapshot
   "shared/db/settings.ts",
   // Test override flags (lazyRef state for test isolation)
   "shared/test-overrides.ts",
+  // Short-TTL warm-isolate stash for re-filling forms after a redirect;
+  // one-shot, size/count-capped, with a cookie-flash fallback when cold.
+  "shared/form-stash.ts",
 ];
 
 /**
@@ -103,6 +84,14 @@ const getAllTsFiles = (dir: string): Promise<string[]> =>
 
 const getRelativePath = (fullPath: string): string =>
   fullPath.replace(`${SRC_DIR}/`, "");
+
+/**
+ * Path relative to the repo root, e.g. "src/foo.ts" or "test/foo.ts". Used by
+ * the rules that scan both src and test files (aliasing, module-level let,
+ * .then(), redundant constant args) so their violation paths are unambiguous.
+ */
+const repoRelative = (fullPath: string): string =>
+  fullPath.replace(`${REPO_ROOT}/`, "");
 
 /** Read all files once and cache contents in a Map keyed by path */
 const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
@@ -366,7 +355,8 @@ describe("code quality", () => {
   });
 
   /**
-   * Scan non-utility source files line by line, collecting violations via a callback.
+   * Scan src and test files line by line, collecting violations via a callback.
+   * Test code is held to the same line-level standards as production code.
    * Returns the combined violation list.
    */
   const scanSourceLines = async (
@@ -378,17 +368,24 @@ describe("code quality", () => {
   ): Promise<string[]> => {
     await ensureLoaded();
     const violations: string[] = [];
-    for (const file of srcFiles) {
-      const relativePath = getRelativePath(file);
-      if (TEST_UTILITY_FILES.includes(relativePath)) continue;
-      const lines = srcContents.get(file)!.split("\n");
-      let lineNum = 0;
-      for (const line of lines) {
-        lineNum++;
-        const v = check({ line, lineNum, relativePath });
-        if (v) violations.push(v);
+    const scan = (files: string[], contents: Map<string, string>): void => {
+      for (const file of files) {
+        const relativePath = repoRelative(file);
+        // This file defines the patterns it checks for (in comments, regexes
+        // and test names), so it would flag itself. It has no real line-level
+        // violations of its own, so skip it from the line scans.
+        if (relativePath === "test/lib/code-quality.test.ts") continue;
+        const lines = contents.get(file)!.split("\n");
+        let lineNum = 0;
+        for (const line of lines) {
+          lineNum++;
+          const v = check({ line, lineNum, relativePath });
+          if (v) violations.push(v);
+        }
       }
-    }
+    };
+    scan(srcFiles, srcContents);
+    scan(testFiles, testContents);
     return violations;
   };
 
@@ -425,28 +422,16 @@ describe("code quality", () => {
 
   describe("no .then() usage", () => {
     test("should use async/await instead of .then()", async () => {
-      await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        const content = srcContents.get(file)!;
-        const lines = content.split("\n");
-
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
-
-          if (THEN_PATTERN.test(line)) {
-            THEN_PATTERN.lastIndex = 0;
-            violations.push(
-              `${relativePath}:${lineNum}: ${line
-                .trim()
-                .slice(0, 50)}... (use async/await instead)`,
-            );
-          }
-        }
-      }
+      const violations = await scanSourceLines(
+        ({ relativePath, line, lineNum }) => {
+          THEN_PATTERN.lastIndex = 0;
+          if (!THEN_PATTERN.test(line)) return null;
+          THEN_PATTERN.lastIndex = 0;
+          return `${relativePath}:${lineNum}: ${line
+            .trim()
+            .slice(0, 50)}... (use async/await instead)`;
+        },
+      );
 
       expect(violations).toEqual([]);
     });
@@ -461,14 +446,12 @@ describe("code quality", () => {
      * - Config getters that are never actually called in production
      *
      * Excluded from checking:
-     * - Test utility modules (test-utils/*) - explicitly for testing
      * - Library modules (fp/*) - reusable utilities, may not all be used yet
      * - JSX runtime modules (shared/jsx/*) - used implicitly by JSX compiler
      * - Index files that only re-export (shared/db/index.ts) - aggregation modules
+     *
+     * (Test utilities live under test/, so this src-only rule never sees them.)
      */
-
-    /** Files explicitly for testing */
-    const TEST_UTILITY_PATHS = TEST_UTILITY_FILES;
 
     /** Library/infrastructure modules - okay to have unused exports */
     const LIBRARY_PATHS = [
@@ -483,7 +466,6 @@ describe("code quality", () => {
       "shared/db/index.ts",
       "shared/rest/index.ts",
       "templates/index.ts",
-      "test-utils.ts",
     ];
 
     /**
@@ -582,6 +564,8 @@ describe("code quality", () => {
       "shared/test-overrides.ts:getTouchOverride",
       "shared/test-overrides.ts:setTouchOverride",
       "shared/test-overrides.ts:setTouchOverrideForTest",
+      // Reset the in-memory form re-fill stash between tests
+      "shared/form-stash.ts:clearFormStash",
     ];
 
     /**
@@ -665,11 +649,6 @@ describe("code quality", () => {
       // Check .ts files
       for (const file of srcFiles) {
         if (file === sourceFile) continue;
-
-        const relativePath = getRelativePath(file);
-        // Skip test utilities - imports there don't count as production usage
-        if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
-
         if (importPattern.test(srcContents.get(file)!)) {
           return true;
         }
@@ -701,7 +680,6 @@ describe("code quality", () => {
 
     /** Check if a file should be skipped (test utils, libraries, aggregation modules) */
     const shouldSkipFile = (relativePath: string): boolean =>
-      TEST_UTILITY_PATHS.includes(relativePath) ||
       LIBRARY_PATHS.includes(relativePath) ||
       AGGREGATION_MODULES.includes(relativePath);
 
@@ -818,9 +796,13 @@ describe("code quality", () => {
     /** Collect call sites keyed by callee name across all production source. */
     const collectCallSites = (): Map<string, Site[]> => {
       const byName = new Map<string, Site[]>();
+      // Production call sites only (src + tsx). This rule is about production
+      // API design — pooling test call sites would flag production functions
+      // for constants only tests happen to pass, forcing production default
+      // params from test patterns. So, like in-memory-state and test-only
+      // exports, it stays src-scoped.
       const record = (file: string, content: string): void => {
         const relativePath = getRelativePath(file);
-        if (TEST_UTILITY_FILES.includes(relativePath)) return;
         for (const call of extractCallSites(content)) {
           const sites = byName.get(call.name) ?? [];
           sites.push({ args: call.args, file: relativePath, line: call.line });

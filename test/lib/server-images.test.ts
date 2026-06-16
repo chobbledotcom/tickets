@@ -807,9 +807,8 @@ describeWithEnv(
           );
           expectRedirectWithFlash("/admin", "Listing created")(response);
 
-          const listings = await import("#shared/db/listings.ts").then((m) =>
-            m.getAllListings(),
-          );
+          const m = await import("#shared/db/listings.ts");
+          const listings = await m.getAllListings();
           const created = listings.find((e) => e.name === "Attachment Listing");
           expect(created?.attachment_url).toMatch(/info\.pdf$/);
           expect(created?.attachment_name).toBe("info.pdf");

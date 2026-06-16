@@ -19,7 +19,7 @@
 
 import type { InValue } from "@libsql/client";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
-import { ADMIN_API, withAuth } from "#routes/auth.ts";
+import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -48,7 +48,7 @@ export type ParseResult<Input> =
 
 /** JSON error response for API endpoints */
 export const apiErrorResponse = (message: string, status = 400): Response =>
-  jsonResponse({ message, status: "error" }, status);
+  jsonResponse({ error: message }, status);
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =
@@ -122,6 +122,9 @@ export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
   nameField: keyof FullRow & string;
   /** Custom delete logic (e.g. cascade). If not provided, uses table.deleteById */
   onDelete?: (id: InValue) => Promise<void>;
+  /** Auth policy for all generated routes. Defaults to ADMIN_API (any admin);
+   * pass OWNER_API for resources whose web management is owner-only. */
+  policy?: AuthPolicy<"json">;
   /** Singular display name for activity log (e.g. "Holiday") */
   singular: string;
   /** Keys to strip from response (e.g. "slug_index") */
@@ -159,8 +162,9 @@ export const withApiEntity = <Row>(
   id: number,
   notFoundLabel: string,
   handler: EntityHandler<Row>,
+  policy: AuthPolicy<"json"> = ADMIN_API,
 ): Promise<Response> =>
-  withAuth(request, ADMIN_API, async (session, body) => {
+  withAuth(request, policy, async (session, body) => {
     const row = await lookup(id);
     if (!row) return apiErrorResponse(`${notFoundLabel} not found`, 404);
     return handler(row, session, body);
@@ -192,6 +196,7 @@ export const defineCrudApi = <
   config: CrudApiConfig<Row, Input, FullRow>,
 ): Record<string, RouteHandlerFn> => {
   const { name, singular, table, getAll, nameField, stripKeys = [] } = config;
+  const policy = config.policy ?? ADMIN_API;
   const responseKey = singular.toLowerCase();
   const listKey = name;
   const lookup: (id: number) => Promise<FullRow | null> =
@@ -216,7 +221,7 @@ export const defineCrudApi = <
 
   /** List all */
   const handleList: RouteHandlerFn = (request) =>
-    withAuth(request, ADMIN_API, async (session) => {
+    withAuth(request, policy, async (session) => {
       const rows = await getAll();
       const extras = config.listExtras ? config.listExtras(session) : {};
       return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
@@ -224,7 +229,7 @@ export const defineCrudApi = <
 
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
-    withAuth(request, ADMIN_API, async (_session, body) => {
+    withAuth(request, policy, async (_session, body) => {
       const result = await parseAndValidate(
         config.toCreateInput(body),
         config.validate,
@@ -255,8 +260,13 @@ export const defineCrudApi = <
       params: Record<string, string | number | undefined>,
     ): number => params[paramName] as number;
     return (request, params) =>
-      withApiEntity(request, lookup, getId(params), singular, (row, s, b) =>
-        handler(row, s, b, getId(params)),
+      withApiEntity(
+        request,
+        lookup,
+        getId(params),
+        singular,
+        (row, s, b) => handler(row, s, b, getId(params)),
+        policy,
       );
   };
 

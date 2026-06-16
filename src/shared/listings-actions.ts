@@ -23,6 +23,7 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { isSafeWebhookUrl } from "#shared/url-safety.ts";
 
 /** Generate a unique listing slug, retrying on collision */
 export const generateUniqueListingSlug = (excludeListingId?: number) =>
@@ -77,6 +78,26 @@ const validateCustomisableDays = (input: ListingInput): string | null => {
     : null;
 };
 
+/**
+ * SSRF guard: webhook_url is fetched server-side on every registration, so it
+ * must be a public https URL — never an internal/loopback address.
+ */
+const validateWebhookUrl = (input: ListingInput): string | null =>
+  input.webhookUrl && !isSafeWebhookUrl(input.webhookUrl)
+    ? "Webhook URL must be a public https:// address"
+    : null;
+
+/** Validate renewal-tier configuration (months-per-unit and assigned site). */
+const validateRenewalConfig = (input: ListingInput): string | null => {
+  if ((input.monthsPerUnit ?? 0) > 0 && !(input.purchaseOnly && input.hidden)) {
+    return "Months per unit requires Purchase Only and Hidden to be enabled";
+  }
+  if (input.assignBuiltSite && (input.initialSiteMonths ?? 0) <= 0) {
+    return "Initial site months is required when a site is assigned.";
+  }
+  return null;
+};
+
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (
   input: ListingInput,
@@ -95,13 +116,7 @@ export const validateListingInput = async (
   const groupError = await validateListingGroup(input, existingId);
   if (groupError) return groupError;
 
-  if ((input.monthsPerUnit ?? 0) > 0 && !(input.purchaseOnly && input.hidden)) {
-    return "Months per unit requires Purchase Only and Hidden to be enabled";
-  }
-  if (input.assignBuiltSite && (input.initialSiteMonths ?? 0) <= 0) {
-    return "Initial site months is required when a site is assigned.";
-  }
-  return null;
+  return validateWebhookUrl(input) ?? validateRenewalConfig(input);
 };
 
 /**

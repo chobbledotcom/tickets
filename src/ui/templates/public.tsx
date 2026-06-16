@@ -21,12 +21,12 @@ import type { Field } from "#shared/forms.tsx";
 import {
   CsrfForm,
   Flash,
+  MessageFields,
   renderFields,
   savedFormValue,
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -149,15 +149,7 @@ const ContactForm = ({
         Your email address
         <input autocomplete="email" name="email" required type="email" />
       </label>
-      <label>
-        Message
-        <textarea
-          maxlength={MAX_TEXTAREA_LENGTH}
-          name="message"
-          required
-        ></textarea>
-      </label>
-      <button type="submit">Send message</button>
+      <MessageFields />
     </CsrfForm>
   );
 };

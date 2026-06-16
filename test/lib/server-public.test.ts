@@ -1242,8 +1242,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
       );
       // The first atomic insert (listing1 qty=1) succeeds (group: 3/3),
       // but the second (listing2 qty=1) fails because group is now full
-      expect(r2.status).toBe(400);
-      expect(await r2.text()).toContain("no longer has enough spots available");
+      expect(r2.status).toBe(302);
+      expectFlash(
+        r2,
+        expect.stringContaining("no longer has enough spots available"),
+        false,
+      );
     });
 
     test("returns 404 for inactive listing", async () => {
@@ -1337,8 +1341,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "",
       });
       // Now redirects with flash error
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Your Name is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Your Name is required"),
+        false,
+      );
     });
 
     test("validates required fields", async () => {
@@ -1350,8 +1358,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "",
         name: "",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Your Name is required");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Your Name is required"),
+        false,
+      );
     });
 
     test("validates name is required", async () => {
@@ -1363,7 +1375,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "john@example.com",
         name: "   ",
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(302);
     });
 
     test("validates email is required", async () => {
@@ -1375,7 +1387,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "   ",
         name: "John",
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(302);
     });
 
     test("creates attendee and redirects to thank you page", async () => {
@@ -1424,8 +1436,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "jane@example.com",
         name: "Jane",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("not enough spots available");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not enough spots available"),
+        false,
+      );
     });
 
     test("returns 404 for unsupported method on ticket route", async () => {
@@ -1707,8 +1723,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           [`quantity_${listing1.id}`]: "1",
         },
       );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("required");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("required"), false);
     });
 
     test("requires at least one ticket selected", async () => {
@@ -1729,9 +1745,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           [`quantity_${listing2.id}`]: "0",
         },
       );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
-        "Please select at least one ticket",
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Please select at least one ticket"),
+        false,
       );
     });
 
@@ -2043,9 +2061,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
-        "Please select at least one ticket",
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Please select at least one ticket"),
+        false,
       );
     });
   });
@@ -2092,8 +2112,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           ),
         );
 
-        expect(response.status).toBe(400);
-        expect(await response.text()).toContain("no longer has enough spots");
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("no longer has enough spots"),
+          false,
+        );
       } finally {
         mockCreate.restore();
       }
@@ -2190,8 +2214,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "John Doe",
         [`quantity_${listing.id}`]: "abc",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("select at least one ticket");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("select at least one ticket"),
+        false,
+      );
     });
 
     test("skips sold-out listings in quantity parsing", async () => {
@@ -2452,8 +2480,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
             `csrf_token=${csrfToken}`,
           ),
         );
-        expect(response.status).toBe(400);
-        expect(await response.text()).toContain("no longer has enough spots");
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("no longer has enough spots"),
+          false,
+        );
       } finally {
         attendeesApi.createAttendeeAtomic = originalFn;
       }
@@ -2670,8 +2702,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           email: "john@example.com",
           name: "John Doe",
         });
-        expect(response.status).toBe(400);
-        expect(await response.text()).toContain("Registration failed");
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("Registration failed"),
+          false,
+        );
       } finally {
         mockAtomic.restore();
       }
@@ -2790,9 +2826,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           ),
         );
 
-        expect(response.status).toBe(400);
-        expect(await response.text()).toContain(
-          "some tickets are no longer available",
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("some tickets are no longer available"),
+          false,
         );
       } finally {
         mockBatch.restore();
@@ -3034,9 +3072,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
-        "Sorry, registration closed while you were submitting.",
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Sorry, registration closed while you were submitting.",
+        ),
+        false,
       );
     });
   });
@@ -3097,9 +3139,13 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
-        "Sorry, registration closed while you were submitting.",
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Sorry, registration closed while you were submitting.",
+        ),
+        false,
       );
     });
   });
@@ -3187,8 +3233,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "daily@example.com",
         name: "Daily User",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Please select a valid date");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Please select a valid date"),
+        false,
+      );
     });
 
     test("POST rejects daily listing with invalid date", async () => {
@@ -3211,8 +3261,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "daily@example.com",
         name: "Daily User",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Please select a valid date");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Please select a valid date"),
+        false,
+      );
     });
 
     test("POST checks per-date capacity for daily listings", async () => {
@@ -3245,15 +3299,15 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "second@example.com",
         name: "Second User",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("not enough spots available");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("not enough spots available"),
+        false,
+      );
     });
 
     test("POST allows booking different dates at capacity", async () => {
-      // max_attendees is a per-date cap, but the booking page's sold-out badge
-      // is computed from the listing's *total* count (it has no date in hand at
-      // render time). Use a cap above the total booked here so the page stays
-      // bookable and the per-date booking is what's exercised.
       const listing = await createTestListing({
         bookableDays: [
           "Monday",
@@ -3265,7 +3319,7 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           "Sunday",
         ],
         listingType: "daily",
-        maxAttendees: 2,
+        maxAttendees: 1,
         maximumDaysAfter: 14,
         minimumDaysBefore: 0,
       });
@@ -3321,7 +3375,6 @@ describeWithEnv("server (public routes)", { db: true }, () => {
             date: validDate,
             email: "paid@example.com",
             name: "Paid Daily User",
-            [`quantity_${listing.id}`]: "1",
           },
           `csrf_token=${csrfToken}`,
         ),
@@ -3448,8 +3501,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Please select a valid date");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Please select a valid date"),
+        false,
+      );
     });
 
     test("POST succeeds for free ticket daily listings with valid date", async () => {
@@ -3642,9 +3699,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         email: "john@example.com",
         name: "John Doe",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
-        "You must agree to the terms and conditions",
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("You must agree to the terms and conditions"),
+        false,
       );
     });
 
@@ -3725,9 +3784,11 @@ describeWithEnv("server (public routes)", { db: true }, () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain(
-        "You must agree to the terms and conditions",
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("You must agree to the terms and conditions"),
+        false,
       );
     });
 
@@ -3880,8 +3941,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Test User",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("minimum");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("minimum"), false);
     });
 
     test("POST accepts price at minimum and redirects to checkout", async () => {
@@ -3916,8 +3977,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Test User",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("maximum");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("maximum"), false);
     });
 
     test("POST preserves form values when price exceeds maximum", async () => {
@@ -3928,8 +3989,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Preserved Name",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("maximum");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("maximum"), false);
     });
 
     test("POST accepts price at maximum", async () => {
@@ -3970,8 +4031,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Test User",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("enter a price");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("enter a price"), false);
     });
 
     test("POST rejects invalid custom_price", async () => {
@@ -3982,8 +4043,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Test User",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("valid price");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("valid price"), false);
     });
 
     test("POST rejects negative custom_price", async () => {
@@ -3994,8 +4055,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Test User",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("valid price");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("valid price"), false);
     });
 
     test("GET ticket page shows pay-more inputs only for can_pay_more listings", async () => {
@@ -4060,8 +4121,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         [`quantity_${listing2.id}`]: "1",
         [`custom_price_${listing1.id}`]: "2.00",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("minimum");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("minimum"), false);
     });
 
     test("POST ticket rejects custom_price above maximum", async () => {
@@ -4084,8 +4145,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         [`quantity_${listing2.id}`]: "1",
         [`custom_price_${listing1.id}`]: "200.00",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("maximum");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("maximum"), false);
     });
 
     test("POST ticket skips price check for can_pay_more listing with qty 0", async () => {
@@ -4195,8 +4256,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Test User",
         quantity: "1",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("maximum");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("maximum"), false);
     });
 
     test("POST accepts price within custom max_price", async () => {
@@ -4356,8 +4417,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Question User",
         // No question answer provided
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Please answer");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Please answer"), false);
     });
 
     test("returns error when answer ID is invalid", async () => {
@@ -4369,8 +4430,12 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         name: "Question User",
         [`question_${question.id}`]: "99999",
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Invalid answer for");
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid answer for"),
+        false,
+      );
     });
 
     test("daily listing parses date after question validation", async () => {
@@ -4599,8 +4664,8 @@ describeWithEnv("server (public routes)", { db: true }, () => {
         [`quantity_${listing2.id}`]: "0",
         // No question answer provided
       });
-      expect(response.status).toBe(400);
-      expect(await response.text()).toContain("Please answer");
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Please answer"), false);
     });
   });
 

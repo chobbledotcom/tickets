@@ -114,6 +114,7 @@ export const CONFIG_KEYS = {
   SUMUP_API_KEY: "sumup_api_key",
   SUMUP_MERCHANT_CODE: "sumup_merchant_code",
   SUPERUSER_CHOICE: "superuser_choice",
+  SUPPORT_FORM_LAST_SUBMITTED: "support_form_last_submitted",
   TERMS_AND_CONDITIONS: "terms_and_conditions",
   THEME: "theme",
   WEBSITE_TITLE: "website_title",
@@ -197,6 +198,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LATEST_SCRIPT_VERSION,
   CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
   CONFIG_KEYS.SUPERUSER_CHOICE,
+  CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
   CONFIG_KEYS.LISTING_COLUMN_ORDER,
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
@@ -415,6 +417,11 @@ const STRING_ACCESSORS = {
   orderIntroText: { key: CONFIG_KEYS.ORDER_INTRO_TEXT },
   // readOnly: key material is only written by setup/password flows
   publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
+  // readOnly: settings.update.supportFormLastSubmitted writes a timestamp
+  supportFormLastSubmitted: {
+    key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
+    readOnly: true,
+  },
   terms: { key: CONFIG_KEYS.TERMS_AND_CONDITIONS },
   websiteTitle: { key: CONFIG_KEYS.WEBSITE_TITLE },
   wrappedPrivateKey: { key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY, readOnly: true },
@@ -999,6 +1006,11 @@ const settingsBase = {
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (
       v: SuperuserChoice,
     ) => Promise<void>,
+    supportFormLastSubmitted: async (): Promise<void> => {
+      const ts = new Date().toISOString();
+      await writeRaw(CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED, ts);
+      data.support_form_last_submitted = ts;
+    },
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
   },
   updateUserPassword,
