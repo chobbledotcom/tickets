@@ -104,7 +104,7 @@ describeWithEnv("db > sms_outbox", { db: true }, () => {
     const result = await getDb().execute(
       "SELECT COUNT(*) AS c FROM sms_outbox",
     );
-    expect(Number((result.rows[0] as { c: number }).c)).toBe(0);
+    expect(Number(result.rows[0]?.c ?? 0)).toBe(0);
   });
 
   test("smsOutboxApi exposes the operations", () => {

@@ -21,7 +21,7 @@ describe("sms e2e encryptField", () => {
     const [iterations, saltB64] = parts;
     expect(Number(iterations)).toBe(DEFAULT_PBKDF2_ITERATIONS);
     // Salt is 16 bytes (also the IV)
-    expect(fromBase64(saltB64)).toHaveLength(16);
+    expect(fromBase64(saltB64!)).toHaveLength(16);
   });
 
   it("uses a fresh random salt per call (non-deterministic ciphertext)", async () => {
