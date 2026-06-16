@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
+import { invalidateDeliveryAgentsCache } from "#shared/db/delivery-agents.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
@@ -39,6 +40,7 @@ const prepareTestClient = async (): Promise<void> => {
   invalidateListingsCache();
   invalidateHolidaysCache();
   invalidateGroupsCache();
+  invalidateDeliveryAgentsCache();
 
   setTestEnv({ DB_URL: ":memory:" });
   const client = createClient({ url: ":memory:" });
@@ -177,6 +179,7 @@ export const resetDb = (): void => {
   invalidateListingsCache();
   invalidateHolidaysCache();
   invalidateGroupsCache();
+  invalidateDeliveryAgentsCache();
   resetSessionCache();
   setTestSession(null);
   setDemoModeForTest(false);

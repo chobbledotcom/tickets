@@ -13,6 +13,12 @@
 
 import { compact } from "#fp";
 import {
+  type AttendeeDeliveryData,
+  collectionAgentField,
+  dropOffAgentField,
+  SPLIT_AGENTS_FIELD,
+} from "#routes/admin/attendee-delivery.ts";
+import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   type BalanceNotice,
@@ -102,6 +108,8 @@ export type AttendeeFormTemplateData = {
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
+  /** Delivery selectors data, or undefined when delivery doesn't apply. */
+  delivery?: AttendeeDeliveryData;
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded". */
@@ -218,6 +226,95 @@ const ListingEditor = ({
     </div>
   </div>
 );
+
+/** A single agent dropdown with a "none" option, pre-selecting `selected`. */
+const AgentSelect = ({
+  name,
+  label,
+  agents,
+  selected,
+}: {
+  name: string;
+  label: string;
+  agents: AttendeeDeliveryData["agents"];
+  selected: number | null;
+}): JSX.Element => (
+  <label>
+    {label}
+    <select name={name}>
+      <option selected={selected === null} value="">
+        — None —
+      </option>
+      {agents.map((agent) => (
+        <option selected={agent.id === selected} value={agent.id}>
+          {agent.name}
+        </option>
+      ))}
+    </select>
+  </label>
+);
+
+/**
+ * Delivery agent selectors for delivered listings. A "different agents per
+ * item" checkbox switches (pure CSS) between one shared drop-off/collection
+ * pair and a pair per delivered listing. Only rendered when delivery applies.
+ */
+const DeliverySection = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element | null => {
+  const delivery = data.delivery;
+  if (!delivery) return null;
+  return (
+    <div class="delivery-agents">
+      <h3>Delivery</h3>
+      <label class="split-agents">
+        <input
+          checked={delivery.split}
+          class="split-agents-toggle"
+          name={SPLIT_AGENTS_FIELD}
+          type="checkbox"
+          value="1"
+        />
+        Use different agents per item
+      </label>
+      <div class="delivery-single">
+        <AgentSelect
+          agents={delivery.agents}
+          label="Drop-off agent"
+          name={dropOffAgentField()}
+          selected={delivery.single.dropOffAgentId}
+        />
+        <AgentSelect
+          agents={delivery.agents}
+          label="Collection agent"
+          name={collectionAgentField()}
+          selected={delivery.single.collectionAgentId}
+        />
+      </div>
+      <div class="delivery-split">
+        {delivery.lines.map((line) => (
+          <fieldset class="delivery-line">
+            <legend>{line.name}</legend>
+            <AgentSelect
+              agents={delivery.agents}
+              label="Drop-off agent"
+              name={dropOffAgentField(line.listingId)}
+              selected={line.assignment.dropOffAgentId}
+            />
+            <AgentSelect
+              agents={delivery.agents}
+              label="Collection agent"
+              name={collectionAgentField(line.listingId)}
+              selected={line.assignment.collectionAgentId}
+            />
+          </fieldset>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. */
@@ -539,6 +636,8 @@ const AttendeeEditForm = ({
         </output>
       )}
       <ListingEditor data={data} />
+
+      <DeliverySection data={data} />
 
       <hr />
 

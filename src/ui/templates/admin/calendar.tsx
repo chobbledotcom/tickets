@@ -4,8 +4,13 @@
 
 import { map, pipe } from "#fp";
 import { formatDateLabel } from "#shared/dates.ts";
+import {
+  type AgentFilter,
+  agentFilterParam,
+  renderAgentFilter,
+} from "#shared/delivery-filter.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee } from "#shared/types.ts";
+import type { AdminSession, Attendee, DeliveryAgent } from "#shared/types.ts";
 import {
   AvailabilityChecker,
   type AvailabilityRow,
@@ -47,6 +52,8 @@ export const adminCalendarPage = (
   questionData?: TableQuestionData,
   hasPaidListing = false,
   availabilityRows: AvailabilityRow[] = [],
+  agents: DeliveryAgent[] = [],
+  agentFilter: AgentFilter = "all",
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -65,6 +72,15 @@ export const adminCalendarPage = (
   const emptyMessage = dateFilter
     ? "No attendees for this date"
     : "Select a date above to view attendees";
+
+  const agentHref = (f: AgentFilter): string => {
+    const params = new URLSearchParams();
+    if (dateFilter) params.set("date", dateFilter);
+    const param = agentFilterParam(f);
+    if (param) params.set("agent", param);
+    const query = params.toString();
+    return `/admin/calendar${query ? `?${query}` : ""}#attendees`;
+  };
 
   const sharedRows =
     dateFilter && attendees.length > 0
@@ -120,6 +136,9 @@ export const adminCalendarPage = (
               </tbody>
             </table>
           </div>
+        )}
+        {agents.length > 0 && (
+          <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
         )}
         <div class="table-scroll">
           <Raw

@@ -53,6 +53,7 @@ import {
 import {
   assignBuiltSiteField,
   attachmentField,
+  deliveredField,
   getAddAttendeeFields,
   imageField,
   initialSiteMonthsField,
@@ -1063,6 +1064,7 @@ const listingFieldFormatters: Partial<
   closes_at: (e) => formatDatetimeLocal(e.closes_at),
   customisable_days: (e) => booleanToCheckbox(e.customisable_days),
   date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
+  delivered: (e) => booleanToCheckbox(e.delivered),
   hidden: (e) => booleanToCheckbox(e.hidden),
   initial_site_months: (e) =>
     e.initial_site_months ? String(e.initial_site_months) : "",
@@ -1075,6 +1077,7 @@ const listingFieldFormatters: Partial<
 
 const allListingFields: Field[] = [
   ...listingFields,
+  deliveredField,
   monthsPerUnitField,
   initialSiteMonthsField,
   assignBuiltSiteField,
@@ -1136,6 +1139,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
+  "delivered",
   "hidden",
 ] as const;
 
@@ -1287,6 +1291,7 @@ export const adminListingNewPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...listingFields,
+    ...(settings.hasDelivery ? [deliveredField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1328,6 +1333,7 @@ export const adminDuplicateListingPage = (
   const storageEnabled = isStorageEnabled();
   const dupFields = [
     ...listingFieldsWithAutofocus,
+    ...(settings.hasDelivery ? [deliveredField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1375,6 +1381,7 @@ export const adminListingEditPage = (
   // edit form's field list rather than the shared definitions.
   const fields = [
     ...listingFields,
+    ...(settings.hasDelivery ? [deliveredField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),

@@ -635,6 +635,19 @@ export const listingFields: Field[] = [
   },
 ];
 
+/**
+ * "Delivered" listing toggle. Only assembled into the listing form when the
+ * delivery feature is enabled (see the listing page builders); attendees of a
+ * delivered listing carry drop-off and collection agents.
+ */
+export const deliveredField: Field = {
+  hint: "Dropped off and collected from the customer's address. Attendees gain drop-off and collection agent selectors.",
+  label: "Delivered",
+  name: "delivered",
+  options: [{ label: "Delivered to the customer", value: "1" }],
+  type: "checkbox-group",
+};
+
 export const monthsPerUnitField: Field = {
   hint: "How many months one ticket buys. Leave 0 for non-renewal listings.",
   label: "Months Per Unit (renewal tiers only)",
@@ -682,6 +695,19 @@ export const holidayFields: Field[] = [
     required: true,
     type: "date",
     validate: validateDate,
+  },
+];
+
+/**
+ * Delivery agent form field definitions
+ */
+export const deliveryAgentFields: Field[] = [
+  {
+    label: "Agent Name",
+    name: "name",
+    placeholder: "Van 1",
+    required: true,
+    type: "text",
   },
 ];
 

@@ -15,6 +15,11 @@
 
 import { compact, filter, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
+/* jscpd:ignore-end */
+import {
+  buildAttendeeDeliveryData,
+  parseDeliveryPlan,
+} from "#routes/admin/attendee-delivery.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
@@ -41,7 +46,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
-/* jscpd:ignore-end */
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
@@ -58,6 +62,11 @@ import {
   loadExistingLines,
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
+import {
+  type DeliveryAssignment,
+  setDeliveryAssignments,
+} from "#shared/db/delivery.ts";
+import { getAllDeliveryAgents } from "#shared/db/delivery-agents.ts";
 import {
   type EmailStats,
   getEmailStats,
@@ -310,6 +319,7 @@ const buildTemplateData = async (
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
   const warnings = await computeWarnings(parsed, attendee?.id);
+  const delivery = await buildAttendeeDeliveryData(parsed.lines, attendee);
   return {
     activityLog,
     allowedDomain: getEffectiveDomain(),
@@ -317,6 +327,7 @@ const buildTemplateData = async (
     attendeeError: opts.attendeeError ?? null,
     balanceNotice,
     dateError: opts.dateError ?? null,
+    delivery,
     emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
@@ -545,17 +556,28 @@ const handleSubmitInner = async (
     });
   }
 
+  // The delivery plan is read from the submitted agent selects (only when the
+  // feature is on); it is applied after the booking rows exist.
+  const deliveryPlan = settings.hasDelivery
+    ? parseDeliveryPlan(
+        form,
+        parsed.lines,
+        new Set((await getAllDeliveryAgents()).map((a) => a.id)),
+      )
+    : null;
+
   // Apply atomic create or edit. On a recoverable failure (capacity, no lines)
   // re-render the submitted form in place so entered data is never lost.
   const outcome =
     mode === "create"
-      ? await applyCreate(parsed)
+      ? await applyCreate(parsed, deliveryPlan)
       : await applyEdit(
           attendeeId!,
           parsed,
           attendee!,
           questions,
           parseQuestionAnswers({ optional: true })(form, questions).answerIds,
+          deliveryPlan,
         );
   if (outcome.ok) return outcome.response;
   return renderForm(session, {
@@ -590,9 +612,25 @@ const savedRedirect = (
 ): Response =>
   redirect(`${attendeePath(id, returnUrl)}#${ATTENDEE_FORM_ID}`, message, true);
 
+/** The submitted delivery assignment plan, or null when delivery is off. */
+type DeliveryPlan = {
+  split: boolean;
+  perListing: Map<number, DeliveryAssignment>;
+} | null;
+
+/** Persist the delivery assignment plan against a saved attendee. */
+const applyDeliveryPlan = (
+  attendeeId: number,
+  plan: DeliveryPlan,
+): Promise<void> =>
+  plan
+    ? setDeliveryAssignments(attendeeId, plan.split, plan.perListing)
+    : Promise.resolve();
+
 /** Run the atomic create flow. All-or-nothing via `ensureAllBookings`. */
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
+  deliveryPlan: DeliveryPlan,
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
@@ -613,6 +651,7 @@ const applyCreate = async (
   >;
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
+  await applyDeliveryPlan(newId, deliveryPlan);
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
     firstListingId,
@@ -631,6 +670,7 @@ const applyEdit = async (
   attendee: Attendee,
   questions: QuestionWithAnswers[],
   answerIds: number[],
+  deliveryPlan: DeliveryPlan,
 ): Promise<SaveOutcome> => {
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
@@ -665,6 +705,8 @@ const applyEdit = async (
     parsed.statusId,
     parsed.remainingBalance,
   );
+
+  await applyDeliveryPlan(attendeeId, deliveryPlan);
 
   if (questions.length > 0) {
     await saveAttendeeAnswers(new Map([[attendeeId, answerIds]]));

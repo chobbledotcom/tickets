@@ -68,6 +68,7 @@ const buildCreateListingForm = (
     customisable_days: bool(input.customisableDays),
     date_date: dateParts.date,
     date_time: dateParts.time,
+    delivered: bool(input.delivered),
     description: input.description ?? "",
     duration_days: optionalNumber(input.durationDays),
     ...dayPriceFormFields(input.dayPrices),
@@ -100,6 +101,7 @@ const buildUpdateBoolFields = (
     pickField(updates.assignBuiltSite, existing.assign_built_site),
   ),
   can_pay_more: bool(pickField(updates.canPayMore, existing.can_pay_more)),
+  delivered: bool(pickField(updates.delivered, existing.delivered)),
   hidden: bool(pickField(updates.hidden, existing.hidden)),
   non_transferable: bool(
     pickField(updates.nonTransferable, existing.non_transferable),

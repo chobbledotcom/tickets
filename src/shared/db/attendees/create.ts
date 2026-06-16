@@ -93,6 +93,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   quantity: input.quantity,
   refunded: false,
   remaining_balance: input.remainingBalance,
+  split_delivery_agents: false,
   status_id: input.statusId,
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,

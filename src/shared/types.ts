@@ -257,6 +257,15 @@ export interface Listing {
   months_per_unit: number;
   initial_site_months: number;
   duration_days: number;
+  /** When true (and delivery is enabled) this listing is dropped off and
+   * collected from the customer, so its attendees carry delivery agents. */
+  delivered: boolean;
+}
+
+/** A delivery agent (typically a van) used for drop-off and collection. */
+export interface DeliveryAgent {
+  id: number;
+  name: string;
 }
 
 export interface Attendee extends ContactInfo {
@@ -281,6 +290,9 @@ export interface Attendee extends ContactInfo {
   remaining_balance: number;
   /** Owner-defined status id (plaintext); null for legacy/default. */
   status_id: number | null;
+  /** When true, each delivered listing this attendee books carries its own
+   * drop-off/collection agents; when false a single pair applies to them all. */
+  split_delivery_agents: boolean;
   ticket_token: string;
   ticket_token_index: string;
 }

@@ -2337,3 +2337,26 @@ a.cal-day-selected:hover {
 .listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
   display: none;
 }
+
+/* Attendee form: delivery agent selectors. The "different agents per item"
+   toggle switches (pure CSS) between one shared pair and a pair per listing. */
+.delivery-agents .split-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.delivery-agents:has(.split-agents-toggle:checked) .delivery-single {
+  display: none;
+}
+
+.delivery-agents:not(:has(.split-agents-toggle:checked)) .delivery-split {
+  display: none;
+}
+
+.delivery-line {
+  margin-bottom: var(--space-s);
+}

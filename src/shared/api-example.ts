@@ -24,6 +24,7 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   customisable_days: false,
   date: "Sat 20 Aug 2025, 10:00 AM",
   day_prices: {},
+  delivered: false,
   description:
     "A hands-on workshop covering watercolours and sketching techniques. All materials provided.",
   duration_days: 1,

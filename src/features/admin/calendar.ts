@@ -12,6 +12,7 @@ import {
 import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   formatDateLabel,
@@ -23,6 +24,11 @@ import {
   decryptAttendees,
   getListingRemainingForRange,
 } from "#shared/db/attendees.ts";
+import {
+  bookingAssignmentKey,
+  getDeliveryAssignmentsForAttendees,
+} from "#shared/db/delivery.ts";
+import { getAllDeliveryAgents } from "#shared/db/delivery-agents.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getAllDailyListings,
@@ -33,6 +39,11 @@ import {
 } from "#shared/db/listings.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import {
+  type AgentFilter,
+  assignmentMatchesAgentFilter,
+  parseAgentFilter,
+} from "#shared/delivery-filter.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   type Attendee,
@@ -131,6 +142,34 @@ const buildCalendarAttendees = (
   })(attendees);
 };
 
+/** Keep only the calendar attendees whose booking matches the agent filter
+ * (drop-off OR collection). "all" short-circuits without a query. */
+const filterAttendeesByAgent = async (
+  attendees: CalendarAttendeeRow[],
+  agentFilter: AgentFilter,
+): Promise<CalendarAttendeeRow[]> => {
+  if (agentFilter === "all") return attendees;
+  const assignments = await getDeliveryAssignmentsForAttendees(
+    unique(map((a: CalendarAttendeeRow) => a.id)(attendees)),
+  );
+  // The booking keys whose assignment matches the filter; an attendee row is
+  // kept when its (attendee, listing) booking is among them.
+  const matching = new Set(
+    assignments
+      .filter((a) =>
+        assignmentMatchesAgentFilter(
+          agentFilter,
+          a.dropOffAgentId,
+          a.collectionAgentId,
+        ),
+      )
+      .map((a) => bookingAssignmentKey(a.attendeeId, a.listingId)),
+  );
+  return attendees.filter((a) =>
+    matching.has(bookingAssignmentKey(a.id, a.listingId)),
+  );
+};
+
 /** Sort attendees by newest registration first */
 const sortAttendeesByCreatedDesc = (attendees: Attendee[]): Attendee[] =>
   [...attendees].sort(
@@ -211,6 +250,12 @@ const handleAdminCalendarGet = (request: Request) =>
         loadStandardListingContext(),
       ]);
 
+    const agents = settings.hasDelivery ? await getAllDeliveryAgents() : [];
+    const agentFilter = parseAgentFilter(
+      getSearchParam(request, "agent"),
+      new Set(agents.map((a) => a.id)),
+    );
+
     const allListings = [...dailyListings, ...standardCtx.standardListings];
     let attendees: CalendarAttendeeRow[] = [];
     if (dateFilter) {
@@ -234,7 +279,10 @@ const handleAdminCalendarGet = (request: Request) =>
         ...dailyAttendees,
         ...standardAttendees,
       ]);
-      attendees = buildCalendarAttendees(allListings, sortedAttendees);
+      attendees = await filterAttendeesByAgent(
+        buildCalendarAttendees(allListings, sortedAttendees),
+        agentFilter,
+      );
     }
 
     const availableDates = compileDateOptions(
@@ -268,6 +316,8 @@ const handleAdminCalendarGet = (request: Request) =>
         questionData,
         hasPaidListing,
         availabilityRows,
+        agents,
+        agentFilter,
       ),
     );
   });
