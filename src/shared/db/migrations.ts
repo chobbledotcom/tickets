@@ -11,11 +11,11 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import type { Client } from "@libsql/client";
+import type { Client, InValue } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -588,12 +588,49 @@ const tableExists = async (table: string): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
-const indexExists = async (indexName: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [indexName],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
-  return result.rows.length > 0;
+/** Live schema snapshot: every table's columns plus every index name. */
+type LiveSchema = {
+  /** table name → set of its column names */
+  tables: Map<string, Set<string>>;
+  /** all index names present (including sqlite_autoindex_*) */
+  indexes: Set<string>;
+};
+
+/**
+ * Snapshot the entire live schema in a single batched round-trip.
+ *
+ * Edge requests cap outbound subrequests (each libsql `execute`/`batch` is one
+ * `fetch`), so the per-table `PRAGMA table_info`/`sqlite_master` probes that
+ * schema sync and verification used to fire in loops — dozens of subrequests —
+ * are collapsed into two SELECTs sent as one read batch. The first joins
+ * `sqlite_master` against the `pragma_table_info` table-valued function to read
+ * every column of every table at once; the second lists every index name.
+ */
+const snapshotLiveSchema = async (): Promise<LiveSchema> => {
+  const [columns, indexRows] = await queryBatch([
+    {
+      args: [],
+      sql:
+        "SELECT m.name AS tbl, ti.name AS col " +
+        "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
+        "WHERE m.type = 'table'",
+    },
+    {
+      args: [],
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index'",
+    },
+  ]);
+
+  const tables = new Map<string, Set<string>>();
+  for (const row of columns!.rows) {
+    const tbl = String(row.tbl);
+    const cols = tables.get(tbl) ?? new Set<string>();
+    cols.add(String(row.col));
+    tables.set(tbl, cols);
+  }
+
+  const indexes = new Set(indexRows!.rows.map((row) => String(row.name)));
+  return { indexes, tables };
 };
 
 type DbState =
@@ -648,18 +685,21 @@ const getDbState = async (): Promise<DbState> => {
   }
 };
 
+/** Build the idempotent CREATE INDEX statement for a declared index. */
+const createIndexSql = (tableName: string, idx: Index): string => {
+  const unique = idx.unique ? "UNIQUE " : "";
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+    ", ",
+  )})`;
+};
+
 /** Create indexes for a named table from SCHEMA */
 const createIndexesForTable = async (
   tableName: string,
   indexes: Index[],
 ): Promise<void> => {
   for (const idx of indexes) {
-    const unique = idx.unique ? "UNIQUE " : "";
-    await runMigration(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-        ", ",
-      )})`,
-    );
+    await runMigration(createIndexSql(tableName, idx));
   }
 };
 
@@ -817,46 +857,75 @@ const createTableSql = ([name, table]: [string, Table]): string => {
 };
 
 const applySchemaChanges = async (): Promise<void> => {
+  const live = await snapshotLiveSchema();
+  const statements: { args: InValue[]; sql: string }[] = [];
   for (const entry of SCHEMA) {
     const [name, table] = entry;
-    await runMigration(createTableSql(entry));
-    const existing = await getExistingColumns(name);
+    const existing = live.tables.get(name);
+    if (!existing) {
+      // Missing table: one CREATE carries every column, so no ALTERs follow.
+      statements.push({ args: [], sql: createTableSql(entry) });
+      continue;
+    }
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
-        await runMigration(`ALTER TABLE ${name} ADD COLUMN ${col} ${type}`);
+        statements.push({
+          args: [],
+          sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
+        });
       }
     }
   }
+  // Single batched write (one subrequest) instead of one execute per
+  // CREATE/ALTER. Pre-filtering against the snapshot means every statement is
+  // genuinely needed, so the batch never hits the "already exists" errors that
+  // runMigration used to swallow; a real failure rolls the batch back as a unit.
+  if (statements.length > 0) await executeBatch(statements);
 };
 
 /** Create missing indexes and drop legacy ones */
 const syncIndexes = async (): Promise<void> => {
-  const declaredIndexNames = new Set<string>();
-  for (const [name, table] of SCHEMA) {
-    const indexes = table.indexes ?? [];
-    for (const idx of indexes) declaredIndexNames.add(idx.name);
-    await createIndexesForTable(name, indexes);
-  }
-  const allIndexes = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'",
+  const live = await snapshotLiveSchema();
+  const declared = SCHEMA.flatMap(([name, table]) =>
+    (table.indexes ?? []).map((idx) => ({
+      name: idx.name,
+      sql: createIndexSql(name, idx),
+    })),
   );
-  for (const row of allIndexes.rows) {
-    const indexName = String(row.name);
-    if (!declaredIndexNames.has(indexName)) {
-      await runMigration(`DROP INDEX IF EXISTS ${indexName}`);
-    }
-  }
+  const declaredNames = new Set(declared.map((d) => d.name));
+
+  const creates = declared
+    .filter((d) => !live.indexes.has(d.name))
+    .map((d): { args: InValue[]; sql: string } => ({ args: [], sql: d.sql }));
+
+  // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The
+  // sqlite_autoindex_* entries backing UNIQUE/PRIMARY KEY constraints never
+  // match this prefix, so they're left untouched.
+  const drops = [...live.indexes]
+    .filter((name) => name.startsWith("idx_") && !declaredNames.has(name))
+    .map((name): { args: InValue[]; sql: string } => ({
+      args: [],
+      sql: `DROP INDEX IF EXISTS ${name}`,
+    }));
+
+  // One batched write (one subrequest) instead of a CREATE/DROP per index.
+  const statements = [...creates, ...drops];
+  if (statements.length > 0) await executeBatch(statements);
 };
 
 const verifyCurrentAppSchema = async (): Promise<void> => {
+  // One snapshot (a single batched round-trip) replaces the per-table
+  // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
+  // that could alone exceed the edge per-request cap.
+  const live = await snapshotLiveSchema();
   for (const [name, table] of APP_SCHEMA) {
-    if (!(await tableExists(name))) {
+    const existing = live.tables.get(name);
+    if (!existing) {
       throw new Error(
         `Database schema verification failed: missing table ${name}`,
       );
     }
 
-    const existing = await getExistingColumns(name);
     const missingColumns = table.columns
       .map(([col]) => col)
       .filter((col) => !existing.has(col));
@@ -869,7 +938,7 @@ const verifyCurrentAppSchema = async (): Promise<void> => {
     }
 
     for (const index of table.indexes ?? []) {
-      if (!(await indexExists(index.name))) {
+      if (!live.indexes.has(index.name)) {
         throw new Error(
           `Database schema verification failed: missing index ${index.name}`,
         );
