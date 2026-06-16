@@ -502,6 +502,39 @@ const setEdgeScriptSecretImpl = async (
     `Set secret ${name}`,
   );
 
+/** A secret as reported by the Bunny API (name + metadata only — never the value). */
+export interface EdgeScriptSecret {
+  Id: number;
+  LastModified: string;
+  Name: string;
+}
+
+interface ListEdgeScriptSecretsResponse {
+  Secrets: EdgeScriptSecret[] | null;
+}
+
+type ListSecretsResult =
+  | { ok: true; secrets: EdgeScriptSecret[] }
+  | { ok: false; error: string; errorKey?: string };
+
+/**
+ * List the secrets currently set on a Bunny edge script. The API returns each
+ * secret's name and metadata only — values are never exposed.
+ */
+const listEdgeScriptSecretsImpl = async (
+  scriptId: number | string,
+): Promise<ListSecretsResult> => {
+  const response = await fetchText(
+    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(scriptId)}/secrets`,
+    { headers: { AccessKey: getBunnyApiKey() } },
+  );
+  if (!response.ok) {
+    return parseBunnyError(response, "List secrets");
+  }
+  const data: ListEdgeScriptSecretsResponse = JSON.parse(response.text);
+  return { ok: true, secrets: data.Secrets ?? [] };
+};
+
 /**
  * Publish a Bunny edge script.
  */
@@ -553,6 +586,7 @@ export const bunnyCdnApi = {
   getCdnHostname: getCdnHostnameImpl,
   getDnsZone: getDnsZoneImpl,
   getEdgeScript: getEdgeScriptImpl,
+  listEdgeScriptSecrets: listEdgeScriptSecretsImpl,
   publishEdgeScript: publishEdgeScriptImpl,
   registerBunnySubdomain: registerBunnySubdomainImpl,
   setEdgeScriptSecret: setEdgeScriptSecretImpl,

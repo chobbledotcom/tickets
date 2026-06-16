@@ -14,6 +14,7 @@ import {
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
+import type { SiteSecretsView } from "#shared/site-secrets.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -111,13 +112,16 @@ export const adminBuiltSitesPage = (
                   <th>Bunny URL</th>
                   <th>Status</th>
                   <th>Read-only from</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {sites.map((site) => (
                   <tr>
-                    <td>{site.name}</td>
+                    <td>
+                      <a href={`/admin/built-sites/${site.id}/edit`}>
+                        {site.name}
+                      </a>
+                    </td>
                     <td>
                       <a href={site.bunnyUrl} rel="noopener" target="_blank">
                         {site.bunnyUrl}
@@ -131,12 +135,6 @@ export const adminBuiltSitesPage = (
                           : "Not assignable"}
                     </td>
                     <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
-                    <td>
-                      <a href={`/admin/built-sites/${site.id}/edit`}>Edit</a>{" "}
-                      <a href={`/admin/built-sites/${site.id}/delete`}>
-                        Delete
-                      </a>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -183,18 +181,18 @@ export const adminBuiltSiteNewPage = (
     </Layout>,
   );
 
-type RenewalActionProps = {
+type SiteActionProps = {
   siteId: number;
   action: string;
   children: JSX.Element | JSX.Element[];
 };
 
-/** Standard renewal action form wrapper — CSRF + path scoping in one place. */
-const RenewalActionForm = ({
+/** Standard built-site action form wrapper — CSRF + path scoping in one place. */
+const SiteActionForm = ({
   siteId,
   action,
   children,
-}: RenewalActionProps): JSX.Element => (
+}: SiteActionProps): JSX.Element => (
   <CsrfForm action={`/admin/built-sites/${siteId}/${action}`}>
     {children}
   </CsrfForm>
@@ -234,7 +232,7 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
         <strong>Renewal URL:</strong> <code>{renewalUrl}</code>
       </p>
 
-      <RenewalActionForm action="rotate-renewal-token" siteId={site.id}>
+      <SiteActionForm action="rotate-renewal-token" siteId={site.id}>
         <button
           onclick="return confirm('The old URL will stop working. Continue?')"
           type="submit"
@@ -242,23 +240,23 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
           <Icon name="rotate-ccw" />
           <span>Rotate token</span>
         </button>
-      </RenewalActionForm>
+      </SiteActionForm>
 
-      <RenewalActionForm action="bump-deadline" siteId={site.id}>
+      <SiteActionForm action="bump-deadline" siteId={site.id}>
         <label for="bump_months">Bump deadline by months</label>
         <MonthsInput id="bump_months" />
         <SubmitButton icon="save">Bump</SubmitButton>
-      </RenewalActionForm>
+      </SiteActionForm>
 
-      <RenewalActionForm action="override-deadline" siteId={site.id}>
+      <SiteActionForm action="override-deadline" siteId={site.id}>
         <label for="override_date">Override deadline</label>
         <input id="override_date" name="date" type="date" />
         <SubmitButton icon="save">Override</SubmitButton>
-      </RenewalActionForm>
+      </SiteActionForm>
 
-      <RenewalActionForm action="re-sync-deadline" siteId={site.id}>
+      <SiteActionForm action="re-sync-deadline" siteId={site.id}>
         <SubmitButton icon="rotate-ccw">Re-sync deadline</SubmitButton>
-      </RenewalActionForm>
+      </SiteActionForm>
     </div>
   );
 };
@@ -271,25 +269,94 @@ const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
     </p>
 
     <h3>Provision renewal</h3>
-    <RenewalActionForm action="provision-renewal" siteId={site.id}>
+    <SiteActionForm action="provision-renewal" siteId={site.id}>
       <label for="provision_months">Initial months</label>
       <MonthsInput id="provision_months" />
       <SubmitButton icon="hammer">Provision</SubmitButton>
-    </RenewalActionForm>
+    </SiteActionForm>
 
     <h3>Bump deadline</h3>
-    <RenewalActionForm action="bump-deadline" siteId={site.id}>
+    <SiteActionForm action="bump-deadline" siteId={site.id}>
       <MonthsInput />
       <SubmitButton icon="save">Bump</SubmitButton>
-    </RenewalActionForm>
+    </SiteActionForm>
 
     <h3>Override deadline</h3>
-    <RenewalActionForm action="override-deadline" siteId={site.id}>
+    <SiteActionForm action="override-deadline" siteId={site.id}>
       <input name="date" type="date" />
       <SubmitButton icon="save">Override</SubmitButton>
-    </RenewalActionForm>
+    </SiteActionForm>
   </div>
 );
+
+/**
+ * Secrets panel: diffs the secrets we copy to freshly built sites against the
+ * ones live on this site's edge script, and offers to backfill the missing
+ * ones. Existing secrets are never shown as actionable — they are left
+ * untouched.
+ */
+const SecretsPanel = ({
+  site,
+  view,
+}: {
+  site: BuiltSite;
+  view?: SiteSecretsView;
+}): JSX.Element => {
+  if (!view) {
+    return <p class="prose">Secrets status is unavailable.</p>;
+  }
+  if (!view.ok) {
+    return (
+      <div class="prose">
+        <div class="error" role="alert">
+          {view.error}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div class="prose">
+      <p>
+        This site has <strong>{String(view.present.length)}</strong> secret(s)
+        set. We copy <strong>{String(view.expected.length)}</strong> secret(s)
+        to freshly built sites.
+      </p>
+      {view.missing.length === 0 ? (
+        <div class="success" role="status">
+          All expected secrets are present on this site.
+        </div>
+      ) : (
+        <SiteActionForm action="add-secrets" siteId={site.id}>
+          <p>
+            Missing from this site (existing secrets are never overwritten):
+          </p>
+          <ul>
+            {view.missing.map((name) => (
+              <li>
+                <code>{name}</code>
+              </li>
+            ))}
+          </ul>
+          <SubmitButton icon="plus">
+            Set {String(view.missing.length)} missing secret(s)
+          </SubmitButton>
+        </SiteActionForm>
+      )}
+      {view.present.length > 0 && (
+        <details>
+          <summary>Secrets currently on this site</summary>
+          <ul>
+            {view.present.map((name) => (
+              <li>
+                <code>{name}</code>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+};
 
 /**
  * Admin built site edit page
@@ -299,6 +366,7 @@ export const adminBuiltSiteEditPage = (
   session: AdminSession,
   error?: string,
   success?: string,
+  secretsView?: SiteSecretsView,
 ): string => {
   const provisioned = isProvisioned(site);
 
@@ -320,6 +388,20 @@ export const adminBuiltSiteEditPage = (
       ) : (
         <UnprovisionedPanel site={site} />
       )}
+
+      <h2>Secrets</h2>
+      <SecretsPanel site={site} view={secretsView} />
+
+      <h2>Delete</h2>
+      <p class="prose">
+        <ActionButton
+          href={`/admin/built-sites/${site.id}/delete`}
+          icon="trash-2"
+          variant="secondary"
+        >
+          Delete this site
+        </ActionButton>
+      </p>
     </Layout>,
   );
 };

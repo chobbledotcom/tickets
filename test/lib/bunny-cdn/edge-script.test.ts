@@ -385,6 +385,75 @@ describeWithEnv(
 );
 
 describeWithEnv(
+  "listEdgeScriptSecrets",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    test("returns the secrets reported by the API", async () => {
+      const secrets = [
+        { Id: 1, LastModified: "2026-01-01T00:00:00Z", Name: "DB_URL" },
+        { Id: 2, LastModified: "2026-01-02T00:00:00Z", Name: "NTFY_URL" },
+      ];
+      await withMocks(
+        () => stubFetchJson({ Secrets: secrets }),
+        async () => {
+          const result = await bunnyCdnApi.listEdgeScriptSecrets(42);
+          expect(result).toEqual({ ok: true, secrets });
+        },
+      );
+    });
+
+    test("GETs the script secrets endpoint", async () => {
+      const calls: { url: string; init?: RequestInit }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ init, url: String(input) });
+              return Promise.resolve(
+                new Response(JSON.stringify({ Secrets: [] })),
+              );
+            },
+          ),
+        async () => {
+          await bunnyCdnApi.listEdgeScriptSecrets(7);
+          expect(calls[0]!.url).toContain("/compute/script/7/secrets");
+          // GET is the default method (no explicit method on the request init).
+          expect(calls[0]!.init?.method).toBeUndefined();
+        },
+      );
+    });
+
+    test("treats a null Secrets array as empty", async () => {
+      await withMocks(
+        () => stubFetchJson({ Secrets: null }),
+        async () => {
+          const result = await bunnyCdnApi.listEdgeScriptSecrets(42);
+          expect(result).toEqual({ ok: true, secrets: [] });
+        },
+      );
+    });
+
+    test("returns error on API failure", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Forbidden", { status: 403 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.listEdgeScriptSecrets(42);
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain("List secrets failed (403)");
+          }
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
   "updatePullZone",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {
