@@ -24,13 +24,13 @@ const subtleKey = await crypto.subtle.importKey(
 const subtleEnc = async (pt: Uint8Array) => {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, subtleKey, pt),
+    await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, subtleKey, pt),
   );
-  return { iv, ct }; // ct has the 16-byte GCM tag appended (WebCrypto layout)
+  return { ct, iv }; // ct has the 16-byte GCM tag appended (WebCrypto layout)
 };
 const subtleDec = async (iv: Uint8Array, ct: Uint8Array) =>
   new Uint8Array(
-    await crypto.subtle.decrypt({ name: "AES-GCM", iv }, subtleKey, ct),
+    await crypto.subtle.decrypt({ iv, name: "AES-GCM" }, subtleKey, ct),
   );
 
 type Result = Record<string, unknown>;
@@ -46,9 +46,10 @@ const run = async (): Promise<Result> => {
     out.createCipheriv = typeof nc.createCipheriv;
   } catch (e) {
     return {
-      nodeCryptoLoaded: false,
-      verdict: "node:crypto NOT available on this edge runtime — stay on crypto.subtle",
       error: String(e),
+      nodeCryptoLoaded: false,
+      verdict:
+        "node:crypto NOT available on this edge runtime — stay on crypto.subtle",
     };
   }
 
@@ -58,7 +59,7 @@ const run = async (): Promise<Result> => {
     const c = nc.createCipheriv("aes-256-gcm", KEY, iv);
     const body = Buffer.concat([c.update(pt), c.final()]);
     const ct = new Uint8Array(Buffer.concat([body, c.getAuthTag()]));
-    return { iv, ct };
+    return { ct, iv };
   };
   const nodeDec = (iv: Uint8Array, ct: Uint8Array) => {
     const tag = ct.subarray(ct.length - 16);
@@ -99,8 +100,8 @@ const run = async (): Promise<Result> => {
     const nodeMs = performance.now() - t0;
 
     out.iterations = ITERS;
-    out.subtle_us_per_op = +(subtleMs * 1000 / ITERS).toFixed(2);
-    out.node_us_per_op = +(nodeMs * 1000 / ITERS).toFixed(2);
+    out.subtle_us_per_op = +((subtleMs * 1000) / ITERS).toFixed(2);
+    out.node_us_per_op = +((nodeMs * 1000) / ITERS).toFixed(2);
     out.node_speedup = +(subtleMs / nodeMs).toFixed(2);
 
     const interopOk =
@@ -110,7 +111,8 @@ const run = async (): Promise<Result> => {
       : "node:crypto loaded but interop FAILED — do not swap";
   } catch (e) {
     out.benchError = String(e);
-    out.verdict = "node:crypto loaded but threw at runtime — stay on crypto.subtle";
+    out.verdict =
+      "node:crypto loaded but threw at runtime — stay on crypto.subtle";
   }
 
   return out;
