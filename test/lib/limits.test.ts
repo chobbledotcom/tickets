@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   ATTACHMENT_URL_MAX_AGE_S,
+  assertPaymentsRetentionSafe,
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
@@ -27,6 +28,7 @@ import {
   SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
   STALE_RESERVATION_MS,
+  WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { setTestEnv } from "#test-utils";
 
@@ -84,6 +86,32 @@ describe("limits", () => {
         restoreEnv = setTestEnv({ TEST_LIMIT: value });
         expect(readLimit("TEST_LIMIT", 42)).toBe(42);
       }
+    });
+  });
+
+  describe("assertPaymentsRetentionSafe", () => {
+    test("returns the value when it meets the webhook-retry floor", () => {
+      expect(assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS)).toBe(
+        WEBHOOK_RETRY_WINDOW_DAYS,
+      );
+      expect(assertPaymentsRetentionSafe(90)).toBe(90);
+    });
+
+    test("throws when retention is below the webhook-retry window", () => {
+      // A retention shorter than the provider retry window could prune a
+      // payment's idempotency row while a retry can still arrive, re-processing
+      // the paid session and risking a duplicate refund — so it must fail loudly.
+      expect(() =>
+        assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS - 1),
+      ).toThrow("webhook-retry window");
+    });
+
+    test("the live retention constant satisfies its own floor", () => {
+      // PRUNE_PAYMENTS_RETENTION_DAYS is validated at import; pin the invariant
+      // so a future default change can't silently drop below the floor.
+      expect(PRUNE_PAYMENTS_RETENTION_DAYS).toBeGreaterThanOrEqual(
+        WEBHOOK_RETRY_WINDOW_DAYS,
+      );
     });
   });
 

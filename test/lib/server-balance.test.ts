@@ -311,6 +311,51 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     }
   });
 
+  test("refunds a malformed balance session carrying more than one line", async () => {
+    await setupStripe();
+    // A balance checkout is always a single synthetic line. A multi-line
+    // session is malformed/foreign, so settling items[0].p would clear a
+    // guessed amount — it must refund and leave the balance untouched instead.
+    const attendeeId = await createReserved(1500);
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_multi" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_bal_multi",
+        metadata: {
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([
+            { e: 1, p: 1000, q: 1 },
+            { e: 1, p: 500, q: 1 },
+          ]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_bal_multi",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_multi"),
+      );
+      expect(refund.calls[0]!.args).toEqual(["pi_bal_multi"]);
+      expect(await response.text()).toContain(
+        "balance for this booking changed",
+      );
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(1500);
+    } finally {
+      session.restore();
+      refund.restore();
+    }
+  });
+
   test("non-matching /pay requests fall through", async () => {
     // The bare prefix and an unsupported method are not handled here (→ not 200).
     expect((await handleRequest(mockRequest("/pay"))).status).not.toBe(200);

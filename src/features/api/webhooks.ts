@@ -692,6 +692,16 @@ const settleBalanceSession = async (
   const fail = (detail: string): Promise<PaymentResult> =>
     refundAndFail(session, BALANCE_CHANGED_MESSAGE, listingId, 409, detail);
 
+  // Enforce the single-line invariant the amount above relies on (see
+  // handleBalancePost). A balance session with more than one line is malformed
+  // or foreign; settling items[0].p would clear a guessed amount, so refund and
+  // record a terminal failure instead.
+  if (intent.items.length !== 1) {
+    return fail(
+      `Balance session for attendee ${attendeeId} has ${intent.items.length} line(s); expected exactly one`,
+    );
+  }
+
   if (session.amountTotal !== expectedAmount) {
     return fail(
       `Balance amount mismatch (attendee ${attendeeId}): provider charged ${session.amountTotal} but checkout was for ${expectedAmount}`,
@@ -798,6 +808,19 @@ const processPaymentSession = async (
   // and self-heal, rather than freezing a "contact support" outcome forever.
   // The transient "another request is processing" conflict returns above and
   // never reaches here, so it stays retryable too.
+  //
+  // The refund (issued inside processReservedSession) and this write are NOT
+  // atomic — an external refund can't be transactional with a local DB write.
+  // If the process crashes in between, the row stays reserved with no recorded
+  // outcome; once it goes stale (STALE_RESERVATION_MS) a retry deletes it and
+  // re-processes, re-attempting the refund. This CANNOT double-pay: every
+  // provider refunds the full charge amount and rejects a refund that exceeds
+  // the already-refunded balance (Stripe errors on an already-refunded intent;
+  // Square caps at the refundable amount — its idempotency key is a fresh UUID,
+  // so the amount cap, not the key, is the safeguard; SumUp rejects a
+  // re-refund). Worst case is a declined retry that shows the customer a
+  // misleading "contact support for a refund" even though the money was already
+  // returned — never a duplicate payout.
   if (!result.success && result.refunded !== false) {
     await markSessionFailed(sessionId, {
       error: result.error,
