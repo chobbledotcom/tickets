@@ -280,30 +280,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
 
-    test("re-renders preserving entered data when capacity is exceeded", async () => {
-      const event = await createTestListing({ maxAttendees: 1 });
-      await createTestAttendee(
-        event.id,
-        event.slug,
-        "First",
-        "first@example.com",
-      );
-      const { response } = await adminFormPost("/admin/attendees/new", {
-        email: "second@example.com",
-        name: "Second",
-        [`qty_${event.id}`]: "1",
-      });
-      // In-place re-render (not a redirect) so the operator keeps their input.
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Not enough spots");
-      expect(html).toContain("second@example.com");
-      expect(html).toContain("Second");
-      // All-or-nothing: no second attendee was created (only "First" remains).
-      expect((await getAttendeesRaw(event.id)).length).toBe(1);
-    });
-
-    test("create rolls back entirely when one of several lines is full", async () => {
+    test("create books the open listing and overbooks the full one", async () => {
       const open = await createTestListing({ maxAttendees: 100, name: "Open" });
       const full = await createTestListing({ maxAttendees: 1, name: "Full" });
       await createTestAttendee(
@@ -317,13 +294,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         [`qty_${open.id}`]: "1",
         [`qty_${full.id}`]: "1",
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Not enough spots");
-      // Nothing committed: the open event gained no row, the full event still
-      // has only its original filler.
-      expect((await getAttendeesRaw(open.id)).length).toBe(0);
-      expect((await getAttendeesRaw(full.id)).length).toBe(1);
+      // Admin manual add is allowed to overbook, so both bookings are created.
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(open.id)).length).toBe(1);
+      expect((await getAttendeesRaw(full.id)).length).toBe(2);
     });
   });
 
@@ -541,6 +515,112 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).not.toContain("Please double-check");
+    });
+  });
+
+  describe("admin overbooking", () => {
+    test("create may overbook a full listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        name: "Tiny",
+      });
+      await createTestAttendee(listing.id, listing.slug, "First", "f@e.com");
+      // Capacity is 1 and already full; the admin adds a second anyway.
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        name: "Second",
+        [`qty_${listing.id}`]: "1",
+      });
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(2);
+    });
+
+    test("edit may overbook by raising the quantity past capacity", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 2,
+        maxQuantity: 10,
+        name: "Cap2",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "A",
+        "a@e.com",
+      );
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const key = (await loadExistingLines(attendee.id))[0]!.key;
+      const form = await buildAttendeeEditForm(attendee.id, {
+        lines: [{ eventId: listing.id, key, quantity: 10 }],
+        name: "A",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(listing.id))[0]!.quantity).toBe(10);
+    });
+
+    test("edit may overbook by adding a full listing", async () => {
+      const home = await createTestListing({ maxAttendees: 100, name: "Home" });
+      const full = await createTestListing({ maxAttendees: 1, name: "Full" });
+      await createTestAttendee(full.id, full.slug, "Filler", "fill@e.com");
+      const attendee = await createTestAttendee(
+        home.id,
+        home.slug,
+        "B",
+        "b@e.com",
+      );
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const homeKey = (await loadExistingLines(attendee.id))[0]!.key;
+      const form = await buildAttendeeEditForm(attendee.id, {
+        lines: [
+          { eventId: home.id, key: homeKey, quantity: 1 },
+          { eventId: full.id, quantity: 1 },
+        ],
+        name: "B",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+      expect((await getAttendeesRaw(full.id)).length).toBe(2);
+    });
+
+    test("warns on the form when a booking overbooks a listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        name: "Solo",
+      });
+      await createTestAttendee(listing.id, listing.slug, "First", "f1@e.com");
+      // Blank name forces an in-place re-render that surfaces the warning.
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        name: "",
+        [`qty_${listing.id}`]: "1",
+      });
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Solo is overbooked");
+    });
+
+    test("does not warn when an at-capacity booking is edited unchanged", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        name: "Exact",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Only",
+        "only@e.com",
+      );
+      // The booking fills the listing, but it is the attendee's own row — the
+      // self-excluding check means no overbooking warning.
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain("is overbooked");
     });
   });
 

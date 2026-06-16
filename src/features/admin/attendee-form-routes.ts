@@ -13,7 +13,7 @@
  * `?select_<id>=1&start_date=…` to pre-fill the chosen listings and date.
  */
 
-import { filter, unique } from "#fp";
+import { compact, filter, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
@@ -48,6 +48,7 @@ import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
   type CreateAttendeeResult,
+  checkLineCapacity,
   createAttendeeAtomic,
   type ExistingLine,
   encryptPiiBlob,
@@ -195,26 +196,65 @@ const buildEditFormFromAttendee = (
 /** How many of an attendee's activity-log entries to show on the edit page. */
 const ATTENDEE_LOG_LIMIT = 1000;
 
-/**
- * Over-duration warnings for the booked lines: a daily listing is designed for
- * a fixed number of days, but every daily listing shares one range, so a longer
- * range than a listing allows is permitted — with a warning, not an error.
- */
-const computeWarnings = (
+/** A booked daily listing booked for longer than its own duration allows —
+ * permitted (every daily listing shares one range), so a warning not an error. */
+const overDurationWarning = (
+  line: AttendeeFormLine,
+  dayCount: number,
+): string | null => {
+  const listing = line.listing!;
+  if (listing.listing_type !== "daily" || dayCount <= listing.duration_days) {
+    return null;
+  }
+  const max = listing.duration_days;
+  return `${listing.name} is designed for up to ${max} day${max === 1 ? "" : "s"}, but the booking spans ${dayCount}.`;
+};
+
+/** A booked line whose quantity exceeds capacity, judged with the same
+ * self-excluding check the save uses. A daily line with no valid shared date is
+ * already blocked by the date error, so it is skipped here. */
+const overbookWarning = async (
+  line: AttendeeFormLine,
   parsed: ParsedAttendeeForm,
-): { byListing: Map<number, string[]>; top: string[] } => {
+  excludeAttendeeId: number | undefined,
+): Promise<string | null> => {
+  const listing = line.listing!;
+  const isDaily = listing.listing_type === "daily";
+  const date = isDaily && isIsoDate(parsed.startDate) ? parsed.startDate : null;
+  if (isDaily && !date) return null;
+  const fits = await checkLineCapacity(
+    {
+      date,
+      durationDays: isDaily ? parsed.dayCount : 1,
+      listingId: listing.id,
+      quantity: line.quantity!,
+    },
+    excludeAttendeeId,
+  );
+  return fits
+    ? null
+    : `${listing.name} is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
+};
+
+/**
+ * Over-duration + overbooking warnings for every booked line, keyed by listing
+ * id plus a flat list for the top-of-page summary. Both are allowed for admin
+ * saves, so they surface as warnings, not errors.
+ */
+const computeWarnings = async (
+  parsed: ParsedAttendeeForm,
+  excludeAttendeeId: number | undefined,
+): Promise<{ byListing: Map<number, string[]>; top: string[] }> => {
   const byListing = new Map<number, string[]>();
   const top: string[] = [];
   for (const line of parsed.lines.filter(isBookedLine)) {
-    const listing = line.listing!;
-    if (
-      listing.listing_type === "daily" &&
-      parsed.dayCount > listing.duration_days
-    ) {
-      const max = listing.duration_days;
-      const msg = `${listing.name} is designed for up to ${max} day${max === 1 ? "" : "s"}, but the booking spans ${parsed.dayCount}.`;
-      byListing.set(listing.id, [msg]);
-      top.push(msg);
+    const warns = compact([
+      overDurationWarning(line, parsed.dayCount),
+      await overbookWarning(line, parsed, excludeAttendeeId),
+    ]);
+    if (warns.length > 0) {
+      byListing.set(line.listingId, warns);
+      top.push(...warns);
     }
   }
   return { byListing, top };
@@ -249,7 +289,7 @@ const buildTemplateData = async (
   const activityLog = attendee
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
-  const warnings = computeWarnings(parsed);
+  const warnings = await computeWarnings(parsed, attendee?.id);
   return {
     activityLog,
     allowedDomain: getEffectiveDomain(),
@@ -538,7 +578,11 @@ const applyCreate = async (
   if (input.bookings.length === 0) {
     return { flashError: NO_LINES_ERROR, ok: false };
   }
-  const createResult = await createAttendeeAtomic(input);
+  // Admin manual add may deliberately overbook (a warning is shown, not blocked).
+  const createResult = await createAttendeeAtomic({
+    ...input,
+    allowOverbook: true,
+  });
   const check = await ensureAllBookings(createResult, input.bookings.length);
   if (!check.ok) {
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
@@ -582,10 +626,12 @@ const applyEdit = async (
   ))!;
 
   const desired = toDesiredLines(parsed);
+  // Admin manual edit may deliberately overbook (warned, not blocked).
   const editResult = await applyAttendeeAtomicEdit(
     attendeeId,
     encryptedPiiBlob,
     desired,
+    true,
   );
   if (!editResult.success) {
     if (editResult.reason === "no_lines") {

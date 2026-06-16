@@ -35,14 +35,11 @@ import type {
 import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
+  checkLineCapacity,
   dateToStartEnd,
 } from "#shared/db/attendees/capacity.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
-import {
-  executeBatchWithResults,
-  queryAll,
-  queryOne,
-} from "#shared/db/client.ts";
+import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 
 /**
@@ -74,6 +71,15 @@ const lineCapacityCondition = (line: AtomicDesiredLine, attendeeId: number) =>
     attendeeId,
     line.durationDays,
   );
+
+/** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
+ * expect, projected from a desired line. */
+const lineBooking = (line: AtomicDesiredLine) => ({
+  date: line.date,
+  durationDays: line.durationDays,
+  listingId: line.listingId,
+  quantity: line.quantity,
+});
 
 /** Result of an atomic attendee update. */
 export type UpdateAttendeeAtomicResult =
@@ -121,13 +127,7 @@ const allLinesFit = async (
   desired: AtomicDesiredLine[],
 ): Promise<boolean> => {
   for (const line of desired) {
-    const condition = lineCapacityCondition(line, attendeeId);
-    // A bare `SELECT <expr>` always yields exactly one row.
-    const row = (await queryOne<{ ok: number }>(
-      `SELECT (${condition.sql}) AS ok`,
-      condition.args,
-    ))!;
-    if (row.ok === 0) return false;
+    if (!(await checkLineCapacity(lineBooking(line), attendeeId))) return false;
   }
   return true;
 };
@@ -144,6 +144,7 @@ export const applyAttendeeAtomicEdit = async (
   attendeeId: number,
   encryptedPiiBlob: string,
   desired: AtomicDesiredLine[],
+  allowOverbook = false,
 ): Promise<UpdateAttendeeAtomicResult> => {
   if (desired.length === 0) {
     return { reason: "no_lines", success: false };
@@ -158,8 +159,9 @@ export const applyAttendeeAtomicEdit = async (
   // Preflight: reject (without writing anything) when any line can't fit. The
   // common over-capacity case never touches the DB; the per-line CAPACITY_GUARD
   // in the batch below still rolls the whole edit back if a concurrent booking
-  // wins the race between this check and the commit.
-  if (!(await allLinesFit(attendeeId, desired))) {
+  // wins the race between this check and the commit. Skipped entirely when the
+  // caller has opted into overbooking (admin manual edit).
+  if (!allowOverbook && !(await allLinesFit(attendeeId, desired))) {
     return { reason: "capacity_exceeded", success: false };
   }
 
@@ -194,45 +196,42 @@ export const applyAttendeeAtomicEdit = async (
     });
   }
 
-  // Step 3: Update existing lines (capacity-checked, self-excluding). The
-  // WHERE pins the row by its *old* start_at so an attendee holding two
-  // rows for the same daily listing on different dates updates only the one.
+  // Step 3: Update existing lines. The WHERE pins the row by its *old* start_at
+  // so an attendee holding two rows for the same daily listing on different
+  // dates updates only the one. Capacity-checked + guarded unless the caller
+  // opted into overbooking, in which case the update is unconditional.
   for (const line of updates) {
     const oldStartAt = existingByKey.get(line.key)?.start_at ?? null;
     const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
+    const pin = [attendeeId, line.listingId, oldStartAt];
+    const setClause = `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?`;
+    if (allowOverbook) {
+      statements.push({
+        args: [line.quantity, startAt, endAt, ...pin],
+        sql: setClause,
+      });
+      continue;
+    }
     const condition = lineCapacityCondition(line, attendeeId);
     statements.push({
-      args: [
-        line.quantity,
-        startAt,
-        endAt,
-        attendeeId,
-        line.listingId,
-        oldStartAt,
-        ...condition.args,
-      ],
-      sql: `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?
-              AND ${condition.sql}`,
+      args: [line.quantity, startAt, endAt, ...pin, ...condition.args],
+      sql: `${setClause}\n              AND ${condition.sql}`,
     });
     statements.push(CAPACITY_GUARD);
   }
 
-  // Step 4: Insert new lines (capacity-checked, self-excluding).
+  // Step 4: Insert new lines (capacity-checked + guarded unless overbooking).
   for (const line of inserts) {
     statements.push(
       buildCapacityCheckedInsert(
-        {
-          date: line.date,
-          durationDays: line.durationDays,
-          listingId: line.listingId,
-          quantity: line.quantity,
-        },
+        lineBooking(line),
         "?",
         attendeeId,
+        allowOverbook,
       ),
     );
-    statements.push(CAPACITY_GUARD);
+    if (!allowOverbook) statements.push(CAPACITY_GUARD);
   }
 
   // The batch runs as one ACID transaction. After the preflight above this

@@ -64,6 +64,10 @@ export type AttendeeInput = ContactFields & {
   remainingBalance?: number;
   /** Owner-defined status id assigned to the new attendee. */
   statusId?: number | null;
+  /** When true the per-booking capacity guard is dropped so the bookings are
+   * inserted unconditionally. Admin manual add only — public/webhook callers
+   * leave it false so capacity is always enforced. */
+  allowOverbook?: boolean;
 };
 
 /** Row from listing_attendees — per-listing booking data */

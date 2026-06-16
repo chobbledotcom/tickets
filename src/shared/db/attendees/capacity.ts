@@ -113,14 +113,17 @@ export const getGroupRemainingForListing = async (
 };
 
 /**
- * Build a capacity-checked INSERT into listing_attendees.
+ * Build an INSERT into listing_attendees, capacity-checked by default.
  * @param attendeeIdExpr - SQL expression for attendee_id (e.g. "last_insert_rowid()" or "?")
  * @param attendeeIdArg - Argument for "?" expr, omit for last_insert_rowid()
+ * @param allowOverbook - when true the capacity WHERE is dropped so the row is
+ *   inserted unconditionally (admin manual add/edit may deliberately overbook).
  */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
   attendeeIdExpr = "last_insert_rowid()",
   attendeeIdArg?: number,
+  allowOverbook = false,
 ): { sql: string; args: InValue[] } => {
   const {
     listingId,
@@ -129,6 +132,14 @@ export const buildCapacityCheckedInsert = (
     date = null,
     durationDays = 1,
   } = booking;
+  const { startAt, endAt } = dateToStartEnd(date, durationDays);
+  const args: InValue[] = [listingId];
+  if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
+  args.push(startAt, endAt, qty, pricePaid);
+  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid)
+          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?`;
+  if (allowOverbook) return { args, sql: insertSelect };
+
   const condition = buildCapacityCondition(
     listingId,
     qty,
@@ -136,17 +147,8 @@ export const buildCapacityCheckedInsert = (
     undefined,
     durationDays,
   );
-  const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const args: InValue[] = [listingId];
-  if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
-  args.push(startAt, endAt, qty, pricePaid, ...condition.args);
-
-  return {
-    args,
-    sql: `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid)
-          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?
-          WHERE ${condition.sql}`,
-  };
+  args.push(...condition.args);
+  return { args, sql: `${insertSelect}\n          WHERE ${condition.sql}` };
 };
 
 // ---------------------------------------------------------------------------
@@ -572,4 +574,33 @@ export const getListingRemainingForRange = async (
     ],
   )(listings);
   return new Map(entries);
+};
+
+/**
+ * Whether one booking fits within capacity, using the same self-excluding
+ * condition the atomic write uses. Pass `excludeAttendeeId` to ignore that
+ * attendee's own rows so an unchanged edit doesn't count against itself. Drives
+ * the admin form's overbooking warning; the save itself is allowed to overbook.
+ */
+export const checkLineCapacity = async (
+  booking: {
+    listingId: number;
+    quantity: number;
+    date: string | null;
+    durationDays: number;
+  },
+  excludeAttendeeId?: number,
+): Promise<boolean> => {
+  const condition = buildCapacityCondition(
+    booking.listingId,
+    booking.quantity,
+    booking.date,
+    excludeAttendeeId,
+    booking.durationDays,
+  );
+  const row = (await queryOne<{ ok: number }>(
+    `SELECT (${condition.sql}) AS ok`,
+    condition.args,
+  ))!;
+  return row.ok === 1;
 };
