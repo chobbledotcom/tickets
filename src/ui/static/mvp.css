@@ -2053,8 +2053,9 @@ a.cal-day-selected:hover {
   max-width: 100%;
 }
 
-/* Override dark-mode form box-shadow which would otherwise apply */
-[data-theme="dark"] .filter-row {
+/* Override dark-mode form box-shadow (base and focus) which would otherwise apply */
+[data-theme="dark"] .filter-row,
+[data-theme="dark"] .filter-row:focus-within {
   box-shadow: none;
 }
 
@@ -2077,4 +2078,174 @@ a.cal-day-selected:hover {
   justify-content: space-between;
   gap: 1rem;
   margin: 1rem 0;
+}
+
+/* ── Order gallery ──────────────────────────────────────────────────────
+   The whole gallery is one form: each product card is a <label> wrapping a
+   hidden checkbox, and the floating cart is the submit button. Selection
+   highlighting and the live count are pure CSS (:checked, a counter, and
+   :has()), so the page runs no JavaScript. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.order-gallery {
+  counter-reset: cart;
+}
+
+.order-grid {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-m);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.order-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  max-width: none;
+  margin: 0;
+  padding: var(--space-m);
+  font-weight: normal;
+  cursor: pointer;
+  border: 2px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  background: var(--color-bg);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.order-card:hover {
+  border-color: var(--color-secondary);
+}
+
+/* Visually hidden but still focusable/checkable for keyboard + screen readers */
+.order-select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.order-card-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.order-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.order-card-name {
+  font-weight: bold;
+}
+
+.order-card-price {
+  color: var(--color-text-secondary);
+}
+
+.order-card-status {
+  font-size: smaller;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* Tick badge — revealed only when the card's checkbox is checked */
+.order-card-tick {
+  position: absolute;
+  top: var(--space-s);
+  right: var(--space-s);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--color-secondary);
+  color: #fff;
+}
+
+.order-card-tick::after {
+  content: "\2713";
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.order-select:checked ~ .order-card-tick {
+  display: flex;
+}
+
+.order-card:has(.order-select:checked) {
+  border-color: var(--color-secondary);
+  box-shadow: var(--box-shadow) var(--color-secondary-accent);
+}
+
+.order-select:focus-visible ~ .order-card-tick,
+.order-card:has(.order-select:focus-visible) {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+/* Each checked product increments the cart counter read by .order-cart-count */
+.order-select:checked {
+  counter-increment: cart;
+}
+
+/* Unavailable products: dimmed and not selectable */
+.order-card--unavailable {
+  cursor: not-allowed;
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+/* Floating cart — fixed bottom-left, last in the DOM so its CSS counter has
+   seen every checkbox. Hidden until at least one product is selected. */
+.order-cart {
+  position: fixed;
+  bottom: var(--space-m);
+  left: var(--space-m);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin: 0;
+  box-shadow: var(--box-shadow) var(--color-shadow);
+}
+
+.order-cart-count::after {
+  content: counter(cart);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  border-radius: 1rem;
+  background: var(--color-bg);
+  color: var(--color-secondary);
+  font-weight: bold;
+}
+
+.order-gallery:not(:has(.order-select:checked)) .order-cart {
+  display: none;
 }

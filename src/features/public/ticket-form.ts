@@ -84,7 +84,10 @@ export const ticketResponse =
   (error?: string, status = 200) =>
     htmlResponse(renderTicketPage(ctx, error), status);
 
-/** Ticket form error redirect (after CSRF passed) */
+/** Ticket form error redirect (PRG). The submitted form is stashed by
+ * `redirect()` and re-filled on the follow-up GET — contact fields via
+ * renderFields, and the booking controls via their savedFormValue restores —
+ * so the visitor keeps everything they entered. */
 export const ticketFormErrorResponse = (ctx: TicketCtx) => {
   const url = ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`;
   return (error: string, _status = 400) => errorRedirect(url, error);

@@ -87,6 +87,20 @@ export const testDbConnection = async (
   }
 };
 
+/**
+ * Collect the host-environment secrets that are currently set, as [name, value]
+ * pairs. These are copied onto every freshly built site, and backfilled onto
+ * existing sites that are missing them (see #shared/site-secrets.ts).
+ */
+export const collectHostSecrets = (): [string, string][] => {
+  const secrets: [string, string][] = [];
+  for (const key of HOST_SECRET_KEYS) {
+    const value = getEnv(key);
+    if (value) secrets.push([key, value]);
+  }
+  return secrets;
+};
+
 /** Set multiple secrets on a Bunny edge script, collecting errors */
 const setSecrets = async (
   scriptId: number,
@@ -183,19 +197,14 @@ export const buildSite = async (
   // 4. Generate encryption key
   const encryptionKey = builderApi.generateEncryptionKey();
 
-  // 5. Set secrets
+  // 5. Set secrets: base credentials plus any host secrets that are set
   const secrets: [string, string][] = [
     ["DB_URL", dbCredentials.dbUrl],
     ["DB_TOKEN", dbCredentials.dbToken],
     ["DB_ENCRYPTION_KEY", encryptionKey],
     ["BUNNY_SCRIPT_ID", String(scriptId)],
+    ...collectHostSecrets(),
   ];
-
-  // Copy host secrets that are set
-  for (const key of HOST_SECRET_KEYS) {
-    const value = getEnv(key);
-    if (value) secrets.push([key, value]);
-  }
 
   // Renewal-related secrets (READ_ONLY_FROM, RENEWAL_URL) are pushed later by
   // site-assignment.ts after the site row has been created — the builder

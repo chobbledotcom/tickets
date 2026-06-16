@@ -26,7 +26,11 @@ import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
-import type { TicketListing } from "#templates/public.tsx";
+import type {
+  BookingPrefill,
+  TicketListing,
+  TicketPrefill,
+} from "#templates/public.tsx";
 import {
   buildListingAnswerMap,
   extractContact,
@@ -372,6 +376,9 @@ const processSubmission = async (
 const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   withCsrfForm(
     request,
+    // CSRF failures redirect with a flash (the token expired or was tampered
+    // with — the page reloads with a fresh token). Field-level validation
+    // errors instead re-render inline so the visitor keeps what they entered.
     (message) =>
       errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, message),
     (form) => {
@@ -380,31 +387,77 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
     },
   );
 
-/** Handle ticket GET/POST orchestrator */
-export const handleTicket = async (
-  request: Request,
-  actionSlugs: string[],
-  activeListings: TicketListing[],
-  getContext: TicketContextProvider,
-  qrPrefill?: TicketCtx["qrPrefill"],
-): Promise<Response> => {
+/**
+ * Inputs to the booking-page framework: the listings to offer, a context
+ * provider that derives the fields/dates/questions/terms from them, the slugs
+ * that form the default `/ticket/<slugs>` action, and an optional per-listing
+ * pre-fill. Shared by {@link handleTicket} and its callers so the booking
+ * "request" has a single named shape across every scenario.
+ */
+export type BookingRequest = {
+  request: Request;
+  /** Slugs forming the default `/ticket/<slugs>` form action. */
+  slugs: string[];
+  listings: TicketListing[];
+  getContext: TicketContextProvider;
+  prefill?: TicketCtx["prefill"];
+};
+
+/** Build the rendering context: derive the booking context from the listings
+ * and mint a fresh CSRF token. */
+const buildTicketCtx = async ({
+  request,
+  slugs,
+  listings,
+  getContext,
+  prefill,
+}: BookingRequest): Promise<TicketCtx> => {
   const [sharedCtx] = await Promise.all([
-    getContext(activeListings),
+    getContext(listings),
     signCsrfToken(),
   ]);
-  const ctx: TicketCtx = {
+  return {
     baseUrl: getBaseUrl(request),
-    listings: activeListings,
-    slugs: actionSlugs,
+    listings,
+    slugs,
     ...sharedCtx,
-    qrPrefill,
+    prefill,
   };
+};
+
+/** Handle ticket GET/POST orchestrator: render on GET, submit otherwise. */
+export const handleTicket = async (args: BookingRequest): Promise<Response> => {
+  const { request, listings } = args;
+  const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
       ? ticketResponse(ctx)(applyFlash(request).error)
       : await submitTicket(request, ctx);
-  const anyHidden = activeListings.some((e) => e.listing.hidden);
-  return applyHiddenNoindex(response, anyHidden);
+  return applyHiddenNoindex(
+    response,
+    listings.some((e) => e.listing.hidden),
+  );
+};
+
+/**
+ * Build a per-listing quantity pre-fill from `?q_<id>=n` query params. The order
+ * page redirects into `/ticket/<slugs>?q_<id>=1…` to land the visitor on the
+ * booking page with their chosen items already selected; this generalises that
+ * URL-driven pre-fill to any `/ticket/<slugs>` page.
+ */
+const parseQuantityPrefill = (
+  request: Request,
+  listings: TicketListing[],
+): BookingPrefill | undefined => {
+  const params = new URL(request.url).searchParams;
+  const map = new Map<number, TicketPrefill>();
+  for (const { listing } of listings) {
+    const qty = Number.parseInt(params.get(`q_${listing.id}`) ?? "", 10);
+    if (Number.isInteger(qty) && qty > 0) {
+      map.set(listing.id, { quantity: qty });
+    }
+  }
+  return map.size > 0 ? { listings: map } : undefined;
 };
 
 /** Handle ticket page by slugs (multi-listing) */
@@ -412,23 +465,48 @@ export const handleTicketBySlugs = (
   request: Request,
   slugs: string[],
 ): Promise<Response> =>
-  withActiveListings(slugs, (activeListings) =>
-    handleTicket(request, slugs, activeListings, getTicketContext),
+  withActiveListings(slugs, (listings) =>
+    handleTicket({
+      getContext: getTicketContext,
+      listings,
+      prefill: parseQuantityPrefill(request, listings),
+      request,
+      slugs,
+    }),
   );
 
-/** Curried: build capacity-aware TicketListings and hand off to handleTicket with
- * shared context. Caller supplies the listings; `group` flows into getTicketContext
- * and `overrides` win over its result (e.g. for renewal's actionUrl/siteToken). */
+/**
+ * The booking-page framework entrypoint: render a booking page for an arbitrary
+ * set of listings, letting {@link getTicketContext} derive the fields, dates,
+ * questions and terms from the listings themselves. Every booking scenario
+ * funnels through here — single listing, multi-listing, group, and the order
+ * page — so they share one rendering and submission path.
+ *
+ * Caller supplies the listings; `group` flows into getTicketContext, `overrides`
+ * win over its result (e.g. renewal's actionUrl/siteToken, or the order page's
+ * header + action), and `prefill` pre-selects per-listing quantities (the order
+ * cart's selected products).
+ */
 export const renderTicketFlow =
   (
     request: Request,
     slugs: string[],
-    options: { group?: Group; overrides?: Partial<TicketSharedContext> } = {},
+    options: {
+      group?: Group;
+      overrides?: Partial<TicketSharedContext>;
+      prefill?: BookingPrefill;
+    } = {},
   ) =>
   async (listings: ListingWithCount[]): Promise<Response> => {
     const activeListings = await buildTicketListingsWithGroupCapacity(listings);
-    return handleTicket(request, slugs, activeListings, async (e) => ({
-      ...(await getTicketContext(e, options.group)),
-      ...options.overrides,
-    }));
+    return handleTicket({
+      getContext: async (e) => ({
+        ...(await getTicketContext(e, options.group)),
+        ...options.overrides,
+      }),
+      listings: activeListings,
+      prefill: options.prefill,
+      request,
+      slugs,
+    });
   };

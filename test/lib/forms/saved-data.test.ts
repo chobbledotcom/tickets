@@ -4,6 +4,7 @@ import { FormParams } from "#shared/form-data.ts";
 import {
   clearSavedFormData,
   type Field,
+  getSavedFormData,
   renderFields,
   setSavedFormData,
 } from "#shared/forms.tsx";
@@ -122,5 +123,35 @@ describe("saved form data", () => {
     const html = renderFields([field({ label: "Name", name: "name" })]);
     expect(html).toContain("&lt;script&gt;");
     expect(html).not.toContain("<script>alert");
+  });
+
+  test("empty explicit values defer to saved data", () => {
+    // Admin create/edit pages pass entityToFieldValues, which yields "" for a
+    // blank field. That empty value must not shadow a restored submission.
+    setSavedFormData(new FormParams("name=Restored"));
+    const html = renderFields([field({ label: "Name", name: "name" })], {
+      name: "",
+    });
+    expect(html).toContain('value="Restored"');
+  });
+
+  test("empty explicit values stay empty when there is no saved data", () => {
+    const html = renderFields(
+      [field({ defaultValue: "Default", label: "Name", name: "name" })],
+      { name: "" },
+    );
+    expect(html).not.toContain('value="Default"');
+  });
+
+  test("getSavedFormData returns the captured form", () => {
+    const form = new FormParams("name=Alice");
+    setSavedFormData(form);
+    expect(getSavedFormData()).toBe(form);
+  });
+
+  test("getSavedFormData returns null once cleared", () => {
+    setSavedFormData(new FormParams("name=Alice"));
+    clearSavedFormData();
+    expect(getSavedFormData()).toBeNull();
   });
 });

@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -311,6 +311,15 @@ const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["attendee_id"],
           name: "idx_activity_log_attendee_id",
+        },
+        // Per-listing log reads filter on listing_id and order by id DESC.
+        // Because id is AUTOINCREMENT (== rowid), this index already orders its
+        // entries by (listing_id, id), so the filter + newest-first scan is an
+        // index range scan with no sort — instead of scanning the whole
+        // (unbounded) log table on every admin listing page view.
+        {
+          columns: ["listing_id"],
+          name: "idx_activity_log_listing_id",
         },
       ],
     },
@@ -1011,6 +1020,13 @@ const MIGRATIONS: Migration[] = [
       await syncIndexes();
       await ensureDefaultAttendeeStatus();
     },
+    verify: verifyCurrentAppSchema,
+  },
+  {
+    description:
+      "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
+    id: "2026-06-15_activity_log_listing_id_index",
+    up: syncIndexes,
     verify: verifyCurrentAppSchema,
   },
 ];

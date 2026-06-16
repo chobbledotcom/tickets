@@ -270,6 +270,133 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/site/order", () => {
+    testRequiresAuth("/admin/site/order");
+
+    test("shows order editor when authenticated", async () => {
+      const response = await awaitTestRequest("/admin/site/order", {
+        cookie: await testCookie(),
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Order Page",
+        "order_enabled",
+        "Enable order page",
+        "order_intro_text",
+      );
+    });
+
+    test("warns when there are no bookable listings", async () => {
+      const response = await awaitTestRequest("/admin/site/order", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("no bookable listings");
+    });
+
+    test("counts every active, visible listing", async () => {
+      const { createTestListing } = await import("#test-utils");
+      await createTestListing({ name: "Mug", purchaseOnly: true });
+      await createTestListing({ name: "Regular Ticket" });
+      const response = await awaitTestRequest("/admin/site/order", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("2 listings will be shown");
+      expect(html).not.toContain("no bookable listings");
+    });
+
+    test("uses the singular for a single listing", async () => {
+      const { createTestListing } = await import("#test-utils");
+      await createTestListing({ name: "Solo" });
+      const response = await awaitTestRequest("/admin/site/order", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("1 listing will be shown");
+    });
+
+    test("displays existing intro text", async () => {
+      await settings.update.orderIntroText("Pick your items");
+      const response = await awaitTestRequest("/admin/site/order", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(html).toContain("Pick your items");
+    });
+
+    test("reflects the enabled state in the checkbox", async () => {
+      await settings.update.orderEnabled(true);
+      const response = await awaitTestRequest("/admin/site/order", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      expect(hasCheckedInput(html, "order_enabled", "true")).toBe(true);
+    });
+  });
+
+  describe("POST /admin/site/order", () => {
+    testRequiresAuth("/admin/site/order", {
+      body: { order_intro_text: "Hi" },
+      method: "POST",
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/site/order",
+          { csrf_token: "invalid", order_intro_text: "Hi" },
+          await testCookie(),
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("saves the order intro text", async () => {
+      const { response } = await adminFormPost("/admin/site/order", {
+        order_intro_text: "Browse our range",
+      });
+      expectRedirectContaining(response, "Order page updated");
+      expect(settings.orderIntroText).toBe("Browse our range");
+    });
+
+    test("rejects intro text exceeding max length", async () => {
+      const { response } = await adminFormPost("/admin/site/order", {
+        order_intro_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      });
+      expectRedirectWithFlash(
+        "/admin/site/order",
+        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
+        false,
+      )(response);
+    });
+  });
+
+  describe("POST /admin/site/order/toggle", () => {
+    testRequiresAuth("/admin/site/order/toggle", {
+      body: { order_enabled: "true" },
+      method: "POST",
+    });
+
+    test("enables the order page", async () => {
+      const { response } = await adminFormPost("/admin/site/order/toggle", {
+        order_enabled: "true",
+      });
+      expectRedirect(response, "/admin/site/order");
+      expectFlash(response, "Order page enabled");
+      expect(settings.orderEnabled).toBe(true);
+    });
+
+    test("disables the order page when the box is unchecked", async () => {
+      await settings.update.orderEnabled(true);
+      const { response } = await adminFormPost("/admin/site/order/toggle", {});
+      expectRedirect(response, "/admin/site/order");
+      expectFlash(response, "Order page disabled");
+      expect(settings.orderEnabled).toBe(false);
+    });
+  });
+
   describe("site subnav", () => {
     /** Fetch a site admin page and assert it contains subnav links */
     const expectSubnav = async (path: string) => {
@@ -279,16 +406,22 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
       expect(html).toContain('href="/admin/site/contact"');
+      expect(html).toContain('href="/admin/site/order"');
       expect(html).toContain("Homepage");
       expect(html).toContain("Contact");
+      expect(html).toContain("Order");
     };
 
-    test("homepage shows subnav with Homepage and Contact links", async () => {
+    test("homepage shows subnav with Homepage, Contact and Order links", async () => {
       await expectSubnav("/admin/site");
     });
 
-    test("contact page shows subnav with Homepage and Contact links", async () => {
+    test("contact page shows subnav with Homepage, Contact and Order links", async () => {
       await expectSubnav("/admin/site/contact");
+    });
+
+    test("order page shows subnav with Homepage, Contact and Order links", async () => {
+      await expectSubnav("/admin/site/order");
     });
   });
 

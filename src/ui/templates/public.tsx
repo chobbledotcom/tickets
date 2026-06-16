@@ -24,9 +24,14 @@ import {
   Flash,
   MessageFields,
   renderFields,
+  savedFormValue,
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  type ListingFilter,
+  renderTypeFilter,
+} from "#shared/listing-filter.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -37,16 +42,19 @@ import {
   type ListingFields,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { Icon } from "#templates/components/actions.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation - hides terms/contact links when those pages are empty */
+/** Public site navigation - hides terms/contact/order links when off/empty */
 const PublicNav = ({
   hasTerms,
   hasContact,
+  hasOrder,
 }: {
   hasTerms?: boolean;
   hasContact?: boolean;
+  hasOrder?: boolean;
 }): JSX.Element => (
   <nav>
     <ul>
@@ -56,6 +64,11 @@ const PublicNav = ({
       <li>
         <a href="/listings">{t("nav.public.listings")}</a>
       </li>
+      {hasOrder && (
+        <li>
+          <a href="/order">Order</a>
+        </li>
+      )}
       {hasTerms && (
         <li>
           <a href="/terms">T&amp;Cs</a>
@@ -72,9 +85,11 @@ const PublicNav = ({
 
 /** Compute which public pages have content.
  * The Contact link also shows when the contact form is active, even if the
- * contact page has no descriptive text of its own. */
+ * contact page has no descriptive text of its own. The Order link shows
+ * whenever the owner has enabled the order page. */
 const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
+  hasOrder: settings.orderEnabled,
   hasTerms: !!settings.terms,
 });
 
@@ -239,16 +254,25 @@ export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 
 export const homepagePage = (
   listings: TicketListing[],
-  websiteTitle?: string | null,
-  groups: Group[] = [],
+  websiteTitle: string | null | undefined,
+  groups: Group[],
+  filter: { active: ListingFilter; categories: readonly ListingFilter[] },
 ): string => {
   const title = websiteTitle ? `Listings - ${websiteTitle}` : "Listings";
+  // Offer the type filter only when more than one listing type is on the page.
+  const filterHtml =
+    filter.categories.length > 1
+      ? renderTypeFilter(filter.active, filter.categories, (f) =>
+          f === "all" ? "/listings" : `/listings?filter=${f}`,
+        )
+      : "";
 
   if (listings.length === 0 && groups.length === 0) {
     return String(
       <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...navFlags()} />
+        <Raw html={filterHtml} />
         <p>
           <em>{t("public.no_listings_listed")}</em>
         </p>
@@ -274,6 +298,7 @@ export const homepagePage = (
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <h2>{t("public.all_bookable_listings")}</h2>
+      <Raw html={filterHtml} />
       <Raw html={groupListings} />
       <Raw html={listingListings} />
       <footer class="homepage-footer">
@@ -368,14 +393,17 @@ export const sharedDayCounts = (listings: TicketListing[]): number[] => {
 };
 
 /** Render the "number of days" selector for customisable-days listings. When a
- * single listing drives the page, each option shows its price for that span. */
+ * single listing drives the page, each option shows its price for that span.
+ * The submitted day count is restored when a validation error re-renders. */
 const renderDayCountSelector = (
   counts: number[],
   priceFor?: (days: number) => number | null,
-): string =>
-  counts.length === 0
-    ? `<div class="error" role="alert">No booking lengths are currently available.</div>`
-    : `<label for="day_count">Number of days</label>
+): string => {
+  if (counts.length === 0) {
+    return `<div class="error" role="alert">No booking lengths are currently available.</div>`;
+  }
+  const selected = savedFormValue("day_count");
+  return `<label for="day_count">Number of days</label>
        <select name="day_count" id="day_count" required>
          <option value="">— Select —</option>
          ${counts
@@ -385,12 +413,13 @@ const renderDayCountSelector = (
                price !== undefined && price !== null
                  ? ` — ${formatCurrency(price)}`
                  : "";
-             return `<option value="${n}">${n} day${
-               n === 1 ? "" : "s"
-             }${suffix}</option>`;
+             return `<option value="${n}"${
+               selected === String(n) ? " selected" : ""
+             }>${n} day${n === 1 ? "" : "s"}${suffix}</option>`;
            })
            .join("")}
        </select>`;
+};
 
 /** Quantity values parsed from ticket form */
 export type TicketQuantities = Map<number, number>;
@@ -409,14 +438,18 @@ const renderPayMoreInput = (
       : t("public.ticket.your_price_optional", {
           max: formatCurrency(maxPrice),
         });
-  const defaultValue =
+  const prefillValue =
     prefillMinor !== undefined && prefillMinor >= minPrice
       ? prefillMinor
       : minPrice;
+  // A re-render after a validation error restores exactly what was typed
+  // (already in major units); otherwise fall back to the pre-fill/minimum.
+  const saved = savedFormValue(fieldName);
+  const value = saved !== "" ? saved : toMajorUnits(prefillValue);
   return (
     `<label>${rangeHint}` +
     `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(
-      toMajorUnits(defaultValue),
+      value,
     )}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(
       toMajorUnits(maxPrice),
     )}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${
@@ -425,10 +458,15 @@ const renderPayMoreInput = (
   );
 };
 
-/** Render terms and conditions block with agreement checkbox */
-const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="prose">${renderMarkdown(terms)}</div>` +
-  `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
+/** Render terms and conditions block with agreement checkbox. The checkbox stays
+ * ticked when a validation error re-renders so agreement isn't lost. */
+const renderTermsAndCheckbox = (terms: string): string => {
+  const checked = savedFormValue("agree_terms") === "1" ? " checked" : "";
+  return (
+    `<div class="prose">${renderMarkdown(terms)}</div>` +
+    `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1"${checked} required> I agree to the terms above</label>`
+  );
+};
 
 /** Render custom multiple-choice question fields (radio buttons).
  * When questionListingMap is provided, adds data-listing-ids
@@ -440,12 +478,14 @@ export const renderQuestions = (
   if (questions.length === 0) return "";
   return questions
     .map((q) => {
+      // Restore the chosen answer when a validation error re-renders the page.
+      const answered = savedFormValue(`question_${q.id}`);
       const options = q.answers
         .map(
           (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}" required> ${escapeHtml(
-              a.text,
-            )}</label>`,
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
+              answered === String(a.id) ? " checked" : ""
+            } required> ${escapeHtml(a.text)}</label>`,
         )
         .join("");
       const listingIds = questionListingMap?.get(q.id);
@@ -656,13 +696,27 @@ const resolveQuantity = (
   return Math.max(0, Math.min(prefill.quantity, maxPurchasable));
 };
 
+/** The quantity to pre-select for a row: the value the visitor just submitted
+ * (restored when a validation error re-renders the page), else the QR/order
+ * pre-fill — both clamped to the available range. */
+const restoredQuantity = (
+  listingId: number,
+  prefill: TicketPrefill | undefined,
+  maxPurchasable: number,
+): number => {
+  const saved = savedFormValue(`quantity_${listingId}`);
+  if (saved === "") return resolveQuantity(prefill, maxPurchasable);
+  return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, maxPurchasable));
+};
+
 /** Render quantity selector for an listing row.
  *
- * Note: QR pre-fills are single-listing only and go through
- * renderSingleListingControls, so this function has no prefill parameter. */
+ * An optional per-listing `prefill` pre-selects the quantity (clamped to the
+ * available range) — used by multi-listing scenarios such as the order cart. */
 const renderListingRow = (
   info: TicketListing,
   hideQuantity = false,
+  prefill?: TicketPrefill,
 ): string => {
   const { listing, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${listing.id}`;
@@ -693,18 +747,19 @@ const renderListingRow = (
     ? `<input type="hidden" name="${fieldName}" value="1" />`
     : `<select name="${fieldName}">${quantityOptions(
         maxPurchasable,
-        0,
+        restoredQuantity(listing.id, prefill, maxPurchasable),
       )}</select>`;
 
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
+  const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
 
   return `
     <div class="ticket-row">
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
       ${renderListingDescription(listing.description)}
-      ${showPayMore ? renderPayMoreInput(listing, priceFieldName) : ""}
+      ${showPayMore ? renderPayMoreInput(listing, priceFieldName, prefilledPrice) : ""}
     </div>
   `;
 };
@@ -717,7 +772,7 @@ const renderSingleListingControls = (
 ): string => {
   const { listing, maxPurchasable } = info;
   const fieldName = `quantity_${listing.id}`;
-  const prefilledQty = resolveQuantity(prefill, maxPurchasable);
+  const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
@@ -740,17 +795,30 @@ const renderSingleListingControls = (
 const getTicketFieldsSetting = (listings: TicketListing[]): ListingFields =>
   mergeListingFields(listings.map((e) => e.listing.fields));
 
-/** Pre-fill state derived from a signed QR booking link */
-export type QrPrefill = {
-  /** Opaque signed token re-submitted via a hidden input to verify price override */
-  token: string;
+/**
+ * Context-neutral pre-fill for the booking page: per-listing quantities (and
+ * optional price), an optional pre-filled name/date, and — only for signed QR
+ * links — a token re-submitted as a hidden field to authorise a price override.
+ *
+ * This is part of the booking-page framework: any scenario that wants to land a
+ * visitor on a booking form with some listings pre-selected builds one of these.
+ * The QR booking flow sets a single listing plus a `token`; the order cart sets
+ * many listings (quantity 1 each) and no token.
+ */
+export type BookingPrefill = {
+  /** Per-listing pre-fill — keyed by listing id */
+  listings: Map<number, TicketPrefill>;
   /** Pre-fill name input */
   name?: string;
   /** Pre-fill date selector (for daily listings) */
   date?: string;
-  /** Per-listing pre-fill — keyed by listing id */
-  listings: Map<number, TicketPrefill>;
+  /** Opaque signed token re-submitted via a hidden input to verify a price
+   * override. Only signed QR booking links set this. */
+  token?: string;
 };
+
+/** Alias retained for the signed-QR booking flow, which always sets `token`. */
+export type QrPrefill = BookingPrefill;
 
 /** Options for the ticket page */
 export type TicketPageOptions = {
@@ -764,7 +832,7 @@ export type TicketPageOptions = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
-  qrPrefill?: QrPrefill;
+  prefill?: BookingPrefill;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
 };
@@ -838,7 +906,7 @@ const TicketPageForm = ({
   questions,
   questionListingMap,
   terms,
-  qrPrefill,
+  prefill,
 }: {
   slugs: string[];
   actionUrl?: string;
@@ -855,19 +923,23 @@ const TicketPageForm = ({
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
   terms: string | null | undefined;
-  qrPrefill?: QrPrefill;
+  prefill?: BookingPrefill;
 }): JSX.Element => {
   const fieldValues: Record<string, string> = {};
-  if (qrPrefill?.name) fieldValues.name = qrPrefill.name;
+  if (prefill?.name) fieldValues.name = prefill.name;
   return (
     <CsrfForm action={actionUrl ?? `/ticket/${slugs.join("+")}`}>
-      {qrPrefill && (
-        <input name="qr_token" type="hidden" value={qrPrefill.token} />
+      {prefill?.token && (
+        <input name="qr_token" type="hidden" value={prefill.token} />
       )}
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (
         <Raw
-          html={renderDateSelector(dates, qrPrefill?.date ?? "", durationDays)}
+          html={renderDateSelector(
+            dates,
+            savedFormValue("date") || prefill?.date || "",
+            durationDays,
+          )}
         />
       )}
       {hasCustomisable && (
@@ -934,7 +1006,7 @@ export const ticketPage = ({
   baseUrl,
   groupName,
   groupDescription,
-  qrPrefill,
+  prefill,
   actionUrl,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
@@ -958,14 +1030,23 @@ export const ticketPage = ({
     availableListings[0]?.maxPurchasable === 1;
 
   // For single listings, render just the quantity/pay-more controls (listing details are in the header).
-  // QR pre-fills only apply to single-listing pages, so multi-listing rows ignore them.
+  // Both single- and multi-listing rows honour per-listing quantity pre-fills,
+  // so QR links (single) and the order cart (multi) share the same machinery.
   const listingRows = isSingleListing
     ? renderSingleListingControls(
         listings[0]!,
         hideQuantity,
-        qrPrefill?.listings.get(listings[0]!.listing.id),
+        prefill?.listings.get(listings[0]!.listing.id),
       )
-    : listings.map((e) => renderListingRow(e, hideQuantity)).join("");
+    : listings
+        .map((e) =>
+          renderListingRow(
+            e,
+            hideQuantity,
+            prefill?.listings.get(e.listing.id),
+          ),
+        )
+        .join("");
 
   // Unified header. When the caller supplies group metadata (groups, renewals),
   // it takes priority over single-listing details — the caller knows best what
@@ -1010,13 +1091,106 @@ export const ticketPage = ({
           hideQuantity={hideQuantity}
           isSingleListing={isSingleListing}
           listingRows={listingRows}
-          qrPrefill={qrPrefill}
+          prefill={prefill}
           questionListingMap={questionListingMap}
           questions={questions}
           slugs={slugs}
           terms={terms}
         />
       )}
+    </Layout>,
+  );
+};
+
+/**
+ * One listing card in the order gallery. A `<label>` wraps a hidden checkbox so
+ * the whole card toggles selection with no JavaScript; CSS highlights the card
+ * via `:checked`. Sold-out / closed / read-only listings render a dimmed,
+ * non-selectable card so they can't be added to an order.
+ */
+const renderOrderCard = (info: TicketListing): string => {
+  const { listing, isSoldOut, isClosed } = info;
+  const imageHtml = renderListingImage(listing, "order-card-image");
+  const priceHtml =
+    listing.unit_price > 0
+      ? `<span class="order-card-price">${
+          listing.can_pay_more ? "From " : ""
+        }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
+      : "";
+
+  if (isSoldOut || isClosed || isReadOnly()) {
+    const status = isSoldOut && !isClosed ? "Sold Out" : "Unavailable";
+    return `<div class="order-card order-card--unavailable">
+        ${imageHtml}
+        <span class="order-card-body">
+          <span class="order-card-name">${escapeHtml(listing.name)}</span>
+          <span class="order-card-status">${status}</span>
+        </span>
+      </div>`;
+  }
+
+  const fieldName = `select_${listing.id}`;
+  return `<label class="order-card" for="${fieldName}">
+      <input class="order-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
+      ${imageHtml}
+      <span class="order-card-body">
+        <span class="order-card-name">${escapeHtml(listing.name)}</span>
+        ${priceHtml}
+      </span>
+      <span class="order-card-tick" aria-hidden="true"></span>
+    </label>`;
+};
+
+/**
+ * Order gallery page — a grid of bookable listings the visitor selects to start
+ * an order. The whole page is one GET form: each card is a checkbox and the
+ * floating cart is the submit button, so submitting navigates to `/order` with
+ * the selection, which redirects into the pre-filled multi-listing booking page.
+ * Selection styling and the live item count are pure CSS (`:checked`, a counter,
+ * and `:has()`), so the page needs no JavaScript. The cart button is placed last
+ * in the DOM so its CSS counter sees every checkbox.
+ */
+export const orderGalleryPage = (
+  listings: TicketListing[],
+  websiteTitle?: string | null,
+  introText?: string | null,
+): string => {
+  const title = websiteTitle ? `Order - ${websiteTitle}` : "Order";
+  const cards = pipe(map(renderOrderCard), (rows: string[]) => rows.join(""))(
+    listings,
+  );
+
+  return String(
+    <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav {...navFlags()} />
+      {introText && (
+        <div class="prose">
+          <Raw html={renderMarkdown(introText)} />
+        </div>
+      )}
+      {listings.length === 0 ? (
+        <p>
+          <em>No items are available to order right now.</em>
+        </p>
+      ) : (
+        <form action="/order" class="order-gallery" method="get">
+          <fieldset class="order-grid">
+            <legend class="visually-hidden">Select items to order</legend>
+            <Raw html={cards} />
+          </fieldset>
+          <button class="order-cart" type="submit">
+            <Icon name="shopping-cart" />
+            <span aria-hidden="true" class="order-cart-count"></span>
+            <span class="order-cart-label">View order</span>
+          </button>
+        </form>
+      )}
+      <footer class="homepage-footer">
+        <p>
+          <a href="/admin/login">Login</a>
+        </p>
+      </footer>
     </Layout>,
   );
 };

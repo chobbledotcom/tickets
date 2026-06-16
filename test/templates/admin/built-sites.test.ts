@@ -33,6 +33,14 @@ describe("adminBuiltSitesPage", () => {
     expect(html).toContain("never");
   });
 
+  test("links each site name to its edit page and has no list delete link", () => {
+    const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
+    const html = adminBuiltSitesPage([site], TEST_SESSION);
+    expect(html).toContain('href="/admin/built-sites/7/edit">Linky</a>');
+    // Delete now lives on the edit page, not the list.
+    expect(html).not.toContain("/admin/built-sites/7/delete");
+  });
+
   test("warns when no qualifying renewal tier is configured", () => {
     const site = testBuiltSite({ readOnlyFrom: "" });
     const html = adminBuiltSitesPage([site], TEST_SESSION, undefined, []);
@@ -106,6 +114,13 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
     expect(html).toContain("/renew/?t=real-customer-renewal-token");
     expect(html).not.toContain("?t=<token>");
   });
+
+  test("labels the shared bump/override forms inline (no headings)", () => {
+    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
+    expect(html).toContain('<label for="bump_months">Bump deadline by months');
+    expect(html).toContain('<label for="override_date">Override deadline');
+    expect(html).not.toContain("<h3>Bump deadline</h3>");
+  });
 });
 
 describe("adminBuiltSiteEditPage — unprovisioned site", () => {
@@ -123,5 +138,104 @@ describe("adminBuiltSiteEditPage — unprovisioned site", () => {
     expect(html).not.toContain("rotate-renewal-token");
     expect(html).not.toContain("re-sync-deadline");
     expect(html).not.toContain("tier_listing_id");
+  });
+
+  test("labels the shared bump/override forms with headings (no inline labels)", () => {
+    const html = adminBuiltSiteEditPage(unprovisionedSite, TEST_SESSION);
+    expect(html).toContain("<h3>Bump deadline</h3>");
+    expect(html).toContain("<h3>Override deadline</h3>");
+    expect(html).not.toContain('for="bump_months"');
+    expect(html).not.toContain('for="override_date"');
+  });
+
+  test("links to the delete page from the edit page", () => {
+    const html = adminBuiltSiteEditPage(
+      testBuiltSite({ id: 9, name: "Del" }),
+      TEST_SESSION,
+    );
+    expect(html).toContain("/admin/built-sites/9/delete");
+    expect(html).toContain("Delete this site");
+  });
+});
+
+describe("adminBuiltSiteEditPage — secrets panel", () => {
+  const site = testBuiltSite({ id: 9, name: "Sec" });
+
+  test("lists the missing secrets with a backfill button", () => {
+    const html = adminBuiltSiteEditPage(
+      site,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      {
+        expected: ["DB_URL", "NTFY_URL", "STORAGE_ZONE_KEY"],
+        missing: ["NTFY_URL", "STORAGE_ZONE_KEY"],
+        ok: true,
+        present: ["DB_URL", "DB_ENCRYPTION_KEY"],
+      },
+    );
+    expect(html).toContain("Secrets");
+    expect(html).toContain("/admin/built-sites/9/add-secrets");
+    expect(html).toContain("<code>NTFY_URL</code>");
+    expect(html).toContain("<code>STORAGE_ZONE_KEY</code>");
+    expect(html).toContain("Set 2 missing secret(s)");
+    // Live secrets are listed for insight, including ones outside the copy set.
+    expect(html).toContain("Secrets currently on this site");
+    expect(html).toContain("<code>DB_ENCRYPTION_KEY</code>");
+  });
+
+  test("omits the live-secrets list when the site has none set", () => {
+    const html = adminBuiltSiteEditPage(
+      site,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      {
+        expected: ["NTFY_URL"],
+        missing: ["NTFY_URL"],
+        ok: true,
+        present: [],
+      },
+    );
+    expect(html).not.toContain("Secrets currently on this site");
+    expect(html).toContain("/admin/built-sites/9/add-secrets");
+  });
+
+  test("confirms when every expected secret is already present", () => {
+    const html = adminBuiltSiteEditPage(
+      site,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      {
+        expected: ["DB_URL", "NTFY_URL"],
+        missing: [],
+        ok: true,
+        present: ["DB_URL", "NTFY_URL"],
+      },
+    );
+    expect(html).toContain("All expected secrets are present");
+    expect(html).not.toContain("add-secrets");
+  });
+
+  test("shows the error when secrets cannot be read", () => {
+    const html = adminBuiltSiteEditPage(
+      site,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      {
+        error:
+          "BUNNY_API_KEY is not configured on this host, so site secrets can't be read.",
+        ok: false,
+      },
+    );
+    expect(html).toContain("BUNNY_API_KEY is not configured");
+    expect(html).not.toContain("add-secrets");
+  });
+
+  test("notes when the secrets view is unavailable", () => {
+    const html = adminBuiltSiteEditPage(site, TEST_SESSION);
+    expect(html).toContain("Secrets status is unavailable");
   });
 });

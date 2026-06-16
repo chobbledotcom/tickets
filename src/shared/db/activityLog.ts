@@ -7,10 +7,14 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import {
+  decryptListingWithCount,
+  LISTING_COUNT_GROUP_BY,
+  LISTING_COUNT_SELECT,
+} from "#shared/db/listings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
-import type { Listing, ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
 /** Activity log entry */
 export interface ActivityLogEntry {
@@ -81,9 +85,13 @@ const queryActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   const whereClause = listingId !== null ? "WHERE listing_id = ?" : "";
   const args = listingId !== null ? [listingId, limit] : [limit];
+  // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
+  // co-monotonic with created (newest row = highest id) but, being the rowid,
+  // it is served straight from the primary key / idx_activity_log_listing_id
+  // without a sort over the unbounded log table.
   return decryptLogRows(
     await queryAll<ActivityLogEntry>(
-      `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
+      `SELECT * FROM activity_log ${whereClause} ORDER BY id DESC LIMIT ?`,
       args,
     ),
   );
@@ -113,7 +121,7 @@ export const getAttendeeActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   return decryptLogRows(
     await queryAll<ActivityLogEntry>(
-      "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY created DESC, id DESC LIMIT ?",
+      "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?",
       [attendeeId, limit],
     ),
   );
@@ -136,30 +144,18 @@ export const getListingWithActivityLog = async (
   const results = await queryBatch([
     {
       args: [listingId],
-      sql: `SELECT e.*, COALESCE(SUM(ea.quantity), 0) as attendee_count
-            FROM listings e
-            LEFT JOIN listing_attendees ea ON e.id = ea.listing_id
-            WHERE e.id = ?
-            GROUP BY e.id`,
+      sql: `${LISTING_COUNT_SELECT} WHERE e.id = ? ${LISTING_COUNT_GROUP_BY}`,
     },
     {
       args: [listingId, limit],
-      sql: "SELECT * FROM activity_log WHERE listing_id = ? ORDER BY created DESC, id DESC LIMIT ?",
+      sql: "SELECT * FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?",
     },
   ]);
 
-  const listingRows = resultRows<Listing & { attendee_count: number }>(
-    results[0]!,
-  );
-  const listingRow = listingRows[0];
+  const listingRow = resultRows<ListingWithCount>(results[0]!)[0];
   if (!listingRow) return null;
 
-  // Decrypt listing fields
-  const decryptedListing = await listingsTable.fromDb(listingRow);
-  const listing: ListingWithCount = {
-    ...decryptedListing,
-    attendee_count: listingRow.attendee_count,
-  };
+  const listing = await decryptListingWithCount(listingRow);
 
   const entries = await decryptLogRows(
     resultRows<ActivityLogEntry>(results[1]!),

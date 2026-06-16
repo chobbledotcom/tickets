@@ -2,7 +2,6 @@
  * Users table operations
  */
 
-import { registerCache } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   hashPassword,
@@ -17,14 +16,28 @@ import {
   insert,
   queryAll,
 } from "#shared/db/client.ts";
+import { createKeyedCache, registerCache } from "#shared/db/common-schema.ts";
 import { now } from "#shared/now.ts";
-import { requestCache } from "#shared/request-cache.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
 const USER_SELECT =
   "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
 
-const usersCache = requestCache(() => queryAll<User>(USER_SELECT));
+/**
+ * Users change rarely and there are few of them, so the cache loads the whole
+ * set and answers by-id / by-username reads from it. The TTL is shorter than
+ * the listings/groups cache (admin changes should propagate quickly across
+ * isolates), but staleness is never authoritative: every user write invalidates
+ * immediately, role is fixed at creation, and auth gates on the session (which
+ * deleteUser also clears), not on this cache.
+ */
+const USERS_CACHE_TTL_MS = 15_000;
+const usersCache = createKeyedCache<User>({
+  fetchAll: () => queryAll<User>(USER_SELECT),
+  idOf: (u) => u.id,
+  keyOf: (u) => u.username_index,
+  ttlMs: USERS_CACHE_TTL_MS,
+});
 
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
@@ -114,19 +127,14 @@ export const createInvitedUser = (
  */
 export const getUserByUsername = async (
   username: string,
-): Promise<User | null> => {
-  const usernameIndex = await hmacHash(username.toLowerCase());
-  const users = await loadAllUsers();
-  return users.find((u) => u.username_index === usernameIndex) ?? null;
-};
+): Promise<User | null> =>
+  usersCache.getByKey(await hmacHash(username.toLowerCase()));
 
 /**
  * Get a user by ID (from cache)
  */
-export const getUserById = async (id: number): Promise<User | null> => {
-  const users = await loadAllUsers();
-  return users.find((u) => u.id === id) ?? null;
-};
+export const getUserById = (id: number): Promise<User | null> =>
+  usersCache.getById(id);
 
 /**
  * Check if a username is already taken

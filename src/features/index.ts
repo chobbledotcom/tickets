@@ -57,7 +57,9 @@ import {
   runWithFlashContext,
   setFlashContext,
 } from "#shared/flash-context.ts";
-import { clearSavedFormData } from "#shared/forms.tsx";
+import { FormParams } from "#shared/form-data.ts";
+import { takeForm } from "#shared/form-stash.ts";
+import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import {
   createRequestTimer,
@@ -94,6 +96,10 @@ const loadPublicPages = once(() => import("#routes/public/pages.ts"));
 const loadTicketRoutes = lazyExport(
   () => import("#routes/public/ticket-routes.ts"),
   "routeTicket",
+);
+const loadOrderRoutes = lazyExport(
+  () => import("#routes/public/order.ts"),
+  "routeOrder",
 );
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
@@ -271,7 +277,9 @@ const publicPagePath = (prefix: string): string =>
 
 type PublicGetPageSpec = {
   prefix: string;
-  pick: (pages: PublicPagesModule) => () => Response | Promise<Response>;
+  pick: (
+    pages: PublicPagesModule,
+  ) => (request: Request) => Response | Promise<Response>;
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
@@ -294,9 +302,9 @@ const publicPageHandlers = reduce(
   (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
     const { prefix, pick } = spec;
     const path = publicPagePath(prefix);
-    acc[prefix] = async (_request, reqPath, method) => {
+    acc[prefix] = async (request, reqPath, method) => {
       if (reqPath !== path || method !== "GET") return null;
-      return pick(await loadPublicPages())();
+      return pick(await loadPublicPages())(request);
     };
     return acc;
   },
@@ -337,6 +345,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),
   join: lazyRoute(loadJoinRoutes),
+  order: lazyRoute(loadOrderRoutes),
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>
@@ -486,6 +495,12 @@ const applyFlashFromCookie = (request: Request): string | null => {
     : null;
   const flash = flashRaw ? parseFlashValue(flashRaw) : null;
   if (flash) setFlashContext(flash);
+  // Redeem the form re-fill stash (warm-isolate optimisation). A miss is fine:
+  // the flash message above still renders, matching the cookie-only fallback.
+  if (flash?.formToken) {
+    const stashed = takeForm(flash.formToken);
+    if (stashed) setSavedFormData(new FormParams(stashed));
+  }
   return flash ? flashId : null;
 };
 
