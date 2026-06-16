@@ -848,9 +848,9 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         body: "Template body",
         subject: "Template subject",
       });
-      expectRedirectWithFlash(response, "Template saved.");
-      const redirectUrl = response.headers.get("location") ?? "";
+      const redirectUrl = expectRedirect(response);
       expect(redirectUrl).toContain("template=");
+      expectFlash(response, "Template saved.");
     });
 
     test("POST /admin/emails/templates rejects an empty subject", async () => {
@@ -859,7 +859,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         body: "Template body",
         subject: "",
       });
-      expectRedirectWithFlash(response, "Subject is required");
+      expectFlash(response, "Subject is required", false);
     });
 
     test("POST /admin/emails/templates updates an existing template", async () => {
@@ -871,9 +871,9 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         template_id: String(id),
         update_existing: "1",
       });
-      expectRedirectWithFlash(response, "Template updated.");
-      const redirectUrl = response.headers.get("location") ?? "";
+      const redirectUrl = expectRedirect(response);
       expect(redirectUrl).toContain(`template=${id}`);
+      expectFlash(response, "Template updated.");
     });
 
     test("POST /admin/emails/templates update returns 404 for missing template", async () => {
@@ -884,7 +884,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         template_id: "9999",
         update_existing: "1",
       });
-      expectRedirectWithFlash(response, "That template no longer exists.");
+      expectFlash(response, "That template no longer exists.", false);
     });
 
     test("POST /admin/emails/templates/:id/delete removes the template", async () => {
@@ -893,7 +893,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         `/admin/emails/templates/${id}/delete`,
         {},
       );
-      expectRedirectWithFlash(response, "Template deleted.");
+      expectRedirectWithFlash(
+        "/admin/emails?audience=active",
+        "Template deleted.",
+      )(response);
     });
 
     test("POST /admin/emails/templates/:id/delete 404s for unknown template", async () => {
