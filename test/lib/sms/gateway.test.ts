@@ -6,11 +6,8 @@ import { decryptField } from "#shared/sms/e2e.ts";
 import {
   buildMessagePayload,
   DEFAULT_SMS_BASE_URL,
-  generateSmsPassphrase,
   getSmsGatewayConfig,
-  isSmsGatewayConfigured,
   sendEncryptedMessage,
-  sendSmsViaGateway,
 } from "#shared/sms/gateway.ts";
 import { describeWithEnv } from "#test-utils";
 
@@ -42,13 +39,6 @@ const config = {
 };
 
 describe("sms gateway payload", () => {
-  it("generateSmsPassphrase returns distinct non-empty tokens", () => {
-    const a = generateSmsPassphrase();
-    const b = generateSmsPassphrase();
-    expect(a).not.toBe("");
-    expect(a).not.toBe(b);
-  });
-
   it("buildMessagePayload encrypts the body and recipient", async () => {
     const payload = await buildMessagePayload(
       "+447700900123",
@@ -90,20 +80,18 @@ describe("sms gateway send", () => {
     expect(seenAuth).toBe(`Basic ${btoa("user:pw")}`);
   });
 
-  it("sendSmsViaGateway encrypts then sends the ciphertext", async () => {
+  it("transmits only ciphertext, never the plaintext", async () => {
     let body: string | null = null;
     const fetchImpl = fakeFetch(result(), (_url, init) => {
       body = init?.body as string;
     });
 
-    const { providerId } = await sendSmsViaGateway(
+    await sendEncryptedMessage(
       config,
-      { body: "secret message", phone: "+44123" },
+      await buildMessagePayload("+44123", "secret message", PASS),
       fetchImpl,
     );
 
-    expect(providerId).toBe("msg-1");
-    // The transmitted body never contains the plaintext
     expect(body).not.toBeNull();
     expect(body!).not.toContain("secret message");
     expect(body!).not.toContain("+44123");
@@ -149,7 +137,6 @@ describe("sms gateway send", () => {
 describeWithEnv("sms gateway config", { db: true }, () => {
   it("is unconfigured by default", () => {
     expect(getSmsGatewayConfig()).toBeNull();
-    expect(isSmsGatewayConfigured()).toBe(false);
   });
 
   it("requires passphrase and both credentials", async () => {
@@ -164,7 +151,6 @@ describeWithEnv("sms gateway config", { db: true }, () => {
     expect(cfg!.password).toBe("pw");
     expect(cfg!.passphrase).toBe("p");
     expect(cfg!.baseUrl).toBe(DEFAULT_SMS_BASE_URL);
-    expect(isSmsGatewayConfigured()).toBe(true);
   });
 
   it("uses a custom base URL when set", async () => {

@@ -8,7 +8,7 @@
  * attendee PII under the owner's key and re-encrypts under the E2E key first.
  */
 
-import { getDb, insert, queryAll, queryOne } from "#shared/db/client.ts";
+import { getDb, insert, queryAll } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Lifecycle of a queued message. */
@@ -56,19 +56,6 @@ export const enqueueSms = async (input: {
   return { id: Number(result.lastInsertRowid) };
 };
 
-/** Fetch a single outbox row by id. */
-export const getSmsOutboxById = (id: number): Promise<SmsOutboxRow | null> =>
-  queryOne<SmsOutboxRow>(`SELECT ${COLUMNS} FROM sms_outbox WHERE id = ?`, [
-    id,
-  ]);
-
-/** Oldest-first queued rows awaiting dispatch. */
-export const getQueuedSms = (limit = 100): Promise<SmsOutboxRow[]> =>
-  queryAll<SmsOutboxRow>(
-    `SELECT ${COLUMNS} FROM sms_outbox WHERE status = 'queued' ORDER BY created ASC, id ASC LIMIT ?`,
-    [limit],
-  );
-
 /** All messages for an attendee, newest first (for the contact history view). */
 export const getSmsOutboxForAttendee = (
   attendeeId: number,
@@ -98,22 +85,4 @@ export const markSmsFailed = async (
     args: [error, nowIso(), id],
     sql: "UPDATE sms_outbox SET status = 'failed', error = ?, attempts = attempts + 1, updated = ? WHERE id = ?",
   });
-};
-
-/** Mark a row delivered (driven by a delivery webhook). */
-export const markSmsDelivered = async (id: number): Promise<void> => {
-  await getDb().execute({
-    args: [nowIso(), id],
-    sql: "UPDATE sms_outbox SET status = 'delivered', updated = ? WHERE id = ?",
-  });
-};
-
-export const smsOutboxApi = {
-  enqueueSms,
-  getQueuedSms,
-  getSmsOutboxById,
-  getSmsOutboxForAttendee,
-  markSmsDelivered,
-  markSmsFailed,
-  markSmsSent,
 };

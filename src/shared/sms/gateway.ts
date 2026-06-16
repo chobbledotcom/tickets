@@ -11,7 +11,6 @@
  * never persisted in cleartext.
  */
 
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { DEFAULT_PBKDF2_ITERATIONS, encryptField } from "#shared/sms/e2e.ts";
@@ -54,13 +53,6 @@ export const getSmsGatewayConfig = (): SmsGatewayConfig | null => {
     username,
   };
 };
-
-/** True when the gateway is fully configured. */
-export const isSmsGatewayConfigured = (): boolean =>
-  getSmsGatewayConfig() !== null;
-
-/** Generate a fresh random E2E passphrase for the owner to enter on the phone. */
-export const generateSmsPassphrase = (): string => generateSecureToken();
 
 /**
  * Build the encrypted send payload: the message body and the recipient number
@@ -124,21 +116,4 @@ export const sendEncryptedMessage = async (
     method: "POST",
   });
   return { providerId: parseMessageId(result) };
-};
-
-/**
- * Encrypt + send a message in one call. `phone` and `body` are plaintext
- * supplied by the caller; only ciphertext is transmitted.
- */
-export const sendSmsViaGateway = async (
-  config: SmsGatewayConfig,
-  message: { phone: string; body: string },
-  fetchImpl: typeof fetchText = fetchText,
-): Promise<{ providerId: string }> => {
-  const payload = await buildMessagePayload(
-    message.phone,
-    message.body,
-    config.passphrase,
-  );
-  return sendEncryptedMessage(config, payload, fetchImpl);
 };
