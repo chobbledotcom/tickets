@@ -1,5 +1,5 @@
 /**
- * Shared "by listing type" filter used on the public listings page and the
+ * Shared "by listing type" filter used on the admin listings dashboard and the
  * admin attendees list: the filter values, the category a listing falls under,
  * and the rendered "Showing: All / Standard / …" bar. Keeping it in one place
  * lets both pages drive the same control with their own link targets.
