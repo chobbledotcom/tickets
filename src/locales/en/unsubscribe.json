@@ -1,9 +1,0 @@
-{
-  "unsubscribe.email_preferences": "Email preferences",
-  "unsubscribe.invalid_link": "This link is invalid or incomplete. Please use the unsubscribe link from one of our emails.",
-  "unsubscribe.unsubscribed_message": "You're <strong>unsubscribed</strong> from our marketing emails and won't receive them. You may still get essential messages about listings you've booked.",
-  "unsubscribe.changed_mind": "Changed your mind?",
-  "unsubscribe.resubscribe_button": "Resubscribe",
-  "unsubscribe.subscribed_message": "You're currently subscribed to our marketing emails.",
-  "unsubscribe.unsubscribe_button": "Unsubscribe"
-}

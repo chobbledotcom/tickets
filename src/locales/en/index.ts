@@ -3,12 +3,10 @@
  */
 
 import admin from "./admin.json" with { type: "json" };
-import attendeeBalance from "./attendee-balance.json" with { type: "json" };
-import attendeeDetail from "./attendee-detail.json" with { type: "json" };
-import attendeeForm from "./attendee-form.json" with { type: "json" };
-import attendeesList from "./attendees-list.json" with { type: "json" };
+import attendees from "./attendees.json" with { type: "json" };
 import backup from "./backup.json" with { type: "json" };
 import builder from "./builder.json" with { type: "json" };
+import builtSites from "./built-sites.json" with { type: "json" };
 import bulkActions from "./bulk-actions.json" with { type: "json" };
 import bulkEmail from "./bulk-email.json" with { type: "json" };
 import common from "./common.json" with { type: "json" };
@@ -27,8 +25,6 @@ import login from "./login.json" with { type: "json" };
 import nav from "./nav.json" with { type: "json" };
 import payment from "./payment.json" with { type: "json" };
 import publicMessages from "./public.json" with { type: "json" };
-import publicBalance from "./public-balance.json" with { type: "json" };
-import publicRenewal from "./public-renewal.json" with { type: "json" };
 import questions from "./questions.json" with { type: "json" };
 import settings from "./settings.json" with { type: "json" };
 import setup from "./setup.json" with { type: "json" };
@@ -37,17 +33,15 @@ import statuses from "./statuses.json" with { type: "json" };
 import support from "./support.json" with { type: "json" };
 import terms from "./terms.json" with { type: "json" };
 import tickets from "./tickets.json" with { type: "json" };
-import unsubscribe from "./unsubscribe.json" with { type: "json" };
+import update from "./update.json" with { type: "json" };
 import users from "./users.json" with { type: "json" };
 
 const en: Record<string, string> = {
   ...admin,
-  ...attendeeBalance,
-  ...attendeeDetail,
-  ...attendeeForm,
-  ...attendeesList,
+  ...attendees,
   ...backup,
   ...builder,
+  ...builtSites,
   ...bulkActions,
   ...bulkEmail,
   ...common,
@@ -66,17 +60,15 @@ const en: Record<string, string> = {
   ...nav,
   ...payment,
   ...publicMessages,
-  ...publicBalance,
-  ...publicRenewal,
   ...questions,
   ...settings,
   ...setup,
   ...site,
   ...statuses,
   ...support,
-  ...tickets,
   ...terms,
-  ...unsubscribe,
+  ...tickets,
+  ...update,
   ...users,
 };
 
