@@ -50,6 +50,12 @@ export type ModifierSpec = {
 /** Compact booking item stored in session metadata (serialized/deserialized as JSON) */
 export type BookingItem = { e: number; q: number; p: number };
 
+/** Compact modifier reference stored in session metadata: the modifier id and
+ * the quantity taken. The webhook re-fetches the modifier by id and re-derives
+ * its amount from the current database — provider metadata amounts are never
+ * trusted. */
+export type ModifierRef = { i: number; q: number };
+
 /** Processed booking intent extracted from payment session metadata */
 export type BookingIntent = ContactInfo & {
   date: string | null;
@@ -57,6 +63,9 @@ export type BookingIntent = ContactInfo & {
    * the checkout). Absent when no selected listing is customisable. */
   dayCount?: number;
   items: BookingItem[];
+  /** Modifier references applied to this checkout, re-derived in the webhook.
+   * Always present (an empty array when none applied), parsed from metadata. */
+  modifiers: ModifierRef[];
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
   /** HMAC index of the site renewal token. The plain token never reaches the
@@ -137,6 +146,8 @@ export type SessionMetadata = {
   balance_attendee_id: string;
   /** Reservation-amount snapshot when the items are deposit-priced ("" if not). */
   reservation_amount: string;
+  /** JSON array of applied modifier references ("" when none applied). */
+  modifiers: string;
 };
 
 /** Schema for valid payment status values. "failed" is a terminal non-payment

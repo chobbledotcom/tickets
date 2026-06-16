@@ -18,6 +18,7 @@ import type {
   BookingItem,
   CheckoutIntent,
   CheckoutSessionResult,
+  ModifierRef,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -186,10 +187,19 @@ export const buildItemsMetadata = async (
   buildMetadata({
     ...intent,
     items: toBookingItems(intent.items),
+    modifiers: toModifierRefs(intent.modifiers),
     siteTokenIndex: intent.siteToken
       ? await hmacHash(intent.siteToken)
       : undefined,
   });
+
+/** Compact the resolved modifier specs to id/quantity references for metadata. */
+export const toModifierRefs = (
+  specs: CheckoutIntent["modifiers"],
+): ModifierRef[] | undefined =>
+  specs && specs.length > 0
+    ? specs.map((s) => ({ i: s.id, q: s.quantity }))
+    : undefined;
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
 type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
@@ -204,6 +214,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "siteTokenIndex"
       | "balanceAttendeeId"
       | "reservationAmount"
+      | "modifiers"
     >
   >;
 
@@ -225,6 +236,9 @@ export const buildMetadata = (
     : {}),
   ...(intent.reservationAmount
     ? { reservation_amount: intent.reservationAmount }
+    : {}),
+  ...(intent.modifiers?.length
+    ? { modifiers: JSON.stringify(intent.modifiers) }
     : {}),
 });
 
@@ -322,6 +336,7 @@ export const extractSessionMetadata = (
   day_count: metadata.day_count || "",
   email: metadata.email || "",
   items: metadata.items || "",
+  modifiers: metadata.modifiers || "",
   name: metadata.name,
   phone: metadata.phone || "",
   reservation_amount: metadata.reservation_amount || "",

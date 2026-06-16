@@ -3,7 +3,12 @@
  */
 
 import * as v from "valibot";
-import type { CalcKind, ModifierDirection } from "#shared/price-modifier.ts";
+import type {
+  CalcKind,
+  ModifierDirection,
+  ModifierScope,
+  ModifierTrigger,
+} from "#shared/price-modifier.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -387,6 +392,11 @@ export interface Modifier {
   calc_kind: CalcKind;
   calc_value: number;
   direction: ModifierDirection;
+  active: boolean;
+  trigger: ModifierTrigger;
+  scope: ModifierScope;
+  /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
+  min_subtotal: number;
 }
 
 export interface ListingWithCount extends Listing {

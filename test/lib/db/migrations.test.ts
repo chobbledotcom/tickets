@@ -883,7 +883,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-16_logistics_agents",
         "2026-06-16_modifiers",
       ],
-      schemaHash: "10es1sd",
+      schemaHash: "xt1pap",
     });
   });
 });

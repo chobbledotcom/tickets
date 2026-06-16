@@ -13,11 +13,15 @@ import { setTestEnv, setupTestEncryptionKey } from "#test-utils";
 const SESSION = { adminLevel: "owner" as const };
 
 const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
+  active: true,
   calc_kind: "percent",
   calc_value: 10,
   direction: "discount",
   id: 1,
+  min_subtotal: 0,
   name: "Early bird",
+  scope: "all",
+  trigger: "automatic",
   ...overrides,
 });
 

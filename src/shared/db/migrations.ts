@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons)";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -403,6 +403,68 @@ const SCHEMA: [name: string, table: Table][] = [
         ["calc_kind", "TEXT NOT NULL"],
         ["calc_value", "REAL NOT NULL"],
         ["direction", "TEXT NOT NULL"],
+        ["active", "INTEGER NOT NULL DEFAULT 1"],
+        ["trigger", "TEXT NOT NULL DEFAULT 'automatic'"],
+        ["code_index", "TEXT"],
+        ["scope", "TEXT NOT NULL DEFAULT 'all'"],
+        ["stock", "INTEGER"],
+        ["max_per_order", "INTEGER"],
+        ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
+    },
+  ],
+
+  [
+    "modifier_listings",
+    {
+      columns: [
+        ["modifier_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["modifier_id", "listing_id"],
+          name: "idx_modifier_listings_pair",
+          unique: true,
+        },
+        { columns: ["listing_id"], name: "idx_modifier_listings_listing" },
+      ],
+    },
+  ],
+
+  [
+    "modifier_groups",
+    {
+      columns: [
+        ["modifier_id", "INTEGER NOT NULL"],
+        ["group_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["modifier_id", "group_id"],
+          name: "idx_modifier_groups_pair",
+          unique: true,
+        },
+        { columns: ["group_id"], name: "idx_modifier_groups_group" },
+      ],
+    },
+  ],
+
+  [
+    "modifier_usages",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["modifier_id", "INTEGER NOT NULL"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["quantity", "INTEGER NOT NULL"],
+        ["amount_applied", "INTEGER NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        { columns: ["modifier_id"], name: "idx_modifier_usages_modifier" },
+        { columns: ["attendee_id"], name: "idx_modifier_usages_attendee" },
       ],
     },
   ],
@@ -1069,7 +1131,7 @@ const MIGRATIONS: Migration[] = [
   },
   {
     description:
-      "Add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons)",
+      "Add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), plus modifier_listings, modifier_groups and modifier_usages for scoping and stock",
     id: "2026-06-16_modifiers",
     up: async () => {
       await applySchemaChanges();

@@ -24,6 +24,14 @@ export type CalcKind = v.InferOutput<typeof CalcKindSchema>;
 export const ModifierDirectionSchema = v.picklist(["charge", "discount"]);
 export type ModifierDirection = v.InferOutput<typeof ModifierDirectionSchema>;
 
+/** How a modifier becomes part of a checkout: applied automatically, unlocked
+ * by a promo code, or an opt-in add-on the buyer chooses. */
+export type ModifierTrigger = "automatic" | "code" | "optional";
+
+/** Which cart items a modifier is charged on: the whole order, specific
+ * listings, or every listing in specific groups. */
+export type ModifierScope = "all" | "listings" | "groups";
+
 /** Type guard: is the string a valid calc kind? */
 export const isCalcKind = (value: string): value is CalcKind =>
   v.is(CalcKindSchema, value);

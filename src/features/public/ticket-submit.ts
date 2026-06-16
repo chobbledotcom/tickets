@@ -8,6 +8,7 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import {
   groupListingAnswers,
   parseQuestionAnswers,
@@ -212,6 +213,9 @@ const handlePaidPath = async (
     );
   }
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
+  // Modifiers apply only to full-payment orders for now; reservations (deposits)
+  // compose with modifiers in a later step.
+  const modifiers = reservationAmount ? [] : await resolveModifiers(items);
   const intent = {
     ...contact,
     date,
@@ -223,6 +227,7 @@ const handlePaidPath = async (
     ...(hasCustomisable ? { dayCount } : {}),
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
     ...(reservationAmount ? { reservationAmount } : {}),
+    ...(modifiers.length > 0 ? { modifiers } : {}),
   };
   return handlePaymentFlow(request, intent, ctx);
 };

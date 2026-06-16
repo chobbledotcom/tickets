@@ -8,6 +8,7 @@ import {
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
@@ -221,6 +222,45 @@ describeWithEnv(
         expect([302, 303]).toContain(response.status);
         // The seeded default is a full-payment status, so no deposit snapshot.
         expect(captured?.reservationAmount).toBeUndefined();
+      } finally {
+        checkout.restore();
+      }
+    });
+
+    test("carries resolved modifiers into a full-payment checkout", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Service charge",
+      });
+      let captured: CheckoutIntent | undefined;
+      const checkout = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: CheckoutIntent) => {
+          captured = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.example/checkout",
+            sessionId: "cs_test",
+          });
+        },
+      );
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          [`quantity_${listing.id}`]: "1",
+          email: "buyer@example.com",
+          name: "Buyer",
+        });
+        expect([302, 303]).toContain(response.status);
+        expect(captured?.modifiers).toHaveLength(1);
+        expect(captured?.modifiers?.[0]?.value).toBe(10);
       } finally {
         checkout.restore();
       }

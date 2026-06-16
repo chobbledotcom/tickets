@@ -161,6 +161,7 @@ export const webhookMeta = (
   day_count: "",
   email: "",
   items: "",
+  modifiers: "",
   phone: "",
   reservation_amount: "",
   site_token_index: "",
