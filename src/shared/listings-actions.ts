@@ -5,6 +5,7 @@
  * so that the route handlers remain thin response formatters.
  */
 
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
@@ -105,7 +106,7 @@ export const validateListingInput = async (
 ): Promise<string | null> => {
   if (existingId !== undefined) {
     const taken = await isSlugTaken(input.slug, existingId);
-    if (taken) return "Slug is already in use by another listing";
+    if (taken) return t("error.slug_in_use");
   }
   if (input.canPayMore) {
     const maxPriceError = validateMaxPrice(input);

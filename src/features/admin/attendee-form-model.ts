@@ -13,6 +13,7 @@
  */
 
 import { filter, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
   addDays,
@@ -323,7 +324,7 @@ const validateAttendeeBlock = (
   parsed: ParsedAttendeeForm,
 ): AttendeeFieldError | null => {
   if (!parsed.name.trim()) {
-    return { field: "name", message: "Name is required" };
+    return { field: "name", message: t("error.name_required") };
   }
   // Email and phone are optional on this form, but a provided value must be
   // well-formed. The browser enforces this via type=email / pattern, so only a

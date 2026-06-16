@@ -3,6 +3,7 @@
  * Access is strictly restricted to demo mode (DEMO_MODE=true).
  */
 
+import { t } from "#i18n";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -70,7 +71,7 @@ const resetRoute = createFormRoute({
       await deleteAllListingStorageFiles(await getAllListings());
     }
     await resetDatabase();
-    return redirect("/setup/", "Database reset", true, {
+    return redirect("/setup/", t("success.database_reset"), true, {
       cookie: clearSessionCookie(),
     });
   },

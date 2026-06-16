@@ -2,6 +2,7 @@
  * Admin API key management routes
  */
 
+import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
@@ -72,7 +73,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
     execute: async (session, form) => {
       const name = form.getString("name");
       if (!name) {
-        throw new Error("Name is required");
+        throw new Error(t("error.name_required"));
       }
       if (name.length > 100) {
         throw new Error("Name must be under 100 characters");

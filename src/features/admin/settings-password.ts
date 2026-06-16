@@ -3,6 +3,7 @@
  * Owner-only access enforced via settingsRoute.
  */
 
+import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -39,12 +40,12 @@ const validateChangePasswordForm = (
 
   if (new_password.length < 8) {
     return {
-      error: "New password must be at least 8 characters",
+      error: t("error.new_password_min"),
       valid: false,
     };
   }
   if (new_password !== new_password_confirm) {
-    return { error: "New passwords do not match", valid: false };
+    return { error: t("error.new_passwords_mismatch"), valid: false };
   }
 
   return {
@@ -73,7 +74,7 @@ export const handleAdminSettingsPost = settingsRoute(
     );
     if (!passwordHash) {
       return errorPage(
-        "Current password is incorrect",
+        t("error.current_password_incorrect"),
         401,
         "settings-password",
       );
@@ -86,11 +87,15 @@ export const handleAdminSettingsPost = settingsRoute(
       validation.newPassword,
     );
     if (!success) {
-      return errorPage("Failed to update password", 500, "settings-password");
+      return errorPage(
+        t("error.password_update_failed"),
+        500,
+        "settings-password",
+      );
     }
 
     await logActivity("Password changed");
-    return ok("/admin", "Password changed — please log in again", {
+    return ok("/admin", t("success.password_changed"), {
       cookie: clearSessionCookie(),
     });
   },

@@ -3,6 +3,7 @@
  */
 
 import { compact, filter, map, pipe, sort, unique } from "#fp";
+import { t } from "#i18n";
 import {
   csvResponse,
   getDateFilter,
@@ -404,7 +405,7 @@ const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       formData,
       result.row.id,
       "/admin",
-      "Listing created",
+      t("success.listing_created"),
     );
   });
 
@@ -747,7 +748,7 @@ const listingDelete = createConfirmedHandlers<ListingWithCount>({
   path: "/admin/listing/:id/delete",
   render: (listing, session, error) =>
     adminDeleteListingPage(listing, session, error),
-  successMessage: "Listing deleted",
+  successMessage: t("success.listing_deleted"),
   successRedirect: "/admin",
 });
 
@@ -772,7 +773,7 @@ const handleAdminListingDelete: TypedRouteHandler<
     : withAuth(request, AUTH_FORM, () =>
         withEntityFromParam(id, getListingWithCount, async (listing) => {
           await performListingDelete(listing);
-          return redirect("/admin", "Listing deleted", true);
+          return redirect("/admin", t("success.listing_deleted"), true);
         }),
       );
 
